@@ -29,17 +29,18 @@ pub enum GitError {
 }
 
 impl GitError {
+    /// camelCase discriminator used in the IPC error shape `{ kind, message }`.
     pub fn kind(&self) -> &'static str {
         match self {
-            GitError::Git2(_) => "git2",
+            GitError::Git2(_) => "git",
             GitError::Io(_) => "io",
             GitError::Cli { .. } => "cli",
-            GitError::NotARepo(_) => "not_a_repo",
-            GitError::GitNotFound => "git_not_found",
-            GitError::IndexLocked => "index_locked",
+            GitError::NotARepo(_) => "notARepo",
+            GitError::GitNotFound => "gitNotFound",
+            GitError::IndexLocked => "indexLocked",
             GitError::Cancelled => "cancelled",
             GitError::Conflicts(_) => "conflicts",
-            GitError::InvalidPatch => "invalid_patch",
+            GitError::InvalidPatch => "invalidPatch",
         }
     }
 }

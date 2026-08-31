@@ -1,6 +1,13 @@
+pub mod commit;
 pub mod error;
+pub mod log;
+pub mod refs;
+pub mod repo;
+#[cfg(any(test, feature = "test-util"))]
+pub mod test_util;
 
 pub use error::GitError;
+pub use repo::{map_git2, RepoHandle, RepoId};
 
 use std::process::Command;
 

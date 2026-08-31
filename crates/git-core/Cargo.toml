@@ -3,11 +3,19 @@ name = "git-core"
 version.workspace = true
 edition.workspace = true
 
+[features]
+# Exposes `git_core::test_util` (TempRepo builder) to integration tests / downstream crates.
+test-util = ["dep:tempfile"]
+
 [dependencies]
 git2 = { version = "0.21", default-features = false, features = ["vendored-libgit2"] }
 thiserror.workspace = true
 serde.workspace = true
 tracing.workspace = true
+parking_lot = "0.12"
+tempfile = { version = "3", optional = true }
 
 [dev-dependencies]
 tempfile = "3"
+serde_json = "1"
+git-core = { path = ".", features = ["test-util"] }

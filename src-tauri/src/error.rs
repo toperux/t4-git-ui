@@ -11,12 +11,6 @@ pub enum AppError {
     Internal(String),
 }
 
-impl From<tauri::Error> for AppError {
-    fn from(e: tauri::Error) -> Self {
-        AppError::Internal(e.to_string())
-    }
-}
-
 impl Serialize for AppError {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeStruct;
