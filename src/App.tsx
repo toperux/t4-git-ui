@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { onLogProgress, onOpEvent, onRepoChanged } from "./api/events";
 import { probeGit, toAppError } from "./api/ipc";
+import { BusyOverlay } from "./components/ui/BusyOverlay/BusyOverlay";
 import { Spinner } from "./components/ui/Spinner/Spinner";
+import { keepsNativeMenu } from "./lib/nativeMenu";
 import { GitMissingScreen } from "./screens/GitMissingScreen/GitMissingScreen";
 import { closeRepo } from "./screens/RepoWindow/actions";
 import { RepoWindow } from "./screens/RepoWindow/RepoWindow";
@@ -16,6 +18,7 @@ type Phase = { kind: "probing" } | { kind: "gitMissing"; message: string } | { k
 export default function App() {
   const [phase, setPhase] = useState<Phase>({ kind: "probing" });
   const hasRepo = useRepoStore((st) => st.repo !== null);
+  const opening = useRepoStore((st) => st.opening);
 
   const probe = useCallback(async () => {
     setPhase({ kind: "probing" });
@@ -64,21 +67,36 @@ export default function App() {
       e.preventDefault();
       closeRepo();
     }
+    // Runs after the app's own context menus (they preventDefault on the way up); see keepsNativeMenu.
+    function onContextMenu(e: MouseEvent) {
+      const sel = window.getSelection();
+      if (!keepsNativeMenu(e.target, !!sel && !sel.isCollapsed)) e.preventDefault();
+    }
     window.addEventListener("keydown", onKey);
+    document.addEventListener("contextmenu", onContextMenu);
     return () => {
       unlisten.forEach((fn) => fn());
       unsubscribe();
       window.removeEventListener("keydown", onKey);
+      document.removeEventListener("contextmenu", onContextMenu);
     };
   }, []);
 
   if (phase.kind === "gitMissing") return <GitMissingScreen message={phase.message} onRetry={() => void probe()} />;
-  if (phase.kind === "probing") {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
-        <Spinner label="Starting" />
-      </div>
-    );
-  }
-  return hasRepo ? <RepoWindow /> : <StartScreen />;
+  return (
+    <>
+      {phase.kind === "probing" ? (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+          <Spinner label="Starting" />
+        </div>
+      ) : hasRepo ? (
+        <RepoWindow />
+      ) : (
+        <StartScreen />
+      )}
+      {/* One overlay covers every path into `openRepo`: the start screen (recents, Open, a finished
+          clone, init) and switching repositories from the toolbar menu. */}
+      {opening && <BusyOverlay label={`Opening ${opening}…`} />}
+    </>
+  );
 }

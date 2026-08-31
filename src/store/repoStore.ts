@@ -4,6 +4,7 @@ import { create } from "zustand";
 import * as ipc from "../api/ipc";
 import { toAppError } from "../api/ipc";
 import type { LogFilter, LogProgress, LogRow, RefsSnapshot, RepoSummary, RevSpec } from "../api/types";
+import { baseName } from "../lib/paths";
 import { toastError } from "./toastStore";
 
 export const PAGE_SIZE = 500;
@@ -21,6 +22,8 @@ export interface LogState {
 export interface RepoStore {
   gitVersion: string | null;
   repo: RepoSummary | null;
+  /** Name of the repository `openRepo` is working on (drives the blocking overlay); `null` when idle. */
+  opening: string | null;
   refs: RefsSnapshot | null;
   spec: RevSpec;
   filter: LogFilter;
@@ -144,6 +147,7 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
   return {
     gitVersion: null,
     repo: null,
+    opening: null,
     refs: null,
     spec: { kind: "all" },
     filter: {},
@@ -157,10 +161,15 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
     setGitVersion: (gitVersion) => set({ gitVersion }),
 
     async openRepo(path) {
-      const repo = await ipc.openRepo(path);
-      resetPages();
-      set({ repo, refs: null, log: EMPTY_LOG, rows: [], maxLane: 0, selectedIndex: null, wtSelected: false, reveal: null });
-      await Promise.all([get().refreshRefs(), get().startLog({ kind: "all" }, {})]);
+      set({ opening: baseName(path) });
+      try {
+        const repo = await ipc.openRepo(path);
+        resetPages();
+        set({ repo, refs: null, log: EMPTY_LOG, rows: [], maxLane: 0, selectedIndex: null, wtSelected: false, reveal: null });
+        await Promise.all([get().refreshRefs(), get().startLog({ kind: "all" }, {})]);
+      } finally {
+        set({ opening: null });
+      }
     },
 
     async closeRepo() {
@@ -263,6 +272,7 @@ export function __resetForTests() {
   useRepoStore.setState({
     gitVersion: null,
     repo: null,
+    opening: null,
     refs: null,
     spec: { kind: "all" },
     filter: {},

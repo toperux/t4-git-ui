@@ -61,6 +61,8 @@ src/
   assets/fonts/            InterVariable(.woff2, -Italic), JetBrainsMono[wght](.woff2, -Italic) + licenses
   lib/                     cx(), relativeDate()/absoluteDate(), multiSelect.ts (pure click/ctrl/shift/↑↓/Ctrl+A model),
                            keys.ts (mods(e) → {ctrl, shift} for the selection models),
+                           nativeMenu.ts (keepsNativeMenu: the webview's own context menu is suppressed app-wide from
+                           App.tsx, kept only in editable fields and on selected `.selectable` text),
                            msgHistory.ts (localStorage `msgHistory:<repoId>`, 20 entries; splitMessage/joinMessage, CRLF-safe),
                            kv.ts (store plugin `recents.json`, localStorage fallback; an unreadable value reads as absent),
                            paths.ts (baseName/parentDir/pathSep/joinPath/repoNameFromUrl/prettyUrl — the one path helper module),
@@ -73,6 +75,8 @@ src/
                            Checkbox, Kbd (the one shortcut-chip anatomy, used by MenuItem + StartScreen),
                            Input + Select (`<option>` children, `onChange` shaped like a native change; the list is
                            app-drawn and portalled — a native <select> popup is an OS window that ignores the theme),
+                           BusyOverlay (scrim + spinner card while repoStore.opening is set; rendered once in App.tsx
+                           so it covers the start screen and a toolbar-menu repo switch alike),
                            Menu/MenuItem/MenuSeparator (anchor + dropdown, Esc/outside click, ↑/↓, `kbd` hint, `align`)
                            + ContextMenu (portal at a viewport point, clamped), Toast + ToastStack,
                            Dialog (440 / `.wide` 560 over `--scrim`, portal, Esc closes, Enter submits, Tab trapped, focus

@@ -57,7 +57,8 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the performance che
 - [ ] `Ctrl+Shift+W` → back to start screen; restart → no auto-open, but the repo is in RECENT
 - [ ] Open a second repo → RECENT lists both, newest first
 - [ ] Pin the older one → it jumps to the top and stays pinned after a restart
-- [ ] Select a row, press `Delete` → removed from the list (the repo on disk is untouched)
+- [ ] Select a row, press `Delete` → removed from the list (the repo on disk is untouched); hovering
+      a row shows an `X` that does the same with the mouse
 - [ ] Type in the filter → list narrows; `↑`/`↓` then `Enter` opens the highlighted row
 - [ ] Rename a repo folder on disk, click its row → toast with a "Remove from list" action
 - [ ] `Ctrl+Shift+O` → clone dialog: paste `file:///C:/tmp/t4/bare.git` → the folder name is derived
@@ -79,6 +80,8 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the performance che
 - [ ] Restart with a repository open → it reopens and the grid shows **commits**, not rows of `—`
 - [ ] Toolbar repo button shows the open repository's name (full path as its tooltip); its menu opens
       the folder picker, lists the other recents (switching reloads the whole window) and closes the repo
+- [ ] Opening a repository that takes a moment (from the start screen or the repo menu) dims the
+      window behind an `Opening <name>…` card until it is ready; a fast open shows no flash
 - [ ] Drag the sidebar / grid / details / file-list splitters — each one moves, over a useful range
 - [ ] Ref chips come **before** the subject; the HEAD row shows a solid `HEAD` chip then the ringed
       current-branch chip; a branch that is in sync with its remote renders as **one** chip with a
@@ -94,6 +97,9 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the performance che
 - [ ] Branch scope select `All branches` → `HEAD` → re-walks
 - [ ] Right-click a commit row (or `Shift+F10`) → context menu with Checkout / Create branch here… /
       Create tag here… / Copy SHA
+- [ ] Right-click the toolbar, a panel header or the statusbar → **nothing** (no browser menu with
+      Reload / Save as / Print); right-click inside a text field still offers Cut / Copy / Paste, and
+      so does selected diff / commit-message / output-dock text
 
 ## 3. Commit details + diff (M2)
 

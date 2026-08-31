@@ -82,6 +82,13 @@ describe("StartScreen", () => {
     expect(useRecentsStore.getState().recents.find((r) => r.name === "rust")?.pinned).toBe(true);
   });
 
+  it("removes a row with the mouse (the X button), without opening it", () => {
+    const { getAllByRole } = render(<StartScreen />);
+    fireEvent.click(getAllByRole("button", { name: "Remove from list" })[1]);
+    expect(useRecentsStore.getState().recents.map((r) => r.name)).toEqual(["t4-git-ui", "dotfiles"]);
+    expect(ipc.openRepo).not.toHaveBeenCalled();
+  });
+
   it("filter narrows the list from the input; Delete removes the selected row", () => {
     const { getByRole, getAllByRole, queryAllByRole } = render(<StartScreen />);
     const input = getByRole("textbox", { name: "Filter repositories" });

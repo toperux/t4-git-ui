@@ -263,6 +263,24 @@ describe("repoStore paging", () => {
     expect(mocked.getLogPage).not.toHaveBeenCalled();
   });
 
+  it("exposes `opening` for the whole open, and clears it on failure", async () => {
+    let resolveOpen!: (r: RepoSummary) => void;
+    (ipc.openRepo as ReturnType<typeof vi.fn>).mockImplementation(() => new Promise((r) => (resolveOpen = r)));
+    mocked.getRefs.mockResolvedValue({ local: [], remotes: [], tags: [], stashes: [] });
+    mocked.startLog.mockResolvedValue(1);
+    mocked.getLogPage.mockResolvedValue(page(1, 0, 1, 1));
+
+    const open = useRepoStore.getState().openRepo("c:\\big\\repo");
+    expect(useRepoStore.getState().opening).toBe("repo");
+    resolveOpen(REPO);
+    await open;
+    expect(useRepoStore.getState().opening).toBeNull();
+
+    (ipc.openRepo as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("nope"));
+    await expect(useRepoStore.getState().openRepo("c:\\bad")).rejects.toThrow();
+    expect(useRepoStore.getState().opening).toBeNull();
+  });
+
   it("ignores progress for another generation", () => {
     useRepoStore.setState({ log: { generation: 3, total: 5, complete: false, error: null, flat: false } });
     useRepoStore.getState().onProgress({ repoId: REPO.id, generation: 2, total: 99, complete: true, error: null });

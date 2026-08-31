@@ -1,6 +1,6 @@
 import { homeDir } from "@tauri-apps/api/path";
 import { open } from "@tauri-apps/plugin-dialog";
-import { CircleCheck, Cloud, Folder, GitBranch, Pin, Plus, Search, Settings } from "lucide-react";
+import { CircleCheck, Cloud, Folder, GitBranch, Pin, Plus, Search, Settings, X } from "lucide-react";
 import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
 import { initRepo } from "../../api/appIpc";
 import { toAppError } from "../../api/ipc";
@@ -241,6 +241,17 @@ export function StartScreen() {
                       }}
                     >
                       <Pin size={16} fill={r.pinned ? "currentColor" : "none"} aria-hidden />
+                    </IconButton>
+                    <IconButton
+                      label="Remove from list"
+                      className={s.pin}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        remove(r.path);
+                      }}
+                    >
+                      <X size={16} aria-hidden />
                     </IconButton>
                   </div>
                 ))

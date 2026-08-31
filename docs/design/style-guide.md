@@ -71,7 +71,7 @@ One file per row. States are CSS classes on the reference sheet (`is-hover` etc.
 | `AheadBehind` | 12px arrow icons + tabular xs, muted |
 | `StatusGlyph` | 16×16 mono xs 600 letter (A M D R U C), colored per `--status-*`; C on `--danger-soft` |
 | `Tooltip` | inverted (`--fg` bg, `--bg-panel` text), 12px, pad 4/8, radius sm, `--shadow-1`, shortcut kbd(s) at right on `--kbd-on-dark-bg`. 500ms delay |
-| `Menu` / `ContextMenu` | 220px, pad 4, `--bg-elevated` + shadow-1, radius lg. Items 26px radius sm, icon 16 muted, kbd right; hover = accent bg + white text; separators 1px; destructive item last, `--danger-text` |
+| `Menu` / `ContextMenu` | 220px, pad 4, `--bg-elevated` + shadow-1, radius lg. Items 26px radius sm, icon 16 muted, kbd right; hover = accent bg + white text; separators 1px; destructive item last, `--danger-text`. Right-click anywhere without a `ContextMenu` shows **nothing** — the webview's own menu is suppressed app-wide (`lib/nativeMenu.ts`), except in editable fields and on selected `.selectable` text, where it is the only mouse route to the clipboard |
 | `Kbd` | 16px, 10px 500, `--bg-inset` + border, radius sm. Ctrl/Shift on Win+Linux, ⌘/⇧ on macOS |
 | `Dialog` | 440px (forms) / 560px (output-bearing), `--bg-elevated` + shadow-2, radius lg. Title 44px 14/600 + close IconButton; body pad 16 gap 12; footer pad 12/16, buttons right, primary last. Esc closes, Enter submits |
 | `Field` | label sm 500 muted, control, help xs muted |
@@ -83,6 +83,7 @@ One file per row. States are CSS classes on the reference sheet (`is-hover` etc.
 | `Banner` | 32px full-width at top of content, `*-soft` bg, icon 14 semantic, sm text, `sm` buttons right. Used for merge/rebase in progress, conflicts, detached HEAD |
 | `Progress` | 4px pill; indeterminate = 30% sweeping. 3px when attached to a dock |
 | `Spinner` | 14px, 2px, accent top arc |
+| `BusyOverlay` | Full-window `--scrim` + centered `--bg-elevated` card (Spinner + text), shown for a blocking wait (opening a repository); appears after 150ms so fast opens never flash it |
 | `EmptyState` | icon 24 muted, title 500, one-line sm hint, optional single secondary button |
 
 ## 4. Domain rules
