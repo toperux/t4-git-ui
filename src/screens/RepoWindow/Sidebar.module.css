@@ -1,0 +1,19 @@
+/* screens.mjs sidebar(): --bg-app, border-right, padding 4px 0 */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  padding: var(--space-2) 0;
+  background: var(--bg-app);
+  border-right: 1px solid var(--border);
+  overflow: auto;
+}
+.empty {
+  padding: var(--space-7) var(--space-5);
+  flex: none;
+}
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--mono-size);
+}

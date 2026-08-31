@@ -1,0 +1,83 @@
+/* base.css .input */
+.input {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  white-space: nowrap;
+  height: var(--control-h);
+  padding: 0 var(--space-4);
+  background: var(--bg-inset);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--fg);
+  font: inherit;
+  transition:
+    background-color var(--dur) var(--ease),
+    border-color var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease);
+}
+.input:hover {
+  border-color: var(--border-strong);
+}
+.input:focus-within {
+  background: var(--bg-panel);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.invalid,
+.invalid:focus-within {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px var(--danger-soft);
+}
+.icon {
+  display: inline-flex;
+  color: var(--fg-muted);
+  flex: none;
+}
+.field {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  outline: none;
+  cursor: text;
+  user-select: text;
+}
+.field:focus-visible {
+  box-shadow: none;
+}
+.field::placeholder {
+  color: var(--fg-faint);
+}
+.field:disabled {
+  opacity: 0.5;
+}
+
+/* Select: input anatomy + chevron; min-width 160 */
+.select {
+  position: relative;
+  justify-content: space-between;
+  min-width: 160px;
+}
+.selectField {
+  composes: field;
+  appearance: none;
+  cursor: default;
+  user-select: none;
+  padding-right: 18px;
+}
+.selectField option {
+  background: var(--bg-elevated);
+  color: var(--fg);
+}
+.chevron {
+  position: absolute;
+  right: var(--space-4);
+  display: inline-flex;
+  color: var(--fg-muted);
+  pointer-events: none;
+}

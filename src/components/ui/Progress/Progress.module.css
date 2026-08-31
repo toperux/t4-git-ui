@@ -1,0 +1,38 @@
+/* base.css .progress: 4px pill; indeterminate = 30% sweeping; 3px when attached to a dock/header */
+.progress {
+  position: relative;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-inset);
+  overflow: hidden;
+  flex: none;
+}
+.thin {
+  height: 3px;
+  border-radius: 0;
+}
+.bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 30%;
+  background: var(--accent);
+  border-radius: var(--radius-pill);
+  animation: sweep 1.2s var(--ease) infinite;
+}
+@keyframes sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(333%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bar {
+    animation: none;
+    width: 100%;
+    opacity: 0.5;
+  }
+}

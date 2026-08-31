@@ -1,0 +1,45 @@
+/* base.css .tb-btn / .tb-sep */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--control-h);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  cursor: default;
+  transition: background-color var(--dur) var(--ease);
+}
+.btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+.btn:active:not(:disabled) {
+  background: var(--bg-active);
+}
+.btn:disabled {
+  opacity: 0.45;
+}
+.icon {
+  display: inline-flex;
+  color: var(--fg-muted);
+}
+.btn:hover:not(:disabled) .icon {
+  color: var(--fg);
+}
+.cnt {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+.sep {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+  margin: 0 var(--space-3);
+  flex: none;
+}

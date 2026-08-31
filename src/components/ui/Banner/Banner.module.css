@@ -1,0 +1,35 @@
+/* base.css .banner: 32px full-width at top of content */
+.banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: 32px;
+  padding: 0 var(--space-5);
+  font-size: var(--text-sm);
+  line-height: var(--lh-sm);
+  color: var(--fg);
+  flex: none;
+}
+.warning {
+  background: var(--warning-soft);
+}
+.warning .icon {
+  color: var(--warning);
+}
+.danger {
+  background: var(--danger-soft);
+}
+.danger .icon {
+  color: var(--danger-text);
+}
+.icon {
+  display: inline-flex;
+  flex: none;
+}
+.text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

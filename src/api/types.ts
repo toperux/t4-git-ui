@@ -1,0 +1,187 @@
+// Mirrors the Rust IPC contract (serde, all camelCase). Keep in sync with:
+//   crates/git-core/src/log/types.rs, refs.rs, commit.rs, error.rs
+//   src-tauri/src/commands/repo.rs, src-tauri/src/error.rs
+
+/** `git_core::RepoId` — serde(transparent) newtype over the canonical workdir path. */
+export type RepoId = string;
+
+export type AppErrorKind =
+  | "git"
+  | "io"
+  | "cli"
+  | "notARepo"
+  | "gitNotFound"
+  | "indexLocked"
+  | "cancelled"
+  | "conflicts"
+  | "invalidPatch"
+  | "internal"
+  | "unknown";
+
+export interface AppError {
+  kind: AppErrorKind | string;
+  message: string;
+}
+
+// --- log/types.rs ---
+
+/** Times are unix seconds (UTC). */
+export interface CommitInfo {
+  /** Full 40-hex oid. */
+  oid: string;
+  /** First 7 hex chars. */
+  short: string;
+  summary: string;
+  authorName: string;
+  authorEmail: string;
+  authorTime: number;
+  committerTime: number;
+  parents: string[];
+  isMerge: boolean;
+}
+
+/**
+ * - `branch`: leaves the node (row center, x = `lane`) and exits the bottom edge at `to` (`from` == `lane`).
+ * - `merge`: enters the top edge at `from` and ends at the node (`to` == `lane`).
+ * - `straight`: pass-through, top edge `from` → bottom edge `to`, never touches the node.
+ */
+export type LineKind = "branch" | "merge" | "straight";
+
+export interface GraphLine {
+  /** Column at the top edge of the row. */
+  from: number;
+  /** Column at the bottom edge of the row. */
+  to: number;
+  /** Index into the 8-entry lane palette. */
+  color: number;
+  kind: LineKind;
+}
+
+export interface GraphRow {
+  commit: CommitInfo;
+  lane: number;
+  color: number;
+  lines: GraphLine[];
+  /** Highest column index touched by this row. */
+  maxLane: number;
+}
+
+export type RefKind = "head" | "local" | "remote" | "tag" | "stash";
+
+export interface RefLabel {
+  /** Short name (`main`, `origin/main`, `v1.0`, `stash@{0}`, `HEAD`). */
+  name: string;
+  kind: RefKind;
+  /** `true` for the checked-out local branch (no separate `head` label then). */
+  isCurrent: boolean;
+  /** Local label only: remote whose tracking branch sits at the same commit (synced chip). */
+  remote: string | null;
+}
+
+export interface LogRow {
+  row: GraphRow;
+  labels: RefLabel[];
+}
+
+/** `#[serde(tag = "kind", content = "refs")]` */
+export type RevSpec = { kind: "all" } | { kind: "head" } | { kind: "refs"; refs: string[] };
+
+/** Only `text` is implemented; `author` / `path` are accepted but ignored. */
+export interface LogFilter {
+  text?: string | null;
+  author?: string | null;
+  path?: string | null;
+}
+
+// --- refs.rs ---
+
+export interface HeadInfo {
+  /** `null` when HEAD is unborn (empty repository). */
+  oid: string | null;
+  /** Short branch name when HEAD is symbolic. */
+  branch: string | null;
+  detached: boolean;
+}
+
+export interface Branch {
+  name: string;
+  oid: string;
+  /** Short name of the configured tracking branch (`origin/main`). */
+  upstream: string | null;
+  /** `upstream` is configured but its ref no longer resolves. */
+  gone: boolean;
+  ahead: number;
+  behind: number;
+  isHead: boolean;
+}
+
+export interface RemoteBranch {
+  /** Short name including the remote (`origin/main`). */
+  name: string;
+  oid: string;
+}
+
+export interface Remote {
+  name: string;
+  url: string | null;
+  branches: RemoteBranch[];
+}
+
+export interface Tag {
+  name: string;
+  /** Peeled to the tagged commit. */
+  oid: string;
+}
+
+export interface Stash {
+  index: number;
+  oid: string;
+  message: string;
+}
+
+export type RepoState = "clean" | "merge" | "rebase" | "cherryPick" | "revert" | "bisect";
+
+export interface RefsSnapshot {
+  head: HeadInfo;
+  state: RepoState;
+  local: Branch[];
+  remotes: Remote[];
+  tags: Tag[];
+  stashes: Stash[];
+}
+
+// --- commit.rs ---
+
+export interface CommitDetail {
+  info: CommitInfo;
+  /** Full commit message (summary + body). */
+  message: string;
+  committerName: string;
+  committerEmail: string;
+}
+
+// --- src-tauri/src/commands/repo.rs ---
+
+export interface RepoSummary {
+  id: RepoId;
+  /** Directory name of the working directory. */
+  name: string;
+  path: string;
+  head: HeadInfo;
+}
+
+export interface LogPage {
+  rows: LogRow[];
+  total: number;
+  complete: boolean;
+  generation: number;
+}
+
+/** Payload of the `log://progress` event. */
+export interface LogProgress {
+  repoId: RepoId;
+  generation: number;
+  total: number;
+  complete: boolean;
+  error: string | null;
+}

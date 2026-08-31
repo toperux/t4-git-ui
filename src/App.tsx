@@ -1,26 +1,65 @@
-import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useCallback, useEffect, useState } from "react";
+import { onLogProgress } from "./api/events";
+import { probeGit, toAppError } from "./api/ipc";
+import { Spinner } from "./components/ui/Spinner/Spinner";
+import { GitMissingScreen } from "./screens/GitMissingScreen/GitMissingScreen";
+import { RepoWindow } from "./screens/RepoWindow/RepoWindow";
+import { StartScreen } from "./screens/StartScreen/StartScreen";
+import { useRepoStore } from "./store/repoStore";
 
-type AppError = { kind: string; message: string };
+/** localStorage key for the last opened repository path (the store plugin replaces this in M5). */
+const LAST_REPO_KEY = "lastRepo";
 
-function toAppError(e: unknown): AppError {
-  if (typeof e === "object" && e !== null && "kind" in e && "message" in e) {
-    return e as AppError;
-  }
-  return { kind: "unknown", message: String(e) };
-}
+type Phase = { kind: "probing" } | { kind: "gitMissing"; message: string } | { kind: "ready" };
 
 export default function App() {
-  const [text, setText] = useState("probing git...");
+  const [phase, setPhase] = useState<Phase>({ kind: "probing" });
+  const hasRepo = useRepoStore((st) => st.repo !== null);
 
-  useEffect(() => {
-    invoke<string>("probe_git")
-      .then(setText)
-      .catch((e: unknown) => {
-        const err = toAppError(e);
-        setText(`error (${err.kind}): ${err.message}`);
-      });
+  const probe = useCallback(async () => {
+    setPhase({ kind: "probing" });
+    try {
+      useRepoStore.getState().setGitVersion(await probeGit());
+    } catch (e) {
+      setPhase({ kind: "gitMissing", message: toAppError(e).message });
+      return;
+    }
+    // Reopen the last repository; any failure just lands on the start screen.
+    const last = localStorage.getItem(LAST_REPO_KEY);
+    if (last) {
+      try {
+        await useRepoStore.getState().openRepo(last);
+      } catch {
+        localStorage.removeItem(LAST_REPO_KEY);
+      }
+    }
+    setPhase({ kind: "ready" });
   }, []);
 
-  return <div style={{ padding: "var(--space-6)" }}>{text}</div>;
+  useEffect(() => {
+    void probe();
+  }, [probe]);
+
+  useEffect(() => {
+    const unlisten = onLogProgress((p) => useRepoStore.getState().onProgress(p));
+    const unsubscribe = useRepoStore.subscribe((st, prev) => {
+      if (st.repo === prev.repo) return;
+      if (st.repo) localStorage.setItem(LAST_REPO_KEY, st.repo.path);
+      else localStorage.removeItem(LAST_REPO_KEY);
+    });
+    return () => {
+      unlisten();
+      unsubscribe();
+    };
+  }, []);
+
+  if (phase.kind === "gitMissing") return <GitMissingScreen message={phase.message} onRetry={() => void probe()} />;
+  if (phase.kind === "probing") {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+        <Spinner label="Starting" />
+      </div>
+    );
+  }
+  return hasRepo ? <RepoWindow /> : <StartScreen />;
 }

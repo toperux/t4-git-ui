@@ -1,0 +1,50 @@
+/* base.css .section-header */
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  height: var(--section-h);
+  padding: 0 var(--space-4);
+  border: 0;
+  background: transparent;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: default;
+  flex: none;
+  transition:
+    background-color var(--dur) var(--ease),
+    color var(--dur) var(--ease);
+}
+.header:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.header:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.tw {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-muted);
+  flex: none;
+}
+.header:hover .tw {
+  color: var(--fg);
+}
+.title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

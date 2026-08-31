@@ -1,0 +1,25 @@
+/* base.css .empty */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-9);
+  text-align: center;
+  color: var(--fg-muted);
+  flex: 1;
+  min-height: 0;
+}
+.icon {
+  display: inline-flex;
+  color: var(--fg-muted);
+}
+.title {
+  color: var(--fg);
+  font-weight: var(--weight-medium);
+}
+.hint {
+  font-size: var(--text-sm);
+  line-height: var(--lh-sm);
+}

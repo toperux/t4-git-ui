@@ -1,0 +1,77 @@
+/* base.css .row + .tree .row / .tw */
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  height: var(--row-h);
+  padding: 0 var(--space-4);
+  padding-left: calc(var(--space-4) + var(--tree-indent) * var(--d, 0));
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  white-space: nowrap;
+  cursor: default;
+  flex: none;
+  transition: background-color var(--dur) var(--ease);
+}
+.row:hover {
+  background: var(--bg-hover);
+}
+.row:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+/* Selected: accent tint only while the containing pane (`.pane`) has focus. */
+.selected {
+  background: var(--bg-selected-unfocused);
+}
+.pane:focus-within .selected {
+  background: var(--bg-selected);
+}
+.tw {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-muted);
+  flex: none;
+}
+.icon {
+  display: inline-flex;
+  color: var(--fg-muted);
+  flex: none;
+}
+.row:hover .icon,
+.selected .icon {
+  color: var(--fg);
+}
+.label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.current {
+  font-weight: var(--weight-semibold);
+}
+.meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+/* AheadBehind: 12px arrows + tabular xs, muted */
+.ab {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}

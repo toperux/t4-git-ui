@@ -1,0 +1,101 @@
+/* Main.mjs bottom pane: commit details 340 | changed files 320 | diff (flex) */
+.pane {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  background: var(--bg-panel);
+}
+.commit {
+  width: 340px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+.files {
+  width: 320px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+.diff {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px var(--space-5);
+  overflow: auto;
+  min-height: 0;
+}
+.chips {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.summary {
+  font-size: var(--text-lg);
+  line-height: var(--lh-lg);
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
+}
+.message {
+  font-size: var(--text-sm);
+  line-height: var(--lh-sm);
+  color: var(--fg);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.kv {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+.kvRow {
+  display: flex;
+  gap: var(--space-4);
+  font-size: var(--text-sm);
+  line-height: var(--lh-sm);
+}
+.kvKey {
+  width: 64px;
+  flex: none;
+  color: var(--fg-muted);
+}
+.kvVal {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--mono-size);
+}
+.link {
+  composes: mono;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  cursor: default;
+  font-weight: inherit;
+}
+.link:hover {
+  text-decoration: underline;
+}
+.error {
+  color: var(--danger-text);
+  font-size: var(--text-sm);
+}

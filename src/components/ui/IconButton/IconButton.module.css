@@ -1,0 +1,34 @@
+/* base.css .icon-btn */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-muted);
+  font: inherit;
+  cursor: default;
+  flex: none;
+  transition:
+    background-color var(--dur) var(--ease),
+    color var(--dur) var(--ease);
+}
+.btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.btn:active:not(:disabled),
+.on {
+  background: var(--bg-active);
+  color: var(--fg);
+}
+.btn:focus-visible {
+  color: var(--fg);
+}
+.btn:disabled {
+  opacity: 0.4;
+}

@@ -1,0 +1,68 @@
+/* base.css .btn */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  height: var(--control-h);
+  padding: 0 var(--space-5);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  font: inherit;
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  cursor: default;
+  user-select: none;
+  transition: background-color var(--dur) var(--ease);
+}
+.btn:disabled {
+  opacity: 0.45;
+}
+.primary {
+  background: var(--accent);
+  color: var(--fg-on-accent);
+}
+.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+.primary:active:not(:disabled) {
+  background: var(--accent-hover);
+  filter: brightness(0.92);
+}
+.secondary {
+  background: var(--bg-panel);
+  color: var(--fg);
+  border-color: var(--border-strong);
+}
+.secondary:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+.secondary:active:not(:disabled) {
+  background: var(--bg-active);
+}
+.ghost {
+  background: transparent;
+  color: var(--fg);
+}
+.ghost:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+.ghost:active:not(:disabled) {
+  background: var(--bg-active);
+}
+.danger {
+  background: var(--danger);
+  color: var(--fg-on-accent);
+}
+.danger:hover:not(:disabled) {
+  background: var(--danger-hover);
+}
+.sm {
+  height: var(--control-h-sm);
+  padding: 0 var(--space-4);
+  font-size: var(--text-sm);
+}
+.icon {
+  display: inline-flex;
+  flex: none;
+}

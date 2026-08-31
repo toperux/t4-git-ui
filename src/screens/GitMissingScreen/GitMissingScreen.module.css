@@ -1,0 +1,20 @@
+.screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: var(--bg-app);
+}
+.card {
+  width: 440px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+}
+.message {
+  font-size: var(--text-sm);
+  line-height: var(--lh-sm);
+  color: var(--fg-muted);
+  overflow-wrap: anywhere;
+}

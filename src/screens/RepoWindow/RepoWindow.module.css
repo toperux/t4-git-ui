@@ -1,0 +1,89 @@
+.window {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.main {
+  flex: 1;
+  min-height: 0;
+}
+.content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.rows {
+  flex: 1;
+  min-height: 0;
+}
+.panel {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* base.css .split-h / .split-v: 5px hit area, 1px --border line; hover/drag = 2px accent */
+.splitH {
+  width: 5px;
+  flex: none;
+  position: relative;
+  background: transparent;
+}
+.splitH::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border);
+  transition: background-color var(--dur) var(--ease);
+}
+.splitH:hover::after,
+.splitH:active::after {
+  background: var(--accent);
+  width: 2px;
+  left: 1.5px;
+}
+.splitV {
+  height: 5px;
+  flex: none;
+  position: relative;
+  background: transparent;
+}
+.splitV::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--border);
+  transition: background-color var(--dur) var(--ease);
+}
+.splitV:hover::after,
+.splitV:active::after {
+  background: var(--accent);
+  height: 2px;
+  top: 1.5px;
+}
+
+/* Output dock, collapsed: 28px panel header with top border */
+.dock {
+  border-top: 1px solid var(--border);
+  border-bottom: 0;
+}
+.dockText {
+  font-family: var(--font-mono);
+  font-size: var(--mono-size);
+  font-weight: var(--weight-regular);
+  color: var(--fg-muted);
+}
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
