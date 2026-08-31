@@ -10,6 +10,8 @@ import { PanelHeader } from "../../../components/ui/PanelHeader/PanelHeader";
 import { cx } from "../../../lib/cx";
 import { loadHistory, splitMessage } from "../../../lib/msgHistory";
 import { useCommitStore } from "../../../store/commitStore";
+import { useDialogStore } from "../../../store/dialogStore";
+import { selectRunning, useOpsStore } from "../../../store/opsStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { useStatusStore } from "../../../store/statusStore";
 import s from "./CommitPanel.module.css";
@@ -24,6 +26,7 @@ export function MessageColumn() {
   const amend = useCommitStore((st) => st.amend);
   const signoff = useCommitStore((st) => st.signoff);
   const busy = useCommitStore((st) => st.busy);
+  const running = useOpsStore(selectRunning);
   const setSummary = useCommitStore((st) => st.setSummary);
   const setBody = useCommitStore((st) => st.setBody);
   const setSignoff = useCommitStore((st) => st.setSignoff);
@@ -59,6 +62,13 @@ export function MessageColumn() {
 
   const noIdentity = authorError?.kind === "config";
   const canCommit = !busy && !!summary.trim() && (stagedCount > 0 || amend) && !noIdentity;
+
+  /** Commits, then opens the Push dialog (which carries the remote / upstream options). */
+  async function commitAndPush() {
+    if (!canCommit || running) return;
+    await commit();
+    if (!useCommitStore.getState().summary.trim()) useDialogStore.getState().open({ kind: "push" });
+  }
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && canCommit) {
@@ -148,7 +158,7 @@ export function MessageColumn() {
           <Button variant="primary" className={s.commitBtn} icon={<Check size={14} aria-hidden />} disabled={!canCommit} onClick={() => void commit()}>
             Commit
           </Button>
-          <Button disabled title="Push arrives in M4">
+          <Button disabled={!canCommit || running} title={running ? "Operation in progress" : "Commit, then open the Push dialog"} onClick={() => void commitAndPush()}>
             Commit &amp; Push
           </Button>
         </div>

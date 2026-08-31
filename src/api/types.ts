@@ -1,6 +1,6 @@
 // Mirrors the Rust IPC contract (serde, all camelCase). Keep in sync with:
-//   crates/git-core/src/log/types.rs, refs.rs, commit.rs, diff.rs, status.rs, watch.rs, cli/runner.rs, error.rs
-//   src-tauri/src/commands/{repo,stage}.rs, src-tauri/src/error.rs
+//   crates/git-core/src/log/types.rs, refs.rs, commit.rs, diff.rs, status.rs, watch.rs, cli/runner.rs, cli/ops.rs, error.rs
+//   src-tauri/src/commands/{repo,stage,ops}.rs, src-tauri/src/error.rs
 
 /** `git_core::RepoId` — serde(transparent) newtype over the canonical workdir path. */
 export type RepoId = string;
@@ -17,6 +17,10 @@ export type AppErrorKind =
   | "invalidPatch"
   /** Missing `user.name` / `user.email`. */
   | "config"
+  /** A safety check declined the operation (e.g. deleting an unmerged branch). */
+  | "refused"
+  /** Another mutating operation holds the repo's op lock. */
+  | "busy"
   | "internal"
   | "unknown";
 
@@ -310,11 +314,35 @@ export type CliEvent =
   | { kind: "progress"; line: string }
   | { kind: "exit"; code: number; elapsedMs: number };
 
-/** Payload of `op://event`. */
+/** Payload of `op://event`. `repoId` is `null` for ops without a repo (clone). */
 export interface OpEvent {
-  repoId: RepoId;
+  repoId: RepoId | null;
   opId: string;
   event: CliEvent;
+}
+
+// --- cli/ops.rs / src-tauri/src/commands/ops.rs ---
+
+export type PullMode = "merge" | "rebase" | "ffOnly";
+
+/** `auto` = `--ff`, `only` = `--ff-only`, `no` = `--no-ff`. */
+export type FfMode = "auto" | "only" | "no";
+
+/** `#[serde(tag = "kind")]` — why a streamed op exited non-zero. */
+export type OpFailure =
+  | { kind: "conflicts"; paths: string[] }
+  | { kind: "nonFastForward" }
+  | { kind: "authFailed" }
+  | { kind: "rejected"; message: string }
+  | { kind: "other"; message: string };
+
+/** Outcome of a streaming op after its process exited (a non-zero exit is a `failure`, not a rejection). */
+export interface OpResult {
+  opId: string;
+  code: number;
+  /** Conflicted paths (from the status after merge / rebase / pull failures). */
+  conflicts: string[];
+  failure: OpFailure | null;
 }
 
 export interface Author {

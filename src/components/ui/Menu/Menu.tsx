@@ -1,4 +1,5 @@
-import { useEffect, useRef, type ButtonHTMLAttributes, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type KeyboardEvent, type ReactNode, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import { cx } from "../../../lib/cx";
 import s from "./Menu.module.css";
 
@@ -11,16 +12,15 @@ export interface MenuProps {
   label: string;
   /** `MenuItem`s / `MenuSeparator`s. */
   children: ReactNode;
+  /** Edge the menu aligns to (default `right`). */
+  align?: "left" | "right";
   className?: string;
 }
 
 const ITEMS = '[role="menuitem"]:not(:disabled)';
 
-/** Dropdown menu (style guide `Menu`): closes on outside click / Escape; ↑/↓ move focus. */
-export function Menu({ open, onClose, anchor, label, children, className }: MenuProps) {
-  const wrap = useRef<HTMLDivElement>(null);
-  const menu = useRef<HTMLDivElement>(null);
-
+/** Outside mousedown / Escape → `onClose`; first item focused when opened. */
+function useMenuDismiss(open: boolean, onClose: () => void, wrap: RefObject<HTMLElement | null>, menu: RefObject<HTMLElement | null>) {
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
@@ -35,27 +35,35 @@ export function Menu({ open, onClose, anchor, label, children, className }: Menu
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("keydown", onKey);
     };
-  }, [open, onClose]);
+  }, [open, onClose, wrap]);
 
   useEffect(() => {
     if (open) menu.current?.querySelector<HTMLElement>(ITEMS)?.focus();
-  }, [open]);
+  }, [open, menu]);
+}
 
-  function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
-    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
-    e.preventDefault();
-    const items = Array.from(menu.current?.querySelectorAll<HTMLElement>(ITEMS) ?? []);
-    if (items.length === 0) return;
-    const cur = items.indexOf(document.activeElement as HTMLElement);
-    const next = e.key === "ArrowDown" ? (cur + 1) % items.length : (cur - 1 + items.length) % items.length;
-    items[next].focus();
-  }
+/** ↑/↓ move focus between enabled items (wrapping). */
+function onMenuKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+  if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+  e.preventDefault();
+  const items = Array.from(e.currentTarget.querySelectorAll<HTMLElement>(ITEMS));
+  if (items.length === 0) return;
+  const cur = items.indexOf(document.activeElement as HTMLElement);
+  const next = e.key === "ArrowDown" ? (cur + 1) % items.length : (cur - 1 + items.length) % items.length;
+  items[next].focus();
+}
+
+/** Dropdown menu (style guide `Menu`): closes on outside click / Escape; ↑/↓ move focus. */
+export function Menu({ open, onClose, anchor, label, children, align = "right", className }: MenuProps) {
+  const wrap = useRef<HTMLDivElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  useMenuDismiss(open, onClose, wrap, menu);
 
   return (
     <div ref={wrap} className={cx(s.wrap, className)}>
       {anchor}
       {open && (
-        <div ref={menu} role="menu" aria-label={label} className={s.menu} onKeyDown={onKeyDown}>
+        <div ref={menu} role="menu" aria-label={label} className={cx(s.menu, align === "left" && s.left)} onKeyDown={onMenuKeyDown}>
           {children}
         </div>
       )}
@@ -63,17 +71,67 @@ export function Menu({ open, onClose, anchor, label, children, className }: Menu
   );
 }
 
+export interface ContextMenuProps {
+  /** Viewport position (right-click point or the focused row's corner); `null` = closed. */
+  at: { x: number; y: number } | null;
+  onClose: () => void;
+  label: string;
+  children: ReactNode;
+}
+
+/** Menu at an arbitrary point (style guide `ContextMenu`), kept inside the viewport; focus returns to the opener on close. */
+export function ContextMenu({ at, onClose, label, children }: ContextMenuProps) {
+  const menu = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState(at);
+  const open = at !== null;
+  useMenuDismiss(open, onClose, menu, menu);
+
+  // Clamp to the viewport once the menu has a size.
+  useLayoutEffect(() => {
+    if (!at) return;
+    const el = menu.current;
+    if (!el) return;
+    const { width, height } = el.getBoundingClientRect();
+    const pad = 4;
+    setPos({
+      x: Math.max(pad, Math.min(at.x, window.innerWidth - width - pad)),
+      y: Math.max(pad, Math.min(at.y, window.innerHeight - height - pad)),
+    });
+  }, [at]);
+
+  // Restore focus to whatever opened the menu.
+  useEffect(() => {
+    if (!open) return;
+    const opener = document.activeElement as HTMLElement | null;
+    return () => {
+      if (opener?.isConnected) opener.focus();
+    };
+  }, [open]);
+
+  if (!at) return null;
+  const p = pos ?? at;
+  return createPortal(
+    <div ref={menu} role="menu" aria-label={label} className={cx(s.menu, s.fixed)} style={{ left: p.x, top: p.y }} onKeyDown={onMenuKeyDown}>
+      {children}
+    </div>,
+    document.body,
+  );
+}
+
 export interface MenuItemProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   /** 16px icon. */
   icon?: ReactNode;
   danger?: boolean;
+  /** Shortcut hint, right-aligned (`Ctrl+B`). */
+  kbd?: string;
 }
 
-export function MenuItem({ icon, danger, className, children, type = "button", ...rest }: MenuItemProps) {
+export function MenuItem({ icon, danger, kbd, className, children, type = "button", ...rest }: MenuItemProps) {
   return (
     <button type={type} role="menuitem" className={cx(s.item, danger && s.danger, className)} {...rest}>
       {icon && <span className={s.icon}>{icon}</span>}
       <span className={s.grow}>{children}</span>
+      {kbd && <span className={s.kbd}>{kbd}</span>}
     </button>
   );
 }

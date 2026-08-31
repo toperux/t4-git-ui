@@ -92,7 +92,8 @@ describe("CommitPanel", () => {
     const { getByRole, getByLabelText, findByText } = render(<CommitPanel />);
     const commit = getByRole("button", { name: "Commit" });
     expect(commit.hasAttribute("disabled")).toBe(true);
-    expect(getByRole("button", { name: "Commit & Push" }).getAttribute("title")).toBe("Push arrives in M4");
+    // Commit & Push follows the same rules as Commit (it commits, then opens the Push dialog).
+    expect(getByRole("button", { name: "Commit & Push" }).hasAttribute("disabled")).toBe(true);
     await findByText(/Ada <ada@x> · will commit 2 staged files/);
 
     const summary = getByLabelText("Summary") as HTMLInputElement;

@@ -15,6 +15,18 @@
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-1);
 }
+.left {
+  left: 0;
+  right: auto;
+}
+/* ContextMenu: portal at a viewport point */
+.fixed {
+  position: fixed;
+  top: auto;
+  right: auto;
+  margin: 0;
+  z-index: 35;
+}
 .item {
   display: flex;
   align-items: center;
@@ -57,6 +69,27 @@
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* base.css .kbd: 16px, 10px 500, inset bg + border */
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-inset);
+  color: var(--fg-muted);
+  font-size: 10px;
+  font-weight: var(--weight-medium);
+  line-height: 1;
+  flex: none;
+}
+.item:hover:not(:disabled) .kbd,
+.item:focus-visible .kbd {
+  color: inherit;
+  background: transparent;
+  border-color: transparent;
 }
 .sep {
   height: 1px;

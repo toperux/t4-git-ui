@@ -2,19 +2,26 @@ import { CircleCheck, Cloud, GitBranch, TriangleAlert } from "lucide-react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import type { RepoState } from "../../api/types";
 import { Banner } from "../../components/ui/Banner/Banner";
+import { Button } from "../../components/ui/Button/Button";
 import { Spinner } from "../../components/ui/Spinner/Spinner";
 import { StatusBar, StatusItem } from "../../components/ui/StatusBar/StatusBar";
 import { ToastStack } from "../../components/ui/Toast/Toast";
 import { AheadBehind } from "../../components/ui/TreeRow/TreeRow";
+import { useDialogStore } from "../../store/dialogStore";
+import { useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
 import { useStatusStore } from "../../store/statusStore";
+import { checkoutBranch, mergeAbort, openCommitPanel, rebaseAbort, rebaseContinue } from "./actions";
+import { computeBanners, defaultBranch, type BannerAction } from "./banners";
 import { CommitPanel } from "./CommitPanel/CommitPanel";
 import { DetailsPane } from "./DetailsPane";
+import { DialogHost } from "./dialogs/DialogHost";
 import { OutputDock } from "./OutputDock";
 import s from "./RepoWindow.module.css";
 import { RevisionGrid } from "./RevisionGrid/RevisionGrid";
 import { Sidebar } from "./Sidebar";
 import { Toolbar } from "./Toolbar";
+import { useShortcuts } from "./useShortcuts";
 
 const STATE_LABEL: Record<RepoState, string> = {
   clean: "Clean",
@@ -31,10 +38,8 @@ function prettyUrl(url: string) {
 }
 
 export function RepoWindow() {
-  const refs = useRepoStore((st) => st.refs);
   const wtSelected = useRepoStore((st) => st.wtSelected);
-  const head = refs?.head;
-  const detached = !!head?.detached;
+  useShortcuts();
 
   return (
     <div className={s.window}>
@@ -45,11 +50,7 @@ export function RepoWindow() {
         </Panel>
         <Separator className={s.splitH} aria-label="Resize sidebar" />
         <Panel className={s.content}>
-          {detached && head?.oid && (
-            <Banner kind="warning">
-              Detached HEAD at <span className={s.mono}>{head.oid.slice(0, 7)}</span> — new commits won’t belong to any branch
-            </Banner>
-          )}
+          <StateBanners />
           <Group orientation="vertical" className={s.rows}>
             <Panel defaultSize="60%" minSize={120} className={s.panel}>
               <RevisionGrid />
@@ -63,8 +64,62 @@ export function RepoWindow() {
       </Group>
       <OutputDock />
       <RepoStatusBar />
+      <DialogHost />
       <ToastStack />
     </div>
+  );
+}
+
+/** Detached HEAD / merge / rebase / conflict banners above the grid (States artboard). */
+function StateBanners() {
+  const refs = useRepoStore((st) => st.refs);
+  const status = useStatusStore((st) => st.status);
+  const openDialog = useDialogStore((st) => st.open);
+  const banners = computeBanners(refs, status);
+  if (banners.length === 0) return null;
+
+  function act(action: BannerAction) {
+    switch (action) {
+      case "checkoutDefault": {
+        const def = defaultBranch((refs?.local ?? []).filter((b) => !b.isHead));
+        if (def) void checkoutBranch(def);
+        break;
+      }
+      case "createBranch":
+        openDialog({ kind: "createBranch" });
+        break;
+      case "mergeAbort":
+        void mergeAbort();
+        break;
+      case "rebaseAbort":
+        void rebaseAbort();
+        break;
+      case "rebaseContinue":
+        void rebaseContinue();
+        break;
+      case "commitMerge":
+      case "openCommitPanel":
+        openCommitPanel();
+        break;
+    }
+  }
+
+  return (
+    <>
+      {banners.map((b) => (
+        <Banner
+          key={b.id}
+          kind={b.kind}
+          actions={b.buttons.map((btn) => (
+            <Button key={btn.label} size="sm" variant={btn.primary ? "primary" : "secondary"} onClick={() => act(btn.action)}>
+              {btn.label}
+            </Button>
+          ))}
+        >
+          {b.text}
+        </Banner>
+      ))}
+    </>
   );
 }
 
@@ -74,6 +129,7 @@ function RepoStatusBar() {
   const complete = useRepoStore((st) => st.log.complete);
   const gitVersion = useRepoStore((st) => st.gitVersion);
   const status = useStatusStore((st) => st.status);
+  const busy = useOpsStore((st) => st.busy);
   const head = refs?.head;
   const current = refs?.local.find((b) => b.isHead);
   const remote = refs?.remotes[0];
@@ -109,6 +165,12 @@ function RepoStatusBar() {
       }
       right={
         <>
+          {busy && (
+            <StatusItem>
+              <Spinner size="sm" label={busy} />
+              {busy}
+            </StatusItem>
+          )}
           {!complete && (
             <StatusItem>
               <Spinner size="sm" label="Loading commits" />

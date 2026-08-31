@@ -1,0 +1,41 @@
+/* Checkout picker: scrolling ref list inside the dialog body (base.css .row inside a .list frame) */
+.list {
+  max-height: 240px;
+  overflow: auto;
+  padding: var(--space-2);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: var(--row-h);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-sm);
+  color: var(--fg);
+  white-space: nowrap;
+}
+.option:hover {
+  background: var(--bg-hover);
+}
+.optionActive,
+.optionActive:hover {
+  background: var(--bg-selected);
+}
+.option svg {
+  color: var(--fg-muted);
+  flex: none;
+}
+.optionLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.optionMeta {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  flex: none;
+}

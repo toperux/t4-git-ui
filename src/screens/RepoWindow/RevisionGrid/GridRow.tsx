@@ -19,10 +19,12 @@ export interface GridRowProps {
   /** Text filter active: no graph column. */
   flat: boolean;
   headOid: string | null;
+  /** Right-click / Shift+F10 on the row (viewport point + the row's oid). */
+  onMenu: (at: { x: number; y: number }, oid: string) => void;
 }
 
 /** One grid row. Reads its own data + selection from the store so siblings never re-render. */
-export const GridRow = memo(function GridRow({ index, offset, top, rowH, lanes, graphW, flat, headOid }: GridRowProps) {
+export const GridRow = memo(function GridRow({ index, offset, top, rowH, lanes, graphW, flat, headOid, onMenu }: GridRowProps) {
   const row = useRepoStore((st) => st.rows[index]);
   const selected = useRepoStore((st) => !st.wtSelected && st.selectedIndex === index);
   const select = useRepoStore((st) => st.select);
@@ -36,6 +38,12 @@ export const GridRow = memo(function GridRow({ index, offset, top, rowH, lanes, 
       className={cx(s.row, selected && s.selected)}
       style={{ transform: `translateY(${top}px)`, height: rowH }}
       onMouseDown={() => select(index)}
+      onContextMenu={(e) => {
+        if (!commit) return;
+        e.preventDefault();
+        select(index);
+        onMenu({ x: e.clientX, y: e.clientY }, commit.oid);
+      }}
     >
       {!flat && (
         <div role="gridcell" className={s.graph} style={{ width: graphW }}>

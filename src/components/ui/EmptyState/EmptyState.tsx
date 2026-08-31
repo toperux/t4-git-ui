@@ -7,7 +7,7 @@ export interface EmptyStateProps {
   icon?: ReactNode;
   title: string;
   /** One-line hint. */
-  hint?: string;
+  hint?: ReactNode;
   /** Optional single secondary button. */
   action?: ReactNode;
   className?: string;

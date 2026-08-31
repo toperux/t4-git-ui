@@ -1,7 +1,13 @@
-// Streamed CLI operations (`op://event`) for the output dock.
+// Streamed CLI operations (`op://event`) for the output dock, plus `runOp`: the one way the UI
+// starts a branch / remote / stash operation (busy guard, failure → toast, refresh afterwards).
 import { create } from "zustand";
 import * as ipc from "../api/ipc";
-import type { OpEvent } from "../api/types";
+import { toAppError } from "../api/ipc";
+import type { AppError, OpEvent, OpFailure, OpResult, RepoId } from "../api/types";
+import { useDialogStore } from "./dialogStore";
+import { useRepoStore } from "./repoStore";
+import { useStatusStore } from "./statusStore";
+import { toastError, useToastStore } from "./toastStore";
 
 export const MAX_OPS = 50;
 export const MAX_LINES = 5000;
@@ -26,6 +32,8 @@ export interface OpsStore {
   ops: OpRecord[];
   /** Dock expanded. */
   open: boolean;
+  /** Statusbar text of the operation started through `runOp` (`"Pushing to origin…"`), `null` when idle. */
+  busy: string | null;
 
   onEvent(e: OpEvent): void;
   cancel(opId: string): Promise<void>;
@@ -34,9 +42,13 @@ export interface OpsStore {
 
 export const selectLastOp = (s: OpsStore) => s.ops[s.ops.length - 1] ?? null;
 
+/** An operation started through `runOp` is still running. */
+export const selectRunning = (s: OpsStore) => s.busy !== null;
+
 export const useOpsStore = create<OpsStore>()((set, get) => ({
   ops: [],
   open: false,
+  busy: null,
 
   onEvent({ opId, event }) {
     const ops = get().ops;
@@ -70,3 +82,78 @@ export const useOpsStore = create<OpsStore>()((set, get) => ({
 
   setOpen: (open) => set({ open }),
 }));
+
+export interface RunOpOptions {
+  /** Success toast title (none when omitted). */
+  success?: string;
+  /** Handles a `refused` rejection instead of the default error toast (e.g. offer a force delete). */
+  onRefused?: (message: string) => void;
+}
+
+export type OpOutcome = { ok: true } | { ok: false; error: AppError | null; failure: OpFailure | null };
+
+/** Toast title + optional detail / action for a classified streaming failure. */
+export function failureToast(f: OpFailure): { title: string; detail?: string; action?: { label: string; onClick: () => void } } {
+  switch (f.kind) {
+    case "conflicts": {
+      const n = f.paths.length;
+      return { title: n > 0 ? `${n} conflict${n === 1 ? "" : "s"} — resolve in the commit panel` : "Conflicts — resolve in the commit panel" };
+    }
+    case "nonFastForward":
+      return {
+        title: "Rejected: remote has new commits — Pull first",
+        action: { label: "Pull", onClick: () => useDialogStore.getState().open({ kind: "pull" }) },
+      };
+    case "authFailed":
+      return { title: "Authentication failed — check your credential helper" };
+    case "rejected":
+    case "other":
+      return { title: "Operation failed", detail: f.message };
+  }
+}
+
+/**
+ * Runs one operation against the open repo. Refuses (info toast) while another `runOp` is in flight;
+ * maps `OpResult.failure` / rejections to toasts; refreshes status + refs + the walk afterwards (the
+ * backend's `repo://changed` does too — the seq guards make the duplicate a no-op).
+ */
+export async function runOp(busy: string, fn: (id: RepoId) => Promise<OpResult | void>, opts: RunOpOptions = {}): Promise<OpOutcome> {
+  const push = useToastStore.getState().push;
+  const repo = useRepoStore.getState().repo;
+  if (!repo) return { ok: false, error: null, failure: null };
+  if (useOpsStore.getState().busy !== null) {
+    push({ kind: "info", title: "Operation in progress", detail: `Wait for “${useOpsStore.getState().busy}” to finish` });
+    return { ok: false, error: { kind: "busy", message: "another operation is running" }, failure: null };
+  }
+  useOpsStore.setState({ busy });
+  let outcome: OpOutcome;
+  try {
+    const result = await fn(repo.id);
+    const failure = result?.failure ?? null;
+    if (failure) {
+      const t = failureToast(failure);
+      push({ kind: "error", ...t });
+      if (failure.kind === "conflicts") useRepoStore.getState().selectWorkingTree();
+      outcome = { ok: false, error: null, failure };
+    } else {
+      if (opts.success) push({ kind: "success", title: opts.success });
+      outcome = { ok: true };
+    }
+  } catch (e) {
+    const error = toAppError(e);
+    if (error.kind === "refused" && opts.onRefused) opts.onRefused(error.message);
+    else if (error.kind === "busy") push({ kind: "info", title: "Operation in progress", detail: "Another git operation is running" });
+    else if (error.kind === "cancelled") push({ kind: "info", title: "Cancelled" });
+    else toastError(error, `${busy.replace(/…$/, "")} failed`);
+    outcome = { ok: false, error, failure: null };
+  } finally {
+    useOpsStore.setState({ busy: null });
+  }
+  // `syncRefs` refreshes refs and either restarts the walk (HEAD moved) or just relabels it. Calling
+  // `refreshRefs` here instead would hide the HEAD move from the `repo://changed` handler.
+  if (useRepoStore.getState().repo?.id === repo.id) {
+    void useStatusStore.getState().refresh();
+    void useStatusStore.getState().syncRefs();
+  }
+  return outcome;
+}

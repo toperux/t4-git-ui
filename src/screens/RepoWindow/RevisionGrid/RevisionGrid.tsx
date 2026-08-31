@@ -1,8 +1,12 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, GitCommitHorizontal, Search } from "lucide-react";
-import { useEffect, useRef, type KeyboardEvent } from "react";
+import { ChevronDown, Copy, GitBranch, GitCommitHorizontal, Plus, Search, Tag } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { Button } from "../../../components/ui/Button/Button";
 import { EmptyState } from "../../../components/ui/EmptyState/EmptyState";
+import { ContextMenu, MenuItem } from "../../../components/ui/Menu/Menu";
 import { Progress } from "../../../components/ui/Progress/Progress";
+import { useDialogStore } from "../../../store/dialogStore";
+import { checkoutDetached, copyText } from "../actions";
 import { cx } from "../../../lib/cx";
 import { useRepoStore } from "../../../store/repoStore";
 import { selectChangeCount, selectHasChanges, useStatusStore } from "../../../store/statusStore";
@@ -27,6 +31,7 @@ export function RevisionGrid() {
   const flat = useRepoStore((st) => st.log.flat);
   const maxLane = useRepoStore((st) => st.maxLane);
   const headOid = useRepoStore((st) => st.refs?.head.oid ?? null);
+  const headBranch = useRepoStore((st) => st.refs?.head.branch ?? null);
   const reveal = useRepoStore((st) => st.reveal);
   const ensureRows = useRepoStore((st) => st.ensureRows);
   const select = useRepoStore((st) => st.select);
@@ -35,6 +40,9 @@ export function RevisionGrid() {
   const changes = useStatusStore(selectChangeCount);
   const offset = hasWt ? 1 : 0;
   const count = total + offset;
+
+  const [menu, setMenu] = useState<{ at: { x: number; y: number }; oid: string } | null>(null);
+  const onRowMenu = useCallback((at: { x: number; y: number }, oid: string) => setMenu({ at, oid }), []);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
@@ -66,6 +74,17 @@ export function RevisionGrid() {
     if (n === 0) return;
     const cur = st.wtSelected && hasWt ? 0 : st.selectedIndex === null ? -1 : st.selectedIndex + offset;
     const pageRows = Math.max(1, Math.floor((scrollRef.current?.clientHeight ?? 0) / rowH) - 1);
+    // Shift+F10 / Menu key opens the context menu of the selected commit row.
+    if (e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey)) {
+      const i = st.wtSelected ? null : st.selectedIndex;
+      const oid = i === null ? null : (st.rows[i]?.row.commit.oid ?? null);
+      if (i === null || !oid) return;
+      e.preventDefault();
+      const r = scrollRef.current?.getBoundingClientRect();
+      const y = (r?.top ?? 0) + (i + offset) * rowH - (scrollRef.current?.scrollTop ?? 0) + rowH;
+      setMenu({ at: { x: (r?.left ?? 0) + 24, y }, oid });
+      return;
+    }
     let next: number | null = null;
     switch (e.key) {
       case "ArrowDown":
@@ -129,7 +148,24 @@ export function RevisionGrid() {
         ) : flat ? (
           <EmptyState icon={<Search size={24} aria-hidden />} title="No matching commits" hint="Try a different search" />
         ) : (
-          <EmptyState icon={<GitCommitHorizontal size={24} aria-hidden />} title="No commits yet" hint="Stage files and create the first commit" />
+          <EmptyState
+            icon={<GitCommitHorizontal size={24} aria-hidden />}
+            title="No commits yet"
+            hint={
+              headBranch ? (
+                <>
+                  Stage files and create the first commit on <span className={s.mono}>{headBranch}</span>
+                </>
+              ) : (
+                "Stage files and create the first commit"
+              )
+            }
+            action={
+              <Button variant="primary" icon={<GitCommitHorizontal size={14} aria-hidden />} onClick={() => selectWorkingTree()}>
+                Open commit panel
+              </Button>
+            }
+          />
         )
       ) : (
         <div
@@ -156,12 +192,42 @@ export function RevisionGrid() {
                   graphW={graphW}
                   flat={flat}
                   headOid={headOid}
+                  onMenu={onRowMenu}
                 />
               ),
             )}
           </div>
         </div>
       )}
+      <CommitContextMenu menu={menu} onClose={() => setMenu(null)} />
     </div>
+  );
+}
+
+/** Commit row actions: checkout (detached), branch / tag here, copy SHA. */
+function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number }; oid: string } | null; onClose: () => void }) {
+  const openDialog = useDialogStore((st) => st.open);
+  if (!menu) return null;
+  const oid = menu.oid;
+  const short = oid.slice(0, 7);
+  const run = (fn: () => void) => () => {
+    onClose();
+    fn();
+  };
+  return (
+    <ContextMenu at={menu.at} onClose={onClose} label="Commit actions">
+      <MenuItem icon={<GitBranch size={16} aria-hidden />} onClick={run(() => void checkoutDetached(oid, short))}>
+        Checkout (detached)
+      </MenuItem>
+      <MenuItem icon={<Plus size={16} aria-hidden />} onClick={run(() => openDialog({ kind: "createBranch", startPoint: oid }))}>
+        Create branch here…
+      </MenuItem>
+      <MenuItem icon={<Tag size={16} aria-hidden />} onClick={run(() => openDialog({ kind: "createTag", target: oid }))}>
+        Create tag here…
+      </MenuItem>
+      <MenuItem icon={<Copy size={16} aria-hidden />} onClick={run(() => copyText(oid, "SHA"))}>
+        Copy SHA
+      </MenuItem>
+    </ContextMenu>
   );
 }

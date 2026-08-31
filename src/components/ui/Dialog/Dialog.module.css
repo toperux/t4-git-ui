@@ -1,0 +1,132 @@
+/* base.css .scrim / .dialog / .dialog-title / .dialog-body / .dialog-foot / .field — modal over the whole window */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 10vh var(--space-8) var(--space-8);
+  background: var(--scrim);
+}
+.dialog {
+  display: flex;
+  flex-direction: column;
+  width: 440px;
+  max-width: 100%;
+  max-height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
+  color: var(--fg);
+  font: inherit;
+  animation: rise var(--dur-panel) var(--ease);
+}
+.wide {
+  width: 560px;
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 44px;
+  flex: none;
+  padding: 0 var(--space-6);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  border-bottom: 1px solid var(--border);
+}
+.grow {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-6);
+  overflow: auto;
+}
+.foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex: none;
+  padding: var(--space-5) var(--space-6);
+  border-top: 1px solid var(--border);
+}
+.preview {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+.preview code {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+/* Field: label sm 500 muted · control · help xs muted */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.label {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--fg-muted);
+}
+.help {
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
+  color: var(--fg-muted);
+}
+.helpInvalid {
+  color: var(--danger-text);
+}
+/* Two fields side by side (Push: Remote | Branch). */
+.row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+}
+/* Checkbox options in a column (gap 8) or inline (gap 20). */
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-7);
+}
+.message {
+  font-size: var(--text-sm);
+  line-height: var(--lh-sm);
+  overflow-wrap: anywhere;
+}
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}

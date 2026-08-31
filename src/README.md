@@ -31,7 +31,9 @@ src/
                            `localStorage.lastRepo`), touch (20 unpinned cap), remove, togglePin, lastOpen, lastCloneDir;
                            pure helpers sortRecents / capRecents / filterRecents
     opsStore.ts            zustand: OpRecord[] from `op://event` (started/stdout/stderr/progress-redraw/exit), max 50 ops × 5000 lines,
-                           cancel(opId), dock open
+                           cancel(opId), dock open, `busy` (statusbar text of the running op) + selectRunning;
+                           runOp(busy, fn, {success, onRefused}) — the single entry point for every branch/remote/stash op
+    dialogStore.ts         zustand: one `DialogSpec` at a time — open(spec) / close(); DialogHost renders it
     toastStore.ts          zustand: toasts (error|success|info, 6 s auto-dismiss); toastError(err, title, retry?) — cli → first stderr
                            line, indexLocked → "Index is locked…" + Retry
   theme/
@@ -43,15 +45,28 @@ src/
   assets/fonts/            InterVariable(.woff2, -Italic), JetBrainsMono[wght](.woff2, -Italic) + licenses
   lib/                     cx(), relativeDate()/absoluteDate(), multiSelect.ts (pure click/ctrl/shift/↑↓/Ctrl+A model),
                            msgHistory.ts (localStorage `msgHistory:<repoId>`, 20 entries; splitMessage/joinMessage),
-                           kv.ts (store plugin `recents.json`, localStorage fallback), cloneUrl.ts (repoNameFromUrl/joinPath/parentDir)
+                           kv.ts (store plugin `recents.json`, localStorage fallback), cloneUrl.ts (repoNameFromUrl/joinPath/parentDir),
+                           branchName.ts (validateRefName: no spaces / `..` / leading `-` / reserved / already taken)
   components/ui/<Name>/    one folder per style-guide component: <Name>.tsx + <Name>.module.css (incl. StatusGlyph A/M/D/R/U/C,
-                           Checkbox, Menu/MenuItem/MenuSeparator (anchor + dropdown, Esc/outside click, ↑/↓), Toast + ToastStack)
+                           Checkbox, Menu/MenuItem/MenuSeparator (anchor + dropdown, Esc/outside click, ↑/↓, `kbd` hint, `align`)
+                           + ContextMenu (portal at a viewport point, clamped), Toast + ToastStack,
+                           Dialog (440 / `.wide` 560 over `--scrim`, portal, Esc closes, Enter submits, Tab trapped, focus
+                           restored, aria-modal) + Field / FieldRow / Options / DialogText / Mono)
   screens/
     StartScreen/           recents list (filter, keyboard, pin, remove) | Open / Clone… / Initialize… cards + shortcuts;
                            Dialog.tsx (local minimal modal) + CloneDialog.tsx (form → progress mode)
     GitMissingScreen/      probe_git failed → "Git not found" + Retry (no set_git_path command, so no "Locate git…")
-    RepoWindow/            RepoWindow (layout: toolbar 40 / sidebar 260 | grid ÷ (DetailsPane | CommitPanel when wtSelected) / dock / statusbar 24)
-                           Toolbar (Commit button = change count, selects the wt row), Sidebar,
+    RepoWindow/            RepoWindow (layout: toolbar 40 / sidebar 260 | StateBanners + grid ÷ (DetailsPane | CommitPanel when
+                           wtSelected) / dock / statusbar 24 w/ spinner + busy text; hosts DialogHost + useShortcuts)
+                           Toolbar (Fetch → default remote w/ prune, Pull / Push dialogs + ahead/behind counts, Branch and Stash
+                           menus, Commit button = change count; every op button disabled while one runs),
+                           Sidebar (context menus per ref kind on right-click / Shift+F10, double-click = checkout),
+                           actions.ts (fetchDefault / checkout* / stash* / copyText / refreshAll — all through runOp),
+                           banners.ts (pure refs+status → detached | merge | rebase | conflicts banners),
+                           useShortcuts.ts (Ctrl+Shift+U push, Ctrl+Shift+L pull, Ctrl+B branch, Ctrl+F5 fetch, F5 refresh, Ctrl+`),
+                           dialogs/ (DialogHost + OpsDialogs Push/Pull/Fetch/Merge/Rebase, RefDialogs Checkout picker /
+                           Create-Rename-Delete branch / remote branch / tags, StashDialogs; gitArgs.ts mirrors cli/ops.rs
+                           for the footer's "Runs `git …`" preview),
                            DetailsPane (bottom pane: Commit 340 | ChangedFileList 320 | DiffViewer, resizable),
                            OutputDock (collapsed 28px: `$ cmd` + ✓/✗ exit · elapsed / spinner + Cancel; expanded 200px `.output` log)
       RevisionGrid/        RevisionGrid (virtualized, role=grid, keyboard nav; row 0 = WorkingTreeRow while dirty & unfiltered —
@@ -103,6 +118,25 @@ reopens `lastOpen` — the repository that was open at the last exit, cleared by
 — the `started` event supplies the `opId` used by Cancel (`cancel_op`), later `progress` / `stderr` lines feed the single
 status line. The backend opens the clone itself, so success just hands the `RepoSummary` back and the app switches to
 `RepoWindow`; a failure returns to the form with the stderr first line in a banner.
+
+## Operations (M4)
+
+Every branch / remote / stash operation goes through `opsStore.runOp(busy, fn, opts)`. It refuses with an info toast while
+another op is in flight (the backend enforces the same with `AppError::busy`), awaits the command, and classifies the
+outcome: a streamed op resolves with `OpResult` whose `failure` is a *result*, not a rejection — `conflicts` toasts
+"N conflicts — resolve in the commit panel" and selects the working-tree row, `nonFastForward` offers a Pull action,
+`authFailed` points at the credential helper, `rejected` / `other` show git's message. Rejections are `AppError`s:
+`refused` (a safety check, e.g. an unmerged branch) is handed to `onRefused` so the Delete-branch dialog can re-offer
+itself as a force delete, `cancelled` is an info toast, everything else goes through `toastError`. Afterwards it refreshes
+the status and calls `statusStore.syncRefs()`, which relabels the walk or restarts it when HEAD moved (the backend's own
+`repo://changed` arrives too; the seq guards make it a no-op). While an op runs, `opsStore.busy` holds the statusbar text
+and disables the toolbar; the streamed output lands in the shared `OutputDock` (elapsed timer + Cancel → `cancel_op`;
+a `` progress segment replaces the previous progress line rather than appending).
+
+Dialogs are one at a time (`dialogStore` → `DialogHost`) and every option-bearing action gets one, with a
+"Runs `git …`" preview built by `dialogs/gitArgs.ts` (a mirror of `crates/git-core/src/cli/ops.rs`, so the preview and
+the real argv stay in step). Banners above the grid come from `banners.ts` — a pure function of `refs.state` / `head` /
+`status.conflicted`, so it re-derives on every `repo://changed`.
 
 ## Adding a component (style guide §7)
 
