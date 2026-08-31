@@ -3,7 +3,8 @@ import { icon, twoUp, shell, section, grid, row, labeled } from '../lib.mjs';
 const STATES = [['', 'default'], ['is-hover', 'hover'], ['is-active', 'active'], ['is-focus', 'focus'], ['is-disabled', 'disabled']];
 
 function buttons() {
-  const variants = [['primary', 'Commit'], ['secondary', 'Cancel'], ['ghost', 'Reset'], ['danger', 'Delete branch']];
+  // Labels stay short: each specimen sits in a 1/5 column of a half-width sheet.
+  const variants = [['primary', 'Commit'], ['secondary', 'Cancel'], ['ghost', 'Reset'], ['danger', 'Delete']];
   const head = `<div></div>${STATES.map(([, l]) => `<div class="xs faint" style="font-family: var(--font-mono);">${l}</div>`).join('')}`;
   const rows = variants.map(([v, label]) => `<div class="xs faint" style="font-family: var(--font-mono); align-self: center;">${v}</div>${STATES.map(([s]) => `<div><span class="btn ${v} ${s}">${label}</span></div>`).join('')}`).join('');
   return section('Button', 'height 28 · padding 12 · weight 500 · sm variant 24/8',
@@ -17,7 +18,9 @@ function iconButtons() {
 }
 
 function toolbar() {
-  return section('Toolbar', '40px · ghost buttons w/ 18px icons · counts inline · separators 18px',
+  // The search field and branch filter live on the right in the app (see the A2 Main window); at half
+  // sheet width they don't fit beside the buttons, so only the trailing icon button stands in for them.
+  return section('Toolbar', '40px · ghost buttons w/ 18px icons · counts inline · separators 18px · search + filter sit right (A2)',
     `<div class="toolbar" style="border: 1px solid var(--border); border-radius: 6px; width: 100%;">
       <span class="tb-btn">${icon('arrow-down', 18)}Fetch</span>
       <span class="tb-btn is-hover">${icon('arrow-down-up', 18)}Pull <span class="cnt">5</span></span>
@@ -28,7 +31,6 @@ function toolbar() {
       <span class="tb-sep"></span>
       <span class="tb-btn">${icon('git-commit', 18)}Commit <span class="cnt">7</span></span>
       <div style="flex: 1;"></div>
-      <span class="input" style="width: 220px; height: 26px;">${icon('search', 14)}<span class="ph">Search commits</span></span>
       <span class="icon-btn">${icon('refresh')}</span>
     </div>`);
 }

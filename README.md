@@ -69,7 +69,7 @@ Ctrl is ⌘ on macOS.
 
 ## Status / roadmap
 
-v1 is feature-complete and covered by 106 Rust and 171 frontend tests. It has **not yet been
+v1 is feature-complete and covered by 106 Rust and 173 frontend tests. It has **not yet been
 accepted in a real window** — the first launch on Windows found five bugs (all fixed; see the plan),
 and `docs/smoke-test.md` is the acceptance walkthrough whose remaining sections are the gate. Linux and macOS are compiled in CI only (no rendering check, no signing /
 notarization yet). Deliberate v1 omissions are listed in `docs/plans/2026-08-31-git-ui-v1-plan.md`

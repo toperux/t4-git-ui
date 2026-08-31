@@ -200,7 +200,8 @@ export function Sidebar() {
           <Tree label="Local branches">{renderTree(buildTree(local), 0)}</Tree>
         ))}
 
-      <SectionHeader title="Remotes" count={remotes.length} open={open.remotes} onToggle={() => toggle("remotes")} />
+      {/* Branches, not remotes: every other section counts refs, and the remotes are right there to count by eye. */}
+      <SectionHeader title="Remotes" count={remotes.reduce((n, r) => n + r.branches.length, 0)} open={open.remotes} onToggle={() => toggle("remotes")} />
       {open.remotes && remotes.length > 0 && (
         <Tree label="Remote branches">
           {remotes.map((r) => {

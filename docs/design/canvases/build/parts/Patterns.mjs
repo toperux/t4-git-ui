@@ -90,14 +90,14 @@ function diffAnatomy() {
         <div class="hunk"><span class="grow">@@ -12,6 +12,8 @@ pub fn walk()</span><span class="btn secondary">Discard</span><span class="btn primary">Stage hunk</span></div>
         ${line('', 12, 12, ' ', 'let mut walk = repo.revwalk()?;')}
         ${line('add is-selected', '', 13, '+', 'walk.push_head()?;')}
-        ${line('add is-selected', '', 14, '+', 'walk.push_glob("refs/heads/*")?;')}
+        ${line('add is-selected', '', 14, '+', 'walk.push_glob("heads/*")?;')}
         ${line('del', 13, '', '−', 'walk.push_glob("refs/*")?;')}
         ${line('', 14, 15, ' ', 'walk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;')}
         <div class="hunk" style="background: var(--accent-soft); color: var(--fg);"><span class="grow">2 lines selected</span><span class="btn primary">Stage 2 lines</span></div>
       </div>
       <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 6px; overflow: hidden;">
         <div class="diff" style="border: 0; border-radius: 0;">${line('', 12, '', ' ', 'let mut walk = …')}${line('del', 13, '', '−', 'walk.push_glob(<span class="w">"refs/*"</span>)?;')}${line('', '', '', '', '')}${line('', 14, '', ' ', 'walk.set_sorting(…')}</div>
-        <div class="diff" style="border: 0; border-radius: 0;">${line('', '', 12, ' ', 'let mut walk = …')}${line('add', '', 13, '+', 'walk.push_head()?;')}${line('add', '', 14, '+', 'walk.push_glob(<span class="w">"refs/heads/*"</span>)?;')}${line('', '', 15, ' ', 'walk.set_sorting(…')}</div>
+        <div class="diff" style="border: 0; border-radius: 0;">${line('', '', 12, ' ', 'let mut walk = …')}${line('add', '', 13, '+', 'walk.push_head()?;')}${line('add', '', 14, '+', 'walk.push_glob(<span class="w">"heads/*"</span>)?;')}${line('', '', 15, ' ', 'walk.set_sorting(…')}</div>
       </div>
       <div class="xs muted">Side-by-side pairs consecutive −/+ runs; unpaired side shows an empty 20px filler row. Long lines wrap only when the “wrap” toggle is on.</div>
     </div>`);

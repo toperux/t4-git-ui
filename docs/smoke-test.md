@@ -92,6 +92,8 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the performance che
 - [ ] Tab into the grid with nothing selected → a focus ring is visible
 - [ ] Sidebar: Local / Remotes / Tags / Stashes with counts; sections collapse; the current branch is
       bold with ahead/behind counts; `Tab` stops **once** per section, arrows move within it
+- [ ] Each count matches the **refs** you can see: Remotes shows total remote branches across all
+      remotes (not the number of remotes), local folder rows are not counted
 - [ ] Click a branch or tag → grid scrolls to and selects that commit
 - [ ] Type in "Search commits" → after ~250 ms a flat list (no graph column); clear it → graph returns
 - [ ] Branch scope select `All branches` → `HEAD` → re-walks

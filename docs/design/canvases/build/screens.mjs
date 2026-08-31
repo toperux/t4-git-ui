@@ -41,7 +41,7 @@ export function sidebar({ width = 260, current = 'main', empty = false, detached
       ${tr(1, '', '', 'git-branch', 'lane-graph', `<span class="ab">${icon('arrow-up', 12)}2</span>`)}
       ${tr(1, '', '', 'git-branch', 'diff-viewer')}
       ${tr(0, '', '', 'git-branch', 'hotfix-index-lock')}
-      ${sh(true, 'Remotes', 1, `<span class="icon-btn" style="width: 20px; height: 20px;">${icon('plus', 14)}</span>`)}
+      ${sh(true, 'Remotes', 3, `<span class="icon-btn" style="width: 20px; height: 20px;">${icon('plus', 14)}</span>`)}
       ${tr(0, '', 'chevron-down', 'cloud', 'origin')}
       ${tr(1, '', '', 'git-branch', 'main')}
       ${tr(1, '', '', 'git-branch', 'feature/lane-graph')}
