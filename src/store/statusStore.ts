@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import * as ipc from "../api/ipc";
 import { toAppError } from "../api/ipc";
-import type { RefsSnapshot, RepoChanged, WorkdirStatus } from "../api/types";
+import type { RefsSnapshot, RepoChanged, RevSpec, WorkdirStatus } from "../api/types";
 import { useRepoStore } from "./repoStore";
 import { toastError } from "./toastStore";
 
@@ -52,19 +52,39 @@ let refsDirty = false;
 
 const sameRefs = (a: RefsSnapshot | null, b: RefsSnapshot | null) => JSON.stringify(a) === JSON.stringify(b);
 
-/** One pass: refresh refs, then restart the walk (HEAD moved) / relabel it (refs changed) / do nothing. */
+/**
+ * The oids the backend seeds the walk from under `spec` — HEAD for `head`, and every branch,
+ * remote branch and tag as well for `all` (see `log::walker::walk`). Only a change here can add
+ * or drop commits, and only a new walk shows them: a fetch moves `refs/remotes/*` without
+ * touching HEAD, and relabelling would leave the grid on history that predates the fetch.
+ * `headOid` covers the moment after `openRepo` when the snapshot has not arrived yet.
+ */
+function walkSeeds(spec: RevSpec, refs: RefsSnapshot | null, headOid: string | null): string {
+  const oids = new Set<string>();
+  const head = refs ? refs.head.oid : headOid;
+  if (head) oids.add(head);
+  if (refs && spec.kind !== "head") {
+    for (const b of refs.local) oids.add(b.oid);
+    for (const r of refs.remotes) for (const b of r.branches) oids.add(b.oid);
+    for (const t of refs.tags) oids.add(t.oid);
+  }
+  return [...oids].sort().join(" ");
+}
+
+/** One pass: refresh refs, then restart the walk (its seeds moved) / relabel it (refs changed) / do nothing. */
 async function syncRefsOnce() {
   const rs = useRepoStore.getState();
   if (!rs.repo) return;
   const repoId = rs.repo.id;
-  const before = rs.refs?.head.oid ?? rs.repo.head.oid;
+  const before = walkSeeds(rs.spec, rs.refs, rs.repo.head.oid);
   const beforeRefs = rs.refs;
   await rs.refreshRefs();
   const after = useRepoStore.getState();
-  if (after.repo?.id !== repoId) return;
-  const now = after.refs?.head.oid ?? null;
+  if (after.repo?.id !== repoId || !after.repo) return;
+  const now = walkSeeds(after.spec, after.refs, after.repo.head.oid);
   if (now !== before) await after.startLog(after.spec, after.filter);
-  // The watcher reports `FETCH_HEAD` / `logs/*` / `config` writes as `refs`: relabel only on a real change.
+  // The watcher reports `FETCH_HEAD` / `logs/*` / `config` writes as `refs`, and a new tag on a
+  // commit the walk already reached moves no seed: relabel only on a real change.
   else if (!sameRefs(beforeRefs, after.refs)) await after.refreshLabels();
 }
 

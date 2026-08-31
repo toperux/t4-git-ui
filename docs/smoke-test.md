@@ -151,6 +151,8 @@ Use `C:\tmp\t4\work` and the bare remote.
       footer previews the exact `git push …`; run it → success toast, ahead/behind clears
 - [ ] **Pull** `Ctrl+Shift+L` after committing in `C:\tmp\t4\other` and pushing → fast-forwards, grid
       restarts at the new HEAD
+- [ ] **Fetch** `Ctrl+F5` after committing and pushing from `C:\tmp\t4\other` → the fetched commits
+      appear in the grid on their own, without pressing F5, and the `origin/main` chip moves with them
 - [ ] Commit locally **and** remotely, then Push → "remote has new commits — Pull first" toast with a
       **Pull** action
 - [ ] Pull with mode "Fast-forward only" on diverged history → non-fast-forward toast

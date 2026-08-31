@@ -28,8 +28,10 @@ src/
                            stale responses dropped via seq counters; view unified|split (localStorage.diffView), ignoreWhitespace,
                            fileListMode flat|tree (localStorage.fileListMode)
     statusStore.ts         zustand: WorkdirStatus; refresh (seq-guarded) / scheduleRefresh (100 ms debounce); onChanged(`repo://changed`):
-                           any kind → status; refs|rescan → syncRefs (refreshRefs → HEAD moved ? startLog : refs changed ?
+                           any kind → status; refs|rescan → syncRefs (refreshRefs → walkSeeds moved ? startLog : refs changed ?
                            refreshLabels : nothing) — coalesced into one in-flight run, never rejects;
+                           walkSeeds = the oids the walk is pushed from (HEAD for `head`; + branches, remote branches and
+                           tags for `all`), so a fetch that moves origin/* re-walks instead of only relabelling;
                            a clean tree clears wtSelected; useShowWorkingTree() = dirty && !flat; follows repoStore.repo;
                            `__resetForTests()` clears the debounce timer and the seq / coalescing guards
     commitStore.ts         zustand: commit-panel state — list (unstaged|staged) + multi-selection + anchor, `+N −M` stats
@@ -171,7 +173,7 @@ outcome: a streamed op resolves with `OpResult` whose `failure` is a *result*, n
 `authFailed` points at the credential helper, `rejected` / `other` show git's message. Rejections are `AppError`s:
 `refused` (a safety check, e.g. an unmerged branch) is handed to `onRefused` so the Delete-branch dialog can re-offer
 itself as a force delete, `cancelled` is an info toast, everything else goes through `toastError`. Afterwards it refreshes
-the status and calls `statusStore.syncRefs()`, which relabels the walk or restarts it when HEAD moved (the backend's own
+the status and calls `statusStore.syncRefs()`, which relabels the walk or restarts it when its seeds moved (the backend's own
 `repo://changed` arrives too; the seq guards make it a no-op). While an op runs, `opsStore.busy` holds the statusbar text
 and disables the toolbar; the streamed output lands in the shared `OutputDock` (elapsed timer + Cancel → `cancel_op`;
 a `

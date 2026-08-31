@@ -35,6 +35,10 @@ const refs = (oid: string, tags: string[] = []): RefsSnapshot => ({
   tags: tags.map((name) => ({ name, oid })),
   stashes: [],
 });
+const withRemote = (headOid: string, originOid: string): RefsSnapshot => ({
+  ...refs(headOid),
+  remotes: [{ name: "origin", url: null, branches: [{ name: "origin/main", oid: originOid }] }],
+});
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
 beforeEach(() => {
@@ -111,6 +115,29 @@ describe("statusStore", () => {
     expect(mocked.getRefs).toHaveBeenCalledTimes(1);
     expect(mocked.refreshLabels).not.toHaveBeenCalled();
     expect(mocked.startLog).not.toHaveBeenCalled();
+  });
+
+  it("a fetch that moved a remote branch restarts the walk", async () => {
+    // `all` walks refs/remotes/* as well, so commits that arrive on origin/main belong in the grid.
+    // HEAD does not move during a fetch, and relabelling cannot add rows a walk never produced.
+    useRepoStore.setState({ refs: withRemote("h1", "r1") });
+    mocked.getRefs.mockResolvedValue(withRemote("h1", "r2"));
+
+    await useStatusStore.getState().syncRefs();
+
+    expect(mocked.startLog).toHaveBeenCalledTimes(1);
+    expect(mocked.refreshLabels).not.toHaveBeenCalled();
+  });
+
+  it("the same fetch only relabels a walk scoped to HEAD", async () => {
+    // Nothing off HEAD is in this walk, so a moved remote branch can only change a label.
+    useRepoStore.setState({ spec: { kind: "head" }, refs: withRemote("h1", "r1") });
+    mocked.getRefs.mockResolvedValue(withRemote("h1", "r2"));
+
+    await useStatusStore.getState().syncRefs();
+
+    expect(mocked.startLog).not.toHaveBeenCalled();
+    expect(mocked.refreshLabels).toHaveBeenCalledTimes(1);
   });
 
   it("coalesces concurrent syncRefs into one refs fetch and one walk", async () => {
