@@ -28,6 +28,9 @@ pub enum GitError {
     InvalidPatch,
     #[error("{0}")]
     Config(String),
+    /// A safety check declined the operation (e.g. deleting an unmerged branch).
+    #[error("{0}")]
+    Refused(String),
 }
 
 impl GitError {
@@ -44,6 +47,7 @@ impl GitError {
             GitError::Conflicts(_) => "conflicts",
             GitError::InvalidPatch => "invalidPatch",
             GitError::Config(_) => "config",
+            GitError::Refused(_) => "refused",
         }
     }
 }

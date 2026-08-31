@@ -6,6 +6,9 @@ use serde::{Serialize, Serializer};
 pub enum AppError {
     #[error(transparent)]
     Git(#[from] GitError),
+    /// Another mutating operation holds the repo's op lock.
+    #[error("another operation is running")]
+    Busy,
     /// Bugs / infrastructure failures (e.g. a blocking task panicked).
     #[error("internal error: {0}")]
     Internal(String),
@@ -14,14 +17,14 @@ pub enum AppError {
 impl Serialize for AppError {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeStruct;
-        match self {
-            AppError::Git(e) => e.serialize(serializer),
-            AppError::Internal(msg) => {
-                let mut s = serializer.serialize_struct("AppError", 2)?;
-                s.serialize_field("kind", "internal")?;
-                s.serialize_field("message", msg)?;
-                s.end()
-            }
-        }
+        let (kind, message) = match self {
+            AppError::Git(e) => return e.serialize(serializer),
+            AppError::Busy => ("busy", self.to_string()),
+            AppError::Internal(msg) => ("internal", msg.clone()),
+        };
+        let mut s = serializer.serialize_struct("AppError", 2)?;
+        s.serialize_field("kind", kind)?;
+        s.serialize_field("message", &message)?;
+        s.end()
     }
 }

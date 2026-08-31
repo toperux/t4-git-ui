@@ -129,7 +129,31 @@ pub fn run() {
             commands::stage::commit,
             commands::stage::get_head_message,
             commands::stage::get_author,
-            commands::stage::cancel_op
+            commands::stage::cancel_op,
+            commands::ops::fetch,
+            commands::ops::pull,
+            commands::ops::push,
+            commands::ops::merge,
+            commands::ops::rebase,
+            commands::ops::rebase_continue,
+            commands::ops::rebase_abort,
+            commands::ops::merge_abort,
+            commands::ops::checkout,
+            commands::ops::stash_push,
+            commands::ops::stash_apply,
+            commands::ops::stash_pop,
+            commands::ops::stash_drop,
+            commands::ops::delete_remote_branch,
+            commands::ops::create_branch,
+            commands::ops::delete_branch,
+            commands::ops::rename_branch,
+            commands::ops::create_tag,
+            commands::ops::delete_tag,
+            commands::ops::get_config,
+            commands::ops::set_config,
+            commands::ops::get_default_remote,
+            commands::ops::clone_repo,
+            commands::ops::init_repo
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

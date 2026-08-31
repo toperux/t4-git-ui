@@ -45,25 +45,8 @@ pub fn head_message(repo: &Repository) -> Result<Option<String>, GitError> {
     }
 }
 
-/// `(user.name, user.email)` from the effective config; [`GitError::Config`]
-/// when either is missing or empty.
-pub fn author_identity(repo: &Repository) -> Result<(String, String), GitError> {
-    let cfg = repo
-        .config()
-        .and_then(|mut c| c.snapshot())
-        .map_err(map_git2)?;
-    let get = |key: &str| -> Result<String, GitError> {
-        match cfg.get_string(key) {
-            Ok(v) if !v.trim().is_empty() => Ok(v),
-            Ok(_) => Err(GitError::Config(format!("{key} is empty"))),
-            Err(e) if e.code() == ErrorCode::NotFound => {
-                Err(GitError::Config(format!("{key} is not set")))
-            }
-            Err(e) => Err(map_git2(e)),
-        }
-    };
-    Ok((get("user.name")?, get("user.email")?))
-}
+/// Moved to [`crate::config::user_identity`]; kept under its old name.
+pub use crate::config::user_identity as author_identity;
 
 /// Full commit details for the details pane. Ref labels are attached by the caller.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

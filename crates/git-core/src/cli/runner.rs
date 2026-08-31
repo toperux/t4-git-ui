@@ -326,21 +326,21 @@ impl ProcessTree {
 
 #[cfg(windows)]
 mod job {
-    use std::ffi::c_void;
     use std::io;
     use std::os::windows::io::RawHandle;
 
     use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
     use windows_sys::Win32::System::JobObjects::{
-        AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
-        SetInformationJobObject, TerminateJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
-        JOB_OBJECT_LIMIT_BREAKAWAY_OK,
+        AssignProcessToJobObject, CreateJobObjectW, TerminateJobObject,
     };
 
     /// A Job Object the git process is assigned to right after spawn; its
     /// descendants inherit membership so `terminate` kills the whole tree.
-    /// No kill-on-close limit: an app crash must not take a running `git`
-    /// (or a spawned `fsmonitor--daemon`) down with it.
+    /// No limits at all: no kill-on-close (an app crash must not take a
+    /// running `git` or a spawned `fsmonitor--daemon` down with it) and no
+    /// breakaway — the MSYS runtime behind Git for Windows' `sh` (hooks,
+    /// credential helpers) breaks away whenever the job allows it, which
+    /// would leave those children alive after a cancel.
     pub struct Job(HANDLE);
 
     // SAFETY: a job handle is a kernel object usable from any thread.
@@ -354,23 +354,7 @@ mod job {
             if h.is_null() {
                 return Err(io::Error::last_os_error());
             }
-            let job = Job(h);
-            // SAFETY: zeroed limit info is a valid (no-limits) struct.
-            let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = unsafe { std::mem::zeroed() };
-            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_BREAKAWAY_OK;
-            // SAFETY: `info` outlives the call and its size is passed.
-            let ok = unsafe {
-                SetInformationJobObject(
-                    h,
-                    JobObjectExtendedLimitInformation,
-                    &info as *const _ as *const c_void,
-                    std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
-                )
-            };
-            if ok == 0 {
-                return Err(io::Error::last_os_error());
-            }
-            Ok(job)
+            Ok(Job(h))
         }
 
         pub fn assign(&self, process: RawHandle) -> io::Result<()> {

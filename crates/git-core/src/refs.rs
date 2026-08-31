@@ -1,8 +1,11 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use git2::{BranchType, ErrorCode, ObjectType, ReferenceType, Repository, RepositoryState};
+use git2::{
+    BranchType, ErrorCode, ObjectType, Oid, ReferenceType, Repository, RepositoryState, Signature,
+};
 use serde::{Deserialize, Serialize};
 
+use crate::config::user_identity;
 use crate::log::types::{RefKind, RefLabel};
 use crate::{map_git2, GitError};
 
@@ -378,4 +381,128 @@ pub fn label_map(snap: &RefsSnapshot) -> HashMap<String, Vec<RefLabel>> {
     }
 
     map
+}
+
+/// Creates local branch `name` at `target` (anything `rev-parse` accepts).
+/// `force` moves an existing branch instead of failing.
+pub fn create_branch(
+    repo: &Repository,
+    name: &str,
+    target: &str,
+    force: bool,
+) -> Result<Branch, GitError> {
+    let commit = repo
+        .revparse_single(target)
+        .and_then(|o| o.peel_to_commit())
+        .map_err(map_git2)?;
+    let branch = repo.branch(name, &commit, force).map_err(map_git2)?;
+    Ok(Branch {
+        name: name.to_string(),
+        oid: commit.id().to_string(),
+        upstream: None,
+        gone: false,
+        ahead: 0,
+        behind: 0,
+        is_head: branch.is_head(),
+    })
+}
+
+fn head_oid(repo: &Repository) -> Result<Option<Oid>, GitError> {
+    match repo.head() {
+        Ok(h) => Ok(Some(h.peel_to_commit().map_err(map_git2)?.id())),
+        Err(e) if e.code() == ErrorCode::UnbornBranch => Ok(None),
+        Err(e) => Err(map_git2(e)),
+    }
+}
+
+fn is_reachable(repo: &Repository, from: Oid, target: Oid) -> Result<bool, GitError> {
+    Ok(from == target || repo.graph_descendant_of(from, target).map_err(map_git2)?)
+}
+
+/// `true` when the tip of local branch `name` is HEAD or one of its ancestors
+/// (`false` on an unborn HEAD).
+pub fn is_merged_into_head(repo: &Repository, name: &str) -> Result<bool, GitError> {
+    let tip = repo
+        .find_branch(name, BranchType::Local)
+        .and_then(|b| b.get().peel_to_commit())
+        .map_err(map_git2)?
+        .id();
+    match head_oid(repo)? {
+        Some(head) => is_reachable(repo, head, tip),
+        None => Ok(false),
+    }
+}
+
+/// Deletes local branch `name`. Without `force` the branch must be merged
+/// into HEAD or into its upstream (git's `branch -d` rule); the checked-out
+/// branch is never deleted. Refusals are [`GitError::Refused`].
+pub fn delete_branch(repo: &Repository, name: &str, force: bool) -> Result<(), GitError> {
+    let mut branch = repo
+        .find_branch(name, BranchType::Local)
+        .map_err(map_git2)?;
+    if branch.is_head() {
+        return Err(GitError::Refused(format!(
+            "cannot delete '{name}': it is the current branch"
+        )));
+    }
+    if !force {
+        let tip = branch.get().peel_to_commit().map_err(map_git2)?.id();
+        let merged_upstream = match branch
+            .upstream()
+            .ok()
+            .and_then(|u| u.get().peel_to_commit().ok())
+        {
+            Some(up) => is_reachable(repo, up.id(), tip)?,
+            None => false,
+        };
+        if !merged_upstream && !is_merged_into_head(repo, name)? {
+            return Err(GitError::Refused(format!(
+                "branch '{name}' is not fully merged; force-delete to discard its commits"
+            )));
+        }
+    }
+    branch.delete().map_err(map_git2)
+}
+
+/// Renames local branch `old` to `new` (`force` overwrites an existing `new`).
+pub fn rename_branch(repo: &Repository, old: &str, new: &str, force: bool) -> Result<(), GitError> {
+    repo.find_branch(old, BranchType::Local)
+        .and_then(|mut b| b.rename(new, force).map(|_| ()))
+        .map_err(map_git2)
+}
+
+/// Creates tag `name` at `target`: lightweight without `message`, annotated
+/// (signed with `user.name`/`user.email`) with one. Fails if the tag exists.
+pub fn create_tag(
+    repo: &Repository,
+    name: &str,
+    target: &str,
+    message: Option<&str>,
+) -> Result<Tag, GitError> {
+    let object = repo.revparse_single(target).map_err(map_git2)?;
+    let peeled = object
+        .peel(ObjectType::Commit)
+        .map_err(map_git2)?
+        .id()
+        .to_string();
+    match message {
+        Some(msg) => {
+            let (user, email) = user_identity(repo)?;
+            let sig = Signature::now(&user, &email).map_err(map_git2)?;
+            repo.tag(name, &object, &sig, msg, false)
+                .map_err(map_git2)?;
+        }
+        None => {
+            repo.tag_lightweight(name, &object, false)
+                .map_err(map_git2)?;
+        }
+    }
+    Ok(Tag {
+        name: name.to_string(),
+        oid: peeled,
+    })
+}
+
+pub fn delete_tag(repo: &Repository, name: &str) -> Result<(), GitError> {
+    repo.tag_delete(name).map_err(map_git2)
 }

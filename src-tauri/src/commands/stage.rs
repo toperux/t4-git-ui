@@ -1,11 +1,11 @@
 //! Stage / unstage / discard / commit commands. Mutations run under the
 //! repo's `op_lock` with the watcher suppressed and emit one synthetic
-//! `repo://changed` afterwards; CLI-backed ones stream `op://event`.
+//! `repo://changed` afterwards; CLI-backed ones stream `op://event` (see
+//! [`super::ops::run_git_op`]).
 
 use std::future::Future;
 use std::sync::Arc;
 
-use git_core::cli::{CliEvent, CliOutput};
 use git_core::diff::{self, DiffOptions, DiffTarget};
 use git_core::patch::{self, PatchSelection};
 use git_core::watch::{ChangeKind, RepoChange};
@@ -13,11 +13,11 @@ use git_core::{commit, refs, stage, GitError, RepoHandle, RepoId};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 
+use super::ops::run_git_op;
 use super::repo::blocking;
 use crate::{AppError, AppState};
 
 pub(crate) const CHANGED_EVENT: &str = "repo://changed";
-const OP_EVENT: &str = "op://event";
 
 /// Payload of `repo://changed`.
 #[derive(Debug, Clone, Serialize)]
@@ -26,15 +26,6 @@ pub(crate) struct RepoChanged<'a> {
     pub repo_id: &'a RepoId,
     pub kinds: &'a [ChangeKind],
     pub rescan: bool,
-}
-
-/// Payload of `op://event`.
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct OpEvent<'a> {
-    repo_id: &'a RepoId,
-    op_id: &'a str,
-    event: CliEvent,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -55,10 +46,10 @@ pub(crate) fn emit_changed(app: &AppHandle, id: &RepoId, change: &RepoChange) {
     }
 }
 
-/// Runs `f` under the repo's op lock with the watcher suppressed, then emits
-/// one synthetic `repo://changed` with `kinds` (even on error: partial
-/// changes may have landed).
-async fn mutate<T, F, Fut>(
+/// Runs `f` under the repo's op lock (waiting for it) with the watcher
+/// suppressed, then emits one synthetic `repo://changed` with `kinds` (even
+/// on error: partial changes may have landed).
+pub(crate) async fn mutate<T, F, Fut>(
     app: &AppHandle,
     state: &AppState,
     id: &RepoId,
@@ -71,48 +62,50 @@ where
 {
     let handle = state.repo(id)?;
     let _guard = handle.op_lock.lock().await;
-    state.set_watcher_suppressed(id, true);
-    let result = f(Arc::clone(&handle)).await;
-    state.set_watcher_suppressed(id, false);
+    suppressed(app, state, &handle, kinds, f).await
+}
+
+/// Like [`mutate`] but fails with [`AppError::Busy`] instead of waiting when
+/// another operation holds the lock (long-running branch / remote ops).
+pub(crate) async fn mutate_busy<T, F, Fut>(
+    app: &AppHandle,
+    state: &AppState,
+    id: &RepoId,
+    kinds: &[ChangeKind],
+    f: F,
+) -> Result<T, AppError>
+where
+    F: FnOnce(Arc<RepoHandle>) -> Fut,
+    Fut: Future<Output = Result<T, AppError>>,
+{
+    let handle = state.repo(id)?;
+    let _guard = handle.op_lock.try_lock().map_err(|_| AppError::Busy)?;
+    suppressed(app, state, &handle, kinds, f).await
+}
+
+async fn suppressed<T, F, Fut>(
+    app: &AppHandle,
+    state: &AppState,
+    handle: &Arc<RepoHandle>,
+    kinds: &[ChangeKind],
+    f: F,
+) -> Result<T, AppError>
+where
+    F: FnOnce(Arc<RepoHandle>) -> Fut,
+    Fut: Future<Output = Result<T, AppError>>,
+{
+    state.set_watcher_suppressed(&handle.id, true);
+    let result = f(Arc::clone(handle)).await;
+    state.set_watcher_suppressed(&handle.id, false);
     emit_changed(
         app,
-        id,
+        &handle.id,
         &RepoChange {
             kinds: kinds.to_vec(),
             rescan: false,
         },
     );
     result
-}
-
-/// Runs a git CLI command as a registered (cancellable) op; when `stream`,
-/// every [`CliEvent`] is forwarded as `op://event`.
-async fn run_git(
-    app: &AppHandle,
-    state: &AppState,
-    handle: &RepoHandle,
-    args: &[&str],
-    stdin: Option<Vec<u8>>,
-    stream: bool,
-) -> Result<CliOutput, AppError> {
-    let (op_id, cancel) = state.begin_op();
-    let cli = state.git_cli();
-    let result = cli
-        .run(&handle.path, &op_id, args, stdin, cancel, |event| {
-            if stream {
-                let payload = OpEvent {
-                    repo_id: &handle.id,
-                    op_id: &op_id,
-                    event,
-                };
-                if let Err(e) = app.emit(OP_EVENT, payload) {
-                    tracing::warn!(error = %e, "failed to emit op event");
-                }
-            }
-        })
-        .await;
-    state.end_op(&op_id);
-    Ok(result?)
 }
 
 fn as_strs(paths: &[String]) -> Vec<&str> {
@@ -205,8 +198,17 @@ async fn apply_selection(
         })
         .await?;
         let args = stage::stage_patch_args(reverse);
-        let out = run_git(app, state, &handle, &args, Some(patch.into_bytes()), false).await?;
-        out.check(&format!("git {}", args.join(" ")))?;
+        let run = run_git_op(
+            app,
+            state,
+            Some(&handle.id),
+            &handle.path,
+            &args,
+            Some(patch.into_bytes()),
+            false,
+        )
+        .await?;
+        run.out.check(&format!("git {}", args.join(" ")))?;
         Ok(())
     })
     .await
@@ -285,9 +287,18 @@ pub async fn commit(
                 .map_err(GitError::from)?;
             let args = commit::commit_args(file.path(), amend, signoff, false);
             let args: Vec<&str> = args.iter().map(String::as_str).collect();
-            let out = run_git(app, state, &handle, &args, None, true).await?;
+            let run = run_git_op(
+                app,
+                state,
+                Some(&handle.id),
+                &handle.path,
+                &args,
+                None,
+                true,
+            )
+            .await?;
             drop(file);
-            out.check("git commit")?;
+            run.out.check("git commit")?;
 
             let oid = blocking(move || Ok(refs::head_info(&handle.git2.lock())?.oid))
                 .await?

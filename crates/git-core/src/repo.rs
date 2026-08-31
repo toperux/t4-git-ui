@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use git2::{ErrorCode, Repository};
+use git2::{ErrorCode, Repository, RepositoryInitOptions};
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
 
@@ -110,6 +110,27 @@ impl RepoHandle {
     }
 }
 
+/// `git init <path>` (creating the directory): the initial branch comes from
+/// the global `init.defaultBranch`, else `main`. Fails on an existing repo.
+pub fn init_repo(path: impl AsRef<Path>) -> Result<(), GitError> {
+    let path = path.as_ref();
+    if Repository::open(path).is_ok() {
+        return Err(GitError::Refused(format!(
+            "{} is already a git repository",
+            path.display()
+        )));
+    }
+    let branch = git2::Config::open_default()
+        .ok()
+        .and_then(|c| c.get_string("init.defaultBranch").ok())
+        .filter(|b| !b.trim().is_empty())
+        .unwrap_or_else(|| "main".to_string());
+    let mut opts = RepositoryInitOptions::new();
+    opts.initial_head(&branch).mkpath(true);
+    Repository::init_opts(path, &opts).map_err(map_git2)?;
+    Ok(())
+}
+
 /// Converts a libgit2 error, recognizing lock contention (`index.lock` etc.)
 /// as [`GitError::IndexLocked`].
 pub fn map_git2(e: git2::Error) -> GitError {
@@ -211,6 +232,18 @@ mod tests {
             Err(GitError::NotARepo(_)) => {}
             other => panic!("expected NotARepo, got {:?}", other.map(|_| ())),
         }
+    }
+
+    #[test]
+    fn init_repo_creates_empty_repo_and_refuses_existing() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("new").join("repo");
+        init_repo(&path).expect("init");
+        let h = RepoHandle::open(&path).expect("open");
+        let head = crate::refs::head_info(&h.git2.lock()).expect("head");
+        assert_eq!(head.oid, None);
+        assert!(head.branch.is_some());
+        assert!(matches!(init_repo(&path), Err(GitError::Refused(_))));
     }
 
     #[test]
