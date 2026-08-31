@@ -35,10 +35,20 @@ export function DetailsPane() {
       </Panel>
       <Separator className={w.splitH} aria-label="Resize file list" />
       <Panel minSize={200} className={w.panel}>
-        <DiffViewer />
+        <CommitDiff />
       </Panel>
     </Group>
   );
+}
+
+/** `DiffViewer` bound to `diffStore` (the selected commit's file). */
+function CommitDiff() {
+  const path = useDiffStore((st) => st.selectedPath);
+  const file = useDiffStore((st) => st.files.find((f) => f.path === st.selectedPath));
+  const diff = useDiffStore((st) => st.diff);
+  const loading = useDiffStore((st) => st.diffLoading);
+  const error = useDiffStore((st) => st.diffError);
+  return <DiffViewer path={path} oldPath={file?.oldPath ?? null} stats={file ?? null} diff={diff} loading={loading} error={error} />;
 }
 
 function CommitPanel() {

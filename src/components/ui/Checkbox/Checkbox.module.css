@@ -1,0 +1,40 @@
+/* base.css .check / .checkbox */
+.check {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  cursor: default;
+}
+.input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  margin: 0;
+}
+.box {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-panel);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-on-accent);
+  transition:
+    background-color var(--dur) var(--ease),
+    border-color var(--dur) var(--ease);
+}
+.checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.input:focus-visible + .box {
+  box-shadow: var(--focus-ring);
+}
+.disabled {
+  opacity: 0.45;
+}

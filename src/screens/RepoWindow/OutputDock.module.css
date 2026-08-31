@@ -1,0 +1,63 @@
+/* screens.mjs dock(): collapsed = 28px panel header with top border; open = 200px panel */
+.dock {
+  border-top: 1px solid var(--border);
+  border-bottom: 0;
+}
+.dockOpen {
+  border-bottom: 1px solid var(--border);
+}
+.panel {
+  flex: none;
+  height: 200px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.cmdText {
+  font-family: var(--font-mono);
+  font-size: var(--mono-size);
+  font-weight: var(--weight-regular);
+  color: var(--fg-muted);
+}
+.cmdTextOpen {
+  color: var(--fg);
+}
+.xs {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-regular);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.muted {
+  color: var(--fg-muted);
+}
+.ok {
+  color: var(--success);
+}
+.err {
+  color: var(--danger-text);
+}
+/* base.css .output (the dock edges are the frame: radius 0) */
+.output {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-4) var(--space-5);
+  background: var(--bg-inset);
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: var(--mono-size);
+  line-height: var(--mono-lh);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.op + .op {
+  margin-top: var(--space-3);
+}
+.cmd {
+  color: var(--fg);
+}
+.stderr {
+  color: var(--fg-muted);
+  font-style: italic;
+}

@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { onLogProgress } from "./api/events";
+import { onLogProgress, onOpEvent, onRepoChanged } from "./api/events";
 import { probeGit, toAppError } from "./api/ipc";
 import { Spinner } from "./components/ui/Spinner/Spinner";
 import { GitMissingScreen } from "./screens/GitMissingScreen/GitMissingScreen";
 import { RepoWindow } from "./screens/RepoWindow/RepoWindow";
 import { StartScreen } from "./screens/StartScreen/StartScreen";
+import { useOpsStore } from "./store/opsStore";
 import { useRepoStore } from "./store/repoStore";
+import { useStatusStore } from "./store/statusStore";
 
 /** localStorage key for the last opened repository path (the store plugin replaces this in M5). */
 const LAST_REPO_KEY = "lastRepo";
@@ -41,14 +43,18 @@ export default function App() {
   }, [probe]);
 
   useEffect(() => {
-    const unlisten = onLogProgress((p) => useRepoStore.getState().onProgress(p));
+    const unlisten = [
+      onLogProgress((p) => useRepoStore.getState().onProgress(p)),
+      onRepoChanged((p) => useStatusStore.getState().onChanged(p)),
+      onOpEvent((e) => useOpsStore.getState().onEvent(e)),
+    ];
     const unsubscribe = useRepoStore.subscribe((st, prev) => {
       if (st.repo === prev.repo) return;
       if (st.repo) localStorage.setItem(LAST_REPO_KEY, st.repo.path);
       else localStorage.removeItem(LAST_REPO_KEY);
     });
     return () => {
-      unlisten();
+      unlisten.forEach((fn) => fn());
       unsubscribe();
     };
   }, []);

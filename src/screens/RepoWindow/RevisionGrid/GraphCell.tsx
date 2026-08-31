@@ -45,8 +45,8 @@ function draw(ctx: CanvasRenderingContext2D, row: GraphRow, t: ThemeTokens, isHe
   ctx.fill();
 }
 
-/** One row of the lane graph on a DPR-aware canvas. */
-export const GraphCell = memo(function GraphCell({ row, lanes, isHead }: GraphCellProps) {
+/** DPR-aware canvas of the graph column's width × row height; `paint` runs whenever `deps` change. */
+function useGraphCanvas(lanes: number, paint: (ctx: CanvasRenderingContext2D, t: ThemeTokens) => void, deps: unknown[]) {
   const t = useThemeTokens();
   const ref = useRef<HTMLCanvasElement>(null);
   const w = graphWidth(lanes, t.laneW);
@@ -61,8 +61,50 @@ export const GraphCell = memo(function GraphCell({ row, lanes, isHead }: GraphCe
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.scale(dpr, dpr);
-    draw(ctx, row, t, isHead);
-  }, [row, t, isHead, w, h]);
+    paint(ctx, t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t, w, h, ...deps]);
 
   return <canvas ref={ref} className={s.canvas} style={{ width: w, height: h }} aria-hidden />;
+}
+
+/** One row of the lane graph on a DPR-aware canvas. */
+export const GraphCell = memo(function GraphCell({ row, lanes, isHead }: GraphCellProps) {
+  return useGraphCanvas(lanes, (ctx, t) => draw(ctx, row, t, isHead), [row, isHead]);
+});
+
+/** screens.mjs `wt` node: r 3.5 dashed (2 2) ring, stroke 1.5. */
+export const WT_RING_STROKE = 1.5;
+export const WT_RING_DASH = [2, 2];
+
+/**
+ * Working-tree pseudo-row: dashed ring at lane 0 and, when the top commit sits in lane 0 too,
+ * a line down to it in that lane's color.
+ */
+export const WorkingTreeNode = memo(function WorkingTreeNode({ lanes, first }: { lanes: number; first: GraphRow | null }) {
+  return useGraphCanvas(
+    lanes,
+    (ctx, t) => {
+      const col = t.graph[(first?.color ?? 0) % 8] ?? "";
+      const cx = laneX(0, t.laneW);
+      const cy = t.rowH / 2;
+      if (first && first.lane === 0) {
+        ctx.lineWidth = t.laneStroke;
+        ctx.lineCap = "round";
+        ctx.strokeStyle = col;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx, t.rowH);
+        ctx.stroke();
+      }
+      ctx.beginPath();
+      ctx.arc(cx, cy, t.nodeR, 0, Math.PI * 2);
+      ctx.setLineDash(WT_RING_DASH);
+      ctx.lineWidth = WT_RING_STROKE;
+      ctx.strokeStyle = col;
+      ctx.stroke();
+      ctx.setLineDash([]);
+    },
+    [first],
+  );
 });

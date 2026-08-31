@@ -1,8 +1,9 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowDownUp, Columns2, File, FileDiff, Rows2 } from "lucide-react";
-import { memo, useEffect, useMemo, useRef, type CSSProperties, type ReactNode } from "react";
-import type { DiffLine } from "../../../api/types";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
+import type { DiffLine, FileDiff as FileDiffModel } from "../../../api/types";
 import { Banner } from "../../../components/ui/Banner/Banner";
+import { Button } from "../../../components/ui/Button/Button";
 import { EmptyState } from "../../../components/ui/EmptyState/EmptyState";
 import { IconButton } from "../../../components/ui/IconButton/IconButton";
 import { PanelHeader } from "../../../components/ui/PanelHeader/PanelHeader";
@@ -13,20 +14,53 @@ import { useDiffStore, type DiffView } from "../../../store/diffStore";
 import { Stats } from "../ChangedFileList/ChangedFileList";
 import { flattenSplit, flattenUnified, rowHeight, type SplitRow, type UnifiedRow } from "./diffRows";
 import s from "./DiffViewer.module.css";
+import { clickLine, EMPTY_LINES, lineKey, toPairs, type LineRef, type LineSelection } from "./lineSelection";
 
 const OVERSCAN = 30;
 const SIGN: Record<DiffLine["kind"], string> = { context: " ", add: "+", del: "−" };
+const NO_DISCARD = "Discarding hunks / lines arrives in a later milestone";
 
-export function DiffViewer() {
-  const selectedPath = useDiffStore((st) => st.selectedPath);
-  const file = useDiffStore((st) => st.files.find((f) => f.path === st.selectedPath));
-  const diff = useDiffStore((st) => st.diff);
-  const loading = useDiffStore((st) => st.diffLoading);
-  const error = useDiffStore((st) => st.diffError);
-  const view = useDiffStore((st) => st.view);
+/** Staging actions (commit panel): hunk buttons + line selection on the unified view. */
+export interface DiffActions {
+  /** `staged` reverses (unstages). */
+  target: "unstaged" | "staged";
+  /** Untracked file: whole-file only, no hunk / line actions. */
+  wholeFile: boolean;
+  busy?: boolean;
+  onStageHunk: (hunk: number) => void;
+  onStageLines: (lines: [number, number][]) => void;
+}
+
+export interface DiffViewerProps {
+  path: string | null;
+  oldPath?: string | null;
+  /** Counts from the file list, shown until the diff arrives. */
+  stats?: { additions: number; deletions: number; binary: boolean } | null;
+  diff: FileDiffModel | null;
+  loading: boolean;
+  error: string | null;
+  actions?: DiffActions;
+}
+
+type Mods = { ctrl?: boolean; shift?: boolean };
+
+export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: listStats, diff, loading, error, actions }: DiffViewerProps) {
+  const storeView = useDiffStore((st) => st.view);
   const ignoreWhitespace = useDiffStore((st) => st.ignoreWhitespace);
   const setView = useDiffStore((st) => st.setView);
   const toggleWhitespace = useDiffStore((st) => st.toggleWhitespace);
+  // Hunk / line indices must match the backend's stage-able diff: unified only, no whitespace option.
+  const view: DiffView = actions ? "unified" : storeView;
+  const lineActions = actions && !actions.wholeFile ? actions : undefined;
+
+  const [sel, setSel] = useState<LineSelection>(EMPTY_LINES);
+  useEffect(() => setSel(EMPTY_LINES), [diff]);
+  const onLineClick = useCallback(
+    (ref: LineRef, mods: Mods) => {
+      if (diff) setSel((prev) => clickLine(diff, prev, ref, mods));
+    },
+    [diff],
+  );
 
   const flat = useMemo(() => {
     if (!diff || diff.binary) return null;
@@ -34,15 +68,21 @@ export function DiffViewer() {
   }, [diff, view]);
 
   const path = diff?.path ?? selectedPath;
-  const oldPath = diff ? diff.oldPath : (file?.oldPath ?? null);
-  const stats = diff ?? file;
+  const oldPath = diff ? diff.oldPath : (listOldPath ?? null);
+  const stats = diff ?? listStats;
 
   let body: ReactNode;
   if (!selectedPath) body = <EmptyState icon={<FileDiff size={24} aria-hidden />} title="Select a file" />;
   else if (error) body = <EmptyState title="Couldn't load diff" hint={error} />;
   else if (diff?.binary) body = <EmptyState icon={<File size={24} aria-hidden />} title="Binary file" hint="Contents not shown" />;
   else if (flat && flat.rows.length === 0) body = <EmptyState title="No text changes" />;
-  else if (flat) body = <DiffBody key={flat.view} view={flat.view} rows={flat.rows} maxCols={flat.maxCols} />;
+  else if (flat)
+    body = (
+      <DiffBody key={flat.view} view={flat.view} rows={flat.rows} maxCols={flat.maxCols} actions={lineActions} selected={sel.keys} onLineClick={onLineClick} />
+    );
+
+  const n = sel.keys.size;
+  const verb = actions?.target === "staged" ? "Unstage" : "Stage";
 
   return (
     <div className={s.viewer}>
@@ -50,15 +90,22 @@ export function DiffViewer() {
         icon={<File size={14} aria-hidden />}
         title={path && <span className={s.path}>{oldPath ? `${oldPath} → ${path}` : path}</span>}
       >
+        {actions?.wholeFile && <span className={s.note}>Untracked — stage whole file</span>}
         {stats && !stats.binary && <Stats additions={stats.additions} deletions={stats.deletions} className={s.stats} />}
         <ToolbarSeparator />
         <IconButton label="Unified view" on={view === "unified"} onClick={() => setView("unified")}>
           <Rows2 size={14} aria-hidden />
         </IconButton>
-        <IconButton label="Split view" on={view === "split"} onClick={() => setView("split")}>
+        <IconButton label="Split view" on={view === "split"} disabled={!!actions} title={actions ? "Split view is unavailable while staging" : undefined} onClick={() => setView("split")}>
           <Columns2 size={14} aria-hidden />
         </IconButton>
-        <IconButton label="Ignore whitespace" on={ignoreWhitespace} onClick={toggleWhitespace}>
+        <IconButton
+          label="Ignore whitespace"
+          on={!actions && ignoreWhitespace}
+          disabled={!!actions}
+          title={actions ? "Whitespace option is unavailable while staging" : undefined}
+          onClick={toggleWhitespace}
+        >
           <ArrowDownUp size={14} aria-hidden />
         </IconButton>
       </PanelHeader>
@@ -69,13 +116,37 @@ export function DiffViewer() {
       )}
       {body}
       {diff?.truncated && <Banner kind="warning">Diff truncated at 20 000 lines</Banner>}
+      {lineActions && n > 0 && (
+        <div className={s.bar} role="toolbar" aria-label="Selected lines">
+          <span className={s.grow}>
+            {n} line{n === 1 ? "" : "s"} selected
+          </span>
+          {lineActions.target === "unstaged" && (
+            <Button size="sm" className={s.barBtn} disabled title={NO_DISCARD}>
+              Discard
+            </Button>
+          )}
+          <Button size="sm" variant="primary" className={s.barBtn} disabled={lineActions.busy} onClick={() => lineActions.onStageLines(toPairs(sel))}>
+            {verb} {n} line{n === 1 ? "" : "s"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
 
 type Rows = { view: "unified"; rows: UnifiedRow[] } | { view: "split"; rows: SplitRow[] };
 
-function DiffBody({ view, rows, maxCols }: { view: DiffView; rows: (UnifiedRow | SplitRow)[]; maxCols: number }) {
+interface DiffBodyProps {
+  view: DiffView;
+  rows: (UnifiedRow | SplitRow)[];
+  maxCols: number;
+  actions?: DiffActions;
+  selected: ReadonlySet<string>;
+  onLineClick: (ref: LineRef, mods: Mods) => void;
+}
+
+function DiffBody({ view, rows, maxCols, actions, selected, onLineClick }: DiffBodyProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -97,13 +168,20 @@ function DiffBody({ view, rows, maxCols }: { view: DiffView; rows: (UnifiedRow |
         className={cx(s.body, view === "split" && s.split)}
         style={{ height: virtualizer.getTotalSize(), "--cols": maxCols } as CSSProperties}
       >
-        {virtualizer.getVirtualItems().map((item) =>
-          model.view === "unified" ? (
-            <UnifiedRowView key={item.index} row={model.rows[item.index]} top={item.start} />
-          ) : (
-            <SplitRowView key={item.index} row={model.rows[item.index]} top={item.start} />
-          ),
-        )}
+        {virtualizer.getVirtualItems().map((item) => {
+          if (model.view === "split") return <SplitRowView key={item.index} row={model.rows[item.index]} top={item.start} />;
+          const row = model.rows[item.index];
+          return (
+            <UnifiedRowView
+              key={item.index}
+              row={row}
+              top={item.start}
+              actions={actions}
+              selected={row.kind === "line" && selected.has(lineKey(row.hunk, row.index))}
+              onLineClick={onLineClick}
+            />
+          );
+        })}
       </div>
     </div>
   );
@@ -126,12 +204,32 @@ function LineText({ text }: { text: string }) {
 
 const NO_NEWLINE = "No newline at end of file";
 
-const UnifiedRowView = memo(function UnifiedRowView({ row, top }: { row: UnifiedRow; top: number }) {
+interface UnifiedRowViewProps {
+  row: UnifiedRow;
+  top: number;
+  actions?: DiffActions;
+  selected: boolean;
+  onLineClick: (ref: LineRef, mods: Mods) => void;
+}
+
+const UnifiedRowView = memo(function UnifiedRowView({ row, top, actions, selected, onLineClick }: UnifiedRowViewProps) {
   const style = { top };
   if (row.kind === "hunk") {
     return (
       <div className={s.hunk} style={style}>
         <span className={s.grow}>{row.header}</span>
+        {actions && (
+          <span className={s.hunkActions}>
+            {actions.target === "unstaged" && (
+              <Button size="sm" className={s.hunkBtn} disabled title={NO_DISCARD}>
+                Discard
+              </Button>
+            )}
+            <Button size="sm" variant="primary" className={s.hunkBtn} disabled={actions.busy} onClick={() => actions.onStageHunk(row.hunk)}>
+              {actions.target === "staged" ? "Unstage hunk" : "Stage hunk"}
+            </Button>
+          </span>
+        )}
       </div>
     );
   }
@@ -146,8 +244,17 @@ const UnifiedRowView = memo(function UnifiedRowView({ row, top }: { row: Unified
     );
   }
   const { line } = row;
+  const pick = !!actions && line.kind !== "context";
+  const onClick = pick ? (e: MouseEvent) => onLineClick({ hunk: row.hunk, line: row.index }, { ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey }) : undefined;
   return (
-    <div className={cx(s.dl, line.kind === "add" && s.add, line.kind === "del" && s.del)} style={style}>
+    <div
+      className={cx(s.dl, line.kind === "add" && s.add, line.kind === "del" && s.del, pick && s.pick, selected && s.selected)}
+      style={style}
+      aria-selected={pick ? selected : undefined}
+      onClick={onClick}
+      // Shift+click extends the selection, not the text selection.
+      onMouseDown={pick ? (e) => e.shiftKey && e.preventDefault() : undefined}
+    >
       <span className={s.no}>{line.oldNo ?? ""}</span>
       <span className={s.no}>{line.newNo ?? ""}</span>
       <span className={s.sg}>{SIGN[line.kind]}</span>

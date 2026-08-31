@@ -6,9 +6,10 @@ export const LINE_ROW_H = 20;
 /** Tabs render at `tab-size: 4`; used for the horizontal scroll width estimate. */
 const TAB_COLS = 4;
 
+/** Unified rows carry their `FileDiff` indices so the actions mode can address hunks / lines. */
 export type UnifiedRow =
-  | { kind: "hunk"; header: string }
-  | { kind: "line"; line: DiffLine }
+  | { kind: "hunk"; header: string; hunk: number }
+  | { kind: "line"; line: DiffLine; hunk: number; index: number }
   /** `\ No newline at end of file` marker for the preceding line. */
   | { kind: "nonl" };
 
@@ -35,15 +36,15 @@ function cols(text: string): number {
 export function flattenUnified(diff: FileDiff): Flattened<UnifiedRow> {
   const rows: UnifiedRow[] = [];
   let maxCols = 0;
-  for (const h of diff.hunks) {
-    rows.push({ kind: "hunk", header: h.header });
-    for (const line of h.lines) {
-      rows.push({ kind: "line", line });
+  diff.hunks.forEach((h, hunk) => {
+    rows.push({ kind: "hunk", header: h.header, hunk });
+    h.lines.forEach((line, index) => {
+      rows.push({ kind: "line", line, hunk, index });
       if (line.noNewline) rows.push({ kind: "nonl" });
       const c = cols(line.text);
       if (c > maxCols) maxCols = c;
-    }
-  }
+    });
+  });
   return { rows, maxCols };
 }
 

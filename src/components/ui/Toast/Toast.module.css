@@ -1,0 +1,56 @@
+/* base.css .toast — bottom-right stack */
+.stack {
+  position: fixed;
+  right: var(--space-6);
+  bottom: calc(var(--statusbar-h) + var(--space-6));
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  width: 360px;
+  padding: var(--space-4) var(--space-5);
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+}
+.icon {
+  display: inline-flex;
+  flex: none;
+  margin-top: 1px;
+}
+.error .icon {
+  color: var(--danger-text);
+}
+.success .icon {
+  color: var(--success);
+}
+.info .icon {
+  color: var(--accent-text);
+}
+.grow {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.title {
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
+}
+.detail {
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  line-height: var(--lh-sm);
+  overflow-wrap: anywhere;
+}
+.actions {
+  display: flex;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}

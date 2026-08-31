@@ -2,6 +2,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   AppError,
+  Author,
   CommitDetail,
   DiffOptions,
   DiffTarget,
@@ -73,3 +74,34 @@ export const getFileDiff = (id: RepoId, target: DiffTarget, path: string, opts?:
   call<FileDiff>("get_file_diff", { id, target, path, opts });
 
 export const getStatus = (id: RepoId) => call<WorkdirStatus>("get_status", { id });
+
+// --- src-tauri/src/commands/stage.rs ---
+// Mutations emit one `repo://changed` afterwards (even on error).
+
+export const stagePaths = (id: RepoId, paths: string[]) => call<void>("stage_paths", { id, paths });
+
+export const unstagePaths = (id: RepoId, paths: string[]) => call<void>("unstage_paths", { id, paths });
+
+/** Discards unstaged changes (tracked: restore from index; untracked: delete). Resolves with the paths touched. */
+export const discardPaths = (id: RepoId, paths: string[]) => call<string[]>("discard_paths", { id, paths });
+
+/** Hunk indices into the `unstaged` diff of `path` (`staged` when `reverse`, which unstages). */
+export const stageHunks = (id: RepoId, path: string, hunks: number[], reverse: boolean) =>
+  call<void>("stage_hunks", { id, path, hunks, reverse });
+
+/** `[hunkIndex, lineIndexWithinHunk]` pairs; same target rule as `stageHunks`. */
+export const stageLines = (id: RepoId, path: string, lines: [number, number][], reverse: boolean) =>
+  call<void>("stage_lines", { id, path, lines, reverse });
+
+/** `git commit` via the CLI (hook output streams as `op://event`); resolves with the new HEAD oid. */
+export const commit = (id: RepoId, message: string, amend: boolean, signoff: boolean) =>
+  call<string>("commit", { id, message, amend, signoff });
+
+/** Full HEAD message (`null` on an unborn HEAD). */
+export const getHeadMessage = (id: RepoId) => call<string | null>("get_head_message", { id });
+
+/** Rejects with kind `config` when `user.name` / `user.email` are missing. */
+export const getAuthor = (id: RepoId) => call<Author>("get_author", { id });
+
+/** Kills a running CLI op; `false` if unknown. */
+export const cancelOp = (opId: string) => call<boolean>("cancel_op", { opId });

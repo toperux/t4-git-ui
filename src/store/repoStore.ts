@@ -28,7 +28,10 @@ export interface RepoStore {
   rows: (LogRow | undefined)[];
   /** Highest lane seen so far (graph column width). */
   maxLane: number;
+  /** Commit index (the working-tree pseudo-row is not part of `rows`). */
   selectedIndex: number | null;
+  /** The working-tree pseudo-row is selected (takes precedence over `selectedIndex`). */
+  wtSelected: boolean;
   /** Scroll request for the grid; `seq` bumps so the same index can be revealed twice. */
   reveal: { index: number; seq: number } | null;
 
@@ -36,10 +39,13 @@ export interface RepoStore {
   openRepo(path: string): Promise<void>;
   closeRepo(): Promise<void>;
   refreshRefs(): Promise<void>;
+  /** Recomputes ref labels on the backend and re-fetches every loaded page (no re-walk). */
+  refreshLabels(): Promise<void>;
   startLog(spec: RevSpec, filter: LogFilter): Promise<void>;
   /** Fetches every page overlapping `[start, end)` that isn't loaded or in flight. */
   ensureRows(start: number, end: number): void;
   select(index: number | null): void;
+  selectWorkingTree(on?: boolean): void;
   /** Selects the row for `oid` (loading pages as needed) and asks the grid to scroll to it. */
   revealOid(oid: string): Promise<void>;
   onProgress(p: LogProgress): void;
@@ -111,6 +117,7 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
     rows: [],
     maxLane: 0,
     selectedIndex: null,
+    wtSelected: false,
     reveal: null,
 
     setGitVersion: (gitVersion) => set({ gitVersion }),
@@ -118,7 +125,7 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
     async openRepo(path) {
       const repo = await ipc.openRepo(path);
       resetPages();
-      set({ repo, refs: null, log: EMPTY_LOG, rows: [], maxLane: 0, selectedIndex: null, reveal: null });
+      set({ repo, refs: null, log: EMPTY_LOG, rows: [], maxLane: 0, selectedIndex: null, wtSelected: false, reveal: null });
       await Promise.all([get().refreshRefs(), get().startLog({ kind: "all" }, {})]);
     },
 
@@ -127,7 +134,7 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
       if (!repo) return;
       startSeq++;
       resetPages();
-      set({ repo: null, refs: null, log: EMPTY_LOG, rows: [], maxLane: 0, selectedIndex: null, reveal: null });
+      set({ repo: null, refs: null, log: EMPTY_LOG, rows: [], maxLane: 0, selectedIndex: null, wtSelected: false, reveal: null });
       await ipc.closeRepo(repo.id);
     },
 
@@ -136,6 +143,17 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
       if (!repo) return;
       const refs = await ipc.getRefs(repo.id);
       if (get().repo?.id === repo.id) set({ refs });
+    },
+
+    async refreshLabels() {
+      const { repo, log } = get();
+      if (!repo || log.generation === null) return;
+      const generation = await ipc.refreshLabels(repo.id);
+      const s = get();
+      if (s.repo?.id !== repo.id || s.log.generation !== generation) return;
+      const pages = [...loaded];
+      loaded = new Set();
+      for (const p of pages) void fetchPage(p);
     },
 
     async startLog(spec, filter) {
@@ -171,7 +189,9 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
       }
     },
 
-    select: (selectedIndex) => set({ selectedIndex }),
+    select: (selectedIndex) => set({ selectedIndex, wtSelected: false }),
+
+    selectWorkingTree: (on = true) => set({ wtSelected: on }),
 
     async revealOid(oid) {
       const find = () => get().rows.findIndex((r) => r?.row.commit.oid === oid);
@@ -195,6 +215,6 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
   };
 });
 
-/** Oid of the selected row, or `null` while its page is still loading. */
+/** Oid of the selected commit row, or `null` while its page is still loading (or the working tree is selected). */
 export const selectSelectedOid = (s: RepoStore) =>
-  s.selectedIndex === null ? null : (s.rows[s.selectedIndex]?.row.commit.oid ?? null);
+  s.wtSelected || s.selectedIndex === null ? null : (s.rows[s.selectedIndex]?.row.commit.oid ?? null);

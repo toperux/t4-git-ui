@@ -1,0 +1,65 @@
+/* base.css .menu / .menu-item / .menu-sep — dropped below (right-aligned to) the anchor */
+.wrap {
+  position: relative;
+  display: inline-flex;
+}
+.menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 20;
+  width: 220px;
+  padding: var(--space-2);
+  margin-top: var(--space-1);
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+}
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  height: var(--row-h);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  white-space: nowrap;
+  cursor: default;
+}
+.item:hover:not(:disabled),
+.item:focus-visible {
+  background: var(--accent);
+  color: var(--fg-on-accent);
+  box-shadow: none;
+}
+.item:hover:not(:disabled) .icon,
+.item:focus-visible .icon {
+  color: inherit;
+}
+.item:disabled {
+  opacity: 0.45;
+}
+.danger {
+  color: var(--danger-text);
+}
+.icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--fg-muted);
+}
+.grow {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sep {
+  height: 1px;
+  background: var(--border);
+  margin: var(--space-2) var(--space-4);
+}

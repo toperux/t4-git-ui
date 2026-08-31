@@ -7,13 +7,28 @@ src/
   api/
     types.ts               TS mirror of the Rust IPC contract (serde camelCase) — edit only together with the Rust structs
     ipc.ts                 one typed `invoke` wrapper per command; every rejection is an AppError {kind, message}; isAppError/toAppError
-    events.ts              onLogProgress(cb) → unlisten  (`log://progress`)
+    events.ts              onLogProgress / onRepoChanged / onOpEvent (cb) → unlisten  (`log://progress`, `repo://changed`, `op://event`)
   store/
-    repoStore.ts           zustand: repo, refs, log {generation,total,complete,error,flat}, sparse rows[], selection, reveal
-                           actions: openRepo, closeRepo, refreshRefs, startLog, ensureRows (500-row pages, dedupe, stale drop), select, revealOid
+    repoStore.ts           zustand: repo, refs, log {generation,total,complete,error,flat}, sparse rows[], selection (commit index +
+                           wtSelected for the working-tree row), reveal
+                           actions: openRepo, closeRepo, refreshRefs, refreshLabels (re-fetch loaded pages), startLog,
+                           ensureRows (500-row pages, dedupe, stale drop), select, selectWorkingTree, revealOid
     diffStore.ts           zustand: selected commit → files (get_commit_files), selectedPath (default first), diff (get_file_diff, context 3),
                            stale responses dropped via seq counters; view unified|split (localStorage.diffView), ignoreWhitespace,
                            fileListMode flat|tree (localStorage.fileListMode)
+    statusStore.ts         zustand: WorkdirStatus; refresh (seq-guarded) / scheduleRefresh (100 ms debounce); onChanged(`repo://changed`):
+                           any kind → status; refs|rescan → syncRefs (refreshRefs → HEAD moved ? startLog : refreshLabels);
+                           a clean tree clears wtSelected; follows repoStore.repo
+    commitStore.ts         zustand: commit-panel state — list (unstaged|staged) + multi-selection + anchor, `+N −M` stats
+                           (get_changed_files ×2), diff of the anchor (unstaged|staged target, context 3, no whitespace option so hunk /
+                           line indices match the backend), editor (summary/body/amend/signoff/prefill), busy;
+                           actions: select, syncWithStatus (prune → neighbour → other list), stage/unstage/discard (native ask()),
+                           stageHunk/stageLines (reverse for staged), setAmend (get_head_message prefill), useMessage, commit
+                           (→ msgHistory, toast, status + refs refresh), reset on repo change
+    opsStore.ts            zustand: OpRecord[] from `op://event` (started/stdout/stderr/progress-redraw/exit), max 50 ops × 5000 lines,
+                           cancel(opId), dock open
+    toastStore.ts          zustand: toasts (error|success|info, 6 s auto-dismiss); toastError(err, title, retry?) — cli → first stderr
+                           line, indexLocked → "Index is locked…" + Retry
   theme/
     tokens.css             GENERATED from docs/design/canvases/build/tokens.css — never edit; run `node docs/design/canvases/build/build.mjs`
     base.css               reset, body, scrollbar, :focus-visible, .selectable, reduced-motion
@@ -21,20 +36,35 @@ src/
     theme.ts               light/dark preference → <html data-theme>
     useThemeTokens.ts      reads --graph-0..7 / --lane-w / --node-r / --lane-stroke / --row-h via getComputedStyle; re-reads on data-theme change
   assets/fonts/            InterVariable(.woff2, -Italic), JetBrainsMono[wght](.woff2, -Italic) + licenses
-  lib/                     cx(), relativeDate()/absoluteDate()
-  components/ui/<Name>/    one folder per style-guide component: <Name>.tsx + <Name>.module.css (incl. StatusGlyph A/M/D/R/U/C)
+  lib/                     cx(), relativeDate()/absoluteDate(), multiSelect.ts (pure click/ctrl/shift/↑↓/Ctrl+A model),
+                           msgHistory.ts (localStorage `msgHistory:<repoId>`, 20 entries; splitMessage/joinMessage)
+  components/ui/<Name>/    one folder per style-guide component: <Name>.tsx + <Name>.module.css (incl. StatusGlyph A/M/D/R/U/C,
+                           Checkbox, Menu/MenuItem/MenuSeparator (anchor + dropdown, Esc/outside click, ↑/↓), Toast + ToastStack)
   screens/
     StartScreen/           Open repository… (dialog plugin) — recents/clone/init arrive in M5
     GitMissingScreen/      probe_git failed → message + Retry
-    RepoWindow/            RepoWindow (layout: toolbar 40 / sidebar 260 | grid ÷ details / dock 28 / statusbar 24)
-                           Toolbar, Sidebar, DetailsPane (bottom pane: Commit 340 | ChangedFileList 320 | DiffViewer, resizable), OutputDock
-      RevisionGrid/        RevisionGrid (virtualized, role=grid, keyboard nav), GridRow (memo, per-row store selectors),
-                           GraphCell (<canvas> per row), graphGeometry.ts (pure: laneX, curveControls, rowSegments), RefChips
+    RepoWindow/            RepoWindow (layout: toolbar 40 / sidebar 260 | grid ÷ (DetailsPane | CommitPanel when wtSelected) / dock / statusbar 24)
+                           Toolbar (Commit button = change count, selects the wt row), Sidebar,
+                           DetailsPane (bottom pane: Commit 340 | ChangedFileList 320 | DiffViewer, resizable),
+                           OutputDock (collapsed 28px: `$ cmd` + ✓/✗ exit · elapsed / spinner + Cancel; expanded 200px `.output` log)
+      RevisionGrid/        RevisionGrid (virtualized, role=grid, keyboard nav; row 0 = WorkingTreeRow while dirty & unfiltered —
+                           commit rows shift by one, store indices stay commit-based), GridRow (memo, per-row store selectors),
+                           GraphCell (<canvas> per row) + WorkingTreeNode (dashed ring), graphGeometry.ts, RefChips
       ChangedFileList/     ChangedFileList (role=listbox, ↑/↓, flat | tree toggle, StatusGlyph + start-ellipsis mono path + `+N −M`),
                            fileTree.ts (pure: nest by `/`, folders first)
-      DiffViewer/          DiffViewer (header: path, stats, unified/split/whitespace IconButtons; virtualized body, role=region,
-                           `.selectable` text, CR → ␍, no-newline marker, binary/truncated states),
-                           diffRows.ts (pure: flattenUnified / flattenSplit — del/add run zipping, 20px lines / 24px hunk rows)
+      DiffViewer/          DiffViewer props {path, oldPath, stats, diff, loading, error, actions?} (header: path, stats, unified/split/
+                           whitespace IconButtons; virtualized body, role=region, `.selectable` text, CR → ␍, no-newline marker,
+                           binary/truncated states). `actions` = staging mode: forced unified, hunk-row "Discard | Stage/Unstage hunk"
+                           (hover), click/Shift/Ctrl line selection (add/del only) → sticky "N lines selected · Discard · Stage N lines"
+                           bar; wholeFile (untracked) = header note, no hunk/line actions. Discard hunk/lines: disabled (no backend cmd yet)
+                           diffRows.ts (pure: flattenUnified (rows carry hunk/index) / flattenSplit), lineSelection.ts (pure: clickLine, toPairs)
+      CommitPanel/         CommitPanel (Files 320 | Diff | Message 340, resizable; feeds statusStore.status → commitStore.syncWithStatus),
+                           FilesColumn (Unstaged + Stage all / Staged + Unstage all; role=listbox aria-multiselectable, `.row.multi`
+                           accent bar, hover Stage/Unstage IconButton, Enter/double-click act on the selection, Delete → discard w/
+                           native confirm, conflicted rows = glyph C + disabled + "Resolve conflicts first"),
+                           MessageColumn (summary input + len/72 counter (danger past 72), body textarea, Amend (prefill) / Signed-off-by,
+                           author line or "Set user.name and user.email" (config error → Commit disabled), Commit (Ctrl+Enter),
+                           Commit & Push (disabled, M4), history Menu from msgHistory)
 ```
 
 ## How tokens flow
@@ -46,6 +76,15 @@ no raw colors, sizes, radii or fonts. The one place CSS vars can't reach is the 
 
 Selection colour follows the focused pane: rows use `--bg-selected-unfocused` by default and
 `--bg-selected` under `:focus-within` of their pane (`RevisionGrid` scroll container, `TREE_PANE_CLASS` for the sidebar).
+
+## Working-tree flow (M3)
+
+`repo://changed` (watcher, plus one synthetic event after each of our mutations) → `statusStore.onChanged` → debounced
+`get_status`; `refs` kinds also refresh refs and either restart the walk (HEAD moved) or just refresh labels. The grid shows the
+working-tree pseudo-row while `status.entries` is non-empty; selecting it (`repoStore.wtSelected`) swaps the bottom pane for
+`CommitPanel`. Every stage/unstage/discard/commit goes through `commitStore`, which refreshes the status itself after the IPC
+resolves (the event arrives too; the seq guard makes the second response a no-op). After a commit the panel stays on the
+working-tree row when changes remain, otherwise the row disappears and the fresh walk selects HEAD.
 
 ## Adding a component (style guide §7)
 

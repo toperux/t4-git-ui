@@ -1,12 +1,14 @@
 // Static render check: chips lead the row, HEAD chip before the branch chip, before the subject.
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { LogRow } from "../../../api/types";
 import { useRepoStore } from "../../../store/repoStore";
+import { useStatusStore } from "../../../store/statusStore";
 import { RevisionGrid } from "./RevisionGrid";
 
 vi.mock("../../../api/ipc", () => ({
   getLogPage: vi.fn(() => new Promise(() => {})),
+  getStatus: vi.fn(() => new Promise(() => {})),
   toAppError: (e: unknown) => ({ kind: "unknown", message: String(e) }),
 }));
 
@@ -77,5 +79,40 @@ describe("RevisionGrid", () => {
 
     expect(rows[0].getAttribute("aria-selected")).toBe("true");
     expect(rows[1].getAttribute("aria-selected")).toBe("false");
+  });
+
+  it("shows the working-tree pseudo-row first while the tree is dirty; commits shift by one", () => {
+    useRepoStore.setState({
+      repo: { id: "r", name: "r", path: "r", head: { oid: "oid0", branch: "main", detached: false } },
+      refs: null,
+      log: { generation: 1, total: 2, complete: true, error: null, flat: false },
+      rows: [row(0, "Top", []), row(1, "Initial", [])],
+      maxLane: 0,
+      selectedIndex: 0,
+      wtSelected: false,
+    });
+    useStatusStore.setState({
+      status: { entries: [{ path: "a", oldPath: null, index: null, workdir: "modified", conflicted: false }], staged: 0, unstaged: 1, untracked: 2, conflicted: 0 },
+    });
+    const { container, getByRole } = render(<RevisionGrid />);
+    const rows = container.querySelectorAll('[role="row"][aria-rowindex]');
+    expect(rows).toHaveLength(3);
+    expect(getByRole("grid").getAttribute("aria-rowcount")).toBe("3");
+    expect(rows[0].textContent?.trim()).toBe("Working tree · 3 changes");
+    expect(rows[0].getAttribute("aria-rowindex")).toBe("1");
+    expect(rows[0].querySelector("span[title]")).toBeNull(); // no chips
+    expect(rows[1].getAttribute("aria-rowindex")).toBe("2");
+    expect(rows[1].textContent).toContain("Top");
+    // HEAD stays the selected row until the pseudo-row is picked.
+    expect(rows[0].getAttribute("aria-selected")).toBe("false");
+    expect(rows[1].getAttribute("aria-selected")).toBe("true");
+    fireEvent.mouseDown(rows[0]);
+    expect(useRepoStore.getState().wtSelected).toBe(true);
+    // ArrowDown from the pseudo-row lands on the first commit.
+    fireEvent.keyDown(getByRole("grid"), { key: "ArrowDown" });
+    expect(useRepoStore.getState()).toMatchObject({ wtSelected: false, selectedIndex: 0 });
+    fireEvent.keyDown(getByRole("grid"), { key: "ArrowUp" });
+    expect(useRepoStore.getState().wtSelected).toBe(true);
+    useStatusStore.setState({ status: null });
   });
 });

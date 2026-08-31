@@ -5,6 +5,7 @@ import { IconButton } from "../../components/ui/IconButton/IconButton";
 import { Input, Select } from "../../components/ui/Input/Input";
 import { ToolbarButton, ToolbarSeparator } from "../../components/ui/ToolbarButton/ToolbarButton";
 import { useRepoStore } from "../../store/repoStore";
+import { selectChangeCount, useStatusStore } from "../../store/statusStore";
 import s from "./Toolbar.module.css";
 
 const SEARCH_DEBOUNCE_MS = 250;
@@ -15,6 +16,9 @@ export function Toolbar() {
   const specKind = useRepoStore((st) => st.spec.kind);
   const startLog = useRepoStore((st) => st.startLog);
   const refreshRefs = useRepoStore((st) => st.refreshRefs);
+  const selectWorkingTree = useRepoStore((st) => st.selectWorkingTree);
+  const changes = useStatusStore(selectChangeCount);
+  const refreshStatus = useStatusStore((st) => st.refresh);
   const [text, setText] = useState(() => useRepoStore.getState().filter.text ?? "");
 
   // Debounced text filter → new walk (only when the effective filter changed).
@@ -37,6 +41,7 @@ export function Toolbar() {
   function onRefresh() {
     const st = useRepoStore.getState();
     void refreshRefs();
+    void refreshStatus();
     void startLog(st.spec, st.filter);
   }
 
@@ -59,7 +64,13 @@ export function Toolbar() {
         Stash
       </ToolbarButton>
       <ToolbarSeparator />
-      <ToolbarButton icon={<GitCommitHorizontal size={18} aria-hidden />} disabled title={M4}>
+      <ToolbarButton
+        icon={<GitCommitHorizontal size={18} aria-hidden />}
+        count={changes}
+        disabled={changes === 0}
+        title={changes === 0 ? "No changes" : `${changes} change${changes === 1 ? "" : "s"}`}
+        onClick={() => selectWorkingTree()}
+      >
         Commit
       </ToolbarButton>
       <div className={s.grow} />

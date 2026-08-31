@@ -1,6 +1,6 @@
 // Mirrors the Rust IPC contract (serde, all camelCase). Keep in sync with:
-//   crates/git-core/src/log/types.rs, refs.rs, commit.rs, diff.rs, status.rs, error.rs
-//   src-tauri/src/commands/repo.rs, src-tauri/src/error.rs
+//   crates/git-core/src/log/types.rs, refs.rs, commit.rs, diff.rs, status.rs, watch.rs, cli/runner.rs, error.rs
+//   src-tauri/src/commands/{repo,stage}.rs, src-tauri/src/error.rs
 
 /** `git_core::RepoId` — serde(transparent) newtype over the canonical workdir path. */
 export type RepoId = string;
@@ -15,6 +15,8 @@ export type AppErrorKind =
   | "cancelled"
   | "conflicts"
   | "invalidPatch"
+  /** Missing `user.name` / `user.email`. */
+  | "config"
   | "internal"
   | "unknown";
 
@@ -276,8 +278,46 @@ export interface StatusEntry {
 export interface WorkdirStatus {
   /** Sorted by `path`. */
   entries: StatusEntry[];
+  /** Entries with an `index` change. */
   staged: number;
+  /** Entries with a tracked `workdir` change (not untracked). */
   unstaged: number;
   untracked: number;
   conflicted: number;
+}
+
+// --- watch.rs / src-tauri/src/commands/stage.rs ---
+
+export type ChangeKind = "workdir" | "index" | "refs";
+
+/** Payload of `repo://changed` (watcher, and once after each of our own mutating ops). */
+export interface RepoChanged {
+  repoId: RepoId;
+  /** Distinct kinds, in first-seen order. */
+  kinds: ChangeKind[];
+  /** The watcher lost events; refresh everything. */
+  rescan: boolean;
+}
+
+// --- cli/runner.rs ---
+
+/** `#[serde(tag = "kind")]` — one streamed event of a running git command. */
+export type CliEvent =
+  | { kind: "started"; opId: string; cmd: string }
+  | { kind: "stdout"; line: string }
+  | { kind: "stderr"; line: string }
+  /** A `\r`-terminated segment (progress meter redraw). */
+  | { kind: "progress"; line: string }
+  | { kind: "exit"; code: number; elapsedMs: number };
+
+/** Payload of `op://event`. */
+export interface OpEvent {
+  repoId: RepoId;
+  opId: string;
+  event: CliEvent;
+}
+
+export interface Author {
+  name: string;
+  email: string;
 }

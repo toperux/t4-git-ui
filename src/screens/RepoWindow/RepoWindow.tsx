@@ -4,8 +4,11 @@ import type { RepoState } from "../../api/types";
 import { Banner } from "../../components/ui/Banner/Banner";
 import { Spinner } from "../../components/ui/Spinner/Spinner";
 import { StatusBar, StatusItem } from "../../components/ui/StatusBar/StatusBar";
+import { ToastStack } from "../../components/ui/Toast/Toast";
 import { AheadBehind } from "../../components/ui/TreeRow/TreeRow";
 import { useRepoStore } from "../../store/repoStore";
+import { useStatusStore } from "../../store/statusStore";
+import { CommitPanel } from "./CommitPanel/CommitPanel";
 import { DetailsPane } from "./DetailsPane";
 import { OutputDock } from "./OutputDock";
 import s from "./RepoWindow.module.css";
@@ -29,6 +32,7 @@ function prettyUrl(url: string) {
 
 export function RepoWindow() {
   const refs = useRepoStore((st) => st.refs);
+  const wtSelected = useRepoStore((st) => st.wtSelected);
   const head = refs?.head;
   const detached = !!head?.detached;
 
@@ -52,13 +56,14 @@ export function RepoWindow() {
             </Panel>
             <Separator className={s.splitV} aria-label="Resize details" />
             <Panel minSize={120} className={s.panel}>
-              <DetailsPane />
+              {wtSelected ? <CommitPanel /> : <DetailsPane />}
             </Panel>
           </Group>
         </Panel>
       </Group>
       <OutputDock />
       <RepoStatusBar />
+      <ToastStack />
     </div>
   );
 }
@@ -68,6 +73,7 @@ function RepoStatusBar() {
   const total = useRepoStore((st) => st.log.total);
   const complete = useRepoStore((st) => st.log.complete);
   const gitVersion = useRepoStore((st) => st.gitVersion);
+  const status = useStatusStore((st) => st.status);
   const head = refs?.head;
   const current = refs?.local.find((b) => b.isHead);
   const remote = refs?.remotes[0];
@@ -107,6 +113,12 @@ function RepoStatusBar() {
             <StatusItem>
               <Spinner size="sm" label="Loading commits" />
               Loading commits… {total}
+            </StatusItem>
+          )}
+          {status && status.entries.length > 0 && (
+            <StatusItem>
+              {status.unstaged + status.untracked} unstaged · {status.staged} staged
+              {status.conflicted > 0 ? ` · ${status.conflicted} conflicted` : ""}
             </StatusItem>
           )}
           <StatusItem>

@@ -7,7 +7,10 @@ import { RefChips } from "./RefChips";
 import s from "./RevisionGrid.module.css";
 
 export interface GridRowProps {
+  /** Commit index into `rows`. */
   index: number;
+  /** Grid rows above the first commit (1 while the working-tree row is shown). */
+  offset: number;
   /** Row offset inside the virtual list. */
   top: number;
   rowH: number;
@@ -19,16 +22,16 @@ export interface GridRowProps {
 }
 
 /** One grid row. Reads its own data + selection from the store so siblings never re-render. */
-export const GridRow = memo(function GridRow({ index, top, rowH, lanes, graphW, flat, headOid }: GridRowProps) {
+export const GridRow = memo(function GridRow({ index, offset, top, rowH, lanes, graphW, flat, headOid }: GridRowProps) {
   const row = useRepoStore((st) => st.rows[index]);
-  const selected = useRepoStore((st) => st.selectedIndex === index);
+  const selected = useRepoStore((st) => !st.wtSelected && st.selectedIndex === index);
   const select = useRepoStore((st) => st.select);
   const commit = row?.row.commit;
 
   return (
     <div
       role="row"
-      aria-rowindex={index + 1}
+      aria-rowindex={index + 1 + offset}
       aria-selected={selected}
       className={cx(s.row, selected && s.selected)}
       style={{ transform: `translateY(${top}px)`, height: rowH }}
