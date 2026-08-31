@@ -1,0 +1,112 @@
+/* base.css .scrim / .dialog / .dialog-title / .dialog-body / .dialog-foot / .field / .output (start-screen local copy) */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--space-8);
+  background: var(--scrim);
+}
+.dialog {
+  width: 440px;
+  max-width: 100%;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
+}
+.wide {
+  width: 560px;
+}
+.title {
+  display: flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 var(--space-6);
+  font-size: var(--text-lg);
+  line-height: var(--lh-lg);
+  font-weight: var(--weight-semibold);
+  border-bottom: 1px solid var(--border);
+}
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-6);
+}
+.foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  border-top: 1px solid var(--border);
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.fieldLabel {
+  font-size: var(--text-sm);
+  line-height: var(--lh-sm);
+  font-weight: var(--weight-medium);
+  color: var(--fg-muted);
+}
+.fieldHelp {
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
+  color: var(--fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fieldRow {
+  display: flex;
+  gap: var(--space-4);
+}
+.fieldRow > :first-child {
+  flex: 1;
+}
+.checks {
+  display: flex;
+  gap: var(--space-7);
+}
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+.note {
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
+  color: var(--fg-muted);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* base.css .output: mono block on the inset surface; `$ cmd` in --fg */
+.output {
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-mono);
+  font-size: var(--mono-size);
+  line-height: var(--mono-lh);
+  background: var(--bg-inset);
+  color: var(--fg-muted);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  white-space: nowrap;
+}
+.output > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cmd {
+  color: var(--fg);
+}

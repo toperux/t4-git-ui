@@ -3,11 +3,13 @@
 ```
 src/
   main.tsx                 mounts App; imports fonts.css → tokens.css → base.css; LucideProvider (16px, stroke 1.75)
-  App.tsx                  probe_git → GitMissingScreen | no repo → StartScreen | repo → RepoWindow; persists localStorage.lastRepo
+  App.tsx                  probe_git → GitMissingScreen | no repo → StartScreen | repo → RepoWindow; loads recents, reopens
+                           `lastOpen`, records every open (touch + setLastOpen), Ctrl+Shift+W closes the repo
   api/
     types.ts               TS mirror of the Rust IPC contract (serde camelCase) — edit only together with the Rust structs
     ipc.ts                 one typed `invoke` wrapper per command; every rejection is an AppError {kind, message}; isAppError/toAppError
     events.ts              onLogProgress / onRepoChanged / onOpEvent (cb) → unlisten  (`log://progress`, `repo://changed`, `op://event`)
+    appIpc.ts              start-screen commands: cloneRepo {url,dest,recurseSubmodules,depth?} / initRepo {path} → RepoSummary
   store/
     repoStore.ts           zustand: repo, refs, log {generation,total,complete,error,flat}, sparse rows[], selection (commit index +
                            wtSelected for the working-tree row), reveal
@@ -25,6 +27,9 @@ src/
                            actions: select, syncWithStatus (prune → neighbour → other list), stage/unstage/discard (native ask()),
                            stageHunk/stageLines (reverse for staged), setAmend (get_head_message prefill), useMessage, commit
                            (→ msgHistory, toast, status + refs refresh), reset on repo change
+    recentsStore.ts        zustand: RecentRepo{path,name,lastOpened,pinned} persisted via lib/kv; load (migrates the M1
+                           `localStorage.lastRepo`), touch (20 unpinned cap), remove, togglePin, lastOpen, lastCloneDir;
+                           pure helpers sortRecents / capRecents / filterRecents
     opsStore.ts            zustand: OpRecord[] from `op://event` (started/stdout/stderr/progress-redraw/exit), max 50 ops × 5000 lines,
                            cancel(opId), dock open
     toastStore.ts          zustand: toasts (error|success|info, 6 s auto-dismiss); toastError(err, title, retry?) — cli → first stderr
@@ -37,12 +42,14 @@ src/
     useThemeTokens.ts      reads --graph-0..7 / --lane-w / --node-r / --lane-stroke / --row-h via getComputedStyle; re-reads on data-theme change
   assets/fonts/            InterVariable(.woff2, -Italic), JetBrainsMono[wght](.woff2, -Italic) + licenses
   lib/                     cx(), relativeDate()/absoluteDate(), multiSelect.ts (pure click/ctrl/shift/↑↓/Ctrl+A model),
-                           msgHistory.ts (localStorage `msgHistory:<repoId>`, 20 entries; splitMessage/joinMessage)
+                           msgHistory.ts (localStorage `msgHistory:<repoId>`, 20 entries; splitMessage/joinMessage),
+                           kv.ts (store plugin `recents.json`, localStorage fallback), cloneUrl.ts (repoNameFromUrl/joinPath/parentDir)
   components/ui/<Name>/    one folder per style-guide component: <Name>.tsx + <Name>.module.css (incl. StatusGlyph A/M/D/R/U/C,
                            Checkbox, Menu/MenuItem/MenuSeparator (anchor + dropdown, Esc/outside click, ↑/↓), Toast + ToastStack)
   screens/
-    StartScreen/           Open repository… (dialog plugin) — recents/clone/init arrive in M5
-    GitMissingScreen/      probe_git failed → message + Retry
+    StartScreen/           recents list (filter, keyboard, pin, remove) | Open / Clone… / Initialize… cards + shortcuts;
+                           Dialog.tsx (local minimal modal) + CloneDialog.tsx (form → progress mode)
+    GitMissingScreen/      probe_git failed → "Git not found" + Retry (no set_git_path command, so no "Locate git…")
     RepoWindow/            RepoWindow (layout: toolbar 40 / sidebar 260 | grid ÷ (DetailsPane | CommitPanel when wtSelected) / dock / statusbar 24)
                            Toolbar (Commit button = change count, selects the wt row), Sidebar,
                            DetailsPane (bottom pane: Commit 340 | ChangedFileList 320 | DiffViewer, resizable),
@@ -85,6 +92,17 @@ working-tree pseudo-row while `status.entries` is non-empty; selecting it (`repo
 `CommitPanel`. Every stage/unstage/discard/commit goes through `commitStore`, which refreshes the status itself after the IPC
 resolves (the event arrives too; the seq guard makes the second response a no-op). After a commit the panel stays on the
 working-tree row when changes remain, otherwise the row disappears and the fresh walk selects HEAD.
+
+## Start screen (M5)
+
+`App` probes git, then `recentsStore.load()` (store plugin `recents.json` through `lib/kv`, `localStorage` fallback) and
+reopens `lastOpen` — the repository that was open at the last exit, cleared by `closeRepo` (`Ctrl+Shift+W`). Every
+`repoStore.repo` change touches recents and rewrites `lastOpen`. Recents are stored already sorted (pinned first, then
+`lastOpened` desc) and capped at 20 unpinned entries. Opening a recent that no longer resolves shows an error toast with a
+"Remove from list" action. `CloneDialog` calls `clone_repo` and, while it runs, follows `op://event` with `repoId === null`
+— the `started` event supplies the `opId` used by Cancel (`cancel_op`), later `progress` / `stderr` lines feed the single
+status line. The backend opens the clone itself, so success just hands the `RepoSummary` back and the app switches to
+`RepoWindow`; a failure returns to the form with the stderr first line in a banner.
 
 ## Adding a component (style guide §7)
 

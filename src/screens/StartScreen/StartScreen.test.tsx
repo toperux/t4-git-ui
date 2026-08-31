@@ -1,0 +1,94 @@
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { OpEvent } from "../../api/types";
+
+const events = vi.hoisted(() => ({ opCb: null as ((e: OpEvent) => void) | null }));
+
+vi.mock("@tauri-apps/plugin-store", () => ({ load: vi.fn(() => Promise.reject(new Error("not in tauri"))) }));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
+vi.mock("@tauri-apps/api/path", () => ({ homeDir: vi.fn(() => Promise.resolve("C:\\Users\\me\\")) }));
+vi.mock("../../api/ipc", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../api/ipc")>();
+  const pending = () => new Promise<never>(() => {});
+  return { ...actual, openRepo: vi.fn(), getRefs: vi.fn(pending), startLog: vi.fn(pending), cancelOp: vi.fn() };
+});
+vi.mock("../../api/appIpc", () => ({ cloneRepo: vi.fn(() => new Promise(() => {})), initRepo: vi.fn() }));
+vi.mock("../../api/events", () => ({
+  onOpEvent: vi.fn((cb: (e: OpEvent) => void) => {
+    events.opCb = cb;
+    return () => {};
+  }),
+}));
+
+import * as appIpc from "../../api/appIpc";
+import * as ipc from "../../api/ipc";
+import { sortRecents, useRecentsStore } from "../../store/recentsStore";
+import { useRepoStore } from "../../store/repoStore";
+import { StartScreen } from "./StartScreen";
+
+const NOW = Date.now();
+
+afterEach(cleanup);
+beforeEach(() => {
+  vi.clearAllMocks();
+  events.opCb = null;
+  useRepoStore.setState({ repo: null, gitVersion: "git version 2.55.0" });
+  useRecentsStore.setState({
+    recents: sortRecents([
+      { path: "F:\\src\\rust", name: "rust", lastOpened: NOW - 3 * 3600_000, pinned: false },
+      { path: "F:\\src\\t4-git-ui", name: "t4-git-ui", lastOpened: NOW - 2 * 3600_000, pinned: true },
+      { path: "C:\\Users\\me\\dotfiles", name: "dotfiles", lastOpened: NOW - 26 * 3600_000, pinned: false },
+    ]),
+    lastCloneDir: null,
+    loaded: true,
+  });
+});
+
+describe("StartScreen", () => {
+  it("lists recents pinned-first and Enter opens the selected one", () => {
+    const { getAllByRole, getByRole, container } = render(<StartScreen />);
+    const rows = getAllByRole("option");
+    expect(rows.map((r) => r.querySelector("span > span")?.textContent)).toEqual(["t4-git-ui", "rust", "dotfiles"]);
+    expect(rows[0].getAttribute("aria-selected")).toBe("true");
+    expect(container.textContent).toContain("3 recent");
+    expect(container.textContent).toContain("git 2.55.0");
+
+    const list = getByRole("listbox", { name: "Recent repositories" });
+    fireEvent.keyDown(list, { key: "ArrowDown" });
+    fireEvent.keyDown(list, { key: "Enter" });
+    expect(ipc.openRepo).toHaveBeenCalledWith("F:\\src\\rust");
+  });
+
+  it("filter narrows the list from the input; Delete removes the selected row", () => {
+    const { getByRole, getAllByRole, queryAllByRole } = render(<StartScreen />);
+    const input = getByRole("textbox", { name: "Filter repositories" });
+    fireEvent.change(input, { target: { value: "RUST" } });
+    expect(getAllByRole("option")).toHaveLength(1);
+    fireEvent.keyDown(input, { key: "Delete" });
+    expect(queryAllByRole("option")).toHaveLength(0);
+    expect(useRecentsStore.getState().recents.map((r) => r.name)).toEqual(["t4-git-ui", "dotfiles"]);
+  });
+
+  it("clone dialog derives the folder name, runs clone_repo and shows the latest progress line", async () => {
+    const { getByRole, findByRole, getByText } = render(<StartScreen />);
+    fireEvent.click(getByRole("button", { name: /^Clone…/ }));
+    const dialog = await findByRole("dialog", { name: "Clone repository" });
+    const url = getByRole("textbox", { name: "URL" });
+    fireEvent.change(url, { target: { value: "https://github.com/x/repo.git" } });
+    expect((getByRole("textbox", { name: "Folder name" }) as HTMLInputElement).value).toBe("repo");
+    // Default parent = parent of the most recent (pinned first) repo.
+    expect(dialog.textContent).toContain("Clones into F:\\src\\repo");
+
+    fireEvent.click(getByRole("button", { name: "Clone" }));
+    expect(appIpc.cloneRepo).toHaveBeenCalledWith({ url: "https://github.com/x/repo.git", dest: "F:\\src\\repo", recurseSubmodules: false, depth: undefined });
+    expect(events.opCb).not.toBeNull();
+    act(() => {
+      events.opCb!({ repoId: null as unknown as string, opId: "op1", event: { kind: "started", opId: "op1", cmd: "git clone" } });
+      events.opCb!({ repoId: null as unknown as string, opId: "op1", event: { kind: "progress", line: "Receiving objects:  58% (7/12)" } });
+    });
+    expect(getByText((t) => t.replace(/\s+/g, " ") === "Receiving objects: 58% (7/12)")).toBeTruthy();
+
+    fireEvent.click(getByRole("button", { name: "Cancel" }));
+    expect(ipc.cancelOp).toHaveBeenCalledWith("op1");
+  });
+});
