@@ -1,0 +1,90 @@
+{
+  "pages": [
+    {
+      "id": "page-1",
+      "name": "Design system"
+    },
+    {
+      "id": "page-2",
+      "name": "Alternate directions"
+    }
+  ],
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "title": "Foundations",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 2480,
+      "page": "page-1"
+    },
+    {
+      "file": "DomainTokens.dc.html",
+      "title": "Domain tokens",
+      "x": 1540,
+      "y": 0,
+      "w": 1440,
+      "h": 1420,
+      "page": "page-1"
+    },
+    {
+      "file": "Components.dc.html",
+      "title": "Components",
+      "x": 0,
+      "y": 2600,
+      "w": 1440,
+      "h": 3180,
+      "page": "page-1"
+    },
+    {
+      "file": "Patterns.dc.html",
+      "title": "Patterns",
+      "x": 1540,
+      "y": 1540,
+      "w": 1440,
+      "h": 2440,
+      "page": "page-1"
+    },
+    {
+      "file": "DirectionB.dc.html",
+      "title": "Direction B · Warm graphite",
+      "x": 0,
+      "y": 0,
+      "w": 640,
+      "h": 360,
+      "page": "page-2"
+    },
+    {
+      "file": "DirectionC.dc.html",
+      "title": "Direction C · High-contrast mono",
+      "x": 740,
+      "y": 0,
+      "w": 640,
+      "h": 360,
+      "page": "page-2"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "a1-brief",
+      "x": 0,
+      "y": -150,
+      "w": 520,
+      "text": "A1 design system for t4-git-ui — direction: quiet precision (cool neutrals, one blue accent, 26px rows, Inter + JetBrains Mono).\nLeft column = light, right = dark. Token names here == src/theme/tokens.css.\nApprove this before screens (A2) are drawn; alternates on page 2.",
+      "page": "page-1"
+    },
+    {
+      "id": "alt-note",
+      "x": 0,
+      "y": -110,
+      "w": 520,
+      "text": "Low-fi alternates for direction only — not built out. Pick one and the system on page 1 gets re-tuned; otherwise page 1 stands.",
+      "page": "page-2"
+    }
+  ],
+  "launch": {
+    "view": "canvas",
+    "page": "page-1"
+  }
+}

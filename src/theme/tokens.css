@@ -1,0 +1,170 @@
+/* GENERATED from docs/design/canvases/build/tokens.css — do not edit; run node docs/design/canvases/build/build.mjs */
+:root {
+  color-scheme: light;
+
+  /* Typography */
+  --font-ui: "Inter", "Segoe UI", -apple-system, system-ui, Cantarell, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", Menlo, "DejaVu Sans Mono", monospace;
+  --text-xs: 11px;  --lh-xs: 16px;
+  --text-sm: 12px;  --lh-sm: 16px;
+  --text-md: 13px;  --lh-md: 18px;   /* base UI size */
+  --text-lg: 14px;  --lh-lg: 20px;
+  --text-xl: 16px;  --lh-xl: 24px;
+  --text-2xl: 20px; --lh-2xl: 28px;
+  --mono-size: 12px; --mono-lh: 18px;
+  --weight-regular: 400; --weight-medium: 500; --weight-semibold: 600;
+
+  /* Spacing (4px base) */
+  --space-1: 2px; --space-2: 4px; --space-3: 6px; --space-4: 8px;
+  --space-5: 12px; --space-6: 16px; --space-7: 20px; --space-8: 24px; --space-9: 32px;
+
+  /* Radii */
+  --radius-sm: 3px; --radius-md: 5px; --radius-lg: 8px; --radius-pill: 999px;
+
+  /* Density / metrics */
+  --row-h: 26px;          /* grid rows, list rows, tree rows */
+  --control-h: 28px;      /* buttons, inputs, selects */
+  --control-h-sm: 24px;   /* icon buttons, compact controls */
+  --toolbar-h: 40px;
+  --statusbar-h: 24px;
+  --section-h: 28px;      /* sidebar section headers, panel headers */
+  --tree-indent: 14px;
+  --lane-w: 13px;         /* graph lane pitch */
+  --node-r: 3.5px;        /* graph node radius */
+  --lane-stroke: 2px;
+  --icon-row: 16px; --icon-toolbar: 18px; --icon-stroke: 1.75;
+
+  /* Motion */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --dur: 120ms;           /* hover/press/selection */
+  --dur-panel: 150ms;     /* collapse/expand, dock toggle */
+
+  /* Surfaces */
+  --bg-app: #e0e3e8;       /* window, sidebar, toolbar */
+  --bg-panel: #eef0f3;     /* content areas: grid, diff, lists */
+  --bg-elevated: #f1f3f6;  /* popovers, menus, dialogs: one step above panel; emphasis comes from --shadow-2 + --scrim */
+  --scrim: rgba(17, 24, 39, 0.32); /* modal backdrop */
+  --bg-inset: #dadde3;     /* inputs, output dock, code blocks */
+  --bg-hover: rgba(17, 24, 39, 0.05);
+  --bg-active: rgba(17, 24, 39, 0.09);
+  --bg-selected: #cddbf8;
+  --bg-selected-unfocused: #d9dde4;
+
+  /* Text */
+  --fg: #1a1d24;
+  --fg-muted: #545a67;     /* ≥4.5:1 on every surface incl. selected rows + hover composite */
+  --fg-faint: #737c8a;     /* placeholders / disabled ONLY (≥3:1); never for information */
+  --fg-on-accent: #ffffff;
+
+  /* Borders */
+  --border: #ced3da;       /* dividers (decorative, no contrast target) */
+  --border-strong: #758295; /* control edges: secondary button, checkbox, input hover — ≥3:1 on panel + app */
+
+  /* Accent + semantic. `--accent`/`--danger` are FILLS (buttons, badges, focus ring, HEAD chip);
+     `--accent-text`/`--danger-text` are the text/icon-safe variants (≥4.5:1 on surfaces). */
+  --accent: #2f6feb;
+  --accent-hover: #255fd1;
+  --accent-soft: #dbe6fb;
+  --accent-text: #1858df;
+  --danger: #d3382c;  --danger-hover: #b92f25; --danger-soft: #f6e4e2; --danger-text: #bc3227;
+  --success: #147437; --success-soft: #dff0e3;
+  --warning: #9e5009; --warning-soft: #f7ecd6;
+
+  /* Focus */
+  --focus-ring: 0 0 0 2px var(--bg-panel), 0 0 0 4px var(--accent);
+
+  /* Shadows (the only two; --shadow-1 also serves tooltips) */
+  --shadow-1: 0 4px 16px rgba(17, 24, 39, 0.12), 0 0 0 1px var(--border);
+  --shadow-2: 0 12px 40px rgba(17, 24, 39, 0.22), 0 0 0 1px var(--border);
+  --kbd-on-dark-bg: rgba(255, 255, 255, 0.15); /* kbd inside the inverted tooltip */
+
+  /* Scrollbar (thumb ≥3:1 on panel/app) */
+  --scrollbar-thumb: rgba(17, 24, 39, 0.48);
+  --scrollbar-thumb-hover: rgba(17, 24, 39, 0.62);
+
+  /* Graph lanes (cycle 0-7; each ≥3:1 on --bg-panel) */
+  --graph-0: #3b82f6; --graph-1: #159f48; --graph-2: #d07206; --graph-3: #dc2626;
+  --graph-4: #7c3aed; --graph-5: #0891b2; --graph-6: #db2777; --graph-7: #5f9a0c;
+
+  /* Diff */
+  --diff-add-bg: #dff0e3;  --diff-add-gutter: #c3e5cc; --diff-add-fg: #14532d; --diff-add-word: #b7e4c3;
+  --diff-del-bg: #f6e4e2;  --diff-del-gutter: #efcbc6; --diff-del-fg: #7f1d1d; --diff-del-word: #f5b8b1;
+  --diff-hunk-bg: #e2e8f8; --diff-hunk-fg: #4c5b8f;
+  --diff-gutter-fg: var(--fg-muted);
+
+  /* Ref chips */
+  --chip-local-bg: var(--accent-soft); --chip-local-fg: #1e4fb8;
+  --chip-remote-bg: #d8dce3;           --chip-remote-fg: #4b5563;
+  --chip-tag-bg: var(--warning-soft);  --chip-tag-fg: #8a5a06;
+  --chip-head-bg: var(--accent);       --chip-head-fg: var(--fg-on-accent);
+  --chip-stash-bg: #e9e2fa;            --chip-stash-fg: #5b3bb5;
+
+  /* File status glyphs (text on --bg-panel) */
+  --status-added: var(--success);
+  --status-modified: var(--warning);
+  --status-deleted: var(--danger-text);
+  --status-renamed: var(--accent-text);
+  --status-untracked: var(--fg-muted);
+  --status-conflict: var(--danger-text);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg-app: #16181d;
+  --bg-panel: #1c1f26;
+  --bg-elevated: #242830;
+  --scrim: rgba(0, 0, 0, 0.5);
+  --bg-inset: #121419;
+  --bg-hover: rgba(255, 255, 255, 0.05);
+  --bg-active: rgba(255, 255, 255, 0.09);
+  --bg-selected: #2a3a5c;
+  --bg-selected-unfocused: #2a2e37;
+
+  --fg: #e6e8ec;
+  --fg-muted: #9ea4b0;
+  --fg-faint: #6b7280;
+  --fg-on-accent: #ffffff;
+
+  --border: #2b2f38;
+  --border-strong: #616a7c;
+
+  --accent: #3a6ee0;
+  --accent-hover: #3163d2;   /* darker on hover so --fg-on-accent stays ≥4.5:1 */
+  --accent-soft: #223252;
+  --accent-text: #5b8def;
+  --danger: #d04236;  --danger-hover: #bd3a2f; --danger-soft: #3a2320; --danger-text: #f06155;
+  --success: #3dbb72; --success-soft: #1d3328;
+  --warning: #e0a030; --warning-soft: #3a2f18;
+
+  --focus-ring: 0 0 0 2px var(--bg-panel), 0 0 0 4px var(--accent);
+
+  /* 1px ring is a hairline (#3a3f4a), not --border-strong: a 3:1 edge is too loud for elevation */
+  --shadow-1: 0 4px 16px rgba(0, 0, 0, 0.45), 0 0 0 1px #3a3f4a;
+  --shadow-2: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px #3a3f4a;
+  --kbd-on-dark-bg: rgba(0, 0, 0, 0.18); /* tooltip is inverted (light bg) in dark theme */
+
+  --scrollbar-thumb: rgba(255, 255, 255, 0.34);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.46);
+
+  --graph-0: #60a5fa; --graph-1: #4ade80; --graph-2: #fbbf24; --graph-3: #f87171;
+  --graph-4: #a78bfa; --graph-5: #22d3ee; --graph-6: #f472b6; --graph-7: #a3e635;
+
+  --diff-add-bg: #16301f;  --diff-add-gutter: #1e4029; --diff-add-fg: #a7e3b8; --diff-add-word: #2a5a3a;
+  --diff-del-bg: #3a1d1c;  --diff-del-gutter: #4d2523; --diff-del-fg: #f3b0aa; --diff-del-word: #6a3030;
+  --diff-hunk-bg: #1f2740; --diff-hunk-fg: #93a3d9;
+  --diff-gutter-fg: var(--fg-muted);
+
+  --chip-local-bg: var(--accent-soft); --chip-local-fg: #9dbcf7;
+  --chip-remote-bg: #2a2e37;           --chip-remote-fg: #b0b7c3;
+  --chip-tag-bg: var(--warning-soft);  --chip-tag-fg: #f0c060;
+  --chip-head-bg: var(--accent);       --chip-head-fg: var(--fg-on-accent);
+  --chip-stash-bg: #2e2547;            --chip-stash-fg: #c4b1f5;
+
+  --status-added: var(--success);
+  --status-modified: var(--warning);
+  --status-deleted: var(--danger-text);
+  --status-renamed: var(--accent-text);
+  --status-untracked: var(--fg-muted);
+  --status-conflict: var(--danger-text);
+}

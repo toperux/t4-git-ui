@@ -3,3 +3,11 @@
 *.ico binary
 *.icns binary
 *.woff2 binary
+*.woff binary
+*.ttf binary
+*.otf binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+docs/design/canvases/**/*.dc.html linguist-generated -diff

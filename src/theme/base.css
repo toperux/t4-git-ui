@@ -23,6 +23,12 @@ body {
   cursor: default;
 }
 
+/* Opt-in text selection: diff content, commit message, output dock. */
+.selectable {
+  user-select: text;
+  cursor: auto;
+}
+
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;

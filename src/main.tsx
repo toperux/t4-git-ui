@@ -3,14 +3,10 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./theme/tokens.css";
 import "./theme/base.css";
+import { initTheme } from "./theme/theme";
 
-// Follow the OS theme until a persisted preference exists (prefs land with the start screen).
-const dark = window.matchMedia("(prefers-color-scheme: dark)");
-const applyTheme = () => {
-  document.documentElement.dataset.theme = dark.matches ? "dark" : "light";
-};
-applyTheme();
-dark.addEventListener("change", applyTheme);
+// Persisted override (localStorage 'theme') wins; otherwise follow the OS.
+initTheme();
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

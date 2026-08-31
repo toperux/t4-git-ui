@@ -8,7 +8,9 @@ Cross-platform GitExtensions-style git client. Rust core (`git2` + system `git`)
 
 ```sh
 npm install
-cargo tauri dev          # run
+npm run tauri dev        # run (pinned @tauri-apps/cli; `cargo tauri dev` works too if tauri-cli is installed)
 cargo test -p git-core   # core tests
 npm run build && cargo clippy --workspace
 ```
+
+Design canvases are generated: `node docs/design/canvases/build/build.mjs` (design system → `docs/design/canvases/*.dc.html`) and `node docs/design/canvases/build/build.mjs screens` (screens → `docs/design/canvases/screens/`). Both also regenerate `src/theme/tokens.css`; `node docs/design/canvases/build/contrast.mjs` audits token contrast.
