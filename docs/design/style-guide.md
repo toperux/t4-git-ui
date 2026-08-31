@@ -91,7 +91,7 @@ One file per row. States are CSS classes on the reference sheet (`is-hover` etc.
 - **Graph**: lines 2px round; curves are cubic Béziers between row centers (no diagonals); nodes r 3.5 filled in lane color; HEAD = extra 5px ring; working-tree row = dashed ring, italic muted subject, only when dirty; pass-through lanes draw under nodes; selected-row tint spans the graph column, lane colors unchanged.
 - **Diff**: gutters 40+40 (old/new, `--diff-gutter-fg`), sign column 14 (`--fg-muted`), 20px lines; header stats `+N` `--success` / `−N` `--danger-text`; line content is `.selectable` (gutter + sign are not); add/del row tint, darker gutter, darker word highlight; hunk header 24px `--diff-hunk-*` mono xs with Discard / Stage hunk buttons on hover; selected lines get accent sign column + inset ring and a sticky "N lines selected · Stage N lines" bar; side-by-side pairs −/+ runs with 20px filler rows.
 - **Output dock**: bottom, 160–320px; header = PanelHeader with command, elapsed, spinner, Cancel, collapse; body mono on `--bg-inset`; `$ cmd` in `--fg`, output muted, exit line `--success`/`--danger-text`. Body is `.selectable`.
-- **Sidebar**: 220–320px `--bg-app`; sections Local / Remotes / Tags / Stashes; branches tree by `/`; counts as badges.
+- **Sidebar**: 260px default, resizable 180–560px, `--bg-app`; sections Local / Remotes / Tags / Stashes; branches tree by `/`; counts as badges. (The original 220–320 range made the splitter feel dead — long branch paths need the room.)
 - **Selection model**: one focused pane owns `--bg-selected`; others show `--bg-selected-unfocused`. File lists support Shift/Ctrl multi-select.
 
 ## 5. Accessibility

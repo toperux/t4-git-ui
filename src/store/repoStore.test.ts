@@ -116,6 +116,47 @@ describe("repoStore paging", () => {
     expect(mocked.getLogPage).toHaveBeenCalledTimes(2); // fully loaded now
   });
 
+  it("refetches page 0 when the walk produced its rows while the first request was in flight", async () => {
+    // Fresh launch: `start_log` resolves before the walk has written any rows, so the page fetched
+    // right after it comes back empty; the `log://progress` that lands meanwhile is what tells the
+    // grid there are 28 rows. Without a retry the grid renders 28 placeholders forever.
+    mocked.startLog.mockResolvedValue(3);
+    mocked.getLogPage
+      .mockResolvedValueOnce(page(3, 0, 0, 0, false))
+      .mockResolvedValueOnce(page(3, 0, 28, 28, true));
+    const started = useRepoStore.getState().startLog({ kind: "all" }, {});
+    await Promise.resolve();
+    useRepoStore.getState().onProgress({ repoId: REPO.id, generation: 3, total: 28, complete: true, error: null });
+    await started;
+    await flush();
+    await flush();
+    expect(mocked.getLogPage).toHaveBeenCalledTimes(2);
+    expect(useRepoStore.getState().rows[27]?.row.commit.oid).toBe("oid27");
+
+    // …and it settles: nothing keeps re-requesting the page once it is complete.
+    useRepoStore.getState().ensureRows(0, 28);
+    await flush();
+    expect(mocked.getLogPage).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops retrying a short page when the walk has not moved on", async () => {
+    mocked.startLog.mockResolvedValue(1);
+    let release = () => {};
+    mocked.getLogPage
+      .mockImplementationOnce(() => new Promise<LogPage>((r) => (release = () => r(page(1, 0, 10, 10, false)))))
+      .mockResolvedValue(page(1, 0, 10, 10, false));
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    // Progress lands while page 0 is in flight, so the response is short of what the walk knows.
+    useRepoStore.getState().onProgress({ repoId: REPO.id, generation: 1, total: 900, complete: false, error: null });
+    release();
+    await flush();
+    await flush();
+    await flush();
+    // One retry for the progress that landed mid-flight; the backend still returns 10 rows, so it
+    // gives up instead of spinning.
+    expect(mocked.getLogPage).toHaveBeenCalledTimes(2);
+  });
+
   it("restarts the walk when the backend reports a stale generation", async () => {
     mocked.startLog.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
     mocked.getLogPage

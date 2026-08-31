@@ -127,6 +127,21 @@
 .pin {
   width: var(--control-h-sm);
   height: var(--control-h-sm);
+  /* Only pinned rows carry a pin at rest: an unpinned pin on every row, plus an `on` background that
+     reads exactly like hover, left nothing on the row saying it was pinned. */
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease);
+}
+.pinned,
+.row:hover .pin,
+.selected .pin,
+.pin:focus-visible {
+  opacity: 1;
+}
+/* On the icon, not the button: beats IconButton's own `.on` / `:hover` colours whatever the
+   stylesheet order. */
+.pinned svg {
+  color: var(--accent);
 }
 /* Help text is information, not a placeholder: --fg-muted (style guide §1 Text). */
 .hint {

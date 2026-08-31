@@ -93,9 +93,7 @@ describe("CreateBranchDialog", () => {
   it("keeps a start point that is not a known ref (a commit oid from the grid)", async () => {
     const oid = "0123456789abcdef0123456789abcdef01234567";
     const { getByRole } = render(<CreateBranchDialog onClose={() => {}} startPoint={oid} />);
-    const start = getByRole("combobox", { name: "Start point" }) as HTMLSelectElement;
-    expect(start.value).toBe(oid);
-    expect(Array.from(start.options)[0].textContent).toBe("0123456");
+    expect(getByRole("combobox", { name: "Start point" }).textContent).toBe("0123456");
     fireEvent.change(getByRole("textbox", { name: "Name" }), { target: { value: "fix" } });
     // Not "HEAD": the branch must land on the commit the context menu was opened on.
     expect(preview(getByRole("dialog"))).toBe(`git checkout -b fix ${oid}`);
@@ -111,7 +109,8 @@ describe("MergeDialog", () => {
     const { getByRole } = render(<MergeDialog onClose={onClose} />);
     const dialog = getByRole("dialog", { name: "Merge into main" });
     expect(preview(dialog)).toBe("git merge --ff feature/lane-graph");
-    fireEvent.change(getByRole("combobox", { name: "Strategy" }), { target: { value: "no" } });
+    fireEvent.click(getByRole("combobox", { name: "Strategy" }));
+    fireEvent.click(getByRole("option", { name: "Always create a merge commit" }));
     fireEvent.click(getByRole("checkbox", { name: "Squash into one commit" }));
     fireEvent.change(getByRole("textbox", { name: "Commit message" }), { target: { value: "custom msg" } });
     expect(preview(dialog)).toBe("git merge --no-ff --squash -m 'custom msg' feature/lane-graph");

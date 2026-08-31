@@ -3,14 +3,13 @@ import { onLogProgress, onOpEvent, onRepoChanged } from "./api/events";
 import { probeGit, toAppError } from "./api/ipc";
 import { Spinner } from "./components/ui/Spinner/Spinner";
 import { GitMissingScreen } from "./screens/GitMissingScreen/GitMissingScreen";
+import { closeRepo } from "./screens/RepoWindow/actions";
 import { RepoWindow } from "./screens/RepoWindow/RepoWindow";
 import { StartScreen } from "./screens/StartScreen/StartScreen";
-import { useDialogStore } from "./store/dialogStore";
-import { selectRunning, useOpsStore } from "./store/opsStore";
+import { useOpsStore } from "./store/opsStore";
 import { useRecentsStore } from "./store/recentsStore";
 import { useRepoStore } from "./store/repoStore";
 import { useStatusStore } from "./store/statusStore";
-import { toastError, useToastStore } from "./store/toastStore";
 
 type Phase = { kind: "probing" } | { kind: "gitMissing"; message: string } | { kind: "ready" };
 
@@ -63,16 +62,7 @@ export default function App() {
     function onKey(e: KeyboardEvent) {
       if (!(e.ctrlKey && e.shiftKey && !e.altKey && e.key.toLowerCase() === "w") || !useRepoStore.getState().repo) return;
       e.preventDefault();
-      // A dialog owns the window; an op would be left running against a closed repo.
-      if (useDialogStore.getState().dialog) return;
-      if (selectRunning(useOpsStore.getState())) {
-        useToastStore.getState().push({ kind: "info", title: "Operation in progress", detail: "Wait for it to finish before closing the repository" });
-        return;
-      }
-      void useRepoStore
-        .getState()
-        .closeRepo()
-        .catch((e: unknown) => toastError(toAppError(e), "Couldn't close the repository"));
+      closeRepo();
     }
     window.addEventListener("keydown", onKey);
     return () => {

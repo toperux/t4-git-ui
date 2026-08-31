@@ -72,7 +72,8 @@ export function RepoWindow() {
       <Group orientation="vertical" className={s.main}>
         <Panel minSize={200} className={s.panel}>
           <Group orientation="horizontal" className={s.main}>
-            <Panel defaultSize={260} minSize={220} maxSize={320} className={s.panel}>
+            {/* 260 is the design width; the range is wide enough that dragging visibly does something. */}
+            <Panel defaultSize={260} minSize={180} maxSize={560} className={s.panel}>
               <Sidebar />
             </Panel>
             <Separator className={s.splitH} aria-label="Resize sidebar" />

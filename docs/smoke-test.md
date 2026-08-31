@@ -76,6 +76,10 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the performance che
 
 - [ ] Grid fills progressively: thin progress line under the header, `Loading commits… N` in the
       statusbar, both stop when the walk completes
+- [ ] Restart with a repository open → it reopens and the grid shows **commits**, not rows of `—`
+- [ ] Toolbar repo button shows the open repository's name (full path as its tooltip); its menu opens
+      the folder picker, lists the other recents (switching reloads the whole window) and closes the repo
+- [ ] Drag the sidebar / grid / details / file-list splitters — each one moves, over a useful range
 - [ ] Ref chips come **before** the subject; the HEAD row shows a solid `HEAD` chip then the ringed
       current-branch chip; a branch that is in sync with its remote renders as **one** chip with a
       remote segment (not two)
@@ -179,6 +183,8 @@ Use `/c/tmp/t4/work` and the bare remote.
 - [ ] Toasts: errors **stay** until dismissed; info/success fade after ~6 s
 - [ ] Every dialog: `Esc` closes it and focus returns to whatever opened it (including when opened
       from a context menu); `Tab` stays inside the dialog
+- [ ] Any dropdown (Create branch → Start point, the toolbar branch filter): the list is themed like
+      the rest of the app, ↑/↓ + `Enter` pick, `Esc` closes the list only — not the dialog
 - [ ] Nothing is pure white on a large surface in light theme; nothing is unreadably faint
 - [ ] Drag the window to a monitor with a different DPI → the graph canvases stay crisp
 

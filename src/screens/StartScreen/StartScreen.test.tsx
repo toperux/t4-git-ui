@@ -66,6 +66,22 @@ describe("StartScreen", () => {
     expect(ipc.openRepo).toHaveBeenCalledWith("F:\\src\\rust");
   });
 
+  it("pinning marks the row right away, not only after a restart", () => {
+    const { getAllByRole } = render(<StartScreen />);
+    const pins = () => getAllByRole("option").map((r) => r.querySelector("button")!);
+    // Only the pinned row's pin is drawn at rest — the rest appear on hover.
+    expect(pins().map((b) => b.getAttribute("aria-label"))).toEqual(["Unpin", "Pin to top", "Pin to top"]);
+    expect(pins()[0].querySelector("svg")?.getAttribute("fill")).toBe("currentColor");
+
+    // Pinning "rust" keeps it behind the pinned repo opened more recently, but marks it at once.
+    fireEvent.click(pins()[1]);
+    expect(getAllByRole("option").map((r) => r.getAttribute("title"))).toEqual(["F:\\src\\t4-git-ui", "F:\\src\\rust", "C:\\Users\\me\\dotfiles"]);
+    expect(pins()[1].getAttribute("aria-pressed")).toBe("true");
+    expect(pins()[1].getAttribute("aria-label")).toBe("Unpin");
+    expect(pins()[1].querySelector("svg")?.getAttribute("fill")).toBe("currentColor");
+    expect(useRecentsStore.getState().recents.find((r) => r.name === "rust")?.pinned).toBe(true);
+  });
+
   it("filter narrows the list from the input; Delete removes the selected row", () => {
     const { getByRole, getAllByRole, queryAllByRole } = render(<StartScreen />);
     const input = getByRole("textbox", { name: "Filter repositories" });

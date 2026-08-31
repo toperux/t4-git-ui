@@ -1,4 +1,19 @@
-import { Archive, ArrowDown, ArrowDownUp, ArrowUp, GitBranch, GitCommitHorizontal, GitMerge, Plus, RefreshCw, Search, Settings } from "lucide-react";
+import {
+  Archive,
+  ArrowDown,
+  ArrowDownUp,
+  ArrowUp,
+  FolderGit2,
+  FolderOpen,
+  GitBranch,
+  GitCommitHorizontal,
+  GitMerge,
+  Plus,
+  RefreshCw,
+  Search,
+  Settings,
+  X,
+} from "lucide-react";
 import { useEffect, useState, type MouseEvent } from "react";
 import type { RevSpec, Stash } from "../../api/types";
 import { IconButton } from "../../components/ui/IconButton/IconButton";
@@ -7,9 +22,10 @@ import { Menu, MenuItem, MenuSeparator } from "../../components/ui/Menu/Menu";
 import { ToolbarButton, ToolbarSeparator } from "../../components/ui/ToolbarButton/ToolbarButton";
 import { useDialogStore, type DialogSpec } from "../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../store/opsStore";
+import { useRecentsStore } from "../../store/recentsStore";
 import { useRepoStore } from "../../store/repoStore";
 import { selectChangeCount, useStatusStore } from "../../store/statusStore";
-import { fetchDefault, refreshAll, stashApply, stashPop } from "./actions";
+import { closeRepo, fetchDefault, pickAndOpenRepo, refreshAll, stashApply, stashPop, switchRepo } from "./actions";
 import s from "./Toolbar.module.css";
 
 const SEARCH_DEBOUNCE_MS = 250;
@@ -26,9 +42,13 @@ export function Toolbar() {
   const changes = useStatusStore(selectChangeCount);
   const running = useOpsStore(selectRunning);
   const openDialog = useDialogStore((st) => st.open);
+  const repo = useRepoStore((st) => st.repo);
+  const recents = useRecentsStore((st) => st.recents);
   const [text, setText] = useState(() => useRepoStore.getState().filter.text ?? "");
+  const [repoMenu, setRepoMenu] = useState(false);
   const [branchMenu, setBranchMenu] = useState(false);
   const [stashMenu, setStashMenu] = useState(false);
+  const others = recents.filter((r) => r.path !== repo?.path);
 
   // Debounced text filter → new walk (only when the effective filter changed).
   useEffect(() => {
@@ -61,6 +81,43 @@ export function Toolbar() {
 
   return (
     <div className={s.toolbar} role="toolbar" aria-label="Repository">
+      <Menu
+        open={repoMenu}
+        onClose={() => setRepoMenu(false)}
+        label="Repository"
+        align="left"
+        anchor={
+          <ToolbarButton
+            icon={<FolderGit2 size={18} aria-hidden />}
+            className={s.repo}
+            title={repo?.path ?? "Repository"}
+            aria-haspopup="menu"
+            aria-expanded={repoMenu}
+            onClick={() => setRepoMenu((o) => !o)}
+          >
+            <span className={s.repoName}>{repo?.name ?? "Repository"}</span>
+          </ToolbarButton>
+        }
+      >
+        <MenuItem icon={<FolderOpen size={16} aria-hidden />} onClick={pick(() => void pickAndOpenRepo(), () => setRepoMenu(false))}>
+          Open repository…
+        </MenuItem>
+        <MenuSeparator />
+        {others.length === 0 ? (
+          <MenuItem disabled>No other recent repositories</MenuItem>
+        ) : (
+          others.map((r) => (
+            <MenuItem key={r.path} icon={<FolderGit2 size={16} aria-hidden />} title={r.path} onClick={pick(() => switchRepo(r.path), () => setRepoMenu(false))}>
+              {r.name}
+            </MenuItem>
+          ))
+        )}
+        <MenuSeparator />
+        <MenuItem icon={<X size={16} aria-hidden />} kbd="Ctrl+Shift+W" onClick={pick(closeRepo, () => setRepoMenu(false))}>
+          Close repository
+        </MenuItem>
+      </Menu>
+      <ToolbarSeparator />
       <ToolbarButton icon={<ArrowDown size={18} aria-hidden />} disabled={running} title={opTitle("Fetch from the default remote")} onClick={() => void fetchDefault()}>
         Fetch
       </ToolbarButton>

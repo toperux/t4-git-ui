@@ -1,5 +1,8 @@
 /* screens.mjs dock(): collapsed = 28px panel header with top border; open = 200px panel */
 .dock {
+  /* Collapsed, the header *is* the panel's only child (a row flex item): without this it shrinks to
+     its text and the top border stops mid-window. */
+  width: 100%;
   border-top: 1px solid var(--border);
   border-bottom: 0;
 }

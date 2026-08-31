@@ -1,9 +1,11 @@
 // Operations shared by the toolbar, menus, banners and shortcuts. Everything goes through `runOp`.
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { open as openFolder } from "@tauri-apps/plugin-dialog";
 import * as ipc from "../../api/ipc";
 import { toAppError } from "../../api/ipc";
 import type { Branch, RemoteBranch } from "../../api/types";
-import { runOp } from "../../store/opsStore";
+import { useDialogStore } from "../../store/dialogStore";
+import { runOp, selectRunning, useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
 import { useStatusStore } from "../../store/statusStore";
 import { toastError, useToastStore } from "../../store/toastStore";
@@ -55,6 +57,36 @@ export function copyText(text: string, what: string) {
 }
 
 export const openCommitPanel = () => useRepoStore.getState().selectWorkingTree();
+
+/** Switches to another repository (toolbar repo menu); failures stay on the current one. */
+export function switchRepo(path: string) {
+  void useRepoStore
+    .getState()
+    .openRepo(path)
+    .catch((e: unknown) => toastError(toAppError(e), "Couldn't open repository"));
+}
+
+/** Folder picker → open (toolbar repo menu). A cancelled picker does nothing. */
+export async function pickAndOpenRepo() {
+  const dir = await openFolder({ directory: true, multiple: false, title: "Open repository" }).catch(() => null);
+  if (dir) switchRepo(dir);
+}
+
+/**
+ * Back to the start screen (repo menu / Ctrl+Shift+W). Refused while a dialog owns the window or an
+ * operation is running against the repository.
+ */
+export function closeRepo() {
+  if (!useRepoStore.getState().repo || useDialogStore.getState().dialog) return;
+  if (selectRunning(useOpsStore.getState())) {
+    useToastStore.getState().push({ kind: "info", title: "Operation in progress", detail: "Wait for it to finish before closing the repository" });
+    return;
+  }
+  void useRepoStore
+    .getState()
+    .closeRepo()
+    .catch((e: unknown) => toastError(toAppError(e), "Couldn't close the repository"));
+}
 
 /** Refs + status + a fresh walk (toolbar Refresh / F5). `refresh` / `startLog` report their own errors. */
 export function refreshAll() {

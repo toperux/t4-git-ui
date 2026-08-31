@@ -233,14 +233,14 @@ export function StartScreen() {
                     <IconButton
                       label={r.pinned ? "Unpin" : "Pin to top"}
                       on={r.pinned}
-                      className={s.pin}
+                      className={cx(s.pin, r.pinned && s.pinned)}
                       onMouseDown={(e) => e.stopPropagation()}
                       onClick={(e) => {
                         e.stopPropagation();
                         togglePin(r.path);
                       }}
                     >
-                      <Pin size={16} aria-hidden />
+                      <Pin size={16} fill={r.pinned ? "currentColor" : "none"} aria-hidden />
                     </IconButton>
                   </div>
                 ))

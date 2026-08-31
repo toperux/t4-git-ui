@@ -12,6 +12,17 @@
 .grow {
   flex: 1;
 }
+/* Open repository: the name can be long — keep it from crowding the operation buttons. */
+.repo {
+  font-weight: 600;
+}
+.repoName {
+  display: block;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 /* Main.mjs draws the compact control (240×26 / 150×26): the token for it is --control-h-sm. */
 .search {
   width: 240px;

@@ -5,8 +5,8 @@ src/
   main.tsx                 mounts App; imports fonts.css → tokens.css → base.css; LucideProvider (16px, stroke 1.75)
   App.tsx                  probe_git → GitMissingScreen | no repo → StartScreen | repo → RepoWindow; loads recents and reopens
                            `lastOpen` inside one try/catch (a failure lands on the start screen, never on the spinner),
-                           records every open (touch + setLastOpen), Ctrl+Shift+W closes the repo
-                           (no-op while a dialog is open; info toast while an op runs)
+                           records every open (touch + setLastOpen), Ctrl+Shift+W closes the repo via `actions.closeRepo`
+                           (shared with the toolbar repo menu: no-op while a dialog is open; info toast while an op runs)
   api/
     types.ts               TS mirror of the Rust IPC contract (serde camelCase) — edit only together with the Rust structs
     ipc.ts                 `call()` (the one `invoke` wrapper, shared with appIpc) + one typed function per command; every
@@ -71,6 +71,8 @@ src/
                            parses ONE line → {text, cls}[] spans, 5k-entry LRU; cls ∈ keyword|string|comment|number|type|function|punct)
   components/ui/<Name>/    one folder per style-guide component: <Name>.tsx + <Name>.module.css (incl. StatusGlyph A/M/D/R/U/C,
                            Checkbox, Kbd (the one shortcut-chip anatomy, used by MenuItem + StartScreen),
+                           Input + Select (`<option>` children, `onChange` shaped like a native change; the list is
+                           app-drawn and portalled — a native <select> popup is an OS window that ignores the theme),
                            Menu/MenuItem/MenuSeparator (anchor + dropdown, Esc/outside click, ↑/↓, `kbd` hint, `align`)
                            + ContextMenu (portal at a viewport point, clamped), Toast + ToastStack,
                            Dialog (440 / `.wide` 560 over `--scrim`, portal, Esc closes, Enter submits, Tab trapped, focus
@@ -81,11 +83,13 @@ src/
     GitMissingScreen/      probe_git failed → "Git not found" + Retry (no set_git_path command, so no "Locate git…")
     RepoWindow/            RepoWindow (layout: toolbar 40 / sidebar 260 | StateBanners + grid ÷ (DetailsPane | CommitPanel when
                            wtSelected) / dock / statusbar 24 w/ spinner + busy text; hosts DialogHost + useShortcuts)
-                           Toolbar (Fetch → default remote w/ prune, Pull / Push dialogs + ahead/behind counts, Branch and Stash
-                           menus, Commit button = change count; every op button disabled while one runs),
+                           Toolbar (repo menu = open repository name → folder picker / other recents / close, Fetch → default
+                           remote w/ prune, Pull / Push dialogs + ahead/behind counts, Branch and Stash menus, Commit button
+                           = change count; every op button disabled while one runs),
                            Sidebar (one `role="tree"` per section with a roving tabIndex, context menus per ref kind on
                            right-click / Shift+F10, double-click = checkout),
-                           actions.ts (fetchDefault / checkout* / stash* / copyText / refreshAll — all through runOp),
+                           actions.ts (fetchDefault / checkout* / stash* / copyText / refreshAll / switchRepo / pickAndOpenRepo /
+                           closeRepo — the git ones through runOp),
                            banners.ts (pure refs+status → detached | merge | rebase | sequencer (cherry-pick/revert/bisect,
                            text only — no backend abort) | conflicts banners),
                            useShortcuts.ts (Ctrl+Shift+U push, Ctrl+Shift+L pull, Ctrl+B branch, Ctrl+F5 fetch, F5 refresh, Ctrl+`),

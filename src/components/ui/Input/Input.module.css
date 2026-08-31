@@ -57,22 +57,53 @@
   opacity: 0.5;
 }
 
-/* Select: input anatomy + chevron; min-width 160 */
+/* Select: input anatomy + chevron; min-width 160; open = focus style + chevron-up */
 .select {
   position: relative;
   justify-content: space-between;
   min-width: 160px;
+  padding-right: var(--space-7);
+  text-align: left;
 }
-.selectField {
-  composes: field;
-  appearance: none;
-  cursor: default;
-  user-select: none;
-  padding-right: 18px;
+.open {
+  background: var(--bg-panel);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
-.selectField option {
+.value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The list is app-drawn (a native <select> popup is an OS window that ignores the theme).
+   Portalled to the body, so z-index clears the dialog scrim (40). */
+.listbox {
+  position: fixed;
+  z-index: 45;
+  max-height: 320px;
+  overflow: auto;
+  padding: var(--space-2);
   background: var(--bg-elevated);
-  color: var(--fg);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+}
+.opt {
+  display: flex;
+  align-items: center;
+  height: var(--row-h);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.optSelected {
+  font-weight: var(--weight-medium);
+}
+.optActive {
+  background: var(--accent);
+  color: var(--fg-on-accent);
 }
 .chevron {
   position: absolute;

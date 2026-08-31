@@ -85,6 +85,8 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
     const gen = log.generation;
     const offset = p * PAGE_SIZE;
     const lg = labelGen;
+    /** Rows the walk was known to have when this request went out (see the short-page retry below). */
+    const totalAtRequest = log.total;
 
     let refetch = false;
     const task = (async () => {
@@ -112,6 +114,12 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
         } else if (page.rows.length === PAGE_SIZE || page.complete) {
           // A partial page from a walk still in progress must be re-requested later.
           loaded.add(p);
+        } else if (nearViewport(p) && get().log.total > Math.max(totalAtRequest, offset + page.rows.length)) {
+          // The walk moved on while this request was in flight (`log://progress` arrived meanwhile),
+          // and `ensureRows` skipped the page because it was in flight — so ask again here, or the
+          // grid keeps rendering placeholder rows nothing ever fills. Bounded: a retry only happens
+          // when the known total grew after the request went out.
+          refetch = true;
         }
       } catch (e) {
         const err = toAppError(e);
