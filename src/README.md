@@ -118,7 +118,10 @@ src/
                            binary/truncated states; per-line syntax highlighting via lib/highlight → `--syn-*`). `actions` = staging mode: forced unified, hunk-row "Discard | Stage/Unstage hunk"
                            (hover), body = role=listbox of add/del `option` lines with a roving tabIndex (click/Shift/Ctrl, Space
                            toggles, Shift+↑/↓ extends inside the hunk, Enter stages) → sticky "N lines selected · Discard · Stage N
-                           lines" bar; wholeFile (untracked / conflicted) = header `note`, no hunk/line actions. The body scrolls back
+                           lines" bar. The cursor owns the DOM focus, not just the tab stop — `.pick:focus-visible` is the only
+                           thing that draws it: ↑/↓ scroll it into view and focus it (`[data-cursor]`), a click adopts it, and
+                           focusing the region hands off to the cursor line (outside staging there is none, so the region keeps
+                           the focus for scrolling); wholeFile (untracked / conflicted) = header `note`, no hunk/line actions. The body scrolls back
                            to the top only when the file path changes. No hunk/line Discard: the backend has no
                            reverse-apply-to-workdir — file-level discard lives in `CommitPanel/FilesColumn`
                            diffRows.ts (pure: flattenUnified (rows carry hunk/index) / flattenSplit), lineSelection.ts (pure: clickLine, toPairs)

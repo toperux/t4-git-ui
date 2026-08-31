@@ -74,6 +74,9 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
   const onLineClick = useCallback(
     (ref: LineRef, mods: Mods) => {
       if (diff) setSel((prev) => clickLine(diff, prev, ref, mods));
+      // The cursor follows the mouse, or the next arrow key resumes from wherever it was left
+      // and Space toggles a line nowhere near the one that was just clicked.
+      setCursor(pickAt.current.get(lineKey(ref.hunk, ref.line)) ?? 0);
     },
     [diff],
   );
@@ -89,6 +92,9 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
     return flat.rows.flatMap((r, row) => (r.kind === "line" && r.line.kind !== "context" ? [{ row, ref: { hunk: r.hunk, line: r.index } }] : []));
   }, [flat]);
   const cursorRow = picks[Math.min(cursor, picks.length - 1)]?.row ?? -1;
+  // Line key → cursor index, for `onLineClick` (a ref, so clicking does not re-subscribe on every diff).
+  const pickAt = useRef(new Map<string, number>());
+  pickAt.current = useMemo(() => new Map(picks.map((p, i) => [lineKey(p.ref.hunk, p.ref.line), i])), [picks]);
 
   /** Space toggles, Shift+↑/↓ extends inside the hunk, Enter stages, plain ↑/↓ moves the cursor. */
   const onBodyKeyDown = useCallback(
@@ -238,9 +244,37 @@ function DiffBody({ path, view, rows, maxCols, lang, actions, selected, cursorRo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path]);
 
+  // The cursor is drawn as `.pick:focus-visible`, so it only exists where the focus is. Move the
+  // focus with it — but only while the diff already holds it, or picking a file in the list, or a
+  // reload, would yank the focus out from under whatever the user was actually using.
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (cursorRow < 0 || !root || !root.contains(document.activeElement)) return;
+    virtualizer.scrollToIndex(cursorRow, { align: "auto" });
+    // The row is virtualized: after a scroll it may only mount on the next frame.
+    const focus = () => root.querySelector<HTMLElement>("[data-cursor]")?.focus({ preventScroll: true });
+    focus();
+    const id = requestAnimationFrame(focus);
+    return () => cancelAnimationFrame(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cursorRow]);
+
   const model = { view, rows } as Rows;
   return (
-    <div ref={scrollRef} className={s.scroll} role="region" aria-label="Diff" tabIndex={0} onKeyDown={onKeyDown}>
+    <div
+      ref={scrollRef}
+      className={s.scroll}
+      role="region"
+      aria-label="Diff"
+      tabIndex={0}
+      onKeyDown={onKeyDown}
+      // Tabbing into the diff hands the focus straight to the cursor line, so the first arrow key
+      // moves off a line the user can see. Nothing to hand it to outside staging mode: no picks, no
+      // `[data-cursor]`, and the region keeps the focus for scrolling.
+      onFocus={(e) => {
+        if (e.target === e.currentTarget) e.currentTarget.querySelector<HTMLElement>("[data-cursor]")?.focus({ preventScroll: true });
+      }}
+    >
       <div
         className={cx(s.body, view === "split" && s.split)}
         role={actions ? "listbox" : undefined}
@@ -344,6 +378,7 @@ const UnifiedRowView = memo(function UnifiedRowView({ row, top, lang, actions, s
       role={pick ? "option" : actions ? "presentation" : undefined}
       aria-selected={pick ? selected : undefined}
       tabIndex={pick ? (cursor ? 0 : -1) : undefined}
+      data-cursor={pick && cursor ? "" : undefined}
       onClick={onClick}
       // Shift+click extends the selection, not the text selection.
       onMouseDown={pick ? (e) => e.shiftKey && e.preventDefault() : undefined}

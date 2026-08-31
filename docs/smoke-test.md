@@ -124,8 +124,9 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the performance che
 - [ ] Hover a hunk header → **Stage hunk**; click it → only that hunk moves to Staged
 - [ ] Click add/del lines (`Shift` for a range, `Ctrl` to toggle) → the sticky bar reads
       "N lines selected"; **Stage N lines** stages exactly those
-- [ ] Keyboard line staging: focus a line, `Space` toggles, `Shift+↑`/`↓` extends within the hunk,
-      `Enter` stages the selection
+- [ ] Keyboard line staging: `Tab` into the diff → the ring lands on a **line**, not the whole pane;
+      `↑`/`↓` carry it line to line (and it picks up where a click left it), `Space` toggles,
+      `Shift+↑`/`↓` extends within the hunk, `Enter` stages the selection
 - [ ] Select a **staged** file → the same actions read "Unstage hunk" / "Unstage N lines" and work
 - [ ] An untracked file shows a whole-file note and offers no hunk/line actions
 - [ ] **Staging does not jump the view**: stage a hunk in a long file → scroll position and any

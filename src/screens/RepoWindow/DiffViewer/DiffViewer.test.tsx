@@ -159,6 +159,41 @@ describe("DiffViewer", () => {
     ]);
   });
 
+  it("the keyboard cursor takes the focus with it, so you can see which line you are on", () => {
+    // The cursor is drawn by `.pick:focus-visible`: a cursor the focus does not follow is invisible,
+    // and the next Space lands on a line the user has no way of identifying.
+    useDiffStore.setState({ view: "unified" });
+    const actions: DiffActions = { target: "unstaged", wholeFile: false, onStageHunk: vi.fn(), onStageLines: vi.fn() };
+    const { getByRole, getAllByRole } = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} actions={actions} />);
+    const region = getByRole("region", { name: "Diff" });
+    const options = getAllByRole("option");
+
+    // Tabbing in lands on the cursor line itself, not on the region.
+    region.focus();
+    expect(document.activeElement).toBe(options[0]);
+
+    fireEvent.keyDown(region, { key: "ArrowDown" });
+
+    expect(document.activeElement).toBe(options[1]);
+    expect(options.map((o) => o.getAttribute("tabindex"))).toEqual(["-1", "0", "-1"]);
+  });
+
+  it("clicking a line moves the cursor there, so the arrows carry on from the mouse", () => {
+    useDiffStore.setState({ view: "unified" });
+    const actions: DiffActions = { target: "unstaged", wholeFile: false, onStageHunk: vi.fn(), onStageLines: vi.fn() };
+    const { getByRole, getAllByRole, queryByRole } = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} actions={actions} />);
+    const region = getByRole("region", { name: "Diff" });
+    const options = getAllByRole("option");
+
+    fireEvent.click(options[2]);
+    expect(getByRole("toolbar", { name: "Selected lines" }).textContent).toContain("1 line selected");
+    expect(options.map((o) => o.getAttribute("tabindex"))).toEqual(["-1", "-1", "0"]);
+
+    // Space toggles the cursor line: the one just clicked, not the one the cursor started on.
+    fireEvent.keyDown(region, { key: " " });
+    expect(queryByRole("toolbar", { name: "Selected lines" })).toBeNull();
+  });
+
   it("scrolls back to the top only when the file changes, not when its diff is reloaded", () => {
     useDiffStore.setState({ view: "unified" });
     const big = bigDiff(5_000);
