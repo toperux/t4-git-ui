@@ -16,33 +16,21 @@ step number.
 
 ## 0. Fixtures
 
-Create these once; several sections reuse them.
+Build them once; several sections reuse them.
 
-```bash
-mkdir -p /c/tmp/t4 && cd /c/tmp/t4
-
-# a bare "remote"
-git init --bare bare.git
-
-# a working repo with some history, a merge, a tag and a stash
-git init work && cd work
-git remote add origin /c/tmp/t4/bare.git
-printf 'one\n' > a.txt && git add . && git commit -m "first"
-git switch -c feature && printf 'two\n' >> a.txt && git commit -am "feature edit"
-git switch - && printf 'main\n' > b.txt && git add . && git commit -m "main edit"
-git tag v0.1.0
-git merge feature -m "merge feature" || true
-git push -u origin HEAD
-
-# CRLF + binary + no-trailing-newline files, for the diff viewer
-printf 'x\r\ny\r\n' > crlf.txt
-printf '\x00\x01\x02binary' > blob.bin
-printf 'no newline' > nonl.txt
-git add . && git commit -m "odd files"
-
-# a second clone, to create divergence later
-cd /c/tmp/t4 && git clone bare.git other
+```powershell
+pwsh -File docs/smoke-fixtures.ps1   # into C:\tmp\t4; add -Force to rebuild, or pass a path
 ```
+
+Windows PowerShell works too: `powershell -ExecutionPolicy Bypass -File docs\smoke-fixtures.ps1`.
+
+It creates a bare `bare.git` "remote", a `work` repo, and a second clone `other` for the divergence
+checks in §5. `work` holds history with a `feature` branch, a merge, the tag `v0.1.0`, one commit
+that is **not** pushed yet (§5 pushes it), the CRLF / binary / no-trailing-newline files §3 checks,
+and `hunks.txt` left modified in three hunks for the staging checks in §4.
+
+`work` turns `core.autocrlf` off, or git rewrites `crlf.txt` to LF on the way into the index and
+the committed blob has no CR left for §3 to show. The script fails loudly if that happens anyway.
 
 A large repo (a `git/git` clone, ~85k commits) is useful for the performance checks in §7.
 
@@ -53,7 +41,7 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the performance che
 - [ ] Launch with no previous repo → start screen: header `t4 git ui 0.1.0`, `RECENT` column,
       `START` column with three cards, statusbar shows `git <version>` and `N recent`
 - [ ] `Ctrl+O` → folder picker → choose a **non**-repo folder → error toast, stays on start screen
-- [ ] Open `/c/tmp/t4/work` → repo window opens; restart the app → it reopens automatically
+- [ ] Open `C:\tmp\t4\work` → repo window opens; restart the app → it reopens automatically
 - [ ] `Ctrl+Shift+W` → back to start screen; restart → no auto-open, but the repo is in RECENT
 - [ ] Open a second repo → RECENT lists both, newest first
 - [ ] Pin the older one → it jumps to the top and stays pinned after a restart
@@ -112,20 +100,25 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the performance che
 - [ ] Toggle **split** view → deletions and additions side by side, fillers on the shorter side;
       restart the app → the mode is remembered
 - [ ] Toggle **tree** mode → folders nest and collapse; remembered across restarts
-- [ ] Whitespace toggle on an indentation-only change → the hunk shrinks or disappears
+- [ ] Whitespace toggle on `hunks.txt` (working tree) → its middle hunk, an indentation-only change,
+      disappears and the other two stay
 - [ ] Long paths ellipsize at the **start** so the filename stays readable; hover shows the full path
 - [ ] A renamed file reads `old → new` in both the row and the diff header
 - [ ] `blob.bin` → "Binary file", no stats, no hunks
 - [ ] `crlf.txt` → a faint `␍` at line ends; `nonl.txt` → a muted `\ No newline at end of file` row
+      (no `␍` means the fixture repo kept `core.autocrlf` on and its blob is LF — see §0, not a bug)
 - [ ] Long lines scroll horizontally **inside** the diff; the window itself never scrolls sideways
 - [ ] Syntax highlighting: a `.ts` / `.rs` / `.css` / `.json` / `.py` file shows coloured keywords,
       strings and comments; an unknown extension renders plain
 
 ## 4. Commit panel (M3)
 
-- [ ] Edit a tracked file in an external editor → within ~1 s the **Working tree** row appears at the
-      top of the grid, the Commit toolbar badge and the statusbar counts update
+- [ ] The fixture leaves `hunks.txt` modified, so the **Working tree** row is at the top of the grid
+      from the start; edit `a.txt` in an external editor → within ~1 s the Commit toolbar badge and
+      the statusbar counts follow (stage and commit `a.txt` again to leave `hunks.txt` on its own)
 - [ ] Click the working-tree row (or the Commit button) → three columns: Unstaged | Diff | Message
+- [ ] `hunks.txt` renders as **three** hunks — an edited line plus an added one, an indentation-only
+      change, and a deletion — each with its own `@@` header
 - [ ] Multi-select in the lists: click, `Ctrl+click`, `Shift+click`, `↑` `↓`, `Ctrl+A`
 - [ ] Stage via `Enter`, double-click, and the hover `+` button; `Stage all` / `Unstage all` work
 - [ ] Hover a hunk header → **Stage hunk**; click it → only that hunk moves to Staged
@@ -152,17 +145,18 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the performance che
 
 ## 5. Operations (M4)
 
-Use `/c/tmp/t4/work` and the bare remote.
+Use `C:\tmp\t4\work` and the bare remote.
 
 - [ ] **Push** `Ctrl+Shift+U`: remote preselected, "Set upstream" checked when there is no upstream,
       footer previews the exact `git push …`; run it → success toast, ahead/behind clears
-- [ ] **Pull** `Ctrl+Shift+L` after committing in `/c/tmp/t4/other` and pushing → fast-forwards, grid
+- [ ] **Pull** `Ctrl+Shift+L` after committing in `C:\tmp\t4\other` and pushing → fast-forwards, grid
       restarts at the new HEAD
 - [ ] Commit locally **and** remotely, then Push → "remote has new commits — Pull first" toast with a
       **Pull** action
 - [ ] Pull with mode "Fast-forward only" on diverged history → non-fast-forward toast
-- [ ] Pull on a branch whose upstream has a **different name** → pulls the upstream branch, not a
-      same-named one
+- [ ] Check out `feature` (it tracks `origin/feature-upstream`, and an unrelated `origin/feature`
+      exists too) and Pull → it brings `upstream.txt`; `decoy.txt` means it followed the name
+      instead of the upstream
 - [ ] **Merge** a conflicting branch → conflicts toast, working-tree row selected, danger banner
       "N files have conflicts", plus a merge-in-progress banner with Abort
 - [ ] Resolve the conflict in an editor → **the file can be staged** (whole-file) → commit → banners

@@ -1,0 +1,167 @@
+# Builds the repositories docs/smoke-test.md section 0 needs, in one command:
+#
+#   pwsh -File docs/smoke-fixtures.ps1            # into C:\tmp\t4
+#   pwsh -File docs/smoke-fixtures.ps1 -Force     # rebuild it from scratch
+#   pwsh -File docs/smoke-fixtures.ps1 D:\t4      # somewhere else
+#
+# It makes three things:
+#   bare.git  a bare "remote"
+#   work      history with a branch, a merge, a tag, one commit that is not pushed
+#             yet (section 5 pushes it), the odd files the diff viewer is checked
+#             against - CRLF, binary, no trailing newline - and hunks.txt modified
+#             in the working tree, in three hunks, for the staging checks
+#   other     a second clone of bare.git, for the divergence checks in section 5
+
+[CmdletBinding()]
+param(
+    [string] $Root = 'C:\tmp\t4',
+    [switch] $Force
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
+# git reports failure through its exit code, which PowerShell does not raise on its own.
+function Invoke-Git {
+    param([Parameter(ValueFromRemainingArguments = $true)] [string[]] $Arguments)
+
+    & git @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "git $($Arguments -join ' ') exited with $LASTEXITCODE"
+    }
+}
+
+# Set-Content would add a trailing newline and, on 5.1, a BOM; these files are byte-exact
+# on purpose. .NET resolves relative paths against its own working directory, so every
+# path handed to it below is absolute.
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+function Write-Text {
+    param([string] $Path, [string] $Text)
+
+    [System.IO.File]::WriteAllText($Path, $Text, $utf8NoBom)
+}
+
+# `throw` on a precondition would bury one line of advice under a page of PowerShell's
+# error formatting; these two are for whoever is running the walkthrough to read.
+function Stop-WithMessage {
+    param([string] $Message)
+
+    [Console]::Error.WriteLine($Message)
+    exit 1
+}
+
+if (Test-Path -LiteralPath $Root) {
+    if (-not $Force) {
+        Stop-WithMessage "$Root already exists - remove it, name another path, or pass -Force"
+    }
+    Write-Host "replacing $Root"
+    Remove-Item -LiteralPath $Root -Recurse -Force
+}
+
+New-Item -ItemType Directory -Path $Root -Force | Out-Null
+$Root = (Resolve-Path -LiteralPath $Root).Path
+$work = Join-Path $Root 'work'
+$bare = Join-Path $Root 'bare.git'
+# git takes either separator, but a backslash in a remote URL is easy to mangle later.
+$bareUrl = $bare -replace '\\', '/'
+
+Invoke-Git init -q --bare -b main $bare
+Invoke-Git init -q -b main $work
+
+# Off, or git rewrites crlf.txt to LF on the way into the index and the committed blob
+# has no CR left for the diff viewer to mark (section 3). Git for Windows ships this as
+# `true` and plenty of people set `input`; either one hides the marker.
+Invoke-Git -C $work config core.autocrlf false
+Invoke-Git -C $work remote add origin $bareUrl
+
+Write-Text (Join-Path $work 'a.txt') "one`n"
+Invoke-Git -C $work add .
+Invoke-Git -C $work commit -qm 'first'
+
+Invoke-Git -C $work switch -qc feature
+Write-Text (Join-Path $work 'a.txt') "one`ntwo`n"
+Invoke-Git -C $work commit -qam 'feature edit'
+
+Invoke-Git -C $work switch -q main
+Write-Text (Join-Path $work 'b.txt') "main`n"
+Invoke-Git -C $work add .
+Invoke-Git -C $work commit -qm 'main edit'
+
+Invoke-Git -C $work tag v0.1.0
+Invoke-Git -C $work merge -q feature -m 'merge feature'
+
+# Thirty lines so an edit can put changes far enough apart to stay separate hunks: git merges
+# two changes closer together than twice the context (3 lines each side) into one.
+$lines = 1..30 | ForEach-Object { 'line {0:d2}' -f $_ }
+Write-Text (Join-Path $work 'hunks.txt') (($lines -join "`n") + "`n")
+Invoke-Git -C $work add .
+Invoke-Git -C $work commit -qm 'hunks fixture'
+
+Invoke-Git -C $work push -q -u origin main
+
+# Section 5 pulls on a branch whose upstream is named something else, so both branches have to
+# exist and differ - otherwise following the name and following the upstream look the same. The
+# two commits are made on throwaway branches off feature and pushed under the names the check
+# wants; only the remote-tracking refs are kept.
+Invoke-Git -C $work switch -qc feature-upstream feature
+Write-Text (Join-Path $work 'upstream.txt') "from the upstream branch`n"
+Invoke-Git -C $work add .
+Invoke-Git -C $work commit -qm 'upstream branch commit'
+Invoke-Git -C $work push -q origin feature-upstream
+
+Invoke-Git -C $work switch -qc feature-decoy feature
+Write-Text (Join-Path $work 'decoy.txt') "from the same-named branch`n"
+Invoke-Git -C $work add .
+Invoke-Git -C $work commit -qm 'decoy branch commit'
+Invoke-Git -C $work push -q origin feature-decoy:feature
+
+Invoke-Git -C $work switch -q main
+# Long option names: PowerShell swallows a bare `-D` on its way to the argument list.
+Invoke-Git -C $work branch --delete --force feature-upstream feature-decoy | Out-Null
+Invoke-Git -C $work branch --set-upstream-to=origin/feature-upstream feature | Out-Null
+
+Write-Text (Join-Path $work 'crlf.txt') "x`r`ny`r`n"
+Write-Text (Join-Path $work 'nonl.txt') 'no newline'
+$binary = [byte[]] (@(0, 1, 2) + [System.Text.Encoding]::ASCII.GetBytes('binary'))
+[System.IO.File]::WriteAllBytes((Join-Path $work 'blob.bin'), $binary)
+
+Invoke-Git -C $work add .
+Invoke-Git -C $work commit -qm 'odd files'
+
+# The one thing here that silently does nothing when a filter is in the way. Compare byte
+# counts rather than reading the blob back: PowerShell splits a native command's output
+# into lines and drops the terminators, so the CRs would vanish on the way in.
+$onDisk = [System.IO.File]::ReadAllBytes((Join-Path $work 'crlf.txt')).Length
+$committed = [int] (Invoke-Git -C $work cat-file -s 'HEAD:crlf.txt')
+if ($committed -ne $onDisk) {
+    Stop-WithMessage "crlf.txt lost its CRs on the way into the index ($onDisk bytes on disk, $committed committed) - core.autocrlf is overriding us"
+}
+
+# The working-tree change section 4 stages: three changes, far enough apart to arrive as three
+# hunks - one that edits a line and adds one, one that only re-indents (section 3's whitespace
+# toggle has something to hide), and one that deletes. Left uncommitted on purpose.
+$edited = [System.Collections.Generic.List[string]]::new()
+foreach ($line in $lines) {
+    switch ($line) {
+        'line 02' { $edited.Add('line 02 edited'); $edited.Add('line 02b') }
+        'line 15' { $edited.Add('    line 15') }
+        'line 28' { }
+        default { $edited.Add($line) }
+    }
+}
+Write-Text (Join-Path $work 'hunks.txt') (($edited -join "`n") + "`n")
+
+$hunkCount = @(Invoke-Git -C $work diff --unified=3 -- hunks.txt | Where-Object { $_ -like '@@*' }).Count
+if ($hunkCount -ne 3) {
+    Stop-WithMessage "hunks.txt came out as $hunkCount hunks, expected 3 - the edits drifted too close together"
+}
+
+Invoke-Git clone -q $bareUrl (Join-Path $Root 'other')
+
+$commits = Invoke-Git -C $work rev-list --count HEAD
+Write-Host ''
+Write-Host "ready - open $work in the app"
+Write-Host "  work   $commits commits, the last one not pushed yet"
+Write-Host '         hunks.txt is modified in the working tree, in three hunks'
+Write-Host '         feature tracks origin/feature-upstream, while origin/feature is someone else'
+Write-Host '  other  second clone, for the divergence checks in section 5'
