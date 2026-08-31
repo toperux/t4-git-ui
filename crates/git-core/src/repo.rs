@@ -65,6 +65,8 @@ pub struct RepoHandle {
     pub git_dir: PathBuf,
     pub git2: Mutex<Repository>,
     pub log: RwLock<LogCache>,
+    /// Serializes mutating operations (stage / commit / branch ops) per repo.
+    pub op_lock: tokio::sync::Mutex<()>,
 }
 
 impl RepoHandle {
@@ -89,6 +91,7 @@ impl RepoHandle {
             git_dir,
             git2: Mutex::new(repo),
             log: RwLock::new(LogCache::default()),
+            op_lock: tokio::sync::Mutex::new(()),
         }))
     }
 

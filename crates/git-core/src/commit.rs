@@ -1,8 +1,69 @@
-use git2::{Oid, Repository};
+use std::path::Path;
+
+use git2::{ErrorCode, Oid, Repository};
 use serde::{Deserialize, Serialize};
 
 use crate::log::types::CommitInfo;
 use crate::{map_git2, GitError};
+
+/// `git commit -F <message_file> [--amend] [--signoff] [--allow-empty]`.
+/// Run through the CLI so hooks and GPG signing work (libgit2 runs no hooks).
+pub fn commit_args(
+    message_file: &Path,
+    amend: bool,
+    signoff: bool,
+    allow_empty: bool,
+) -> Vec<String> {
+    let mut args = vec![
+        "commit".to_string(),
+        "-F".to_string(),
+        message_file.to_string_lossy().into_owned(),
+    ];
+    if amend {
+        args.push("--amend".to_string());
+    }
+    if signoff {
+        args.push("--signoff".to_string());
+    }
+    if allow_empty {
+        args.push("--allow-empty".to_string());
+    }
+    args
+}
+
+/// Full message of HEAD (for amend prefill); `None` when HEAD is unborn.
+pub fn head_message(repo: &Repository) -> Result<Option<String>, GitError> {
+    match repo.head() {
+        Ok(head) => {
+            let commit = head.peel_to_commit().map_err(map_git2)?;
+            Ok(Some(
+                String::from_utf8_lossy(commit.message_bytes()).into_owned(),
+            ))
+        }
+        Err(e) if e.code() == ErrorCode::UnbornBranch => Ok(None),
+        Err(e) => Err(map_git2(e)),
+    }
+}
+
+/// `(user.name, user.email)` from the effective config; [`GitError::Config`]
+/// when either is missing or empty.
+pub fn author_identity(repo: &Repository) -> Result<(String, String), GitError> {
+    let cfg = repo
+        .config()
+        .and_then(|mut c| c.snapshot())
+        .map_err(map_git2)?;
+    let get = |key: &str| -> Result<String, GitError> {
+        match cfg.get_string(key) {
+            Ok(v) if !v.trim().is_empty() => Ok(v),
+            Ok(_) => Err(GitError::Config(format!("{key} is empty"))),
+            Err(e) if e.code() == ErrorCode::NotFound => {
+                Err(GitError::Config(format!("{key} is not set")))
+            }
+            Err(e) => Err(map_git2(e)),
+        }
+    };
+    Ok((get("user.name")?, get("user.email")?))
+}
 
 /// Full commit details for the details pane. Ref labels are attached by the caller.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -50,5 +111,44 @@ mod tests {
         let t = TempRepo::new();
         assert!(get_commit(&t.repo, "nope").is_err());
         assert!(get_commit(&t.repo, &"0".repeat(40)).is_err());
+    }
+
+    #[test]
+    fn commit_args_shapes() {
+        let f = Path::new("msg.txt");
+        assert_eq!(
+            commit_args(f, false, false, false),
+            ["commit", "-F", "msg.txt"]
+        );
+        assert_eq!(
+            commit_args(f, true, true, true),
+            [
+                "commit",
+                "-F",
+                "msg.txt",
+                "--amend",
+                "--signoff",
+                "--allow-empty"
+            ]
+        );
+    }
+
+    #[test]
+    fn head_message_and_identity() {
+        let t = TempRepo::new();
+        assert_eq!(head_message(&t.repo).unwrap(), None);
+        t.commit(&[("a", "a")], "Subject\n\nBody\n");
+        assert_eq!(
+            head_message(&t.repo).unwrap().as_deref(),
+            Some("Subject\n\nBody\n")
+        );
+        assert_eq!(
+            author_identity(&t.repo).unwrap(),
+            ("Test".to_string(), "test@example.com".to_string())
+        );
+        t.set_config("user.email", "");
+        assert!(
+            matches!(author_identity(&t.repo), Err(GitError::Config(m)) if m.contains("user.email"))
+        );
     }
 }

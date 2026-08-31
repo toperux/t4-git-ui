@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 use git_core::commit::CommitDetail;
 use git_core::log::{walk, LogFilter, LogRow, RefLabel, RevSpec};
 use git_core::refs::{self, HeadInfo, RefsSnapshot};
+use git_core::watch::Watcher;
 use git_core::{RepoHandle, RepoId};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
@@ -78,7 +79,11 @@ async fn compute_labels(
 
 /// Opens (or returns the already-open) repository containing `path`.
 #[tauri::command]
-pub async fn open_repo(state: State<'_, AppState>, path: String) -> Result<RepoSummary, AppError> {
+pub async fn open_repo(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<RepoSummary, AppError> {
     let opened = blocking(move || Ok(RepoHandle::open(&path)?)).await?;
     let handle = {
         let mut repos = state
@@ -93,7 +98,42 @@ pub async fn open_repo(state: State<'_, AppState>, path: String) -> Result<RepoS
     let h = Arc::clone(&handle);
     let head = blocking(move || Ok(refs::head_info(&h.git2.lock())?)).await?;
     tracing::info!(id = %handle.id, "opened repo");
+    start_watcher(&app, &state, &handle).await;
     Ok(summary(&handle, head))
+}
+
+/// Starts the filesystem watcher for `handle` (no-op when one is already
+/// running). Failure degrades to manual refresh with a warning.
+async fn start_watcher(app: &AppHandle, state: &AppState, handle: &Arc<RepoHandle>) {
+    let already = state
+        .watchers
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .contains_key(&handle.id);
+    if already {
+        return;
+    }
+    let app = app.clone();
+    let id = handle.id.clone();
+    let h = Arc::clone(handle);
+    // `Watcher::start` walks the tree to seed the debouncer's file-id cache.
+    let started = blocking(move || {
+        let event_id = h.id.clone();
+        Ok(Watcher::start(&h, move |change| {
+            super::stage::emit_changed(&app, &event_id, &change)
+        })?)
+    })
+    .await;
+    match started {
+        Ok(w) => {
+            state
+                .watchers
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .insert(id, w);
+        }
+        Err(e) => tracing::warn!(id = %id, error = %e, "watcher unavailable; manual refresh only"),
+    }
 }
 
 #[tauri::command]
@@ -103,6 +143,14 @@ pub async fn close_repo(state: State<'_, AppState>, id: RepoId) -> Result<(), Ap
         .write()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .remove(&id);
+    let watcher = state
+        .watchers
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .remove(&id);
+    if let Some(w) = watcher {
+        w.stop();
+    }
     if let Some(handle) = removed {
         // Bump the generation and raise the cancel flag so an in-flight walk
         // stops at its next commit and abandons its result.

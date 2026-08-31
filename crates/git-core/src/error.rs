@@ -26,6 +26,8 @@ pub enum GitError {
     Conflicts(Vec<String>),
     #[error("invalid patch")]
     InvalidPatch,
+    #[error("{0}")]
+    Config(String),
 }
 
 impl GitError {
@@ -41,6 +43,7 @@ impl GitError {
             GitError::Cancelled => "cancelled",
             GitError::Conflicts(_) => "conflicts",
             GitError::InvalidPatch => "invalidPatch",
+            GitError::Config(_) => "config",
         }
     }
 }

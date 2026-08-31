@@ -120,7 +120,16 @@ pub fn run() {
             commands::diff::get_commit_files,
             commands::diff::get_changed_files,
             commands::diff::get_file_diff,
-            commands::diff::get_status
+            commands::diff::get_status,
+            commands::stage::stage_paths,
+            commands::stage::unstage_paths,
+            commands::stage::discard_paths,
+            commands::stage::stage_hunks,
+            commands::stage::stage_lines,
+            commands::stage::commit,
+            commands::stage::get_head_message,
+            commands::stage::get_author,
+            commands::stage::cancel_op
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

@@ -14,8 +14,19 @@ serde.workspace = true
 tracing.workspace = true
 parking_lot = "0.12"
 tempfile = { version = "3", optional = true }
+tokio = { version = "1", features = ["process", "io-util", "sync", "macros", "rt", "time"] }
+tokio-util = "0.7"
+notify = "8"
+notify-debouncer-full = "0.7"
 
 [dev-dependencies]
 tempfile = "3"
 serde_json = "1"
 git-core = { path = ".", features = ["test-util"] }
+tokio = { version = "1", features = ["rt-multi-thread"] }
+
+[target."cfg(windows)".dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_JobObjects", "Win32_System_Threading"] }
+
+[target."cfg(unix)".dependencies]
+libc = "0.2"

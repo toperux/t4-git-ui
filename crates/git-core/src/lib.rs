@@ -1,12 +1,16 @@
+pub mod cli;
 pub mod commit;
 pub mod diff;
 pub mod error;
 pub mod log;
+pub mod patch;
 pub mod refs;
 pub mod repo;
+pub mod stage;
 pub mod status;
 #[cfg(any(test, feature = "test-util"))]
 pub mod test_util;
+pub mod watch;
 
 pub use error::GitError;
 pub use repo::{map_git2, RepoHandle, RepoId};
