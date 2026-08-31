@@ -156,11 +156,11 @@ Two integrated reviews after M6 — the frontend had been written by five agents
 - Linux watcher: the workdir is watched recursively including ignored dirs (filtered at debounce time), so `max_user_watches` can bite on huge trees; watcher failure degrades to a warning + manual refresh.
 
 **Verification not yet done (needs a GUI or a push)**
-- **Nothing has run in a real window.** Every milestone was verified by unit tests, `tsc`, `vite build`, `cargo` gates and headless screenshots of the design canvases only.
+- **Nothing has run in a real window.** Every milestone was verified by unit tests, `tsc`, `vite build`, `cargo` gates and headless screenshots of the design canvases only. The acceptance walkthrough is `docs/smoke-test.md` (fixtures + per-area checklist + "expected to be missing"); running it is the v1 gate.
 - UI-vs-canvas comparison pass (M6).
 - Installer on a clean Win11; macOS signing/notarization; Linux + macOS are CI-build-only (no check of WebKitGTK rendering).
 - `.github/workflows/{ci,release}.yml` have never executed — the repo has no remote.
-- The two published design canvases are one palette behind: M6 added the `--syn-*` tokens and regenerated all 16 `.dc.html` files; both artifacts need a republish.
+- ~~The two published design canvases are one palette behind~~ — republished 2026-08-31 from the post-M6 artboards (`--syn-*` tokens included); both keep their original URLs (see A1/A2 above).
 
 **Decided, not gaps**
 - Native titlebar stays (the plan flagged it to revisit in M6; revisited, kept).

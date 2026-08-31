@@ -69,6 +69,10 @@ Ctrl is ⌘ on macOS.
 
 ## Status / roadmap
 
-v1 is feature-complete on Windows; Linux and macOS are built and smoke-tested in CI only (no signing / notarization yet).
+v1 is feature-complete and covered by 106 Rust and 159 frontend tests, but it has **not yet been
+accepted in a real window** — `docs/smoke-test.md` is the acceptance walkthrough and running it is
+the remaining gate. Linux and macOS are compiled in CI only (no rendering check, no signing /
+notarization yet). Deliberate v1 omissions are listed in `docs/plans/2026-08-31-git-ui-v1-plan.md`
+› Known gaps.
 
 Next: interactive rebase, blame and file history, submodules and worktrees, cherry-pick / revert, hunk- and line-level discard, custom titlebar, multi-repo tabs, settings dialog (git path, theme), i18n.
