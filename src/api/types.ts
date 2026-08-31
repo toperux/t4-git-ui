@@ -1,5 +1,5 @@
 // Mirrors the Rust IPC contract (serde, all camelCase). Keep in sync with:
-//   crates/git-core/src/log/types.rs, refs.rs, commit.rs, error.rs
+//   crates/git-core/src/log/types.rs, refs.rs, commit.rs, diff.rs, status.rs, error.rs
 //   src-tauri/src/commands/repo.rs, src-tauri/src/error.rs
 
 /** `git_core::RepoId` — serde(transparent) newtype over the canonical workdir path. */
@@ -184,4 +184,100 @@ export interface LogProgress {
   total: number;
   complete: boolean;
   error: string | null;
+}
+
+// --- diff.rs ---
+
+export type FileStatus =
+  | "added"
+  | "modified"
+  | "deleted"
+  | "renamed"
+  | "copied"
+  | "typechange"
+  | "untracked"
+  | "conflicted"
+  | "ignored";
+
+/** One entry of a changed-file list. */
+export interface FileChange {
+  /** New path (`/`-separated, repo-relative). */
+  path: string;
+  /** Old path for renames / copies. */
+  oldPath: string | null;
+  status: FileStatus;
+  additions: number;
+  deletions: number;
+  binary: boolean;
+}
+
+/** `#[serde(tag = "kind")]` — what to diff. */
+export type DiffTarget =
+  | { kind: "commit"; oid: string }
+  | { kind: "commitRange"; from: string; to: string }
+  | { kind: "staged" }
+  | { kind: "unstaged" }
+  | { kind: "workdir" };
+
+export type DiffLineKind = "context" | "add" | "del";
+
+export interface DiffLine {
+  kind: DiffLineKind;
+  oldNo: number | null;
+  newNo: number | null;
+  /** Without the trailing `\n`; a `\r` before it is kept so CRLF stays visible. */
+  text: string;
+  /** Last line of the file without a trailing newline. */
+  noNewline: boolean;
+}
+
+export interface Hunk {
+  /** `@@ -a,b +c,d @@ context` */
+  header: string;
+  oldStart: number;
+  oldLines: number;
+  newStart: number;
+  newLines: number;
+  lines: DiffLine[];
+}
+
+export interface FileDiff {
+  path: string;
+  oldPath: string | null;
+  status: FileStatus;
+  binary: boolean;
+  hunks: Hunk[];
+  /** Line collection stopped at `DiffOptions.maxLines`. */
+  truncated: boolean;
+  /** Full counts (not affected by truncation). */
+  additions: number;
+  deletions: number;
+}
+
+/** All fields default on the Rust side (context 3, maxLines 20 000, ignoreWhitespace false). */
+export interface DiffOptions {
+  context?: number;
+  maxLines?: number;
+  ignoreWhitespace?: boolean;
+}
+
+// --- status.rs ---
+
+export interface StatusEntry {
+  path: string;
+  oldPath: string | null;
+  /** HEAD → index change, `null` when nothing is staged. */
+  index: FileStatus | null;
+  /** Index → working directory change, `null` when the workdir matches the index. */
+  workdir: FileStatus | null;
+  conflicted: boolean;
+}
+
+export interface WorkdirStatus {
+  /** Sorted by `path`. */
+  entries: StatusEntry[];
+  staged: number;
+  unstaged: number;
+  untracked: number;
+  conflicted: number;
 }

@@ -11,6 +11,9 @@ src/
   store/
     repoStore.ts           zustand: repo, refs, log {generation,total,complete,error,flat}, sparse rows[], selection, reveal
                            actions: openRepo, closeRepo, refreshRefs, startLog, ensureRows (500-row pages, dedupe, stale drop), select, revealOid
+    diffStore.ts           zustand: selected commit → files (get_commit_files), selectedPath (default first), diff (get_file_diff, context 3),
+                           stale responses dropped via seq counters; view unified|split (localStorage.diffView), ignoreWhitespace,
+                           fileListMode flat|tree (localStorage.fileListMode)
   theme/
     tokens.css             GENERATED from docs/design/canvases/build/tokens.css — never edit; run `node docs/design/canvases/build/build.mjs`
     base.css               reset, body, scrollbar, :focus-visible, .selectable, reduced-motion
@@ -19,14 +22,19 @@ src/
     useThemeTokens.ts      reads --graph-0..7 / --lane-w / --node-r / --lane-stroke / --row-h via getComputedStyle; re-reads on data-theme change
   assets/fonts/            InterVariable(.woff2, -Italic), JetBrainsMono[wght](.woff2, -Italic) + licenses
   lib/                     cx(), relativeDate()/absoluteDate()
-  components/ui/<Name>/    one folder per style-guide component: <Name>.tsx + <Name>.module.css
+  components/ui/<Name>/    one folder per style-guide component: <Name>.tsx + <Name>.module.css (incl. StatusGlyph A/M/D/R/U/C)
   screens/
     StartScreen/           Open repository… (dialog plugin) — recents/clone/init arrive in M5
     GitMissingScreen/      probe_git failed → message + Retry
     RepoWindow/            RepoWindow (layout: toolbar 40 / sidebar 260 | grid ÷ details / dock 28 / statusbar 24)
-                           Toolbar, Sidebar, DetailsPane, OutputDock
+                           Toolbar, Sidebar, DetailsPane (bottom pane: Commit 340 | ChangedFileList 320 | DiffViewer, resizable), OutputDock
       RevisionGrid/        RevisionGrid (virtualized, role=grid, keyboard nav), GridRow (memo, per-row store selectors),
                            GraphCell (<canvas> per row), graphGeometry.ts (pure: laneX, curveControls, rowSegments), RefChips
+      ChangedFileList/     ChangedFileList (role=listbox, ↑/↓, flat | tree toggle, StatusGlyph + start-ellipsis mono path + `+N −M`),
+                           fileTree.ts (pure: nest by `/`, folders first)
+      DiffViewer/          DiffViewer (header: path, stats, unified/split/whitespace IconButtons; virtualized body, role=region,
+                           `.selectable` text, CR → ␍, no-newline marker, binary/truncated states),
+                           diffRows.ts (pure: flattenUnified / flattenSplit — del/add run zipping, 20px lines / 24px hunk rows)
 ```
 
 ## How tokens flow

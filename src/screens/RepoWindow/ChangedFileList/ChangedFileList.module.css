@@ -1,0 +1,90 @@
+.pane {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  overflow: hidden;
+  position: relative;
+}
+.progress {
+  position: absolute;
+  top: var(--section-h);
+  left: 0;
+  right: 0;
+  z-index: 1;
+}
+.list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  outline: none;
+}
+.list:focus-visible {
+  box-shadow: none;
+}
+
+/* base.css .row (screens.mjs changedFiles: padding-left 8) */
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: var(--row-h);
+  padding: 0 var(--space-4);
+  white-space: nowrap;
+  transition: background-color var(--dur) var(--ease);
+}
+.row:hover {
+  background: var(--bg-hover);
+}
+.selected {
+  background: var(--bg-selected-unfocused);
+}
+.list:focus-within .selected {
+  background: var(--bg-selected);
+}
+.list:focus-visible .selected {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+/* base.css .tree .row / .tw */
+.treeRow {
+  padding-left: calc(var(--space-4) + var(--tree-indent) * var(--d, 0));
+}
+.tw {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+/* Mono path, ellipsis at the start: the box is rtl, the text an isolated ltr run. */
+.path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: var(--mono-size);
+}
+.path > bdi {
+  unicode-bidi: isolate;
+}
+
+/* base.css .row .meta */
+.meta {
+  display: inline-flex;
+  gap: var(--space-2);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+.add {
+  color: var(--success);
+}
+.del {
+  color: var(--danger-text);
+}

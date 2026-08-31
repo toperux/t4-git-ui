@@ -1,28 +1,11 @@
-/* Main.mjs bottom pane: commit details 340 | changed files 320 | diff (flex) */
+/* Main.mjs bottom pane: commit details 340 | changed files 320 | diff (flex); widths are Panel sizes */
 .pane {
-  display: flex;
   height: 100%;
   min-height: 0;
   min-width: 0;
   background: var(--bg-panel);
 }
 .commit {
-  width: 340px;
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid var(--border);
-  overflow: hidden;
-}
-.files {
-  width: 320px;
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid var(--border);
-  overflow: hidden;
-}
-.diff {
   flex: 1;
   min-width: 0;
   display: flex;

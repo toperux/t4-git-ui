@@ -1,0 +1,136 @@
+.viewer {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  overflow: hidden;
+  position: relative;
+}
+.progress {
+  position: absolute;
+  top: var(--section-h);
+  left: 0;
+  right: 0;
+  z-index: 1;
+}
+/* screens.mjs diffHeader(): mono path in --fg, +N −M xs */
+.path {
+  font-family: var(--font-mono);
+  font-size: var(--mono-size);
+  color: var(--fg);
+}
+.stats {
+  font-size: var(--text-xs);
+}
+
+/* base.css .diff — the pane edges are the frame (mockup: border 0, radius 0); mono 12/18 */
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  position: relative;
+  font-family: var(--font-mono);
+  font-size: var(--mono-size);
+  line-height: var(--mono-lh);
+  tab-size: 4;
+  outline: none;
+}
+.scroll:focus-visible {
+  box-shadow: none;
+}
+/* Wide enough for the longest line (gutters + sign + text pad + columns) so the body scrolls horizontally. */
+.body {
+  position: relative;
+  min-width: calc(40px + 40px + 14px + 6px + var(--cols, 0) * 1ch);
+}
+.body.split {
+  min-width: calc(2 * (40px + 14px + 6px + var(--cols, 0) * 1ch));
+}
+
+/* base.css .dl / .no / .sg / .tx */
+.dl {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  height: 20px;
+  align-items: stretch;
+  white-space: pre;
+}
+.no {
+  width: 40px;
+  flex: none;
+  text-align: right;
+  padding-right: 6px;
+  color: var(--diff-gutter-fg);
+  user-select: none;
+}
+.sg {
+  width: 14px;
+  flex: none;
+  text-align: center;
+  color: var(--fg-muted);
+  user-select: none;
+}
+.tx {
+  flex: 1;
+  padding-left: 6px;
+}
+.add {
+  background: var(--diff-add-bg);
+  color: var(--diff-add-fg);
+}
+.add .no {
+  background: var(--diff-add-gutter);
+}
+.del {
+  background: var(--diff-del-bg);
+  color: var(--diff-del-fg);
+}
+.del .no {
+  background: var(--diff-del-gutter);
+}
+.nonl {
+  color: var(--fg-muted);
+}
+.cr {
+  color: var(--fg-faint);
+  user-select: none;
+}
+
+/* base.css .hunk */
+.hunk {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: 24px;
+  padding: 0 var(--space-4);
+  background: var(--diff-hunk-bg);
+  color: var(--diff-hunk-fg);
+  font-size: var(--text-xs);
+  white-space: pre;
+}
+.grow {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Split: two equal sides, own gutter each; 20px filler for the unpaired side. */
+.side {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+}
+.side + .side {
+  border-left: 1px solid var(--border);
+}
+.filler {
+  background: var(--bg-app);
+}

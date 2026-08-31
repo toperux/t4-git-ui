@@ -1,29 +1,43 @@
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { Copy, FileDiff, Files, GitCommitHorizontal } from "lucide-react";
+import { Copy, GitCommitHorizontal } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
+import { Group, Panel, Separator } from "react-resizable-panels";
 import { getCommit, toAppError } from "../../api/ipc";
 import type { CommitDetail } from "../../api/types";
 import { EmptyState } from "../../components/ui/EmptyState/EmptyState";
 import { IconButton } from "../../components/ui/IconButton/IconButton";
 import { PanelHeader } from "../../components/ui/PanelHeader/PanelHeader";
 import { absoluteDate, relativeDate } from "../../lib/relativeDate";
+import { useDiffStore } from "../../store/diffStore";
 import { selectSelectedOid, useRepoStore } from "../../store/repoStore";
-import { RefChips } from "./RevisionGrid/RefChips";
+import { ChangedFileList } from "./ChangedFileList/ChangedFileList";
 import s from "./DetailsPane.module.css";
+import { DiffViewer } from "./DiffViewer/DiffViewer";
+import w from "./RepoWindow.module.css";
+import { RefChips } from "./RevisionGrid/RefChips";
 
 export function DetailsPane() {
+  const repoId = useRepoStore((st) => st.repo?.id ?? null);
+  const oid = useRepoStore(selectSelectedOid);
+  const loadCommit = useDiffStore((st) => st.loadCommit);
+  useEffect(() => {
+    void loadCommit(repoId, oid);
+  }, [repoId, oid, loadCommit]);
+
   return (
-    <div className={s.pane}>
-      <CommitPanel />
-      <div className={s.files}>
-        <PanelHeader icon={<Files size={14} aria-hidden />} title="Files" />
-        <EmptyState icon={<Files size={24} aria-hidden />} title="Changed files arrive in M2" />
-      </div>
-      <div className={s.diff}>
-        <PanelHeader icon={<FileDiff size={14} aria-hidden />} title="Diff" />
-        <EmptyState icon={<FileDiff size={24} aria-hidden />} title="Diff viewer arrives in M2" />
-      </div>
-    </div>
+    <Group orientation="horizontal" className={s.pane}>
+      <Panel defaultSize={340} minSize={240} maxSize={560} className={w.panel}>
+        <CommitPanel />
+      </Panel>
+      <Separator className={w.splitH} aria-label="Resize commit details" />
+      <Panel defaultSize={320} minSize={180} maxSize={640} className={w.panel}>
+        <ChangedFileList />
+      </Panel>
+      <Separator className={w.splitH} aria-label="Resize file list" />
+      <Panel minSize={200} className={w.panel}>
+        <DiffViewer />
+      </Panel>
+    </Group>
   );
 }
 

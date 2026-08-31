@@ -3,12 +3,17 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   AppError,
   CommitDetail,
+  DiffOptions,
+  DiffTarget,
+  FileChange,
+  FileDiff,
   LogFilter,
   LogPage,
   RefsSnapshot,
   RepoId,
   RepoSummary,
   RevSpec,
+  WorkdirStatus,
 } from "./types";
 
 export function isAppError(e: unknown): e is AppError {
@@ -54,3 +59,17 @@ export const getLogPage = (id: RepoId, generation: number, offset: number, limit
 
 /** Recomputes ref labels for the current walk; resolves with the current generation. */
 export const refreshLabels = (id: RepoId) => call<number>("refresh_labels", { id });
+
+// --- src-tauri/src/commands/diff.rs ---
+
+/** Files changed by `oid` vs its first parent. */
+export const getCommitFiles = (id: RepoId, oid: string) => call<FileChange[]>("get_commit_files", { id, oid });
+
+export const getChangedFiles = (id: RepoId, target: DiffTarget) =>
+  call<FileChange[]>("get_changed_files", { id, target });
+
+/** Hunks of one file (a renamed file is also found by its old path). */
+export const getFileDiff = (id: RepoId, target: DiffTarget, path: string, opts?: DiffOptions) =>
+  call<FileDiff>("get_file_diff", { id, target, path, opts });
+
+export const getStatus = (id: RepoId) => call<WorkdirStatus>("get_status", { id });

@@ -1,0 +1,32 @@
+/* base.css .glyph + .glyph.A/M/D/R/U/C */
+.glyph {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  border-radius: var(--radius-sm);
+  flex: none;
+}
+.A {
+  color: var(--status-added);
+}
+.M {
+  color: var(--status-modified);
+}
+.D {
+  color: var(--status-deleted);
+}
+.R {
+  color: var(--status-renamed);
+}
+.U {
+  color: var(--status-untracked);
+}
+.C {
+  color: var(--status-conflict);
+  background: var(--danger-soft);
+}
