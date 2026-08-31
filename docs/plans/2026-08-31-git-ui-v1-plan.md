@@ -47,7 +47,7 @@ Two-step: build the **design system first**, then design screens *using only* th
   3. **Commit panel** — unstaged/staged lists, hunk diff w/ Stage/Unstage/Discard + line selection, message editor (history, amend, Commit / Commit & Push)
   4. **Ops dialogs + output dock** — checkout/create branch, merge, rebase, push, pull, stash; bottom streaming-output panel w/ cancel
   5. **States** — empty repo (no commits), detached HEAD, merge/rebase-in-progress banner, conflict banner, loading large repo, error toast
-- Source saved to `docs/design/canvases/screens.dc.html`.
+- Canvas: https://claude.ai/code/artifact/2e1cc7fb-d31b-4b6a-893d-b7598fdc85f5 (page 1 light, page 2 dark). Sources: `docs/design/canvases/build/parts-screens/*.mjs` + shared chrome `build/screens.mjs` → `docs/design/canvases/screens/*.dc.html`. Rebuild: `node docs/design/canvases/build/build.mjs screens`.
 - Any deviation from A1 found while drawing screens → fix the system, not the screen.
 - **Gate A2**: user approves screens before frontend UI work (M1-UI onward). Backend work (M0 = zero UI beyond template, git-core for M1–M4) does NOT wait — runs in parallel.
 

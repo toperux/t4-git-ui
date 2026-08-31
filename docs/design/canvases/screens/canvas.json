@@ -1,0 +1,23 @@
+{
+  "pages": [
+    { "id": "page-1", "name": "Light" },
+    { "id": "page-2", "name": "Dark" }
+  ],
+  "artboards": [
+    { "file": "Start.dc.html", "title": "Start screen", "x": 0, "y": 0, "w": 1440, "h": 900, "page": "page-1" },
+    { "file": "Main.dc.html", "title": "Main window", "x": 1540, "y": 0, "w": 1440, "h": 900, "page": "page-1" },
+    { "file": "Commit.dc.html", "title": "Commit panel", "x": 0, "y": 1040, "w": 1440, "h": 900, "page": "page-1" },
+    { "file": "Ops.dc.html", "title": "Merge dialog + output dock", "x": 1540, "y": 1040, "w": 1440, "h": 900, "page": "page-1" },
+    { "file": "States.dc.html", "title": "States", "x": 0, "y": 2080, "w": 1440, "h": 900, "page": "page-1" },
+    { "file": "StartDark.dc.html", "title": "Start screen · dark", "x": 0, "y": 0, "w": 1440, "h": 900, "page": "page-2" },
+    { "file": "MainDark.dc.html", "title": "Main window · dark", "x": 1540, "y": 0, "w": 1440, "h": 900, "page": "page-2" },
+    { "file": "CommitDark.dc.html", "title": "Commit panel · dark", "x": 0, "y": 1040, "w": 1440, "h": 900, "page": "page-2" },
+    { "file": "OpsDark.dc.html", "title": "Merge dialog + output dock · dark", "x": 1540, "y": 1040, "w": 1440, "h": 900, "page": "page-2" },
+    { "file": "StatesDark.dc.html", "title": "States · dark", "x": 0, "y": 2080, "w": 1440, "h": 900, "page": "page-2" }
+  ],
+  "annotations": [
+    { "id": "a2-brief", "x": 0, "y": -140, "w": 560, "text": "A2 screens for t4-git-ui — composed only from the A1 design system (tokens, components, patterns).\nEach screen is a 1440×900 window. Page 1 = light, page 2 = dark.\nStart → Main window → Commit panel → Merge dialog + output dock → States (empty / detached / rebase+conflicts / loading+toast).", "page": "page-1" },
+    { "id": "a2-dark", "x": 0, "y": -100, "w": 560, "text": "Same screens in the dark theme — identical markup, tokens swapped.", "page": "page-2" }
+  ],
+  "launch": { "view": "canvas", "page": "page-1" }
+}
