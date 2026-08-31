@@ -5,6 +5,8 @@ import { WorkingTreeNode } from "./GraphCell";
 import s from "./RevisionGrid.module.css";
 
 export interface WorkingTreeRowProps {
+  /** DOM id, so the grid can point `aria-activedescendant` at the row while it is selected. */
+  id: string;
   top: number;
   rowH: number;
   lanes: number;
@@ -13,13 +15,14 @@ export interface WorkingTreeRowProps {
 }
 
 /** Style guide §4: dashed ring in the graph, italic muted "Working tree · N changes", no chips. */
-export const WorkingTreeRow = memo(function WorkingTreeRow({ top, rowH, lanes, graphW, changes }: WorkingTreeRowProps) {
+export const WorkingTreeRow = memo(function WorkingTreeRow({ id, top, rowH, lanes, graphW, changes }: WorkingTreeRowProps) {
   const selected = useRepoStore((st) => st.wtSelected);
   const selectWorkingTree = useRepoStore((st) => st.selectWorkingTree);
   const first = useRepoStore((st) => st.rows[0]?.row ?? null);
 
   return (
     <div
+      id={id}
       role="row"
       aria-rowindex={1}
       aria-selected={selected}

@@ -10,20 +10,24 @@ vi.mock("../../../api/ipc", () => ({
   toAppError: (e: unknown) => ({ kind: "unknown", message: String(e) }),
 }));
 
-// jsdom has no layout: give the virtualizer a viewport so it renders rows.
+// jsdom neither lays out nor scrolls: give the virtualizer a viewport and record its scroll requests.
+const scrolls = vi.hoisted(() => ({ offsets: [] as number[] }));
 vi.mock("@tanstack/react-virtual", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-virtual")>();
   return {
     ...actual,
-    useVirtualizer: (opts: Parameters<typeof actual.useVirtualizer>[0]) =>
-      actual.useVirtualizer({
+    useVirtualizer: (opts: Parameters<typeof actual.useVirtualizer>[0]) => {
+      const v = actual.useVirtualizer({
         ...opts,
         initialRect: { width: 800, height: 400 },
         observeElementRect: (_instance, cb) => {
           cb({ width: 800, height: 400 });
           return () => {};
         },
-      }),
+      });
+      v.scrollToOffset = (offset: number) => scrolls.offsets.push(offset);
+      return v;
+    },
   };
 });
 
@@ -102,14 +106,15 @@ describe("DiffViewer", () => {
   it("actions mode: forces unified, hunk buttons, line selection → sticky bar → stage_lines pairs", () => {
     useDiffStore.setState({ view: "split" }); // must be ignored while staging
     const actions: DiffActions = { target: "unstaged", wholeFile: false, onStageHunk: vi.fn(), onStageLines: vi.fn() };
-    const { getByRole, getAllByRole, queryByRole, getByText } = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} actions={actions} />);
+    const { getByRole, getAllByRole, queryByRole, getByText, queryByText } = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} actions={actions} />);
     expect(getByRole("button", { name: "Split view" }).hasAttribute("disabled")).toBe(true);
     const rows = Array.from(getByRole("region", { name: "Diff" }).firstElementChild!.children);
     expect(rows).toHaveLength(6); // unified rows despite the stored split preference
 
     fireEvent.click(getByText("Stage hunk"));
     expect(actions.onStageHunk).toHaveBeenCalledWith(0);
-    expect(getByText("Discard").hasAttribute("disabled")).toBe(true);
+    // No hunk / line Discard exists: the backend has no reverse-apply-to-workdir.
+    expect(queryByText("Discard")).toBeNull();
 
     expect(queryByRole("toolbar", { name: "Selected lines" })).toBeNull();
     fireEvent.click(rows[1]); // context line: ignored
@@ -131,8 +136,43 @@ describe("DiffViewer", () => {
     ]);
   });
 
+  it("actions mode is a listbox of options and can be driven from the keyboard", () => {
+    useDiffStore.setState({ view: "unified" });
+    const actions: DiffActions = { target: "unstaged", wholeFile: false, onStageHunk: vi.fn(), onStageLines: vi.fn() };
+    const { getByRole, getAllByRole } = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} actions={actions} />);
+    const region = getByRole("region", { name: "Diff" });
+    // Only add / del lines are options; the hunk header and context line are presentational.
+    const options = getAllByRole("option");
+    expect(options).toHaveLength(3);
+    // Roving tab stop: the cursor line is the only one Tab can reach.
+    expect(options.map((o) => o.getAttribute("tabindex"))).toEqual(["0", "-1", "-1"]);
+
+    // Space toggles the cursor line, Shift+↓ extends inside the hunk, Enter stages the selection.
+    fireEvent.keyDown(region, { key: " " });
+    expect(getByRole("toolbar", { name: "Selected lines" }).textContent).toContain("1 line selected");
+    fireEvent.keyDown(region, { key: "ArrowDown", shiftKey: true });
+    expect(getByRole("toolbar", { name: "Selected lines" }).textContent).toContain("2 lines selected");
+    fireEvent.keyDown(region, { key: "Enter" });
+    expect(actions.onStageLines).toHaveBeenCalledWith([
+      [0, 1],
+      [0, 2],
+    ]);
+  });
+
+  it("scrolls back to the top only when the file changes, not when its diff is reloaded", () => {
+    useDiffStore.setState({ view: "unified" });
+    const big = bigDiff(5_000);
+    const { rerender } = render(<DiffViewer path={big.path} diff={big} {...idle} />);
+    scrolls.offsets.length = 0;
+    // A fresh diff object for the same file (an unrelated `repo://changed`) must keep the position.
+    rerender(<DiffViewer path={big.path} diff={{ ...big }} {...idle} />);
+    expect(scrolls.offsets).toEqual([]);
+    rerender(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} />);
+    expect(scrolls.offsets).toEqual([0]);
+  });
+
   it("untracked (whole file): note in the header, no hunk buttons, lines not selectable", () => {
-    const actions: DiffActions = { target: "unstaged", wholeFile: true, onStageHunk: vi.fn(), onStageLines: vi.fn() };
+    const actions: DiffActions = { target: "unstaged", wholeFile: true, note: "Untracked — stage whole file", onStageHunk: vi.fn(), onStageLines: vi.fn() };
     const { getByRole, getByText, queryByText, queryByRole } = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} actions={actions} />);
     expect(getByText("Untracked — stage whole file")).toBeTruthy();
     expect(queryByText("Stage hunk")).toBeNull();

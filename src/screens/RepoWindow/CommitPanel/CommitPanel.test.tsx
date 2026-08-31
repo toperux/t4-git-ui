@@ -25,6 +25,22 @@ vi.mock("react-resizable-panels", () => ({
   Panel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Separator: () => null,
 }));
+// jsdom has no layout: give the virtualizer a viewport so it renders rows.
+vi.mock("@tanstack/react-virtual", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@tanstack/react-virtual")>();
+  return {
+    ...actual,
+    useVirtualizer: (opts: Parameters<typeof actual.useVirtualizer>[0]) =>
+      actual.useVirtualizer({
+        ...opts,
+        initialRect: { width: 320, height: 400 },
+        observeElementRect: (_instance, cb) => {
+          cb({ width: 320, height: 400 });
+          return () => {};
+        },
+      }),
+  };
+});
 
 import * as ipc from "../../../api/ipc";
 const mocked = ipc as unknown as { stagePaths: ReturnType<typeof vi.fn> };
@@ -54,23 +70,35 @@ afterEach(cleanup);
 const text = (el: Element) => el.textContent?.replace(/\s+/g, " ").trim();
 
 describe("CommitPanel", () => {
-  it("splits the status into Unstaged / Staged lists with glyphs and marks conflicts non-stageable", () => {
+  it("splits the status into Unstaged / Staged lists with glyphs; conflicts stay stageable", () => {
     const { getByRole } = render(<CommitPanel />);
     const unstaged = Array.from(getByRole("listbox", { name: "Unstaged files" }).querySelectorAll('[role="option"]'));
     const staged = Array.from(getByRole("listbox", { name: "Staged files" }).querySelectorAll('[role="option"]'));
     expect(unstaged.map(text)).toEqual(["Ma.rs", "Mboth.rs", "Cconflict.rs", "Uuntracked.txt"]);
     expect(staged.map(text)).toEqual(["Mboth.rs", "Anew.rs"]);
-    expect(unstaged[2].getAttribute("aria-disabled")).toBe("true");
-    expect(unstaged[2].getAttribute("title")).toBe("Resolve conflicts first");
+    // Staging a resolved conflict is how the merge flow ends: the row is a normal, actionable row.
+    expect(unstaged[2].hasAttribute("aria-disabled")).toBe(false);
+    expect(unstaged[2].getAttribute("title")).toBe("conflict.rs");
+    expect(unstaged[2].querySelector('button[aria-label="Stage"]')).toBeTruthy();
     expect(getByRole("listbox", { name: "Unstaged files" }).getAttribute("aria-multiselectable")).toBe("true");
-    // First unstaged file is focused by default.
+    // First unstaged file is focused by default, and the list points at it.
     expect(unstaged[0].getAttribute("aria-selected")).toBe("true");
+    expect(getByRole("listbox", { name: "Unstaged files" }).getAttribute("aria-activedescendant")).toBe(unstaged[0].id);
   });
 
-  it("Stage all stages every non-conflicted unstaged path", () => {
+  it("Stage all stages every unstaged path, conflicts included", () => {
     const { getByRole } = render(<CommitPanel />);
     fireEvent.click(getByRole("button", { name: "Stage all" }));
-    expect(mocked.stagePaths).toHaveBeenCalledWith("r", ["a.rs", "both.rs", "untracked.txt"]);
+    expect(mocked.stagePaths).toHaveBeenCalledWith("r", ["a.rs", "both.rs", "conflict.rs", "untracked.txt"]);
+  });
+
+  it("the row action stages a single conflicted file, and its diff is whole-file only", () => {
+    const { getByRole, getByText } = render(<CommitPanel />);
+    const rows = Array.from(getByRole("listbox", { name: "Unstaged files" }).querySelectorAll('[role="option"]'));
+    fireEvent.click(rows[2]);
+    expect(getByText("Conflict — stage the file once resolved")).toBeTruthy();
+    fireEvent.click(rows[2].querySelector('button[aria-label="Stage"]')!);
+    expect(mocked.stagePaths).toHaveBeenCalledWith("r", ["conflict.rs"]);
   });
 
   it("click / ctrl / shift build a multi-selection in one list", () => {

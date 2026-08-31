@@ -12,13 +12,13 @@
 .grow {
   flex: 1;
 }
-/* Main.mjs: search 240×26, filter select 150×26 */
+/* Main.mjs draws the compact control (240×26 / 150×26): the token for it is --control-h-sm. */
 .search {
   width: 240px;
-  height: 26px;
+  height: var(--control-h-sm);
 }
 .filter {
   min-width: 150px;
-  height: 26px;
+  height: var(--control-h-sm);
   margin-left: var(--space-2);
 }

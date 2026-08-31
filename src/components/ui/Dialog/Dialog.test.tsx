@@ -1,15 +1,16 @@
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Button } from "../Button/Button";
-import { Dialog, Field } from "./Dialog";
+import { Dialog, DialogReturnFocus, Field } from "./Dialog";
 
 afterEach(cleanup);
 
-function Harness({ onClose, onSubmit }: { onClose: () => void; onSubmit?: () => void }) {
+function Harness({ onClose, onSubmit, busy }: { onClose: () => void; onSubmit?: () => void; busy?: boolean }) {
   return (
     <Dialog
       title="Create branch"
       onClose={onClose}
+      busy={busy}
       onSubmit={onSubmit}
       preview="git checkout -b x HEAD"
       footer={
@@ -46,12 +47,34 @@ describe("Dialog", () => {
     opener.remove();
   });
 
-  it("Enter submits and Tab wraps inside the dialog", () => {
+  it("busy makes Esc and the close button inert", () => {
+    const onClose = vi.fn();
+    const { getByRole } = render(<Harness onClose={onClose} busy />);
+    fireEvent.keyDown(getByRole("textbox", { name: "Name" }), { key: "Escape" });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(getByRole("button", { name: "Close" }).hasAttribute("disabled")).toBe(true);
+  });
+
+  it("focus returns to the element the host names, not to whatever had focus at mount", () => {
+    // A dialog opened from a menu item: the item unmounts in the same commit, so the store names the anchor.
+    const anchor = document.createElement("button");
+    document.body.appendChild(anchor);
+    const { unmount } = render(
+      <DialogReturnFocus.Provider value={anchor}>
+        <Harness onClose={() => {}} />
+      </DialogReturnFocus.Provider>,
+    );
+    unmount();
+    expect(document.activeElement).toBe(anchor);
+    anchor.remove();
+  });
+
+  it("the primary button submits and Tab wraps inside the dialog", () => {
     const onSubmit = vi.fn();
     const { getByRole } = render(<Harness onClose={() => {}} onSubmit={onSubmit} />);
-    fireEvent.submit(getByRole("dialog"));
-    expect(onSubmit).toHaveBeenCalledTimes(1);
     const create = getByRole("button", { name: "Create" });
+    fireEvent.click(create);
+    expect(onSubmit).toHaveBeenCalledTimes(1);
     create.focus();
     fireEvent.keyDown(create, { key: "Tab" });
     expect(document.activeElement).toBe(getByRole("button", { name: "Close" }));

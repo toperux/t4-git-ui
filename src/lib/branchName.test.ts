@@ -11,11 +11,27 @@ describe("validateRefName", () => {
     expect(validateRefName("a b")).toBe("No spaces");
     expect(validateRefName("-x")).toBe("Must not start with -");
     expect(validateRefName("a..b")).toBe("Must not contain ..");
-    expect(validateRefName("a/")).toMatch(/start or end/);
+    expect(validateRefName("a/")).toMatch(/end with \//);
     expect(validateRefName("a~1")).toMatch(/Must not contain/);
-    expect(validateRefName("a@{1}")).toMatch(/Must not contain/);
-    expect(validateRefName("x.lock")).toBe("Invalid name");
+    expect(validateRefName("a@{1}")).toBe("Must not contain @{");
+    expect(validateRefName("x.lock")).toBe("No part may end with .lock");
     expect(validateRefName("HEAD")).toBe("HEAD is reserved");
+  });
+
+  it("rejects the rest of check-ref-format", () => {
+    expect(validateRefName("@")).toBe("@ is reserved");
+    expect(validateRefName(".hidden")).toBe("No part may start with .");
+    expect(validateRefName("feat/.hidden")).toBe("No part may start with .");
+    expect(validateRefName("feat/x.lock")).toBe("No part may end with .lock");
+    expect(validateRefName("a//b")).toBe("Must not contain //");
+    expect(validateRefName("/a")).toMatch(/start or end with \//);
+    expect(validateRefName("a.")).toBe("Must not end with .");
+    expect(validateRefName("a\\b")).toMatch(/Must not contain/);
+    expect(validateRefName("a\x01b")).toMatch(/Must not contain/);
+    expect(validateRefName("a^b")).toMatch(/Must not contain/);
+    expect(validateRefName("a[b")).toMatch(/Must not contain/);
+    // `@` is only reserved on its own.
+    expect(validateRefName("release@2")).toBeNull();
   });
 
   it("rejects names already taken", () => {

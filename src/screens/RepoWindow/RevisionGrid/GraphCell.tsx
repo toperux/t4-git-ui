@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import type { GraphRow } from "../../../api/types";
 import { useThemeTokens, type ThemeTokens } from "../../../theme/useThemeTokens";
 import { curveControls, graphWidth, HEAD_RING_R, HEAD_RING_STROKE, laneX, rowSegments } from "./graphGeometry";
@@ -45,9 +45,26 @@ function draw(ctx: CanvasRenderingContext2D, row: GraphRow, t: ThemeTokens, isHe
   ctx.fill();
 }
 
+/**
+ * `window.devicePixelRatio`, re-read when it changes — moving the window to a monitor with a
+ * different DPI fires the `(resolution: Xdppx)` query and every canvas repaints at the new scale.
+ */
+export function useDevicePixelRatio(): number {
+  const [dpr, setDpr] = useState(() => window.devicePixelRatio || 1);
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia(`(resolution: ${dpr}dppx)`);
+    const onChange = () => setDpr(window.devicePixelRatio || 1);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [dpr]);
+  return dpr;
+}
+
 /** DPR-aware canvas of the graph column's width × row height; `paint` runs whenever `deps` change. */
 function useGraphCanvas(lanes: number, paint: (ctx: CanvasRenderingContext2D, t: ThemeTokens) => void, deps: unknown[]) {
   const t = useThemeTokens();
+  const dpr = useDevicePixelRatio();
   const ref = useRef<HTMLCanvasElement>(null);
   const w = graphWidth(lanes, t.laneW);
   const h = t.rowH;
@@ -55,7 +72,6 @@ function useGraphCanvas(lanes: number, paint: (ctx: CanvasRenderingContext2D, t:
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
-    const dpr = window.devicePixelRatio || 1;
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
     const ctx = canvas.getContext("2d");
@@ -63,7 +79,7 @@ function useGraphCanvas(lanes: number, paint: (ctx: CanvasRenderingContext2D, t:
     ctx.scale(dpr, dpr);
     paint(ctx, t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [t, w, h, ...deps]);
+  }, [t, w, h, dpr, ...deps]);
 
   return <canvas ref={ref} className={s.canvas} style={{ width: w, height: h }} aria-hidden />;
 }

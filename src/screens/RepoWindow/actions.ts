@@ -1,11 +1,12 @@
 // Operations shared by the toolbar, menus, banners and shortcuts. Everything goes through `runOp`.
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import * as ipc from "../../api/ipc";
+import { toAppError } from "../../api/ipc";
 import type { Branch, RemoteBranch } from "../../api/types";
 import { runOp } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
 import { useStatusStore } from "../../store/statusStore";
-import { useToastStore } from "../../store/toastStore";
+import { toastError, useToastStore } from "../../store/toastStore";
 
 export const currentBranch = (): Branch | null => useRepoStore.getState().refs?.local.find((b) => b.isHead) ?? null;
 
@@ -55,10 +56,14 @@ export function copyText(text: string, what: string) {
 
 export const openCommitPanel = () => useRepoStore.getState().selectWorkingTree();
 
-/** Refs + status + a fresh walk (toolbar Refresh / F5). */
+/** Refs + status + a fresh walk (toolbar Refresh / F5). `refresh` / `startLog` report their own errors. */
 export function refreshAll() {
   const st = useRepoStore.getState();
-  void st.refreshRefs();
+  void st.refreshRefs().catch((e: unknown) => {
+    const err = toAppError(e);
+    // `internal` after a close just means the repo is gone.
+    if (err.kind !== "internal") toastError(err, "Couldn't refresh references");
+  });
   void useStatusStore.getState().refresh();
   void st.startLog(st.spec, st.filter);
 }

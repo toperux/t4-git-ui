@@ -1,9 +1,9 @@
 // Static render check: chips lead the row, HEAD chip before the branch chip, before the subject.
 import { cleanup, fireEvent, render } from "@testing-library/react";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LogRow } from "../../../api/types";
-import { useRepoStore } from "../../../store/repoStore";
-import { useStatusStore } from "../../../store/statusStore";
+import { __resetForTests as resetRepo, useRepoStore } from "../../../store/repoStore";
+import { __resetForTests as resetStatus, useStatusStore } from "../../../store/statusStore";
 import { RevisionGrid } from "./RevisionGrid";
 
 vi.mock("../../../api/ipc", () => ({
@@ -43,10 +43,16 @@ function row(i: number, summary: string, labels: LogRow["labels"]): LogRow {
 }
 
 // jsdom has no canvas backend; GraphCell skips drawing when getContext returns null.
-beforeAll(() => {
+beforeEach(() => {
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+  resetRepo();
+  resetStatus();
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  // The prototype spy is global: leaving it installed would leak into other suites in the same worker.
+  vi.restoreAllMocks();
+});
 
 describe("RevisionGrid", () => {
   it("renders HEAD chip, then branch chip, then subject", () => {
@@ -68,17 +74,37 @@ describe("RevisionGrid", () => {
     expect(rows).toHaveLength(3);
 
     const text = (el: Element) => el.textContent?.replace(/\s+/g, " ").trim();
-    // Chips lead the subject cell; synced remote renders inside the local chip.
+    // Chips lead the subject cell, HEAD first; the synced remote renders inside the local chip.
     expect(text(rows[0])).toMatch(/^HEADmainoriginDedupe lanes/);
-    const chips0 = rows[0].querySelectorAll("span[title]");
-    expect(chips0[0].textContent).toBe("HEAD");
-    expect(chips0[1].textContent).toBe("mainorigin");
-
     expect(text(rows[1])).toMatch(/^origin\/devv1\.0Merge branch/);
     expect(text(rows[2])).toMatch(/^Initial/);
 
     expect(rows[0].getAttribute("aria-selected")).toBe("true");
     expect(rows[1].getAttribute("aria-selected")).toBe("false");
+  });
+
+  it("shows at most 3 chips; +N opens a popover listing the rest", () => {
+    const labels: LogRow["labels"] = ["a", "b", "c", "d", "e"].map((name) => ({ name, kind: "local" as const, isCurrent: false, remote: null }));
+    useRepoStore.setState({
+      repo: { id: "r", name: "r", path: "r", head: { oid: "oid0", branch: "main", detached: false } },
+      refs: null,
+      log: { generation: 1, total: 1, complete: true, error: null, flat: false },
+      rows: [row(0, "Many refs", labels)],
+      maxLane: 0,
+      selectedIndex: 0,
+    });
+
+    const { getByRole, getByText, queryByRole } = render(<RevisionGrid />);
+    expect(queryByRole("menu", { name: "More refs" })).toBeNull();
+    const more = getByRole("button", { name: "+2" });
+    expect(more.getAttribute("title")).toBe("2 more refs");
+    expect(getByText("+2")).toBeTruthy();
+
+    fireEvent.click(more);
+    const menu = getByRole("menu", { name: "More refs" });
+    expect(Array.from(menu.children).map((c) => c.textContent)).toEqual(["d", "e"]);
+    // Clicking the +N chip must not move the grid selection off the row it belongs to.
+    expect(useRepoStore.getState().wtSelected).toBe(false);
   });
 
   it("shows the working-tree pseudo-row first while the tree is dirty; commits shift by one", () => {
@@ -100,7 +126,6 @@ describe("RevisionGrid", () => {
     expect(getByRole("grid").getAttribute("aria-rowcount")).toBe("3");
     expect(rows[0].textContent?.trim()).toBe("Working tree · 3 changes");
     expect(rows[0].getAttribute("aria-rowindex")).toBe("1");
-    expect(rows[0].querySelector("span[title]")).toBeNull(); // no chips
     expect(rows[1].getAttribute("aria-rowindex")).toBe("2");
     expect(rows[1].textContent).toContain("Top");
     // HEAD stays the selected row until the pseudo-row is picked.

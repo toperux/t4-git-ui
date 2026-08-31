@@ -1,21 +1,21 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpen } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { cloneRepo } from "../../api/appIpc";
-import { onOpEvent } from "../../api/events";
+import { onOpEventReady } from "../../api/events";
 import { cancelOp, toAppError } from "../../api/ipc";
 import type { RepoSummary } from "../../api/types";
 import { Banner } from "../../components/ui/Banner/Banner";
 import { Button } from "../../components/ui/Button/Button";
 import { Checkbox } from "../../components/ui/Checkbox/Checkbox";
+import { Dialog, Field, Options } from "../../components/ui/Dialog/Dialog";
 import { IconButton } from "../../components/ui/IconButton/IconButton";
 import { Input } from "../../components/ui/Input/Input";
 import { Progress } from "../../components/ui/Progress/Progress";
 import { Spinner } from "../../components/ui/Spinner/Spinner";
-import { joinPath, repoNameFromUrl } from "../../lib/cloneUrl";
+import { joinPath, repoNameFromUrl } from "../../lib/paths";
 import { cliDetail } from "../../store/toastStore";
-import { Dialog } from "./Dialog";
-import s from "./Dialog.module.css";
+import s from "./CloneDialog.module.css";
 
 export interface CloneDialogProps {
   /** Initial destination parent folder. */
@@ -52,16 +52,17 @@ export function CloneDialog({ defaultParent, onClose, onCloned }: CloneDialogPro
   }
 
   async function pickParent() {
-    const dir = await open({ directory: true, multiple: false, title: "Clone into folder", defaultPath: parent || undefined });
+    const dir = await open({ directory: true, multiple: false, title: "Clone into folder", defaultPath: parent || undefined }).catch(() => null);
     if (dir) setParent(dir);
   }
 
-  async function submit(e: FormEvent) {
-    e.preventDefault();
+  async function submit() {
     if (!valid || running) return;
     setPhase({ kind: "running", opId: null, line: "" });
     // Clone events carry `repoId: null`; `started` is always first, so its opId tags the rest.
-    const unlisten = onOpEvent(({ repoId, opId, event }) => {
+    // The subscription must be attached *before* `clone_repo` runs or `started` (and with it the
+    // opId that Cancel needs) can arrive while `listen` is still resolving.
+    const unlisten = await onOpEventReady(({ repoId, opId, event }) => {
       if (repoId !== null) return;
       setPhase((p) => {
         if (p.kind !== "running") return p;
@@ -81,99 +82,94 @@ export function CloneDialog({ defaultParent, onClose, onCloned }: CloneDialogPro
     }
   }
 
+  /** Cancel means "abort the clone" while it runs and "close" otherwise. */
   function cancel() {
-    if (phase.kind === "running" && phase.opId) void cancelOp(phase.opId);
-    else if (!running) onClose();
+    if (phase.kind === "running") {
+      if (phase.opId) void cancelOp(phase.opId).catch(() => {});
+    } else onClose();
   }
 
   return (
     <Dialog
       title="Clone repository"
-      onClose={onClose}
-      busy={running}
       wide
+      busy={running}
+      onClose={onClose}
+      onSubmit={() => void submit()}
+      preview={running ? undefined : cmd}
       footer={
         <>
-          {running ? <Spinner label="Cloning" /> : <span className={s.note}>Runs <span className={s.mono}>{cmd}</span></span>}
-          <span className={s.grow} />
+          {running && <Spinner label="Cloning" />}
           <Button variant="secondary" onClick={cancel} disabled={running && !phase.opId}>
             Cancel
           </Button>
-          <Button variant="primary" type="submit" form="clone-form" disabled={!valid || running}>
+          <Button variant="primary" type="submit" disabled={!valid || running}>
             Clone
           </Button>
         </>
       }
     >
-      <form id="clone-form" className={s.body} onSubmit={(e) => void submit(e)}>
-        {phase.kind === "idle" && phase.error && (
-          <Banner kind="danger">
-            <span title={phase.error}>{phase.error}</span>
-          </Banner>
-        )}
-        <div className={s.field}>
-          <span className={s.fieldLabel}>URL</span>
+      {phase.kind === "idle" && phase.error && (
+        <Banner kind="danger">
+          <span title={phase.error}>{phase.error}</span>
+        </Banner>
+      )}
+      <Field label="URL">
+        <Input
+          aria-label="URL"
+          autoFocus
+          value={url}
+          onChange={(e) => onUrlChange(e.target.value)}
+          placeholder="https://github.com/user/repo.git"
+          disabled={running}
+          spellCheck={false}
+        />
+      </Field>
+      <Field label="Parent folder">
+        <div className={s.pathRow}>
           <Input
-            aria-label="URL"
-            autoFocus
-            value={url}
-            onChange={(e) => onUrlChange(e.target.value)}
-            placeholder="https://github.com/user/repo.git"
+            aria-label="Parent folder"
+            value={parent}
+            onChange={(e) => setParent(e.target.value)}
+            placeholder="Folder to clone into"
             disabled={running}
             spellCheck={false}
           />
+          <IconButton label="Choose folder…" disabled={running} onClick={() => void pickParent()}>
+            <FolderOpen size={16} aria-hidden />
+          </IconButton>
         </div>
-        <div className={s.field}>
-          <span className={s.fieldLabel}>Parent folder</span>
-          <div className={s.fieldRow}>
-            <Input
-              aria-label="Parent folder"
-              value={parent}
-              onChange={(e) => setParent(e.target.value)}
-              placeholder="Folder to clone into"
-              disabled={running}
-              spellCheck={false}
-            />
-            <IconButton label="Choose folder…" onClick={() => void pickParent()} disabled={running}>
-              <FolderOpen size={16} aria-hidden />
-            </IconButton>
+      </Field>
+      <Field label="Folder name" help={<span title={dest}>{dest ? `Clones into ${dest}` : "Destination path appears here"}</span>}>
+        <Input
+          aria-label="Folder name"
+          value={name}
+          onChange={(e) => {
+            setNameEdited(true);
+            setName(e.target.value);
+          }}
+          placeholder="repo"
+          disabled={running}
+          spellCheck={false}
+        />
+      </Field>
+      <Options inline>
+        <Checkbox checked={recurse} onChange={setRecurse} disabled={running}>
+          Recurse submodules
+        </Checkbox>
+        <Checkbox checked={shallow} onChange={setShallow} disabled={running}>
+          Shallow (depth 1)
+        </Checkbox>
+      </Options>
+      {running && (
+        <>
+          <div className={`${s.output} selectable`} aria-live="polite">
+            <div className={s.cmd}>$ {cmd}</div>
+            <div>{phase.line || "Starting…"}</div>
           </div>
-        </div>
-        <div className={s.field}>
-          <span className={s.fieldLabel}>Folder name</span>
-          <Input
-            aria-label="Folder name"
-            value={name}
-            onChange={(e) => {
-              setNameEdited(true);
-              setName(e.target.value);
-            }}
-            placeholder="repo"
-            disabled={running}
-            spellCheck={false}
-          />
-          <span className={s.fieldHelp} title={dest}>
-            {dest ? `Clones into ${dest}` : "Destination path appears here"}
-          </span>
-        </div>
-        <div className={s.checks}>
-          <Checkbox checked={recurse} onChange={setRecurse} disabled={running}>
-            Recurse submodules
-          </Checkbox>
-          <Checkbox checked={shallow} onChange={setShallow} disabled={running}>
-            Shallow (depth 1)
-          </Checkbox>
-        </div>
-        {running && (
-          <>
-            <div className={`${s.output} selectable`} aria-live="polite">
-              <div className={s.cmd}>$ {cmd}</div>
-              <div>{phase.line || "Starting…"}</div>
-            </div>
-            <Progress thin label="Cloning" />
-          </>
-        )}
-      </form>
+          <Progress thin label="Cloning" />
+        </>
+      )}
     </Dialog>
   );
 }

@@ -1,5 +1,6 @@
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { File, Folder, Rows2 } from "lucide-react";
-import { memo, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import { memo, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from "react";
 import type { FileChange } from "../../../api/types";
 import { EmptyState } from "../../../components/ui/EmptyState/EmptyState";
 import { IconButton } from "../../../components/ui/IconButton/IconButton";
@@ -12,6 +13,28 @@ import { useDiffStore } from "../../../store/diffStore";
 import { buildFileTree, type FileNode } from "./fileTree";
 import s from "./ChangedFileList.module.css";
 
+/** `--row-h`; the virtualizer needs the number. */
+const ROW_H = 26;
+const OVERSCAN = 10;
+
+/** One rendered line: a folder in tree mode, or a file (the only selectable kind). */
+type Row =
+  | { kind: "folder"; path: string; name: string; depth: number; expanded: boolean }
+  | { kind: "file"; file: FileChange; label: string; depth: number | undefined };
+
+/** Tree → the visible lines in display order (collapsed folders contribute only their own row). */
+function flattenTree(nodes: FileNode[], collapsed: ReadonlySet<string>, depth = 0, out: Row[] = []): Row[] {
+  for (const n of nodes) {
+    if (n.file) out.push({ kind: "file", file: n.file, label: n.name, depth });
+    else {
+      const expanded = !collapsed.has(n.path);
+      out.push({ kind: "folder", path: n.path, name: n.name, depth, expanded });
+      if (expanded) flattenTree(n.children, collapsed, depth + 1, out);
+    }
+  }
+  return out;
+}
+
 export function ChangedFileList() {
   const oid = useDiffStore((st) => st.oid);
   const files = useDiffStore((st) => st.files);
@@ -22,21 +45,28 @@ export function ChangedFileList() {
   const selectPath = useDiffStore((st) => st.selectPath);
   const setMode = useDiffStore((st) => st.setFileListMode);
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const rowId = useId();
 
-  const tree = useMemo(() => (mode === "tree" ? buildFileTree(files) : []), [files, mode]);
-  // Files in display order (collapsed folders skipped) — the ↑/↓ ring.
-  const visible = useMemo(() => {
-    if (mode === "flat") return files;
-    const out: FileChange[] = [];
-    const walk = (nodes: FileNode[]) => {
-      for (const n of nodes) {
-        if (n.file) out.push(n.file);
-        else if (!collapsed.has(n.path)) walk(n.children);
-      }
-    };
-    walk(tree);
-    return out;
-  }, [mode, files, tree, collapsed]);
+  const rows = useMemo<Row[]>(
+    () => (mode === "flat" ? files.map((f) => ({ kind: "file", file: f, label: f.path, depth: undefined })) : flattenTree(buildFileTree(files), collapsed)),
+    [mode, files, collapsed],
+  );
+  // Files in display order — the ↑/↓ ring.
+  const visible = useMemo(() => rows.flatMap((r) => (r.kind === "file" ? [r.file] : [])), [rows]);
+  const selectedRow = rows.findIndex((r) => r.kind === "file" && r.file.path === selectedPath);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ROW_H,
+    overscan: OVERSCAN,
+  });
+  // Only the selected row is kept in view; the others never scroll themselves.
+  const scrollToIndex = virtualizer.scrollToIndex;
+  useEffect(() => {
+    if (selectedRow >= 0) scrollToIndex(selectedRow, { align: "auto" });
+  }, [selectedRow, scrollToIndex]);
 
   const toggleFolder = (path: string) =>
     setCollapsed((c) => {
@@ -45,6 +75,14 @@ export function ChangedFileList() {
       else next.add(path);
       return next;
     });
+
+  // Delegated: every row keeps stable props, so `memo` skips the ones that didn't change.
+  function onClick(e: MouseEvent<HTMLDivElement>) {
+    const el = (e.target as HTMLElement).closest<HTMLElement>("[data-path], [data-folder]");
+    if (!el) return;
+    if (el.dataset.folder !== undefined) toggleFolder(el.dataset.folder);
+    else if (el.dataset.path !== undefined) selectPath(el.dataset.path);
+  }
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (visible.length === 0) return;
@@ -72,27 +110,16 @@ export function ChangedFileList() {
 
   const n = files.length;
   const title = n === 0 ? "Files" : `${n} file${n === 1 ? "" : "s"} changed`;
-
-  const renderTree = (nodes: FileNode[], depth: number): ReactNode =>
-    nodes.map((node) =>
-      node.file ? (
-        <FileRow key={node.path} file={node.file} label={node.name} depth={depth} selected={node.path === selectedPath} onSelect={selectPath} />
-      ) : (
-        <div key={node.path} role="group" aria-label={node.name}>
-          <TreeRow depth={depth} expanded={!collapsed.has(node.path)} icon={<Folder size={14} aria-hidden />} label={node.name} title={node.path} onClick={() => toggleFolder(node.path)} />
-          {!collapsed.has(node.path) && renderTree(node.children, depth + 1)}
-        </div>
-      ),
-    );
+  const tree = mode === "tree";
 
   return (
     <div className={s.pane}>
       <PanelHeader icon={<File size={14} aria-hidden />} title={title}>
         <IconButton label="Flat list" on={mode === "flat"} onClick={() => setMode("flat")}>
-          <Rows2 size={14} aria-hidden />
+          <Rows2 size={16} aria-hidden />
         </IconButton>
-        <IconButton label="Tree" on={mode === "tree"} onClick={() => setMode("tree")}>
-          <Folder size={14} aria-hidden />
+        <IconButton label="Tree" on={tree} onClick={() => setMode("tree")}>
+          <Folder size={16} aria-hidden />
         </IconButton>
       </PanelHeader>
       {loading && (
@@ -107,10 +134,53 @@ export function ChangedFileList() {
       ) : !loading && n === 0 ? (
         <EmptyState icon={<File size={24} aria-hidden />} title="No changed files" />
       ) : (
-        <div className={s.list} role="listbox" aria-label="Changed files" tabIndex={0} onKeyDown={onKeyDown}>
-          {mode === "flat"
-            ? files.map((f) => <FileRow key={f.path} file={f} selected={f.path === selectedPath} onSelect={selectPath} />)
-            : renderTree(tree, 0)}
+        <div
+          ref={scrollRef}
+          className={s.list}
+          // A folder row is a `treeitem`, not an `option`: tree mode can't be a listbox.
+          role={tree ? "tree" : "listbox"}
+          aria-label="Changed files"
+          aria-activedescendant={selectedRow >= 0 ? `${rowId}-${selectedRow}` : undefined}
+          tabIndex={0}
+          onKeyDown={onKeyDown}
+          onClick={onClick}
+        >
+          <div className={s.rows} style={{ height: virtualizer.getTotalSize() }}>
+            {virtualizer.getVirtualItems().map((item) => {
+              const row = rows[item.index];
+              const id = `${rowId}-${item.index}`;
+              if (row.kind === "folder")
+                return (
+                  <TreeRow
+                    key={row.path}
+                    id={id}
+                    role="treeitem"
+                    aria-level={row.depth + 1}
+                    tabIndex={-1}
+                    className={s.vrow}
+                    style={{ transform: `translateY(${item.start}px)` }}
+                    data-folder={row.path}
+                    depth={row.depth}
+                    expanded={row.expanded}
+                    icon={<Folder size={14} aria-hidden />}
+                    label={row.name}
+                    title={row.path}
+                  />
+                );
+              return (
+                <FileRow
+                  key={row.file.path}
+                  id={id}
+                  top={item.start}
+                  tree={tree}
+                  file={row.file}
+                  label={row.label}
+                  depth={row.depth}
+                  selected={row.file.path === selectedPath}
+                />
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
@@ -118,30 +188,28 @@ export function ChangedFileList() {
 }
 
 interface FileRowProps {
+  id: string;
+  top: number;
+  /** Tree mode: `treeitem` with a leaf name, indented by `depth`. Flat mode: `option` with the full path. */
+  tree: boolean;
   file: FileChange;
-  /** Tree mode: file name only, indented by `depth`. Flat mode: full path. */
-  label?: string;
-  depth?: number;
+  label: string;
+  depth: number | undefined;
   selected: boolean;
-  onSelect: (path: string) => void;
 }
 
-const FileRow = memo(function FileRow({ file, label, depth, selected, onSelect }: FileRowProps) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (selected) ref.current?.scrollIntoView?.({ block: "nearest" });
-  }, [selected]);
-  const tree = depth !== undefined;
+const FileRow = memo(function FileRow({ id, top, tree, file, label, depth, selected }: FileRowProps) {
   const full = file.oldPath ? `${file.oldPath} → ${file.path}` : file.path;
   return (
     <div
-      ref={ref}
-      role="option"
+      id={id}
+      role={tree ? "treeitem" : "option"}
       aria-selected={selected}
-      className={cx(s.row, tree && s.treeRow, selected && s.selected)}
-      style={tree ? ({ "--d": depth } as CSSProperties) : undefined}
+      aria-level={tree && depth !== undefined ? depth + 1 : undefined}
+      data-path={file.path}
+      className={cx(s.row, s.vrow, tree && s.treeRow, selected && s.selected)}
+      style={{ transform: `translateY(${top}px)`, ...(tree ? ({ "--d": depth } as CSSProperties) : null) }}
       title={full}
-      onClick={() => onSelect(file.path)}
     >
       {tree && <span className={s.tw} />}
       <StatusGlyph status={file.status} />

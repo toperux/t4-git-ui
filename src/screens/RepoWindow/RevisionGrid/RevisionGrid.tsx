@@ -1,15 +1,15 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronDown, Copy, GitBranch, GitCommitHorizontal, Plus, Search, Tag } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { Button } from "../../../components/ui/Button/Button";
 import { EmptyState } from "../../../components/ui/EmptyState/EmptyState";
 import { ContextMenu, MenuItem } from "../../../components/ui/Menu/Menu";
 import { Progress } from "../../../components/ui/Progress/Progress";
-import { useDialogStore } from "../../../store/dialogStore";
+import { useDialogStore, type DialogSpec } from "../../../store/dialogStore";
 import { checkoutDetached, copyText } from "../actions";
 import { cx } from "../../../lib/cx";
 import { useRepoStore } from "../../../store/repoStore";
-import { selectChangeCount, selectHasChanges, useStatusStore } from "../../../store/statusStore";
+import { selectChangeCount, useShowWorkingTree, useStatusStore } from "../../../store/statusStore";
 import { useThemeTokens } from "../../../theme/useThemeTokens";
 import { graphLanes, graphWidth } from "./graphGeometry";
 import { GridRow } from "./GridRow";
@@ -36,13 +36,16 @@ export function RevisionGrid() {
   const ensureRows = useRepoStore((st) => st.ensureRows);
   const select = useRepoStore((st) => st.select);
   const selectWorkingTree = useRepoStore((st) => st.selectWorkingTree);
-  const hasWt = useStatusStore(selectHasChanges) && !flat;
+  const selectedIndex = useRepoStore((st) => st.selectedIndex);
+  const wtSelected = useRepoStore((st) => st.wtSelected);
+  const hasWt = useShowWorkingTree();
   const changes = useStatusStore(selectChangeCount);
   const offset = hasWt ? 1 : 0;
   const count = total + offset;
+  const gridId = useId();
 
-  const [menu, setMenu] = useState<{ at: { x: number; y: number }; oid: string } | null>(null);
-  const onRowMenu = useCallback((at: { x: number; y: number }, oid: string) => setMenu({ at, oid }), []);
+  const [menu, setMenu] = useState<{ at: { x: number; y: number }; oid: string; el: HTMLElement } | null>(null);
+  const onRowMenu = useCallback((at: { x: number; y: number }, oid: string, el: HTMLElement) => setMenu({ at, oid, el }), []);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
@@ -82,7 +85,7 @@ export function RevisionGrid() {
       e.preventDefault();
       const r = scrollRef.current?.getBoundingClientRect();
       const y = (r?.top ?? 0) + (i + offset) * rowH - (scrollRef.current?.scrollTop ?? 0) + rowH;
-      setMenu({ at: { x: (r?.left ?? 0) + 24, y }, oid });
+      setMenu({ at: { x: (r?.left ?? 0) + 24, y }, oid, el: e.currentTarget });
       return;
     }
     let next: number | null = null;
@@ -115,28 +118,34 @@ export function RevisionGrid() {
   }
 
   const empty = complete && total === 0 && !hasWt;
+  // The header is a row of the grid, so it lives inside the `role="grid"` scroller (sticky at its top).
+  // With no rows at all there is no grid to belong to and it renders as plain chrome.
+  const header = (
+    <div className={s.th} role={empty ? undefined : "row"}>
+      {!flat && (
+        <span className={s.col} style={{ width: graphW }} role={empty ? undefined : "columnheader"}>
+          Graph
+        </span>
+      )}
+      <span className={cx(s.col, s.sort)} style={{ flex: 1 }} role={empty ? undefined : "columnheader"} aria-sort={empty ? undefined : "descending"}>
+        Subject <ChevronDown size={12} aria-hidden />
+      </span>
+      <span className={cx(s.col, s.author)} role={empty ? undefined : "columnheader"}>
+        Author
+      </span>
+      <span className={cx(s.col, s.date)} role={empty ? undefined : "columnheader"}>
+        Date
+      </span>
+      <span className={cx(s.col, s.sha)} role={empty ? undefined : "columnheader"}>
+        SHA
+      </span>
+    </div>
+  );
+  const activeRow = wtSelected && hasWt ? `${gridId}-wt` : selectedIndex === null ? undefined : `${gridId}-${selectedIndex}`;
 
   return (
     <div className={s.grid}>
-      <div className={s.th} role="row">
-        {!flat && (
-          <span className={s.col} style={{ width: graphW }} role="columnheader">
-            Graph
-          </span>
-        )}
-        <span className={cx(s.col, s.sort)} style={{ flex: 1 }} role="columnheader" aria-sort="descending">
-          Subject <ChevronDown size={12} aria-hidden />
-        </span>
-        <span className={cx(s.col, s.author)} role="columnheader">
-          Author
-        </span>
-        <span className={cx(s.col, s.date)} role="columnheader">
-          Date
-        </span>
-        <span className={cx(s.col, s.sha)} role="columnheader">
-          SHA
-        </span>
-      </div>
+      {empty && header}
       {!complete && (
         <div className={s.progress}>
           <Progress thin label="Loading commits" />
@@ -169,21 +178,24 @@ export function RevisionGrid() {
         )
       ) : (
         <div
-          ref={scrollRef}
-          className={s.scroll}
+          className={s.gridEl}
           role="grid"
           tabIndex={0}
           aria-rowcount={count}
           aria-label="Commits"
+          aria-activedescendant={activeRow}
           onKeyDown={onKeyDown}
         >
-          <div className={s.body} style={{ height: virtualizer.getTotalSize() }} role="rowgroup">
+          {header}
+          <div ref={scrollRef} className={s.scroll} role="rowgroup">
+          <div className={s.body} style={{ height: virtualizer.getTotalSize() }}>
             {items.map((item) =>
               hasWt && item.index === 0 ? (
-                <WorkingTreeRow key="wt" top={item.start} rowH={rowH} lanes={lanes} graphW={graphW} changes={changes} />
+                <WorkingTreeRow key="wt" id={`${gridId}-wt`} top={item.start} rowH={rowH} lanes={lanes} graphW={graphW} changes={changes} />
               ) : (
                 <GridRow
                   key={item.index - offset}
+                  id={`${gridId}-${item.index - offset}`}
                   index={item.index - offset}
                   offset={offset}
                   top={item.start}
@@ -196,6 +208,7 @@ export function RevisionGrid() {
                 />
               ),
             )}
+            </div>
           </div>
         </div>
       )}
@@ -205,8 +218,8 @@ export function RevisionGrid() {
 }
 
 /** Commit row actions: checkout (detached), branch / tag here, copy SHA. */
-function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number }; oid: string } | null; onClose: () => void }) {
-  const openDialog = useDialogStore((st) => st.open);
+function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number }; oid: string; el: HTMLElement } | null; onClose: () => void }) {
+  const open = useDialogStore((st) => st.open);
   if (!menu) return null;
   const oid = menu.oid;
   const short = oid.slice(0, 7);
@@ -214,6 +227,8 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
     onClose();
     fn();
   };
+  // The clicked menu item is gone by the time the dialog mounts: hand it the grid it came from.
+  const openDialog = (spec: DialogSpec) => open(spec, { returnFocusTo: menu.el });
   return (
     <ContextMenu at={menu.at} onClose={onClose} label="Commit actions">
       <MenuItem icon={<GitBranch size={16} aria-hidden />} onClick={run(() => void checkoutDetached(oid, short))}>

@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OpResult, RepoSummary } from "../api/types";
 import { useDialogStore } from "./dialogStore";
-import { MAX_OPS, runOp, useOpsStore } from "./opsStore";
-import { useRepoStore } from "./repoStore";
-import { useStatusStore } from "./statusStore";
+import { MAX_LINES, MAX_OPS, runOp, useOpsStore } from "./opsStore";
+import { __resetForTests as resetRepo, useRepoStore } from "./repoStore";
+import { __resetForTests as resetStatus } from "./statusStore";
 import { useToastStore } from "./toastStore";
 
 vi.mock("../api/ipc", async (importOriginal) => {
@@ -16,15 +16,25 @@ vi.mock("../api/ipc", async (importOriginal) => {
   };
 });
 
+import * as ipc from "../api/ipc";
+
+const mocked = ipc as unknown as Record<"cancelOp" | "getStatus" | "getRefs", ReturnType<typeof vi.fn>>;
 const REPO: RepoSummary = { id: "r", name: "r", path: "/r", head: { oid: "a", branch: "main", detached: false } };
 const ok: OpResult = { opId: "1", code: 0, conflicts: [], failure: null };
+/** `runOp` fires `refresh` / `syncRefs` without awaiting them; let those settle before asserting. */
+const settle = () => new Promise((r) => setTimeout(r, 0));
 
 beforeEach(() => {
+  vi.resetAllMocks();
+  // The trailing refresh / syncRefs must never resolve, or they'd race the assertions.
+  mocked.getStatus.mockImplementation(() => new Promise(() => {}));
+  mocked.getRefs.mockImplementation(() => new Promise(() => {}));
   useOpsStore.setState({ ops: [], open: false, busy: null });
   useToastStore.setState({ toasts: [] });
   useDialogStore.setState({ dialog: null });
-  useRepoStore.setState({ repo: REPO, wtSelected: false });
-  useStatusStore.setState({ status: null });
+  resetStatus();
+  resetRepo();
+  useRepoStore.setState({ repo: REPO });
 });
 
 const toasts = () => useToastStore.getState().toasts;
@@ -49,6 +59,24 @@ describe("opsStore", () => {
     op = useOpsStore.getState().ops[0];
     expect(op).toMatchObject({ running: false, code: 1, elapsedMs: 1234, cmd: "git commit -F msg" });
     expect(useOpsStore.getState().ops).toHaveLength(1);
+  });
+
+  it("caps one op's log at MAX_LINES, keeping the newest", () => {
+    const st = useOpsStore.getState();
+    st.onEvent({ repoId: "r", opId: "1", event: { kind: "started", opId: "1", cmd: "git clone x" } });
+    for (let i = 0; i < MAX_LINES + 10; i++) st.onEvent({ repoId: "r", opId: "1", event: { kind: "stdout", line: `l${i}` } });
+    const { lines } = useOpsStore.getState().ops[0];
+    expect(lines).toHaveLength(MAX_LINES);
+    expect(lines[lines.length - 1].text).toBe(`l${MAX_LINES + 9}`);
+    expect(lines[0].text).toBe("l10");
+  });
+
+  it("cancel calls cancel_op for the running op", async () => {
+    mocked.cancelOp.mockResolvedValue(true);
+    const st = useOpsStore.getState();
+    st.onEvent({ repoId: "r", opId: "7", event: { kind: "started", opId: "7", cmd: "git fetch" } });
+    await useOpsStore.getState().cancel("7");
+    expect(mocked.cancelOp).toHaveBeenCalledWith("7");
   });
 
   it("keeps at most MAX_OPS records", () => {
@@ -113,5 +141,28 @@ describe("runOp", () => {
     await runOp("Renaming branch…", () => Promise.reject({ kind: "git", message: "boom" }));
     expect(toasts()).toMatchObject([{ kind: "error", title: "Renaming branch failed", detail: "boom" }]);
     expect(useOpsStore.getState().busy).toBeNull();
+    await settle();
+  });
+
+  it("a cancelled op is an info toast, not an error", async () => {
+    const out = await runOp("Cloning…", () => Promise.reject({ kind: "cancelled", message: "cancelled" }));
+    expect(out).toMatchObject({ ok: false, error: { kind: "cancelled" } });
+    expect(toasts()).toMatchObject([{ kind: "info", title: "Cancelled" }]);
+    await settle();
+  });
+
+  it("the backend's own busy rejection is an info toast too", async () => {
+    const out = await runOp("Pushing…", () => Promise.reject({ kind: "busy", message: "another operation is running" }));
+    expect(out).toMatchObject({ ok: false, error: { kind: "busy" } });
+    expect(toasts()).toMatchObject([{ kind: "info", title: "Operation in progress" }]);
+    await settle();
+  });
+
+  it("does nothing with no repository open", async () => {
+    useRepoStore.setState({ repo: null });
+    const fn = vi.fn(() => Promise.resolve(ok));
+    expect(await runOp("Pushing…", fn)).toMatchObject({ ok: false, error: null });
+    expect(fn).not.toHaveBeenCalled();
+    expect(toasts()).toHaveLength(0);
   });
 });

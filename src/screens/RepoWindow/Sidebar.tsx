@@ -1,5 +1,5 @@
 import { Archive, Cloud, Copy, Folder, GitBranch, GitMerge, Pencil, Plus, Tag, Trash2 } from "lucide-react";
-import { useState, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import type { Branch, RemoteBranch, Stash } from "../../api/types";
 import { Badge } from "../../components/ui/Badge/Badge";
 import { ContextMenu, MenuItem, MenuSeparator } from "../../components/ui/Menu/Menu";
@@ -7,7 +7,7 @@ import { EmptyState } from "../../components/ui/EmptyState/EmptyState";
 import { SectionHeader } from "../../components/ui/SectionHeader/SectionHeader";
 import { AheadBehind, TREE_PANE_CLASS, TreeRow } from "../../components/ui/TreeRow/TreeRow";
 import { cx } from "../../lib/cx";
-import { useDialogStore } from "../../store/dialogStore";
+import { useDialogStore, type DialogSpec } from "../../store/dialogStore";
 import { useRepoStore } from "../../store/repoStore";
 import { checkoutBranch, checkoutDetached, checkoutRemoteBranch, copyText, stashApply, stashDrop, stashPop, stripRemote } from "./actions";
 import s from "./Sidebar.module.css";
@@ -54,12 +54,61 @@ function buildTree(branches: Branch[]): TreeNode[] {
   return root.children;
 }
 
+const ITEMS = '[role="treeitem"]';
+
+/**
+ * One sidebar tree. ARIA asks for a single tab stop per tree, so the rows carry a roving `tabIndex`
+ * (managed on the DOM nodes — `TreeRow` renders plain buttons) and ↑/↓/Home/End move focus inside it.
+ */
+function Tree({ label, children }: { label: string; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState(0);
+  const items = () => Array.from(ref.current?.querySelectorAll<HTMLElement>(ITEMS) ?? []);
+
+  useEffect(() => {
+    const list = items();
+    const i = Math.min(active, Math.max(list.length - 1, 0));
+    list.forEach((el, n) => (el.tabIndex = n === i ? 0 : -1));
+  });
+
+  function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    const list = items();
+    if (list.length === 0) return;
+    const cur = list.indexOf(document.activeElement as HTMLElement);
+    let next: number;
+    if (e.key === "ArrowDown") next = Math.min(cur + 1, list.length - 1);
+    else if (e.key === "ArrowUp") next = Math.max(cur - 1, 0);
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = list.length - 1;
+    else return;
+    e.preventDefault();
+    setActive(next);
+    list[next].focus();
+  }
+
+  return (
+    <div
+      ref={ref}
+      role="tree"
+      aria-label={label}
+      className={s.tree}
+      onKeyDown={onKeyDown}
+      onFocus={(e) => {
+        const i = items().indexOf(e.target as HTMLElement);
+        if (i >= 0) setActive(i);
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function Sidebar() {
   const refs = useRepoStore((st) => st.refs);
   const revealOid = useRepoStore((st) => st.revealOid);
   const [open, setOpen] = useState<Record<Section, boolean>>({ local: true, remotes: true, tags: false, stashes: true });
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
-  const [menu, setMenu] = useState<{ at: { x: number; y: number }; target: Target } | null>(null);
+  const [menu, setMenu] = useState<{ at: { x: number; y: number }; target: Target; el: HTMLElement } | null>(null);
 
   const toggle = (k: Section) => setOpen((o) => ({ ...o, [k]: !o[k] }));
   const toggleFolder = (path: string) =>
@@ -73,15 +122,15 @@ export function Sidebar() {
   /** Right-click, and Shift+F10 / the Menu key on the focused row. */
   function rowMenu(target: Target) {
     return {
-      onContextMenu: (e: MouseEvent) => {
+      onContextMenu: (e: MouseEvent<HTMLElement>) => {
         e.preventDefault();
-        setMenu({ at: { x: e.clientX, y: e.clientY }, target });
+        setMenu({ at: { x: e.clientX, y: e.clientY }, target, el: e.currentTarget });
       },
       onKeyDown: (e: React.KeyboardEvent<HTMLElement>) => {
         if (e.key !== "ContextMenu" && !(e.key === "F10" && e.shiftKey)) return;
         e.preventDefault();
         const r = e.currentTarget.getBoundingClientRect();
-        setMenu({ at: { x: r.left + 8, y: r.bottom }, target });
+        setMenu({ at: { x: r.left + 8, y: r.bottom }, target, el: e.currentTarget });
       },
     };
   }
@@ -94,6 +143,8 @@ export function Sidebar() {
   const branchRow = (b: Branch, label: string, depth: number) => (
     <TreeRow
       key={b.name}
+      role="treeitem"
+      aria-level={depth + 1}
       depth={depth}
       icon={<GitBranch size={14} aria-hidden />}
       label={label}
@@ -117,10 +168,23 @@ export function Sidebar() {
       if (n.children.length === 0 && n.branch) return branchRow(n.branch, n.name, depth);
       const isCollapsed = collapsed.has(n.path);
       return (
-        <div key={n.path}>
-          <TreeRow depth={depth} expanded={!isCollapsed} icon={<Folder size={14} aria-hidden />} label={n.name} title={n.path} onClick={() => toggleFolder(n.path)} />
-          {!isCollapsed && n.branch && branchRow(n.branch, n.name, depth + 1)}
-          {!isCollapsed && renderTree(n.children, depth + 1)}
+        <div key={n.path} className={s.tree}>
+          <TreeRow
+            role="treeitem"
+            aria-level={depth + 1}
+            depth={depth}
+            expanded={!isCollapsed}
+            icon={<Folder size={14} aria-hidden />}
+            label={n.name}
+            title={n.path}
+            onClick={() => toggleFolder(n.path)}
+          />
+          {!isCollapsed && (
+            <div role="group" className={s.tree}>
+              {n.branch && branchRow(n.branch, n.name, depth + 1)}
+              {renderTree(n.children, depth + 1)}
+            </div>
+          )}
         </div>
       );
     });
@@ -133,66 +197,86 @@ export function Sidebar() {
         (local.length === 0 ? (
           <EmptyState className={s.empty} icon={<GitBranch size={20} aria-hidden />} title="No branches yet" />
         ) : (
-          renderTree(buildTree(local), 0)
+          <Tree label="Local branches">{renderTree(buildTree(local), 0)}</Tree>
         ))}
 
       <SectionHeader title="Remotes" count={remotes.length} open={open.remotes} onToggle={() => toggle("remotes")} />
-      {open.remotes &&
-        remotes.map((r) => {
-          const isCollapsed = collapsed.has(`remote:${r.name}`);
-          return (
-            <div key={r.name}>
-              <TreeRow
-                depth={0}
-                expanded={!isCollapsed}
-                icon={<Cloud size={14} aria-hidden />}
-                label={r.name}
-                title={r.url ?? r.name}
-                onClick={() => toggleFolder(`remote:${r.name}`)}
-              />
-              {!isCollapsed &&
-                r.branches.map((rb) => (
-                  <TreeRow
-                    key={rb.name}
-                    depth={1}
-                    icon={<GitBranch size={14} aria-hidden />}
-                    label={stripRemote(rb, r.name)}
-                    title={rb.name}
-                    onClick={() => void revealOid(rb.oid)}
-                    onDoubleClick={() => void checkoutRemoteBranch(rb, r.name)}
-                    {...rowMenu({ kind: "remote", remote: r.name, branch: rb })}
-                  />
-                ))}
-            </div>
-          );
-        })}
+      {open.remotes && remotes.length > 0 && (
+        <Tree label="Remote branches">
+          {remotes.map((r) => {
+            const isCollapsed = collapsed.has(`remote:${r.name}`);
+            return (
+              <div key={r.name} className={s.tree}>
+                <TreeRow
+                  role="treeitem"
+                  aria-level={1}
+                  depth={0}
+                  expanded={!isCollapsed}
+                  icon={<Cloud size={14} aria-hidden />}
+                  label={r.name}
+                  title={r.url ?? r.name}
+                  onClick={() => toggleFolder(`remote:${r.name}`)}
+                />
+                {!isCollapsed && (
+                  <div role="group" className={s.tree}>
+                    {r.branches.map((rb) => (
+                      <TreeRow
+                        key={rb.name}
+                        role="treeitem"
+                        aria-level={2}
+                        depth={1}
+                        icon={<GitBranch size={14} aria-hidden />}
+                        label={stripRemote(rb, r.name)}
+                        title={rb.name}
+                        onClick={() => void revealOid(rb.oid)}
+                        onDoubleClick={() => void checkoutRemoteBranch(rb, r.name)}
+                        {...rowMenu({ kind: "remote", remote: r.name, branch: rb })}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </Tree>
+      )}
 
       <SectionHeader title="Tags" count={tags.length} open={open.tags} onToggle={() => toggle("tags")} />
-      {open.tags &&
-        tags.map((t) => (
-          <TreeRow
-            key={t.name}
-            icon={<Tag size={14} aria-hidden />}
-            label={t.name}
-            title={t.name}
-            onClick={() => void revealOid(t.oid)}
-            {...rowMenu({ kind: "tag", name: t.name, oid: t.oid })}
-          />
-        ))}
+      {open.tags && tags.length > 0 && (
+        <Tree label="Tags">
+          {tags.map((t) => (
+            <TreeRow
+              key={t.name}
+              role="treeitem"
+              aria-level={1}
+              icon={<Tag size={14} aria-hidden />}
+              label={t.name}
+              title={t.name}
+              onClick={() => void revealOid(t.oid)}
+              {...rowMenu({ kind: "tag", name: t.name, oid: t.oid })}
+            />
+          ))}
+        </Tree>
+      )}
 
       <SectionHeader title="Stashes" count={stashes.length} open={open.stashes} onToggle={() => toggle("stashes")} />
-      {open.stashes &&
-        stashes.map((st) => (
-          <TreeRow
-            key={st.index}
-            icon={<Archive size={14} aria-hidden />}
-            label={st.message}
-            title={`stash@{${st.index}}: ${st.message}`}
-            meta={<span className={s.mono}>{`stash@{${st.index}}`}</span>}
-            onClick={() => void revealOid(st.oid)}
-            {...rowMenu({ kind: "stash", stash: st })}
-          />
-        ))}
+      {open.stashes && stashes.length > 0 && (
+        <Tree label="Stashes">
+          {stashes.map((st) => (
+            <TreeRow
+              key={st.index}
+              role="treeitem"
+              aria-level={1}
+              icon={<Archive size={14} aria-hidden />}
+              label={st.message}
+              title={`stash@{${st.index}}: ${st.message}`}
+              meta={<span className={s.mono}>{`stash@{${st.index}}`}</span>}
+              onClick={() => void revealOid(st.oid)}
+              {...rowMenu({ kind: "stash", stash: st })}
+            />
+          ))}
+        </Tree>
+      )}
 
       <RefContextMenu menu={menu} onClose={() => setMenu(null)} />
     </nav>
@@ -200,11 +284,13 @@ export function Sidebar() {
 }
 
 /** Per-kind context menu for a sidebar row. */
-function RefContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number }; target: Target } | null; onClose: () => void }) {
-  const openDialog = useDialogStore((st) => st.open);
+function RefContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number }; target: Target; el: HTMLElement } | null; onClose: () => void }) {
+  const open = useDialogStore((st) => st.open);
   const current = useRepoStore((st) => st.refs?.local.find((b) => b.isHead)?.name ?? null);
   if (!menu) return null;
   const { target } = menu;
+  // The clicked menu item is gone by the time the dialog mounts: hand it the row the menu came from.
+  const openDialog = (spec: DialogSpec) => open(spec, { returnFocusTo: menu.el });
   /** Every item closes the menu first. */
   const run = (fn: () => void) => () => {
     onClose();

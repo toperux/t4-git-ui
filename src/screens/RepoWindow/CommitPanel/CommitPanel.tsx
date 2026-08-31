@@ -44,16 +44,19 @@ function DiffColumn() {
   const stageLines = useCommitStore((st) => st.stageLines);
   const entry = useStatusStore((st) => st.status?.entries.find((e) => e.path === path));
 
-  const actions: DiffActions | undefined =
-    path && !(entry?.conflicted && list === "unstaged")
-      ? {
-          target: list,
-          wholeFile: list === "unstaged" && entry?.workdir === "untracked",
-          busy,
-          onStageHunk: (h) => void stageHunk(h),
-          onStageLines: (l) => void stageLines(l),
-        }
-      : undefined;
+  // Conflicted and untracked files can only be staged whole — no hunk or line indices to work with.
+  const conflicted = list === "unstaged" && !!entry?.conflicted;
+  const untracked = list === "unstaged" && entry?.workdir === "untracked";
+  const actions: DiffActions | undefined = path
+    ? {
+        target: list,
+        wholeFile: conflicted || untracked,
+        note: conflicted ? "Conflict — stage the file once resolved" : untracked ? "Untracked — stage whole file" : undefined,
+        busy,
+        onStageHunk: (h) => void stageHunk(h),
+        onStageLines: (l) => void stageLines(l),
+      }
+    : undefined;
 
   return <DiffViewer path={path} oldPath={entry?.oldPath ?? null} stats={stats ?? null} diff={diff} loading={loading} error={error} actions={actions} />;
 }

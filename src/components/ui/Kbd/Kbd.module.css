@@ -1,0 +1,16 @@
+/* base.css .kbd: 16px, 10px 500, inset bg + border */
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-inset);
+  color: var(--fg-muted);
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: var(--weight-medium);
+  line-height: 1;
+  flex: none;
+}

@@ -14,10 +14,11 @@ vi.mock("../api/ipc", async (importOriginal) => {
 });
 
 import * as ipc from "../api/ipc";
-import { useRepoStore } from "./repoStore";
-import { STATUS_DEBOUNCE_MS, useStatusStore } from "./statusStore";
+import { __resetForTests as resetRepo, useRepoStore } from "./repoStore";
+import { __resetForTests as resetStatus, STATUS_DEBOUNCE_MS, useStatusStore } from "./statusStore";
+import { useToastStore } from "./toastStore";
 
-const mocked = ipc as unknown as Record<"getStatus" | "getRefs" | "refreshLabels" | "startLog", ReturnType<typeof vi.fn>>;
+const mocked = ipc as unknown as Record<"getStatus" | "getRefs" | "refreshLabels" | "startLog" | "getLogPage", ReturnType<typeof vi.fn>>;
 const REPO: RepoSummary = { id: "r1", name: "r1", path: "r1", head: { oid: "h1", branch: "main", detached: false } };
 const status = (n: number): WorkdirStatus => ({
   entries: Array.from({ length: n }, (_, i) => ({ path: `f${i}`, oldPath: null, index: null, workdir: "modified", conflicted: false })),
@@ -26,11 +27,23 @@ const status = (n: number): WorkdirStatus => ({
   untracked: 0,
   conflicted: 0,
 });
-const refs = (oid: string): RefsSnapshot => ({ head: { oid, branch: "main", detached: false }, state: "clean", local: [], remotes: [], tags: [], stashes: [] });
+const refs = (oid: string, tags: string[] = []): RefsSnapshot => ({
+  head: { oid, branch: "main", detached: false },
+  state: "clean",
+  local: [],
+  remotes: [],
+  tags: tags.map((name) => ({ name, oid })),
+  stashes: [],
+});
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  // `resetAllMocks`: a `mockImplementation` from one test must not leak into another's `...Once` chain.
+  vi.resetAllMocks();
+  resetStatus();
+  resetRepo();
+  useToastStore.setState({ toasts: [] });
+  mocked.getLogPage.mockImplementation(() => new Promise(() => {}));
   mocked.getStatus.mockResolvedValue(status(2));
   mocked.getRefs.mockResolvedValue(refs("h1"));
   mocked.refreshLabels.mockResolvedValue(1);
@@ -74,19 +87,81 @@ describe("statusStore", () => {
     expect(useStatusStore.getState().status?.entries).toHaveLength(3);
   });
 
-  it("refs kind: refreshes refs + labels; a moved HEAD restarts the walk", async () => {
+  it("refs kind: relabels when a ref changed; a moved HEAD restarts the walk", async () => {
     vi.useFakeTimers();
+    mocked.getRefs.mockResolvedValue(refs("h1", ["v1.0"]));
     useStatusStore.getState().onChanged({ repoId: "r1", kinds: ["index", "refs"], rescan: false });
     await vi.runAllTimersAsync();
     expect(mocked.getRefs).toHaveBeenCalledTimes(1);
     expect(mocked.refreshLabels).toHaveBeenCalledTimes(1);
     expect(mocked.startLog).not.toHaveBeenCalled();
 
-    mocked.getRefs.mockResolvedValue(refs("h2"));
+    mocked.getRefs.mockResolvedValue(refs("h2", ["v1.0"]));
     useStatusStore.getState().onChanged({ repoId: "r1", kinds: ["refs"], rescan: false });
     await vi.runAllTimersAsync();
     expect(mocked.startLog).toHaveBeenCalledTimes(1);
     expect(mocked.refreshLabels).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores a refs event whose snapshot is unchanged (a terminal `git fetch` rewrites FETCH_HEAD)", async () => {
+    vi.useFakeTimers();
+    // The watcher classifies FETCH_HEAD / logs/* / config writes as `refs`, but nothing actually moved.
+    useStatusStore.getState().onChanged({ repoId: "r1", kinds: ["refs"], rescan: false });
+    await vi.runAllTimersAsync();
+    expect(mocked.getRefs).toHaveBeenCalledTimes(1);
+    expect(mocked.refreshLabels).not.toHaveBeenCalled();
+    expect(mocked.startLog).not.toHaveBeenCalled();
+  });
+
+  it("coalesces concurrent syncRefs into one refs fetch and one walk", async () => {
+    mocked.getRefs.mockResolvedValue(refs("h2"));
+    const st = useStatusStore.getState();
+    // The `repo://changed` handler and `runOp` both ask right after a HEAD-moving operation.
+    await Promise.all([st.syncRefs(), st.syncRefs()]);
+    expect(mocked.getRefs).toHaveBeenCalledTimes(1);
+    expect(mocked.startLog).toHaveBeenCalledTimes(1);
+  });
+
+  it("syncRefs never rejects: a failing getRefs is handled inside", async () => {
+    mocked.getRefs.mockRejectedValue({ kind: "git", message: "boom" });
+    await expect(useStatusStore.getState().syncRefs()).resolves.toBeUndefined();
+  });
+
+  it("a rescan syncs refs even without a `refs` kind", async () => {
+    vi.useFakeTimers();
+    useStatusStore.getState().onChanged({ repoId: "r1", kinds: ["workdir"], rescan: true });
+    await vi.runAllTimersAsync();
+    expect(mocked.getStatus).toHaveBeenCalledTimes(1);
+    expect(mocked.getRefs).toHaveBeenCalledTimes(1);
+  });
+
+  it("a failing get_status lands in `error` and leaves the last status alone", async () => {
+    await useStatusStore.getState().refresh();
+    expect(useStatusStore.getState().status?.entries).toHaveLength(2);
+    mocked.getStatus.mockRejectedValue({ kind: "git", message: "index is locked" });
+    await useStatusStore.getState().refresh();
+    expect(useStatusStore.getState().error).toBe("index is locked");
+    expect(useStatusStore.getState().status?.entries).toHaveLength(2);
+    // A later success clears the error.
+    mocked.getStatus.mockResolvedValue(status(1));
+    await useStatusStore.getState().refresh();
+    expect(useStatusStore.getState().error).toBeNull();
+  });
+
+  it("refresh with no repo open clears the status", async () => {
+    await useStatusStore.getState().refresh();
+    expect(useStatusStore.getState().status).not.toBeNull();
+    useRepoStore.setState({ repo: null });
+    await useStatusStore.getState().refresh();
+    expect(useStatusStore.getState().status).toBeNull();
+    expect(mocked.getStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it("a failing syncRefs toasts once", async () => {
+    mocked.getRefs.mockRejectedValue({ kind: "git", message: "boom" });
+    await useStatusStore.getState().syncRefs();
+    expect(useToastStore.getState().toasts).toHaveLength(1);
+    expect(useToastStore.getState().toasts[0]).toMatchObject({ kind: "error", title: "Couldn't refresh references" });
   });
 
   it("a clean tree drops the working-tree selection", async () => {

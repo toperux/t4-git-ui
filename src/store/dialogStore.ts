@@ -21,14 +21,25 @@ export type DialogSpec =
 
 export type DialogKind = DialogSpec["kind"];
 
+export interface OpenOptions {
+  /**
+   * Where focus goes when the dialog closes. Menus / context menus pass their anchor: the item that
+   * was clicked unmounts in the same commit, so `document.activeElement` is already `<body>` by then.
+   */
+  returnFocusTo?: HTMLElement | null;
+}
+
 export interface DialogStore {
   dialog: DialogSpec | null;
-  open(spec: DialogSpec): void;
+  /** Focus target for the open dialog (`null` = whatever had focus when it mounted). */
+  returnFocus: HTMLElement | null;
+  open(spec: DialogSpec, opts?: OpenOptions): void;
   close(): void;
 }
 
 export const useDialogStore = create<DialogStore>()((set) => ({
   dialog: null,
-  open: (dialog) => set({ dialog }),
-  close: () => set({ dialog: null }),
+  returnFocus: null,
+  open: (dialog, opts) => set({ dialog, returnFocus: opts?.returnFocusTo ?? null }),
+  close: () => set({ dialog: null, returnFocus: null }),
 }));

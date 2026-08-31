@@ -107,7 +107,11 @@ export function PullDialog({ onClose }: { onClose: () => void }) {
   const remotes = useRemotes();
   const [remote, setRemote] = useDefaultRemote(remotes);
   const [mode, setMode] = useState<PullMode>("merge");
-  const branch = currentBranch()?.name ?? null;
+  const local = useRepoStore((st) => st.refs?.local);
+  const upstream = local?.find((b) => b.isHead)?.upstream ?? null;
+  // The refspec is the *remote* branch: local `dev` may track `origin/develop`. Without a matching
+  // upstream we name no branch at all and let git use the tracking configuration.
+  const branch = upstream && remote && upstream.startsWith(`${remote}/`) ? upstream.slice(remote.length + 1) : null;
 
   // Default follows `pull.rebase`.
   useEffect(() => {
@@ -127,7 +131,7 @@ export function PullDialog({ onClose }: { onClose: () => void }) {
   function submit() {
     onClose();
     void runOp(`Pulling from ${remote || "the default remote"}…`, (id) => ipc.pull(id, remote || null, branch, mode), {
-      success: `Pulled ${remote ? `${remote}${branch ? `/${branch}` : ""}` : "changes"}`,
+      success: `Pulled ${branch && remote ? `${remote}/${branch}` : remote || "changes"}`,
     });
   }
 
@@ -223,7 +227,9 @@ export function MergeDialog({ onClose, branch: initial }: { onClose: () => void;
   function submit() {
     if (!branch) return;
     onClose();
-    void runOp(`Merging ${branch}…`, (id) => ipc.merge(id, branch, ff, squash, effective), { success: `Merged ${branch} into ${current}` });
+    // `--squash` records nothing: the changes land in the index and the user still has to commit.
+    const success = squash ? `Squashed ${branch} into the index — commit to finish` : `Merged ${branch} into ${current}`;
+    void runOp(`Merging ${branch}…`, (id) => ipc.merge(id, branch, ff, squash, effective), { success });
   }
 
   return (

@@ -35,13 +35,17 @@ export function CreateBranchDialog({ onClose, startPoint: initial }: { onClose: 
   const { options, remotes } = useStartPoints();
   const local = useRepoStore((st) => st.refs?.local);
   const existing = useMemo(() => (local ?? []).map((b) => b.name), [local]);
+  const known = !!initial && options.some((o) => o.value === initial);
   const [name, setName] = useState("");
-  const [start, setStart] = useState(initial && options.some((o) => o.value === initial) ? initial : "HEAD");
+  const [start, setStart] = useState(initial ?? "HEAD");
   const [checkout, setCheckout] = useState(true);
   const [track, setTrack] = useState(true);
   const isRemote = remotes.includes(start);
   const error = name ? validateRefName(name, existing) : null;
   const valid = !!name && !error;
+  // An oid from the grid ("Create branch here…") is not in the list: keep it as an extra option,
+  // otherwise the Select falls back to its first entry and the branch lands on HEAD.
+  const starts = known || !initial ? options : [{ value: initial, label: initial.slice(0, 7) }, ...options];
   const preview = checkout ? gitCmd(checkoutArgs(start, name || "<name>", isRemote && track)) : `git branch ${name || "<name>"} ${start}`;
 
   function submit() {
@@ -75,7 +79,7 @@ export function CreateBranchDialog({ onClose, startPoint: initial }: { onClose: 
       </Field>
       <Field label="Start point">
         <Select aria-label="Start point" value={start} onChange={(e) => setStart(e.target.value)}>
-          {options.map((o) => (
+          {starts.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
             </option>

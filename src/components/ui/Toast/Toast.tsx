@@ -27,7 +27,7 @@ export function Toast({ toast, onClose }: { toast: ToastModel; onClose: () => vo
         )}
       </div>
       <IconButton label="Dismiss" onClick={onClose}>
-        <X size={14} aria-hidden />
+        <X size={16} aria-hidden />
       </IconButton>
     </div>
   );

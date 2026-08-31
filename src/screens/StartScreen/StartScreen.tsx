@@ -7,11 +7,12 @@ import { toAppError } from "../../api/ipc";
 import type { AppError } from "../../api/types";
 import { EmptyState } from "../../components/ui/EmptyState/EmptyState";
 import { IconButton } from "../../components/ui/IconButton/IconButton";
+import { Kbd } from "../../components/ui/Kbd/Kbd";
 import { Input } from "../../components/ui/Input/Input";
 import { Spinner } from "../../components/ui/Spinner/Spinner";
 import { StatusBar, StatusItem } from "../../components/ui/StatusBar/StatusBar";
 import { ToastStack } from "../../components/ui/Toast/Toast";
-import { parentDir } from "../../lib/cloneUrl";
+import { parentDir } from "../../lib/paths";
 import { cx } from "../../lib/cx";
 import { relativeDate } from "../../lib/relativeDate";
 import { filterRecents, useRecentsStore } from "../../store/recentsStore";
@@ -74,12 +75,12 @@ export function StartScreen() {
   }
 
   async function pick() {
-    const dir = await open({ directory: true, multiple: false, title: "Open repository" });
+    const dir = await open({ directory: true, multiple: false, title: "Open repository" }).catch(() => null);
     if (dir) await openPath(dir, false);
   }
 
   async function init() {
-    const dir = await open({ directory: true, multiple: false, title: "Initialize repository in folder" });
+    const dir = await open({ directory: true, multiple: false, title: "Initialize repository in folder" }).catch(() => null);
     if (!dir || busy) return;
     setBusy(true);
     try {
@@ -123,7 +124,9 @@ export function StartScreen() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  });
+    // `pick` / `startClone` / `init` are recreated every render; these are the values they actually read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clone, busy, lastCloneDir, recents, openRepo]);
 
   /** Shared by the filter input and the listbox: ↑/↓ move, Enter opens, Delete removes. */
   function onListKey(e: KeyboardEvent) {
@@ -166,7 +169,7 @@ export function StartScreen() {
         <span className={s.title}>t4 git ui</span>
         <span className={s.version}>{pkg.version}</span>
         <span className={s.grow} />
-        <IconButton label="Settings" title="Settings (coming in M6)" disabled>
+        <IconButton label="Settings" title="Settings arrive after v1" disabled>
           <Settings size={16} aria-hidden />
         </IconButton>
       </div>
@@ -237,7 +240,7 @@ export function StartScreen() {
                         togglePin(r.path);
                       }}
                     >
-                      <Pin size={13} aria-hidden />
+                      <Pin size={16} aria-hidden />
                     </IconButton>
                   </div>
                 ))
@@ -300,7 +303,7 @@ function ActionCard({ icon, title, hint, kbd, disabled, onClick }: { icon: React
         <span className={s.actionTitle}>{title}</span>
         <span className={s.actionHint}>{hint}</span>
       </span>
-      <span className={s.kbd}>{kbd}</span>
+      <Kbd>{kbd}</Kbd>
     </button>
   );
 }

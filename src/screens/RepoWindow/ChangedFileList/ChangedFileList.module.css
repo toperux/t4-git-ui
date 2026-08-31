@@ -19,10 +19,27 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
+  position: relative;
   outline: none;
 }
+/* A selected row carries the focus indication; with no selection the list shows the ring itself. */
 .list:focus-visible {
   box-shadow: none;
+}
+.list:focus-visible:not(:has(.selected)) {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+/* Virtualized rows: absolute inside a spacer of the total height (beats TreeRow's own `.row` rule). */
+.rows {
+  position: relative;
+  width: 100%;
+}
+.rows .vrow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: auto;
 }
 
 /* base.css .row (screens.mjs changedFiles: padding-left 8) */

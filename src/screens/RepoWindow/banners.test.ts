@@ -47,4 +47,24 @@ describe("banners", () => {
     expect(r[0].buttons.map((x) => x.action)).toEqual(["rebaseAbort", "rebaseContinue"]);
     expect(r[1].text).toBe("1 file has conflicts — resolve, then stage it");
   });
+
+  it("cherry-pick / revert / bisect explain themselves with no action (no backend abort command)", () => {
+    for (const [state, word] of [
+      ["cherryPick", "Cherry-pick"],
+      ["revert", "Revert"],
+      ["bisect", "Bisect"],
+    ] as const) {
+      const b = computeBanners(refs({ state }), status(0));
+      expect(b).toHaveLength(1);
+      expect(b[0]).toMatchObject({ id: "sequencer", kind: "warning", buttons: [] });
+      expect(b[0].text).toContain(word);
+      expect(b[0].text).toContain("in a terminal");
+    }
+  });
+
+  it("a detached HEAD banner is suppressed while a sequencer state is running", () => {
+    // `state !== "clean"`, so the detached notice would only add noise on top of the real cause.
+    const b = computeBanners(refs({ state: "cherryPick", head: { oid: "abcdef0123", branch: null, detached: true } }), status(0));
+    expect(b.map((x) => x.id)).toEqual(["sequencer"]);
+  });
 });

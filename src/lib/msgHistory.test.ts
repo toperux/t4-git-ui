@@ -28,6 +28,9 @@ describe("msgHistory", () => {
   it("splits and joins summary / body", () => {
     expect(splitMessage("Summary\n\nBody line 1\nline 2\n")).toEqual({ summary: "Summary", body: "Body line 1\nline 2" });
     expect(splitMessage("Only summary")).toEqual({ summary: "Only summary", body: "" });
+    // CRLF messages must not leave the separator in the body.
+    expect(splitMessage("Summary\r\n\r\nBody\r\n")).toEqual({ summary: "Summary", body: "Body" });
+    expect(splitMessage("Summary\r\nBody")).toEqual({ summary: "Summary", body: "Body" });
     expect(joinMessage(" Summary ", "")).toBe("Summary\n");
     expect(joinMessage("Summary", "Body\n")).toBe("Summary\n\nBody\n");
   });

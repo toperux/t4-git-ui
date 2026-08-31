@@ -4,6 +4,7 @@ import { create } from "zustand";
 import * as ipc from "../api/ipc";
 import { toAppError } from "../api/ipc";
 import type { LogFilter, LogProgress, LogRow, RefsSnapshot, RepoSummary, RevSpec } from "../api/types";
+import { toastError } from "./toastStore";
 
 export const PAGE_SIZE = 500;
 
@@ -57,6 +58,17 @@ const EMPTY_LOG: LogState = { generation: null, total: 0, complete: false, error
 let loaded = new Set<number>();
 let inflight = new Map<number, Promise<void>>();
 let startSeq = 0;
+/** Row range the grid last asked for — `refreshLabels` only refetches the pages around it. */
+let viewport = { start: 0, end: PAGE_SIZE };
+/** Bumped by `refreshLabels`: a page fetched under an older value carries stale labels. */
+let labelGen = 0;
+
+/** Pages worth refetching eagerly: the viewport's own pages plus one on either side. */
+function nearViewport(p: number) {
+  const first = Math.floor(viewport.start / PAGE_SIZE) - 1;
+  const last = Math.floor(Math.max(viewport.start, viewport.end - 1) / PAGE_SIZE) + 1;
+  return p >= first && p <= last;
+}
 
 function resetPages() {
   loaded = new Set();
@@ -72,7 +84,9 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
     if (!repo || log.generation === null) return Promise.resolve();
     const gen = log.generation;
     const offset = p * PAGE_SIZE;
+    const lg = labelGen;
 
+    let refetch = false;
     const task = (async () => {
       try {
         const page = await ipc.getLogPage(repo.id, gen, offset, PAGE_SIZE);
@@ -87,20 +101,32 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
         set({
           rows,
           maxLane,
-          log: { ...s.log, total: page.total, complete: page.complete },
+          // A page response can be older than the last `log://progress`; never move the walk backwards.
+          log: { ...s.log, total: Math.max(s.log.total, page.total), complete: s.log.complete || page.complete },
           selectedIndex: s.selectedIndex ?? (offset === 0 && page.rows.length > 0 ? 0 : null),
         });
-        // A partial page from a walk still in progress must be re-requested later.
-        if (page.rows.length === PAGE_SIZE || page.complete) loaded.add(p);
+        if (lg !== labelGen) {
+          // Labels were recomputed while this page was in flight: what arrived is already stale.
+          loaded.delete(p);
+          refetch = nearViewport(p);
+        } else if (page.rows.length === PAGE_SIZE || page.complete) {
+          // A partial page from a walk still in progress must be re-requested later.
+          loaded.add(p);
+        }
       } catch (e) {
         const err = toAppError(e);
         const s = get();
-        if (s.repo?.id === repo.id && s.log.generation === gen && err.kind === "internal") {
+        if (s.repo?.id !== repo.id || s.log.generation !== gen) return;
+        if (err.kind === "staleGeneration") {
           // The backend's generation moved on without us: start a fresh walk.
           await s.startLog(s.spec, s.filter);
+        } else {
+          // Anything else (a panicked blocking task, IO) would loop forever if we re-walked: report once.
+          toastError(err, "Couldn't load history");
         }
       } finally {
         inflight.delete(p);
+        if (refetch) void fetchPage(p);
       }
     })();
     inflight.set(p, task);
@@ -151,9 +177,12 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
       const generation = await ipc.refreshLabels(repo.id);
       const s = get();
       if (s.repo?.id !== repo.id || s.log.generation !== generation) return;
+      labelGen++;
+      // Everything loaded now carries stale labels. Only the pages around the viewport are refetched
+      // now; the rest leave `loaded` so they come back with fresh labels when they scroll into view.
       const pages = [...loaded];
       loaded = new Set();
-      for (const p of pages) void fetchPage(p);
+      for (const p of pages) if (nearViewport(p)) void fetchPage(p);
     },
 
     async startLog(spec, filter) {
@@ -181,6 +210,7 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
     },
 
     ensureRows(start, end) {
+      viewport = { start, end };
       const { log } = get();
       const last = Math.min(end, log.total) - 1;
       if (log.generation === null || last < start) return;
@@ -204,7 +234,8 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
         }
       }
       if (index < 0) return;
-      set((s) => ({ selectedIndex: index, reveal: { index, seq: (s.reveal?.seq ?? 0) + 1 } }));
+      // Revealing a commit moves the selection off the working-tree row (and out of the commit panel).
+      set((s) => ({ selectedIndex: index, wtSelected: false, reveal: { index, seq: (s.reveal?.seq ?? 0) + 1 } }));
     },
 
     onProgress(p) {
@@ -214,6 +245,27 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
     },
   };
 });
+
+/** Clears the module-level page bookkeeping so tests don't leak state into each other. */
+export function __resetForTests() {
+  resetPages();
+  startSeq = 0;
+  labelGen = 0;
+  viewport = { start: 0, end: PAGE_SIZE };
+  useRepoStore.setState({
+    gitVersion: null,
+    repo: null,
+    refs: null,
+    spec: { kind: "all" },
+    filter: {},
+    log: EMPTY_LOG,
+    rows: [],
+    maxLane: 0,
+    selectedIndex: null,
+    wtSelected: false,
+    reveal: null,
+  });
+}
 
 /** Oid of the selected commit row, or `null` while its page is still loading (or the working tree is selected). */
 export const selectSelectedOid = (s: RepoStore) =>

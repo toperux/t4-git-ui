@@ -34,7 +34,8 @@ export function toAppError(e: unknown): AppError {
   return { kind: "unknown", message: e instanceof Error ? e.message : String(e) };
 }
 
-async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+/** The one `invoke` wrapper: every rejection becomes an `AppError`. Shared with `appIpc.ts`. */
+export async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   try {
     return await invoke<T>(cmd, args);
   } catch (e) {
@@ -57,7 +58,7 @@ export const getCommit = (id: RepoId, oid: string) => call<CommitDetail>("get_co
 export const startLog = (id: RepoId, spec: RevSpec, filter: LogFilter) =>
   call<number>("start_log", { id, spec, filter });
 
-/** Rows `[offset, offset+limit)`; a stale `generation` rejects with kind `internal`. */
+/** Rows `[offset, offset+limit)`; a stale `generation` rejects with kind `staleGeneration`. */
 export const getLogPage = (id: RepoId, generation: number, offset: number, limit: number) =>
   call<LogPage>("get_log_page", { id, generation, offset, limit });
 

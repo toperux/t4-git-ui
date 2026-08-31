@@ -66,8 +66,8 @@ export function MessageColumn() {
   /** Commits, then opens the Push dialog (which carries the remote / upstream options). */
   async function commitAndPush() {
     if (!canCommit || running) return;
-    await commit();
-    if (!useCommitStore.getState().summary.trim()) useDialogStore.getState().open({ kind: "push" });
+    // An amend keeps a non-empty editor no longer, but the oid is the only reliable success signal.
+    if (await commit()) useDialogStore.getState().open({ kind: "push" });
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
@@ -86,7 +86,7 @@ export function MessageColumn() {
           label="Message history"
           anchor={
             <IconButton label="Message history" on={histOpen} onClick={toggleHistory}>
-              <History size={14} aria-hidden />
+              <History size={16} aria-hidden />
             </IconButton>
           }
         >
@@ -117,7 +117,9 @@ export function MessageColumn() {
               onChange={(e) => setSummary(e.target.value.replace(/[\r\n]+/g, " "))}
               placeholder="Summary"
               aria-label="Summary"
-              disabled={busy}
+              /* `readOnly`, not `disabled`: a stage/unstage landing mid-typing must not steal focus. */
+              readOnly={busy}
+              aria-busy={busy}
             />
             <span className={cx(s.counter, summary.length > SUMMARY_LIMIT && s.over)} aria-label={`${summary.length} of ${SUMMARY_LIMIT} characters`}>
               {summary.length}/{SUMMARY_LIMIT}
@@ -129,7 +131,8 @@ export function MessageColumn() {
             onChange={(e) => setBody(e.target.value)}
             placeholder="Body — what and why. Wrap at 72."
             aria-label="Body"
-            disabled={busy}
+            readOnly={busy}
+            aria-busy={busy}
           />
         </div>
         <div className={s.checks}>

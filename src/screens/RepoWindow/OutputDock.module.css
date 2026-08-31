@@ -6,9 +6,10 @@
 .dockOpen {
   border-bottom: 1px solid var(--border);
 }
+/* The dock fills its resizable Panel (160–320px, RepoWindow `DockPanel`). */
 .panel {
-  flex: none;
-  height: 200px;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -23,6 +24,9 @@
   color: var(--fg);
 }
 .xs {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   font-size: var(--text-xs);
   font-weight: var(--weight-regular);
   font-variant-numeric: tabular-nums;
@@ -56,6 +60,11 @@
 }
 .cmd {
   color: var(--fg);
+}
+.exit {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 .stderr {
   color: var(--fg-muted);

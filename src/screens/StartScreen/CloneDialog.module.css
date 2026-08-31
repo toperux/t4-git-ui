@@ -1,0 +1,31 @@
+/* Clone-specific bits on top of components/ui/Dialog: the destination picker row and the output block. */
+.pathRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+.pathRow > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+/* base.css .output: mono block on the inset surface; `$ cmd` in --fg */
+.output {
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-mono);
+  font-size: var(--mono-size);
+  line-height: var(--mono-lh);
+  background: var(--bg-inset);
+  color: var(--fg-muted);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  white-space: nowrap;
+}
+.output > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cmd {
+  color: var(--fg);
+}

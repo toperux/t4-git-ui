@@ -1,4 +1,6 @@
-// Mirrors crates/git-core/src/cli/ops.rs argument builders — only for the "Runs `git …`" preview line.
+// Mirrors the argument builders in `crates/git-core/src/cli/ops.rs`, which is the source of truth:
+// the backend builds the real argv there, this file only renders the dialogs' "Runs `git …`"
+// preview line. Any flag change over there has to be made here too or the preview lies.
 import type { FfMode, PullMode } from "../../../api/types";
 
 const flag = (on: boolean, f: string) => (on ? [f] : []);

@@ -1,16 +1,7 @@
 // Start-screen commands (src-tauri/src/commands/ops.rs: clone_repo / init_repo). Same contract as ipc.ts:
 // every rejection is an `AppError`.
-import { invoke } from "@tauri-apps/api/core";
-import { toAppError } from "./ipc";
+import { call } from "./ipc";
 import type { RepoSummary } from "./types";
-
-async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  try {
-    return await invoke<T>(cmd, args);
-  } catch (e) {
-    throw toAppError(e);
-  }
-}
 
 export interface CloneArgs {
   url: string;

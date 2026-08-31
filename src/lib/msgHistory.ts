@@ -25,11 +25,17 @@ export function pushHistory(repoId: string, message: string): string[] {
   return next;
 }
 
-/** `summary` = first line, `body` = the rest without the separating blank line. */
+/** `summary` = first line, `body` = the rest without the separating blank line (CRLF tolerated). */
 export function splitMessage(message: string): { summary: string; body: string } {
   const nl = message.indexOf("\n");
   if (nl < 0) return { summary: message.trim(), body: "" };
-  return { summary: message.slice(0, nl).trim(), body: message.slice(nl + 1).replace(/^\n+/, "").trimEnd() };
+  return {
+    summary: message.slice(0, nl).trim(),
+    body: message
+      .slice(nl + 1)
+      .replace(/^(?:\r?\n)+/, "")
+      .trimEnd(),
+  };
 }
 
 export function joinMessage(summary: string, body: string): string {

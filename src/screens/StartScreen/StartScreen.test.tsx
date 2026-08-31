@@ -10,13 +10,18 @@ vi.mock("@tauri-apps/api/path", () => ({ homeDir: vi.fn(() => Promise.resolve("C
 vi.mock("../../api/ipc", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/ipc")>();
   const pending = () => new Promise<never>(() => {});
-  return { ...actual, openRepo: vi.fn(), getRefs: vi.fn(pending), startLog: vi.fn(pending), cancelOp: vi.fn() };
+  return { ...actual, openRepo: vi.fn(), getRefs: vi.fn(pending), startLog: vi.fn(pending), cancelOp: vi.fn(() => Promise.resolve(true)) };
 });
 vi.mock("../../api/appIpc", () => ({ cloneRepo: vi.fn(() => new Promise(() => {})), initRepo: vi.fn() }));
 vi.mock("../../api/events", () => ({
   onOpEvent: vi.fn((cb: (e: OpEvent) => void) => {
     events.opCb = cb;
     return () => {};
+  }),
+  // `CloneDialog` awaits this before invoking `clone_repo`, so the `started` event can't be missed.
+  onOpEventReady: vi.fn((cb: (e: OpEvent) => void) => {
+    events.opCb = cb;
+    return Promise.resolve(() => {});
   }),
 }));
 
@@ -48,7 +53,9 @@ describe("StartScreen", () => {
   it("lists recents pinned-first and Enter opens the selected one", () => {
     const { getAllByRole, getByRole, container } = render(<StartScreen />);
     const rows = getAllByRole("option");
-    expect(rows.map((r) => r.querySelector("span > span")?.textContent)).toEqual(["t4-git-ui", "rust", "dotfiles"]);
+    // Each row shows its name and full path (the path is also its tooltip).
+    expect(rows.map((r) => r.getAttribute("title"))).toEqual(["F:\\src\\t4-git-ui", "F:\\src\\rust", "C:\\Users\\me\\dotfiles"]);
+    expect(rows.map((r) => r.textContent)).toEqual([expect.stringContaining("t4-git-ui"), expect.stringContaining("rust"), expect.stringContaining("dotfiles")]);
     expect(rows[0].getAttribute("aria-selected")).toBe("true");
     expect(container.textContent).toContain("3 recent");
     expect(container.textContent).toContain("git 2.55.0");
@@ -79,7 +86,10 @@ describe("StartScreen", () => {
     // Default parent = parent of the most recent (pinned first) repo.
     expect(dialog.textContent).toContain("Clones into F:\\src\\repo");
 
-    fireEvent.click(getByRole("button", { name: "Clone" }));
+    // The op subscription is awaited before the invoke, so let the submit's microtasks run.
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: "Clone" }));
+    });
     expect(appIpc.cloneRepo).toHaveBeenCalledWith({ url: "https://github.com/x/repo.git", dest: "F:\\src\\repo", recurseSubmodules: false, depth: undefined });
     expect(events.opCb).not.toBeNull();
     act(() => {

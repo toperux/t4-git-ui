@@ -18,3 +18,14 @@
     transform: rotate(360deg);
   }
 }
+/* Style guide §5: no spinning under reduced motion — pulse the arc instead so it still reads as busy. */
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}

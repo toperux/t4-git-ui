@@ -36,6 +36,14 @@ function open(): Promise<Backend> {
   return backend;
 }
 
-export const kvGet = async <T>(key: string): Promise<T | undefined> => (await open()).get<T>(key);
+/** Reads `key`; a corrupt or unreadable value reads as absent rather than throwing into startup. */
+export const kvGet = async <T>(key: string): Promise<T | undefined> => {
+  try {
+    return await (await open()).get<T>(key);
+  } catch (e) {
+    console.warn(`kv: dropping unreadable value for "${key}"`, e);
+    return undefined;
+  }
+};
 
 export const kvSet = async (key: string, value: unknown): Promise<void> => (await open()).set(key, value);

@@ -1,4 +1,5 @@
-// Bottom-right toast stack. Every toast auto-dismisses after `TOAST_MS`.
+// Bottom-right toast stack. Info / success toasts auto-dismiss after `TOAST_MS`; errors persist
+// until the user dismisses them (style guide §3).
 import { create } from "zustand";
 import type { AppError } from "../api/types";
 
@@ -31,7 +32,7 @@ export const useToastStore = create<ToastStore>()((set, get) => ({
   push(toast) {
     const id = nextId++;
     set((s) => ({ toasts: [...s.toasts, { ...toast, id }] }));
-    setTimeout(() => get().dismiss(id), TOAST_MS);
+    if (toast.kind !== "error") setTimeout(() => get().dismiss(id), TOAST_MS);
     return id;
   },
 

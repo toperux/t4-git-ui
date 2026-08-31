@@ -2,6 +2,7 @@
 // `recents` is kept sorted (pinned first, then most recently opened) so views render it as is.
 import { create } from "zustand";
 import { kvGet, kvSet } from "../lib/kv";
+import { baseName } from "../lib/paths";
 
 export interface RecentRepo {
   path: string;
@@ -32,11 +33,6 @@ export interface RecentsStore {
   togglePin(path: string): void;
   setLastOpen(path: string | null): void;
   setLastCloneDir(dir: string): void;
-}
-
-/** Last path segment (`C:\src\repo\` → `repo`). */
-export function baseName(path: string): string {
-  return path.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || path;
 }
 
 /** Pinned first, then most recently opened. */

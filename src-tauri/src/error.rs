@@ -9,6 +9,9 @@ pub enum AppError {
     /// Another mutating operation holds the repo's op lock.
     #[error("another operation is running")]
     Busy,
+    /// The requested walk generation has been superseded — the caller should restart its walk.
+    #[error("{0}")]
+    StaleGeneration(String),
     /// Bugs / infrastructure failures (e.g. a blocking task panicked).
     #[error("internal error: {0}")]
     Internal(String),
@@ -20,6 +23,7 @@ impl Serialize for AppError {
         let (kind, message) = match self {
             AppError::Git(e) => return e.serialize(serializer),
             AppError::Busy => ("busy", self.to_string()),
+            AppError::StaleGeneration(msg) => ("staleGeneration", msg.clone()),
             AppError::Internal(msg) => ("internal", msg.clone()),
         };
         let mut s = serializer.serialize_struct("AppError", 2)?;

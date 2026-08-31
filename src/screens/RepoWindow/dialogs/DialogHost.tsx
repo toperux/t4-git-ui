@@ -1,13 +1,21 @@
 // Renders the one open dialog from `dialogStore`.
-import { useDialogStore } from "../../../store/dialogStore";
+import type { ReactNode } from "react";
+import { DialogReturnFocus } from "../../../components/ui/Dialog/Dialog";
+import { useDialogStore, type DialogSpec } from "../../../store/dialogStore";
 import { FetchDialog, MergeDialog, PullDialog, PushDialog, RebaseDialog } from "./OpsDialogs";
 import { CheckoutDialog, CreateBranchDialog, CreateTagDialog, DeleteBranchDialog, DeleteRemoteBranchDialog, DeleteTagDialog, RenameBranchDialog } from "./RefDialogs";
 import { StashDialog, StashPushDialog } from "./StashDialogs";
 
 export function DialogHost() {
   const dialog = useDialogStore((st) => st.dialog);
+  const returnFocus = useDialogStore((st) => st.returnFocus);
   const close = useDialogStore((st) => st.close);
   if (!dialog) return null;
+  // The opener is kept in the store: a dialog opened from a menu item can't read it off the document.
+  return <DialogReturnFocus.Provider value={returnFocus}>{renderDialog(dialog, close)}</DialogReturnFocus.Provider>;
+}
+
+function renderDialog(dialog: DialogSpec, close: () => void): ReactNode {
   // Remount on kind change so every dialog starts from fresh state.
   switch (dialog.kind) {
     case "push":

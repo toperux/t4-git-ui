@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { joinPath, parentDir, repoNameFromUrl } from "./cloneUrl";
+import { baseName, joinPath, parentDir, prettyUrl, repoNameFromUrl } from "./paths";
 
 describe("repoNameFromUrl", () => {
   it("takes the last segment minus .git", () => {
@@ -24,5 +24,19 @@ describe("joinPath / parentDir", () => {
     expect(parentDir("C:\\src\\repo")).toBe("C:\\src");
     expect(parentDir("/home/me/repo/")).toBe("/home/me");
     expect(parentDir("C:")).toBe("C:");
+  });
+});
+
+describe("baseName / prettyUrl", () => {
+  it("baseName takes the last segment", () => {
+    expect(baseName("C:\\src\\repo\\")).toBe("repo");
+    expect(baseName("/home/me/repo")).toBe("repo");
+    expect(baseName("repo")).toBe("repo");
+  });
+
+  it("prettyUrl drops scheme, git@ and .git", () => {
+    expect(prettyUrl("https://github.com/x/y.git")).toBe("github.com/x/y");
+    expect(prettyUrl("git@github.com:x/y.git")).toBe("github.com:x/y");
+    expect(prettyUrl("ssh://host/x/y")).toBe("host/x/y");
   });
 });

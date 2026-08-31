@@ -1,11 +1,11 @@
 import { Archive, ArrowDown, ArrowDownUp, ArrowUp, GitBranch, GitCommitHorizontal, GitMerge, Plus, RefreshCw, Search, Settings } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import type { RevSpec, Stash } from "../../api/types";
 import { IconButton } from "../../components/ui/IconButton/IconButton";
 import { Input, Select } from "../../components/ui/Input/Input";
 import { Menu, MenuItem, MenuSeparator } from "../../components/ui/Menu/Menu";
 import { ToolbarButton, ToolbarSeparator } from "../../components/ui/ToolbarButton/ToolbarButton";
-import { useDialogStore } from "../../store/dialogStore";
+import { useDialogStore, type DialogSpec } from "../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
 import { selectChangeCount, useStatusStore } from "../../store/statusStore";
@@ -13,7 +13,7 @@ import { fetchDefault, refreshAll, stashApply, stashPop } from "./actions";
 import s from "./Toolbar.module.css";
 
 const SEARCH_DEBOUNCE_MS = 250;
-const M5 = "Coming in M5";
+const SETTINGS_SOON = "Settings arrive after v1";
 const BUSY = "Operation in progress";
 const NO_STASHES: Stash[] = [];
 
@@ -51,6 +51,12 @@ export function Toolbar() {
   const pick = (open: () => void, close: () => void) => () => {
     close();
     open();
+  };
+  /** A dialog opened from a menu item: the item unmounts in the same commit, so name the menu's trigger. */
+  const pickDialog = (spec: DialogSpec, close: () => void) => (e: MouseEvent<HTMLButtonElement>) => {
+    const trigger = (e.currentTarget.closest('[role="menu"]')?.previousElementSibling as HTMLElement | null) ?? null;
+    close();
+    openDialog(spec, { returnFocusTo: trigger });
   };
 
   return (
@@ -95,20 +101,20 @@ export function Toolbar() {
           </ToolbarButton>
         }
       >
-        <MenuItem icon={<Plus size={16} aria-hidden />} kbd="Ctrl+B" onClick={pick(() => openDialog({ kind: "createBranch" }), () => setBranchMenu(false))}>
+        <MenuItem icon={<Plus size={16} aria-hidden />} kbd="Ctrl+B" onClick={pickDialog({ kind: "createBranch" }, () => setBranchMenu(false))}>
           Create branch…
         </MenuItem>
-        <MenuItem icon={<GitBranch size={16} aria-hidden />} onClick={pick(() => openDialog({ kind: "checkout" }), () => setBranchMenu(false))}>
+        <MenuItem icon={<GitBranch size={16} aria-hidden />} onClick={pickDialog({ kind: "checkout" }, () => setBranchMenu(false))}>
           Checkout…
         </MenuItem>
-        <MenuItem icon={<GitMerge size={16} aria-hidden />} onClick={pick(() => openDialog({ kind: "merge" }), () => setBranchMenu(false))}>
+        <MenuItem icon={<GitMerge size={16} aria-hidden />} onClick={pickDialog({ kind: "merge" }, () => setBranchMenu(false))}>
           Merge…
         </MenuItem>
-        <MenuItem icon={<GitMerge size={16} aria-hidden />} onClick={pick(() => openDialog({ kind: "rebase" }), () => setBranchMenu(false))}>
+        <MenuItem icon={<GitMerge size={16} aria-hidden />} onClick={pickDialog({ kind: "rebase" }, () => setBranchMenu(false))}>
           Rebase…
         </MenuItem>
         <MenuSeparator />
-        <MenuItem icon={<ArrowDown size={16} aria-hidden />} onClick={pick(() => openDialog({ kind: "fetch" }), () => setBranchMenu(false))}>
+        <MenuItem icon={<ArrowDown size={16} aria-hidden />} onClick={pickDialog({ kind: "fetch" }, () => setBranchMenu(false))}>
           Fetch…
         </MenuItem>
       </Menu>
@@ -131,7 +137,7 @@ export function Toolbar() {
           </ToolbarButton>
         }
       >
-        <MenuItem icon={<Archive size={16} aria-hidden />} disabled={changes === 0} onClick={pick(() => openDialog({ kind: "stashPush" }), () => setStashMenu(false))}>
+        <MenuItem icon={<Archive size={16} aria-hidden />} disabled={changes === 0} onClick={pickDialog({ kind: "stashPush" }, () => setStashMenu(false))}>
           Stash changes…
         </MenuItem>
         <MenuItem disabled={stashes.length === 0} onClick={pick(() => void stashPop(0), () => setStashMenu(false))}>
@@ -148,7 +154,7 @@ export function Toolbar() {
             <MenuItem
               key={st.index}
               title={`stash@{${st.index}}: ${st.message}`}
-              onClick={pick(() => openDialog({ kind: "stash", index: st.index, message: st.message }), () => setStashMenu(false))}
+              onClick={pickDialog({ kind: "stash", index: st.index, message: st.message }, () => setStashMenu(false))}
             >
               {st.message}
             </MenuItem>
@@ -184,7 +190,7 @@ export function Toolbar() {
       <IconButton label="Refresh" title="Refresh (F5)" onClick={refreshAll}>
         <RefreshCw size={16} aria-hidden />
       </IconButton>
-      <IconButton label="Settings" title={M5} disabled>
+      <IconButton label="Settings" title={SETTINGS_SOON} disabled>
         <Settings size={16} aria-hidden />
       </IconButton>
     </div>

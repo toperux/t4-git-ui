@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Terminal } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Terminal, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "../../components/ui/Button/Button";
 import { IconButton } from "../../components/ui/IconButton/IconButton";
@@ -31,7 +31,7 @@ export function OutputDock() {
         </Button>
       )}
       <IconButton label={open ? "Collapse output" : "Expand output"} disabled={!last} onClick={() => setOpen(!open)}>
-        {open ? <ChevronDown size={14} aria-hidden /> : <ChevronUp size={14} aria-hidden />}
+        {open ? <ChevronDown size={16} aria-hidden /> : <ChevronUp size={16} aria-hidden />}
       </IconButton>
     </PanelHeader>
   );
@@ -68,7 +68,15 @@ function OpStatus({ op }: { op: OpRecord }) {
   return <span className={cx(s.xs, op.code === 0 ? s.ok : s.err)}>{exitLine(op)}</span>;
 }
 
-const exitLine = (op: OpRecord) => `${op.code === 0 ? "✓" : "✗"} exit ${op.code} · ${secs(op.elapsedMs ?? 0)}`;
+/** Style guide §2: an icon, never a dingbat. The exit code keeps colour from being the sole carrier. */
+function exitLine(op: OpRecord) {
+  const ok = op.code === 0;
+  return (
+    <>
+      {ok ? <Check size={12} aria-hidden /> : <X size={12} aria-hidden />} exit {op.code} · {secs(op.elapsedMs ?? 0)}
+    </>
+  );
+}
 
 function OutputBody({ ops }: { ops: OpRecord[] }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -87,7 +95,7 @@ function OutputBody({ ops }: { ops: OpRecord[] }) {
               {l.text}
             </div>
           ))}
-          {!op.running && <div className={op.code === 0 ? s.ok : s.err}>{exitLine(op)}</div>}
+          {!op.running && <div className={cx(s.exit, op.code === 0 ? s.ok : s.err)}>{exitLine(op)}</div>}
         </div>
       ))}
     </div>

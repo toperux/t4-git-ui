@@ -9,7 +9,17 @@
   position: relative;
 }
 
-/* base.css .th — 24px table header, label style */
+/* The `role="grid"` element: header row + the scrolling rowgroup. It owns focus and the keyboard. */
+.gridEl {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  outline: none;
+}
+
+/* base.css .th — 24px table header, label style; the first row of the grid. */
 .th {
   display: flex;
   align-items: center;
@@ -64,8 +74,12 @@
   position: relative;
   outline: none;
 }
-.scroll:focus-visible {
+/* A selected row carries the focus indication; with no selection the grid shows the ring itself. */
+.gridEl:focus-visible {
   box-shadow: none;
+}
+.gridEl:focus-visible:not(:has(.selected)) {
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 .body {
   position: relative;
@@ -92,10 +106,10 @@
 .selected {
   background: var(--bg-selected-unfocused);
 }
-.scroll:focus-within .selected {
+.gridEl:focus-within .selected {
   background: var(--bg-selected);
 }
-.scroll:focus-visible .selected {
+.gridEl:focus-visible .selected {
   box-shadow: inset 0 0 0 1px var(--accent);
 }
 
@@ -120,6 +134,16 @@
   display: inline-flex;
   gap: var(--space-2);
   flex: none;
+}
+/* `+N` is a real control (opens the overflow popover); the Chip inside carries the look. */
+.moreChip {
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: default;
 }
 .text {
   min-width: 0;

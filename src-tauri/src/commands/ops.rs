@@ -489,8 +489,25 @@ pub async fn clone_repo(
     };
     let args = gitops::clone(&url, &dest, &opts);
     let argv: Vec<&str> = args.iter().map(String::as_str).collect();
-    let run = run_git_op(&app, &state, None, &parent, &argv, None, true).await?;
-    run.out.check(&format!("git clone {url}"))?;
+    // A cancelled or failed clone leaves a half-written directory behind; remove it so a retry
+    // isn't rejected with "already exists" — but only when we created it in the first place.
+    let existed = dest_path.exists();
+    let cleanup = |e: AppError| {
+        if !existed {
+            if let Err(err) = std::fs::remove_dir_all(&dest_path) {
+                if err.kind() != std::io::ErrorKind::NotFound {
+                    tracing::warn!(%dest, error = %err, "could not remove partial clone");
+                }
+            }
+        }
+        e
+    };
+    let run = run_git_op(&app, &state, None, &parent, &argv, None, true)
+        .await
+        .map_err(&cleanup)?;
+    run.out
+        .check(&format!("git clone {url}"))
+        .map_err(|e| cleanup(AppError::from(e)))?;
     tracing::info!(%url, %dest, "cloned");
     open_repo(app, state, dest).await
 }

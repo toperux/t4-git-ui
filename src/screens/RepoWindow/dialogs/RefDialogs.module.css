@@ -20,8 +20,13 @@
 .option:hover {
   background: var(--bg-hover);
 }
+/* Selection colour follows the focused pane, like every other list (src/README.md "How tokens flow"). */
 .optionActive,
 .optionActive:hover {
+  background: var(--bg-selected-unfocused);
+}
+.list:focus-within .optionActive,
+.list:focus-within .optionActive:hover {
   background: var(--bg-selected);
 }
 .option svg {

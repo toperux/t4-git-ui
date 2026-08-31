@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { cx } from "../../../lib/cx";
+import { Kbd } from "../Kbd/Kbd";
 import s from "./Menu.module.css";
 
 export interface MenuProps {
@@ -42,6 +43,17 @@ function useMenuDismiss(open: boolean, onClose: () => void, wrap: RefObject<HTML
   }, [open, menu]);
 }
 
+/** Focus returns to whatever opened the menu (its trigger) once it closes. */
+function useRestoreFocus(open: boolean) {
+  useEffect(() => {
+    if (!open) return;
+    const opener = document.activeElement as HTMLElement | null;
+    return () => {
+      if (opener?.isConnected) opener.focus();
+    };
+  }, [open]);
+}
+
 /** ↑/↓ move focus between enabled items (wrapping). */
 function onMenuKeyDown(e: KeyboardEvent<HTMLDivElement>) {
   if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
@@ -53,11 +65,12 @@ function onMenuKeyDown(e: KeyboardEvent<HTMLDivElement>) {
   items[next].focus();
 }
 
-/** Dropdown menu (style guide `Menu`): closes on outside click / Escape; ↑/↓ move focus. */
+/** Dropdown menu (style guide `Menu`): closes on outside click / Escape; ↑/↓ move focus; focus returns to the trigger. */
 export function Menu({ open, onClose, anchor, label, children, align = "right", className }: MenuProps) {
   const wrap = useRef<HTMLDivElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   useMenuDismiss(open, onClose, wrap, menu);
+  useRestoreFocus(open);
 
   return (
     <div ref={wrap} className={cx(s.wrap, className)}>
@@ -85,6 +98,7 @@ export function ContextMenu({ at, onClose, label, children }: ContextMenuProps) 
   const [pos, setPos] = useState(at);
   const open = at !== null;
   useMenuDismiss(open, onClose, menu, menu);
+  useRestoreFocus(open);
 
   // Clamp to the viewport once the menu has a size.
   useLayoutEffect(() => {
@@ -98,15 +112,6 @@ export function ContextMenu({ at, onClose, label, children }: ContextMenuProps) 
       y: Math.max(pad, Math.min(at.y, window.innerHeight - height - pad)),
     });
   }, [at]);
-
-  // Restore focus to whatever opened the menu.
-  useEffect(() => {
-    if (!open) return;
-    const opener = document.activeElement as HTMLElement | null;
-    return () => {
-      if (opener?.isConnected) opener.focus();
-    };
-  }, [open]);
 
   if (!at) return null;
   const p = pos ?? at;
@@ -131,7 +136,7 @@ export function MenuItem({ icon, danger, kbd, className, children, type = "butto
     <button type={type} role="menuitem" className={cx(s.item, danger && s.danger, className)} {...rest}>
       {icon && <span className={s.icon}>{icon}</span>}
       <span className={s.grow}>{children}</span>
-      {kbd && <span className={s.kbd}>{kbd}</span>}
+      {kbd && <Kbd className={s.kbd}>{kbd}</Kbd>}
     </button>
   );
 }

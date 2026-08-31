@@ -10,6 +10,23 @@ vi.mock("../../../api/ipc", () => ({
   toAppError: (e: unknown) => ({ kind: "unknown", message: String(e) }),
 }));
 
+// jsdom has no layout: give the virtualizer a viewport so it renders rows.
+vi.mock("@tanstack/react-virtual", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@tanstack/react-virtual")>();
+  return {
+    ...actual,
+    useVirtualizer: (opts: Parameters<typeof actual.useVirtualizer>[0]) =>
+      actual.useVirtualizer({
+        ...opts,
+        initialRect: { width: 320, height: 400 },
+        observeElementRect: (_instance, cb) => {
+          cb({ width: 320, height: 400 });
+          return () => {};
+        },
+      }),
+  };
+});
+
 afterEach(cleanup);
 
 const FILES: FileChange[] = [
@@ -34,12 +51,17 @@ describe("ChangedFileList", () => {
     expect(container.textContent).toContain("3 files changed");
   });
 
-  it("tree mode groups by folder and keeps the leaf name", () => {
+  it("tree mode is a tree of treeitems (folders expandable), not a listbox of options", () => {
     useDiffStore.setState({ oid: "c", files: FILES, filesLoading: false, filesError: null, selectedPath: null, fileListMode: "tree" });
-    const { container, getAllByRole } = render(<ChangedFileList />);
-    const folders = getAllByRole("button", { expanded: true }).map((b) => b.textContent);
+    const { container, getByRole, getAllByRole, queryByRole } = render(<ChangedFileList />);
+    expect(getByRole("tree", { name: "Changed files" })).toBeTruthy();
+    expect(queryByRole("listbox")).toBeNull();
+    expect(container.querySelectorAll('[role="option"]')).toHaveLength(0);
+    const folders = getAllByRole("treeitem", { expanded: true }).map((b) => b.textContent);
     expect(folders).toEqual(["crates", "git-core", "src", "log", "src", "log"]);
-    const leaves = Array.from(container.querySelectorAll('[role="option"]')).map((r) => r.textContent?.replace(/\s+/g, ""));
-    expect(leaves).toEqual(["Acache.rs+88", "Mgraph.rs+42−7", "Rmod.rs"]);
+    // Leaves are treeitems too, levelled by depth.
+    const leaves = getAllByRole("treeitem").filter((r) => !r.hasAttribute("aria-expanded"));
+    expect(leaves.map((r) => r.textContent?.replace(/\s+/g, ""))).toEqual(["Acache.rs+88", "Mgraph.rs+42−7", "Rmod.rs"]);
+    expect(leaves[0].getAttribute("aria-level")).toBe("5"); // crates / git-core / src / log / cache.rs
   });
 });

@@ -68,7 +68,7 @@ export interface CommitStore {
   syncWithStatus(status: WorkdirStatus | null): void;
   stage(paths: string[]): Promise<void>;
   unstage(paths: string[]): Promise<void>;
-  /** Confirms with a native dialog first; resolves `false` when cancelled. */
+  /** Confirms with a native dialog first; resolves `false` when cancelled or when a mutation was already running. */
   discard(paths: string[]): Promise<boolean>;
   /** Hunk of the shown diff; unstages when the diff is the staged one. */
   stageHunk(hunk: number): Promise<void>;
@@ -80,14 +80,26 @@ export interface CommitStore {
   setAmend(on: boolean): Promise<void>;
   /** Fills the editor from a history entry. */
   useMessage(message: string): void;
-  commit(): Promise<void>;
+  /** Resolves the new oid, or `null` when nothing was committed (invalid state / failure). */
+  commit(): Promise<string | null>;
   reset(): void;
 }
 
 let diffSeq = 0;
 let statsSeq = 0;
+/** The `StatusEntry` the shown diff was loaded for — an unrelated `repo://changed` must not reload it. */
+let diffEntry: StatusEntry | null = null;
+/** Entry list the current stats belong to, plus the one-in-flight guard (`get_changed_files` walks the tree). */
+let statsKey = "";
+let statsInflight = false;
+let statsPending: string | null = null;
 
 const EMPTY_STATS = { unstaged: {}, staged: {} };
+
+const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
+/** Signature of a status: stats only need refetching when an entry appears, vanishes or changes state. */
+const entriesKey = (status: WorkdirStatus | null) => JSON.stringify(status?.entries ?? []);
 
 export const useCommitStore = create<CommitStore>()((set, get) => {
   const repoId = () => useRepoStore.getState().repo?.id ?? null;
@@ -96,6 +108,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
     const mySeq = ++diffSeq;
     const id = repoId();
     const { anchor, list } = get();
+    diffEntry = anchor ? (useStatusStore.getState().status?.entries.find((e) => e.path === anchor) ?? null) : null;
     if (!id || !anchor) {
       set({ diff: null, diffPath: null, diffLoading: false, diffError: null });
       return;
@@ -105,30 +118,51 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       // Must match the backend's stage-able diff (default options) so hunk / line indices line up.
       const diff = await ipc.getFileDiff(id, { kind: list }, anchor, { context: DIFF_CONTEXT });
       if (mySeq !== diffSeq) return;
-      set({ diff, diffLoading: false });
+      // Identical content → keep the old object: `DiffViewer` keys its scroll / line selection off it.
+      const prev = get().diff;
+      const unchanged = prev && prev.path === diff.path && same(prev.hunks, diff.hunks);
+      set({ diff: unchanged ? prev : diff, diffLoading: false });
     } catch (e) {
       if (mySeq !== diffSeq) return;
       set({ diff: null, diffLoading: false, diffError: toAppError(e).message });
     }
   }
 
-  async function loadStats() {
+  /** `get_changed_files` walks the whole tree twice: only on a real entry change, one call at a time. */
+  async function loadStats(key: string) {
+    if (key === statsKey) return;
+    if (statsInflight) {
+      statsPending = key;
+      return;
+    }
     const mySeq = ++statsSeq;
     const id = repoId();
     if (!id) return;
+    statsInflight = true;
     const byPath = (files: FileChange[]) => Object.fromEntries(files.map((f) => [f.path, f]));
-    const [unstaged, staged] = await Promise.all([
-      ipc.getChangedFiles(id, { kind: "unstaged" }).catch(() => []),
-      ipc.getChangedFiles(id, { kind: "staged" }).catch(() => []),
-    ]);
-    if (mySeq !== statsSeq) return;
-    set({ stats: { unstaged: byPath(unstaged), staged: byPath(staged) } });
+    try {
+      const [unstaged, staged] = await Promise.all([
+        ipc.getChangedFiles(id, { kind: "unstaged" }).catch(() => []),
+        ipc.getChangedFiles(id, { kind: "staged" }).catch(() => []),
+      ]);
+      if (mySeq !== statsSeq) return;
+      statsKey = key;
+      set({ stats: { unstaged: byPath(unstaged), staged: byPath(staged) } });
+    } finally {
+      statsInflight = false;
+      const next = statsPending;
+      statsPending = null;
+      if (next !== null) void loadStats(next);
+    }
   }
 
-  /** Runs one mutation (errors → toast with Retry), then refreshes the status. */
-  async function run(title: string, op: (id: string) => Promise<unknown>) {
+  /**
+   * Runs one mutation (errors → toast with Retry), then refreshes the status.
+   * `false` when it never ran because no repo is open or another mutation holds `busy`.
+   */
+  async function run(title: string, op: (id: string) => Promise<unknown>): Promise<boolean> {
     const id = repoId();
-    if (!id || get().busy) return;
+    if (!id || get().busy) return false;
     set({ busy: true });
     try {
       await op(id);
@@ -138,6 +172,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       set({ busy: false });
     }
     await useStatusStore.getState().refresh();
+    return true;
   }
 
   return {
@@ -182,13 +217,20 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
         sel = item === undefined ? EMPTY_SELECTION : { selected: [item], anchor: item };
       }
       set({ list, selected: sel.selected, anchor: sel.anchor, anchorIndex: sel.anchor ? paths[list].indexOf(sel.anchor) : s.anchorIndex });
-      void loadDiff();
-      void loadStats();
+      // An unrelated file changing on disk must not reload (and so reset the scroll / line selection of)
+      // the shown diff: only reload when the focused row moved or its own status entry changed.
+      const entry = sel.anchor ? (status?.entries.find((e) => e.path === sel.anchor) ?? null) : null;
+      if (sel.anchor !== s.diffPath || list !== s.diffList || !same(entry, diffEntry)) void loadDiff();
+      void loadStats(entriesKey(status));
     },
 
-    stage: (paths) => run("Stage failed", (id) => ipc.stagePaths(id, paths)),
+    async stage(paths) {
+      await run("Stage failed", (id) => ipc.stagePaths(id, paths));
+    },
 
-    unstage: (paths) => run("Unstage failed", (id) => ipc.unstagePaths(id, paths)),
+    async unstage(paths) {
+      await run("Unstage failed", (id) => ipc.unstagePaths(id, paths));
+    },
 
     async discard(paths) {
       const entries = useStatusStore.getState().status?.entries ?? [];
@@ -201,24 +243,25 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
           : untracked > 0
             ? `Discard changes in ${files}? Tracked files are restored from the index; ${untracked} untracked file${untracked === 1 ? " is" : "s are"} deleted.`
             : `Discard changes in ${files}? This cannot be undone.`;
-      const ok = await ask(message, { title: untracked === n ? "Delete files" : "Discard changes", kind: "warning", okLabel: untracked === n ? "Delete" : "Discard" });
+      // No confirmation available (no Tauri dialog plugin) → treat it as declined; nothing is lost.
+      const ok = await ask(message, { title: untracked === n ? "Delete files" : "Discard changes", kind: "warning", okLabel: untracked === n ? "Delete" : "Discard" }).catch(() => false);
       if (!ok) return false;
-      await run("Discard failed", (id) => ipc.discardPaths(id, paths));
-      return true;
+      // `false` too when another mutation was already running: nothing was discarded.
+      return await run("Discard failed", (id) => ipc.discardPaths(id, paths));
     },
 
-    stageHunk(hunk) {
+    async stageHunk(hunk) {
       const { diffPath, diffList } = get();
-      if (!diffPath) return Promise.resolve();
+      if (!diffPath) return;
       const reverse = diffList === "staged";
-      return run(reverse ? "Unstage failed" : "Stage failed", (id) => ipc.stageHunks(id, diffPath, [hunk], reverse));
+      await run(reverse ? "Unstage failed" : "Stage failed", (id) => ipc.stageHunks(id, diffPath, [hunk], reverse));
     },
 
-    stageLines(lines) {
+    async stageLines(lines) {
       const { diffPath, diffList } = get();
-      if (!diffPath || lines.length === 0) return Promise.resolve();
+      if (!diffPath || lines.length === 0) return;
       const reverse = diffList === "staged";
-      return run(reverse ? "Unstage failed" : "Stage failed", (id) => ipc.stageLines(id, diffPath, lines, reverse));
+      await run(reverse ? "Unstage failed" : "Stage failed", (id) => ipc.stageLines(id, diffPath, lines, reverse));
     },
 
     setSummary: (summary) => set({ summary }),
@@ -246,15 +289,17 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
     async commit() {
       const id = repoId();
       const { summary, body, amend, signoff, busy } = get();
-      if (!id || busy || !summary.trim()) return;
+      if (!id || busy || !summary.trim()) return null;
       const message = joinMessage(summary, body);
       set({ busy: true });
+      let committed: string | null = null;
       try {
         const oid = await ipc.commit(id, message, amend, signoff);
+        committed = oid;
         pushHistory(id, message);
         useToastStore.getState().push({ kind: "success", title: amend ? "Amended HEAD" : "Committed", detail: `${oid.slice(0, 7)} ${summary.trim()}` });
-        if (amend) set({ amend: false, prefill: { summary, body } });
-        else set({ summary: "", body: "", prefill: null });
+        // The message is spent either way — an amend also drops the amend flag and its prefill memory.
+        set({ summary: "", body: "", amend: false, prefill: null });
       } catch (e) {
         toastError(toAppError(e), "Commit failed", () => void get().commit());
       } finally {
@@ -264,11 +309,15 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       const st = useStatusStore.getState();
       await st.refresh();
       await st.syncRefs();
+      return committed;
     },
 
     reset() {
       diffSeq++;
       statsSeq++;
+      diffEntry = null;
+      statsKey = "";
+      statsPending = null;
       set({
         list: "unstaged",
         selected: [],

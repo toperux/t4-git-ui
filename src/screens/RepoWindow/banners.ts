@@ -10,11 +10,18 @@ export interface BannerButton {
 }
 
 export interface BannerSpec {
-  id: "detached" | "merge" | "rebase" | "conflicts";
+  id: "detached" | "merge" | "rebase" | "sequencer" | "conflicts";
   kind: "warning" | "danger";
   text: string;
   buttons: BannerButton[];
 }
+
+/** States we can only report: the backend has no abort command for them, so these banners carry no action. */
+const SEQUENCER_TEXT = {
+  cherryPick: "Cherry-pick in progress — finish or abort it in a terminal",
+  revert: "Revert in progress — finish or abort it in a terminal",
+  bisect: "Bisect in progress — finish or reset it in a terminal",
+} as const;
 
 /** `main`, else `master`, else the first local branch. */
 export function defaultBranch(local: Branch[]): string | null {
@@ -55,6 +62,9 @@ export function computeBanners(refs: RefsSnapshot | null, status: WorkdirStatus 
         { label: "Continue", action: "rebaseContinue", primary: true },
       ],
     });
+  }
+  if (state === "cherryPick" || state === "revert" || state === "bisect") {
+    out.push({ id: "sequencer", kind: "warning", text: SEQUENCER_TEXT[state], buttons: [] });
   }
   const n = status?.conflicted ?? 0;
   if (n > 0) {

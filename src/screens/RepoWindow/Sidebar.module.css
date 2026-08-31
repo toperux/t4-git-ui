@@ -9,6 +9,13 @@
   border-right: 1px solid var(--border);
   overflow: auto;
 }
+/* `role="tree"` / `role="group"` wrappers: pure semantics, the rows keep laying out as before. */
+.tree {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: none;
+}
 .empty {
   padding: var(--space-7) var(--space-5);
   flex: none;

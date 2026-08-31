@@ -19,19 +19,35 @@
 .stagedHeader {
   border-top: 1px solid var(--border);
 }
-/* Commit.mjs: `btn secondary sm` at 20px */
+/* Commit.mjs draws a 20px `btn secondary sm`; style guide §5 floors hit targets at 24px. */
 .headerBtn {
-  height: 20px;
+  height: var(--control-h-sm);
   font-size: var(--text-xs);
 }
 .list {
   flex: 1 1 0;
   min-height: 40px;
   overflow: auto;
+  position: relative;
   outline: none;
 }
+/* Row-level indication carries focus while something is selected; otherwise the container shows it. */
 .list:focus-visible {
   box-shadow: none;
+}
+.list:focus-visible:not(:has(.selected)) {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+/* Virtualized rows: absolute inside a spacer of the total height. */
+.rows {
+  position: relative;
+  width: 100%;
+}
+.rows .vrow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
 }
 .empty {
   padding: var(--space-4);
@@ -57,7 +73,8 @@
 .selected {
   background: var(--bg-selected-unfocused);
 }
-.selected::before {
+/* Multi-selection only: a single selected row is marked by its background alone. */
+.list.multi .selected::before {
   content: "";
   position: absolute;
   left: 0;
@@ -71,9 +88,6 @@
 }
 .list:focus-visible .anchor {
   box-shadow: inset 0 0 0 1px var(--accent);
-}
-.row[aria-disabled="true"] {
-  opacity: 0.6;
 }
 /* Mono path, ellipsis at the start: the box is rtl, the text an isolated ltr run. */
 .path {
@@ -156,10 +170,11 @@
 .body::placeholder {
   color: var(--fg-faint);
 }
+/* The counter is information, not a placeholder: --fg-muted (style guide §1 Text). */
 .counter {
   flex: none;
   font-size: var(--text-xs);
-  color: var(--fg-faint);
+  color: var(--fg-muted);
   font-variant-numeric: tabular-nums;
 }
 .over {

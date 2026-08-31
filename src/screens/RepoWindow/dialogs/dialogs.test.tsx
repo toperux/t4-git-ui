@@ -4,7 +4,8 @@ import type { RefsSnapshot, RepoSummary } from "../../../api/types";
 import { useOpsStore } from "../../../store/opsStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { useToastStore } from "../../../store/toastStore";
-import { MergeDialog, PushDialog } from "./OpsDialogs";
+import { MergeDialog, PullDialog, PushDialog } from "./OpsDialogs";
+import { CreateBranchDialog } from "./RefDialogs";
 
 vi.mock("../../../api/ipc", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../../api/ipc")>();
@@ -12,6 +13,8 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
     ...actual,
     push: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     merge: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
+    pull: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
+    createBranch: vi.fn(() => Promise.resolve()),
     getDefaultRemote: vi.fn(() => Promise.resolve("origin")),
     getConfig: vi.fn(() => Promise.resolve(null)),
     getStatus: vi.fn(() => new Promise(() => {})),
@@ -20,7 +23,7 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
 });
 
 import * as ipc from "../../../api/ipc";
-const mocked = ipc as unknown as { push: ReturnType<typeof vi.fn>; merge: ReturnType<typeof vi.fn> };
+const mocked = ipc as unknown as Record<"push" | "merge" | "pull" | "createBranch", ReturnType<typeof vi.fn>>;
 
 const REPO: RepoSummary = { id: "r", name: "r", path: "/r", head: { oid: "a", branch: "main", detached: false } };
 const REFS: RefsSnapshot = {
@@ -64,6 +67,41 @@ describe("PushDialog", () => {
     const { getByRole } = render(<PushDialog onClose={() => {}} branch="feature/lane-graph" />);
     await waitFor(() => expect((getByRole("checkbox", { name: "Set upstream" }) as HTMLInputElement).checked).toBe(true));
     expect(preview(getByRole("dialog"))).toBe("git push --progress -u origin feature/lane-graph");
+  });
+});
+
+describe("PullDialog", () => {
+  it("pulls the upstream's remote branch, not the local name", async () => {
+    // `main` tracks `origin/main` here; the refspec must be the remote-side name.
+    const { getByRole } = render(<PullDialog onClose={() => {}} />);
+    const dialog = getByRole("dialog", { name: "Pull" });
+    await waitFor(() => expect(preview(dialog)).toBe("git pull --progress --no-rebase origin main"));
+    fireEvent.click(getByRole("button", { name: "Pull" }));
+    await waitFor(() => expect(mocked.pull).toHaveBeenCalledWith("r", "origin", "main", "merge"));
+  });
+
+  it("names no branch when the current one does not track the chosen remote", async () => {
+    useRepoStore.setState({ refs: { ...REFS, local: [{ ...REFS.local[0], upstream: "upstream/develop" }] } });
+    const { getByRole } = render(<PullDialog onClose={() => {}} />);
+    await waitFor(() => expect(preview(getByRole("dialog"))).toBe("git pull --progress --no-rebase origin"));
+    fireEvent.click(getByRole("button", { name: "Pull" }));
+    await waitFor(() => expect(mocked.pull).toHaveBeenCalledWith("r", "origin", null, "merge"));
+  });
+});
+
+describe("CreateBranchDialog", () => {
+  it("keeps a start point that is not a known ref (a commit oid from the grid)", async () => {
+    const oid = "0123456789abcdef0123456789abcdef01234567";
+    const { getByRole } = render(<CreateBranchDialog onClose={() => {}} startPoint={oid} />);
+    const start = getByRole("combobox", { name: "Start point" }) as HTMLSelectElement;
+    expect(start.value).toBe(oid);
+    expect(Array.from(start.options)[0].textContent).toBe("0123456");
+    fireEvent.change(getByRole("textbox", { name: "Name" }), { target: { value: "fix" } });
+    // Not "HEAD": the branch must land on the commit the context menu was opened on.
+    expect(preview(getByRole("dialog"))).toBe(`git checkout -b fix ${oid}`);
+    fireEvent.click(getByRole("checkbox", { name: "Check out after create" }));
+    fireEvent.click(getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(mocked.createBranch).toHaveBeenCalledWith("r", "fix", oid, false));
   });
 });
 

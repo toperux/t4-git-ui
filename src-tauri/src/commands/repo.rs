@@ -291,7 +291,7 @@ pub async fn get_log_page(
     blocking(move || {
         let log = handle.log.read();
         if log.generation != generation {
-            return Err(AppError::Internal(format!(
+            return Err(AppError::StaleGeneration(format!(
                 "log generation {generation} is stale (current {})",
                 log.generation
             )));

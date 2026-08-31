@@ -1,5 +1,6 @@
 import { CircleCheck, Cloud, GitBranch, TriangleAlert } from "lucide-react";
-import { Group, Panel, Separator } from "react-resizable-panels";
+import { useEffect, useRef } from "react";
+import { Group, Panel, Separator, usePanelRef } from "react-resizable-panels";
 import type { RepoState } from "../../api/types";
 import { Banner } from "../../components/ui/Banner/Banner";
 import { Button } from "../../components/ui/Button/Button";
@@ -7,10 +8,11 @@ import { Spinner } from "../../components/ui/Spinner/Spinner";
 import { StatusBar, StatusItem } from "../../components/ui/StatusBar/StatusBar";
 import { ToastStack } from "../../components/ui/Toast/Toast";
 import { AheadBehind } from "../../components/ui/TreeRow/TreeRow";
+import { prettyUrl } from "../../lib/paths";
 import { useDialogStore } from "../../store/dialogStore";
 import { useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
-import { useStatusStore } from "../../store/statusStore";
+import { useShowWorkingTree, useStatusStore } from "../../store/statusStore";
 import { checkoutBranch, mergeAbort, openCommitPanel, rebaseAbort, rebaseContinue } from "./actions";
 import { computeBanners, defaultBranch, type BannerAction } from "./banners";
 import { CommitPanel } from "./CommitPanel/CommitPanel";
@@ -32,41 +34,105 @@ const STATE_LABEL: Record<RepoState, string> = {
   bisect: "Bisect in progress",
 };
 
-/** `https://github.com/x/y.git` → `github.com/x/y` */
-function prettyUrl(url: string) {
-  return url.replace(/^[a-z+]+:\/\//i, "").replace(/^git@/, "").replace(/\.git$/, "");
+/** Output dock: collapsed header height, and the open range from the style guide (§4 "bottom, 160–320px"). */
+const DOCK_COLLAPSED_H = 28;
+const DOCK_MIN_H = 160;
+const DOCK_MAX_H = 320;
+const DOCK_KEY = "dockHeight";
+
+function loadDockHeight(): number {
+  try {
+    const n = Number(localStorage.getItem(DOCK_KEY));
+    if (n >= DOCK_MIN_H && n <= DOCK_MAX_H) return n;
+  } catch {
+    // Storage unavailable: fall through to the default.
+  }
+  return 200;
+}
+
+function saveDockHeight(px: number) {
+  try {
+    localStorage.setItem(DOCK_KEY, String(Math.round(px)));
+  } catch {
+    // Storage unavailable: the height simply doesn't persist.
+  }
 }
 
 export function RepoWindow() {
-  const wtSelected = useRepoStore((st) => st.wtSelected);
+  const selectedWt = useRepoStore((st) => st.wtSelected);
+  const showWt = useShowWorkingTree();
+  // The commit panel belongs to the working-tree row: it can only show while the grid shows that row.
+  const wtSelected = selectedWt && showWt;
+  const dockOpen = useOpsStore((st) => st.open);
   useShortcuts();
 
   return (
     <div className={s.window}>
       <Toolbar />
-      <Group orientation="horizontal" className={s.main}>
-        <Panel defaultSize={260} minSize={220} maxSize={320} className={s.panel}>
-          <Sidebar />
-        </Panel>
-        <Separator className={s.splitH} aria-label="Resize sidebar" />
-        <Panel className={s.content}>
-          <StateBanners />
-          <Group orientation="vertical" className={s.rows}>
-            <Panel defaultSize="60%" minSize={120} className={s.panel}>
-              <RevisionGrid />
+      <Group orientation="vertical" className={s.main}>
+        <Panel minSize={200} className={s.panel}>
+          <Group orientation="horizontal" className={s.main}>
+            <Panel defaultSize={260} minSize={220} maxSize={320} className={s.panel}>
+              <Sidebar />
             </Panel>
-            <Separator className={s.splitV} aria-label="Resize details" />
-            <Panel minSize={120} className={s.panel}>
-              {wtSelected ? <CommitPanel /> : <DetailsPane />}
+            <Separator className={s.splitH} aria-label="Resize sidebar" />
+            <Panel className={s.content}>
+              <StateBanners />
+              <Group orientation="vertical" className={s.rows}>
+                <Panel defaultSize="60%" minSize={120} className={s.panel}>
+                  <RevisionGrid />
+                </Panel>
+                <Separator className={s.splitV} aria-label="Resize details" />
+                <Panel minSize={120} className={s.panel}>
+                  {wtSelected ? <CommitPanel /> : <DetailsPane />}
+                </Panel>
+              </Group>
             </Panel>
           </Group>
         </Panel>
+        {/* Nothing to resize while the dock is collapsed to its header bar. */}
+        <Separator className={s.splitV} aria-label="Resize output" disabled={!dockOpen} />
+        <DockPanel open={dockOpen} />
       </Group>
-      <OutputDock />
       <RepoStatusBar />
       <DialogHost />
       <ToastStack />
     </div>
+  );
+}
+
+/**
+ * The output dock as a resizable panel: 160–320px open (style guide §4), collapsed to the
+ * 28px header bar otherwise. The open height persists in `localStorage.dockHeight`.
+ */
+export function DockPanel({ open }: { open: boolean }) {
+  const panel = usePanelRef();
+
+  // `defaultSize` already puts the panel in the right state at mount — and the imperative API is not
+  // usable yet there (the Group registers itself after its children's effects run). Only react to changes.
+  const wasOpen = useRef(open);
+  useEffect(() => {
+    if (wasOpen.current === open) return;
+    wasOpen.current = open;
+    if (open) panel.current?.expand();
+    else panel.current?.collapse();
+  }, [open, panel]);
+
+  return (
+    <Panel
+      panelRef={panel}
+      collapsible
+      collapsedSize={DOCK_COLLAPSED_H}
+      defaultSize={open ? loadDockHeight() : DOCK_COLLAPSED_H}
+      minSize={DOCK_MIN_H}
+      maxSize={DOCK_MAX_H}
+      className={s.panel}
+      onResize={(size) => {
+        if (size.inPixels > DOCK_COLLAPSED_H) saveDockHeight(size.inPixels);
+      }}
+    >
+      <OutputDock />
+    </Panel>
   );
 }
 

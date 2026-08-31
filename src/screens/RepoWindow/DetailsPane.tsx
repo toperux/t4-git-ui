@@ -1,4 +1,3 @@
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { Copy, GitCommitHorizontal } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
@@ -10,6 +9,7 @@ import { PanelHeader } from "../../components/ui/PanelHeader/PanelHeader";
 import { absoluteDate, relativeDate } from "../../lib/relativeDate";
 import { useDiffStore } from "../../store/diffStore";
 import { selectSelectedOid, useRepoStore } from "../../store/repoStore";
+import { copyText } from "./actions";
 import { ChangedFileList } from "./ChangedFileList/ChangedFileList";
 import s from "./DetailsPane.module.css";
 import { DiffViewer } from "./DiffViewer/DiffViewer";
@@ -27,7 +27,7 @@ export function DetailsPane() {
   return (
     <Group orientation="horizontal" className={s.pane}>
       <Panel defaultSize={340} minSize={240} maxSize={560} className={w.panel}>
-        <CommitPanel />
+        <CommitDetails />
       </Panel>
       <Separator className={w.splitH} aria-label="Resize commit details" />
       <Panel defaultSize={320} minSize={180} maxSize={640} className={w.panel}>
@@ -51,7 +51,7 @@ function CommitDiff() {
   return <DiffViewer path={path} oldPath={file?.oldPath ?? null} stats={file ?? null} diff={diff} loading={loading} error={error} />;
 }
 
-function CommitPanel() {
+function CommitDetails() {
   const repoId = useRepoStore((st) => st.repo?.id ?? null);
   const oid = useRepoStore(selectSelectedOid);
   const labels = useRepoStore((st) => (st.selectedIndex === null ? undefined : st.rows[st.selectedIndex]?.labels));
@@ -83,8 +83,8 @@ function CommitPanel() {
     <div className={s.commit}>
       <PanelHeader icon={<GitCommitHorizontal size={14} aria-hidden />} title="Commit">
         {info && (
-          <IconButton label="Copy SHA" onClick={() => void writeText(info.oid)}>
-            <Copy size={14} aria-hidden />
+          <IconButton label="Copy SHA" onClick={() => copyText(info.oid, "SHA")}>
+            <Copy size={16} aria-hidden />
           </IconButton>
         )}
       </PanelHeader>

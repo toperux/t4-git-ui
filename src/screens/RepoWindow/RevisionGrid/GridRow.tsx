@@ -7,6 +7,8 @@ import { RefChips } from "./RefChips";
 import s from "./RevisionGrid.module.css";
 
 export interface GridRowProps {
+  /** DOM id, so the grid can point `aria-activedescendant` at the selected row. */
+  id: string;
   /** Commit index into `rows`. */
   index: number;
   /** Grid rows above the first commit (1 while the working-tree row is shown). */
@@ -19,12 +21,12 @@ export interface GridRowProps {
   /** Text filter active: no graph column. */
   flat: boolean;
   headOid: string | null;
-  /** Right-click / Shift+F10 on the row (viewport point + the row's oid). */
-  onMenu: (at: { x: number; y: number }, oid: string) => void;
+  /** Right-click / Shift+F10 on the row (viewport point, the row's oid, the element to give focus back to). */
+  onMenu: (at: { x: number; y: number }, oid: string, el: HTMLElement) => void;
 }
 
 /** One grid row. Reads its own data + selection from the store so siblings never re-render. */
-export const GridRow = memo(function GridRow({ index, offset, top, rowH, lanes, graphW, flat, headOid, onMenu }: GridRowProps) {
+export const GridRow = memo(function GridRow({ id, index, offset, top, rowH, lanes, graphW, flat, headOid, onMenu }: GridRowProps) {
   const row = useRepoStore((st) => st.rows[index]);
   const selected = useRepoStore((st) => !st.wtSelected && st.selectedIndex === index);
   const select = useRepoStore((st) => st.select);
@@ -32,6 +34,7 @@ export const GridRow = memo(function GridRow({ index, offset, top, rowH, lanes, 
 
   return (
     <div
+      id={id}
       role="row"
       aria-rowindex={index + 1 + offset}
       aria-selected={selected}
@@ -42,7 +45,7 @@ export const GridRow = memo(function GridRow({ index, offset, top, rowH, lanes, 
         if (!commit) return;
         e.preventDefault();
         select(index);
-        onMenu({ x: e.clientX, y: e.clientY }, commit.oid);
+        onMenu({ x: e.clientX, y: e.clientY }, commit.oid, e.currentTarget);
       }}
     >
       {!flat && (

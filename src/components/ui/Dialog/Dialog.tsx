@@ -1,15 +1,23 @@
 import { X } from "lucide-react";
-import { useEffect, useId, useRef, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useId, useRef, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cx } from "../../../lib/cx";
 import { IconButton } from "../IconButton/IconButton";
 import s from "./Dialog.module.css";
+
+/**
+ * Focus target on close, supplied by whoever renders the dialog (`DialogHost`). A dialog opened from
+ * a menu item can't use `document.activeElement`: the item unmounts in the same commit.
+ */
+export const DialogReturnFocus = createContext<HTMLElement | null>(null);
 
 export interface DialogProps {
   title: string;
   /** 560px (output-bearing / two-column) instead of 440px. */
   wide?: boolean;
   onClose: () => void;
+  /** A long-running action owns the dialog: Esc and the close button are inert. */
+  busy?: boolean;
   /** Enter in a field / the `type="submit"` footer button. */
   onSubmit?: () => void;
   /** Footer left: `Runs git …` (mono). */
@@ -25,12 +33,13 @@ const FOCUSABLE = 'button:not(:disabled), input:not(:disabled), select:not(:disa
  * Modal dialog (style guide `Dialog`): scrim, title + close, body, footer. Esc closes, Enter submits,
  * Tab is trapped inside, focus returns to the opener on unmount. Rendered into `document.body`.
  */
-export function Dialog({ title, wide, onClose, onSubmit, preview, footer, children }: DialogProps) {
+export function Dialog({ title, wide, onClose, busy, onSubmit, preview, footer, children }: DialogProps) {
   const ref = useRef<HTMLFormElement>(null);
   const titleId = useId();
+  const returnFocusTo = useContext(DialogReturnFocus);
   // Captured during the first render, before React's own `autoFocus` moves the focus into the dialog.
   const opener = useRef<HTMLElement | null | undefined>(undefined);
-  if (opener.current === undefined) opener.current = document.activeElement as HTMLElement | null;
+  if (opener.current === undefined) opener.current = returnFocusTo ?? (document.activeElement as HTMLElement | null);
 
   // React focuses an `autoFocus` control itself; only fall back when nothing inside took focus.
   useEffect(() => {
@@ -46,7 +55,7 @@ export function Dialog({ title, wide, onClose, onSubmit, preview, footer, childr
     if (e.key === "Escape") {
       e.preventDefault();
       e.stopPropagation();
-      onClose();
+      if (!busy) onClose();
       return;
     }
     if (e.key !== "Tab") return;
@@ -76,8 +85,8 @@ export function Dialog({ title, wide, onClose, onSubmit, preview, footer, childr
           <span id={titleId} className={s.grow}>
             {title}
           </span>
-          <IconButton label="Close" onClick={onClose}>
-            <X size={14} aria-hidden />
+          <IconButton label="Close" disabled={busy} onClick={onClose}>
+            <X size={16} aria-hidden />
           </IconButton>
         </div>
         <div className={s.body}>{children}</div>

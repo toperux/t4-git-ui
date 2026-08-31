@@ -21,6 +21,8 @@ export type AppErrorKind =
   | "refused"
   /** Another mutating operation holds the repo's op lock. */
   | "busy"
+  /** The requested walk generation was superseded — restart the walk. */
+  | "staleGeneration"
   | "internal"
   | "unknown";
 

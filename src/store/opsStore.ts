@@ -77,7 +77,8 @@ export const useOpsStore = create<OpsStore>()((set, get) => ({
   },
 
   async cancel(opId) {
-    await ipc.cancelOp(opId);
+    // The op may already have exited — that is not worth a toast.
+    await ipc.cancelOp(opId).catch(() => false);
   },
 
   setOpen: (open) => set({ open }),
