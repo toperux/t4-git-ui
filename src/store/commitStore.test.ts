@@ -165,6 +165,30 @@ describe("commitStore mutations", () => {
     expect(mocked.stageLines).toHaveBeenLastCalledWith(REPO.id, "a.rs", [[0, 1]], true);
   });
 
+  it("stages one hunk after another and reloads the diff every time", async () => {
+    // Staging a hunk of a file that has more leaves the entry at modified/modified. The shown diff
+    // changed, its status entry did not — and the indices of what is left come from that diff, so a
+    // stale one stages the wrong hunk next.
+    const partlyStaged: StatusEntry = { path: "a.rs", oldPath: null, index: "modified", workdir: "modified", conflicted: false };
+    await sync([entry("a.rs")]);
+    expect(mocked.getFileDiff).toHaveBeenCalledTimes(1);
+
+    await useCommitStore.getState().stageHunk(0);
+    await sync([partlyStaged]);
+    expect(mocked.getFileDiff).toHaveBeenCalledTimes(2);
+
+    await useCommitStore.getState().stageHunk(0);
+    await sync([partlyStaged]);
+    expect(mocked.getFileDiff).toHaveBeenCalledTimes(3);
+
+    await useCommitStore.getState().stageLines([[0, 1]]);
+    await sync([partlyStaged]);
+    expect(mocked.getFileDiff).toHaveBeenCalledTimes(4);
+
+    // The `+N −M` beside the file moves with every stage too, and its guard is the same entry list.
+    expect(mocked.getChangedFiles).toHaveBeenCalledTimes(8); // 4 rounds × (unstaged + staged)
+  });
+
   it("hunk / line staging is a no-op without a shown diff or an empty selection", async () => {
     await useCommitStore.getState().stageHunk(0);
     expect(mocked.stageHunks).not.toHaveBeenCalled();

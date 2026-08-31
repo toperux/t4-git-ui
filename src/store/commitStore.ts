@@ -171,6 +171,13 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
     } finally {
       set({ busy: false });
     }
+    // We just rewrote the index for the shown file, so the diff and the `+N −M` beside it are stale
+    // whatever the status says: staging one hunk out of several leaves the entry at
+    // modified/modified, and both guards read that as "nothing to see". Forgetting what they were
+    // computed for makes them reload. (Identical content still keeps the `diff` object, so a reload
+    // that finds nothing new never jumps the view.)
+    diffEntry = null;
+    statsKey = "";
     await useStatusStore.getState().refresh();
     return true;
   }

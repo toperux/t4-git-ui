@@ -122,6 +122,8 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the performance che
 - [ ] Multi-select in the lists: click, `Ctrl+click`, `Shift+click`, `↑` `↓`, `Ctrl+A`
 - [ ] Stage via `Enter`, double-click, and the hover `+` button; `Stage all` / `Unstage all` work
 - [ ] Hover a hunk header → **Stage hunk**; click it → only that hunk moves to Staged
+- [ ] Stage a second hunk of the same file straight after → the diff drops that one too; every stage
+      updates the view, not just the first (`hunks.txt` has three to work through)
 - [ ] Click add/del lines (`Shift` for a range, `Ctrl` to toggle) → the sticky bar reads
       "N lines selected"; **Stage N lines** stages exactly those
 - [ ] Keyboard line staging: `Tab` into the diff → the ring lands on a **line**, not the whole pane;

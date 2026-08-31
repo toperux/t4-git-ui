@@ -38,7 +38,9 @@ src/
                            (get_changed_files ×2), diff of the anchor (unstaged|staged target, context 3, no whitespace option so hunk /
                            line indices match the backend), editor (summary/body/amend/signoff/prefill), busy;
                            actions: select, syncWithStatus (prune → neighbour → other list; reloads the diff only when the anchor
-                           or its own StatusEntry changed, keeps the `diff` object identity when the hunks are equal, and refetches
+                           or its own StatusEntry changed — plus always after one of our own mutations, which clear `diffEntry`:
+                           staging a second hunk leaves the entry at modified/modified and would look like nothing happened —
+                           keeps the `diff` object identity when the hunks are equal, and refetches
                            the stats only when the entry list changed — one call in flight), stage/unstage/discard
                            (native ask(); discard resolves `false` when declined *or* when another mutation held `busy`),
                            stageHunk/stageLines (reverse for staged), setAmend (get_head_message prefill), useMessage, commit
