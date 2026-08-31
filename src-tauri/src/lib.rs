@@ -116,7 +116,11 @@ pub fn run() {
             commands::repo::get_commit,
             commands::repo::start_log,
             commands::repo::get_log_page,
-            commands::repo::refresh_labels
+            commands::repo::refresh_labels,
+            commands::diff::get_commit_files,
+            commands::diff::get_changed_files,
+            commands::diff::get_file_diff,
+            commands::diff::get_status
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

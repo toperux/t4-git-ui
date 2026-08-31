@@ -192,4 +192,57 @@ impl TempRepo {
             .expect("find_branch");
         b.set_upstream(Some(upstream)).expect("set_upstream");
     }
+
+    /// Writes `rel` (bytes, creating parent dirs) without touching the index.
+    pub fn write(&self, rel: &str, content: impl AsRef<[u8]>) {
+        let full = self.path().join(rel);
+        if let Some(parent) = full.parent() {
+            std::fs::create_dir_all(parent).expect("mkdir");
+        }
+        std::fs::write(&full, content).expect("write file");
+    }
+
+    /// Deletes `rel` from disk and the index.
+    pub fn remove(&self, rel: &str) {
+        std::fs::remove_file(self.path().join(rel)).expect("remove file");
+        let mut index = self.repo.index().expect("index");
+        index.remove_path(Path::new(rel)).expect("remove_path");
+        index.write().expect("index write");
+    }
+
+    /// Stages `paths` (adds current workdir content to the index).
+    pub fn stage(&self, paths: &[&str]) {
+        let mut index = self.repo.index().expect("index");
+        for rel in paths {
+            index.add_path(Path::new(rel)).expect("add_path");
+        }
+        index.write().expect("index write");
+    }
+
+    /// Renames `from` → `to` on disk and in the index.
+    pub fn rename_file(&self, from: &str, to: &str) {
+        let dst = self.path().join(to);
+        if let Some(parent) = dst.parent() {
+            std::fs::create_dir_all(parent).expect("mkdir");
+        }
+        std::fs::rename(self.path().join(from), dst).expect("rename");
+        let mut index = self.repo.index().expect("index");
+        index.remove_path(Path::new(from)).expect("remove_path");
+        index.add_path(Path::new(to)).expect("add_path");
+        index.write().expect("index write");
+    }
+
+    /// Commits the current index on HEAD (root commit if unborn).
+    pub fn commit_index(&self, msg: &str) -> Oid {
+        self.commit(&[], msg)
+    }
+
+    /// Sets a repo-local config value.
+    pub fn set_config(&self, key: &str, value: &str) {
+        self.repo
+            .config()
+            .expect("config")
+            .set_str(key, value)
+            .expect("set config");
+    }
 }

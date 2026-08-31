@@ -46,7 +46,7 @@ struct LogProgress {
 }
 
 /// Runs a blocking git-core call on the blocking pool.
-async fn blocking<T, F>(f: F) -> Result<T, AppError>
+pub(crate) async fn blocking<T, F>(f: F) -> Result<T, AppError>
 where
     T: Send + 'static,
     F: FnOnce() -> Result<T, AppError> + Send + 'static,

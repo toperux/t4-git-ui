@@ -1,0 +1,383 @@
+//! Display diffs via libgit2: changed-file lists and per-file hunks for a
+//! commit, a commit range, or the index / working directory.
+//!
+//! Stage-able diffs (CLI `git diff` output that round-trips through
+//! `git apply --cached` after autocrlf/clean filters) come in M3; everything
+//! here is for display only.
+
+use git2::{Delta, DiffFindOptions, DiffLineType, Oid, Patch, Repository, Tree};
+use serde::{Deserialize, Serialize};
+
+use crate::{map_git2, GitError};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FileStatus {
+    Added,
+    Modified,
+    Deleted,
+    Renamed,
+    Copied,
+    Typechange,
+    Untracked,
+    Conflicted,
+    Ignored,
+}
+
+impl From<Delta> for FileStatus {
+    fn from(d: Delta) -> Self {
+        match d {
+            Delta::Added => FileStatus::Added,
+            Delta::Deleted => FileStatus::Deleted,
+            Delta::Renamed => FileStatus::Renamed,
+            Delta::Copied => FileStatus::Copied,
+            Delta::Typechange => FileStatus::Typechange,
+            Delta::Untracked => FileStatus::Untracked,
+            Delta::Conflicted => FileStatus::Conflicted,
+            Delta::Ignored => FileStatus::Ignored,
+            Delta::Modified | Delta::Unmodified | Delta::Unreadable => FileStatus::Modified,
+        }
+    }
+}
+
+/// One entry of a changed-file list.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileChange {
+    /// New path (`/`-separated, repo-relative).
+    pub path: String,
+    /// Old path for renames / copies.
+    pub old_path: Option<String>,
+    pub status: FileStatus,
+    pub additions: u32,
+    pub deletions: u32,
+    pub binary: bool,
+}
+
+/// What to diff.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum DiffTarget {
+    /// Commit vs its first parent (root commit vs the empty tree).
+    Commit { oid: String },
+    /// Tree of `from` → tree of `to`.
+    CommitRange { from: String, to: String },
+    /// HEAD tree → index (unborn HEAD: empty tree → index).
+    Staged,
+    /// Index → working directory, including untracked file content.
+    Unstaged,
+    /// HEAD tree → working directory (staged + unstaged), including untracked.
+    Workdir,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DiffLineKind {
+    Context,
+    Add,
+    Del,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiffLine {
+    pub kind: DiffLineKind,
+    pub old_no: Option<u32>,
+    pub new_no: Option<u32>,
+    /// Line content without the trailing `\n`; a `\r` before it is kept so
+    /// CRLF content stays visible (the M3 patch builder needs it).
+    pub text: String,
+    /// `true` when this line is the last of its file and has no trailing
+    /// newline (`\ No newline at end of file`).
+    pub no_newline: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Hunk {
+    /// `@@ -a,b +c,d @@ context` without the trailing newline.
+    pub header: String,
+    pub old_start: u32,
+    pub old_lines: u32,
+    pub new_start: u32,
+    pub new_lines: u32,
+    pub lines: Vec<DiffLine>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileDiff {
+    pub path: String,
+    pub old_path: Option<String>,
+    pub status: FileStatus,
+    pub binary: bool,
+    pub hunks: Vec<Hunk>,
+    /// `true` when line collection stopped at [`DiffOptions::max_lines`].
+    pub truncated: bool,
+    /// Full counts (not affected by truncation).
+    pub additions: u32,
+    pub deletions: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct DiffOptions {
+    /// Context lines per hunk.
+    pub context: u32,
+    /// Stop collecting lines past this many (sets `truncated`).
+    pub max_lines: usize,
+    pub ignore_whitespace: bool,
+}
+
+impl Default for DiffOptions {
+    fn default() -> Self {
+        DiffOptions {
+            context: 3,
+            max_lines: 20_000,
+            ignore_whitespace: false,
+        }
+    }
+}
+
+fn tree_of<'r>(repo: &'r Repository, oid: &str) -> Result<Tree<'r>, GitError> {
+    let oid = Oid::from_str(oid).map_err(map_git2)?;
+    repo.find_commit(oid)
+        .and_then(|c| c.tree())
+        .map_err(map_git2)
+}
+
+/// Tree of the first parent, `None` for a root commit.
+fn parent_tree<'r>(repo: &'r Repository, oid: &str) -> Result<Option<Tree<'r>>, GitError> {
+    let oid = Oid::from_str(oid).map_err(map_git2)?;
+    let commit = repo.find_commit(oid).map_err(map_git2)?;
+    match commit.parent(0) {
+        Ok(p) => Ok(Some(p.tree().map_err(map_git2)?)),
+        Err(_) => Ok(None),
+    }
+}
+
+/// HEAD tree, `None` when HEAD is unborn.
+fn head_tree(repo: &Repository) -> Result<Option<Tree<'_>>, GitError> {
+    match repo.head() {
+        Ok(h) => Ok(Some(h.peel_to_tree().map_err(map_git2)?)),
+        Err(e) if e.code() == git2::ErrorCode::UnbornBranch => Ok(None),
+        Err(e) => Err(map_git2(e)),
+    }
+}
+
+/// Builds the libgit2 diff for `target` with renames detected.
+fn build_diff<'r>(
+    repo: &'r Repository,
+    target: &DiffTarget,
+    opts: &DiffOptions,
+) -> Result<git2::Diff<'r>, GitError> {
+    let mut o = git2::DiffOptions::new();
+    o.context_lines(opts.context)
+        .ignore_whitespace(opts.ignore_whitespace);
+    let mut diff = match target {
+        DiffTarget::Commit { oid } => {
+            let old = parent_tree(repo, oid)?;
+            let new = tree_of(repo, oid)?;
+            repo.diff_tree_to_tree(old.as_ref(), Some(&new), Some(&mut o))
+        }
+        DiffTarget::CommitRange { from, to } => {
+            let old = tree_of(repo, from)?;
+            let new = tree_of(repo, to)?;
+            repo.diff_tree_to_tree(Some(&old), Some(&new), Some(&mut o))
+        }
+        DiffTarget::Staged => {
+            let old = head_tree(repo)?;
+            repo.diff_tree_to_index(old.as_ref(), None, Some(&mut o))
+        }
+        DiffTarget::Unstaged => {
+            o.include_untracked(true)
+                .recurse_untracked_dirs(true)
+                .show_untracked_content(true);
+            repo.diff_index_to_workdir(None, Some(&mut o))
+        }
+        DiffTarget::Workdir => {
+            o.include_untracked(true)
+                .recurse_untracked_dirs(true)
+                .show_untracked_content(true);
+            let old = head_tree(repo)?;
+            repo.diff_tree_to_workdir_with_index(old.as_ref(), Some(&mut o))
+        }
+    }
+    .map_err(map_git2)?;
+    let mut find = DiffFindOptions::new();
+    find.renames(true).copies(false);
+    diff.find_similar(Some(&mut find)).map_err(map_git2)?;
+    Ok(diff)
+}
+
+fn path_string(f: &git2::DiffFile<'_>) -> String {
+    String::from_utf8_lossy(f.path_bytes().unwrap_or_default()).into_owned()
+}
+
+/// `(path, old_path)` of a delta; `old_path` only for renames / copies.
+fn delta_paths(delta: &git2::DiffDelta<'_>) -> (String, Option<String>) {
+    let new = path_string(&delta.new_file());
+    let old = path_string(&delta.old_file());
+    let old_path = match delta.status() {
+        Delta::Renamed | Delta::Copied if old != new => Some(old),
+        _ => None,
+    };
+    (new, old_path)
+}
+
+fn count(n: usize) -> u32 {
+    u32::try_from(n).unwrap_or(u32::MAX)
+}
+
+/// Loads the patch for delta `idx`; `None` means binary (or unmodified).
+fn patch_for<'d>(diff: &git2::Diff<'d>, idx: usize) -> Result<Option<Patch<'d>>, GitError> {
+    let patch = Patch::from_diff(diff, idx).map_err(map_git2)?;
+    Ok(patch.filter(|p| !p.delta().flags().is_binary()))
+}
+
+/// Changed files of `target` with per-file line counts (renames detected).
+pub fn changed_files(repo: &Repository, target: &DiffTarget) -> Result<Vec<FileChange>, GitError> {
+    let diff = build_diff(repo, target, &DiffOptions::default())?;
+    let mut out = Vec::with_capacity(diff.deltas().len());
+    for idx in 0..diff.deltas().len() {
+        let (additions, deletions, binary) = match patch_for(&diff, idx)? {
+            Some(p) => {
+                let (_, a, d) = p.line_stats().map_err(map_git2)?;
+                (count(a), count(d), false)
+            }
+            None => (0, 0, true),
+        };
+        let delta = diff.get_delta(idx).expect("delta index in range");
+        if delta.status() == Delta::Unmodified {
+            continue;
+        }
+        let (path, old_path) = delta_paths(&delta);
+        out.push(FileChange {
+            path,
+            old_path,
+            status: delta.status().into(),
+            additions,
+            deletions,
+            binary,
+        });
+    }
+    Ok(out)
+}
+
+/// Hunks of one file of `target`, addressed by its new path (a renamed file
+/// is also found by its old path).
+pub fn file_diff(
+    repo: &Repository,
+    target: &DiffTarget,
+    path: &str,
+    opts: &DiffOptions,
+) -> Result<FileDiff, GitError> {
+    // The whole diff is built (not `pathspec`-restricted) so rename detection
+    // can still pair the file with its old path; content is only loaded for
+    // the one patch below (and rename candidates).
+    let diff = build_diff(repo, target, opts)?;
+    let idx = diff
+        .deltas()
+        .position(|d| {
+            d.new_file().path_bytes() == Some(path.as_bytes())
+                || d.old_file().path_bytes() == Some(path.as_bytes())
+        })
+        .ok_or_else(|| {
+            GitError::Git2(git2::Error::new(
+                git2::ErrorCode::NotFound,
+                git2::ErrorClass::None,
+                format!("path not in diff: {path}"),
+            ))
+        })?;
+    let patch = patch_for(&diff, idx)?;
+    let delta = diff.get_delta(idx).expect("delta index in range");
+    let (path, old_path) = delta_paths(&delta);
+    let status = delta.status().into();
+
+    let Some(patch) = patch else {
+        return Ok(FileDiff {
+            path,
+            old_path,
+            status,
+            binary: true,
+            hunks: Vec::new(),
+            truncated: false,
+            additions: 0,
+            deletions: 0,
+        });
+    };
+
+    let (_, additions, deletions) = patch.line_stats().map_err(map_git2)?;
+    let mut hunks = Vec::with_capacity(patch.num_hunks());
+    let mut collected = 0usize;
+    let mut truncated = false;
+    'hunks: for h in 0..patch.num_hunks() {
+        let (hunk, n_lines) = patch.hunk(h).map_err(map_git2)?;
+        let mut lines = Vec::with_capacity(n_lines);
+        for l in 0..n_lines {
+            if collected >= opts.max_lines {
+                truncated = true;
+                if !lines.is_empty() {
+                    hunks.push(make_hunk(&hunk, lines));
+                }
+                break 'hunks;
+            }
+            let line = patch.line_in_hunk(h, l).map_err(map_git2)?;
+            let kind = match line.origin_value() {
+                DiffLineType::Context => DiffLineKind::Context,
+                DiffLineType::Addition => DiffLineKind::Add,
+                DiffLineType::Deletion => DiffLineKind::Del,
+                DiffLineType::ContextEOFNL | DiffLineType::AddEOFNL | DiffLineType::DeleteEOFNL => {
+                    // Marker for the preceding line.
+                    if let Some(prev) = lines.last_mut() {
+                        let prev: &mut DiffLine = prev;
+                        prev.no_newline = true;
+                    }
+                    continue;
+                }
+                DiffLineType::FileHeader | DiffLineType::HunkHeader | DiffLineType::Binary => {
+                    continue;
+                }
+            };
+            let mut text = String::from_utf8_lossy(line.content()).into_owned();
+            if text.ends_with('\n') {
+                text.pop();
+            }
+            lines.push(DiffLine {
+                kind,
+                old_no: line.old_lineno(),
+                new_no: line.new_lineno(),
+                text,
+                no_newline: false,
+            });
+            collected += 1;
+        }
+        hunks.push(make_hunk(&hunk, lines));
+    }
+
+    Ok(FileDiff {
+        path,
+        old_path,
+        status,
+        binary: false,
+        hunks,
+        truncated,
+        additions: count(additions),
+        deletions: count(deletions),
+    })
+}
+
+fn make_hunk(hunk: &git2::DiffHunk<'_>, lines: Vec<DiffLine>) -> Hunk {
+    let mut header = String::from_utf8_lossy(hunk.header()).into_owned();
+    while header.ends_with('\n') || header.ends_with('\r') {
+        header.pop();
+    }
+    Hunk {
+        header,
+        old_start: hunk.old_start(),
+        old_lines: hunk.old_lines(),
+        new_start: hunk.new_start(),
+        new_lines: hunk.new_lines(),
+        lines,
+    }
+}

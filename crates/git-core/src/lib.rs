@@ -1,8 +1,10 @@
 pub mod commit;
+pub mod diff;
 pub mod error;
 pub mod log;
 pub mod refs;
 pub mod repo;
+pub mod status;
 #[cfg(any(test, feature = "test-util"))]
 pub mod test_util;
 
