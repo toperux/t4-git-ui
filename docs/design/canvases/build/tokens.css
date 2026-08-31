@@ -97,6 +97,10 @@
   --diff-hunk-bg: #e2e8f8; --diff-hunk-fg: #4c5b8f;
   --diff-gutter-fg: var(--fg-muted);
 
+  /* Syntax highlighting in diffs (each ≥4.5:1 on --bg-panel, --diff-add-bg and --diff-del-bg) */
+  --syn-keyword: #9a1f9c; --syn-string: #1b6b3a; --syn-comment: var(--fg-muted); --syn-number: #0b5fa5;
+  --syn-type: #8a4b0a; --syn-function: #5a3fc0; --syn-punct: var(--fg-muted);
+
   /* Ref chips */
   --chip-local-bg: var(--accent-soft); --chip-local-fg: #1e4fb8;
   --chip-remote-bg: #d8dce3;           --chip-remote-fg: #4b5563;
@@ -159,6 +163,9 @@
   --diff-del-bg: #3a1d1c;  --diff-del-gutter: #4d2523; --diff-del-fg: #f3b0aa; --diff-del-word: #6a3030;
   --diff-hunk-bg: #1f2740; --diff-hunk-fg: #93a3d9;
   --diff-gutter-fg: var(--fg-muted);
+
+  --syn-keyword: #d59bf5; --syn-string: #9ad9ad; --syn-comment: var(--fg-muted); --syn-number: #7cc0ff;
+  --syn-type: #e8b06a; --syn-function: #b9a6f7; --syn-punct: var(--fg-muted);
 
   --chip-local-bg: var(--accent-soft); --chip-local-fg: #9dbcf7;
   --chip-remote-bg: #2a2e37;           --chip-remote-fg: #b0b7c3;

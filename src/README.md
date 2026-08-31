@@ -47,6 +47,8 @@ src/
                            msgHistory.ts (localStorage `msgHistory:<repoId>`, 20 entries; splitMessage/joinMessage),
                            kv.ts (store plugin `recents.json`, localStorage fallback), cloneUrl.ts (repoNameFromUrl/joinPath/parentDir),
                            branchName.ts (validateRefName: no spaces / `..` / leading `-` / reserved / already taken)
+                           highlight.ts (langForPath → lezer grammar, code-split + loadLang on first use; highlightLine(lang, text)
+                           parses ONE line → {text, cls}[] spans, 5k-entry LRU; cls ∈ keyword|string|comment|number|type|function|punct)
   components/ui/<Name>/    one folder per style-guide component: <Name>.tsx + <Name>.module.css (incl. StatusGlyph A/M/D/R/U/C,
                            Checkbox, Menu/MenuItem/MenuSeparator (anchor + dropdown, Esc/outside click, ↑/↓, `kbd` hint, `align`)
                            + ContextMenu (portal at a viewport point, clamped), Toast + ToastStack,
@@ -76,7 +78,7 @@ src/
                            fileTree.ts (pure: nest by `/`, folders first)
       DiffViewer/          DiffViewer props {path, oldPath, stats, diff, loading, error, actions?} (header: path, stats, unified/split/
                            whitespace IconButtons; virtualized body, role=region, `.selectable` text, CR → ␍, no-newline marker,
-                           binary/truncated states). `actions` = staging mode: forced unified, hunk-row "Discard | Stage/Unstage hunk"
+                           binary/truncated states; per-line syntax highlighting via lib/highlight → `--syn-*`). `actions` = staging mode: forced unified, hunk-row "Discard | Stage/Unstage hunk"
                            (hover), click/Shift/Ctrl line selection (add/del only) → sticky "N lines selected · Discard · Stage N lines"
                            bar; wholeFile (untracked) = header note, no hunk/line actions. Discard hunk/lines: disabled (no backend cmd yet)
                            diffRows.ts (pure: flattenUnified (rows carry hunk/index) / flattenSplit), lineSelection.ts (pure: clickLine, toPairs)
@@ -131,7 +133,8 @@ itself as a force delete, `cancelled` is an info toast, everything else goes thr
 the status and calls `statusStore.syncRefs()`, which relabels the walk or restarts it when HEAD moved (the backend's own
 `repo://changed` arrives too; the seq guards make it a no-op). While an op runs, `opsStore.busy` holds the statusbar text
 and disables the toolbar; the streamed output lands in the shared `OutputDock` (elapsed timer + Cancel → `cancel_op`;
-a `` progress segment replaces the previous progress line rather than appending).
+a `
+` progress segment replaces the previous progress line rather than appending).
 
 Dialogs are one at a time (`dialogStore` → `DialogHost`) and every option-bearing action gets one, with a
 "Runs `git …`" preview built by `dialogs/gitArgs.ts` (a mirror of `crates/git-core/src/cli/ops.rs`, so the preview and

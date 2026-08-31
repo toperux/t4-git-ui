@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- t4-git-ui app icon: lucide git-branch (stroke 1.75, round caps) on --bg-app dark.
+       Trunk + local node in --fg dark (#e6e8ec); the branch arc + its node in --accent (#2f6feb). -->
+  <rect x="0" y="0" width="1024" height="1024" rx="224" fill="#16181d"/>
+  <!-- lucide 24-grid scaled 26x, centred: (24 * 26 = 624) → offset 200 -->
+  <g transform="translate(200 200) scale(26)" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="6" y1="3" x2="6" y2="15" stroke="#e6e8ec"/>
+    <circle cx="6" cy="18" r="3" stroke="#e6e8ec"/>
+    <path d="M18 9a9 9 0 0 1-9 9" stroke="#2f6feb"/>
+    <circle cx="18" cy="6" r="3" stroke="#2f6feb"/>
+  </g>
+</svg>

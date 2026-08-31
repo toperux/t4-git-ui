@@ -10,3 +10,10 @@ edition = "2021"
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
 tracing = "0.1"
+
+# Release: smaller, faster binary. No `panic = "abort"` — git-core relies on catch_unwind.
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true

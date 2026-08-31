@@ -5,6 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
     <title>t4 git ui</title>
+    <!-- Theme before first paint (no flash): same rule as src/theme/theme.ts — localStorage('theme') wins, else the OS. -->
+    <script>
+      (function () {
+        var t = null;
+        try {
+          t = localStorage.getItem("theme");
+        } catch (e) {}
+        if (t !== "light" && t !== "dark") t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        document.documentElement.dataset.theme = t;
+      })();
+    </script>
+    <style>
+      /* Until tokens.css loads: the window's backgroundColor (tauri.conf.json) for dark, --bg-app light otherwise. */
+      body { margin: 0; background: #e0e3e8; }
+      [data-theme="dark"] body { background: #16181d; }
+    </style>
   </head>
 
   <body>

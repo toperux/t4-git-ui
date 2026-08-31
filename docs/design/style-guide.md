@@ -25,6 +25,7 @@ All values live in `tokens.css` as CSS custom properties on `:root` (light) and 
 | Scrollbar | `--scrollbar-thumb` `--scrollbar-thumb-hover` | overlay-style, 4px visible thumb in a 10px gutter, no track/arrows (`::-webkit-scrollbar`); thumb ≥3:1 on panel/app |
 | Graph | `--graph-0..7` | lane color = column index mod 8; every lane ≥3:1 on `--bg-panel` |
 | Diff | `--diff-add-*` `--diff-del-*` `--diff-hunk-*` `--diff-gutter-fg` | row bg → gutter one step darker → word highlight one more; `--diff-gutter-fg` aliases `--fg-muted` (≥4.5:1 on both gutters and on panel) |
+| Syntax | `--syn-{keyword,string,comment,number,type,function,punct}` | diff line highlighting only (`src/lib/highlight.ts`); every one ≥4.5:1 on `--bg-panel` and on both `--diff-add-bg` / `--diff-del-bg`; comment + punct alias `--fg-muted` (comments italic) |
 | Ref chips | `--chip-{local,remote,tag,head,stash}-{bg,fg}` | see §4 |
 | File status | `--status-{added,modified,deleted,renamed,untracked,conflict}` | glyph color; conflict also gets `--danger-soft` box. Aliases: added→`--success`, modified→`--warning`, deleted/conflict→`--danger-text`, renamed→`--accent-text`, untracked→`--fg-muted` (likewise `--chip-local-bg`→`--accent-soft`, `--chip-tag-bg`→`--warning-soft`, `--chip-head-*`→`--accent`/`--fg-on-accent`) — `var()` aliases, so they cannot drift |
 
@@ -94,7 +95,7 @@ One file per row. States are CSS classes on the reference sheet (`is-hover` etc.
 - **Selection model**: one focused pane owns `--bg-selected`; others show `--bg-selected-unfocused`. File lists support Shift/Ctrl multi-select.
 
 ## 5. Accessibility
-- Text contrast ≥ 4.5:1 on its surface; non-text UI (control edges, icons, focus ring, scrollbar thumb, graph lanes) ≥ 3:1. Contrast audit: `node docs/design/canvases/build/contrast.mjs` checks 84 token pairs × 2 themes and exits non-zero on failure — run it after any token change. Computed minimums: text 4.50 (light `--danger-text` on `--bg-app`), non-text 3.01 (light `--graph-7` on `--bg-panel`); `--fg-muted` ≥ 4.52 on every surface incl. selected rows and the hover composite; `--fg-on-accent` ≥ 4.57 on every accent/danger fill.
+- Text contrast ≥ 4.5:1 on its surface; non-text UI (control edges, icons, focus ring, scrollbar thumb, graph lanes) ≥ 3:1. Contrast audit: `node docs/design/canvases/build/contrast.mjs` checks 99 token pairs × 2 themes and exits non-zero on failure — run it after any token change. Computed minimums: text 4.50 (light `--danger-text` on `--bg-app`), non-text 3.01 (light `--graph-7` on `--bg-panel`); `--fg-muted` ≥ 4.52 on every surface incl. selected rows and the hover composite; `--fg-on-accent` ≥ 4.57 on every accent/danger fill.
 - `--fg-faint` = placeholders/disabled only; never for information (held at ≥3:1, not 4.5). Anything a user must read — labels, counts, help text, chevrons, diff signs — uses `--fg-muted`.
 - Text-safe variants: `--accent-text` and `--danger-text` for text/icons; `--accent`/`--danger` are fills. Dark-theme hovers darken (not lighten) so white text stays ≥4.5:1.
 - Focus always visible on keyboard (`:focus-visible`), never on mouse.

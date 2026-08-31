@@ -105,6 +105,29 @@
   color: var(--fg-faint);
   user-select: none;
 }
+/* Syntax highlighting (lib/highlight → --syn-* tokens; every one ≥4.5:1 on panel + add/del tints) */
+.synKeyword {
+  color: var(--syn-keyword);
+}
+.synString {
+  color: var(--syn-string);
+}
+.synComment {
+  color: var(--syn-comment);
+  font-style: italic;
+}
+.synNumber {
+  color: var(--syn-number);
+}
+.synType {
+  color: var(--syn-type);
+}
+.synFunction {
+  color: var(--syn-function);
+}
+.synPunct {
+  color: var(--syn-punct);
+}
 
 /* base.css .hunk */
 .hunk {

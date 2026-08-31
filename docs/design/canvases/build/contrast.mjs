@@ -81,6 +81,8 @@ const pairs = [
   ['diff-add-fg', 'diff-add-bg', TEXT], ['diff-add-fg', 'diff-add-word', TEXT], ['diff-del-fg', 'diff-del-bg', TEXT], ['diff-del-fg', 'diff-del-word', TEXT],
   ['diff-hunk-fg', 'diff-hunk-bg', TEXT],
   ['fg-muted', 'diff-add-bg', TEXT, 'sign col'], ['fg-muted', 'diff-del-bg', TEXT, 'sign col'],
+  // syntax highlighting: every syn token on the panel and on both diff row tints
+  ...['keyword', 'string', 'comment', 'number', 'type', 'function', 'punct'].flatMap((k) => ['bg-panel', 'diff-add-bg', 'diff-del-bg'].map((b) => [`syn-${k}`, b, TEXT])),
   // non-text UI
   ['border-strong', 'bg-panel', UI], ['border-strong', 'bg-app', UI],
   ['accent', 'bg-panel', UI, 'focus ring / primary btn'], ['accent', 'bg-app', UI],
