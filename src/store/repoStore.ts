@@ -136,8 +136,9 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
     const gen = log.generation;
     const offset = p * PAGE_SIZE;
     const lg = labelGen;
-    /** Rows the walk was known to have when this request went out (see the short-page retry below). */
+    /** What the walk was known to have when this request went out (see the short-page retry below). */
     const totalAtRequest = log.total;
+    const completeAtRequest = log.complete;
 
     let refetch = false;
     const task = (async () => {
@@ -165,11 +166,15 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
         } else if (page.rows.length === PAGE_SIZE || page.complete) {
           // A partial page from a walk still in progress must be re-requested later.
           loaded.add(p);
-        } else if (nearViewport(p) && get().log.total > Math.max(totalAtRequest, offset + page.rows.length)) {
+        } else if (
+          nearViewport(p) &&
+          ((get().log.complete && !completeAtRequest) || get().log.total > Math.max(totalAtRequest, offset + page.rows.length))
+        ) {
           // The walk moved on while this request was in flight (`log://progress` arrived meanwhile),
           // and `ensureRows` skipped the page because it was in flight — so ask again here, or the
           // grid keeps rendering placeholder rows nothing ever fills. Bounded: a retry only happens
-          // when the known total grew after the request went out.
+          // when the known total grew after the request went out, or the walk completed during it
+          // (a restart keeps the previous total, so a same-sized walk grows nothing).
           refetch = true;
         }
       } catch (e) {
@@ -327,6 +332,11 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
       const { repo, log } = get();
       if (!repo || p.repoId !== repo.id || p.generation !== log.generation) return;
       set({ log: { ...log, total: p.total, complete: p.complete, error: p.error } });
+      // The grid asks for pages when its visible range or the total changes. A restarted walk keeps
+      // the previous total, so a same-sized walk changes neither: ask here for whatever the viewport
+      // still lacks (a page 0 that answered before the walk had rows, say). Loaded / in-flight pages
+      // are skipped, so this is idle once the viewport is filled.
+      get().ensureRows(viewport.start, viewport.end);
       if (p.complete && pendingSelect) void reselect();
     },
   };

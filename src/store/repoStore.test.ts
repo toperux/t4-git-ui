@@ -236,6 +236,58 @@ describe("repoStore paging", () => {
     expect(mocked.getLogPage).toHaveBeenCalledTimes(2);
   });
 
+  it("refetches the viewport after a restart whose first page beat the walk and the total did not change", async () => {
+    // An op moved a branch: the walk restarts, the old rows stay on screen. Page 0 is asked for at
+    // once and answers before the walk has written anything; the walk then reports the same total
+    // as before. Nothing else (no selected commit → no `reselect`) would ask for the page again,
+    // and the grid would keep showing the old labels until F5.
+    mocked.startLog.mockResolvedValueOnce(1);
+    mocked.getLogPage.mockResolvedValueOnce(page(1, 0, 16, 16, true));
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    useRepoStore.getState().selectWorkingTree();
+
+    mocked.startLog.mockResolvedValueOnce(2);
+    const fresh = page(2, 0, 16, 16, true);
+    fresh.rows[0].labels = [{ name: "reset-me", kind: "local", isCurrent: false, remote: null }];
+    mocked.getLogPage.mockResolvedValueOnce(page(2, 0, 0, 0, false)).mockResolvedValueOnce(fresh);
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    expect(useRepoStore.getState().rows[0]?.labels).toEqual([]); // still the old row
+    useRepoStore.getState().onProgress({ repoId: REPO.id, generation: 2, total: 16, complete: true, error: null });
+    await flush();
+    expect(mocked.getLogPage).toHaveBeenCalledTimes(3);
+    expect(useRepoStore.getState().rows[0]?.labels.map((l) => l.name)).toEqual(["reset-me"]);
+
+    // …and it settles.
+    useRepoStore.getState().onProgress({ repoId: REPO.id, generation: 2, total: 16, complete: true, error: null });
+    await flush();
+    expect(mocked.getLogPage).toHaveBeenCalledTimes(3);
+  });
+
+  it("refetches a short page when the walk completed while it was in flight, even at the same total", async () => {
+    mocked.startLog.mockResolvedValueOnce(1);
+    mocked.getLogPage.mockResolvedValueOnce(page(1, 0, 16, 16, true));
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+
+    useRepoStore.getState().selectWorkingTree();
+
+    mocked.startLog.mockResolvedValueOnce(2);
+    let release = () => {};
+    mocked.getLogPage
+      .mockImplementationOnce(() => new Promise<LogPage>((r) => (release = () => r(page(2, 0, 10, 16, false)))))
+      .mockResolvedValueOnce(page(2, 0, 16, 16, true));
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    // The walk finishes while page 0 is in flight; its answer is short of the 16 rows it will have.
+    useRepoStore.getState().onProgress({ repoId: REPO.id, generation: 2, total: 16, complete: true, error: null });
+    release();
+    await flush();
+    await flush();
+    expect(mocked.getLogPage).toHaveBeenCalledTimes(3);
+    expect(useRepoStore.getState().rows[15]?.row.commit.oid).toBe("oid15");
+  });
+
   it("stops retrying a short page when the walk has not moved on", async () => {
     mocked.startLog.mockResolvedValue(1);
     let release = () => {};
