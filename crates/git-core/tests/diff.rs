@@ -504,3 +504,40 @@ fn context_option_widens_hunks() {
     let d = file_diff(&t.repo, &commit(b), "a.txt", &opts).expect("ctx0");
     assert_eq!(d.hunks[0].lines.len(), 2);
 }
+
+#[test]
+fn a_conflicted_file_shows_the_markers_git_left_on_disk() {
+    let t = TempRepo::new();
+    let base = t.commit(&[("f.txt", "base\n")], "base");
+    t.branch("feat", base);
+    t.checkout("feat");
+    let feat = t.commit(&[("f.txt", "feat\n")], "feat");
+    t.checkout("master");
+    t.commit(&[("f.txt", "master\n")], "master");
+    let ann = t.repo.find_annotated_commit(feat).expect("annotated");
+    t.repo.merge(&[&ann], None, None).expect("merge");
+
+    let s = status(&t.repo).expect("status");
+    assert_eq!(s.conflicted, 1);
+
+    // libgit2's own index-to-workdir diff calls this delta `Conflicted` and emits
+    // nothing for it; the panel needs the markers, which only the file has.
+    let d = file_diff(
+        &t.repo,
+        &DiffTarget::Unstaged,
+        "f.txt",
+        &DiffOptions::default(),
+    )
+    .expect("file_diff");
+    assert_eq!(d.status, FileStatus::Conflicted);
+    let text: Vec<&str> = d
+        .hunks
+        .iter()
+        .flat_map(|h| h.lines.iter())
+        .map(|l| l.text.as_str())
+        .collect();
+    assert!(text.iter().any(|l| l.starts_with("<<<<<<<")), "{text:?}");
+    assert!(text.iter().any(|l| l.starts_with("=======")), "{text:?}");
+    assert!(text.iter().any(|l| l.starts_with(">>>>>>>")), "{text:?}");
+    assert!(text.contains(&"feat"), "{text:?}");
+}

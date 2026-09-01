@@ -30,6 +30,10 @@
   color: var(--fg-muted);
   white-space: nowrap;
 }
+/* Sits in the panel header, which is 28px: the sm button is the tallest thing in it. */
+.resolve {
+  flex: none;
+}
 
 /* base.css .diff — the pane edges are the frame (mockup: border 0, radius 0); mono 12/18 */
 .scroll {

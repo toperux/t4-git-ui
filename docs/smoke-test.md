@@ -164,8 +164,13 @@ Use `C:\tmp\t4\work` and the bare remote.
       instead of the upstream
 - [ ] **Merge** a conflicting branch → conflicts toast, working-tree row selected, danger banner
       "N files have conflicts", plus a merge-in-progress banner with Abort
-- [ ] Resolve the conflict in an editor → **the file can be staged** (whole-file) → commit → banners
-      clear
+- [ ] Click the conflicted file → the diff shows the file **with its `<<<<<<<` / `=======` / `>>>>>>>`
+      markers** (libgit2 reports no content for an unmerged path, so this is built from the index
+      stages), the header says "Conflict — stage the file once resolved"
+- [ ] **Resolve in editor** in the diff header → VS Code / VSCodium opens its three-way merge editor
+      on the file; with neither on `PATH` → an error toast naming `code` and `codium`
+- [ ] Resolve the conflict (in that editor or any other) → **the file can be staged** (whole-file) →
+      commit → banners clear
 - [ ] **Rebase** onto a diverged branch, then Abort → the branch is restored, banner clears
 - [ ] `Ctrl+B` create branch: try `a b`, `-x`, `a..b`, `.hidden`, `foo.lock`, an existing name →
       inline invalid feedback, Create disabled

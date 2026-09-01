@@ -124,7 +124,8 @@ src/
                            lines" bar. The cursor owns the DOM focus, not just the tab stop — `.pick:focus-visible` is the only
                            thing that draws it: ↑/↓ scroll it into view and focus it (`[data-cursor]`), a click adopts it, and
                            focusing the region hands off to the cursor line (outside staging there is none, so the region keeps
-                           the focus for scrolling); wholeFile (untracked / conflicted) = header `note`, no hunk/line actions. The body scrolls back
+                           the focus for scrolling); wholeFile (untracked / conflicted) = header `note`, no hunk/line actions;
+                           `onResolve` adds a "Resolve in editor" button (conflicted files only). The body scrolls back
                            to the top only when the file path changes. No hunk/line Discard: the backend has no
                            reverse-apply-to-workdir — file-level discard lives in `CommitPanel/FilesColumn`
                            diffRows.ts (pure: flattenUnified (rows carry hunk/index) / flattenSplit), lineSelection.ts (pure: clickLine, toPairs)
@@ -132,7 +133,8 @@ src/
                            FilesColumn (Unstaged + Stage all / Staged + Unstage all; virtualized 26px rows, role=listbox
                            aria-multiselectable + aria-activedescendant, delegated click so memo(FileRow) holds, the 2px
                            accent bar only while more than one row is selected (`.list.multi`), hover Stage/Unstage IconButton, Enter/double-click act on the selection, Delete → discard w/
-                           native confirm; conflicted rows = glyph C, stageable whole-file — the diff header says so),
+                           native confirm; conflicted rows = glyph C, stageable whole-file — the diff header says so, and shows
+                           the file with the markers git left in it plus a "Resolve in editor" button → `open_merge_editor`),
                            MessageColumn (summary input + len/72 counter (danger past 72), body textarea, Amend (prefill) / Signed-off-by,
                            author line or "Set user.name and user.email" (config error → Commit disabled), Commit (Ctrl+Enter),
                            Commit & Push (commits, then opens the Push dialog when `commit()` returned an oid),

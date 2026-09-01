@@ -272,6 +272,11 @@ pub fn file_diff(
     path: &str,
     opts: &DiffOptions,
 ) -> Result<FileDiff, GitError> {
+    if matches!(target, DiffTarget::Unstaged | DiffTarget::Workdir) {
+        if let Some(d) = conflicted_file_diff(repo, path, opts)? {
+            return Ok(d);
+        }
+    }
     // The whole diff is built (not `pathspec`-restricted) so rename detection
     // can still pair the file with its old path; content is only loaded for
     // the one patch below (and rename candidates).
@@ -292,8 +297,17 @@ pub fn file_diff(
     let patch = patch_for(&diff, idx)?;
     let delta = diff.get_delta(idx).expect("delta index in range");
     let (path, old_path) = delta_paths(&delta);
-    let status = delta.status().into();
+    file_diff_from_patch(patch, path, old_path, delta.status().into(), opts)
+}
 
+/// Hunks — or the binary marker — of one patch that has already been located.
+fn file_diff_from_patch(
+    patch: Option<Patch<'_>>,
+    path: String,
+    old_path: Option<String>,
+    status: FileStatus,
+    opts: &DiffOptions,
+) -> Result<FileDiff, GitError> {
     let Some(patch) = patch else {
         return Ok(FileDiff {
             path,
@@ -365,6 +379,48 @@ pub fn file_diff(
         additions: count(additions),
         deletions: count(deletions),
     })
+}
+
+/// Hunks of a conflicted file: the version it is being merged into ("ours",
+/// falling back to the merge base) against the file on disk, which is what git
+/// left there — conflict markers and all. libgit2's own diffs report an
+/// unmerged path as `Conflicted` and emit no content for it, so the panel had
+/// a file it could stage and nothing to look at.
+fn conflicted_file_diff(
+    repo: &Repository,
+    path: &str,
+    opts: &DiffOptions,
+) -> Result<Option<FileDiff>, GitError> {
+    let Some(stages) = crate::conflict::stages(repo, path)? else {
+        return Ok(None);
+    };
+    // Bytes rather than the blob itself: with the side missing entirely
+    // (added on the other side alone) there is no blob to hand `Patch`.
+    let old = match stages.ours.or(stages.ancestor) {
+        Some(id) => repo.find_blob(id).map_err(map_git2)?.content().to_vec(),
+        None => Vec::new(),
+    };
+    // Deleted on one side and kept on the other: there may be nothing on disk.
+    let workdir = repo.workdir().map(|w| w.join(path));
+    let new = workdir
+        .as_deref()
+        .and_then(|p| std::fs::read(p).ok())
+        .unwrap_or_default();
+
+    let mut o = git2::DiffOptions::new();
+    o.context_lines(opts.context)
+        .ignore_whitespace(opts.ignore_whitespace);
+    let as_path = std::path::Path::new(path);
+    let patch = Patch::from_buffers(&old, Some(as_path), &new, Some(as_path), Some(&mut o))
+        .map_err(map_git2)?;
+    let patch = Some(patch).filter(|p| !p.delta().flags().is_binary());
+    Ok(Some(file_diff_from_patch(
+        patch,
+        path.to_string(),
+        None,
+        FileStatus::Conflicted,
+        opts,
+    )?))
 }
 
 fn make_hunk(hunk: &git2::DiffHunk<'_>, lines: Vec<DiffLine>) -> Hunk {

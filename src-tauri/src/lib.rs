@@ -120,6 +120,7 @@ pub fn run() {
             commands::diff::get_commit_files,
             commands::diff::get_changed_files,
             commands::diff::get_file_diff,
+            commands::diff::open_merge_editor,
             commands::diff::get_status,
             commands::stage::stage_paths,
             commands::stage::unstage_paths,

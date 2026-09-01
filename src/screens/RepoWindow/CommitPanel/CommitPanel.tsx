@@ -1,7 +1,11 @@
 import { useEffect } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
+import * as ipc from "../../../api/ipc";
+import { toAppError } from "../../../api/ipc";
 import { useCommitStore } from "../../../store/commitStore";
+import { useRepoStore } from "../../../store/repoStore";
 import { useStatusStore } from "../../../store/statusStore";
+import { toastError, useToastStore } from "../../../store/toastStore";
 import { DiffViewer, type DiffActions } from "../DiffViewer/DiffViewer";
 import w from "../RepoWindow.module.css";
 import s from "./CommitPanel.module.css";
@@ -53,10 +57,27 @@ function DiffColumn() {
         wholeFile: conflicted || untracked,
         note: conflicted ? "Conflict — stage the file once resolved" : untracked ? "Untracked — stage whole file" : undefined,
         busy,
+        onResolve: conflicted ? () => void resolveInEditor(path) : undefined,
         onStageHunk: (h) => void stageHunk(h),
         onStageLines: (l) => void stageLines(l),
       }
     : undefined;
 
   return <DiffViewer path={path} oldPath={entry?.oldPath ?? null} stats={stats ?? null} diff={diff} loading={loading} error={error} actions={actions} />;
+}
+
+/**
+ * Hands the conflict's three sides to VS Code's merge editor. The editor writes the
+ * working file, the watcher notices, and staging the file is still what marks it
+ * resolved — nothing here waits for the editor to close.
+ */
+async function resolveInEditor(path: string) {
+  const repo = useRepoStore.getState().repo;
+  if (!repo) return;
+  try {
+    const editor = await ipc.openMergeEditor(repo.id, path);
+    useToastStore.getState().push({ kind: "info", title: `Opened ${path} in ${editor}` });
+  } catch (e) {
+    toastError(toAppError(e), "Couldn't open the merge editor");
+  }
 }

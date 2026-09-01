@@ -38,7 +38,7 @@ function rebasing(theme) {
   const f = (g, p, m) => `<div class="row" style="padding-left: 8px;"><span class="glyph ${g}">${g}</span><span class="grow mono" style="font-size: 12px;">${p}</span><span class="meta">${m}</span></div>`;
   return `${toolbar({ pull: 0, push: 0, commit: 3 })}
   ${banner('warning', 'git-merge', 'Rebase in progress — 2 of 5 commits applied onto <span class="mono" style="font-size: 11px;">main</span>', `<span class="btn secondary sm">Abort</span><span class="btn primary sm">Continue</span>`)}
-  ${banner('danger', 'alert', '3 files have conflicts — resolve, then stage them', `<span class="btn secondary sm">Open in editor</span>`)}
+  ${banner('danger', 'alert', '3 files have conflicts — resolve, then stage them', `<span class="btn secondary sm">Open commit panel</span>`)}
   <div style="display: flex; flex: 1; min-height: 0;">
     ${sidebar({ width: 200 })}${splitH()}
     <div style="display: flex; flex-direction: column; flex: 1; min-width: 0; background: var(--bg-panel);">

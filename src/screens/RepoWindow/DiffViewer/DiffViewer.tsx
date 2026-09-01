@@ -39,6 +39,8 @@ export interface DiffActions {
   /** Header note explaining the whole-file mode ("Untracked — stage whole file"). */
   note?: string;
   busy?: boolean;
+  /** Conflicted file: opens its three sides in an external merge editor. */
+  onResolve?: () => void;
   onStageHunk: (hunk: number) => void;
   onStageLines: (lines: [number, number][]) => void;
 }
@@ -169,6 +171,11 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
         title={path && <span className={s.path}>{oldPath ? `${oldPath} → ${path}` : path}</span>}
       >
         {actions?.wholeFile && actions.note && <span className={s.note}>{actions.note}</span>}
+        {actions?.onResolve && (
+          <Button size="sm" className={s.resolve} disabled={actions.busy} onClick={actions.onResolve}>
+            Resolve in editor
+          </Button>
+        )}
         {stats && !stats.binary && <Stats additions={stats.additions} deletions={stats.deletions} className={s.stats} />}
         <ToolbarSeparator />
         <IconButton label="Unified view" on={view === "unified"} onClick={() => setView("unified")}>

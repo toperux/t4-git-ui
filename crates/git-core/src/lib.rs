@@ -1,6 +1,7 @@
 pub mod cli;
 pub mod commit;
 pub mod config;
+pub mod conflict;
 pub mod diff;
 pub mod error;
 pub mod log;

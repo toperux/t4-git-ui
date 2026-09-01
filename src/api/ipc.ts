@@ -77,6 +77,9 @@ export const getChangedFiles = (id: RepoId, target: DiffTarget) =>
 export const getFileDiff = (id: RepoId, target: DiffTarget, path: string, opts?: DiffOptions) =>
   call<FileDiff>("get_file_diff", { id, target, path, opts });
 
+/** Opens a conflicted file's three sides in VS Code's merge editor; resolves with the launcher used. */
+export const openMergeEditor = (id: RepoId, path: string) => call<string>("open_merge_editor", { id, path });
+
 export const getStatus = (id: RepoId) => call<WorkdirStatus>("get_status", { id });
 
 // --- src-tauri/src/commands/stage.rs ---
