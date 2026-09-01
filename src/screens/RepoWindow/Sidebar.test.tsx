@@ -1,4 +1,4 @@
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RefsSnapshot } from "../../api/types";
 import { useRepoStore } from "../../store/repoStore";
@@ -22,6 +22,7 @@ const REFS: RefsSnapshot = {
       branches: [
         { name: "origin/main", oid: "a" },
         { name: "origin/cross-platform", oid: "b" },
+        { name: "origin/feature/lanes", oid: "d" },
       ],
     },
     { name: "fork", url: null, branches: [{ name: "fork/main", oid: "c" }] },
@@ -44,12 +45,25 @@ describe("Sidebar section counts", () => {
         .filter((b) => b.getAttribute("aria-expanded") !== null)
         .map((b) => [b.textContent!.replace(/\d+$/, ""), b.textContent!.match(/\d+$/)?.[0]]),
     );
-    expect(badges).toEqual({ Local: "2", Remotes: "3", Tags: "1", Stashes: "0" });
+    expect(badges).toEqual({ Local: "2", Remotes: "4", Tags: "1", Stashes: "0" });
   });
 
   it("lists every remote with its branches", () => {
     const { getAllByRole } = render(<Sidebar />);
     const rows = getAllByRole("treeitem").map((r) => r.textContent);
     expect(rows).toEqual(expect.arrayContaining(["origin", "fork", "main", "cross-platform"]));
+  });
+
+  it("nests remote branches in folders like local ones, collapsing per remote", () => {
+    const { getAllByRole, queryByRole } = render(<Sidebar />);
+    // `feature/panels` (local) and `origin/feature/lanes` each get a `feature` folder.
+    const folders = getAllByRole("treeitem", { name: "feature" });
+    expect(folders).toHaveLength(2);
+    expect(queryByRole("treeitem", { name: "lanes" })).not.toBeNull();
+    expect(getAllByRole("treeitem", { name: "lanes" })[0].getAttribute("aria-level")).toBe("3");
+
+    fireEvent.click(folders[1]);
+    expect(queryByRole("treeitem", { name: "lanes" })).toBeNull();
+    expect(queryByRole("treeitem", { name: "panels" })).not.toBeNull();
   });
 });

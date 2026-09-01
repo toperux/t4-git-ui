@@ -22,19 +22,19 @@ type Target =
   | { kind: "tag"; name: string; oid: string }
   | { kind: "stash"; stash: Stash };
 
-/** Branch names nested by `/` segments. */
-interface TreeNode {
+/** Names nested by `/` segments (local branches, or one remote's branches without the remote prefix). */
+interface TreeNode<T> {
   name: string;
   path: string;
-  children: TreeNode[];
-  branch?: Branch;
+  children: TreeNode<T>[];
+  leaf?: T;
 }
 
-/** A node with children is a folder (it may also carry a branch, e.g. `feature` + `feature/x`). */
-function buildTree(branches: Branch[]): TreeNode[] {
-  const root: TreeNode = { name: "", path: "", children: [] };
-  for (const b of branches) {
-    const parts = b.name.split("/");
+/** A node with children is a folder (it may also carry a leaf, e.g. `feature` + `feature/x`). */
+function buildTree<T>(items: T[], nameOf: (item: T) => string): TreeNode<T>[] {
+  const root: TreeNode<T> = { name: "", path: "", children: [] };
+  for (const item of items) {
+    const parts = nameOf(item).split("/");
     let node = root;
     parts.forEach((part, i) => {
       let child = node.children.find((c) => c.name === part);
@@ -42,12 +42,12 @@ function buildTree(branches: Branch[]): TreeNode[] {
         child = { name: part, path: parts.slice(0, i + 1).join("/"), children: [] };
         node.children.push(child);
       }
-      if (i === parts.length - 1) child.branch = b;
+      if (i === parts.length - 1) child.leaf = item;
       node = child;
     });
   }
   // Folders first, then leaves; both alphabetical.
-  const sort = (nodes: TreeNode[]) => {
+  const sort = (nodes: TreeNode<T>[]) => {
     nodes.sort((a, b) => Number(!a.children.length) - Number(!b.children.length) || a.name.localeCompare(b.name));
     nodes.forEach((n) => sort(n.children));
   };
@@ -164,10 +164,27 @@ export function Sidebar() {
     />
   );
 
-  function renderTree(nodes: TreeNode[], depth: number): ReactNode {
+  const remoteRow = (remote: string) => (rb: RemoteBranch, label: string, depth: number) => (
+    <TreeRow
+      key={rb.name}
+      role="treeitem"
+      aria-level={depth + 1}
+      depth={depth}
+      icon={<GitBranch size={14} aria-hidden />}
+      label={label}
+      title={rb.name}
+      onClick={() => void revealOid(rb.oid)}
+      onDoubleClick={() => void checkoutRemoteBranch(rb, remote)}
+      {...rowMenu({ kind: "remote", remote, branch: rb })}
+    />
+  );
+
+  /** Leaves render through `row` with their last segment as the label; folders collapse under `folderKey(path)`. */
+  function renderTree<T>(nodes: TreeNode<T>[], depth: number, row: (leaf: T, label: string, depth: number) => ReactNode, folderKey: (path: string) => string): ReactNode {
     return nodes.map((n) => {
-      if (n.children.length === 0 && n.branch) return branchRow(n.branch, n.name, depth);
-      const isCollapsed = collapsed.has(n.path);
+      if (n.children.length === 0 && n.leaf !== undefined) return row(n.leaf, n.name, depth);
+      const key = folderKey(n.path);
+      const isCollapsed = collapsed.has(key);
       return (
         <div key={n.path} className={s.tree}>
           <TreeRow
@@ -178,12 +195,12 @@ export function Sidebar() {
             icon={<Folder size={14} aria-hidden />}
             label={n.name}
             title={n.path}
-            onClick={() => toggleFolder(n.path)}
+            onClick={() => toggleFolder(key)}
           />
           {!isCollapsed && (
             <div role="group" className={s.tree}>
-              {n.branch && branchRow(n.branch, n.name, depth + 1)}
-              {renderTree(n.children, depth + 1)}
+              {n.leaf !== undefined && row(n.leaf, n.name, depth + 1)}
+              {renderTree(n.children, depth + 1, row, folderKey)}
             </div>
           )}
         </div>
@@ -198,7 +215,7 @@ export function Sidebar() {
         (local.length === 0 ? (
           <EmptyState className={s.empty} icon={<GitBranch size={20} aria-hidden />} title="No branches yet" />
         ) : (
-          <Tree label="Local branches">{renderTree(buildTree(local), 0)}</Tree>
+          <Tree label="Local branches">{renderTree(buildTree(local, (b) => b.name), 0, branchRow, (path) => path)}</Tree>
         ))}
 
       {/* Branches, not remotes: every other section counts refs, and the remotes are right there to count by eye. */}
@@ -221,20 +238,13 @@ export function Sidebar() {
                 />
                 {!isCollapsed && (
                   <div role="group" className={s.tree}>
-                    {r.branches.map((rb) => (
-                      <TreeRow
-                        key={rb.name}
-                        role="treeitem"
-                        aria-level={2}
-                        depth={1}
-                        icon={<GitBranch size={14} aria-hidden />}
-                        label={stripRemote(rb, r.name)}
-                        title={rb.name}
-                        onClick={() => void revealOid(rb.oid)}
-                        onDoubleClick={() => void checkoutRemoteBranch(rb, r.name)}
-                        {...rowMenu({ kind: "remote", remote: r.name, branch: rb })}
-                      />
-                    ))}
+                    {/* Nested by `/` like the local branches; folder state is per remote. */}
+                    {renderTree(
+                      buildTree(r.branches, (rb) => stripRemote(rb, r.name)),
+                      1,
+                      remoteRow(r.name),
+                      (path) => `remote:${r.name}/${path}`,
+                    )}
                   </div>
                 )}
               </div>

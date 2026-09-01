@@ -83,6 +83,9 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the first two perfo
 - [ ] Tab into the grid with nothing selected → a focus ring is visible
 - [ ] Sidebar: Local / Remotes / Tags / Stashes with counts; sections collapse; the current branch is
       bold with ahead/behind counts; `Tab` stops **once** per section, arrows move within it
+- [ ] Branches with `/` in the name nest in folders — under Local and under each remote alike (the
+      fixture's `feature-upstream` is flat; `git push origin main:feature/nested` gives origin one);
+      a folder collapses independently of its namesake on another remote
 - [ ] Each count matches the **refs** you can see: Remotes shows total remote branches across all
       remotes (not the number of remotes), local folder rows are not counted
 - [ ] Click a branch or tag → grid scrolls to and selects that commit
