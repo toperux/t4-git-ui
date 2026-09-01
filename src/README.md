@@ -104,7 +104,8 @@ src/
                            banners.ts (pure refs+status → detached | merge | rebase | sequencer (cherry-pick/revert/bisect,
                            text only — no backend abort) | conflicts banners),
                            useShortcuts.ts (Ctrl+Shift+U push, Ctrl+Shift+L pull, Ctrl+B branch, Ctrl+F5 fetch, F5 refresh, Ctrl+`),
-                           dialogs/ (DialogHost + OpsDialogs Push/Pull/Fetch/Merge/Rebase, RefDialogs Checkout picker /
+                           dialogs/ (DialogHost + OpsDialogs Push/Push tag + Delete remote tag (`refs/tags/<name>` with a
+                           remote picker, from the sidebar tag menu)/Pull/Fetch/Merge/Rebase, RefDialogs Checkout picker /
                            Create-Rename-Delete branch / remote branch / tags, StashDialogs; gitArgs.ts mirrors cli/ops.rs
                            for the footer's "Runs `git …`" preview — that file is the source of truth),
                            DetailsPane (bottom pane: CommitDetails 340 | ChangedFileList 320 | DiffViewer, resizable;

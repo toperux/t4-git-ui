@@ -4,8 +4,8 @@ import type { RefsSnapshot, RepoSummary } from "../../../api/types";
 import { useOpsStore } from "../../../store/opsStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { useToastStore } from "../../../store/toastStore";
-import { MergeDialog, PullDialog, PushDialog } from "./OpsDialogs";
-import { CreateBranchDialog, CreateTagDialog } from "./RefDialogs";
+import { DeleteRemoteTagDialog, MergeDialog, PullDialog, PushDialog, PushTagDialog } from "./OpsDialogs";
+import { CreateBranchDialog, CreateTagDialog, DeleteTagDialog } from "./RefDialogs";
 
 vi.mock("../../../api/ipc", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../../api/ipc")>();
@@ -16,6 +16,8 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
     pull: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     createBranch: vi.fn(() => Promise.resolve()),
     createTag: vi.fn(() => Promise.resolve()),
+    deleteTag: vi.fn(() => Promise.resolve()),
+    deleteRemoteBranch: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     getDefaultRemote: vi.fn(() => Promise.resolve("origin")),
     getConfig: vi.fn(() => Promise.resolve(null)),
     getStatus: vi.fn(() => new Promise(() => {})),
@@ -24,7 +26,10 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
 });
 
 import * as ipc from "../../../api/ipc";
-const mocked = ipc as unknown as Record<"push" | "merge" | "pull" | "createBranch" | "createTag", ReturnType<typeof vi.fn>>;
+const mocked = ipc as unknown as Record<
+  "push" | "merge" | "pull" | "createBranch" | "createTag" | "deleteTag" | "deleteRemoteBranch",
+  ReturnType<typeof vi.fn>
+>;
 
 const REPO: RepoSummary = { id: "r", name: "r", path: "/r", head: { oid: "a", branch: "main", detached: false } };
 const REFS: RefsSnapshot = {
@@ -68,6 +73,63 @@ describe("PushDialog", () => {
     const { getByRole } = render(<PushDialog onClose={() => {}} branch="feature/lane-graph" />);
     await waitFor(() => expect((getByRole("checkbox", { name: "Set upstream" }) as HTMLInputElement).checked).toBe(true));
     expect(preview(getByRole("dialog"))).toBe("git push --progress -u origin feature/lane-graph");
+  });
+});
+
+describe("PushTagDialog", () => {
+  it("pushes one tag by its full ref, to the default remote", async () => {
+    const { getByRole } = render(<PushTagDialog onClose={() => {}} name="v1.2.0" />);
+    const dialog = getByRole("dialog", { name: "Push tag" });
+    // `refs/tags/…`, not the bare name: a branch called v1.2.0 must not be what goes out.
+    await waitFor(() => expect(preview(dialog)).toBe("git push --progress origin refs/tags/v1.2.0"));
+    fireEvent.click(getByRole("button", { name: "Push" }));
+    await waitFor(() => expect(mocked.push).toHaveBeenCalledWith("r", "origin", "refs/tags/v1.2.0", false, false, false));
+  });
+});
+
+describe("DeleteTagDialog", () => {
+  it("deletes locally only by default; with the box ticked the remote goes first, and a failure there keeps the local tag", async () => {
+    const { getByRole, unmount } = render(<DeleteTagDialog onClose={() => {}} name="v1.2.0" />);
+    const dialog = getByRole("dialog", { name: "Delete tag" });
+    expect(preview(dialog)).toBe("git tag -d v1.2.0");
+    fireEvent.click(getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(mocked.deleteTag).toHaveBeenCalledWith("r", "v1.2.0"));
+    expect(mocked.deleteRemoteBranch).not.toHaveBeenCalled();
+    unmount();
+
+    vi.clearAllMocks();
+    const second = render(<DeleteTagDialog onClose={() => {}} name="v1.2.0" />);
+    fireEvent.click(second.getByRole("checkbox", { name: "Also delete on the remote" }));
+    await waitFor(() => expect(preview(second.getByRole("dialog"))).toBe("git push origin --delete refs/tags/v1.2.0 && git tag -d v1.2.0"));
+    fireEvent.click(second.getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(mocked.deleteTag).toHaveBeenCalledWith("r", "v1.2.0"));
+    expect(mocked.deleteRemoteBranch).toHaveBeenCalledWith("r", "origin", "refs/tags/v1.2.0");
+    // Remote first: once the local tag is gone there is nothing left to retry from.
+    expect(mocked.deleteRemoteBranch.mock.invocationCallOrder[0]).toBeLessThan(mocked.deleteTag.mock.invocationCallOrder[0]);
+    second.unmount();
+
+    vi.clearAllMocks();
+    mocked.deleteRemoteBranch.mockImplementationOnce(() => Promise.resolve({ opId: "1", code: 1, conflicts: [], failure: { kind: "other", message: "no" } }));
+    const third = render(<DeleteTagDialog onClose={() => {}} name="v1.2.0" />);
+    fireEvent.click(third.getByRole("checkbox", { name: "Also delete on the remote" }));
+    fireEvent.click(third.getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(mocked.deleteRemoteBranch).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 0));
+    expect(mocked.deleteTag).not.toHaveBeenCalled();
+  });
+});
+
+describe("DeleteRemoteTagDialog", () => {
+  it("deletes the tag on the chosen remote by its full ref and leaves the local one alone", async () => {
+    useRepoStore.setState({ refs: { ...REFS, remotes: [...REFS.remotes, { name: "fork", url: null, branches: [] }] } });
+    const { getByRole } = render(<DeleteRemoteTagDialog onClose={() => {}} name="v1.2.0" />);
+    const dialog = getByRole("dialog", { name: "Delete remote tag" });
+    await waitFor(() => expect(preview(dialog)).toBe("git push origin --delete refs/tags/v1.2.0"));
+    fireEvent.click(getByRole("combobox", { name: "Remote" }));
+    fireEvent.click(getByRole("option", { name: "fork" }));
+    expect(preview(dialog)).toBe("git push fork --delete refs/tags/v1.2.0");
+    fireEvent.click(getByRole("button", { name: "Delete on remote" }));
+    await waitFor(() => expect(mocked.deleteRemoteBranch).toHaveBeenCalledWith("r", "fork", "refs/tags/v1.2.0"));
   });
 });
 

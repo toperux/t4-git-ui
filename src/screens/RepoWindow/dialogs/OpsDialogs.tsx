@@ -4,7 +4,7 @@ import * as ipc from "../../../api/ipc";
 import type { FfMode, PullMode } from "../../../api/types";
 import { Button } from "../../../components/ui/Button/Button";
 import { Checkbox } from "../../../components/ui/Checkbox/Checkbox";
-import { Dialog, Field, FieldRow, Options } from "../../../components/ui/Dialog/Dialog";
+import { Dialog, DialogText, Field, FieldRow, Mono, Options } from "../../../components/ui/Dialog/Dialog";
 import { Input, Select } from "../../../components/ui/Input/Input";
 import { runOp } from "../../../store/opsStore";
 import { useRepoStore } from "../../../store/repoStore";
@@ -12,13 +12,13 @@ import { currentBranch, defaultRemote } from "../actions";
 import { fetchArgs, gitCmd, mergeArgs, pullArgs, pushArgs, rebaseArgs } from "./gitArgs";
 
 /** Remote names of the open repo. */
-function useRemotes() {
+export function useRemotes() {
   const remotes = useRepoStore((st) => st.refs?.remotes);
   return useMemo(() => (remotes ?? []).map((r) => r.name), [remotes]);
 }
 
 /** `get_default_remote`, falling back to the first remote. */
-function useDefaultRemote(remotes: string[]) {
+export function useDefaultRemote(remotes: string[]) {
   const [remote, setRemote] = useState<string>(() => remotes[0] ?? "");
   useEffect(() => {
     let live = true;
@@ -32,7 +32,7 @@ function useDefaultRemote(remotes: string[]) {
   return [remote, setRemote] as const;
 }
 
-const RemoteField = ({ remotes, value, onChange, all }: { remotes: string[]; value: string; onChange: (v: string) => void; all?: boolean }) => (
+export const RemoteField = ({ remotes, value, onChange, all }: { remotes: string[]; value: string; onChange: (v: string) => void; all?: boolean }) => (
   <Field label="Remote">
     <Select aria-label="Remote" value={value} onChange={(e) => onChange(e.target.value)} autoFocus>
       {all && <option value="">All remotes</option>}
@@ -44,6 +44,81 @@ const RemoteField = ({ remotes, value, onChange, all }: { remotes: string[]; val
     </Select>
   </Field>
 );
+
+/**
+ * Pushes one tag — a release, usually. The refspec is spelled `refs/tags/<name>`
+ * so a branch of the same name can't be what gets pushed.
+ */
+export function PushTagDialog({ onClose, name }: { onClose: () => void; name: string }) {
+  const remotes = useRemotes();
+  const [remote, setRemote] = useDefaultRemote(remotes);
+  const refspec = `refs/tags/${name}`;
+  const preview = gitCmd(pushArgs(remote || "origin", refspec, false, false, false));
+
+  function submit() {
+    if (!remote) return;
+    onClose();
+    void runOp(`Pushing tag ${name}…`, (id) => ipc.push(id, remote, refspec, false, false, false), { success: `Pushed tag ${name} → ${remote}` });
+  }
+
+  return (
+    <Dialog
+      title="Push tag"
+      onClose={onClose}
+      onSubmit={submit}
+      preview={preview}
+      footer={
+        <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="primary" type="submit" disabled={!remote}>
+            Push
+          </Button>
+        </>
+      }
+    >
+      <RemoteField remotes={remotes} value={remote} onChange={setRemote} />
+      <DialogText>
+        Push <Mono>{name}</Mono> to the remote. A tag already there at a different commit is rejected — git never moves a published tag
+        on its own.
+      </DialogText>
+    </Dialog>
+  );
+}
+
+/** `git push <remote> --delete refs/tags/<name>` — the branch command, given a full tag ref. */
+export function DeleteRemoteTagDialog({ onClose, name }: { onClose: () => void; name: string }) {
+  const remotes = useRemotes();
+  const [remote, setRemote] = useDefaultRemote(remotes);
+  const refspec = `refs/tags/${name}`;
+
+  function submit() {
+    if (!remote) return;
+    onClose();
+    void runOp(`Deleting tag ${name} on ${remote}…`, (id) => ipc.deleteRemoteBranch(id, remote, refspec), { success: `Deleted tag ${name} on ${remote}` });
+  }
+
+  return (
+    <Dialog
+      title="Delete remote tag"
+      onClose={onClose}
+      onSubmit={submit}
+      preview={`git push ${remote || "origin"} --delete ${refspec}`}
+      footer={
+        <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="danger" type="submit" disabled={!remote}>
+            Delete on remote
+          </Button>
+        </>
+      }
+    >
+      <RemoteField remotes={remotes} value={remote} onChange={setRemote} />
+      <DialogText>
+        Delete <Mono>{name}</Mono> on the remote? The local tag stays. Other clones keep theirs until they fetch with prune.
+      </DialogText>
+    </Dialog>
+  );
+}
 
 export function PushDialog({ onClose, branch: branchProp }: { onClose: () => void; branch?: string }) {
   const remotes = useRemotes();

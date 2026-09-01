@@ -2,7 +2,7 @@
 import type { ReactNode } from "react";
 import { DialogReturnFocus } from "../../../components/ui/Dialog/Dialog";
 import { useDialogStore, type DialogSpec } from "../../../store/dialogStore";
-import { FetchDialog, MergeDialog, PullDialog, PushDialog, RebaseDialog } from "./OpsDialogs";
+import { DeleteRemoteTagDialog, FetchDialog, MergeDialog, PullDialog, PushDialog, PushTagDialog, RebaseDialog } from "./OpsDialogs";
 import { CheckoutDialog, CreateBranchDialog, CreateTagDialog, DeleteBranchDialog, DeleteRemoteBranchDialog, DeleteTagDialog, RenameBranchDialog } from "./RefDialogs";
 import { StashDialog, StashPushDialog } from "./StashDialogs";
 
@@ -40,6 +40,10 @@ function renderDialog(dialog: DialogSpec, close: () => void): ReactNode {
       return <CreateTagDialog onClose={close} target={dialog.target} />;
     case "deleteTag":
       return <DeleteTagDialog onClose={close} name={dialog.name} />;
+    case "pushTag":
+      return <PushTagDialog onClose={close} name={dialog.name} />;
+    case "deleteRemoteTag":
+      return <DeleteRemoteTagDialog onClose={close} name={dialog.name} />;
     case "stashPush":
       return <StashPushDialog onClose={close} />;
     case "stash":

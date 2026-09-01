@@ -11,7 +11,7 @@ Rust core (`git2` for reads and the index, the system `git` for everything that 
 - **Revision grid** — lane graph for all branches or the current one, ref chips (HEAD, local, remote, tags, stashes), text filter, working-tree row while the tree is dirty; virtualized, fine with very large histories.
 - **Details pane** — commit metadata, changed files (flat / tree), unified and side-by-side diffs with per-line syntax highlighting (JS/TS, Rust, CSS, JSON, HTML, Python), whitespace toggle.
 - **Commit panel** — unstaged / staged lists with multi-select, stage / unstage whole files, hunks or selected lines, discard, amend, Signed-off-by, message history, Commit & Push. Hooks and GPG signing run through the real `git`.
-- **Branch and remote operations** — fetch / pull / push, merge, rebase (continue / abort), checkout, create / rename / delete branches and tags, stash push / apply / pop / drop, each with a dialog that previews the exact `git …` command; output streams into a dock with Cancel.
+- **Branch and remote operations** — fetch / pull / push, merge, rebase (continue / abort), checkout, create / rename / delete branches, create / push / delete tags (locally or on a remote), stash push / apply / pop / drop, each with a dialog that previews the exact `git …` command; output streams into a dock with Cancel.
 - **State banners** — detached HEAD, merge / rebase in progress, conflicts.
 - **Start screen** — recent repositories (pin, filter), open, clone with progress, init; a friendly screen when `git` is missing.
 - Light and dark themes following the OS, no flash on launch; every colour pair audited for WCAG contrast.

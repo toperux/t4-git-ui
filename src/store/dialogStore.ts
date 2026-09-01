@@ -14,6 +14,8 @@ export type DialogSpec =
   | { kind: "renameBranch"; name: string }
   | { kind: "createTag"; target?: string }
   | { kind: "deleteTag"; name: string }
+  | { kind: "pushTag"; name: string }
+  | { kind: "deleteRemoteTag"; name: string }
   | { kind: "deleteRemoteBranch"; remote: string; name: string }
   | { kind: "stashPush" }
   /** Apply / Pop / Drop of one stash. */

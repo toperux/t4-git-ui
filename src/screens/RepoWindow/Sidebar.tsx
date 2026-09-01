@@ -363,12 +363,16 @@ function RefContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number 
             <MenuItem icon={<Plus size={16} aria-hidden />} onClick={run(() => openDialog({ kind: "createBranch", startPoint: target.name }))}>
               Create branch here…
             </MenuItem>
+            <MenuItem onClick={run(() => openDialog({ kind: "pushTag", name: target.name }))}>Push…</MenuItem>
             <MenuItem icon={<Copy size={16} aria-hidden />} onClick={run(() => copyText(target.name, "tag name"))}>
               Copy name
             </MenuItem>
             <MenuSeparator />
             <MenuItem icon={<Trash2 size={16} aria-hidden />} danger onClick={run(() => openDialog({ kind: "deleteTag", name: target.name }))}>
               Delete…
+            </MenuItem>
+            <MenuItem icon={<Trash2 size={16} aria-hidden />} danger onClick={run(() => openDialog({ kind: "deleteRemoteTag", name: target.name }))}>
+              Delete on remote…
             </MenuItem>
           </>
         );

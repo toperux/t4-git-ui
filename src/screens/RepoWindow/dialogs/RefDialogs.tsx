@@ -12,6 +12,7 @@ import { runOp } from "../../../store/opsStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { checkoutBranch, checkoutDetached, checkoutRemoteBranch } from "../actions";
 import { checkoutArgs, gitCmd } from "./gitArgs";
+import { RemoteField, useDefaultRemote, useRemotes } from "./OpsDialogs";
 import s from "./RefDialogs.module.css";
 
 /** Start points a branch / tag can be created at: HEAD, local branches, remote branches, tags. */
@@ -258,29 +259,52 @@ export function CreateTagDialog({ onClose, target: initial }: { onClose: () => v
   );
 }
 
+/**
+ * Local delete, optionally the remote's copy too. Tags aren't tracked per remote the way
+ * branches are: once the local one is gone the sidebar has nothing left to offer "Delete on
+ * remote…" on, so the choice has to be made here — and the remote goes first, so a failed
+ * push leaves the tag in place to try again.
+ */
 export function DeleteTagDialog({ onClose, name }: { onClose: () => void; name: string }) {
-  function submit() {
+  const remotes = useRemotes();
+  const [remote, setRemote] = useDefaultRemote(remotes);
+  const [onRemote, setOnRemote] = useState(false);
+  const refspec = `refs/tags/${name}`;
+  const preview = onRemote ? `git push ${remote || "origin"} --delete ${refspec} && git tag -d ${name}` : `git tag -d ${name}`;
+
+  async function submit() {
     onClose();
-    void runOp(`Deleting tag ${name}…`, (id) => ipc.deleteTag(id, name), { success: `Deleted tag ${name}` });
+    if (onRemote) {
+      const r = await runOp(`Deleting tag ${name} on ${remote}…`, (id) => ipc.deleteRemoteBranch(id, remote, refspec), { success: `Deleted tag ${name} on ${remote}` });
+      if (!r.ok) return;
+    }
+    await runOp(`Deleting tag ${name}…`, (id) => ipc.deleteTag(id, name), { success: `Deleted tag ${name}` });
   }
   return (
     <Dialog
       title="Delete tag"
       onClose={onClose}
-      onSubmit={submit}
-      preview={`git tag -d ${name}`}
+      onSubmit={() => void submit()}
+      preview={preview}
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant="danger" type="submit">
+          <Button variant="danger" type="submit" disabled={onRemote && !remote}>
             Delete
           </Button>
         </>
       }
     >
       <DialogText>
-        Delete tag <Mono>{name}</Mono> locally? A tag already pushed stays on the remote.
+        Delete tag <Mono>{name}</Mono>? A tag already pushed stays on the remote unless it is deleted there too — and the next fetch brings
+        it back.
       </DialogText>
+      <Options>
+        <Checkbox checked={onRemote} onChange={setOnRemote} disabled={remotes.length === 0}>
+          Also delete on the remote
+        </Checkbox>
+      </Options>
+      {onRemote && <RemoteField remotes={remotes} value={remote} onChange={setRemote} />}
     </Dialog>
   );
 }

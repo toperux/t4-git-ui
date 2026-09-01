@@ -188,7 +188,17 @@ Use `C:\tmp\t4\work` and the bare remote.
       both land on **that** row, not on HEAD; with a Message the preview reads `git tag -a -m '…' …`
 - [ ] Select the tagged row → commit details shows the **annotated** tag's message in its own block
       under the commit message; the lightweight one adds nothing
-- [ ] Delete a tag from the sidebar (Tags → right-click → Delete tag)
+- [ ] Sidebar → Tags → right-click the annotated tag → **Push…** → preview reads
+      `git push --progress origin refs/tags/<name>` → Push → it appears on the remote
+      (`git -C <bare> tag`); push it again → "Everything up-to-date"; re-create it locally on another
+      commit and push → rejected toast ("already exists"), the remote tag is unchanged
+- [ ] Right-click the pushed tag → **Delete on remote…** → pick the remote → preview reads
+      `git push origin --delete refs/tags/<name>` → it is gone from `git -C <bare> tag`, still in
+      the sidebar
+- [ ] Delete a tag from the sidebar (Tags → right-click → Delete…) — local only by default; tick
+      **Also delete on the remote** and pick the remote → preview chains the push first → both go;
+      untick and delete a pushed tag → the next Fetch brings it back (git's own behaviour: tags are
+      not tracked per remote, so the sidebar has no "remote tag" to offer Delete on remote… for)
 - [ ] Stash changes → appears in the sidebar; Apply / Pop / Drop from the toolbar menu
 - [ ] Checkout a commit (detached) → warning banner with "Checkout <branch>" and "Create branch…"
 - [ ] Start a slow fetch, expand the dock (`` Ctrl+` ``) → elapsed timer + **Cancel**; cancel → toast,
