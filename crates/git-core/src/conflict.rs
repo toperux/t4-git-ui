@@ -62,7 +62,13 @@ const EDITORS: &[&str] = &[
     "code-insiders",
 ];
 
-fn stage_file(repo: &Repository, dir: &Path, path: &str, side: &str, id: Option<Oid>) -> Result<PathBuf, GitError> {
+fn stage_file(
+    repo: &Repository,
+    dir: &Path,
+    path: &str,
+    side: &str,
+    id: Option<Oid>,
+) -> Result<PathBuf, GitError> {
     let name = Path::new(path).file_name().unwrap_or_default();
     let name = Path::new(name);
     let stem = name.file_stem().unwrap_or_default().to_string_lossy();
@@ -110,7 +116,11 @@ pub fn open_merge_editor(repo: &Repository, path: &str) -> Result<String, GitErr
     let mut last: Option<std::io::Error> = None;
     for exe in EDITORS {
         let mut cmd = Command::new(exe);
-        cmd.arg("--merge").arg(&ours).arg(&theirs).arg(&base).arg(&merged);
+        cmd.arg("--merge")
+            .arg(&ours)
+            .arg(&theirs)
+            .arg(&base)
+            .arg(&merged);
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
@@ -136,7 +146,10 @@ pub fn open_merge_editor(repo: &Repository, path: &str) -> Result<String, GitErr
 /// A stable per-conflict directory name: the sides that exist, hashed together.
 fn oid_key(stages: &ConflictStages) -> u64 {
     let mut key = 0u64;
-    for id in [stages.ancestor, stages.ours, stages.theirs].into_iter().flatten() {
+    for id in [stages.ancestor, stages.ours, stages.theirs]
+        .into_iter()
+        .flatten()
+    {
         for b in id.as_bytes() {
             key = key.wrapping_mul(31).wrapping_add(u64::from(*b));
         }

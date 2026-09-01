@@ -87,7 +87,11 @@ pub fn discard_paths(repo: &Repository, paths: &[&str]) -> Result<Vec<String>, G
 /// brings them back. Only git can do this (libgit2 has no equivalent), and it
 /// overwrites the working file, so it belongs behind a confirmation.
 pub fn recreate_conflict_args(paths: &[&str]) -> Vec<String> {
-    let mut args = vec!["checkout".to_string(), "--merge".to_string(), "--".to_string()];
+    let mut args = vec![
+        "checkout".to_string(),
+        "--merge".to_string(),
+        "--".to_string(),
+    ];
     args.extend(paths.iter().map(|p| (*p).to_string()));
     args
 }

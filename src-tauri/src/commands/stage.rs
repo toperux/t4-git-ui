@@ -199,8 +199,16 @@ async fn run_checkout_merge(
         |handle| async move {
             let args = stage::recreate_conflict_args(&as_strs(&paths));
             let argv: Vec<&str> = args.iter().map(String::as_str).collect();
-            let run =
-                run_git_op(app, state, Some(&handle.id), &handle.path, &argv, None, false).await?;
+            let run = run_git_op(
+                app,
+                state,
+                Some(&handle.id),
+                &handle.path,
+                &argv,
+                None,
+                false,
+            )
+            .await?;
             run.out.check(&format!("git {}", argv.join(" ")))?;
             Ok(())
         },

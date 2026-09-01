@@ -45,7 +45,10 @@ fn stages_carry_every_side_that_exists() {
     assert!(deleted.ours.is_some());
     assert_eq!(deleted.theirs, None);
 
-    assert_eq!(conflict::stages(&t.repo, "nothing.txt").expect("stages"), None);
+    assert_eq!(
+        conflict::stages(&t.repo, "nothing.txt").expect("stages"),
+        None
+    );
 }
 
 /// The panel's guard for "the file on screen changed": an editor writing the
