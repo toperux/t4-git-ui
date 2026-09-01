@@ -176,12 +176,14 @@ From the real-window walkthrough: opening a large repo showed only the 14px stat
 - `status.rs` is libgit2-only; the `git status --porcelain=v2 -z` fallback (see git-core modules) is unimplemented — add behind a flag if libgit2 proves slow on very large trees.
 - Linux watcher: the workdir is watched recursively including ignored dirs (filtered at debounce time), so `max_user_watches` can bite on huge trees; watcher failure degrades to a warning + manual refresh.
 
-**Verification not yet done (needs a GUI or a push)**
-- **The smoke test is still the gate.** The app now runs in a real window (start-up, auto-reopen, the grid, repo switching and every splitter were exercised there — see the three bugs above), but only those paths. Everything else was verified by unit tests, `tsc`, `vite build`, `cargo` gates and headless canvas screenshots. The acceptance walkthrough is `docs/smoke-test.md` (fixtures + per-area checklist + "expected to be missing"); running it is the v1 gate.
+**v1 accepted (2026-09-01)**
+- ~~The smoke test is still the gate.~~ `docs/smoke-test.md` §0–§7 was walked end to end on Windows against the `docs/smoke-fixtures.ps1` fixture, finishing at `397efa2`. Every finding from it is fixed and folded into the sections above (tag target, tag annotations, push / delete-on-remote tag ops, Fetch split button, repo-menu guard while an op runs, dock height, …).
+- ~~`.github/workflows/{ci,release}.yml` have never executed.~~ The repo is on GitHub (`toperux/t4-git-ui`, private); `ci.yml` is green on ubuntu / windows / macos since `4ebfb60`, after three real fixes it forced (`cargo fmt`, inotify `Access` events leaking through the watcher, `core.autocrlf=true` breaking byte-comparing tests on Windows). `release.yml` has not run yet — no `v*` tag pushed.
+- ~~The two published design canvases are one palette behind~~ — republished 2026-08-31 from the post-M6 artboards (`--syn-*` tokens included); both keep their original URLs (see A1/A2 above).
+
+**Verification still open (needs a machine we don't have)**
 - UI-vs-canvas comparison pass (M6).
 - Installer on a clean Win11; macOS signing/notarization; Linux + macOS are CI-build-only (no check of WebKitGTK rendering).
-- `.github/workflows/{ci,release}.yml` have never executed — the repo has no remote.
-- ~~The two published design canvases are one palette behind~~ — republished 2026-08-31 from the post-M6 artboards (`--syn-*` tokens included); both keep their original URLs (see A1/A2 above).
 
 **Decided, not gaps**
 - Native titlebar stays (the plan flagged it to revisit in M6; revisited, kept).
