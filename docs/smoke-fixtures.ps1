@@ -11,8 +11,9 @@
 #   work      history with a branch, a merge, a tag, one commit that is not pushed
 #             yet (section 5 pushes it), the odd files the diff viewer is checked
 #             against - CRLF, binary, no trailing newline - a 25 000-line diff and a
-#             300-file commit for the section 7 checks, and hunks.txt modified in
-#             the working tree, in three hunks, for the staging checks
+#             300-file commit for the section 7 checks, branches sitting on commits
+#             for the section 5 context-menu checks, and hunks.txt modified in the
+#             working tree, in three hunks, for the staging checks
 #   other     a second clone of bare.git, for the divergence checks in section 5
 # plus two extra remotes on work: `nowhere` (a path that doesn't exist) and `slow`
 # (bare.git behind an upload-pack that sleeps a minute), for the failed / cancelled
@@ -168,6 +169,37 @@ Invoke-Git -C $work switch -q main
 Invoke-Git -C $work branch --delete --force feature-upstream feature-decoy | Out-Null
 Invoke-Git -C $work branch --set-upstream-to=origin/feature-upstream feature | Out-Null
 
+# The commit context menu's branch items (section 5): what it offers depends on which branches sit
+# on the row.
+#   reset-me      two commits off main, pushed with an upstream: "Reset reset-me to here…" moves it
+#                 back one, then origin/reset-me on the tip row offers to put it back
+#   twin-a/-b     one commit with two local branches and origin/twin-remote (no local one), so
+#                 Checkout shows a picker instead of a single entry
+#   origin/solo   a remote branch with no local counterpart: checked out as a new tracking local
+Invoke-Git -C $work switch -qc reset-me
+Write-Text (Join-Path $work 'reset.txt') "one`n"
+Invoke-Git -C $work add .
+Invoke-Git -C $work commit -qm 'reset fixture 1'
+Write-Text (Join-Path $work 'reset.txt') "one`ntwo`n"
+Invoke-Git -C $work commit -qam 'reset fixture 2'
+Invoke-Git -C $work push -q -u origin reset-me
+
+Invoke-Git -C $work switch -qc twin-a main
+Write-Text (Join-Path $work 'twins.txt') "three branches sit here`n"
+Invoke-Git -C $work add .
+Invoke-Git -C $work commit -qm 'twins (three branches here)'
+Invoke-Git -C $work branch twin-b
+Invoke-Git -C $work push -q origin twin-a:twin-remote
+
+Invoke-Git -C $work switch -qc solo main
+Write-Text (Join-Path $work 'solo.txt') "only on the remote`n"
+Invoke-Git -C $work add .
+Invoke-Git -C $work commit -qm 'solo (remote only)'
+Invoke-Git -C $work push -q origin solo
+
+Invoke-Git -C $work switch -q main
+Invoke-Git -C $work branch --delete --force solo | Out-Null
+
 Write-Text (Join-Path $work 'crlf.txt') "x`r`ny`r`n"
 Write-Text (Join-Path $work 'nonl.txt') 'no newline'
 $binary = [byte[]] (@(0, 1, 2) + [System.Text.Encoding]::ASCII.GetBytes('binary'))
@@ -212,5 +244,6 @@ Write-Host "ready - open $work in the app"
 Write-Host "  work   $commits commits, the last one not pushed yet"
 Write-Host '         hunks.txt is modified in the working tree, in three hunks'
 Write-Host '         feature tracks origin/feature-upstream, while origin/feature is someone else'
+Write-Host '         reset-me, twin-a/twin-b/origin/twin-remote and origin/solo are the commit-menu branches'
 Write-Host '         "big diff" and "many files" are the section 7 commits'
 Write-Host '  other  second clone, for the divergence checks in section 5'

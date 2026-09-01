@@ -13,6 +13,7 @@ import type {
   LogPage,
   OpResult,
   PullMode,
+  ResetMode,
   RefsSnapshot,
   RepoId,
   RepoSummary,
@@ -154,6 +155,12 @@ export const mergeAbort = (id: RepoId) => call<OpResult>("merge_abort", { id });
 /** `git checkout [--track] [-b <createBranch>] <target>`; `track` only applies with `createBranch`. */
 export const checkout = (id: RepoId, target: string, createBranch: string | null, track: boolean) =>
   call<OpResult>("checkout", { id, target, createBranch, track });
+
+/** `git reset (--soft | --mixed | --hard) <target>` — moves the current branch (or a detached HEAD). */
+export const reset = (id: RepoId, mode: ResetMode, target: string) => call<OpResult>("reset", { id, mode, target });
+
+/** `git branch -f <branch> <target>` — moves a branch that is not checked out; the working tree is untouched. */
+export const resetBranch = (id: RepoId, branch: string, target: string) => call<OpResult>("reset_branch", { id, branch, target });
 
 /** `git stash push [-u] [-k] [-m <msg>]` */
 export const stashPush = (id: RepoId, message: string | null, includeUntracked: boolean, keepIndex: boolean) =>

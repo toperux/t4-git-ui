@@ -4,8 +4,8 @@ import type { RefsSnapshot, RepoSummary } from "../../../api/types";
 import { useOpsStore } from "../../../store/opsStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { useToastStore } from "../../../store/toastStore";
-import { DeleteRemoteTagDialog, MergeDialog, PullDialog, PushDialog, PushTagDialog } from "./OpsDialogs";
-import { CreateBranchDialog, CreateTagDialog, DeleteTagDialog } from "./RefDialogs";
+import { DeleteRemoteTagDialog, MergeDialog, PullDialog, PushDialog, PushTagDialog, ResetBranchDialog, ResetDialog } from "./OpsDialogs";
+import { CheckoutBranchDialog, CreateBranchDialog, CreateTagDialog, DeleteTagDialog } from "./RefDialogs";
 
 vi.mock("../../../api/ipc", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../../api/ipc")>();
@@ -14,6 +14,9 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
     push: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     merge: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     pull: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
+    reset: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
+    resetBranch: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
+    checkout: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     createBranch: vi.fn(() => Promise.resolve()),
     createTag: vi.fn(() => Promise.resolve()),
     deleteTag: vi.fn(() => Promise.resolve()),
@@ -27,7 +30,7 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
 
 import * as ipc from "../../../api/ipc";
 const mocked = ipc as unknown as Record<
-  "push" | "merge" | "pull" | "createBranch" | "createTag" | "deleteTag" | "deleteRemoteBranch",
+  "push" | "merge" | "pull" | "reset" | "resetBranch" | "checkout" | "createBranch" | "createTag" | "deleteTag" | "deleteRemoteBranch",
   ReturnType<typeof vi.fn>
 >;
 
@@ -116,6 +119,53 @@ describe("DeleteTagDialog", () => {
     await waitFor(() => expect(mocked.deleteRemoteBranch).toHaveBeenCalled());
     await new Promise((r) => setTimeout(r, 0));
     expect(mocked.deleteTag).not.toHaveBeenCalled();
+  });
+});
+
+describe("ResetDialog", () => {
+  it("defaults to mixed, previews the exact command, and hard turns the button into a danger action", async () => {
+    const oid = "deadbeefcafe0123456789abcdef0123456789ab";
+    const { getByRole } = render(<ResetDialog onClose={() => {}} target={oid} />);
+    const dialog = getByRole("dialog", { name: "Reset main" });
+    expect(preview(dialog)).toBe(`git reset --mixed ${oid}`);
+
+    fireEvent.click(getByRole("combobox", { name: "Mode" }));
+    fireEvent.click(getByRole("option", { name: "Hard — discard all uncommitted changes" }));
+    expect(preview(dialog)).toBe(`git reset --hard ${oid}`);
+    fireEvent.click(getByRole("button", { name: "Reset" }));
+    await waitFor(() => expect(mocked.reset).toHaveBeenCalledWith("r", "hard", oid));
+  });
+
+  it("shows a ref target as is", () => {
+    const { getByRole } = render(<ResetDialog onClose={() => {}} target="origin/main" />);
+    expect(preview(getByRole("dialog", { name: "Reset main" }))).toBe("git reset --mixed origin/main");
+  });
+});
+
+describe("ResetBranchDialog", () => {
+  it("force-moves the branch with `git branch -f`", async () => {
+    const { getByRole } = render(<ResetBranchDialog onClose={() => {}} branch="feature/lane-graph" target="origin/main" />);
+    expect(preview(getByRole("dialog", { name: "Reset feature/lane-graph" }))).toBe("git branch -f feature/lane-graph origin/main");
+    fireEvent.click(getByRole("button", { name: "Reset" }));
+    await waitFor(() => expect(mocked.resetBranch).toHaveBeenCalledWith("r", "feature/lane-graph", "origin/main"));
+  });
+});
+
+describe("CheckoutBranchDialog", () => {
+  it("checks out the picked local branch, or a remote one as a new tracking local", async () => {
+    const branches = [
+      { name: "feature/lane-graph", remote: null },
+      { name: "origin/topic", remote: "origin" },
+    ];
+    const { getByRole } = render(<CheckoutBranchDialog onClose={() => {}} branches={branches} />);
+    const dialog = getByRole("dialog", { name: "Checkout" });
+    expect(preview(dialog)).toBe("git checkout feature/lane-graph");
+
+    fireEvent.click(getByRole("combobox", { name: "Branch" }));
+    fireEvent.click(getByRole("option", { name: "origin/topic" }));
+    expect(preview(dialog)).toBe("git checkout --track -b topic origin/topic");
+    fireEvent.click(getByRole("button", { name: "Checkout" }));
+    await waitFor(() => expect(mocked.checkout).toHaveBeenCalledWith("r", "origin/topic", "topic", true));
   });
 });
 

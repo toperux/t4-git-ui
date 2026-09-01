@@ -183,3 +183,15 @@
 .skeleton {
   color: var(--fg-faint);
 }
+
+/* "Reset <branch> to here…": when the menu can't fit it, only the branch name gives way. */
+.menuLabel {
+  display: flex;
+  gap: 0.3em;
+  min-width: 0;
+}
+.menuBranch {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

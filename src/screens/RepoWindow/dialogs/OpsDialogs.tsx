@@ -1,7 +1,7 @@
 // Push / Pull / Fetch / Merge / Rebase — the dialogs that drive a streaming remote or history op.
 import { useEffect, useMemo, useState } from "react";
 import * as ipc from "../../../api/ipc";
-import type { FfMode, PullMode } from "../../../api/types";
+import type { FfMode, PullMode, ResetMode } from "../../../api/types";
 import { Button } from "../../../components/ui/Button/Button";
 import { Checkbox } from "../../../components/ui/Checkbox/Checkbox";
 import { Dialog, DialogText, Field, FieldRow, Mono, Options } from "../../../components/ui/Dialog/Dialog";
@@ -9,7 +9,7 @@ import { Input, Select } from "../../../components/ui/Input/Input";
 import { runOp } from "../../../store/opsStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { currentBranch, defaultRemote } from "../actions";
-import { fetchArgs, gitCmd, mergeArgs, pullArgs, pushArgs, rebaseArgs } from "./gitArgs";
+import { fetchArgs, gitCmd, mergeArgs, pullArgs, pushArgs, rebaseArgs, resetArgs, resetBranchArgs } from "./gitArgs";
 
 /** Remote names of the open repo. */
 export function useRemotes() {
@@ -348,6 +348,102 @@ export function MergeDialog({ onClose, branch: initial }: { onClose: () => void;
       <Field label="Commit message" help="Left empty git writes the default merge message">
         <Input aria-label="Commit message" placeholder={defaultMessage} value={message} onChange={(e) => setMessage(e.target.value)} spellCheck={false} />
       </Field>
+    </Dialog>
+  );
+}
+
+const RESET_LABEL: Record<ResetMode, string> = {
+  soft: "Soft — keep the index and working tree",
+  mixed: "Mixed — keep the working tree, unstage everything",
+  hard: "Hard — discard all uncommitted changes",
+};
+
+/** A reset target is an oid (shown abbreviated) or a ref name such as `origin/main` (shown as is). */
+const shortRef = (target: string) => (/^[0-9a-f]{40}$/.test(target) ? target.slice(0, 7) : target);
+
+/** Reset the current branch (or a detached HEAD) to a commit picked in the grid, or to a ref sitting there. */
+export function ResetDialog({ onClose, target }: { onClose: () => void; target: string }) {
+  const refs = useRepoStore((st) => st.refs);
+  const current = refs?.local.find((b) => b.isHead)?.name ?? "HEAD";
+  const [mode, setMode] = useState<ResetMode>("mixed");
+  const short = shortRef(target);
+  const preview = gitCmd(resetArgs(mode, target));
+
+  function submit() {
+    onClose();
+    void runOp(`Resetting ${current} to ${short}…`, (id) => ipc.reset(id, mode, target), { success: `Reset ${current} to ${short}` });
+  }
+
+  return (
+    <Dialog
+      title={`Reset ${current}`}
+      onClose={onClose}
+      onSubmit={submit}
+      preview={preview}
+      footer={
+        <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant={mode === "hard" ? "danger" : "primary"} type="submit">
+            Reset
+          </Button>
+        </>
+      }
+    >
+      <Field label="Mode">
+        <Select aria-label="Mode" value={mode} onChange={(e) => setMode(e.target.value as ResetMode)} autoFocus>
+          {(Object.keys(RESET_LABEL) as ResetMode[]).map((m) => (
+            <option key={m} value={m}>
+              {RESET_LABEL[m]}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <DialogText>
+        {mode === "hard" ? (
+          <>
+            Moves <Mono>{current}</Mono> to <Mono>{short}</Mono> and <strong>throws away every uncommitted change</strong>, staged and
+            unstaged. Commits after <Mono>{short}</Mono> stay reachable only through the reflog.
+          </>
+        ) : (
+          <>
+            Moves <Mono>{current}</Mono> to <Mono>{short}</Mono>; your files don&apos;t change. Commits after <Mono>{short}</Mono> stay
+            reachable only through the reflog.
+          </>
+        )}
+      </DialogText>
+    </Dialog>
+  );
+}
+
+/** `git branch -f`: moves a branch that is not checked out (the current branch goes through `ResetDialog`). */
+export function ResetBranchDialog({ onClose, branch, target }: { onClose: () => void; branch: string; target: string }) {
+  const short = shortRef(target);
+  const preview = gitCmd(resetBranchArgs(branch, target));
+
+  function submit() {
+    onClose();
+    void runOp(`Resetting ${branch} to ${short}…`, (id) => ipc.resetBranch(id, branch, target), { success: `Reset ${branch} to ${short}` });
+  }
+
+  return (
+    <Dialog
+      title={`Reset ${branch}`}
+      onClose={onClose}
+      onSubmit={submit}
+      preview={preview}
+      footer={
+        <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="primary" type="submit">
+            Reset
+          </Button>
+        </>
+      }
+    >
+      <DialogText>
+        Moves <Mono>{branch}</Mono> to <Mono>{short}</Mono>. It isn&apos;t checked out, so your files don&apos;t change. Commits after{" "}
+        <Mono>{short}</Mono> stay reachable only through the reflog.
+      </DialogText>
     </Dialog>
   );
 }

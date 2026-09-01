@@ -24,6 +24,20 @@ pub enum FfMode {
     No,
 }
 
+/// `git reset` flavor: what happens to the index and working tree when the
+/// branch moves.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ResetMode {
+    /// Keep the index and working tree (the difference shows as staged).
+    Soft,
+    /// Keep the working tree, reset the index (git's default).
+    #[default]
+    Mixed,
+    /// Discard all uncommitted changes.
+    Hard,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct MergeOpts {
     pub ff: FfMode,
@@ -177,6 +191,31 @@ pub fn checkout(target: &str, create_branch: Option<&str>, track: bool) -> Vec<S
         a.push("-b".into());
         a.push(name.into());
     }
+    a.push(target.into());
+    a
+}
+
+/// `reset (--soft | --mixed | --hard) <target>` — moves the current branch
+/// (or a detached HEAD) to `target`.
+pub fn reset(mode: ResetMode, target: &str) -> Vec<String> {
+    let mut a = args(["reset"]);
+    a.push(
+        match mode {
+            ResetMode::Soft => "--soft",
+            ResetMode::Mixed => "--mixed",
+            ResetMode::Hard => "--hard",
+        }
+        .into(),
+    );
+    a.push(target.into());
+    a
+}
+
+/// `branch -f <name> <target>` — moves a branch that is not checked out (git
+/// refuses to force-update the current branch; that is what `reset` is for).
+pub fn branch_force(name: &str, target: &str) -> Vec<String> {
+    let mut a = args(["branch", "-f"]);
+    a.push(name.into());
     a.push(target.into());
     a
 }
@@ -382,6 +421,26 @@ mod tests {
                 "origin",
                 "main:main"
             ]
+        );
+    }
+
+    #[test]
+    fn reset_args() {
+        assert_eq!(
+            reset(ResetMode::Soft, "abc1234"),
+            ["reset", "--soft", "abc1234"]
+        );
+        assert_eq!(
+            reset(ResetMode::Mixed, "abc1234"),
+            ["reset", "--mixed", "abc1234"]
+        );
+        assert_eq!(
+            reset(ResetMode::Hard, "abc1234"),
+            ["reset", "--hard", "abc1234"]
+        );
+        assert_eq!(
+            branch_force("feature", "origin/feature"),
+            ["branch", "-f", "feature", "origin/feature"]
         );
     }
 

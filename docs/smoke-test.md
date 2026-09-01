@@ -27,7 +27,9 @@ Windows PowerShell works too: `powershell -ExecutionPolicy Bypass -File docs\smo
 It creates a bare `bare.git` "remote", a `work` repo, and a second clone `other` for the divergence
 checks in §5. `work` holds history with a `feature` branch, a merge, the tag `v0.1.0`, one commit
 that is **not** pushed yet (§5 pushes it), the CRLF / binary / no-trailing-newline files §3 checks,
-and `hunks.txt` left modified in three hunks for the staging checks in §4.
+branches sitting on commits for the context-menu checks in §5 (`reset-me`, `twin-a` / `twin-b` /
+`origin/twin-remote`, `origin/solo`), and `hunks.txt` left modified in three hunks for the staging
+checks in §4.
 
 `work` turns `core.autocrlf` off, or git rewrites `crlf.txt` to LF on the way into the index and
 the committed blob has no CR left for §3 to show. The script fails loudly if that happens anyway.
@@ -86,8 +88,12 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the first two perfo
 - [ ] Click a branch or tag → grid scrolls to and selects that commit
 - [ ] Type in "Search commits" → after ~250 ms a flat list (no graph column); clear it → graph returns
 - [ ] Branch scope select `All branches` → `HEAD` → re-walks
-- [ ] Right-click a commit row (or `Shift+F10`) → context menu with Checkout / Create branch here… /
-      Create tag here… / Copy SHA
+- [ ] Right-click a commit row (or `Shift+F10`) → context menu with Checkout (detached) / Create
+      branch here… / Reset `<current branch>` to here… / Create tag here… / Copy SHA; a row with a
+      branch on it adds Checkout `<branch>` (or Checkout branch… when several sit there), and one
+      with a remote branch whose local branch is elsewhere adds Reset `<local>` to `<remote>`…
+- [ ] Check out a long-named branch, right-click a row → the Reset item keeps `to here…` visible and
+      ellipsizes the branch name instead; the full text is in its tooltip
 - [ ] Right-click the toolbar, a panel header or the statusbar → **nothing** (no browser menu with
       Reload / Save as / Print); right-click inside a text field still offers Cut / Copy / Paste, and
       so does selected diff / commit-message / output-dock text
@@ -202,6 +208,34 @@ Use `C:\tmp\t4\work` and the bare remote.
       not tracked per remote, so the sidebar has no "remote tag" to offer Delete on remote… for)
 - [ ] Stash changes → appears in the sidebar; Apply / Pop / Drop from the toolbar menu
 - [ ] Checkout a commit (detached) → warning banner with "Checkout <branch>" and "Create branch…"
+- [ ] Right-click the `feature edit` row → **Checkout feature** (one branch, no picker) → checks it out
+- [ ] Right-click `solo (remote only)` → **Checkout origin/solo** → a local `solo` tracking
+      `origin/solo` is created and checked out (one chip with a remote segment on the row)
+- [ ] Right-click `twins (three branches here)` → **Checkout branch…** → picker lists `twin-a`,
+      `twin-b`, `origin/twin-remote`; pick `origin/twin-remote` → the help line says it creates
+      `twin-remote`, preview reads `git checkout --track -b twin-remote origin/twin-remote` → Checkout →
+      `twin-remote` is the current branch
+- [ ] Check out `reset-me` (sidebar double-click), right-click the `reset fixture 1` row → **Reset
+      reset-me to here…** → dialog defaults to Mixed, preview reads `git reset --mixed <sha>` → Reset →
+      the `reset-me` chip moves down one row while `origin/reset-me` stays on `reset fixture 2`, and
+      `reset.txt` shows up as an **unstaged** change
+- [ ] Right-click `reset fixture 2` → **Reset reset-me to origin/reset-me…** → same dialog (it is the
+      current branch), preview reads `git reset --mixed origin/reset-me`; pick **Hard** → the button
+      turns danger and the text warns about uncommitted changes → Reset → `reset.txt` is clean again
+      and the two chips are one row again
+- [ ] Reset `reset-me` to `reset fixture 1` once more, this time **Hard** (no leftover change), then
+      double-click `main` in the sidebar and right-click `reset fixture 2` → **Reset reset-me to
+      origin/reset-me…** → a plain confirm dialog, preview reads `git branch -f reset-me origin/reset-me`
+      (not `git reset`: the branch is not checked out) → Reset → the chip is back on the tip and the
+      working tree was never touched
+- [ ] **Before** the Pull check on `feature` above (it needs `feature` behind its upstream — Cancel
+      these dialogs): right-click `upstream branch commit` (`origin/feature-upstream`) → **Reset
+      feature to origin/feature-upstream…** — the local branch is matched by **upstream**; right-click
+      `decoy branch commit` (`origin/feature`) → **Reset feature to origin/feature…** — matched by
+      **name**. After the Pull only the second one is still offered: `feature` then sits on
+      `origin/feature-upstream`
+- [ ] Right-click a row where the only branch is the current one (its HEAD row) → no Checkout
+      `<branch>` item and no Reset-to-remote item, just the fixed entries
 - [ ] Fetch via the **▾ beside Fetch** (the button itself and `Ctrl+F5` hit the default remote) from
       the `slow` remote (bare.git behind an upload-pack that sleeps 60s — the fixture adds it; a fixture
       built before it: `pwsh -File docs/smoke-fixtures.ps1 -RemotesOnly`, then `F5`), expand the

@@ -1,7 +1,7 @@
 // Mirrors the argument builders in `crates/git-core/src/cli/ops.rs`, which is the source of truth:
 // the backend builds the real argv there, this file only renders the dialogs' "Runs `git …`"
 // preview line. Any flag change over there has to be made here too or the preview lies.
-import type { FfMode, PullMode } from "../../../api/types";
+import type { FfMode, PullMode, ResetMode } from "../../../api/types";
 
 const flag = (on: boolean, f: string) => (on ? [f] : []);
 
@@ -43,6 +43,10 @@ export const mergeArgs = (branch: string, ff: FfMode, squash: boolean, message: 
 ];
 
 export const rebaseArgs = (onto: string) => ["rebase", onto];
+
+export const resetArgs = (mode: ResetMode, target: string) => ["reset", `--${mode}`, target];
+
+export const resetBranchArgs = (branch: string, target: string) => ["branch", "-f", branch, target];
 
 export const checkoutArgs = (target: string, createBranch: string | null, track: boolean) => [
   "checkout",

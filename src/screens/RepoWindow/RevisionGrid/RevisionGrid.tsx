@@ -1,5 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, Copy, GitBranch, GitCommitHorizontal, Plus, Search, Tag } from "lucide-react";
+import { ChevronDown, Copy, GitBranch, GitCommitHorizontal, Plus, RotateCcw, Search, Tag } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { Button } from "../../../components/ui/Button/Button";
 import { EmptyState } from "../../../components/ui/EmptyState/EmptyState";
@@ -7,11 +7,12 @@ import { ContextMenu, MenuItem } from "../../../components/ui/Menu/Menu";
 import { Progress } from "../../../components/ui/Progress/Progress";
 import { useDialogStore, type DialogSpec } from "../../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../../store/opsStore";
-import { checkoutDetached, copyText } from "../actions";
+import { checkoutBranch, checkoutDetached, checkoutRemoteBranch, copyText } from "../actions";
 import { cx } from "../../../lib/cx";
 import { useRepoStore } from "../../../store/repoStore";
 import { selectChangeCount, useShowWorkingTree, useStatusStore } from "../../../store/statusStore";
 import { useThemeTokens } from "../../../theme/useThemeTokens";
+import { commitBranchActions, type BranchAt } from "./commitMenu";
 import { graphLanes, graphWidth } from "./graphGeometry";
 import { GridRow } from "./GridRow";
 import s from "./RevisionGrid.module.css";
@@ -218,13 +219,17 @@ export function RevisionGrid() {
   );
 }
 
-/** Commit row actions: checkout (detached), branch / tag here, copy SHA. */
+/** Commit row actions: checkout a branch here / detached, branch / tag here, reset a branch here, copy SHA. */
 function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number }; oid: string; el: HTMLElement } | null; onClose: () => void }) {
   const open = useDialogStore((st) => st.open);
   const running = useOpsStore(selectRunning);
+  const refs = useRepoStore((st) => st.refs);
   if (!menu) return null;
   const oid = menu.oid;
   const short = oid.slice(0, 7);
+  const current = refs?.local.find((b) => b.isHead)?.name ?? "HEAD";
+  const branches = commitBranchActions(refs, oid);
+  const checkout = (b: BranchAt) => (b.remote ? checkoutRemoteBranch({ name: b.name, oid }, b.remote) : checkoutBranch(b.name));
   const run = (fn: () => void) => () => {
     onClose();
     fn();
@@ -235,12 +240,43 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
   const op = running ? { disabled: true, title: "Operation in progress" } : {};
   return (
     <ContextMenu at={menu.at} onClose={onClose} label="Commit actions">
+      {branches.checkout.length === 1 && (
+        <MenuItem icon={<GitBranch size={16} aria-hidden />} title={`Checkout ${branches.checkout[0].name}`} {...op} onClick={run(() => void checkout(branches.checkout[0]))}>
+          Checkout {branches.checkout[0].name}
+        </MenuItem>
+      )}
+      {branches.checkout.length > 1 && (
+        <MenuItem icon={<GitBranch size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "checkoutBranch", branches: branches.checkout }))}>
+          Checkout branch…
+        </MenuItem>
+      )}
       <MenuItem icon={<GitBranch size={16} aria-hidden />} {...op} onClick={run(() => void checkoutDetached(oid, short))}>
         Checkout (detached)
       </MenuItem>
       <MenuItem icon={<Plus size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "createBranch", startPoint: oid }))}>
         Create branch here…
       </MenuItem>
+      <MenuItem
+        icon={<RotateCcw size={16} aria-hidden />}
+        title={`Reset ${current} to here`}
+        {...op}
+        onClick={run(() => openDialog({ kind: "reset", target: oid }))}
+      >
+        <span className={s.menuLabel}>
+          Reset <span className={s.menuBranch}>{current}</span> to here…
+        </span>
+      </MenuItem>
+      {branches.reset.map((r) => (
+        <MenuItem
+          key={r.remote}
+          icon={<RotateCcw size={16} aria-hidden />}
+          title={`Reset ${r.branch} to ${r.remote}`}
+          {...op}
+          onClick={run(() => openDialog(r.current ? { kind: "reset", target: r.remote } : { kind: "resetBranch", branch: r.branch, target: r.remote }))}
+        >
+          Reset {r.branch} to {r.remote}…
+        </MenuItem>
+      ))}
       <MenuItem icon={<Tag size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "createTag", target: oid }))}>
         Create tag here…
       </MenuItem>

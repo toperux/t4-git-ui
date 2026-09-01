@@ -279,6 +279,34 @@ pub async fn checkout(
     cli_op(&app, &state, &id, args, false).await
 }
 
+/// `git reset (--soft | --mixed | --hard) <target>`: moves the current branch
+/// (or a detached HEAD) to `target`.
+#[tauri::command]
+pub async fn reset(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: RepoId,
+    mode: gitops::ResetMode,
+    target: String,
+) -> Result<OpResult, AppError> {
+    let args = gitops::reset(mode, &target);
+    cli_op(&app, &state, &id, args, false).await
+}
+
+/// `git branch -f <branch> <target>`: moves a branch that is not checked out
+/// (the working tree is untouched).
+#[tauri::command]
+pub async fn reset_branch(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: RepoId,
+    branch: String,
+    target: String,
+) -> Result<OpResult, AppError> {
+    let args = gitops::branch_force(&branch, &target);
+    cli_op(&app, &state, &id, args, false).await
+}
+
 #[tauri::command]
 pub async fn stash_push(
     app: AppHandle,

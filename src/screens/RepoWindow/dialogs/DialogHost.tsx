@@ -2,8 +2,17 @@
 import type { ReactNode } from "react";
 import { DialogReturnFocus } from "../../../components/ui/Dialog/Dialog";
 import { useDialogStore, type DialogSpec } from "../../../store/dialogStore";
-import { DeleteRemoteTagDialog, FetchDialog, MergeDialog, PullDialog, PushDialog, PushTagDialog, RebaseDialog } from "./OpsDialogs";
-import { CheckoutDialog, CreateBranchDialog, CreateTagDialog, DeleteBranchDialog, DeleteRemoteBranchDialog, DeleteTagDialog, RenameBranchDialog } from "./RefDialogs";
+import { DeleteRemoteTagDialog, FetchDialog, MergeDialog, PullDialog, PushDialog, PushTagDialog, RebaseDialog, ResetBranchDialog, ResetDialog } from "./OpsDialogs";
+import {
+  CheckoutBranchDialog,
+  CheckoutDialog,
+  CreateBranchDialog,
+  CreateTagDialog,
+  DeleteBranchDialog,
+  DeleteRemoteBranchDialog,
+  DeleteTagDialog,
+  RenameBranchDialog,
+} from "./RefDialogs";
 import { StashDialog, StashPushDialog } from "./StashDialogs";
 
 export function DialogHost() {
@@ -28,6 +37,12 @@ function renderDialog(dialog: DialogSpec, close: () => void): ReactNode {
       return <MergeDialog onClose={close} branch={dialog.branch} />;
     case "rebase":
       return <RebaseDialog onClose={close} onto={dialog.onto} />;
+    case "reset":
+      return <ResetDialog onClose={close} target={dialog.target} />;
+    case "resetBranch":
+      return <ResetBranchDialog onClose={close} branch={dialog.branch} target={dialog.target} />;
+    case "checkoutBranch":
+      return <CheckoutBranchDialog onClose={close} branches={dialog.branches} />;
     case "createBranch":
       return <CreateBranchDialog onClose={close} startPoint={dialog.startPoint} />;
     case "renameBranch":

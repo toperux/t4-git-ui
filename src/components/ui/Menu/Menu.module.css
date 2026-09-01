@@ -26,6 +26,10 @@
   right: auto;
   margin: 0;
   z-index: 35;
+  /* Grow to the longest item (a branch name, say) instead of ellipsizing it, within reason. */
+  width: max-content;
+  min-width: 220px;
+  max-width: 320px;
 }
 .item {
   display: flex;

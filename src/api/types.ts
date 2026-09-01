@@ -343,6 +343,9 @@ export type PullMode = "merge" | "rebase" | "ffOnly";
 /** `auto` = `--ff`, `only` = `--ff-only`, `no` = `--no-ff`. */
 export type FfMode = "auto" | "only" | "no";
 
+/** `git reset` flavor: soft keeps index + worktree, mixed unstages, hard discards. */
+export type ResetMode = "soft" | "mixed" | "hard";
+
 /** `#[serde(tag = "kind")]` — why a streamed op exited non-zero. */
 export type OpFailure =
   | { kind: "conflicts"; paths: string[] }

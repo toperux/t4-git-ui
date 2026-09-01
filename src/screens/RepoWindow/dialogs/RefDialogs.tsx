@@ -10,7 +10,7 @@ import { cx } from "../../../lib/cx";
 import { validateRefName } from "../../../lib/branchName";
 import { runOp } from "../../../store/opsStore";
 import { useRepoStore } from "../../../store/repoStore";
-import { checkoutBranch, checkoutDetached, checkoutRemoteBranch } from "../actions";
+import { checkoutBranch, checkoutDetached, checkoutRemoteBranch, stripRemote } from "../actions";
 import { checkoutArgs, gitCmd } from "./gitArgs";
 import { RemoteField, useDefaultRemote, useRemotes } from "./OpsDialogs";
 import s from "./RefDialogs.module.css";
@@ -310,6 +310,48 @@ export function DeleteTagDialog({ onClose, name }: { onClose: () => void; name: 
 }
 
 /** Searchable branch / tag picker: type to filter, ↑/↓ to move, Enter checks out. */
+/** Several branches sit at the commit the context menu was opened on: pick the one to check out. */
+export function CheckoutBranchDialog({ onClose, branches }: { onClose: () => void; branches: { name: string; remote: string | null }[] }) {
+  const [name, setName] = useState(branches[0]?.name ?? "");
+  const pick = branches.find((b) => b.name === name) ?? branches[0];
+  // A remote branch is checked out the way the sidebar does it: a new tracking local of the same short name.
+  const local = pick?.remote ? stripRemote({ name: pick.name, oid: "" }, pick.remote) : null;
+
+  function submit() {
+    if (!pick) return;
+    onClose();
+    if (pick.remote) void checkoutRemoteBranch({ name: pick.name, oid: "" }, pick.remote);
+    else void checkoutBranch(pick.name);
+  }
+
+  return (
+    <Dialog
+      title="Checkout"
+      onClose={onClose}
+      onSubmit={submit}
+      preview={pick ? gitCmd(local ? checkoutArgs(pick.name, local, true) : checkoutArgs(pick.name, null, false)) : ""}
+      footer={
+        <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="primary" type="submit" disabled={!pick}>
+            Checkout
+          </Button>
+        </>
+      }
+    >
+      <Field label="Branch" help={local ? `Creates a local ${local} tracking ${pick.name}` : undefined}>
+        <Select aria-label="Branch" autoFocus value={pick?.name ?? ""} onChange={(e) => setName(e.target.value)}>
+          {branches.map((b) => (
+            <option key={b.name} value={b.name}>
+              {b.name}
+            </option>
+          ))}
+        </Select>
+      </Field>
+    </Dialog>
+  );
+}
+
 export function CheckoutDialog({ onClose }: { onClose: () => void }) {
   const refs = useRepoStore((st) => st.refs);
   const [query, setQuery] = useState("");

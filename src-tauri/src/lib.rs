@@ -150,6 +150,8 @@ pub fn run() {
             commands::ops::rebase_abort,
             commands::ops::merge_abort,
             commands::ops::checkout,
+            commands::ops::reset,
+            commands::ops::reset_branch,
             commands::ops::stash_push,
             commands::ops::stash_apply,
             commands::ops::stash_pop,

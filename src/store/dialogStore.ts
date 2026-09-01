@@ -8,6 +8,15 @@ export type DialogSpec =
   | { kind: "merge"; branch?: string }
   | { kind: "rebase"; onto?: string }
   | { kind: "checkout" }
+  /**
+   * Pick one of several branches sitting at a commit. A remote one (`remote` set) is checked out
+   * as a new tracking local branch of the same short name.
+   */
+  | { kind: "checkoutBranch"; branches: { name: string; remote: string | null }[] }
+  /** Reset the current branch (or a detached HEAD) to `target` (an oid or a ref name). */
+  | { kind: "reset"; target: string }
+  /** Move a branch that is not checked out to `target` (`git branch -f`). */
+  | { kind: "resetBranch"; branch: string; target: string }
   /** `startPoint` = ref name / oid preselected as the start point (default HEAD). */
   | { kind: "createBranch"; startPoint?: string }
   | { kind: "deleteBranch"; name: string }
