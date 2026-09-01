@@ -5,7 +5,7 @@ import { useOpsStore } from "../../../store/opsStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { useToastStore } from "../../../store/toastStore";
 import { MergeDialog, PullDialog, PushDialog } from "./OpsDialogs";
-import { CreateBranchDialog } from "./RefDialogs";
+import { CreateBranchDialog, CreateTagDialog } from "./RefDialogs";
 
 vi.mock("../../../api/ipc", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../../api/ipc")>();
@@ -15,6 +15,7 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
     merge: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     pull: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     createBranch: vi.fn(() => Promise.resolve()),
+    createTag: vi.fn(() => Promise.resolve()),
     getDefaultRemote: vi.fn(() => Promise.resolve("origin")),
     getConfig: vi.fn(() => Promise.resolve(null)),
     getStatus: vi.fn(() => new Promise(() => {})),
@@ -23,7 +24,7 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
 });
 
 import * as ipc from "../../../api/ipc";
-const mocked = ipc as unknown as Record<"push" | "merge" | "pull" | "createBranch", ReturnType<typeof vi.fn>>;
+const mocked = ipc as unknown as Record<"push" | "merge" | "pull" | "createBranch" | "createTag", ReturnType<typeof vi.fn>>;
 
 const REPO: RepoSummary = { id: "r", name: "r", path: "/r", head: { oid: "a", branch: "main", detached: false } };
 const REFS: RefsSnapshot = {
@@ -100,6 +101,18 @@ describe("CreateBranchDialog", () => {
     fireEvent.click(getByRole("checkbox", { name: "Check out after create" }));
     fireEvent.click(getByRole("button", { name: "Create" }));
     await waitFor(() => expect(mocked.createBranch).toHaveBeenCalledWith("r", "fix", oid, false));
+  });
+});
+
+describe("CreateTagDialog", () => {
+  it("tags the commit the context menu was opened on, not HEAD", async () => {
+    const oid = "0123456789abcdef0123456789abcdef01234567";
+    const { getByRole } = render(<CreateTagDialog onClose={() => {}} target={oid} />);
+    expect(getByRole("combobox", { name: "Target" }).textContent).toBe("0123456");
+    fireEvent.change(getByRole("textbox", { name: "Name" }), { target: { value: "v1.2.0" } });
+    expect(preview(getByRole("dialog"))).toBe(`git tag v1.2.0 ${oid}`);
+    fireEvent.click(getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(mocked.createTag).toHaveBeenCalledWith("r", "v1.2.0", oid, null));
   });
 });
 

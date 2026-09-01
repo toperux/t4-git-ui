@@ -211,7 +211,7 @@ export function CreateTagDialog({ onClose, target: initial }: { onClose: () => v
   const existing = useMemo(() => (tags ?? []).map((t) => t.name), [tags]);
   const known = initial && options.some((o) => o.value === initial);
   const [name, setName] = useState("");
-  const [target, setTarget] = useState(known ? initial : "HEAD");
+  const [target, setTarget] = useState(initial ?? "HEAD");
   const [message, setMessage] = useState("");
   const error = name ? validateRefName(name, existing) : null;
   const valid = !!name && !error;
