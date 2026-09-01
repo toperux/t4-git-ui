@@ -32,7 +32,7 @@ const refs = (oid: string, tags: string[] = []): RefsSnapshot => ({
   state: "clean",
   local: [],
   remotes: [],
-  tags: tags.map((name) => ({ name, oid })),
+  tags: tags.map((name) => ({ name, oid, message: null })),
   stashes: [],
 });
 const withRemote = (headOid: string, originOid: string): RefsSnapshot => ({

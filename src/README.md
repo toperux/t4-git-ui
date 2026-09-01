@@ -107,7 +107,10 @@ src/
                            dialogs/ (DialogHost + OpsDialogs Push/Pull/Fetch/Merge/Rebase, RefDialogs Checkout picker /
                            Create-Rename-Delete branch / remote branch / tags, StashDialogs; gitArgs.ts mirrors cli/ops.rs
                            for the footer's "Runs `git …`" preview — that file is the source of truth),
-                           DetailsPane (bottom pane: CommitDetails 340 | ChangedFileList 320 | DiffViewer, resizable),
+                           DetailsPane (bottom pane: CommitDetails 340 | ChangedFileList 320 | DiffViewer, resizable;
+                           an annotated tag pointing at the selected commit adds its own message block under the
+                           commit message — `refs.tags[].message` is `null` on a lightweight tag, which is all that
+                           tells the two apart once the tag is peeled),
                            OutputDock (collapsed 28px: `$ cmd` + Check/X icon, exit · elapsed / spinner + Cancel; expanded
                            `.output` log inside `RepoWindow`'s resizable `DockPanel`, 160–320px, height in `localStorage.dockHeight`)
       RevisionGrid/        RevisionGrid (virtualized; role=grid wraps the header row + the scrolling rowgroup, owns the keyboard

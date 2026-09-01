@@ -142,6 +142,8 @@ export interface Tag {
   name: string;
   /** Peeled to the tagged commit. */
   oid: string;
+  /** The annotation; `null` on a lightweight tag. */
+  message: string | null;
 }
 
 export interface Stash {

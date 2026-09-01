@@ -184,7 +184,11 @@ Use `C:\tmp\t4\work` and the bare remote.
 - [ ] Create a branch from a **commit row** context menu → it is created at that commit, not at HEAD
 - [ ] Double-click a sidebar branch → checks it out
 - [ ] Right-click an unmerged branch → Delete… → refused → the dialog re-offers **Force delete**
-- [ ] Create an annotated and a lightweight tag from a commit row; delete a tag
+- [ ] Create an annotated and a lightweight tag from a commit row (right-click → Create tag here…) →
+      both land on **that** row, not on HEAD; with a Message the preview reads `git tag -a -m '…' …`
+- [ ] Select the tagged row → commit details shows the **annotated** tag's message in its own block
+      under the commit message; the lightweight one adds nothing
+- [ ] Delete a tag from the sidebar (Tags → right-click → Delete tag)
 - [ ] Stash changes → appears in the sidebar; Apply / Pop / Drop from the toolbar menu
 - [ ] Checkout a commit (detached) → warning banner with "Checkout <branch>" and "Create branch…"
 - [ ] Start a slow fetch, expand the dock (`` Ctrl+` ``) → elapsed timer + **Cancel**; cancel → toast,

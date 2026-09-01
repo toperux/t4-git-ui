@@ -26,7 +26,7 @@ const REFS: RefsSnapshot = {
     },
     { name: "fork", url: null, branches: [{ name: "fork/main", oid: "c" }] },
   ],
-  tags: [{ name: "v0.1.0", oid: "a" }],
+  tags: [{ name: "v0.1.0", oid: "a", message: null }],
   stashes: [],
 };
 

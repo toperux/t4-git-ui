@@ -1,5 +1,5 @@
-import { Copy, GitCommitHorizontal } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { Copy, GitCommitHorizontal, Tag as TagIcon } from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import { getCommit, toAppError } from "../../api/ipc";
 import type { CommitDetail } from "../../api/types";
@@ -56,6 +56,9 @@ function CommitDetails() {
   const oid = useRepoStore(selectSelectedOid);
   const labels = useRepoStore((st) => (st.selectedIndex === null ? undefined : st.rows[st.selectedIndex]?.labels));
   const revealOid = useRepoStore((st) => st.revealOid);
+  // A lightweight tag is just a name — only an annotated one has a message of its own.
+  const tags = useRepoStore((st) => st.refs?.tags);
+  const annotations = useMemo(() => (tags ?? []).filter((t) => t.oid === oid && t.message), [tags, oid]);
   const [detail, setDetail] = useState<CommitDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -104,6 +107,15 @@ function CommitDetails() {
             )}
             <div className={`${s.summary} selectable`}>{info.summary}</div>
             {body && <div className={`${s.message} selectable`}>{body}</div>}
+            {annotations.map((t) => (
+              <div key={t.name} className={s.tagNote}>
+                <div className={s.tagName}>
+                  <TagIcon size={12} aria-hidden />
+                  {t.name}
+                </div>
+                <div className={`${s.message} selectable`}>{t.message}</div>
+              </div>
+            ))}
             <div className={s.kv}>
               <Kv k="Author" v={`${info.authorName} <${info.authorEmail}>`} />
               {committerDiffers && <Kv k="Committer" v={`${detail.committerName} <${detail.committerEmail}>`} />}

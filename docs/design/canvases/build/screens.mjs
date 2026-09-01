@@ -196,11 +196,15 @@ export function commitDetails() {
   return `<div class="scroll" style="width: 340px; flex: none; display: flex; flex-direction: column; background: var(--bg-panel); border-right: 1px solid var(--border); overflow: hidden;">
     <div class="panel-header" style="flex: none;">${icon('git-commit', 14)}<span class="grow">Commit</span><span class="icon-btn">${icon('copy', 14)}</span><span class="icon-btn">${icon('ellipsis', 14)}</span></div>
     <div style="padding: 10px 12px; display: flex; flex-direction: column; gap: 10px;">
-      <div style="display: flex; gap: 4px; flex-wrap: wrap;">${CHIPS.head}${CHIPS.origin}</div>
+      <div style="display: flex; gap: 4px; flex-wrap: wrap;">${CHIPS.head}${CHIPS.origin}${CHIPS.v011}</div>
       <div class="h3" style="font-weight: 600;">Dedupe lanes when parent already expected</div>
       <div class="sm" style="color: var(--fg); white-space: pre-line;">When a commit's first parent is already expected by another column, emit a Branch line into that column and drop the current lane instead of creating a duplicate expectation. Keeps wide histories narrow.
 
 Fixes #12.</div>
+      <div style="display: flex; flex-direction: column; gap: 4px; padding: 6px 8px; background: var(--bg-inset); border-left: 2px solid var(--chip-tag-bg);">
+        <div class="sm" style="display: flex; align-items: center; gap: 4px; font-weight: 600; color: var(--fg-muted);">${icon('tag', 12)}v0.1.1</div>
+        <div class="sm" style="color: var(--fg); white-space: pre-line;">Lane dedupe, and the log cache behind it.</div>
+      </div>
       <div style="display: flex; flex-direction: column; gap: 4px; padding-top: 6px; border-top: 1px solid var(--border);">
         ${kv('Author', 'Topher M. &lt;topher.m@gmail.com&gt;')}
         ${kv('Date', 'Aug 31, 2026 14:02 (2h ago)')}

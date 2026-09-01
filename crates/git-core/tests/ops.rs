@@ -534,6 +534,18 @@ fn create_tag_lightweight_and_annotated_then_delete() {
     }
 
     assert!(refs::create_tag(&t.repo, "ann", "HEAD", None).is_err());
+    // Both are peeled to a commit in the snapshot, so the annotation is the only
+    // thing left that tells them apart.
+    let snap = snapshot(&mut t.repo).unwrap();
+    let messages: Vec<(&str, Option<&str>)> = snap
+        .tags
+        .iter()
+        .map(|t| (t.name.as_str(), t.message.as_deref()))
+        .collect();
+    assert_eq!(messages, [("ann", Some("release notes")), ("lw", None)]);
+    assert_eq!(lw.message, None);
+    assert_eq!(ann.message.as_deref(), Some("release notes"));
+
     let names: Vec<String> = snapshot(&mut t.repo)
         .unwrap()
         .tags

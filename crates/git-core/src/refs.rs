@@ -58,6 +58,9 @@ pub struct Tag {
     pub name: String,
     /// Peeled to the tagged commit.
     pub oid: String,
+    /// The annotation, `None` on a lightweight tag — which is the only thing
+    /// that tells the two apart once the tag is peeled.
+    pub message: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -268,9 +271,17 @@ pub fn snapshot(repo: &mut Repository) -> Result<RefsSnapshot, GitError> {
             .and_then(|o| o.peel(ObjectType::Commit))
             .map(|c| c.id());
         if let Ok(peeled) = peeled {
+            // `tag_foreach` hands over the tag object for an annotated tag and the
+            // commit itself for a lightweight one, so this lookup is the test.
+            let message = repo
+                .find_tag(oid)
+                .ok()
+                .and_then(|t| t.message().ok().flatten().map(|m| m.trim().to_string()))
+                .filter(|m| !m.is_empty());
             tags.push(Tag {
                 name,
                 oid: peeled.to_string(),
+                message,
             });
         }
     }
@@ -511,6 +522,7 @@ pub fn create_tag(
     Ok(Tag {
         name: name.to_string(),
         oid: peeled,
+        message: message.map(str::to_string),
     })
 }
 
