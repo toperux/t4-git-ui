@@ -7,7 +7,11 @@ export const GRAPH_LEFT = 8;
 export const GRAPH_RIGHT = 4;
 export const CURVE = 0.45;
 export const MIN_LANES = 3;
-export const MAX_LANES = 12;
+/**
+ * The column grows with the busiest row loaded so far (the subject ellipsizes to make room) up to
+ * this many lanes — 532px at 13px a lane — past which lanes are clipped rather than the subject.
+ */
+export const MAX_LANES = 40;
 /** HEAD marker: extra ring around the node (screens.mjs: r 5.5, stroke 1.5). */
 export const HEAD_RING_R = 5.5;
 export const HEAD_RING_STROKE = 1.5;

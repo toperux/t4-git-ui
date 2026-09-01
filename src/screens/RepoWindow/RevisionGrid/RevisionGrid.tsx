@@ -13,9 +13,10 @@ import { useRepoStore } from "../../../store/repoStore";
 import { selectChangeCount, useShowWorkingTree, useStatusStore } from "../../../store/statusStore";
 import { useThemeTokens } from "../../../theme/useThemeTokens";
 import { commitBranchActions, type BranchAt } from "./commitMenu";
-import { graphLanes, graphWidth } from "./graphGeometry";
+import { graphWidth } from "./graphGeometry";
 import { GridRow } from "./GridRow";
 import s from "./RevisionGrid.module.css";
+import { useVisibleLanes } from "./visibleLanes";
 import { WorkingTreeRow } from "./WorkingTreeRow";
 
 const OVERSCAN = 20;
@@ -31,7 +32,6 @@ export function RevisionGrid() {
   const complete = useRepoStore((st) => st.log.complete);
   const error = useRepoStore((st) => st.log.error);
   const flat = useRepoStore((st) => st.log.flat);
-  const maxLane = useRepoStore((st) => st.maxLane);
   const headOid = useRepoStore((st) => st.refs?.head.oid ?? null);
   const headBranch = useRepoStore((st) => st.refs?.head.branch ?? null);
   const reveal = useRepoStore((st) => st.reveal);
@@ -59,6 +59,8 @@ export function RevisionGrid() {
   const items = virtualizer.getVirtualItems();
   const first = Math.max(0, (items[0]?.index ?? 0) - offset);
   const last = items.length ? items[items.length - 1].index - offset : -1;
+  // The graph column is as wide as the rows actually in view need (not the overscan ones).
+  const lanes = useVisibleLanes(virtualizer.range, offset);
 
   // Fetch pages for the visible range (+ overscan) whenever it or the row count changes.
   useEffect(() => {
@@ -70,7 +72,6 @@ export function RevisionGrid() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reveal]);
 
-  const lanes = graphLanes(maxLane);
   const graphW = graphWidth(lanes, tokens.laneW);
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {

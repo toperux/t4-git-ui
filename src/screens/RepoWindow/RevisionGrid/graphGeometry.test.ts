@@ -12,7 +12,8 @@ describe("graph geometry", () => {
   it("clamps lane count to [3, 12]", () => {
     expect(graphLanes(0)).toBe(3);
     expect(graphLanes(4)).toBe(5);
-    expect(graphLanes(40)).toBe(12);
+    expect(graphLanes(20)).toBe(21);
+    expect(graphLanes(80)).toBe(40);
   });
 
   it("puts control points 45% into the segment with vertical tangents", () => {

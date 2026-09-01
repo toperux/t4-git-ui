@@ -41,6 +41,8 @@
   flex: none;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* The graph column follows the rows in view: slide, don't snap. */
+  transition: width var(--dur) var(--ease);
 }
 /* 1×12 resize handle in the gap after each column */
 .th .col:not(:last-child)::after {
@@ -118,6 +120,10 @@
   height: 100%;
   display: flex;
   align-items: center;
+  /* Width follows the rows in view (`useVisibleLanes`); the canvas is already its final size, so
+     the outer lanes slide into view as the cell widens. */
+  overflow: hidden;
+  transition: width var(--dur) var(--ease);
 }
 .canvas {
   display: block;

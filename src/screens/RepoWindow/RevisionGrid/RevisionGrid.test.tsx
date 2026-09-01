@@ -65,7 +65,6 @@ describe("RevisionGrid", () => {
         row(1, "Merge branch", [{ name: "origin/dev", kind: "remote", isCurrent: false, remote: null }, { name: "v1.0", kind: "tag", isCurrent: false, remote: null }]),
         row(2, "Initial", []),
       ],
-      maxLane: 0,
       selectedIndex: 0,
     });
 
@@ -90,7 +89,6 @@ describe("RevisionGrid", () => {
       refs: null,
       log: { generation: 1, total: 1, complete: true, error: null, flat: false },
       rows: [row(0, "Many refs", labels)],
-      maxLane: 0,
       selectedIndex: 0,
     });
 
@@ -113,7 +111,6 @@ describe("RevisionGrid", () => {
       refs: null,
       log: { generation: 1, total: 2, complete: true, error: null, flat: false },
       rows: [row(0, "Top", []), row(1, "Initial", [])],
-      maxLane: 0,
       selectedIndex: 0,
       wtSelected: false,
     });

@@ -30,8 +30,6 @@ export interface RepoStore {
   log: LogState;
   /** Sparse: `rows[i]` is undefined until its page arrives. */
   rows: (LogRow | undefined)[];
-  /** Highest lane seen so far (graph column width). */
-  maxLane: number;
   /** Commit index (the working-tree pseudo-row is not part of `rows`). */
   selectedIndex: number | null;
   /** The working-tree pseudo-row is selected (takes precedence over `selectedIndex`). */
@@ -147,14 +145,11 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
         const s = get();
         if (s.repo?.id !== repo.id || s.log.generation !== gen) return; // stale
         const rows = s.rows.slice();
-        let maxLane = s.maxLane;
         page.rows.forEach((r, i) => {
           rows[offset + i] = r;
-          if (r.row.maxLane > maxLane) maxLane = r.row.maxLane;
         });
         set({
           rows,
-          maxLane,
           // A page response can be older than the last `log://progress`; never move the walk backwards.
           log: { ...s.log, total: Math.max(s.log.total, page.total), complete: s.log.complete || page.complete },
           selectedIndex: s.selectedIndex ?? (offset === 0 && page.rows.length > 0 && !pendingSelect ? 0 : null),
@@ -206,7 +201,6 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
     filter: {},
     log: EMPTY_LOG,
     rows: [],
-    maxLane: 0,
     selectedIndex: null,
     wtSelected: false,
     reveal: null,
@@ -228,7 +222,6 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
           filter: {},
           log: EMPTY_LOG,
           rows: [],
-          maxLane: 0,
           selectedIndex: null,
           wtSelected: false,
           reveal: null,
@@ -248,7 +241,7 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
       startSeq++;
       resetPages();
       pendingSelect = null;
-      set({ repo: null, refs: null, log: EMPTY_LOG, rows: [], maxLane: 0, selectedIndex: null, wtSelected: false, reveal: null });
+      set({ repo: null, refs: null, log: EMPTY_LOG, rows: [], selectedIndex: null, wtSelected: false, reveal: null });
       await ipc.closeRepo(repo.id);
     },
 
@@ -358,7 +351,6 @@ export function __resetForTests() {
     filter: {},
     log: EMPTY_LOG,
     rows: [],
-    maxLane: 0,
     selectedIndex: null,
     wtSelected: false,
     reveal: null,
