@@ -82,7 +82,10 @@ export interface RefLabel {
   kind: RefKind;
   /** `true` for the checked-out local branch (no separate `head` label then). */
   isCurrent: boolean;
-  /** Local label only: remote whose tracking branch sits at the same commit (synced chip). */
+  /**
+   * Local label only: the tracking branch sitting at the same commit (synced chip) — the remote's
+   * name (`origin`), or the whole ref (`origin/trunk`) when the upstream is named something else.
+   */
   remote: string | null;
 }
 

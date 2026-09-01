@@ -6,7 +6,7 @@ import s from "./Chip.module.css";
 export interface ChipProps {
   kind: RefKind;
   name: string;
-  /** Local chip only: remote(s) whose tracking branch is at the same commit → `name · ☁ origin`. */
+  /** Local chip only: the tracking branch at the same commit → `name · ☁ origin` (or `☁ origin/trunk`). */
   remote?: string | null;
   /** Checked-out branch: inset ring + semibold. */
   current?: boolean;

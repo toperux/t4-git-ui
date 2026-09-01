@@ -265,6 +265,28 @@ fn synced_local_and_remote_collapse_to_one_label() {
 }
 
 #[test]
+fn a_differently_named_upstream_is_spelled_out_in_the_synced_label() {
+    let mut t = TempRepo::new();
+    let a = t.commit(&[("a", "1")], "A");
+    t.remote("origin");
+    t.reference("refs/remotes/origin/trunk", a);
+    t.set_upstream("master", "origin/trunk");
+    // The trap the remote name alone walks into: a same-named remote branch that is
+    // *not* the upstream, sitting on the same commit.
+    t.reference("refs/remotes/origin/master", a);
+
+    let snap = snapshot(&mut t.repo).expect("snapshot");
+    let lm = label_map(&snap);
+    assert_eq!(
+        lm[&s(a)],
+        vec![
+            label("master", RefKind::Local, true, Some("origin/trunk")),
+            label("origin/master", RefKind::Remote, false, None),
+        ]
+    );
+}
+
+#[test]
 fn upstream_gone_after_prune() {
     let mut t = TempRepo::new();
     let a = t.commit(&[("a", "1")], "A");

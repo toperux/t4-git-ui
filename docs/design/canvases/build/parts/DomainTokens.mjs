@@ -37,12 +37,13 @@ function chips(t) {
         `<span class="chip local">${icon('git-branch', 11)}feature/lane-graph</span>`,
         `<span class="chip local">${icon('git-branch', 11)}feature/lane-graph<span class="rem">${icon('cloud', 11)}origin</span></span>`,
         `<span class="chip local current">${icon('git-branch', 11)}main<span class="rem">${icon('cloud', 11)}origin, upstream</span></span>`,
+        `<span class="chip local">${icon('git-branch', 11)}feature<span class="rem">${icon('cloud', 11)}origin/trunk</span></span>`,
         `<span class="chip remote">${icon('cloud', 11)}origin/main</span>`,
         `<span class="chip tag">${icon('tag', 11)}v0.1.0</span>`,
         `<span class="chip stash">${icon('archive', 11)}stash@{0}</span>`,
         `<span class="chip remote">+2</span>`,
       ], 8)}
-      <div class="xs muted">Local + its tracking remote on the same commit → one chip with a remote segment (“feature/lane-graph · origin”; several remotes comma-joined). Remote ahead/behind → separate <span class="chip remote" style="height: 16px;">origin/x</span> chip on its own row.</div>
+      <div class="xs muted">Local + its tracking remote on the same commit → one chip with a remote segment (“feature/lane-graph · origin”; several remotes comma-joined). An upstream not named after its branch is spelled out (“feature · origin/trunk”), or the segment would name a branch that may not be the upstream. Remote ahead/behind → separate <span class="chip remote" style="height: 16px;">origin/x</span> chip on its own row.</div>
       ${grid(5, ['chip-head-bg', 'chip-local-bg', 'chip-local-fg', 'chip-remote-bg', 'chip-remote-fg', 'chip-tag-bg', 'chip-tag-fg', 'chip-stash-bg', 'chip-stash-fg'].map((n) => swatch(n, t)), 10)}
     </div>`);
 }

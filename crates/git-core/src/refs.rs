@@ -304,8 +304,10 @@ pub fn snapshot(repo: &mut Repository) -> Result<RefsSnapshot, GitError> {
 /// label (stash commits are never walked).
 ///
 /// Synced-chip rule: a local branch whose *tracking* upstream sits at the same
-/// commit gets `remote: Some(<remote name>)` and the upstream's own remote label
-/// is suppressed. Other remote branches at the same commit keep their label.
+/// commit gets `remote: Some(<remote name>)` — or `Some(<remote>/<branch>)` when
+/// the upstream is not named after the local branch — and the upstream's own
+/// remote label is suppressed. Other remote branches at the same commit keep
+/// their label.
 pub fn label_map(snap: &RefsSnapshot) -> HashMap<String, Vec<RefLabel>> {
     let mut map: HashMap<String, Vec<RefLabel>> = HashMap::new();
     let mut push = |oid: &str, label: RefLabel| map.entry(oid.to_string()).or_default().push(label);
@@ -335,7 +337,16 @@ pub fn label_map(snap: &RefsSnapshot) -> HashMap<String, Vec<RefLabel>> {
                 .find(|(_, rb)| rb.name == up);
             if let Some((r, rb)) = tracking {
                 if rb.oid == b.oid {
-                    remote = Some(r.name.clone());
+                    // The remote name alone is only unambiguous while the upstream shares the
+                    // local branch's name: `feature · origin` beside an unrelated
+                    // `origin/feature` reads as that branch. Spell the upstream out when it is
+                    // named something else.
+                    let short = rb.name.strip_prefix(&format!("{}/", r.name));
+                    remote = Some(if short == Some(b.name.as_str()) {
+                        r.name.clone()
+                    } else {
+                        rb.name.clone()
+                    });
                     suppressed.insert(up);
                 }
             }
