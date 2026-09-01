@@ -114,7 +114,7 @@ src/
                            commit message — `refs.tags[].message` is `null` on a lightweight tag, which is all that
                            tells the two apart once the tag is peeled),
                            OutputDock (collapsed 28px: `$ cmd` + Check/X icon, exit · elapsed / spinner + Cancel; expanded
-                           `.output` log inside `RepoWindow`'s resizable `DockPanel`, 160–320px, height in `localStorage.dockHeight`)
+                           `.output` log inside `RepoWindow`'s resizable `DockPanel`, 160–320px, opens at 200 every launch)
       RevisionGrid/        RevisionGrid (virtualized; role=grid wraps the header row + the scrolling rowgroup, owns the keyboard
                            and aria-activedescendant; row 0 = WorkingTreeRow while dirty & unfiltered —
                            commit rows shift by one, store indices stay commit-based), GridRow (memo, per-row store selectors),

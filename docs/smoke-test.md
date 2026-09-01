@@ -220,8 +220,8 @@ Use `C:\tmp\t4\work` and the bare remote.
 - [ ] **No theme flash**: on a dark-mode OS the window never flashes light during launch (test both
       dev and the installed release build)
 - [ ] Switch the OS theme while the app runs → the UI follows, including graph lane colours
-- [ ] Output dock: drag its top edge → resizes between roughly 160 and 320 px; the height survives a
-      restart; the collapsed bar shows the last command and its exit status
+- [ ] Output dock: drag its top edge → resizes between roughly 160 and 320 px (per session — it
+      opens at 200 px after a restart); the collapsed bar shows the last command and its exit status
 - [ ] Toasts: stacked top-centre under the toolbar; errors **stay** until dismissed; info/success
       fade after ~6 s
 - [ ] Every dialog: `Esc` closes it and focus returns to whatever opened it (including when opened

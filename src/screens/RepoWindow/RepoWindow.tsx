@@ -38,25 +38,7 @@ const STATE_LABEL: Record<RepoState, string> = {
 const DOCK_COLLAPSED_H = 28;
 const DOCK_MIN_H = 160;
 const DOCK_MAX_H = 320;
-const DOCK_KEY = "dockHeight";
-
-function loadDockHeight(): number {
-  try {
-    const n = Number(localStorage.getItem(DOCK_KEY));
-    if (n >= DOCK_MIN_H && n <= DOCK_MAX_H) return n;
-  } catch {
-    // Storage unavailable: fall through to the default.
-  }
-  return 200;
-}
-
-function saveDockHeight(px: number) {
-  try {
-    localStorage.setItem(DOCK_KEY, String(Math.round(px)));
-  } catch {
-    // Storage unavailable: the height simply doesn't persist.
-  }
-}
+const DOCK_DEFAULT_H = 200;
 
 export function RepoWindow() {
   const selectedWt = useRepoStore((st) => st.wtSelected);
@@ -104,7 +86,7 @@ export function RepoWindow() {
 
 /**
  * The output dock as a resizable panel: 160–320px open (style guide §4), collapsed to the
- * 28px header bar otherwise. The open height persists in `localStorage.dockHeight`.
+ * 28px header bar otherwise. The height is per session: it opens at 200px every launch.
  */
 export function DockPanel({ open }: { open: boolean }) {
   const panel = usePanelRef();
@@ -124,13 +106,10 @@ export function DockPanel({ open }: { open: boolean }) {
       panelRef={panel}
       collapsible
       collapsedSize={DOCK_COLLAPSED_H}
-      defaultSize={open ? loadDockHeight() : DOCK_COLLAPSED_H}
+      defaultSize={open ? DOCK_DEFAULT_H : DOCK_COLLAPSED_H}
       minSize={DOCK_MIN_H}
       maxSize={DOCK_MAX_H}
       className={s.panel}
-      onResize={(size) => {
-        if (size.inPixels > DOCK_COLLAPSED_H) saveDockHeight(size.inPixels);
-      }}
     >
       <OutputDock />
     </Panel>
