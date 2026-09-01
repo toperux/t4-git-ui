@@ -47,11 +47,11 @@ const mocked = ipc as unknown as { stagePaths: ReturnType<typeof vi.fn> };
 
 const STATUS: WorkdirStatus = {
   entries: [
-    { path: "a.rs", oldPath: null, index: null, workdir: "modified", conflicted: false },
-    { path: "both.rs", oldPath: null, index: "modified", workdir: "modified", conflicted: false },
-    { path: "conflict.rs", oldPath: null, index: null, workdir: null, conflicted: true },
-    { path: "new.rs", oldPath: null, index: "added", workdir: null, conflicted: false },
-    { path: "untracked.txt", oldPath: null, index: null, workdir: "untracked", conflicted: false },
+    { path: "a.rs", oldPath: null, index: null, workdir: "modified", conflicted: false, workdirStamp: "1:1" },
+    { path: "both.rs", oldPath: null, index: "modified", workdir: "modified", conflicted: false, workdirStamp: "1:1" },
+    { path: "conflict.rs", oldPath: null, index: null, workdir: null, conflicted: true, workdirStamp: "1:1" },
+    { path: "new.rs", oldPath: null, index: "added", workdir: null, conflicted: false, workdirStamp: null },
+    { path: "untracked.txt", oldPath: null, index: null, workdir: "untracked", conflicted: false, workdirStamp: "1:1" },
   ],
   staged: 2,
   unstaged: 2,

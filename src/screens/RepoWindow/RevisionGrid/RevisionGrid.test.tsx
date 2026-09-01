@@ -118,7 +118,7 @@ describe("RevisionGrid", () => {
       wtSelected: false,
     });
     useStatusStore.setState({
-      status: { entries: [{ path: "a", oldPath: null, index: null, workdir: "modified", conflicted: false }], staged: 0, unstaged: 1, untracked: 2, conflicted: 0 },
+      status: { entries: [{ path: "a", oldPath: null, index: null, workdir: "modified", conflicted: false, workdirStamp: "1:1" }], staged: 0, unstaged: 1, untracked: 2, conflicted: 0 },
     });
     const { container, getByRole } = render(<RevisionGrid />);
     const rows = container.querySelectorAll('[role="row"][aria-rowindex]');

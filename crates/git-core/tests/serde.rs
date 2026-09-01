@@ -229,6 +229,7 @@ fn diff_shapes_are_camel_case() {
             index: Some(FileStatus::Modified),
             workdir: None,
             conflicted: false,
+            workdir_stamp: Some("1700000000000:12".into()),
         }],
         staged: 1,
         unstaged: 0,
@@ -239,6 +240,7 @@ fn diff_shapes_are_camel_case() {
     assert_eq!(ws["entries"][0]["index"], "modified");
     assert_eq!(ws["entries"][0]["workdir"], Value::Null);
     assert_eq!(ws["entries"][0]["oldPath"], Value::Null);
+    assert_eq!(ws["entries"][0]["workdirStamp"], "1700000000000:12");
     assert_eq!(ws["staged"], 1);
 
     // Options: all fields default, camelCase keys.

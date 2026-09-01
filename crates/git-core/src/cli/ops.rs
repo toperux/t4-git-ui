@@ -484,6 +484,7 @@ mod tests {
                     index: None,
                     workdir: None,
                     conflicted: true,
+                    workdir_stamp: None,
                 },
                 StatusEntry {
                     path: "b.txt".into(),
@@ -491,6 +492,7 @@ mod tests {
                     index: None,
                     workdir: Some(crate::diff::FileStatus::Modified),
                     conflicted: false,
+                    workdir_stamp: None,
                 },
             ],
             staged: 0,

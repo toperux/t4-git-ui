@@ -47,3 +47,34 @@ fn stages_carry_every_side_that_exists() {
 
     assert_eq!(conflict::stages(&t.repo, "nothing.txt").expect("stages"), None);
 }
+
+/// The panel's guard for "the file on screen changed": an editor writing the
+/// working file leaves every other field of the entry alone.
+#[test]
+fn resolving_a_conflict_on_disk_moves_the_stamp_and_nothing_else() {
+    let t = conflicted();
+    let before = entry(&t, "f.txt");
+    assert!(before.conflicted);
+    assert!(before.workdir_stamp.is_some());
+
+    // Same shape as a merge editor saving its result.
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    t.write("f.txt", "resolved\n");
+    let after = entry(&t, "f.txt");
+
+    assert_ne!(after.workdir_stamp, before.workdir_stamp);
+    assert_eq!(
+        (after.conflicted, after.index, after.workdir),
+        (before.conflicted, before.index, before.workdir),
+        "only the stamp may move — the letters are what used to be compared"
+    );
+}
+
+fn entry(t: &TempRepo, path: &str) -> git_core::status::StatusEntry {
+    git_core::status::status(&t.repo)
+        .expect("status")
+        .entries
+        .into_iter()
+        .find(|e| e.path == path)
+        .expect("entry")
+}

@@ -282,6 +282,12 @@ export interface StatusEntry {
   /** Index → working directory change, `null` when the workdir matches the index. */
   workdir: FileStatus | null;
   conflicted: boolean;
+  /**
+   * `<mtime ms>:<size>` of the file on disk, `null` when it isn't there. The status letters say
+   * nothing about content — an edited file stays `modified`, a conflict stays `conflicted` until
+   * it is staged — so this is what makes an entry differ when only the bytes changed.
+   */
+  workdirStamp: string | null;
 }
 
 export interface WorkdirStatus {

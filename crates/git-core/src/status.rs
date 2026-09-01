@@ -21,6 +21,11 @@ pub struct StatusEntry {
     /// Index → working directory change, `None` when the workdir matches the index.
     pub workdir: Option<FileStatus>,
     pub conflicted: bool,
+    /// `<mtime ms>:<size>` of the file on disk, `None` when it isn't there (or has
+    /// no working-tree side). The status letters say nothing about *content*: a
+    /// file edited in an editor stays `modified`, and a conflict stays `conflicted`
+    /// until it is staged, so this is what tells the UI its diff went stale.
+    pub workdir_stamp: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -34,6 +39,20 @@ pub struct WorkdirStatus {
     pub unstaged: u32,
     pub untracked: u32,
     pub conflicted: u32,
+}
+
+/// `<mtime ms>:<size>` of a working-tree file — the pair git's own index cache
+/// trusts to decide a file is unchanged. `None` when it cannot be read (deleted
+/// on this side of a conflict, or a bare repo).
+fn workdir_stamp(repo: &Repository, path: &str) -> Option<String> {
+    let meta = std::fs::metadata(repo.workdir()?.join(path)).ok()?;
+    let ms = meta
+        .modified()
+        .ok()?
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_millis();
+    Some(format!("{ms}:{}", meta.len()))
 }
 
 fn index_status(s: Status) -> Option<FileStatus> {
@@ -128,12 +147,18 @@ pub fn status(repo: &Repository) -> Result<WorkdirStatus, GitError> {
         if conflicted {
             out.conflicted += 1;
         }
+        let workdir_stamp = if workdir.is_some() || conflicted {
+            workdir_stamp(repo, &path)
+        } else {
+            None
+        };
         entries.push(StatusEntry {
             path,
             old_path,
             index,
             workdir,
             conflicted,
+            workdir_stamp,
         });
     }
     entries.sort_by(|a, b| a.path.cmp(&b.path));

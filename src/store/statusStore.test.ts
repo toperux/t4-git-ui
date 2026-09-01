@@ -21,7 +21,7 @@ import { useToastStore } from "./toastStore";
 const mocked = ipc as unknown as Record<"getStatus" | "getRefs" | "refreshLabels" | "startLog" | "getLogPage", ReturnType<typeof vi.fn>>;
 const REPO: RepoSummary = { id: "r1", name: "r1", path: "r1", head: { oid: "h1", branch: "main", detached: false } };
 const status = (n: number): WorkdirStatus => ({
-  entries: Array.from({ length: n }, (_, i) => ({ path: `f${i}`, oldPath: null, index: null, workdir: "modified", conflicted: false })),
+  entries: Array.from({ length: n }, (_, i) => ({ path: `f${i}`, oldPath: null, index: null, workdir: "modified", conflicted: false, workdirStamp: "1:1" })),
   staged: 0,
   unstaged: n,
   untracked: 0,

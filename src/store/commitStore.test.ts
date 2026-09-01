@@ -47,7 +47,7 @@ type MockName =
 const mocked = ipc as unknown as Record<MockName, ReturnType<typeof vi.fn>>;
 const REPO: RepoSummary = { id: "r", name: "r", path: "r", head: { oid: "h", branch: "main", detached: false } };
 
-const entry = (path: string, workdir: StatusEntry["workdir"] = "modified"): StatusEntry => ({ path, oldPath: null, index: null, workdir, conflicted: false });
+const entry = (path: string, workdir: StatusEntry["workdir"] = "modified", stamp: string | null = "1:1"): StatusEntry => ({ path, oldPath: null, index: null, workdir, conflicted: false, workdirStamp: stamp });
 
 const status = (entries: StatusEntry[]): WorkdirStatus => ({ entries, staged: 0, unstaged: entries.length, untracked: 0, conflicted: 0 });
 
@@ -97,6 +97,17 @@ describe("commitStore.syncWithStatus", () => {
     expect(useCommitStore.getState().diff).toBe(shown);
   });
 
+  it("reloads when the shown file was edited on disk, which the status letters do not show", async () => {
+    // Resolving a conflict in an external editor (or any save while the panel is open) rewrites the
+    // file and leaves its entry exactly as it was — conflicted until staged, modified otherwise. The
+    // stamp is the only part of the entry that moves, and the diff on screen is stale without it.
+    await sync([entry("a.rs")]);
+    expect(mocked.getFileDiff).toHaveBeenCalledTimes(1);
+
+    await sync([entry("a.rs", "modified", "2:9")]);
+    expect(mocked.getFileDiff).toHaveBeenCalledTimes(2);
+  });
+
   it("reloads when the shown file's own status entry changed, keeping identity for equal hunks", async () => {
     await sync([entry("a.rs")]);
     const shown = useCommitStore.getState().diff;
@@ -138,7 +149,7 @@ describe("commitStore.syncWithStatus", () => {
     expect(useCommitStore.getState()).toMatchObject({ list: "unstaged", anchor: "a.rs" });
 
     // Everything staged: the unstaged list is empty, so the focus moves to the staged one.
-    const staged: WorkdirStatus = { entries: [{ path: "a.rs", oldPath: null, index: "modified", workdir: null, conflicted: false }], staged: 1, unstaged: 0, untracked: 0, conflicted: 0 };
+    const staged: WorkdirStatus = { entries: [{ path: "a.rs", oldPath: null, index: "modified", workdir: null, conflicted: false, workdirStamp: null }], staged: 1, unstaged: 0, untracked: 0, conflicted: 0 };
     useStatusStore.setState({ status: staged, error: null });
     useCommitStore.getState().syncWithStatus(staged);
     await flush();
@@ -169,7 +180,7 @@ describe("commitStore mutations", () => {
     // Staging a hunk of a file that has more leaves the entry at modified/modified. The shown diff
     // changed, its status entry did not — and the indices of what is left come from that diff, so a
     // stale one stages the wrong hunk next.
-    const partlyStaged: StatusEntry = { path: "a.rs", oldPath: null, index: "modified", workdir: "modified", conflicted: false };
+    const partlyStaged: StatusEntry = { path: "a.rs", oldPath: null, index: "modified", workdir: "modified", conflicted: false, workdirStamp: "1:1" };
     await sync([entry("a.rs")]);
     expect(mocked.getFileDiff).toHaveBeenCalledTimes(1);
 
