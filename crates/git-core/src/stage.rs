@@ -79,6 +79,19 @@ pub fn discard_paths(repo: &Repository, paths: &[&str]) -> Result<Vec<String>, G
     Ok(discarded)
 }
 
+/// Arguments for `git checkout --merge -- <paths>`: puts `paths` back the way the
+/// merge left them — the three index stages and a working file full of markers.
+///
+/// The recovery for staging a file whose conflict was never resolved: `git add`
+/// on an unmerged path *is* "mark resolved", it drops the stages, and no `reset`
+/// brings them back. Only git can do this (libgit2 has no equivalent), and it
+/// overwrites the working file, so it belongs behind a confirmation.
+pub fn recreate_conflict_args(paths: &[&str]) -> Vec<String> {
+    let mut args = vec!["checkout".to_string(), "--merge".to_string(), "--".to_string()];
+    args.extend(paths.iter().map(|p| (*p).to_string()));
+    args
+}
+
 /// Arguments for applying a patch (on stdin) to the index; `reverse` unstages.
 pub fn stage_patch_args(reverse: bool) -> Vec<&'static str> {
     let mut args = vec!["apply", "--cached", "--whitespace=nowarn"];

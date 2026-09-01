@@ -77,6 +77,9 @@ export const getChangedFiles = (id: RepoId, target: DiffTarget) =>
 export const getFileDiff = (id: RepoId, target: DiffTarget, path: string, opts?: DiffOptions) =>
   call<FileDiff>("get_file_diff", { id, target, path, opts });
 
+/** `git checkout --merge -- <paths>`: puts files staged without being resolved back in conflict. */
+export const recreateConflict = (id: RepoId, paths: string[]) => call<void>("recreate_conflict", { id, paths });
+
 /** Opens a conflicted file's three sides in VS Code's merge editor; resolves with the launcher used. */
 export const openMergeEditor = (id: RepoId, path: string) => call<string>("open_merge_editor", { id, path });
 

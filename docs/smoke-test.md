@@ -172,6 +172,10 @@ Use `C:\tmp\t4\work` and the bare remote.
 - [ ] Save the resolved file from the editor **without touching the app** → the diff in the panel
       loses its markers on its own (the file's status letters don't change when it is resolved, so
       this only works because the entry carries the file's mtime/size)
+- [ ] Stage the conflicted file **before** resolving it, then unstage it → it is no longer conflicted
+      (git drops the three stages on `add`, and no unstage brings them back), so the header says
+      "Marked resolved, but the conflict markers are still here" with a **Restore conflict** button →
+      confirm → the file is conflicted again and "Resolve in editor" is back
 - [ ] Resolve the conflict (in that editor or any other) → **the file can be staged** (whole-file) →
       commit → banners clear
 - [ ] **Rebase** onto a diverged branch, then Abort → the branch is restored, banner clears

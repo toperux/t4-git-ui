@@ -559,3 +559,31 @@ fn create_tag_lightweight_and_annotated_then_delete() {
         Err(GitError::Config(_))
     ));
 }
+
+#[tokio::test]
+async fn staging_an_unresolved_file_is_undone_by_checkout_merge() {
+    if !have_git() {
+        return;
+    }
+    let t = TempRepo::new();
+    conflicting_branches(&t);
+    let (out, _) = run(t.path(), &ops::merge("feat", &MergeOpts::default())).await;
+    assert!(matches!(failure(&out), OpFailure::Conflicts { .. }), "{}", out.stderr);
+    reload(&t);
+    assert_eq!(status(&t.repo).unwrap().conflicted, 1);
+
+    // `git add` on an unmerged path *is* "mark resolved": the three stages go, and
+    // no reset brings them back — the markers just sit in the file as a change.
+    run_ok(&t, &["add".into(), "f.txt".into()]).await;
+    run_ok(&t, &["reset".into(), "-q".into(), "--".into(), "f.txt".into()]).await;
+    reload(&t);
+    let st = status(&t.repo).unwrap();
+    assert_eq!(st.conflicted, 0);
+    assert_eq!(st.unstaged, 1);
+
+    run_ok(&t, &git_core::stage::recreate_conflict_args(&["f.txt"])).await;
+    reload(&t);
+    assert_eq!(status(&t.repo).unwrap().conflicted, 1);
+    let body = std::fs::read_to_string(t.path().join("f.txt")).expect("read");
+    assert!(body.contains("<<<<<<<"), "{body}");
+}

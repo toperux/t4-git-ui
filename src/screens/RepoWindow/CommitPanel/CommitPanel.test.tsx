@@ -16,6 +16,7 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
     getAuthor: vi.fn(() => Promise.resolve({ name: "Ada", email: "ada@x" })),
     stagePaths: vi.fn(() => Promise.resolve()),
     unstagePaths: vi.fn(() => Promise.resolve()),
+    recreateConflict: vi.fn(() => Promise.resolve()),
   };
 });
 vi.mock("@tauri-apps/plugin-dialog", () => ({ ask: vi.fn(() => Promise.resolve(true)) }));
@@ -43,7 +44,7 @@ vi.mock("@tanstack/react-virtual", async (importOriginal) => {
 });
 
 import * as ipc from "../../../api/ipc";
-const mocked = ipc as unknown as { stagePaths: ReturnType<typeof vi.fn> };
+const mocked = ipc as unknown as Record<"stagePaths" | "getFileDiff" | "recreateConflict", ReturnType<typeof vi.fn>>;
 
 const STATUS: WorkdirStatus = {
   entries: [
@@ -99,6 +100,47 @@ describe("CommitPanel", () => {
     expect(getByText("Conflict — stage the file once resolved")).toBeTruthy();
     fireEvent.click(rows[2].querySelector('button[aria-label="Stage"]')!);
     expect(mocked.stagePaths).toHaveBeenCalledWith("r", ["conflict.rs"]);
+  });
+
+  it("offers to restore a conflict staged with its markers still in the file", async () => {
+    // What `git add` on an unresolved file leaves behind: not conflicted any more (the stages are
+    // gone, and no unstage brings them back), still full of markers, still mid-merge.
+    mocked.getFileDiff.mockImplementation(() =>
+      Promise.resolve({
+        path: "a.rs",
+        oldPath: null,
+        status: "modified",
+        binary: false,
+        truncated: false,
+        additions: 4,
+        deletions: 0,
+        hunks: [
+          {
+            header: "@@ -1 +1,4 @@",
+            oldStart: 1,
+            oldLines: 1,
+            newStart: 1,
+            newLines: 4,
+            lines: [{ kind: "add", oldNo: null, newNo: 1, text: "<<<<<<< HEAD", noNewline: false }],
+          },
+        ],
+      }),
+    );
+    useRepoStore.setState({ refs: { head: { oid: "h", branch: "main", detached: false }, state: "merge", local: [], remotes: [], tags: [], stashes: [] } });
+    const { getByRole, getByText } = render(<CommitPanel />);
+    await act(async () => {});
+
+    expect(getByText("Marked resolved, but the conflict markers are still here")).toBeTruthy();
+    fireEvent.click(getByRole("button", { name: "Restore conflict" }));
+    await act(async () => {});
+    expect(mocked.recreateConflict).toHaveBeenCalledWith("r", ["a.rs"]);
+
+    // Outside a merge the same markers are just text in a file.
+    cleanup();
+    useRepoStore.setState({ refs: { head: { oid: "h", branch: "main", detached: false }, state: "clean", local: [], remotes: [], tags: [], stashes: [] } });
+    const second = render(<CommitPanel />);
+    await act(async () => {});
+    expect(second.queryByRole("button", { name: "Restore conflict" })).toBeNull();
   });
 
   it("click / ctrl / shift build a multi-selection in one list", () => {

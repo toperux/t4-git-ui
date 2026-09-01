@@ -171,6 +171,43 @@ pub async fn discard_paths(
     .await
 }
 
+/// Puts `paths` back in conflict — index stages and marker-filled working files —
+/// after they were staged (and so marked resolved) without being resolved.
+#[tauri::command]
+pub async fn recreate_conflict(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: RepoId,
+    paths: Vec<String>,
+) -> Result<(), AppError> {
+    // Same shape as `apply_selection`: the closure borrows the handle and the
+    // state, so they arrive as references rather than the `State` guard itself.
+    run_checkout_merge(&app, &state, &id, paths).await
+}
+
+async fn run_checkout_merge(
+    app: &AppHandle,
+    state: &AppState,
+    id: &RepoId,
+    paths: Vec<String>,
+) -> Result<(), AppError> {
+    mutate(
+        app,
+        state,
+        id,
+        &[ChangeKind::Index, ChangeKind::Workdir],
+        |handle| async move {
+            let args = stage::recreate_conflict_args(&as_strs(&paths));
+            let argv: Vec<&str> = args.iter().map(String::as_str).collect();
+            let run =
+                run_git_op(app, state, Some(&handle.id), &handle.path, &argv, None, false).await?;
+            run.out.check(&format!("git {}", argv.join(" ")))?;
+            Ok(())
+        },
+    )
+    .await
+}
+
 /// Builds the patch for `selection` from the stage-able diff of `path`
 /// (`Unstaged`, or `Staged` when `reverse`) and applies it to the index.
 async fn apply_selection(

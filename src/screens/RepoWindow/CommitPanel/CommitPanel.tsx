@@ -1,7 +1,9 @@
+import { ask } from "@tauri-apps/plugin-dialog";
 import { useEffect } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import * as ipc from "../../../api/ipc";
 import { toAppError } from "../../../api/ipc";
+import type { FileDiff } from "../../../api/types";
 import { useCommitStore } from "../../../store/commitStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { useStatusStore } from "../../../store/statusStore";
@@ -48,22 +50,60 @@ function DiffColumn() {
   const stageLines = useCommitStore((st) => st.stageLines);
   const entry = useStatusStore((st) => st.status?.entries.find((e) => e.path === path));
 
+  const state = useRepoStore((st) => st.refs?.state);
+
   // Conflicted and untracked files can only be staged whole — no hunk or line indices to work with.
   const conflicted = list === "unstaged" && !!entry?.conflicted;
   const untracked = list === "unstaged" && entry?.workdir === "untracked";
+  // Staging an unresolved file marks it resolved and drops its three index stages — git's own
+  // behaviour, and no unstage brings them back. The markers are still in the file, so say so and
+  // offer the one command that undoes it. Only mid-merge: a marker in a file is otherwise just text.
+  const merging = state === "merge" || state === "rebase";
+  const stranded = merging && !conflicted && !!diff && hasMarkers(diff);
   const actions: DiffActions | undefined = path
     ? {
         target: list,
         wholeFile: conflicted || untracked,
-        note: conflicted ? "Conflict — stage the file once resolved" : untracked ? "Untracked — stage whole file" : undefined,
+        note: conflicted
+          ? "Conflict — stage the file once resolved"
+          : stranded
+            ? "Marked resolved, but the conflict markers are still here"
+            : untracked
+              ? "Untracked — stage whole file"
+              : undefined,
         busy,
         onResolve: conflicted ? () => void resolveInEditor(path) : undefined,
+        onRestoreConflict: stranded && path ? () => void restoreConflict(path) : undefined,
         onStageHunk: (h) => void stageHunk(h),
         onStageLines: (l) => void stageLines(l),
       }
     : undefined;
 
   return <DiffViewer path={path} oldPath={entry?.oldPath ?? null} stats={stats ?? null} diff={diff} loading={loading} error={error} actions={actions} />;
+}
+
+/** A `<<<<<<<` at the start of a line the diff carries: git's own conflict marker, seven of them. */
+const hasMarkers = (diff: FileDiff) => diff.hunks.some((h) => h.lines.some((l) => l.text.startsWith("<<<<<<<")));
+
+/**
+ * Puts the file back the way the merge left it. This overwrites the working file — that is the
+ * point, and it is why it asks first: whatever is in there now is a half-staged conflict.
+ */
+async function restoreConflict(path: string) {
+  const repo = useRepoStore.getState().repo;
+  if (!repo) return;
+  const ok = await ask(`Bring back the conflict in ${path}?`, {
+    title: "Restore conflict",
+    kind: "warning",
+    okLabel: "Restore",
+  });
+  if (!ok) return;
+  try {
+    await ipc.recreateConflict(repo.id, [path]);
+    await useStatusStore.getState().refresh();
+  } catch (e) {
+    toastError(toAppError(e), "Couldn't restore the conflict");
+  }
 }
 
 /**

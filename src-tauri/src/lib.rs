@@ -125,6 +125,7 @@ pub fn run() {
             commands::stage::stage_paths,
             commands::stage::unstage_paths,
             commands::stage::discard_paths,
+            commands::stage::recreate_conflict,
             commands::stage::stage_hunks,
             commands::stage::stage_lines,
             commands::stage::commit,

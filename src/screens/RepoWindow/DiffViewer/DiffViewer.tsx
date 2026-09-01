@@ -36,11 +36,13 @@ export interface DiffActions {
   target: "unstaged" | "staged";
   /** Untracked / conflicted file: whole-file only, no hunk / line actions. */
   wholeFile: boolean;
-  /** Header note explaining the whole-file mode ("Untracked — stage whole file"). */
+  /** Header note explaining the file's state ("Untracked — stage whole file"). */
   note?: string;
   busy?: boolean;
   /** Conflicted file: opens its three sides in an external merge editor. */
   onResolve?: () => void;
+  /** File staged (and so marked resolved) with its conflict markers still in it. */
+  onRestoreConflict?: () => void;
   onStageHunk: (hunk: number) => void;
   onStageLines: (lines: [number, number][]) => void;
 }
@@ -170,10 +172,15 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
         icon={<File size={14} aria-hidden />}
         title={path && <span className={s.path}>{oldPath ? `${oldPath} → ${path}` : path}</span>}
       >
-        {actions?.wholeFile && actions.note && <span className={s.note}>{actions.note}</span>}
+        {actions?.note && <span className={s.note}>{actions.note}</span>}
         {actions?.onResolve && (
           <Button size="sm" className={s.resolve} disabled={actions.busy} onClick={actions.onResolve}>
             Resolve in editor
+          </Button>
+        )}
+        {actions?.onRestoreConflict && (
+          <Button size="sm" className={s.resolve} disabled={actions.busy} onClick={actions.onRestoreConflict}>
+            Restore conflict
           </Button>
         )}
         {stats && !stats.binary && <Stats additions={stats.additions} deletions={stats.deletions} className={s.stats} />}
