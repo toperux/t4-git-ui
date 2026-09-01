@@ -10,8 +10,9 @@
 #   bare.git  a bare "remote"
 #   work      history with a branch, a merge, a tag, one commit that is not pushed
 #             yet (section 5 pushes it), the odd files the diff viewer is checked
-#             against - CRLF, binary, no trailing newline - and hunks.txt modified
-#             in the working tree, in three hunks, for the staging checks
+#             against - CRLF, binary, no trailing newline - a 25 000-line diff and a
+#             300-file commit for the section 7 checks, and hunks.txt modified in
+#             the working tree, in three hunks, for the staging checks
 #   other     a second clone of bare.git, for the divergence checks in section 5
 # plus two extra remotes on work: `nowhere` (a path that doesn't exist) and `slow`
 # (bare.git behind an upload-pack that sleeps a minute), for the failed / cancelled
@@ -131,6 +132,19 @@ Write-Text (Join-Path $work 'hunks.txt') (($lines -join "`n") + "`n")
 Invoke-Git -C $work add .
 Invoke-Git -C $work commit -qm 'hunks fixture'
 
+# Section 7 without a large clone: one commit whose diff passes the viewer's 20 000-line cap
+# (big.txt, 25 000 lines, so the truncation banner has something to show) and one that touches
+# 300 files, so the file list has enough rows to have to scroll.
+$big = 1..25000 | ForEach-Object { "line $_" }
+Write-Text (Join-Path $work 'big.txt') (($big -join "`n") + "`n")
+Invoke-Git -C $work add big.txt
+Invoke-Git -C $work commit -qm 'big diff (25 000 lines)'
+$many = Join-Path $work 'many'
+New-Item -ItemType Directory -Path $many | Out-Null
+1..300 | ForEach-Object { Write-Text (Join-Path $many ('{0:d3}.txt' -f $_)) "file $_`n" }
+Invoke-Git -C $work add many
+Invoke-Git -C $work commit -qm 'many files (300)'
+
 Invoke-Git -C $work push -q -u origin main
 
 # Section 5 pulls on a branch whose upstream is named something else, so both branches have to
@@ -198,4 +212,5 @@ Write-Host "ready - open $work in the app"
 Write-Host "  work   $commits commits, the last one not pushed yet"
 Write-Host '         hunks.txt is modified in the working tree, in three hunks'
 Write-Host '         feature tracks origin/feature-upstream, while origin/feature is someone else'
+Write-Host '         "big diff" and "many files" are the section 7 commits'
 Write-Host '  other  second clone, for the divergence checks in section 5'

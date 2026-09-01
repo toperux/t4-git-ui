@@ -32,7 +32,8 @@ and `hunks.txt` left modified in three hunks for the staging checks in §4.
 `work` turns `core.autocrlf` off, or git rewrites `crlf.txt` to LF on the way into the index and
 the committed blob has no CR left for §3 to show. The script fails loudly if that happens anyway.
 
-A large repo (a `git/git` clone, ~85k commits) is useful for the performance checks in §7.
+A large repo (a `git/git` clone, ~85k commits) is useful for the first two performance checks in
+§7; the fixture covers the other two with its `big diff` and `many files` commits.
 
 ---
 
@@ -231,15 +232,19 @@ Use `C:\tmp\t4\work` and the bare remote.
 - [ ] Nothing is pure white on a large surface in light theme; nothing is unreadably faint
 - [ ] Drag the window to a monitor with a different DPI → the graph canvases stay crisp
 
-## 7. Performance (needs a large repo)
+## 7. Performance
+
+The first two need a large repo; the last two use the fixture.
 
 - [ ] Open a `git/git` clone → the walk completes in a couple of seconds; scrolling the grid stays
       smooth while it is still loading
 - [ ] Scroll deep into the history, then run `git fetch` from a terminal → the UI refreshes without a
       visible stall (only visible rows refetch their labels)
-- [ ] Open a commit with a very large diff → it virtualizes; a diff over 20 000 lines shows the
-      truncation banner
-- [ ] A commit touching hundreds of files → the file list scrolls smoothly
+- [ ] In `C:\tmp\t4\work`, select the `big diff (25 000 lines)` commit and open `big.txt` → the diff
+      scrolls smoothly (only visible lines are rendered) and ends in the **truncation banner**, since
+      the viewer stops at 20 000 lines
+- [ ] Select the `many files (300)` commit → the file list shows 300 rows and scrolls smoothly;
+      clicking any of them opens its one-line diff
 
 ---
 
