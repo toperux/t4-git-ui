@@ -3,6 +3,8 @@
 #   pwsh -File docs/smoke-fixtures.ps1            # into C:\tmp\t4
 #   pwsh -File docs/smoke-fixtures.ps1 -Force     # rebuild it from scratch
 #   pwsh -File docs/smoke-fixtures.ps1 D:\t4      # somewhere else
+#   pwsh -File docs/smoke-fixtures.ps1 -RemotesOnly   # add the extra remotes to a fixture that
+#                                                     # predates them, keeping everything else
 #
 # It makes three things:
 #   bare.git  a bare "remote"
@@ -11,11 +13,15 @@
 #             against - CRLF, binary, no trailing newline - and hunks.txt modified
 #             in the working tree, in three hunks, for the staging checks
 #   other     a second clone of bare.git, for the divergence checks in section 5
+# plus two extra remotes on work: `nowhere` (a path that doesn't exist) and `slow`
+# (bare.git behind an upload-pack that sleeps a minute), for the failed / cancelled
+# op checks in section 5.
 
 [CmdletBinding()]
 param(
     [string] $Root = 'C:\tmp\t4',
-    [switch] $Force
+    [switch] $Force,
+    [switch] $RemotesOnly
 )
 
 Set-StrictMode -Version Latest
@@ -50,7 +56,11 @@ function Stop-WithMessage {
     exit 1
 }
 
-if (Test-Path -LiteralPath $Root) {
+if ($RemotesOnly) {
+    if (-not (Test-Path -LiteralPath (Join-Path $Root 'work'))) {
+        Stop-WithMessage "$Root has no fixture to add remotes to - build one first"
+    }
+} elseif (Test-Path -LiteralPath $Root) {
     if (-not $Force) {
         Stop-WithMessage "$Root already exists - remove it, name another path, or pass -Force"
     }
@@ -65,6 +75,29 @@ $bare = Join-Path $Root 'bare.git'
 # git takes either separator, but a backslash in a remote URL is easy to mangle later.
 $bareUrl = $bare -replace '\\', '/'
 
+# Two remotes for the failed / cancelled op checks in section 5: `nowhere`, a path that
+# does not exist (local, so it fails at once instead of waiting on DNS), and `slow`, bare.git
+# again but served through an upload-pack that sleeps first, so a fetch from it hangs long
+# enough to be cancelled. Quoted so git hands the command to sh instead of trying to exec
+# a .sh file itself.
+function Add-ExtraRemotes {
+    Invoke-Git -C $work remote add nowhere (Join-Path $Root 'does-not-exist')
+    $slowPack = Join-Path $Root 'slow-upload-pack.sh'
+    Write-Text $slowPack "#!/bin/sh`nsleep 60`nexec git upload-pack `"`$@`"`n"
+    Invoke-Git -C $work remote add slow $bareUrl
+    Invoke-Git -C $work config remote.slow.uploadpack "sh `"$($slowPack -replace '\\', '/')`""
+}
+
+if ($RemotesOnly) {
+    foreach ($name in 'nowhere', 'slow') {
+        # Absent on a fixture that predates them; `remove` says so on stderr, harmlessly.
+        & git -C $work remote remove $name 2>$null
+    }
+    Add-ExtraRemotes
+    Write-Host "added remotes nowhere and slow to $work"
+    exit 0
+}
+
 Invoke-Git init -q --bare -b main $bare
 Invoke-Git init -q -b main $work
 
@@ -73,6 +106,7 @@ Invoke-Git init -q -b main $work
 # `true` and plenty of people set `input`; either one hides the marker.
 Invoke-Git -C $work config core.autocrlf false
 Invoke-Git -C $work remote add origin $bareUrl
+Add-ExtraRemotes
 
 Write-Text (Join-Path $work 'a.txt') "one`n"
 Invoke-Git -C $work add .
