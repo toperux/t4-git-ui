@@ -67,6 +67,25 @@ describe("OutputDock", () => {
     expect(getByRole("log", { name: "Command output" }).textContent).toContain("Receiving objects: 100%");
   });
 
+  it("scrolls to the bottom when an op exits, so its last line is not cut off", () => {
+    act(() => {
+      const st = useOpsStore.getState();
+      st.onEvent({ repoId: "r", opId: "1", event: { kind: "started", opId: "1", cmd: "git push origin main" } });
+      st.onEvent({ repoId: "r", opId: "1", event: { kind: "stderr", line: "remote: rejected" } });
+      st.setOpen(true);
+    });
+    const { getByRole } = renderDock(true);
+    const log = getByRole("log", { name: "Command output" });
+    // jsdom does no layout, so the overflow the effect scrolls past has to be faked.
+    Object.defineProperty(log, "scrollHeight", { value: 500, configurable: true });
+    log.scrollTop = 0;
+
+    act(() => {
+      useOpsStore.getState().onEvent({ repoId: "r", opId: "1", event: { kind: "exit", code: 1, elapsedMs: 10 } });
+    });
+    expect(log.scrollTop).toBe(500);
+  });
+
   it("a running op offers Cancel", () => {
     act(() => {
       useOpsStore.getState().onEvent({ repoId: "r", opId: "9", event: { kind: "started", opId: "9", cmd: "git clone x" } });

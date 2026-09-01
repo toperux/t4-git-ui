@@ -80,11 +80,13 @@ function exitLine(op: OpRecord) {
 
 function OutputBody({ ops }: { ops: OpRecord[] }) {
   const ref = useRef<HTMLDivElement>(null);
-  const lineCount = ops.reduce((n, o) => n + o.lines.length + 2, 0);
+  // Rows, not lines: the `$ cmd` header, and the exit line an op only grows once it has finished —
+  // counting that one unconditionally left the last line of every op sitting below the fold.
+  const rowCount = ops.reduce((n, o) => n + o.lines.length + (o.running ? 1 : 2), 0);
   useEffect(() => {
     const el = ref.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [lineCount]);
+  }, [rowCount]);
   return (
     <div ref={ref} className={cx(s.output, "selectable")} role="log" aria-label="Command output">
       {ops.map((op) => (
