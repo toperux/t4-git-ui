@@ -98,6 +98,13 @@ impl Watcher {
             match result {
                 Ok(events) => {
                     for ev in &events {
+                        // inotify reports opens and reads too; nothing changed. Left in,
+                        // `is_path_ignored` reading `.gitignore` right here would report
+                        // `.gitignore` as edited on the next round — and so would every
+                        // file an editor opens.
+                        if ev.kind.is_access() {
+                            continue;
+                        }
                         if ev.need_rescan() {
                             change.rescan = true;
                         }

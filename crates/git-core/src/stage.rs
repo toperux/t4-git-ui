@@ -196,6 +196,8 @@ mod tests {
     #[test]
     fn discard_restores_from_index_and_keeps_staged() {
         let t = TempRepo::new();
+        // Don't let a global `core.autocrlf` rewrite what the checkout puts on disk.
+        t.set_config("core.autocrlf", "false");
         t.commit(
             &[("f.txt", "v0\n"), ("gone.txt", "g\n"), ("clean.txt", "")],
             "base",
