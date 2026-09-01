@@ -35,6 +35,11 @@ impl TempRepo {
             cfg.set_str("user.name", "Test").expect("user.name");
             cfg.set_str("user.email", "test@example.com")
                 .expect("user.email");
+            // Git for Windows installs with a global `core.autocrlf=true`, which
+            // rewrites what checkouts and merges put on disk; fixtures compare
+            // bytes. A test that wants the conversion sets it back on.
+            cfg.set_str("core.autocrlf", "false")
+                .expect("core.autocrlf");
         }
         TempRepo {
             dir,
