@@ -72,7 +72,8 @@ async fn compute_labels(
 ) -> Result<Arc<HashMap<String, Vec<RefLabel>>>, AppError> {
     blocking(move || {
         let mut repo = handle.git2.lock();
-        Ok(Arc::new(refs::label_map(&refs::snapshot(&mut repo)?)))
+        let snap = refs::snapshot_with(&mut repo, &mut handle.ahead_behind.lock())?;
+        Ok(Arc::new(refs::label_map(&snap)))
     })
     .await
 }
@@ -163,7 +164,14 @@ pub async fn close_repo(state: State<'_, AppState>, id: RepoId) -> Result<(), Ap
 #[tauri::command]
 pub async fn get_refs(state: State<'_, AppState>, id: RepoId) -> Result<RefsSnapshot, AppError> {
     let handle = state.repo(&id)?;
-    blocking(move || Ok(refs::snapshot(&mut handle.git2.lock())?)).await
+    blocking(move || {
+        let mut repo = handle.git2.lock();
+        Ok(refs::snapshot_with(
+            &mut repo,
+            &mut handle.ahead_behind.lock(),
+        )?)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -310,6 +318,30 @@ pub async fn get_log_page(
             complete,
             generation,
         })
+    })
+    .await
+}
+
+/// Row index of `oid` in walk `generation` (`None` when it is not among the
+/// rows walked so far), so revealing a commit deep in the log is one call
+/// rather than a page-by-page scan.
+#[tauri::command]
+pub async fn find_log_row(
+    state: State<'_, AppState>,
+    id: RepoId,
+    generation: u64,
+    oid: String,
+) -> Result<Option<usize>, AppError> {
+    let handle = state.repo(&id)?;
+    blocking(move || {
+        let log = handle.log.read();
+        if log.generation != generation {
+            return Err(AppError::StaleGeneration(format!(
+                "log generation {generation} is stale (current {})",
+                log.generation
+            )));
+        }
+        Ok(log.find(&oid))
     })
     .await
 }

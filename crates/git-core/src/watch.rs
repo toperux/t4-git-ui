@@ -52,8 +52,13 @@ fn normalized(path: &Path) -> PathBuf {
     ))
 }
 
-fn classify(path: &Path, workdir: &Path, git_dir: &Path, repo: &Repository) -> Option<ChangeKind> {
-    if let Ok(rel) = path.strip_prefix(git_dir) {
+fn classify(
+    path: &Path,
+    workdir: &Path,
+    git_dirs: &[PathBuf],
+    repo: &Repository,
+) -> Option<ChangeKind> {
+    if let Some(rel) = git_dirs.iter().find_map(|d| path.strip_prefix(d).ok()) {
         if rel.extension().is_some_and(|e| e == "lock") {
             return None;
         }
@@ -73,19 +78,25 @@ fn classify(path: &Path, workdir: &Path, git_dir: &Path, repo: &Repository) -> O
 }
 
 impl Watcher {
-    /// Starts watching `handle`'s working directory (and its git dir when that
-    /// lives elsewhere, e.g. a linked worktree). `on_change` runs on the
-    /// debouncer thread.
+    /// Starts watching `handle`'s working directory, plus its git dir and
+    /// common dir when those live elsewhere: a linked worktree keeps `HEAD`
+    /// and `index` under `.git/worktrees/<name>` but shares `refs/`,
+    /// `packed-refs` and `objects/` with the main repository. `on_change`
+    /// runs on the debouncer thread.
     pub fn start(
         handle: &RepoHandle,
         on_change: impl Fn(RepoChange) + Send + 'static,
     ) -> Result<Watcher, GitError> {
         let repo = handle.open_private()?;
         let workdir = normalized(&handle.path);
-        let git_dir = normalized(&handle.git_dir);
+        let mut git_dirs = vec![normalized(&handle.git_dir)];
+        let common = normalized(repo.commondir());
+        if !git_dirs.contains(&common) {
+            git_dirs.push(common);
+        }
         let suppressed = Arc::new(AtomicBool::new(false));
         let flag = Arc::clone(&suppressed);
-        let (wd, gd) = (workdir.clone(), git_dir.clone());
+        let (wd, gd) = (workdir.clone(), git_dirs.clone());
 
         let handler = move |result: DebounceEventResult| {
             if flag.load(Ordering::Relaxed) {
@@ -133,10 +144,12 @@ impl Watcher {
         debouncer
             .watch(&workdir, RecursiveMode::Recursive)
             .map_err(notify_err)?;
-        if git_dir.strip_prefix(&workdir).is_err() {
-            debouncer
-                .watch(&git_dir, RecursiveMode::Recursive)
-                .map_err(notify_err)?;
+        for dir in &git_dirs {
+            if dir.strip_prefix(&workdir).is_err() {
+                debouncer
+                    .watch(dir, RecursiveMode::Recursive)
+                    .map_err(notify_err)?;
+            }
         }
         tracing::debug!(workdir = %workdir.display(), "watcher started");
         Ok(Watcher {

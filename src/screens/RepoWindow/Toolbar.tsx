@@ -52,6 +52,12 @@ export function Toolbar() {
   const [stashMenu, setStashMenu] = useState(false);
   const others = recents.filter((r) => r.path !== repo?.path);
 
+  // The toolbar outlives a repository switch; the store's filter does not (`openRepo` resets it).
+  const repoId = repo?.id;
+  useEffect(() => {
+    setText(useRepoStore.getState().filter.text ?? "");
+  }, [repoId]);
+
   // Debounced text filter → new walk (only when the effective filter changed).
   useEffect(() => {
     const t = setTimeout(() => {

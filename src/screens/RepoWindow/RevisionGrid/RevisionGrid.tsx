@@ -6,6 +6,7 @@ import { EmptyState } from "../../../components/ui/EmptyState/EmptyState";
 import { ContextMenu, MenuItem } from "../../../components/ui/Menu/Menu";
 import { Progress } from "../../../components/ui/Progress/Progress";
 import { useDialogStore, type DialogSpec } from "../../../store/dialogStore";
+import { selectRunning, useOpsStore } from "../../../store/opsStore";
 import { checkoutDetached, copyText } from "../actions";
 import { cx } from "../../../lib/cx";
 import { useRepoStore } from "../../../store/repoStore";
@@ -220,6 +221,7 @@ export function RevisionGrid() {
 /** Commit row actions: checkout (detached), branch / tag here, copy SHA. */
 function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number }; oid: string; el: HTMLElement } | null; onClose: () => void }) {
   const open = useDialogStore((st) => st.open);
+  const running = useOpsStore(selectRunning);
   if (!menu) return null;
   const oid = menu.oid;
   const short = oid.slice(0, 7);
@@ -229,15 +231,17 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
   };
   // The clicked menu item is gone by the time the dialog mounts: hand it the grid it came from.
   const openDialog = (spec: DialogSpec) => open(spec, { returnFocusTo: menu.el });
+  // Everything but Copy touches the repository: greyed while an operation runs, like the toolbar.
+  const op = running ? { disabled: true, title: "Operation in progress" } : {};
   return (
     <ContextMenu at={menu.at} onClose={onClose} label="Commit actions">
-      <MenuItem icon={<GitBranch size={16} aria-hidden />} onClick={run(() => void checkoutDetached(oid, short))}>
+      <MenuItem icon={<GitBranch size={16} aria-hidden />} {...op} onClick={run(() => void checkoutDetached(oid, short))}>
         Checkout (detached)
       </MenuItem>
-      <MenuItem icon={<Plus size={16} aria-hidden />} onClick={run(() => openDialog({ kind: "createBranch", startPoint: oid }))}>
+      <MenuItem icon={<Plus size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "createBranch", startPoint: oid }))}>
         Create branch here…
       </MenuItem>
-      <MenuItem icon={<Tag size={16} aria-hidden />} onClick={run(() => openDialog({ kind: "createTag", target: oid }))}>
+      <MenuItem icon={<Tag size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "createTag", target: oid }))}>
         Create tag here…
       </MenuItem>
       <MenuItem icon={<Copy size={16} aria-hidden />} onClick={run(() => copyText(oid, "SHA"))}>

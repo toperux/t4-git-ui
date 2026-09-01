@@ -97,3 +97,45 @@ impl AppState {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ops_are_registered_cancelled_and_removed() {
+        let state = AppState::default();
+        let (id, token) = state.begin_op();
+        let (id2, _) = state.begin_op();
+        assert_ne!(id, id2);
+        assert!(!token.is_cancelled());
+        assert!(state.cancel_op(&id));
+        assert!(token.is_cancelled());
+        state.end_op(&id);
+        assert!(
+            !state.cancel_op(&id),
+            "a finished op is no longer cancellable"
+        );
+        assert!(!state.cancel_op("op-nope"));
+    }
+
+    #[test]
+    fn unknown_repo_is_an_internal_error() {
+        let state = AppState::default();
+        let id: RepoId = serde_json::from_str("\"c:/nope\"").expect("repo id");
+        match state.repo(&id) {
+            Err(AppError::Internal(msg)) => assert!(msg.contains("not open"), "{msg}"),
+            other => panic!("expected Internal, got {:?}", other.map(|_| ())),
+        }
+        // Suppressing a watcher that does not exist is a no-op, not a panic.
+        state.set_watcher_suppressed(&id, true);
+    }
+
+    #[test]
+    fn git_path_defaults_to_path_lookup() {
+        let state = AppState::default();
+        assert_eq!(state.git_cli().git_path(), "git");
+        *state.git_path.write().unwrap() = "C:/tools/git.exe".into();
+        assert_eq!(state.git_cli().git_path(), "C:/tools/git.exe");
+    }
+}

@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use git2::{
@@ -112,6 +113,61 @@ pub struct RefsSnapshot {
     pub stashes: Vec<Stash>,
 }
 
+/// Orders ref names the way people read them: case-insensitive, and a run of
+/// digits compares by value, so `v0.2.0` < `v0.10.0` and `Feature` sits with
+/// `feature`. Ties fall back to byte order so the sort stays total.
+pub fn natural_cmp(a: &str, b: &str) -> Ordering {
+    let (mut x, mut y) = (a.as_bytes(), b.as_bytes());
+    while let (Some(&cx), Some(&cy)) = (x.first(), y.first()) {
+        if cx.is_ascii_digit() && cy.is_ascii_digit() {
+            let nx = x.iter().take_while(|c| c.is_ascii_digit()).count();
+            let ny = y.iter().take_while(|c| c.is_ascii_digit()).count();
+            let (dx, dy) = (&x[..nx], &y[..ny]);
+            // Compare without leading zeros: longer run = bigger, then lexicographic.
+            let tx = dx.iter().position(|&c| c != b'0').unwrap_or(nx);
+            let ty = dy.iter().position(|&c| c != b'0').unwrap_or(ny);
+            let ord = (nx - tx)
+                .cmp(&(ny - ty))
+                .then_with(|| dx[tx..].cmp(&dy[ty..]));
+            if ord != Ordering::Equal {
+                return ord;
+            }
+            x = &x[nx..];
+            y = &y[ny..];
+        } else {
+            let ord = cx.to_ascii_lowercase().cmp(&cy.to_ascii_lowercase());
+            if ord != Ordering::Equal {
+                return ord;
+            }
+            x = &x[1..];
+            y = &y[1..];
+        }
+    }
+    x.len().cmp(&y.len()).then_with(|| a.cmp(b))
+}
+
+/// `(local tip, upstream tip) → (ahead, behind)`. History behind two fixed
+/// oids never changes, so an entry never goes stale; the map is just cleared
+/// when it grows past a few thousand pairs.
+#[derive(Debug, Default)]
+pub struct AheadBehindCache(HashMap<(Oid, Oid), (usize, usize)>);
+
+impl AheadBehindCache {
+    const MAX: usize = 4096;
+
+    fn get_or_compute(&mut self, repo: &Repository, local: Oid, upstream: Oid) -> (usize, usize) {
+        if let Some(&v) = self.0.get(&(local, upstream)) {
+            return v;
+        }
+        let v = repo.graph_ahead_behind(local, upstream).unwrap_or((0, 0));
+        if self.0.len() >= Self::MAX {
+            self.0.clear();
+        }
+        self.0.insert((local, upstream), v);
+        v
+    }
+}
+
 pub fn head_info(repo: &Repository) -> Result<HeadInfo, GitError> {
     match repo.head() {
         Ok(head) => Ok(HeadInfo {
@@ -141,6 +197,15 @@ pub fn head_info(repo: &Repository) -> Result<HeadInfo, GitError> {
 
 /// Reads branches, remotes, tags and stashes. Needs `&mut` for `stash_foreach`.
 pub fn snapshot(repo: &mut Repository) -> Result<RefsSnapshot, GitError> {
+    snapshot_with(repo, &mut AheadBehindCache::default())
+}
+
+/// [`snapshot`] with the ahead/behind counts memoized in `cache` (one
+/// merge-base walk per tracking branch otherwise, on every refresh).
+pub fn snapshot_with(
+    repo: &mut Repository,
+    cache: &mut AheadBehindCache,
+) -> Result<RefsSnapshot, GitError> {
     let head = head_info(repo)?;
     let state = repo.state().into();
 
@@ -176,9 +241,7 @@ pub fn snapshot(repo: &mut Repository) -> Result<RefsSnapshot, GitError> {
                 .and_then(|up| up.get().peel_to_commit().ok())
             {
                 Some(up_commit) => {
-                    let (a, b) = repo
-                        .graph_ahead_behind(oid, up_commit.id())
-                        .unwrap_or((0, 0));
+                    let (a, b) = cache.get_or_compute(repo, oid, up_commit.id());
                     ahead = u32::try_from(a).unwrap_or(u32::MAX);
                     behind = u32::try_from(b).unwrap_or(u32::MAX);
                 }
@@ -195,7 +258,7 @@ pub fn snapshot(repo: &mut Repository) -> Result<RefsSnapshot, GitError> {
             behind,
         });
     }
-    local.sort_by(|a, b| a.name.cmp(&b.name));
+    local.sort_by(|a, b| natural_cmp(&a.name, &b.name));
 
     // Remotes (config) + remote-tracking branches grouped by longest remote-name prefix.
     let mut groups: BTreeMap<String, Remote> = BTreeMap::new();
@@ -253,7 +316,7 @@ pub fn snapshot(repo: &mut Repository) -> Result<RefsSnapshot, GitError> {
     }
     let mut remotes: Vec<Remote> = groups.into_values().collect();
     for r in &mut remotes {
-        r.branches.sort_by(|a, b| a.name.cmp(&b.name));
+        r.branches.sort_by(|a, b| natural_cmp(&a.name, &b.name));
     }
 
     let mut raw_tags: Vec<(git2::Oid, String)> = Vec::new();
@@ -285,7 +348,7 @@ pub fn snapshot(repo: &mut Repository) -> Result<RefsSnapshot, GitError> {
             });
         }
     }
-    tags.sort_by(|a, b| a.name.cmp(&b.name));
+    tags.sort_by(|a, b| natural_cmp(&a.name, &b.name));
 
     let mut stashes = Vec::new();
     repo.stash_foreach(|index, message, oid| {
@@ -336,7 +399,11 @@ pub fn label_map(snap: &RefsSnapshot) -> HashMap<String, Vec<RefLabel>> {
     }
 
     let mut local: Vec<&Branch> = snap.local.iter().collect();
-    local.sort_by_key(|b| (!b.is_head, &b.name));
+    local.sort_by(|a, b| {
+        b.is_head
+            .cmp(&a.is_head)
+            .then_with(|| natural_cmp(&a.name, &b.name))
+    });
     let mut suppressed: HashSet<&str> = HashSet::new();
     for b in local {
         let mut remote = None;
@@ -501,31 +568,72 @@ pub fn create_tag(
     target: &str,
     message: Option<&str>,
 ) -> Result<Tag, GitError> {
-    let object = repo.revparse_single(target).map_err(map_git2)?;
-    let peeled = object
-        .peel(ObjectType::Commit)
-        .map_err(map_git2)?
-        .id()
-        .to_string();
+    // Tag the commit, not whatever `target` names: `git tag x v1.0` on an
+    // annotated `v1.0` tags the commit too, never the tag object.
+    let commit = repo
+        .revparse_single(target)
+        .and_then(|o| o.peel(ObjectType::Commit))
+        .map_err(map_git2)?;
     match message {
         Some(msg) => {
             let (user, email) = user_identity(repo)?;
             let sig = Signature::now(&user, &email).map_err(map_git2)?;
-            repo.tag(name, &object, &sig, msg, false)
+            repo.tag(name, &commit, &sig, msg, false)
                 .map_err(map_git2)?;
         }
         None => {
-            repo.tag_lightweight(name, &object, false)
+            repo.tag_lightweight(name, &commit, false)
                 .map_err(map_git2)?;
         }
     }
     Ok(Tag {
         name: name.to_string(),
-        oid: peeled,
+        oid: commit.id().to_string(),
         message: message.map(str::to_string),
     })
 }
 
 pub fn delete_tag(repo: &Repository, name: &str) -> Result<(), GitError> {
     repo.tag_delete(name).map_err(map_git2)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::natural_cmp;
+
+    #[test]
+    fn natural_order_reads_numbers_and_ignores_case() {
+        let mut names = vec![
+            "v0.10.0",
+            "v0.2.0",
+            "v0.9.1",
+            "Zeta",
+            "alpha",
+            "beta",
+            "v1.0.0",
+            "feature/10",
+            "feature/9",
+            "a01",
+            "a1",
+            "a2",
+        ];
+        names.sort_by(|a, b| natural_cmp(a, b));
+        assert_eq!(
+            names,
+            [
+                "a01",
+                "a1",
+                "a2",
+                "alpha",
+                "beta",
+                "feature/9",
+                "feature/10",
+                "v0.2.0",
+                "v0.9.1",
+                "v0.10.0",
+                "v1.0.0",
+                "Zeta"
+            ]
+        );
+    }
 }

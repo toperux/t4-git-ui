@@ -62,6 +62,21 @@ const EDITORS: &[&str] = &[
     "code-insiders",
 ];
 
+/// Where [`open_merge_editor`] writes the three sides of a conflict.
+fn merge_temp_dir() -> PathBuf {
+    std::env::temp_dir().join("t4-git-ui-merge")
+}
+
+/// Removes every side [`open_merge_editor`] has ever written. Meant for app
+/// start: nothing of ours can still be open in an editor then, and the OS is
+/// not going to clean the temp dir for us.
+pub fn clean_merge_temp() -> std::io::Result<()> {
+    match std::fs::remove_dir_all(merge_temp_dir()) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        r => r,
+    }
+}
+
 fn stage_file(
     repo: &Repository,
     dir: &Path,
@@ -105,9 +120,7 @@ pub fn open_merge_editor(repo: &Repository, path: &str) -> Result<String, GitErr
     let merged = workdir.join(path);
 
     // One directory per path so a second file's sides cannot overwrite the first's.
-    let dir = std::env::temp_dir()
-        .join("t4-git-ui-merge")
-        .join(format!("{:x}", oid_key(&stages)));
+    let dir = merge_temp_dir().join(format!("{:x}", oid_key(&stages)));
     std::fs::create_dir_all(&dir)?;
     let ours = stage_file(repo, &dir, path, "LOCAL", stages.ours)?;
     let theirs = stage_file(repo, &dir, path, "REMOTE", stages.theirs)?;

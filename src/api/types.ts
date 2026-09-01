@@ -262,6 +262,8 @@ export interface FileDiff {
   hunks: Hunk[];
   /** Line collection stopped at `DiffOptions.maxLines`. */
   truncated: boolean;
+  /** The cap `truncated` refers to. */
+  maxLines: number;
   /** Full counts (not affected by truncation). */
   additions: number;
   deletions: number;

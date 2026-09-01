@@ -160,11 +160,13 @@ fn diff_shapes_are_camel_case() {
             }],
         }],
         truncated: false,
+        max_lines: 20_000,
         additions: 1,
         deletions: 1,
     };
     let v = serde_json::to_value(&d).expect("ser");
     assert_eq!(v["oldPath"], "a");
+    assert_eq!(v["maxLines"], 20_000);
     assert_eq!(v["status"], "renamed");
     assert_eq!(v["hunks"][0]["oldStart"], 1);
     assert_eq!(v["hunks"][0]["newLines"], 1);

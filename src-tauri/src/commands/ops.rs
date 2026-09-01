@@ -19,7 +19,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 
 use super::repo::{blocking, open_repo, RepoSummary};
-use super::stage::mutate_busy;
+use super::stage::mutate;
 use crate::{AppError, AppState};
 
 const OP_EVENT: &str = "op://event";
@@ -96,7 +96,7 @@ async fn cli_op(
     args: Vec<String>,
     check_conflicts: bool,
 ) -> Result<OpResult, AppError> {
-    mutate_busy(app, state, id, ALL_KINDS, |handle| async move {
+    mutate(app, state, id, ALL_KINDS, |handle| async move {
         let argv: Vec<&str> = args.iter().map(String::as_str).collect();
         let run = run_git_op(
             app,
@@ -148,7 +148,7 @@ where
     T: Send + 'static,
     F: FnOnce(&RepoHandle) -> Result<T, GitError> + Send + 'static,
 {
-    mutate_busy(
+    mutate(
         app,
         state,
         id,

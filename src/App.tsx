@@ -1,8 +1,10 @@
+import { open as openFile } from "@tauri-apps/plugin-dialog";
 import { useCallback, useEffect, useState } from "react";
 import { onLogProgress, onOpEvent, onRepoChanged } from "./api/events";
-import { probeGit, toAppError } from "./api/ipc";
+import { probeGit, setGitPath, toAppError } from "./api/ipc";
 import { BusyOverlay } from "./components/ui/BusyOverlay/BusyOverlay";
 import { Spinner } from "./components/ui/Spinner/Spinner";
+import { kvGet, kvSet } from "./lib/kv";
 import { keepsNativeMenu } from "./lib/nativeMenu";
 import { GitMissingScreen } from "./screens/GitMissingScreen/GitMissingScreen";
 import { closeRepo } from "./screens/RepoWindow/actions";
@@ -23,6 +25,9 @@ export default function App() {
   const probe = useCallback(async () => {
     setPhase({ kind: "probing" });
     try {
+      // A git executable chosen with "Locate git…" earlier; one that no longer answers falls back to PATH.
+      const saved = await kvGet<string>("gitPath");
+      if (saved) await setGitPath(saved).catch(() => undefined);
       useRepoStore.getState().setGitVersion(await probeGit());
     } catch (e) {
       setPhase({ kind: "gitMissing", message: toAppError(e).message });
@@ -39,6 +44,21 @@ export default function App() {
     }
     setPhase({ kind: "ready" });
   }, []);
+
+  // "Locate git…": a picked executable is tried before it is kept.
+  const locate = useCallback(async () => {
+    const file = await openFile({ multiple: false, directory: false, title: "Locate the git executable" }).catch(() => null);
+    if (!file) return;
+    setPhase({ kind: "probing" });
+    try {
+      await setGitPath(file);
+    } catch (e) {
+      setPhase({ kind: "gitMissing", message: toAppError(e).message });
+      return;
+    }
+    await kvSet("gitPath", file).catch((e: unknown) => console.warn("kv: could not persist \"gitPath\"", e));
+    await probe();
+  }, [probe]);
 
   useEffect(() => {
     void probe();
@@ -82,7 +102,7 @@ export default function App() {
     };
   }, []);
 
-  if (phase.kind === "gitMissing") return <GitMissingScreen message={phase.message} onRetry={() => void probe()} />;
+  if (phase.kind === "gitMissing") return <GitMissingScreen message={phase.message} onRetry={() => void probe()} onLocate={() => void locate()} />;
   return (
     <>
       {phase.kind === "probing" ? (

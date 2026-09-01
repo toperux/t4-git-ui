@@ -46,6 +46,9 @@ export async function call<T>(cmd: string, args?: Record<string, unknown>): Prom
 /** `git --version` with the configured executable; rejects with kind `gitNotFound`. */
 export const probeGit = () => call<string>("probe_git");
 
+/** Uses `path` as the git executable from now on if it answers `--version` (resolves with it); otherwise rejects and keeps the old one. */
+export const setGitPath = (path: string) => call<string>("set_git_path", { path });
+
 export const openRepo = (path: string) => call<RepoSummary>("open_repo", { path });
 
 export const closeRepo = (id: RepoId) => call<void>("close_repo", { id });
@@ -61,6 +64,10 @@ export const startLog = (id: RepoId, spec: RevSpec, filter: LogFilter) =>
 /** Rows `[offset, offset+limit)`; a stale `generation` rejects with kind `staleGeneration`. */
 export const getLogPage = (id: RepoId, generation: number, offset: number, limit: number) =>
   call<LogPage>("get_log_page", { id, generation, offset, limit });
+
+/** Row index of `oid` among the rows walked so far (`null` when absent); a stale `generation` rejects with kind `staleGeneration`. */
+export const findLogRow = (id: RepoId, generation: number, oid: string) =>
+  call<number | null>("find_log_row", { id, generation, oid });
 
 /** Recomputes ref labels for the current walk; resolves with the current generation. */
 export const refreshLabels = (id: RepoId) => call<number>("refresh_labels", { id });

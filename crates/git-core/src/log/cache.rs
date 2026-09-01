@@ -35,6 +35,11 @@ impl LogCache {
         self.generation
     }
 
+    /// Row index of commit `oid` among the rows walked so far.
+    pub fn find(&self, oid: &str) -> Option<usize> {
+        self.rows.iter().position(|r| r.commit.oid == oid)
+    }
+
     /// Returns `(rows[offset..offset+limit], total, complete)`.
     pub fn page(&self, offset: usize, limit: usize) -> (Vec<GraphRow>, usize, bool) {
         let total = self.rows.len();
@@ -81,6 +86,8 @@ mod tests {
         assert!(rows.is_empty());
         let (rows, ..) = c.page(0, 2);
         assert_eq!(rows[1].commit.short, "0000001");
+        assert_eq!(c.find(&format!("{:040x}", 3)), Some(3));
+        assert_eq!(c.find("nope"), None);
         let g2 = c.begin();
         assert!(g2 > g1);
         assert!(c.rows.is_empty());

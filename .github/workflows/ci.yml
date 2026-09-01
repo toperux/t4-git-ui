@@ -40,7 +40,7 @@ jobs:
       - run: npm ci
       - run: cargo fmt --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: cargo test -p git-core
-      - run: npx tsc --noEmit
+      - run: cargo test --workspace
       - run: npm test -- --run
+      # `build` is `tsc && vite build`: the type check runs here.
       - run: npm run build

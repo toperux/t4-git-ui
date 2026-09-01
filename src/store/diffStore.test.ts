@@ -13,7 +13,7 @@ const mocked = ipc as unknown as { getCommitFiles: ReturnType<typeof vi.fn>; get
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
 const file = (path: string): FileChange => ({ path, oldPath: null, status: "modified", additions: 1, deletions: 1, binary: false });
-const diffFor = (path: string): FileDiff => ({ path, oldPath: null, status: "modified", binary: false, hunks: [], truncated: false, additions: 1, deletions: 1 });
+const diffFor = (path: string): FileDiff => ({ path, oldPath: null, status: "modified", binary: false, hunks: [], truncated: false, maxLines: 20_000, additions: 1, deletions: 1 });
 
 beforeEach(() => {
   vi.clearAllMocks();

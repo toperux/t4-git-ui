@@ -253,7 +253,7 @@ The first two need a large repo; the last two use the fixture.
 These are recorded in `docs/plans/2026-08-31-git-ui-v1-plan.md` › Known gaps:
 
 - No **Discard** on a hunk or on selected lines — file-level discard only
-- **Settings** button is disabled everywhere; the git-missing screen has no "Locate git…"
+- **Settings** button is disabled everywhere (the git-missing screen's "Locate git…" covers the git path)
 - No reveal-in-folder, no context menu on the diff, no interactive rebase / blame / file history /
   submodules / worktrees / bisect / cherry-pick / revert UI, no multi-repo tabs, no i18n
 - Syntax highlighting is per line, so block comments and template strings colour line by line

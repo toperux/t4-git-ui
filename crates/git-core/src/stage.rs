@@ -16,13 +16,19 @@ fn workdir(repo: &Repository) -> Result<&Path, GitError> {
 
 /// Stages the current working-tree state of `paths` (repo-relative, `/`-separated):
 /// new/modified files are added, missing files are removed from the index.
-/// A rename is staged by passing both its old and new path.
+/// A rename is staged by passing both its old and new path. An ignored file
+/// that is not tracked yet is refused (`Index::add_path` would force-add it).
 pub fn stage_paths(repo: &Repository, paths: &[&str]) -> Result<(), GitError> {
     let workdir = workdir(repo)?;
     let mut index = repo.index().map_err(map_git2)?;
     for p in paths {
         let rel = Path::new(p);
         if workdir.join(rel).symlink_metadata().is_ok() {
+            if index.get_path(rel, 0).is_none()
+                && repo.status_should_ignore(rel).map_err(map_git2)?
+            {
+                return Err(GitError::Refused(format!("{p} is ignored")));
+            }
             index.add_path(rel)
         } else {
             index.remove_path(rel)
@@ -30,6 +36,19 @@ pub fn stage_paths(repo: &Repository, paths: &[&str]) -> Result<(), GitError> {
         .map_err(map_git2)?;
     }
     index.write().map_err(map_git2)
+}
+
+/// Removes the directories left empty by deleting `file`, up to (not
+/// including) `workdir`.
+fn prune_empty_dirs(workdir: &Path, file: &Path) {
+    let mut dir = file.parent();
+    while let Some(d) = dir.filter(|d| *d != workdir && d.starts_with(workdir)) {
+        let empty = std::fs::read_dir(d).is_ok_and(|mut it| it.next().is_none());
+        if !empty || std::fs::remove_dir(d).is_err() {
+            break;
+        }
+        dir = d.parent();
+    }
 }
 
 /// Resets the index entries of `paths` to HEAD (removes them when HEAD is unborn).
@@ -59,7 +78,9 @@ pub fn discard_paths(repo: &Repository, paths: &[&str]) -> Result<Vec<String>, G
             continue;
         }
         if s.contains(Status::WT_NEW) {
-            std::fs::remove_file(workdir.join(p))?;
+            let file = workdir.join(p);
+            std::fs::remove_file(&file)?;
+            prune_empty_dirs(workdir, &file);
             discarded.push((*p).to_string());
         } else if s.intersects(
             Status::WT_MODIFIED | Status::WT_DELETED | Status::WT_TYPECHANGE | Status::WT_RENAMED,
@@ -158,6 +179,43 @@ mod tests {
         let e = entry(&t, "d.txt").unwrap();
         assert_eq!((e.index, e.workdir), (None, Some(FileStatus::Deleted)));
         assert_eq!(index_content(&t, "m.txt").as_deref(), Some("m\n"));
+    }
+
+    #[test]
+    fn stage_refuses_an_ignored_untracked_file_but_not_a_tracked_one() {
+        let t = TempRepo::new();
+        t.commit(
+            &[(".gitignore", "*.log\n"), ("kept.log", "tracked\n")],
+            "base",
+        );
+        t.write("debug.log", "x\n");
+        t.write("kept.log", "tracked, edited\n");
+        assert!(matches!(
+            stage_paths(&t.repo, &["debug.log"]),
+            Err(GitError::Refused(_))
+        ));
+        assert!(entry(&t, "debug.log").is_none());
+        // Matching an ignore pattern does not un-track a file that is in the index.
+        stage_paths(&t.repo, &["kept.log"]).unwrap();
+        assert_eq!(
+            entry(&t, "kept.log").unwrap().index,
+            Some(FileStatus::Modified)
+        );
+    }
+
+    #[test]
+    fn discard_of_an_untracked_file_prunes_the_empty_dirs_it_leaves() {
+        let t = TempRepo::new();
+        t.commit(&[("keep/a.txt", "a\n")], "base");
+        t.write("new/deep/file.txt", "n\n");
+        t.write("keep/other.txt", "o\n");
+        let touched = discard_paths(&t.repo, &["new/deep/file.txt", "keep/other.txt"]).unwrap();
+        assert_eq!(touched.len(), 2);
+        assert!(!t.path().join("new").exists(), "empty parents removed");
+        assert!(
+            t.path().join("keep/a.txt").exists(),
+            "a dir with content stays"
+        );
     }
 
     #[test]

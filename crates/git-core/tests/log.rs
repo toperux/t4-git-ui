@@ -393,7 +393,7 @@ fn all_includes_slashed_branches_and_unborn_head() {
 #[test]
 fn text_filter_matches_summary_and_author() {
     let t = TempRepo::new();
-    t.commit(&[("a", "1")], "Fix parser");
+    let a = t.commit(&[("a", "1")], "Fix parser");
     let b = t.commit(&[("b", "1")], "Add feature");
     t.commit(&[("c", "1")], "fix typo");
 
@@ -419,6 +419,19 @@ fn text_filter_matches_summary_and_author() {
         walk(&t.repo, &RevSpec::All, &filter, &no_cancel(), |_| true).expect("walk"),
         3
     );
+
+    // A hex query of four or more characters also matches a commit id prefix.
+    let filter = LogFilter {
+        text: Some(s(a)[..7].to_uppercase()),
+        ..Default::default()
+    };
+    let mut out = Vec::new();
+    walk(&t.repo, &RevSpec::All, &filter, &no_cancel(), |chunk| {
+        out.extend(chunk);
+        true
+    })
+    .expect("walk");
+    assert_eq!(oids(&out), vec![s(a)]);
 }
 
 #[test]

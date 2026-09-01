@@ -11,6 +11,7 @@ vi.mock("../api/ipc", async (importOriginal) => {
     getLogPage: vi.fn(),
     closeRepo: vi.fn(),
     refreshLabels: vi.fn(),
+    findLogRow: vi.fn(),
   };
 });
 
@@ -39,11 +40,13 @@ function page(generation: number, offset: number, count: number, total: number, 
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 const mocked = ipc as unknown as {
+  openRepo: ReturnType<typeof vi.fn>;
   startLog: ReturnType<typeof vi.fn>;
   getLogPage: ReturnType<typeof vi.fn>;
   refreshLabels: ReturnType<typeof vi.fn>;
   closeRepo: ReturnType<typeof vi.fn>;
   getRefs: ReturnType<typeof vi.fn>;
+  findLogRow: ReturnType<typeof vi.fn>;
 };
 
 beforeEach(() => {
@@ -53,6 +56,100 @@ beforeEach(() => {
   __resetForTests();
   useToastStore.setState({ toasts: [] });
   useRepoStore.setState({ repo: REPO });
+});
+
+describe("repoStore walk restarts", () => {
+  it("keeps the rows on screen and the selected commit across a restart", async () => {
+    let resolveSecond!: (p: LogPage) => void;
+    mocked.startLog.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
+    mocked.getLogPage
+      .mockImplementationOnce((_id: string, gen: number, offset: number) => Promise.resolve(page(gen, offset, 5, 5)))
+      .mockImplementationOnce(() => new Promise<LogPage>((r) => (resolveSecond = r)));
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    useRepoStore.getState().select(3);
+
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    // Between the restart and its first page: the old rows are still there, nothing blanked.
+    expect(useRepoStore.getState().rows[3]?.row.commit.oid).toBe("oid3");
+    expect(useRepoStore.getState().selectedIndex).toBe(3);
+    expect(useRepoStore.getState().log.total).toBe(5);
+
+    // Generation 2 has one new commit on top: everything moved down one row.
+    resolveSecond({ ...page(2, 0, 6, 6), rows: [row(99), ...page(2, 0, 5, 5).rows] });
+    await flush();
+    // oid3 is at index 4 now, found among the loaded rows (no backend lookup needed).
+    expect(useRepoStore.getState().selectedIndex).toBe(4);
+    expect(useRepoStore.getState().rows[4]?.row.commit.oid).toBe("oid3");
+    expect(mocked.findLogRow).not.toHaveBeenCalled();
+  });
+
+  it("asks the backend for a selected commit that is beyond the first page, and waits for an unfinished walk", async () => {
+    mocked.startLog.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
+    mocked.getLogPage.mockImplementation((_id: string, gen: number, offset: number) =>
+      // Generation 2 carries 1000 new commits on top, so nothing from generation 1 is on its first page.
+      Promise.resolve(gen === 1 ? page(1, offset, 5, 5) : page(2, offset + 1000, Math.min(PAGE_SIZE, 1200 - offset), 1200, false)),
+    );
+    mocked.findLogRow.mockResolvedValueOnce(null).mockResolvedValueOnce(700);
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    useRepoStore.getState().select(2);
+
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    // Not walked yet: the selection is left alone (not reset to row 0) until the walk completes.
+    expect(mocked.findLogRow).toHaveBeenCalledWith(REPO.id, 2, "oid2");
+    expect(useRepoStore.getState().selectedIndex).toBe(2);
+    useRepoStore.getState().onProgress({ repoId: REPO.id, generation: 2, total: 1200, complete: true, error: null });
+    await flush();
+    expect(useRepoStore.getState().selectedIndex).toBe(700);
+    expect(mocked.getLogPage).toHaveBeenLastCalledWith(REPO.id, 2, 500, PAGE_SIZE);
+  });
+
+  it("falls back to the first row when the selected commit is gone from the new walk", async () => {
+    mocked.startLog.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
+    mocked.getLogPage.mockImplementation((_id: string, gen: number, offset: number) => Promise.resolve(page(gen, offset + (gen === 1 ? 0 : 10), 3, 3)));
+    mocked.findLogRow.mockResolvedValue(null);
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    useRepoStore.getState().select(1);
+    await useRepoStore.getState().startLog({ kind: "all" }, { text: "nothing like it" });
+    await flush();
+    expect(useRepoStore.getState().selectedIndex).toBe(0);
+  });
+
+  it("revealOid uses the backend index instead of paging through the log", async () => {
+    mocked.startLog.mockResolvedValue(1);
+    mocked.getLogPage.mockImplementation((_id: string, gen: number, offset: number) => Promise.resolve(page(gen, offset, PAGE_SIZE, 5000)));
+    mocked.findLogRow.mockResolvedValue(4321);
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    await useRepoStore.getState().revealOid("oid4321");
+    expect(mocked.getLogPage).toHaveBeenCalledTimes(2);
+    expect(mocked.getLogPage).toHaveBeenLastCalledWith(REPO.id, 1, 4000, PAGE_SIZE);
+    expect(useRepoStore.getState().selectedIndex).toBe(4321);
+    expect(useRepoStore.getState().reveal?.index).toBe(4321);
+  });
+});
+
+describe("repoStore openRepo", () => {
+  it("closes the repository being left, resets the filter, and keeps the same repo open on a reopen", async () => {
+    const other: RepoSummary = { ...REPO, id: "c:\\other", path: "c:\\other", name: "other" };
+    mocked.openRepo.mockResolvedValueOnce(other).mockResolvedValueOnce(other);
+    mocked.closeRepo.mockResolvedValue(undefined);
+    mocked.getRefs.mockResolvedValue(null);
+    mocked.startLog.mockResolvedValue(1);
+    mocked.getLogPage.mockResolvedValue(page(1, 0, 0, 0));
+    useRepoStore.setState({ filter: { text: "fix" } });
+
+    await useRepoStore.getState().openRepo("c:\\other");
+    expect(mocked.closeRepo).toHaveBeenCalledWith(REPO.id);
+    expect(useRepoStore.getState().repo?.id).toBe(other.id);
+    expect(useRepoStore.getState().filter).toEqual({});
+
+    await useRepoStore.getState().openRepo("c:\\other");
+    expect(mocked.closeRepo).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("repoStore paging", () => {

@@ -38,7 +38,7 @@ npm install
 npm run tauri dev        # run with hot reload
 npm run tauri build      # installers under target/release/bundle/
 
-cargo test -p git-core   # core tests (temp repos; some need the git CLI)
+cargo test --workspace   # core tests (temp repos; some need the git CLI) + the Tauri crate's
 npm test                 # frontend tests (vitest)
 cargo clippy --workspace --all-targets -- -D warnings
 ```
@@ -69,7 +69,7 @@ Ctrl is ⌘ on macOS.
 
 ## Status / roadmap
 
-v1 is feature-complete, covered by 111 Rust and 192 frontend tests, and **accepted on Windows**:
+v1 is feature-complete, covered by 119 Rust and 197 frontend tests, and **accepted on Windows**:
 the `docs/smoke-test.md` walkthrough was completed end to end on 2026-09-01 and everything it
 found is fixed. CI is green on Linux, Windows and macOS, but Linux and macOS are compiled there
 only (no rendering check, no signing / notarization yet), and the installer has not been tried on a

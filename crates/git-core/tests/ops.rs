@@ -534,6 +534,10 @@ fn create_tag_lightweight_and_annotated_then_delete() {
     }
 
     assert!(refs::create_tag(&t.repo, "ann", "HEAD", None).is_err());
+    // A tag made from an annotated tag points at its commit, not at the tag object.
+    let from_tag = refs::create_tag(&t.repo, "from-ann", "ann", None).unwrap();
+    assert_eq!(from_tag.oid, b.to_string());
+    assert_eq!(ref_oid(&t, "refs/tags/from-ann"), Some(b));
     // Both are peeled to a commit in the snapshot, so the annotation is the only
     // thing left that tells them apart.
     let snap = snapshot(&mut t.repo).unwrap();
@@ -542,7 +546,14 @@ fn create_tag_lightweight_and_annotated_then_delete() {
         .iter()
         .map(|t| (t.name.as_str(), t.message.as_deref()))
         .collect();
-    assert_eq!(messages, [("ann", Some("release notes")), ("lw", None)]);
+    assert_eq!(
+        messages,
+        [
+            ("ann", Some("release notes")),
+            ("from-ann", None),
+            ("lw", None)
+        ]
+    );
     assert_eq!(lw.message, None);
     assert_eq!(ann.message.as_deref(), Some("release notes"));
 
@@ -556,12 +567,14 @@ fn create_tag_lightweight_and_annotated_then_delete() {
         names,
         [
             format!("ann@{}", &b.to_string()[..7]),
+            format!("from-ann@{}", &b.to_string()[..7]),
             format!("lw@{}", &a.to_string()[..7])
         ]
     );
 
     refs::delete_tag(&t.repo, "lw").unwrap();
     refs::delete_tag(&t.repo, "ann").unwrap();
+    refs::delete_tag(&t.repo, "from-ann").unwrap();
     assert!(refs::delete_tag(&t.repo, "ann").is_err());
     assert!(snapshot(&mut t.repo).unwrap().tags.is_empty());
 

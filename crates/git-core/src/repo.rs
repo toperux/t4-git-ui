@@ -6,6 +6,7 @@ use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
 
 use crate::log::cache::LogCache;
+use crate::refs::AheadBehindCache;
 use crate::GitError;
 
 /// Identifies an open repository: the canonical working-directory path
@@ -65,6 +66,8 @@ pub struct RepoHandle {
     pub git_dir: PathBuf,
     pub git2: Mutex<Repository>,
     pub log: RwLock<LogCache>,
+    /// Memoized ahead/behind counts for `refs::snapshot_with`.
+    pub ahead_behind: Mutex<AheadBehindCache>,
     /// Serializes mutating operations (stage / commit / branch ops) per repo.
     pub op_lock: tokio::sync::Mutex<()>,
 }
@@ -91,6 +94,7 @@ impl RepoHandle {
             git_dir,
             git2: Mutex::new(repo),
             log: RwLock::new(LogCache::default()),
+            ahead_behind: Mutex::new(AheadBehindCache::default()),
             op_lock: tokio::sync::Mutex::new(()),
         }))
     }
@@ -111,14 +115,24 @@ impl RepoHandle {
 }
 
 /// `git init <path>` (creating the directory): the initial branch comes from
-/// the global `init.defaultBranch`, else `main`. Fails on an existing repo.
+/// the global `init.defaultBranch`, else `main`. Refused when `path` is a
+/// repository already — or sits inside one: `git init` would nest a second
+/// repository there, which nothing in this app can use.
 pub fn init_repo(path: impl AsRef<Path>) -> Result<(), GitError> {
     let path = path.as_ref();
-    if Repository::open(path).is_ok() {
-        return Err(GitError::Refused(format!(
-            "{} is already a git repository",
-            path.display()
-        )));
+    // `path` may not exist yet: discover from its nearest existing ancestor.
+    let existing = path.ancestors().find(|p| p.exists());
+    if let Some(repo) = existing.and_then(|p| Repository::discover(p).ok()) {
+        let root = repo.workdir().unwrap_or_else(|| repo.path());
+        return Err(GitError::Refused(if root == path {
+            format!("{} is already a git repository", path.display())
+        } else {
+            format!(
+                "{} is inside the repository at {}",
+                path.display(),
+                root.display()
+            )
+        }));
     }
     let branch = git2::Config::open_default()
         .ok()
@@ -244,6 +258,11 @@ mod tests {
         assert_eq!(head.oid, None);
         assert!(head.branch.is_some());
         assert!(matches!(init_repo(&path), Err(GitError::Refused(_))));
+        // Inside an existing repository, even at a path that does not exist yet.
+        match init_repo(path.join("sub").join("deeper")) {
+            Err(GitError::Refused(msg)) => assert!(msg.contains("inside"), "{msg}"),
+            other => panic!("expected Refused, got {:?}", other),
+        }
     }
 
     #[test]

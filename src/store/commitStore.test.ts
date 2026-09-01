@@ -57,6 +57,7 @@ const diff = (path: string, text: string): FileDiff => ({
   status: "modified",
   binary: false,
   truncated: false,
+  maxLines: 20_000,
   additions: 1,
   deletions: 0,
   hunks: [{ header: "@@ -1 +1 @@", oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, lines: [{ kind: "add", oldNo: null, newNo: 1, text, noNewline: false }] }],

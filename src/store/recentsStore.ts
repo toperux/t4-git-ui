@@ -53,11 +53,16 @@ export function filterRecents(list: RecentRepo[], text: string): RecentRepo[] {
   return list.filter((r) => r.name.toLowerCase().includes(q) || r.path.toLowerCase().includes(q));
 }
 
+/** Fire-and-forget persistence: a store that cannot be written is logged, not thrown out of a click handler. */
+function persist(key: string, value: unknown) {
+  kvSet(key, value).catch((e: unknown) => console.warn(`kv: could not persist "${key}"`, e));
+}
+
 export const useRecentsStore = create<RecentsStore>()((set, get) => {
   function update(recents: RecentRepo[]) {
     const capped = capRecents(recents);
     set({ recents: capped });
-    void kvSet("recents", capped);
+    persist("recents", capped);
   }
 
   return {
@@ -84,8 +89,8 @@ export const useRecentsStore = create<RecentsStore>()((set, get) => {
       }
       set({ recents: capRecents(recents), lastOpen: open, lastCloneDir: lastCloneDir ?? null, loaded: true });
       if (legacy) {
-        void kvSet("recents", get().recents);
-        void kvSet("lastOpen", open);
+        persist("recents", get().recents);
+        persist("lastOpen", open);
       }
     },
 
@@ -101,12 +106,12 @@ export const useRecentsStore = create<RecentsStore>()((set, get) => {
 
     setLastOpen(lastOpen) {
       set({ lastOpen });
-      void kvSet("lastOpen", lastOpen);
+      persist("lastOpen", lastOpen);
     },
 
     setLastCloneDir(lastCloneDir) {
       set({ lastCloneDir });
-      void kvSet("lastCloneDir", lastCloneDir);
+      persist("lastCloneDir", lastCloneDir);
     },
   };
 });

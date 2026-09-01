@@ -65,6 +65,11 @@ let startSeq = 0;
 let viewport = { start: 0, end: PAGE_SIZE };
 /** Bumped by `refreshLabels`: a page fetched under an older value carries stale labels. */
 let labelGen = 0;
+/**
+ * The commit selected when `startLog` restarted the walk, to be selected again once the new walk
+ * has it (`reselect`). While set, the first page does not default the selection to row 0.
+ */
+let pendingSelect: { oid: string; generation: number | null } | null = null;
 
 /** Pages worth refetching eagerly: the viewport's own pages plus one on either side. */
 function nearViewport(p: number) {
@@ -79,6 +84,49 @@ function resetPages() {
 }
 
 export const useRepoStore = create<RepoStore>()((set, get) => {
+  /** Index of `oid` among the rows of the current walk (a row from a page not loaded yet is stale). */
+  function loadedIndex(oid: string): number | null {
+    const index = get().rows.findIndex((r) => r?.row.commit.oid === oid);
+    return index >= 0 && loaded.has(Math.floor(index / PAGE_SIZE)) ? index : null;
+  }
+
+  /** Index of `oid` in walk `generation`: from the loaded rows, else asked of the backend. */
+  async function findIndex(oid: string, generation: number): Promise<number | null> {
+    const local = loadedIndex(oid);
+    if (local !== null) return local;
+    const repo = get().repo;
+    if (!repo) return null;
+    try {
+      return await ipc.findLogRow(repo.id, generation, oid);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Puts the selection back on `pendingSelect` after a walk restart. A commit the walk has not
+   * reached yet is tried again when the walk completes (`onProgress`); one that is gone for good
+   * (rewritten, filtered out) hands the selection to the first row.
+   */
+  async function reselect() {
+    const pending = pendingSelect;
+    const { repo, log } = get();
+    if (!pending || !repo || log.generation === null || pending.generation !== log.generation) return;
+    const index = await findIndex(pending.oid, log.generation);
+    const s = get();
+    if (pendingSelect !== pending || s.repo?.id !== repo.id || s.log.generation !== log.generation) return;
+    if (index === null) {
+      if (!s.log.complete) return; // `onProgress` retries once the walk is complete
+      pendingSelect = null;
+      // Gone for good: back to the top rather than whatever now sits at the old index.
+      set({ selectedIndex: s.rows[0] ? 0 : null });
+      return;
+    }
+    pendingSelect = null;
+    set({ selectedIndex: index });
+    void fetchPage(Math.floor(index / PAGE_SIZE));
+  }
+
   function fetchPage(p: number): Promise<void> {
     const existing = inflight.get(p);
     if (existing) return existing;
@@ -108,7 +156,7 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
           maxLane,
           // A page response can be older than the last `log://progress`; never move the walk backwards.
           log: { ...s.log, total: Math.max(s.log.total, page.total), complete: s.log.complete || page.complete },
-          selectedIndex: s.selectedIndex ?? (offset === 0 && page.rows.length > 0 ? 0 : null),
+          selectedIndex: s.selectedIndex ?? (offset === 0 && page.rows.length > 0 && !pendingSelect ? 0 : null),
         });
         if (lg !== labelGen) {
           // Labels were recomputed while this page was in flight: what arrived is already stale.
@@ -164,8 +212,25 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
       set({ opening: baseName(path) });
       try {
         const repo = await ipc.openRepo(path);
+        const prev = get().repo;
+        startSeq++;
         resetPages();
-        set({ repo, refs: null, log: EMPTY_LOG, rows: [], maxLane: 0, selectedIndex: null, wtSelected: false, reveal: null });
+        pendingSelect = null;
+        set({
+          repo,
+          refs: null,
+          spec: { kind: "all" },
+          filter: {},
+          log: EMPTY_LOG,
+          rows: [],
+          maxLane: 0,
+          selectedIndex: null,
+          wtSelected: false,
+          reveal: null,
+        });
+        // One repository at a time: the backend keeps a handle and a watcher per open repo, so the
+        // one being left is closed (its events were filtered out by id anyway).
+        if (prev && prev.id !== repo.id) ipc.closeRepo(prev.id).catch(() => undefined);
         await Promise.all([get().refreshRefs(), get().startLog({ kind: "all" }, {})]);
       } finally {
         set({ opening: null });
@@ -177,6 +242,7 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
       if (!repo) return;
       startSeq++;
       resetPages();
+      pendingSelect = null;
       set({ repo: null, refs: null, log: EMPTY_LOG, rows: [], maxLane: 0, selectedIndex: null, wtSelected: false, reveal: null });
       await ipc.closeRepo(repo.id);
     },
@@ -203,23 +269,29 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
     },
 
     async startLog(spec, filter) {
-      const { repo } = get();
+      const prev = get();
+      const { repo } = prev;
       if (!repo) return;
       const seq = ++startSeq;
       resetPages();
+      // The walk restarts after every fetch, commit and refresh. The rows on screen stay until the
+      // new walk's pages replace them (a blank grid every few seconds is worse than a stale one),
+      // and the selected commit is selected again once the new walk has it — see `reselect`.
+      const selectedOid = prev.wtSelected || prev.selectedIndex === null ? null : (prev.rows[prev.selectedIndex]?.row.commit.oid ?? null);
+      pendingSelect = selectedOid ? { oid: selectedOid, generation: null } : null;
       set({
         spec,
         filter,
-        log: { ...EMPTY_LOG, flat: !!filter.text?.trim() },
-        rows: [],
-        maxLane: 0,
-        selectedIndex: null,
+        log: { ...EMPTY_LOG, total: prev.log.total, flat: !!filter.text?.trim() },
       });
       try {
         const generation = await ipc.startLog(repo.id, spec, filter);
         if (seq !== startSeq || get().repo?.id !== repo.id) return; // superseded
+        if (pendingSelect) pendingSelect.generation = generation;
         set((s) => ({ log: { ...s.log, generation } }));
-        void fetchPage(0);
+        // Not awaited: `startLog` resolves once the walk is started, as before; the selection is
+        // put back after the first page (the commit is usually near where it was).
+        void fetchPage(0).then(reselect);
       } catch (e) {
         if (seq !== startSeq) return;
         set((s) => ({ log: { ...s.log, complete: true, error: toAppError(e).message } }));
@@ -241,24 +313,21 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
     selectWorkingTree: (on = true) => set({ wtSelected: on }),
 
     async revealOid(oid) {
-      const find = () => get().rows.findIndex((r) => r?.row.commit.oid === oid);
-      let index = find();
-      if (index < 0) {
-        const pages = Math.ceil(get().log.total / PAGE_SIZE);
-        for (let p = 0; p < pages && index < 0; p++) {
-          await fetchPage(p);
-          index = find();
-        }
-      }
-      if (index < 0) return;
+      const { repo, log } = get();
+      if (!repo || log.generation === null) return;
+      const index = await findIndex(oid, log.generation);
+      const s = get();
+      if (index === null || s.repo?.id !== repo.id || s.log.generation !== log.generation) return;
+      await fetchPage(Math.floor(index / PAGE_SIZE));
       // Revealing a commit moves the selection off the working-tree row (and out of the commit panel).
-      set((s) => ({ selectedIndex: index, wtSelected: false, reveal: { index, seq: (s.reveal?.seq ?? 0) + 1 } }));
+      set((st) => ({ selectedIndex: index, wtSelected: false, reveal: { index, seq: (st.reveal?.seq ?? 0) + 1 } }));
     },
 
     onProgress(p) {
       const { repo, log } = get();
       if (!repo || p.repoId !== repo.id || p.generation !== log.generation) return;
       set({ log: { ...log, total: p.total, complete: p.complete, error: p.error } });
+      if (p.complete && pendingSelect) void reselect();
     },
   };
 });
@@ -268,6 +337,7 @@ export function __resetForTests() {
   resetPages();
   startSeq = 0;
   labelGen = 0;
+  pendingSelect = null;
   viewport = { start: 0, end: PAGE_SIZE };
   useRepoStore.setState({
     gitVersion: null,

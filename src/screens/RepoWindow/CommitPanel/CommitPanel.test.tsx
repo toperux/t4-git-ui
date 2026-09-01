@@ -87,10 +87,12 @@ describe("CommitPanel", () => {
     expect(getByRole("listbox", { name: "Unstaged files" }).getAttribute("aria-activedescendant")).toBe(unstaged[0].id);
   });
 
-  it("Stage all stages every unstaged path, conflicts included", () => {
+  it("Stage all skips conflicted files (staging one is 'mark resolved') and says so", () => {
     const { getByRole } = render(<CommitPanel />);
-    fireEvent.click(getByRole("button", { name: "Stage all" }));
-    expect(mocked.stagePaths).toHaveBeenCalledWith("r", ["a.rs", "both.rs", "conflict.rs", "untracked.txt"]);
+    const btn = getByRole("button", { name: "Stage all" });
+    expect(btn.getAttribute("title")).toContain("1 skipped");
+    fireEvent.click(btn);
+    expect(mocked.stagePaths).toHaveBeenCalledWith("r", ["a.rs", "both.rs", "untracked.txt"]);
   });
 
   it("the row action stages a single conflicted file, and its diff is whole-file only", () => {
@@ -112,6 +114,7 @@ describe("CommitPanel", () => {
         status: "modified",
         binary: false,
         truncated: false,
+        maxLines: 20_000,
         additions: 4,
         deletions: 0,
         hunks: [

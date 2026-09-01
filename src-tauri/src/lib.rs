@@ -105,17 +105,26 @@ pub fn run() {
         .setup(|app| {
             init_logging(app);
             init_window_background(app);
+            // The three sides of every conflict ever opened in a merge editor; no
+            // editor of ours can still have them open this early.
+            tauri::async_runtime::spawn_blocking(|| {
+                if let Err(e) = git_core::conflict::clean_merge_temp() {
+                    tracing::warn!(error = %e, "could not clean the merge-editor temp dir");
+                }
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             commands::app::ping,
             commands::app::probe_git,
+            commands::app::set_git_path,
             commands::repo::open_repo,
             commands::repo::close_repo,
             commands::repo::get_refs,
             commands::repo::get_commit,
             commands::repo::start_log,
             commands::repo::get_log_page,
+            commands::repo::find_log_row,
             commands::repo::refresh_labels,
             commands::diff::get_commit_files,
             commands::diff::get_changed_files,

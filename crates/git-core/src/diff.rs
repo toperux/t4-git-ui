@@ -5,6 +5,8 @@
 //! `git apply --cached` after autocrlf/clean filters) come in M3; everything
 //! here is for display only.
 
+use std::cell::{Cell, RefCell};
+
 use git2::{Delta, DiffFindOptions, DiffLineType, Oid, Patch, Repository, Tree};
 use serde::{Deserialize, Serialize};
 
@@ -114,6 +116,9 @@ pub struct FileDiff {
     pub hunks: Vec<Hunk>,
     /// `true` when line collection stopped at [`DiffOptions::max_lines`].
     pub truncated: bool,
+    /// The cap `truncated` refers to (`DiffOptions::max_lines`), so the banner
+    /// quotes the number the backend actually used.
+    pub max_lines: usize,
     /// Full counts (not affected by truncation).
     pub additions: u32,
     pub deletions: u32,
@@ -165,15 +170,21 @@ fn head_tree(repo: &Repository) -> Result<Option<Tree<'_>>, GitError> {
     }
 }
 
-/// Builds the libgit2 diff for `target` with renames detected.
+/// Builds the libgit2 diff for `target` with renames detected; `paths`
+/// (repo-relative, exact) restricts it, empty means everything.
 fn build_diff<'r>(
     repo: &'r Repository,
     target: &DiffTarget,
     opts: &DiffOptions,
+    paths: &[&str],
 ) -> Result<git2::Diff<'r>, GitError> {
     let mut o = git2::DiffOptions::new();
     o.context_lines(opts.context)
-        .ignore_whitespace(opts.ignore_whitespace);
+        .ignore_whitespace(opts.ignore_whitespace)
+        .disable_pathspec_match(true);
+    for p in paths {
+        o.pathspec(p);
+    }
     let mut diff = match target {
         DiffTarget::Commit { oid } => {
             let old = parent_tree(repo, oid)?;
@@ -236,32 +247,61 @@ fn patch_for<'d>(diff: &git2::Diff<'d>, idx: usize) -> Result<Option<Patch<'d>>,
 }
 
 /// Changed files of `target` with per-file line counts (renames detected).
+/// One pass over the diff with a line callback: the counts come out without
+/// a `Patch` (every line, as a struct) being built per file.
 pub fn changed_files(repo: &Repository, target: &DiffTarget) -> Result<Vec<FileChange>, GitError> {
-    let diff = build_diff(repo, target, &DiffOptions::default())?;
-    let mut out = Vec::with_capacity(diff.deltas().len());
-    for idx in 0..diff.deltas().len() {
-        let (additions, deletions, binary) = match patch_for(&diff, idx)? {
-            Some(p) => {
-                let (_, a, d) = p.line_stats().map_err(map_git2)?;
-                (count(a), count(d), false)
+    let diff = build_diff(repo, target, &DiffOptions::default(), &[])?;
+    // Shared by the three callbacks (libgit2 calls them one at a time).
+    let out: RefCell<Vec<FileChange>> = RefCell::new(Vec::with_capacity(diff.deltas().len()));
+    // Index into `out` of the delta the callbacks are currently on; `None`
+    // while on a delta that was skipped.
+    let current: Cell<Option<usize>> = Cell::new(None);
+    diff.foreach(
+        &mut |delta, _| {
+            current.set(None);
+            if delta.status() != Delta::Unmodified {
+                let (path, old_path) = delta_paths(&delta);
+                let mut out = out.borrow_mut();
+                out.push(FileChange {
+                    path,
+                    old_path,
+                    status: delta.status().into(),
+                    additions: 0,
+                    deletions: 0,
+                    binary: false,
+                });
+                current.set(Some(out.len() - 1));
             }
-            None => (0, 0, true),
-        };
-        let delta = diff.get_delta(idx).expect("delta index in range");
-        if delta.status() == Delta::Unmodified {
-            continue;
-        }
-        let (path, old_path) = delta_paths(&delta);
-        out.push(FileChange {
-            path,
-            old_path,
-            status: delta.status().into(),
-            additions,
-            deletions,
-            binary,
-        });
-    }
-    Ok(out)
+            true
+        },
+        Some(&mut |_, _| {
+            if let Some(i) = current.get() {
+                out.borrow_mut()[i].binary = true;
+            }
+            true
+        }),
+        None,
+        Some(&mut |_, _, line| {
+            if let Some(i) = current.get() {
+                let mut out = out.borrow_mut();
+                match line.origin_value() {
+                    DiffLineType::Addition => out[i].additions = out[i].additions.saturating_add(1),
+                    DiffLineType::Deletion => out[i].deletions = out[i].deletions.saturating_add(1),
+                    _ => {}
+                }
+            }
+            true
+        }),
+    )
+    .map_err(map_git2)?;
+    Ok(out.into_inner())
+}
+
+fn locate<'d>(diff: &git2::Diff<'d>, path: &str) -> Option<usize> {
+    diff.deltas().position(|d| {
+        d.new_file().path_bytes() == Some(path.as_bytes())
+            || d.old_file().path_bytes() == Some(path.as_bytes())
+    })
 }
 
 /// Hunks of one file of `target`, addressed by its new path (a renamed file
@@ -277,23 +317,29 @@ pub fn file_diff(
             return Ok(d);
         }
     }
-    // The whole diff is built (not `pathspec`-restricted) so rename detection
-    // can still pair the file with its old path; content is only loaded for
-    // the one patch below (and rename candidates).
-    let diff = build_diff(repo, target, opts)?;
-    let idx = diff
-        .deltas()
-        .position(|d| {
-            d.new_file().path_bytes() == Some(path.as_bytes())
-                || d.old_file().path_bytes() == Some(path.as_bytes())
-        })
-        .ok_or_else(|| {
-            GitError::Git2(git2::Error::new(
-                git2::ErrorCode::NotFound,
-                git2::ErrorClass::None,
-                format!("path not in diff: {path}"),
-            ))
-        })?;
+    // The diff of this one path first (cheap: no other content is loaded).
+    // Its other half of a rename is outside that pathspec, so an `Added` or
+    // `Deleted` result may really be a rename: only then is the whole diff
+    // built, where rename detection can pair it up.
+    let mut diff = build_diff(repo, target, opts, &[path])?;
+    let mut idx = locate(&diff, path);
+    let maybe_rename = idx.is_some_and(|i| {
+        matches!(
+            diff.get_delta(i).map(|d| d.status()),
+            Some(Delta::Added | Delta::Deleted)
+        )
+    });
+    if idx.is_none() || maybe_rename {
+        diff = build_diff(repo, target, opts, &[])?;
+        idx = locate(&diff, path);
+    }
+    let idx = idx.ok_or_else(|| {
+        GitError::Git2(git2::Error::new(
+            git2::ErrorCode::NotFound,
+            git2::ErrorClass::None,
+            format!("path not in diff: {path}"),
+        ))
+    })?;
     let patch = patch_for(&diff, idx)?;
     let delta = diff.get_delta(idx).expect("delta index in range");
     let (path, old_path) = delta_paths(&delta);
@@ -316,6 +362,7 @@ fn file_diff_from_patch(
             binary: true,
             hunks: Vec::new(),
             truncated: false,
+            max_lines: opts.max_lines,
             additions: 0,
             deletions: 0,
         });
@@ -376,6 +423,7 @@ fn file_diff_from_patch(
         binary: false,
         hunks,
         truncated,
+        max_lines: opts.max_lines,
         additions: count(additions),
         deletions: count(deletions),
     })

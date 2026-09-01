@@ -17,7 +17,7 @@ export function fileDiff(hunks: Hunk[], extra: Partial<FileDiff> = {}): FileDiff
       if (l.kind === "add") additions++;
       if (l.kind === "del") deletions++;
     }
-  return { path: "src/a.ts", oldPath: null, status: "modified", binary: false, hunks, truncated: false, additions, deletions, ...extra };
+  return { path: "src/a.ts", oldPath: null, status: "modified", binary: false, hunks, truncated: false, maxLines: 20_000, additions, deletions, ...extra };
 }
 
 /** `n` lines in hunks of 100: 60 context, 20 del, 20 add each. */

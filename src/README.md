@@ -91,7 +91,7 @@ src/
   screens/
     StartScreen/           recents list (filter, keyboard, pin, remove) | Open / Clone… / Initialize… cards + shortcuts;
                            CloneDialog.tsx (components/ui/Dialog with `busy`; form → progress mode)
-    GitMissingScreen/      probe_git failed → "Git not found" + Retry (no set_git_path command, so no "Locate git…")
+    GitMissingScreen/      probe_git failed → "Git not found" + Retry + "Locate git…" (file picker → set_git_path, kept in kv `gitPath`)
     RepoWindow/            RepoWindow (layout: toolbar 40 / sidebar 260 | StateBanners + grid ÷ (DetailsPane | CommitPanel when
                            wtSelected) / dock / statusbar 24 w/ spinner + busy text; hosts DialogHost + useShortcuts)
                            Toolbar (repo menu = open repository name → folder picker / other recents / close, Fetch = split

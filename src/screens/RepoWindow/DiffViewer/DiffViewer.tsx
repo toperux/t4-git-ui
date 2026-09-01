@@ -19,6 +19,8 @@ import s from "./DiffViewer.module.css";
 import { clickLine, EMPTY_LINES, lineKey, toPairs, type LineRef, type LineSelection } from "./lineSelection";
 
 const OVERSCAN = 30;
+/** `20000` → `20 000` (the style guide's thousands separator). */
+const groupThousands = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 const SIGN: Record<DiffLine["kind"], string> = { context: " ", add: "+", del: "−" };
 const SYN: Record<SynClass, string> = {
   keyword: s.synKeyword,
@@ -207,7 +209,7 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
         </div>
       )}
       {body}
-      {diff?.truncated && <Banner kind="warning">Diff truncated at 20 000 lines</Banner>}
+      {diff?.truncated && <Banner kind="warning">Diff truncated at {groupThousands(diff.maxLines)} lines</Banner>}
       {lineActions && n > 0 && (
         <div className={s.bar} role="toolbar" aria-label="Selected lines">
           <span className={s.grow}>

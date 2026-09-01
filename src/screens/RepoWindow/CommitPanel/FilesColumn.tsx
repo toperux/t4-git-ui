@@ -27,14 +27,23 @@ export function FilesColumn() {
   const busy = useCommitStore((st) => st.busy);
   const stage = useCommitStore((st) => st.stage);
   const unstage = useCommitStore((st) => st.unstage);
-  // Conflicted files stage whole (`index.add_path` resolves the conflict) — that is how the flow ends.
-  const unstagedPaths = lists.unstaged.map((e) => e.path);
+  // Staging a conflicted file whole is "mark resolved" (`index.add_path` drops the stages), which is
+  // how a resolved file leaves the list — one at a time, on purpose. Stage all skips them: one click
+  // would otherwise resolve every conflict with the markers still in the files.
+  const unstagedPaths = lists.unstaged.filter((e) => !e.conflicted).map((e) => e.path);
+  const skipped = lists.unstaged.length - unstagedPaths.length;
 
   return (
     <div className={s.col}>
       <PanelHeader icon={<File size={14} aria-hidden />} title="Unstaged">
         <Badge>{lists.unstaged.length}</Badge>
-        <Button size="sm" className={s.headerBtn} disabled={busy || unstagedPaths.length === 0} onClick={() => void stage(unstagedPaths)}>
+        <Button
+          size="sm"
+          className={s.headerBtn}
+          disabled={busy || unstagedPaths.length === 0}
+          title={skipped > 0 ? `Conflicted files are staged one by one, once resolved (${skipped} skipped)` : undefined}
+          onClick={() => void stage(unstagedPaths)}
+        >
           Stage all
         </Button>
       </PanelHeader>

@@ -70,6 +70,27 @@ impl CliOutput {
     }
 }
 
+/// The command line as shown to the user (`git …`): an argument with
+/// whitespace or a quote is double-quoted the way a shell would want it, so
+/// `git stash push -m "wip: two words"` reads as one message.
+pub fn display_cmd(args: &[&str]) -> String {
+    let mut out = String::from("git");
+    for a in args {
+        out.push(' ');
+        if a.is_empty()
+            || a.chars()
+                .any(|c| c.is_whitespace() || c == '"' || c == '\'')
+        {
+            out.push('"');
+            out.push_str(&a.replace('"', "\\\""));
+            out.push('"');
+        } else {
+            out.push_str(a);
+        }
+    }
+    out
+}
+
 #[derive(Debug, Clone)]
 pub struct GitCli {
     git_path: String,
@@ -107,7 +128,7 @@ impl GitCli {
         cancel: CancellationToken,
         mut on_event: impl FnMut(CliEvent) + Send,
     ) -> Result<CliOutput, GitError> {
-        let cmd_line = format!("git {}", args.join(" "));
+        let cmd_line = display_cmd(args);
         let started = Instant::now();
         on_event(CliEvent::Started {
             op_id: op_id.to_string(),
@@ -402,6 +423,22 @@ mod tests {
         let events = Arc::new(Mutex::new(Vec::new()));
         let sink = Arc::clone(&events);
         (events, move |e| sink.lock().unwrap().push(e))
+    }
+
+    #[test]
+    fn display_cmd_quotes_what_needs_it() {
+        assert_eq!(
+            display_cmd(&["fetch", "--prune", "origin"]),
+            "git fetch --prune origin"
+        );
+        assert_eq!(
+            display_cmd(&["stash", "push", "-m", "wip: two words", "--", ""]),
+            "git stash push -m \"wip: two words\" -- \"\""
+        );
+        assert_eq!(
+            display_cmd(&["commit", "-m", "say \"hi\""]),
+            "git commit -m \"say \\\"hi\\\"\""
+        );
     }
 
     #[test]

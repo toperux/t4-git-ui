@@ -83,6 +83,10 @@ pub fn walk(
         .filter(|t| !t.is_empty())
         .map(str::to_lowercase);
     let use_graph = text.is_none();
+    // A hex query of 4+ characters also matches a commit id prefix.
+    let text_is_hex = text
+        .as_deref()
+        .is_some_and(|t| t.len() >= 4 && t.bytes().all(|b| b.is_ascii_hexdigit()));
 
     let mut layout = LaneLayout::new();
     let mut chunk: Vec<GraphRow> = Vec::with_capacity(CHUNK_SIZE);
@@ -100,7 +104,8 @@ pub fn walk(
         if let Some(t) = &text {
             let hit = info.summary.to_lowercase().contains(t)
                 || info.author_name.to_lowercase().contains(t)
-                || info.author_email.to_lowercase().contains(t);
+                || info.author_email.to_lowercase().contains(t)
+                || (text_is_hex && info.oid.starts_with(t));
             if !hit {
                 continue;
             }

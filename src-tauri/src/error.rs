@@ -32,3 +32,28 @@ impl Serialize for AppError {
         s.end()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn serializes_as_kind_and_message() {
+        let v = serde_json::to_value(AppError::Busy).unwrap();
+        assert_eq!(v["kind"], "busy");
+        assert_eq!(v["message"], "another operation is running");
+
+        let v = serde_json::to_value(AppError::StaleGeneration("gen 3 is old".into())).unwrap();
+        assert_eq!(v["kind"], "staleGeneration");
+        assert_eq!(v["message"], "gen 3 is old");
+
+        let v = serde_json::to_value(AppError::Internal("boom".into())).unwrap();
+        assert_eq!(v["kind"], "internal");
+        assert_eq!(v["message"], "boom");
+
+        // Git errors keep git-core's own `{kind, message}` shape.
+        let v = serde_json::to_value(AppError::Git(GitError::Refused("no".into()))).unwrap();
+        assert_eq!(v["kind"], "refused");
+        assert_eq!(v["message"], "no");
+    }
+}

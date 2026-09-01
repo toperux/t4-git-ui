@@ -168,7 +168,8 @@ From the real-window walkthrough: opening a large repo showed only the 14px stat
 ### Known gaps / deferred (v1 ships with these)
 **Not implemented — needs a new backend command**
 - Hunk-/line-level **Discard**: needs reverse-apply-to-workdir; only file-level `discard_paths` exists. No button is rendered for it (the disabled placeholders were removed in the review pass).
-- **Settings screen**: the button is disabled everywhere ("Settings arrive after v1"). Would carry the git executable path (`set_git_path` — also unblocks "Locate git…" on the git-missing screen), theme override, and diff context/whitespace defaults.
+- **Settings screen**: the button is disabled everywhere ("Settings arrive after v1"). Would carry the git executable path (`set_git_path` exists since the 2026-09-02 review pass and backs "Locate git…" on the git-missing screen; Settings would just expose it), theme override, and diff context/whitespace defaults.
+- **Mode (exec-bit) changes in hunk / line staging**: the patches built for `git apply --cached` carry no `old mode` / `new mode` lines, so a mode change is staged whole-file only (deferred in the 2026-09-02 review: Unix-only, not verifiable on the Windows dev box).
 
 **Accepted limits**
 - Non-UTF-8 files: `diff.rs` line text is lossy UTF-8, so patches built for hunk/line staging are not byte-exact for them. Whole-file staging is unaffected.

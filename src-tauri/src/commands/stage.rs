@@ -46,28 +46,12 @@ pub(crate) fn emit_changed(app: &AppHandle, id: &RepoId, change: &RepoChange) {
     }
 }
 
-/// Runs `f` under the repo's op lock (waiting for it) with the watcher
-/// suppressed, then emits one synthetic `repo://changed` with `kinds` (even
-/// on error: partial changes may have landed).
+/// Runs `f` under the repo's op lock with the watcher suppressed, then emits
+/// one synthetic `repo://changed` with `kinds` (even on error: partial changes
+/// may have landed). Fails with [`AppError::Busy`] instead of waiting when
+/// another operation holds the lock: a stage or commit issued during a fetch
+/// would otherwise sit there, with nothing on screen, until the fetch ended.
 pub(crate) async fn mutate<T, F, Fut>(
-    app: &AppHandle,
-    state: &AppState,
-    id: &RepoId,
-    kinds: &[ChangeKind],
-    f: F,
-) -> Result<T, AppError>
-where
-    F: FnOnce(Arc<RepoHandle>) -> Fut,
-    Fut: Future<Output = Result<T, AppError>>,
-{
-    let handle = state.repo(id)?;
-    let _guard = handle.op_lock.lock().await;
-    suppressed(app, state, &handle, kinds, f).await
-}
-
-/// Like [`mutate`] but fails with [`AppError::Busy`] instead of waiting when
-/// another operation holds the lock (long-running branch / remote ops).
-pub(crate) async fn mutate_busy<T, F, Fut>(
     app: &AppHandle,
     state: &AppState,
     id: &RepoId,

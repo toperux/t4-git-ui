@@ -8,6 +8,7 @@ import { SectionHeader } from "../../components/ui/SectionHeader/SectionHeader";
 import { AheadBehind, TREE_PANE_CLASS, TreeRow } from "../../components/ui/TreeRow/TreeRow";
 import { cx } from "../../lib/cx";
 import { useDialogStore, type DialogSpec } from "../../store/dialogStore";
+import { selectRunning, useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
 import { checkoutBranch, checkoutDetached, checkoutRemoteBranch, copyText, stashApply, stashDrop, stashPop, stripRemote } from "./actions";
 import s from "./Sidebar.module.css";
@@ -288,10 +289,13 @@ export function Sidebar() {
 function RefContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number }; target: Target; el: HTMLElement } | null; onClose: () => void }) {
   const open = useDialogStore((st) => st.open);
   const current = useRepoStore((st) => st.refs?.local.find((b) => b.isHead)?.name ?? null);
+  const running = useOpsStore(selectRunning);
   if (!menu) return null;
   const { target } = menu;
   // The clicked menu item is gone by the time the dialog mounts: hand it the row the menu came from.
   const openDialog = (spec: DialogSpec) => open(spec, { returnFocusTo: menu.el });
+  // Everything but Copy touches the repository: greyed while an operation runs, like the toolbar.
+  const op = running ? { disabled: true, title: "Operation in progress" } : {};
   /** Every item closes the menu first. */
   const run = (fn: () => void) => () => {
     onClose();
@@ -304,27 +308,27 @@ function RefContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number 
         const b = target.branch;
         return (
           <>
-            <MenuItem icon={<GitBranch size={16} aria-hidden />} disabled={b.isHead} onClick={run(() => void checkoutBranch(b.name))}>
+            <MenuItem icon={<GitBranch size={16} aria-hidden />} disabled={b.isHead} {...op} onClick={run(() => void checkoutBranch(b.name))}>
               Checkout
             </MenuItem>
-            <MenuItem icon={<GitMerge size={16} aria-hidden />} disabled={b.isHead} onClick={run(() => openDialog({ kind: "merge", branch: b.name }))}>
+            <MenuItem icon={<GitMerge size={16} aria-hidden />} disabled={b.isHead} {...op} onClick={run(() => openDialog({ kind: "merge", branch: b.name }))}>
               Merge into {current ?? "current"}…
             </MenuItem>
-            <MenuItem icon={<GitMerge size={16} aria-hidden />} disabled={b.isHead} onClick={run(() => openDialog({ kind: "rebase", onto: b.name }))}>
+            <MenuItem icon={<GitMerge size={16} aria-hidden />} disabled={b.isHead} {...op} onClick={run(() => openDialog({ kind: "rebase", onto: b.name }))}>
               Rebase {current ?? "current"} onto…
             </MenuItem>
-            <MenuItem icon={<Plus size={16} aria-hidden />} onClick={run(() => openDialog({ kind: "createBranch", startPoint: b.name }))}>
+            <MenuItem icon={<Plus size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "createBranch", startPoint: b.name }))}>
               Create branch here…
             </MenuItem>
-            <MenuItem icon={<Pencil size={16} aria-hidden />} onClick={run(() => openDialog({ kind: "renameBranch", name: b.name }))}>
+            <MenuItem icon={<Pencil size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "renameBranch", name: b.name }))}>
               Rename…
             </MenuItem>
-            <MenuItem onClick={run(() => openDialog({ kind: "push", branch: b.name }))}>Push…</MenuItem>
+            <MenuItem {...op} onClick={run(() => openDialog({ kind: "push", branch: b.name }))}>Push…</MenuItem>
             <MenuItem icon={<Copy size={16} aria-hidden />} onClick={run(() => copyText(b.name, "branch name"))}>
               Copy name
             </MenuItem>
             <MenuSeparator />
-            <MenuItem icon={<Trash2 size={16} aria-hidden />} danger disabled={b.isHead} onClick={run(() => openDialog({ kind: "deleteBranch", name: b.name }))}>
+            <MenuItem icon={<Trash2 size={16} aria-hidden />} danger disabled={b.isHead} {...op} onClick={run(() => openDialog({ kind: "deleteBranch", name: b.name }))}>
               Delete…
             </MenuItem>
           </>
@@ -335,20 +339,20 @@ function RefContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number 
         const short = stripRemote(rb, target.remote);
         return (
           <>
-            <MenuItem icon={<GitBranch size={16} aria-hidden />} onClick={run(() => void checkoutRemoteBranch(rb, target.remote))}>
+            <MenuItem icon={<GitBranch size={16} aria-hidden />} {...op} onClick={run(() => void checkoutRemoteBranch(rb, target.remote))}>
               Checkout
             </MenuItem>
-            <MenuItem icon={<GitMerge size={16} aria-hidden />} onClick={run(() => openDialog({ kind: "merge", branch: rb.name }))}>
+            <MenuItem icon={<GitMerge size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "merge", branch: rb.name }))}>
               Merge into {current ?? "current"}…
             </MenuItem>
-            <MenuItem icon={<Plus size={16} aria-hidden />} onClick={run(() => openDialog({ kind: "createBranch", startPoint: rb.name }))}>
+            <MenuItem icon={<Plus size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "createBranch", startPoint: rb.name }))}>
               Create branch here…
             </MenuItem>
             <MenuItem icon={<Copy size={16} aria-hidden />} onClick={run(() => copyText(rb.name, "branch name"))}>
               Copy name
             </MenuItem>
             <MenuSeparator />
-            <MenuItem icon={<Trash2 size={16} aria-hidden />} danger onClick={run(() => openDialog({ kind: "deleteRemoteBranch", remote: target.remote, name: short }))}>
+            <MenuItem icon={<Trash2 size={16} aria-hidden />} danger {...op} onClick={run(() => openDialog({ kind: "deleteRemoteBranch", remote: target.remote, name: short }))}>
               Delete on remote…
             </MenuItem>
           </>
@@ -357,21 +361,21 @@ function RefContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number 
       case "tag":
         return (
           <>
-            <MenuItem icon={<GitBranch size={16} aria-hidden />} onClick={run(() => void checkoutDetached(target.name))}>
+            <MenuItem icon={<GitBranch size={16} aria-hidden />} {...op} onClick={run(() => void checkoutDetached(target.name))}>
               Checkout (detached)
             </MenuItem>
-            <MenuItem icon={<Plus size={16} aria-hidden />} onClick={run(() => openDialog({ kind: "createBranch", startPoint: target.name }))}>
+            <MenuItem icon={<Plus size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "createBranch", startPoint: target.name }))}>
               Create branch here…
             </MenuItem>
-            <MenuItem onClick={run(() => openDialog({ kind: "pushTag", name: target.name }))}>Push…</MenuItem>
+            <MenuItem {...op} onClick={run(() => openDialog({ kind: "pushTag", name: target.name }))}>Push…</MenuItem>
             <MenuItem icon={<Copy size={16} aria-hidden />} onClick={run(() => copyText(target.name, "tag name"))}>
               Copy name
             </MenuItem>
             <MenuSeparator />
-            <MenuItem icon={<Trash2 size={16} aria-hidden />} danger onClick={run(() => openDialog({ kind: "deleteTag", name: target.name }))}>
+            <MenuItem icon={<Trash2 size={16} aria-hidden />} danger {...op} onClick={run(() => openDialog({ kind: "deleteTag", name: target.name }))}>
               Delete…
             </MenuItem>
-            <MenuItem icon={<Trash2 size={16} aria-hidden />} danger onClick={run(() => openDialog({ kind: "deleteRemoteTag", name: target.name }))}>
+            <MenuItem icon={<Trash2 size={16} aria-hidden />} danger {...op} onClick={run(() => openDialog({ kind: "deleteRemoteTag", name: target.name }))}>
               Delete on remote…
             </MenuItem>
           </>
@@ -380,10 +384,10 @@ function RefContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number 
         const i = target.stash.index;
         return (
           <>
-            <MenuItem onClick={run(() => void stashApply(i))}>Apply</MenuItem>
-            <MenuItem onClick={run(() => void stashPop(i))}>Pop</MenuItem>
+            <MenuItem {...op} onClick={run(() => void stashApply(i))}>Apply</MenuItem>
+            <MenuItem {...op} onClick={run(() => void stashPop(i))}>Pop</MenuItem>
             <MenuSeparator />
-            <MenuItem icon={<Trash2 size={16} aria-hidden />} danger onClick={run(() => void stashDrop(i))}>
+            <MenuItem icon={<Trash2 size={16} aria-hidden />} danger {...op} onClick={run(() => void stashDrop(i))}>
               Drop
             </MenuItem>
           </>
