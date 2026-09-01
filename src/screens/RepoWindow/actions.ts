@@ -59,7 +59,18 @@ export function copyText(text: string, what: string) {
 export const openCommitPanel = () => useRepoStore.getState().selectWorkingTree();
 
 /** Switches to another repository (toolbar repo menu); failures stay on the current one. */
+/**
+ * Leaving the repository while an operation runs against it is refused: the op would finish
+ * — and refresh — against a repository that is no longer the open one.
+ */
+function refusedWhileRunning(before: string): boolean {
+  if (!selectRunning(useOpsStore.getState())) return false;
+  useToastStore.getState().push({ kind: "info", title: "Operation in progress", detail: `Wait for it to finish before ${before}` });
+  return true;
+}
+
 export function switchRepo(path: string) {
+  if (refusedWhileRunning("opening another repository")) return;
   void useRepoStore
     .getState()
     .openRepo(path)
@@ -68,6 +79,8 @@ export function switchRepo(path: string) {
 
 /** Folder picker → open (toolbar repo menu). A cancelled picker does nothing. */
 export async function pickAndOpenRepo() {
+  // Before the picker: a folder chosen and then refused is worse than no picker.
+  if (refusedWhileRunning("opening another repository")) return;
   const dir = await openFolder({ directory: true, multiple: false, title: "Open repository" }).catch(() => null);
   if (dir) switchRepo(dir);
 }
@@ -78,10 +91,7 @@ export async function pickAndOpenRepo() {
  */
 export function closeRepo() {
   if (!useRepoStore.getState().repo || useDialogStore.getState().dialog) return;
-  if (selectRunning(useOpsStore.getState())) {
-    useToastStore.getState().push({ kind: "info", title: "Operation in progress", detail: "Wait for it to finish before closing the repository" });
-    return;
-  }
+  if (refusedWhileRunning("closing the repository")) return;
   void useRepoStore
     .getState()
     .closeRepo()

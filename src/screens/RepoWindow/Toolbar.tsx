@@ -101,7 +101,7 @@ export function Toolbar() {
           </ToolbarButton>
         }
       >
-        <MenuItem icon={<FolderOpen size={16} aria-hidden />} onClick={pick(() => void pickAndOpenRepo(), () => setRepoMenu(false))}>
+        <MenuItem icon={<FolderOpen size={16} aria-hidden />} disabled={running} title={running ? BUSY : undefined} onClick={pick(() => void pickAndOpenRepo(), () => setRepoMenu(false))}>
           Open repository…
         </MenuItem>
         <MenuSeparator />
@@ -109,13 +109,13 @@ export function Toolbar() {
           <MenuItem disabled>No other recent repositories</MenuItem>
         ) : (
           others.map((r) => (
-            <MenuItem key={r.path} icon={<FolderGit2 size={16} aria-hidden />} title={r.path} onClick={pick(() => switchRepo(r.path), () => setRepoMenu(false))}>
+            <MenuItem key={r.path} icon={<FolderGit2 size={16} aria-hidden />} disabled={running} title={running ? BUSY : r.path} onClick={pick(() => switchRepo(r.path), () => setRepoMenu(false))}>
               {r.name}
             </MenuItem>
           ))
         )}
         <MenuSeparator />
-        <MenuItem icon={<X size={16} aria-hidden />} kbd="Ctrl+Shift+W" onClick={pick(closeRepo, () => setRepoMenu(false))}>
+        <MenuItem icon={<X size={16} aria-hidden />} kbd="Ctrl+Shift+W" disabled={running} title={running ? BUSY : undefined} onClick={pick(closeRepo, () => setRepoMenu(false))}>
           Close repository
         </MenuItem>
       </Menu>

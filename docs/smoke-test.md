@@ -211,7 +211,9 @@ Use `C:\tmp\t4\work` and the bare remote.
       fixture adds it; a fixture built before it: `-RemotesOnly`, as above) → the dock
       expands by itself with git's "does not appear to be a git repository" line, error toast
 - [ ] While an op runs, click another op → "Operation in progress" toast; buttons show that tooltip
-- [ ] `Ctrl+Shift+W` during an op → refused with the same toast
+- [ ] `Ctrl+Shift+W` during an op → refused with the same toast; the repo menu's Open / recents /
+      Close items are disabled with that tooltip (the op would finish against a repository that is
+      no longer open)
 
 ## 6. Cross-cutting
 
