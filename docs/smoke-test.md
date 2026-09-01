@@ -201,8 +201,8 @@ Use `C:\tmp\t4\work` and the bare remote.
       not tracked per remote, so the sidebar has no "remote tag" to offer Delete on remote… for)
 - [ ] Stash changes → appears in the sidebar; Apply / Pop / Drop from the toolbar menu
 - [ ] Checkout a commit (detached) → warning banner with "Checkout <branch>" and "Create branch…"
-- [ ] Fetch (`Ctrl+F5` fetches the default remote — use the toolbar Fetch dialog instead) from the
-      `slow` remote (bare.git behind an upload-pack that sleeps 60s — the fixture adds it; a fixture
+- [ ] Fetch via the **▾ beside Fetch** (the button itself and `Ctrl+F5` hit the default remote) from
+      the `slow` remote (bare.git behind an upload-pack that sleeps 60s — the fixture adds it; a fixture
       built before it: `pwsh -File docs/smoke-fixtures.ps1 -RemotesOnly`, then `F5`), expand the
       dock (`` Ctrl+` ``) →
       elapsed timer + **Cancel**; cancel → toast, buttons re-enable, and the dock does **not** pop

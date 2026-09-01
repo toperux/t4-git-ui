@@ -12,7 +12,7 @@ export function frame(theme, inner, { scrim = null } = {}) {
 
 export function toolbar({ pull = 5, push = 2, commit = 4, filter = 'All branches', search = 'Search commits' } = {}) {
   return `<div class="toolbar" style="flex: none;">
-    <span class="tb-btn">${icon('arrow-down', 18)}Fetch</span>
+    <span class="tb-split"><span class="tb-btn">${icon('arrow-down', 18)}Fetch</span><span class="tb-btn tb-more">${icon('chevron-down', 16)}</span></span>
     <span class="tb-btn">${icon('arrow-down-up', 18)}Pull${pull ? ` <span class="cnt">${pull}</span>` : ''}</span>
     <span class="tb-btn">${icon('arrow-up', 18)}Push${push ? ` <span class="cnt">${push}</span>` : ''}</span>
     <span class="tb-sep"></span>

@@ -94,8 +94,9 @@ src/
     GitMissingScreen/      probe_git failed → "Git not found" + Retry (no set_git_path command, so no "Locate git…")
     RepoWindow/            RepoWindow (layout: toolbar 40 / sidebar 260 | StateBanners + grid ÷ (DetailsPane | CommitPanel when
                            wtSelected) / dock / statusbar 24 w/ spinner + busy text; hosts DialogHost + useShortcuts)
-                           Toolbar (repo menu = open repository name → folder picker / other recents / close, Fetch → default
-                           remote w/ prune, Pull / Push dialogs + ahead/behind counts, Branch and Stash menus, Commit button
+                           Toolbar (repo menu = open repository name → folder picker / other recents / close, Fetch = split
+                           button: click → default remote w/ prune, ▾ → the Fetch dialog (remote, prune, tags), Pull / Push
+                           dialogs + ahead/behind counts, Branch and Stash menus, Commit button
                            = change count; every op button disabled while one runs),
                            Sidebar (one `role="tree"` per section with a roving tabIndex, context menus per ref kind on
                            right-click / Shift+F10, double-click = checkout),

@@ -3,6 +3,7 @@ import {
   ArrowDown,
   ArrowDownUp,
   ArrowUp,
+  ChevronDown,
   FolderGit2,
   FolderOpen,
   GitBranch,
@@ -20,6 +21,7 @@ import { IconButton } from "../../components/ui/IconButton/IconButton";
 import { Input, Select } from "../../components/ui/Input/Input";
 import { Menu, MenuItem, MenuSeparator } from "../../components/ui/Menu/Menu";
 import { ToolbarButton, ToolbarSeparator } from "../../components/ui/ToolbarButton/ToolbarButton";
+import tb from "../../components/ui/ToolbarButton/ToolbarButton.module.css";
 import { useDialogStore, type DialogSpec } from "../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../store/opsStore";
 import { useRecentsStore } from "../../store/recentsStore";
@@ -118,9 +120,25 @@ export function Toolbar() {
         </MenuItem>
       </Menu>
       <ToolbarSeparator />
-      <ToolbarButton icon={<ArrowDown size={18} aria-hidden />} disabled={running} title={opTitle("Fetch from the default remote")} onClick={() => void fetchDefault()}>
-        Fetch
-      </ToolbarButton>
+      <span className={tb.split}>
+        <ToolbarButton
+          icon={<ArrowDown size={18} aria-hidden />}
+          className={tb.splitMain}
+          disabled={running}
+          title={opTitle("Fetch from the default remote", "Ctrl+F5")}
+          onClick={() => void fetchDefault()}
+        >
+          Fetch
+        </ToolbarButton>
+        <ToolbarButton
+          icon={<ChevronDown size={16} aria-hidden />}
+          className={tb.splitMore}
+          disabled={running}
+          aria-label="Fetch options"
+          title={opTitle("Fetch from a chosen remote, with options")}
+          onClick={() => openDialog({ kind: "fetch" })}
+        />
+      </span>
       <ToolbarButton
         icon={<ArrowDownUp size={18} aria-hidden />}
         count={head?.behind}
@@ -169,10 +187,6 @@ export function Toolbar() {
         </MenuItem>
         <MenuItem icon={<GitMerge size={16} aria-hidden />} onClick={pickDialog({ kind: "rebase" }, () => setBranchMenu(false))}>
           Rebase…
-        </MenuItem>
-        <MenuSeparator />
-        <MenuItem icon={<ArrowDown size={16} aria-hidden />} onClick={pickDialog({ kind: "fetch" }, () => setBranchMenu(false))}>
-          Fetch…
         </MenuItem>
       </Menu>
       <Menu

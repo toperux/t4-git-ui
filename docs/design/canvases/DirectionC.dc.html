@@ -244,6 +244,11 @@ a { color: var(--accent-text); text-decoration: none; } a:hover { text-decoratio
 .tb-btn .cnt { font-size: var(--text-xs); color: var(--fg-muted); font-variant-numeric: tabular-nums; }
 .toolbar { display: flex; align-items: center; gap: var(--space-1); height: var(--toolbar-h); padding: 0 var(--space-4); background: var(--bg-app); border-bottom: 1px solid var(--border); }
 .tb-sep { width: 1px; height: 18px; background: var(--border); margin: 0 var(--space-3); }
+/* Split button: main action + a ▾ segment for its dialog, no divider; hovering one half tints the other at half strength. */
+.tb-split { display: inline-flex; align-items: stretch; }
+.tb-split .tb-btn:first-child { padding-right: var(--space-2); border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.tb-split .tb-more { padding: 0 var(--space-2) 0 0; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.tb-split .is-hover-soft { background: color-mix(in srgb, var(--bg-hover) 50%, transparent); }
 
 /* Inputs */
 .input { display: flex; align-items: center; gap: var(--space-3); white-space: nowrap; height: var(--control-h); padding: 0 var(--space-4); background: var(--bg-inset); border: 1px solid transparent; border-radius: var(--radius-md); color: var(--fg); font: inherit; }

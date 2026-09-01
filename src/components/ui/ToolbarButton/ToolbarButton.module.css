@@ -36,6 +36,34 @@
   color: var(--fg-muted);
   font-variant-numeric: tabular-nums;
 }
+/*
+ * Split button: the main action and a ▾ that opens its dialog. No divider — a line made the
+ * ▾ read as a separate control. Hovering either half tints both, the other at half strength,
+ * so they read as one button with two targets.
+ */
+.split {
+  display: inline-flex;
+  align-items: stretch;
+}
+.split:hover .btn:not(:disabled) {
+  background: color-mix(in srgb, var(--bg-hover) 50%, transparent);
+}
+.split .btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+.split .btn:active:not(:disabled) {
+  background: var(--bg-active);
+}
+.splitMain {
+  padding-right: var(--space-2);
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.splitMore {
+  padding: 0 var(--space-2) 0 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
 .sep {
   width: 1px;
   height: 18px;

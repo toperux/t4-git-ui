@@ -58,7 +58,7 @@ One file per row. States are CSS classes on the reference sheet (`is-hover` etc.
 |---|---|
 | `Button` | 28px, pad 12, weight 500, radius md. Variants: `primary` (accent), `secondary` (panel bg + strong border), `ghost`, `danger`. `sm` = 24px/pad 8/12px text. Disabled = opacity .45. Icon (14px) left of label, gap 6 |
 | `IconButton` | 24×24, radius sm, icon 16, `--fg-muted` → `--fg` on hover. `on` (toggled) = `--bg-active`. Tooltip mandatory |
-| `ToolbarButton` | 28px ghost, icon 18 + label + optional count (xs, muted). Separators 1×18 `--border` |
+| `ToolbarButton` | 28px ghost, icon 18 + label + optional count (xs, muted). Separators 1×18 `--border`. Split variant (Fetch): the button plus a ▾ segment (chevron 16), no divider — a line makes the ▾ read as a separate control — `--space-2` between label and chevron, outer corners `--radius-md` only. Hovering either half tints both: the hovered one `--bg-hover`, the other at half strength (`color-mix` 50%), so they read as one button with two targets. Click = the default action, ▾ = its dialog |
 | `Input` | 28px, `--bg-inset`, no border at rest; hover = strong border; focus = panel bg + accent border + 3px soft halo; invalid = danger border/halo. Placeholder `--fg-faint`; leading icon 14px `--fg-muted` |
 | `Select` | Input anatomy + chevron-down 14; open = focus style + chevron-up. Min width 160 |
 | `Checkbox` | 16px, radius sm; checked/mixed = accent fill, white 12px check/minus. Label gap 8 |

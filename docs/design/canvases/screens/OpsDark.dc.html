@@ -243,6 +243,11 @@ a { color: var(--accent-text); text-decoration: none; } a:hover { text-decoratio
 .tb-btn .cnt { font-size: var(--text-xs); color: var(--fg-muted); font-variant-numeric: tabular-nums; }
 .toolbar { display: flex; align-items: center; gap: var(--space-1); height: var(--toolbar-h); padding: 0 var(--space-4); background: var(--bg-app); border-bottom: 1px solid var(--border); }
 .tb-sep { width: 1px; height: 18px; background: var(--border); margin: 0 var(--space-3); }
+/* Split button: main action + a ▾ segment for its dialog, no divider; hovering one half tints the other at half strength. */
+.tb-split { display: inline-flex; align-items: stretch; }
+.tb-split .tb-btn:first-child { padding-right: var(--space-2); border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.tb-split .tb-more { padding: 0 var(--space-2) 0 0; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.tb-split .is-hover-soft { background: color-mix(in srgb, var(--bg-hover) 50%, transparent); }
 
 /* Inputs */
 .input { display: flex; align-items: center; gap: var(--space-3); white-space: nowrap; height: var(--control-h); padding: 0 var(--space-4); background: var(--bg-inset); border: 1px solid transparent; border-radius: var(--radius-md); color: var(--fg); font: inherit; }
@@ -394,7 +399,7 @@ body { background: #0f1114; }
 </helmet>
 <div class="canvas-root t-light" style="width: 1440px; height: 900px;"><div class="t-dark sheet" style="width: 1440px; height: 900px; display: flex; flex-direction: column; overflow: hidden; position: relative;">
   <div class="toolbar" style="flex: none;">
-    <span class="tb-btn"><svg class="icon " width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>Fetch</span>
+    <span class="tb-split"><span class="tb-btn"><svg class="icon " width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>Fetch</span><span class="tb-btn tb-more"><svg class="icon " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></span>
     <span class="tb-btn"><svg class="icon " width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 16 4 4 4-4"/><path d="M7 20V4"/><path d="m21 8-4-4-4 4"/><path d="M17 4v16"/></svg>Pull <span class="cnt">5</span></span>
     <span class="tb-btn"><svg class="icon " width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>Push <span class="cnt">2</span></span>
     <span class="tb-sep"></span>

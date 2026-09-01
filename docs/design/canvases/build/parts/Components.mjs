@@ -22,8 +22,8 @@ function toolbar() {
   // sheet width they don't fit beside the buttons, so only the trailing icon button stands in for them.
   return section('Toolbar', '40px · ghost buttons w/ 18px icons · counts inline · separators 18px · search + filter sit right (A2)',
     `<div class="toolbar" style="border: 1px solid var(--border); border-radius: 6px; width: 100%;">
-      <span class="tb-btn">${icon('arrow-down', 18)}Fetch</span>
-      <span class="tb-btn is-hover">${icon('arrow-down-up', 18)}Pull <span class="cnt">5</span></span>
+      <span class="tb-split"><span class="tb-btn is-hover">${icon('arrow-down', 18)}Fetch</span><span class="tb-btn tb-more is-hover-soft">${icon('chevron-down', 16)}</span></span>
+      <span class="tb-btn">${icon('arrow-down-up', 18)}Pull <span class="cnt">5</span></span>
       <span class="tb-btn">${icon('arrow-up', 18)}Push <span class="cnt">2</span></span>
       <span class="tb-sep"></span>
       <span class="tb-btn">${icon('git-branch', 18)}Branch</span>
