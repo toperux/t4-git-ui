@@ -40,6 +40,9 @@ export interface OpsStore {
   setOpen(open: boolean): void;
 }
 
+/** Ops the user cancelled: their non-zero exit is expected, so it must not open the dock. */
+const cancelled = new Set<string>();
+
 export const selectLastOp = (s: OpsStore) => s.ops[s.ops.length - 1] ?? null;
 
 /** An operation started through `runOp` is still running. */
@@ -61,8 +64,13 @@ export const useOpsStore = create<OpsStore>()((set, get) => ({
     if (i < 0) return;
     const op = ops[i];
     let next: OpRecord;
+    // A failure puts its reason in the dock while the toast carries only the first line, so show it
+    // rather than leaving the user to find it. Not for a cancel: the kill exits non-zero too, and
+    // whoever pressed Cancel knows what happened.
+    let reveal = false;
     if (event.kind === "exit") {
       next = { ...op, running: false, code: event.code, elapsedMs: event.elapsedMs };
+      reveal = event.code !== 0 && !cancelled.delete(opId);
     } else {
       const lines = op.lines.slice();
       const last = lines[lines.length - 1];
@@ -73,10 +81,11 @@ export const useOpsStore = create<OpsStore>()((set, get) => ({
     }
     const copy = ops.slice();
     copy[i] = next;
-    set({ ops: copy });
+    set(reveal ? { ops: copy, open: true } : { ops: copy });
   },
 
   async cancel(opId) {
+    cancelled.add(opId);
     // The op may already have exited — that is not worth a toast.
     await ipc.cancelOp(opId).catch(() => false);
   },

@@ -68,7 +68,7 @@ function loading(theme) {
   </div>
   ${dock({ open: false })}
   ${statusbar({ busy: 'Walking history' })}
-  <div style="position: absolute; right: 12px; bottom: 60px;"><div class="toast error">${icon('x-circle')}<div class="grow"><div class="t">Push rejected</div><div class="d">origin/main has 3 new commits. Pull first.</div></div><span class="icon-btn">${icon('x', 14)}</span></div></div>`;
+  <div style="position: absolute; top: 52px; left: 50%; transform: translateX(-50%);"><div class="toast error">${icon('x-circle')}<div class="grow"><div class="t">Push rejected</div><div class="d">origin/main has 3 new commits. Pull first.</div></div><span class="icon-btn">${icon('x', 14)}</span></div></div>`;
 }
 
 export function build(theme) {
@@ -78,7 +78,7 @@ export function build(theme) {
       ${mini(theme, 'Empty repository', 'after Init; unborn branch', emptyRepo(theme))}
       ${mini(theme, 'Detached HEAD', 'banner + HEAD chip without a branch', detached(theme))}
       ${mini(theme, 'Rebase in progress + conflicts', 'stacked banners; conflict list replaces file list', rebasing(theme))}
-      ${mini(theme, 'Loading + error toast', 'grid fills incrementally; toasts bottom-right', loading(theme))}
+      ${mini(theme, 'Loading + error toast', 'grid fills incrementally; toasts top-center', loading(theme))}
     </div>
   </div></div>`;
   return { body, bg };

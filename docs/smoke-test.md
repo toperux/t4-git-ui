@@ -144,7 +144,7 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the performance che
 - [ ] `touch .git/index.lock` then try to stage → error toast **that stays put** with a Retry action;
       remove the lock, press Retry → succeeds
 - [ ] A failing `pre-commit` hook surfaces its first stderr line as a toast, and the full output in
-      the dock
+      the dock — which **expands by itself**, no click needed
 
 ## 5. Operations (M4)
 
@@ -176,7 +176,8 @@ Use `C:\tmp\t4\work` and the bare remote.
 - [ ] Stash changes → appears in the sidebar; Apply / Pop / Drop from the toolbar menu
 - [ ] Checkout a commit (detached) → warning banner with "Checkout <branch>" and "Create branch…"
 - [ ] Start a slow fetch, expand the dock (`` Ctrl+` ``) → elapsed timer + **Cancel**; cancel → toast,
-      buttons re-enable
+      buttons re-enable, and the dock does **not** pop open on its own (a kill exits non-zero too)
+- [ ] Push to a URL that does not exist → the dock expands by itself with git's message
 - [ ] While an op runs, click another op → "Operation in progress" toast; buttons show that tooltip
 - [ ] `Ctrl+Shift+W` during an op → refused with the same toast
 
@@ -187,7 +188,8 @@ Use `C:\tmp\t4\work` and the bare remote.
 - [ ] Switch the OS theme while the app runs → the UI follows, including graph lane colours
 - [ ] Output dock: drag its top edge → resizes between roughly 160 and 320 px; the height survives a
       restart; the collapsed bar shows the last command and its exit status
-- [ ] Toasts: errors **stay** until dismissed; info/success fade after ~6 s
+- [ ] Toasts: stacked top-centre under the toolbar; errors **stay** until dismissed; info/success
+      fade after ~6 s
 - [ ] Every dialog: `Esc` closes it and focus returns to whatever opened it (including when opened
       from a context menu); `Tab` stays inside the dialog
 - [ ] Any dropdown (Create branch → Start point, the toolbar branch filter): the list is themed like

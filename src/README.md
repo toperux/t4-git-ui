@@ -50,7 +50,8 @@ src/
                            `localStorage.lastRepo`), touch (20 unpinned cap), remove, togglePin, lastOpen, lastCloneDir;
                            pure helpers sortRecents / capRecents / filterRecents
     opsStore.ts            zustand: OpRecord[] from `op://event` (started/stdout/stderr/progress-redraw/exit), max 50 ops × 5000 lines,
-                           cancel(opId), dock open, `busy` (statusbar text of the running op) + selectRunning;
+                           cancel(opId), dock open (a non-zero exit opens it, unless that op was cancelled),
+                           `busy` (statusbar text of the running op) + selectRunning;
                            runOp(busy, fn, {success, onRefused}) — the single entry point for every branch/remote/stash op
     dialogStore.ts         zustand: one `DialogSpec` at a time — open(spec, {returnFocusTo}) / close(); DialogHost renders it
                            and feeds `returnFocusTo` to `Dialog` through `DialogReturnFocus`
@@ -182,7 +183,9 @@ the status and calls `statusStore.syncRefs()`, which relabels the walk or restar
 `repo://changed` arrives too; the seq guards make it a no-op). While an op runs, `opsStore.busy` holds the statusbar text
 and disables the toolbar; the streamed output lands in the shared `OutputDock` (elapsed timer + Cancel → `cancel_op`;
 a `
-` progress segment replaces the previous progress line rather than appending).
+` progress segment replaces the previous progress line rather than appending). A non-zero exit expands the dock:
+the toast carries only the first stderr line, so the reason is on screen instead of behind a click. An op the user
+cancelled is exempt — its kill exits non-zero too, and whoever pressed Cancel already knows why.
 
 Dialogs are one at a time (`dialogStore` → `DialogHost`) and every option-bearing action gets one, with a
 "Runs `git …`" preview built by `dialogs/gitArgs.ts` (a mirror of `crates/git-core/src/cli/ops.rs`, so the preview and

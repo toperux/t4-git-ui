@@ -1,4 +1,4 @@
-// Bottom-right toast stack. Info / success toasts auto-dismiss after `TOAST_MS`; errors persist
+// Top-center toast stack. Info / success toasts auto-dismiss after `TOAST_MS`; errors persist
 // until the user dismisses them (style guide §3).
 import { create } from "zustand";
 import type { AppError } from "../api/types";

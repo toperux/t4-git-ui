@@ -79,7 +79,7 @@ One file per row. States are CSS classes on the reference sheet (`is-hover` etc.
 | `SectionHeader` | 28px label style, chevron slot, count badge; hover tint; click toggles |
 | `SplitHandle` | 5px hit area, 1px `--border` line; hover/drag = 2px accent |
 | `StatusBar` | 24px `--bg-app`, xs muted; branch + ahead/behind left, running op (spinner + text) and tree state right |
-| `Toast` | 360px, `--bg-elevated` + shadow-1, radius lg, icon 16 semantic color (`--danger-text` / `--success` / `--accent-text`), title 500 + sm muted detail, close IconButton. Bottom-right stack, 5s (errors persist) |
+| `Toast` | 360px, `--bg-elevated` + shadow-1, radius lg, icon 16 semantic color (`--danger-text` / `--success` / `--accent-text`), title 500 + sm muted detail, close IconButton. Top-center stack below the toolbar, 5s (errors persist) |
 | `Banner` | 32px full-width at top of content, `*-soft` bg, icon 14 semantic, sm text, `sm` buttons right. Used for merge/rebase in progress, conflicts, detached HEAD |
 | `Progress` | 4px pill; indeterminate = 30% sweeping. 3px when attached to a dock |
 | `Spinner` | 14px, 2px, accent top arc |

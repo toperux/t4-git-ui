@@ -1,11 +1,14 @@
-/* base.css .toast — bottom-right stack */
+/* base.css .toast — top-center stack, hanging below the toolbar. Down in the corner a toast was
+   easy to miss; the eye is already at the top of the window when a command is fired from there. */
 .stack {
   position: fixed;
-  right: var(--space-6);
-  bottom: calc(var(--statusbar-h) + var(--space-6));
+  top: calc(var(--toolbar-h) + var(--space-5));
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 30;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: var(--space-4);
 }
 .toast {

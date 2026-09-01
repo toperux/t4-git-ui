@@ -33,7 +33,7 @@ export function Toast({ toast, onClose }: { toast: ToastModel; onClose: () => vo
   );
 }
 
-/** Bottom-right stack bound to `toastStore`. */
+/** Top-center stack bound to `toastStore`. */
 export function ToastStack() {
   const toasts = useToastStore((st) => st.toasts);
   const dismiss = useToastStore((st) => st.dismiss);

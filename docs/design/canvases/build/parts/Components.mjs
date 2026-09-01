@@ -168,7 +168,7 @@ function headers() {
 }
 
 function statusFeedback() {
-  return section('Status bar · Toast · Banner · Progress', 'status bar 24px · toasts 360px bottom-right, 5s · banners full-width top of content',
+  return section('Status bar · Toast · Banner · Progress', 'status bar 24px · toasts 360px top-center, 5s · banners full-width top of content',
     `<div style="display: flex; flex-direction: column; gap: 12px;">
       <div class="statusbar" style="border: 1px solid var(--border); border-radius: 6px;"><span class="item">${icon('git-branch', 12)}main</span><span class="item ab">${icon('arrow-up', 12)}2 ${icon('arrow-down', 12)}5</span><span class="grow"></span><span class="item"><span class="spinner" style="width: 10px; height: 10px; border-width: 1.5px;"></span>Fetching origin…</span><span class="item">${icon('check-circle', 12)}Clean</span></div>
       <div style="display: flex; gap: 12px; flex-wrap: wrap;">

@@ -79,6 +79,30 @@ describe("opsStore", () => {
     expect(mocked.cancelOp).toHaveBeenCalledWith("7");
   });
 
+  it("opens the dock when a command fails, so its output is on screen with the toast", () => {
+    const st = useOpsStore.getState();
+    st.onEvent({ repoId: "r", opId: "1", event: { kind: "started", opId: "1", cmd: "git commit -F msg" } });
+    st.onEvent({ repoId: "r", opId: "1", event: { kind: "stderr", line: "lint: 3 problems in 2 files" } });
+    expect(useOpsStore.getState().open).toBe(false);
+
+    st.onEvent({ repoId: "r", opId: "1", event: { kind: "exit", code: 1, elapsedMs: 12 } });
+    expect(useOpsStore.getState().open).toBe(true);
+  });
+
+  it("leaves the dock alone when a command succeeds, or when the user cancelled it", async () => {
+    mocked.cancelOp.mockResolvedValue(true);
+    const st = useOpsStore.getState();
+    st.onEvent({ repoId: "r", opId: "1", event: { kind: "started", opId: "1", cmd: "git fetch" } });
+    st.onEvent({ repoId: "r", opId: "1", event: { kind: "exit", code: 0, elapsedMs: 12 } });
+    expect(useOpsStore.getState().open).toBe(false);
+
+    // A killed process exits non-zero, but the user asked for that and knows why.
+    st.onEvent({ repoId: "r", opId: "2", event: { kind: "started", opId: "2", cmd: "git fetch" } });
+    await useOpsStore.getState().cancel("2");
+    st.onEvent({ repoId: "r", opId: "2", event: { kind: "exit", code: 1, elapsedMs: 12 } });
+    expect(useOpsStore.getState().open).toBe(false);
+  });
+
   it("keeps at most MAX_OPS records", () => {
     const st = useOpsStore.getState();
     for (let i = 0; i < MAX_OPS + 5; i++) st.onEvent({ repoId: "r", opId: `${i}`, event: { kind: "started", opId: `${i}`, cmd: `c${i}` } });
