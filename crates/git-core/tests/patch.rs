@@ -7,7 +7,7 @@ use std::path::Path;
 use git_core::cli::GitCli;
 use git_core::diff::{changed_files, file_diff, DiffLineKind, DiffOptions, DiffTarget, FileDiff};
 use git_core::patch::{build_patch, PatchSelection};
-use git_core::stage::stage_patch_args;
+use git_core::stage::{discard_patch_args, stage_patch_args};
 use git_core::test_util::TempRepo;
 use git_core::GitError;
 use tokio_util::sync::CancellationToken;
@@ -83,8 +83,31 @@ async fn apply(t: &TempRepo, patch: &str, reverse: bool) {
         .expect("reload index");
 }
 
+/// `git apply -R` on the working tree (no `--cached`, no `--check`); panics on failure.
+async fn discard(t: &TempRepo, patch: &str) {
+    let cli = GitCli::new("git");
+    let args = discard_patch_args();
+    let out = cli
+        .run(
+            t.path(),
+            "discard",
+            &args,
+            Some(patch.as_bytes().to_vec()),
+            CancellationToken::new(),
+            |_| {},
+        )
+        .await
+        .expect("run");
+    out.check("git apply -R")
+        .unwrap_or_else(|e| panic!("{e}\npatch:\n{patch}"));
+}
+
 fn numbered(n: u32) -> String {
     (1..=n).map(|i| format!("line {i}\n")).collect()
+}
+
+fn read(t: &TempRepo, path: &str) -> String {
+    std::fs::read_to_string(t.path().join(path)).expect("read")
 }
 
 #[tokio::test]
@@ -249,4 +272,78 @@ async fn autocrlf_repo_stages_lf_content() {
     // Nothing left to stage.
     let rest = changed_files(&t.repo, &DiffTarget::Unstaged).unwrap();
     assert!(rest.iter().all(|f| f.path != "f.txt"), "{rest:?}");
+}
+
+/// Discard = the unstaged patch reverse-applied to the working tree: the diff's
+/// new side *is* the file on disk, so `-R` without `--cached` undoes it there.
+#[tokio::test]
+async fn discard_hunk_subset_keeps_the_other_hunk() {
+    if !have_git() {
+        return;
+    }
+    let t = TempRepo::new();
+    t.set_config("core.autocrlf", "false");
+    t.commit(&[("f.txt", &numbered(30))], "base");
+    let mut lines: Vec<String> = numbered(30).lines().map(String::from).collect();
+    lines[2] = "LINE 3".into();
+    lines[26] = "LINE 27".into();
+    t.write("f.txt", lines.join("\n") + "\n");
+
+    let d = diff(&t, DiffTarget::Unstaged, "f.txt");
+    assert_eq!(d.hunks.len(), 2);
+    let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), true).unwrap();
+    discard(&t, &p).await;
+
+    let mut expected: Vec<String> = numbered(30).lines().map(String::from).collect();
+    expected[26] = "LINE 27".into();
+    assert_eq!(read(&t, "f.txt"), expected.join("\n") + "\n");
+}
+
+#[tokio::test]
+async fn discard_lines_subset() {
+    if !have_git() {
+        return;
+    }
+    let t = TempRepo::new();
+    t.set_config("core.autocrlf", "false");
+    t.commit(&[("f.txt", "a\nb\n")], "base");
+    t.write("f.txt", "a\nX\nY\nb\n");
+    let d = diff(&t, DiffTarget::Unstaged, "f.txt");
+    assert_eq!(change_lines(&d, 0).len(), 2);
+    let x = d.hunks[0]
+        .lines
+        .iter()
+        .position(|l| l.kind == DiffLineKind::Add && l.text == "X")
+        .unwrap();
+
+    // Only `+X` goes; `+Y` is unselected, so it stays as context.
+    let p = build_patch(&d, &PatchSelection::Lines(vec![(0, x)]), true).unwrap();
+    discard(&t, &p).await;
+    assert_eq!(read(&t, "f.txt"), "a\nY\nb\n");
+}
+
+#[tokio::test]
+async fn discard_hunk_in_a_crlf_file() {
+    if !have_git() {
+        return;
+    }
+    let t = TempRepo::new();
+    // The patch carries the `\r`s verbatim; git apply must still match the file.
+    t.set_config("core.autocrlf", "false");
+    let crlf = |lines: &[String]| lines.join("\r\n") + "\r\n";
+    let base: Vec<String> = (1..=30).map(|i| format!("line {i}")).collect();
+    t.commit(&[("f.txt", &crlf(&base))], "base");
+    let mut lines = base.clone();
+    lines[2] = "LINE 3".into();
+    lines[26] = "LINE 27".into();
+    t.write("f.txt", crlf(&lines));
+
+    let d = diff(&t, DiffTarget::Unstaged, "f.txt");
+    assert_eq!(d.hunks.len(), 2);
+    let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), true).unwrap();
+    discard(&t, &p).await;
+
+    let mut expected = base.clone();
+    expected[26] = "LINE 27".into();
+    assert_eq!(read(&t, "f.txt"), crlf(&expected));
 }

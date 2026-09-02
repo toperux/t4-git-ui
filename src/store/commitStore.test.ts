@@ -23,6 +23,8 @@ vi.mock("../api/ipc", async (importOriginal) => {
     discardPaths: vi.fn((_id: string, paths: string[]) => Promise.resolve(paths)),
     stageHunks: vi.fn(() => Promise.resolve()),
     stageLines: vi.fn(() => Promise.resolve()),
+    discardHunks: vi.fn(() => Promise.resolve()),
+    discardLines: vi.fn(() => Promise.resolve()),
   };
 });
 
@@ -31,6 +33,7 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({ ask }));
 
 import * as ipc from "../api/ipc";
 import { useCommitStore } from "./commitStore";
+import { useDiffStore } from "./diffStore";
 import { __resetForTests as resetRepo, useRepoStore } from "./repoStore";
 import { __resetForTests as resetStatus, useStatusStore } from "./statusStore";
 import { useToastStore } from "./toastStore";
@@ -45,7 +48,9 @@ type MockName =
   | "unstagePaths"
   | "discardPaths"
   | "stageHunks"
-  | "stageLines";
+  | "stageLines"
+  | "discardHunks"
+  | "discardLines";
 const mocked = ipc as unknown as Record<MockName, ReturnType<typeof vi.fn>>;
 const REPO: RepoSummary = { id: "r", name: "r", path: "r", head: { oid: "h", branch: "main", detached: false } };
 
@@ -76,6 +81,7 @@ beforeEach(() => {
   useRepoStore.setState({ repo: REPO, refs: REFS, log: { generation: 1, total: 0, complete: true, error: null, flat: false } });
   useToastStore.setState({ toasts: [] });
   useCommitStore.getState().reset();
+  useDiffStore.setState({ context: 3 });
   mocked.getFileDiff.mockImplementation((_id: string, _t: unknown, path: string) => Promise.resolve(diff(path, "a")));
   ask.mockResolvedValue(true);
 });
@@ -197,13 +203,31 @@ describe("commitStore mutations", () => {
   it("hunk / line staging reverses only when the staged diff is shown", async () => {
     await sync([entry("a.rs")]);
     await useCommitStore.getState().stageHunk(0);
-    expect(mocked.stageHunks).toHaveBeenCalledWith(REPO.id, "a.rs", [0], false);
+    expect(mocked.stageHunks).toHaveBeenCalledWith(REPO.id, "a.rs", [0], false, 3);
 
     useCommitStore.setState({ diffList: "staged" });
     await useCommitStore.getState().stageHunk(2);
-    expect(mocked.stageHunks).toHaveBeenLastCalledWith(REPO.id, "a.rs", [2], true);
+    expect(mocked.stageHunks).toHaveBeenLastCalledWith(REPO.id, "a.rs", [2], true, 3);
     await useCommitStore.getState().stageLines([[0, 1]]);
-    expect(mocked.stageLines).toHaveBeenLastCalledWith(REPO.id, "a.rs", [[0, 1]], true);
+    expect(mocked.stageLines).toHaveBeenLastCalledWith(REPO.id, "a.rs", [[0, 1]], true, 3);
+  });
+
+  it("hunk / line discard asks first and sends the context the diff was loaded with", async () => {
+    useDiffStore.setState({ context: 8 });
+    await sync([entry("a.rs")]);
+
+    await useCommitStore.getState().discardHunk(1);
+    expect(ask.mock.calls[0][0]).toContain("Discard this hunk from a.rs?");
+    expect(mocked.discardHunks).toHaveBeenCalledWith(REPO.id, "a.rs", [1], 8);
+
+    await useCommitStore.getState().discardLines([[0, 1]]);
+    expect(ask.mock.calls[1][0]).toContain("Discard 1 selected line from a.rs?");
+    expect(mocked.discardLines).toHaveBeenCalledWith(REPO.id, "a.rs", [[0, 1]], 8);
+
+    // Declined → nothing leaves the store.
+    ask.mockResolvedValue(false);
+    await useCommitStore.getState().discardHunk(0);
+    expect(mocked.discardHunks).toHaveBeenCalledTimes(1);
   });
 
   it("stages one hunk after another and reloads the diff every time", async () => {

@@ -156,6 +156,8 @@ pub fn run() {
             commands::stage::recreate_conflict,
             commands::stage::stage_hunks,
             commands::stage::stage_lines,
+            commands::stage::discard_hunks,
+            commands::stage::discard_lines,
             commands::stage::commit,
             commands::stage::get_head_message,
             commands::stage::get_author,

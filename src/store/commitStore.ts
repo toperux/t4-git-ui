@@ -8,7 +8,7 @@ import { toAppError } from "../api/ipc";
 import type { AppError, Author, FileChange, FileDiff, FileStatus, StatusEntry, WorkdirStatus } from "../api/types";
 import { joinMessage, pushHistory, splitMessage } from "../lib/msgHistory";
 import { EMPTY_SELECTION, pruneSelection, type Selection } from "../lib/multiSelect";
-import { DIFF_CONTEXT } from "./diffStore";
+import { useDiffStore } from "./diffStore";
 import { useRepoStore } from "./repoStore";
 import { useStatusStore } from "./statusStore";
 import { toastError, useToastStore } from "./toastStore";
@@ -84,6 +84,9 @@ export interface CommitStore {
   /** Hunk of the shown diff; unstages when the diff is the staged one. */
   stageHunk(hunk: number): Promise<void>;
   stageLines(lines: [number, number][]): Promise<void>;
+  /** Hunk of the shown unstaged diff, thrown away after a confirmation (the working file loses it). */
+  discardHunk(hunk: number): Promise<void>;
+  discardLines(lines: [number, number][]): Promise<void>;
   setSummary(v: string): void;
   setBody(v: string): void;
   setSignoff(v: boolean): void;
@@ -130,7 +133,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
     set({ diffLoading: true, diffError: null, diffPath: anchor, diffList: list });
     try {
       // Must match the backend's stage-able diff (default options) so hunk / line indices line up.
-      const diff = await ipc.getFileDiff(id, { kind: list }, anchor, { context: DIFF_CONTEXT });
+      const diff = await ipc.getFileDiff(id, { kind: list }, anchor, { context: useDiffStore.getState().context });
       if (mySeq !== diffSeq) return;
       // Identical content → keep the old object: `DiffViewer` keys its scroll / line selection off it.
       const prev = get().diff;
@@ -305,14 +308,37 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       const { diffPath, diffList } = get();
       if (!diffPath) return;
       const reverse = diffList === "staged";
-      await run(reverse ? "Unstage failed" : "Stage failed", (id) => ipc.stageHunks(id, diffPath, [hunk], reverse));
+      // The indices are the shown diff's, so the backend has to rebuild it with the same context.
+      const context = useDiffStore.getState().context;
+      await run(reverse ? "Unstage failed" : "Stage failed", (id) => ipc.stageHunks(id, diffPath, [hunk], reverse, context));
     },
 
     async stageLines(lines) {
       const { diffPath, diffList } = get();
       if (!diffPath || lines.length === 0) return;
       const reverse = diffList === "staged";
-      await run(reverse ? "Unstage failed" : "Stage failed", (id) => ipc.stageLines(id, diffPath, lines, reverse));
+      const context = useDiffStore.getState().context;
+      await run(reverse ? "Unstage failed" : "Stage failed", (id) => ipc.stageLines(id, diffPath, lines, reverse, context));
+    },
+
+    async discardHunk(hunk) {
+      const { diffPath } = get();
+      if (!diffPath) return;
+      // No confirmation available → declined; a discard has no undo.
+      const ok = await ask(`Discard this hunk from ${diffPath}? This cannot be undone.`, { title: "Discard hunk", kind: "warning", okLabel: "Discard" }).catch(() => false);
+      if (!ok) return;
+      const context = useDiffStore.getState().context;
+      await run("Discard failed", (id) => ipc.discardHunks(id, diffPath, [hunk], context));
+    },
+
+    async discardLines(lines) {
+      const { diffPath } = get();
+      if (!diffPath || lines.length === 0) return;
+      const n = lines.length;
+      const ok = await ask(`Discard ${n} selected line${n === 1 ? "" : "s"} from ${diffPath}? This cannot be undone.`, { title: "Discard lines", kind: "warning", okLabel: "Discard" }).catch(() => false);
+      if (!ok) return;
+      const context = useDiffStore.getState().context;
+      await run("Discard failed", (id) => ipc.discardLines(id, diffPath, lines, context));
     },
 
     setSummary: (summary) => set({ summary }),

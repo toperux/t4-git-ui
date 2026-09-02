@@ -8,8 +8,6 @@ import type { FileChange, FileDiff, RepoId } from "../api/types";
 export type DiffView = "unified" | "split";
 export type FileListMode = "flat" | "tree";
 
-export const DIFF_CONTEXT = 3;
-
 export interface DiffStore {
   repoId: RepoId | null;
   oid: string | null;
@@ -23,6 +21,8 @@ export interface DiffStore {
   /** Persisted in `localStorage.diffView`. */
   view: DiffView;
   ignoreWhitespace: boolean;
+  /** Context lines every diff is loaded with — the commit panel's too, whose hunk / line indices depend on it. */
+  context: number;
   /** Persisted in `localStorage.fileListMode`. */
   fileListMode: FileListMode;
 
@@ -31,6 +31,7 @@ export interface DiffStore {
   selectPath(path: string): void;
   setView(view: DiffView): void;
   toggleWhitespace(): void;
+  setContext(n: number): void;
   setFileListMode(mode: FileListMode): void;
 }
 
@@ -57,7 +58,7 @@ let diffSeq = 0;
 export const useDiffStore = create<DiffStore>()((set, get) => {
   async function loadDiff() {
     const seq = ++diffSeq;
-    const { repoId, oid, selectedPath, ignoreWhitespace } = get();
+    const { repoId, oid, selectedPath, ignoreWhitespace, context } = get();
     if (!repoId || !oid || !selectedPath) {
       set({ diff: null, diffLoading: false, diffError: null });
       return;
@@ -65,7 +66,7 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
     set({ diffLoading: true, diffError: null });
     try {
       const diff = await ipc.getFileDiff(repoId, { kind: "commit", oid }, selectedPath, {
-        context: DIFF_CONTEXT,
+        context,
         ignoreWhitespace,
       });
       if (seq !== diffSeq) return; // stale
@@ -88,6 +89,7 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
     diffError: null,
     view: readSetting<DiffView>("diffView", ["unified", "split"], "unified"),
     ignoreWhitespace: false,
+    context: 3,
     fileListMode: readSetting<FileListMode>("fileListMode", ["flat", "tree"], "flat"),
 
     async loadCommit(repoId, oid) {
@@ -129,6 +131,12 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
 
     toggleWhitespace() {
       set((s) => ({ ignoreWhitespace: !s.ignoreWhitespace }));
+      void loadDiff();
+    },
+
+    setContext(context) {
+      if (get().context === context) return;
+      set({ context });
       void loadDiff();
     },
 

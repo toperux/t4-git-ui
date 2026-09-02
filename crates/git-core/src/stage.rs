@@ -127,6 +127,13 @@ pub fn stage_patch_args(reverse: bool) -> Vec<&'static str> {
     args
 }
 
+/// Arguments for reverse-applying a patch (on stdin) to the WORKING TREE — no
+/// `--cached`, so the file on disk is the one edited. The patch is built from
+/// the unstaged diff with `reverse = true`: its new side *is* the working tree.
+pub fn discard_patch_args() -> Vec<&'static str> {
+    vec!["apply", "-R", "--whitespace=nowarn", "-"]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -304,5 +311,12 @@ mod tests {
             stage_patch_args(true),
             ["apply", "--cached", "--whitespace=nowarn", "-R", "-"]
         );
+    }
+
+    #[test]
+    fn discard_patch_args_never_touch_the_index() {
+        let args = discard_patch_args();
+        assert_eq!(args, ["apply", "-R", "--whitespace=nowarn", "-"]);
+        assert!(!args.contains(&"--cached"));
     }
 }

@@ -59,6 +59,8 @@ export function DiffColumn() {
   const stats = useCommitStore((st) => (st.diffPath ? st.stats[st.diffList][st.diffPath] : undefined));
   const stageHunk = useCommitStore((st) => st.stageHunk);
   const stageLines = useCommitStore((st) => st.stageLines);
+  const discardHunk = useCommitStore((st) => st.discardHunk);
+  const discardLines = useCommitStore((st) => st.discardLines);
   const entry = useStatusStore((st) => st.status?.entries.find((e) => e.path === path));
 
   const state = useRepoStore((st) => st.refs?.state);
@@ -71,6 +73,9 @@ export function DiffColumn() {
   // offer the one command that undoes it. Only mid-merge: a marker in a file is otherwise just text.
   const merging = state === "merge" || state === "rebase";
   const stranded = merging && !conflicted && !!diff && hasMarkers(diff);
+  // Discard rewrites the working file: only a plain unstaged diff has one to rewrite (the staged
+  // list edits the index, and untracked / conflicted files are whole-file anyway).
+  const canDiscard = list === "unstaged" && !conflicted && !untracked;
   const actions: DiffActions | undefined = path
     ? {
         target: list,
@@ -87,6 +92,8 @@ export function DiffColumn() {
         onRestoreConflict: stranded && path ? () => void restoreConflict(path) : undefined,
         onStageHunk: (h) => void stageHunk(h),
         onStageLines: (l) => void stageLines(l),
+        onDiscardHunk: canDiscard ? (h) => void discardHunk(h) : undefined,
+        onDiscardLines: canDiscard ? (l) => void discardLines(l) : undefined,
       }
     : undefined;
 

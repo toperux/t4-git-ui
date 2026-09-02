@@ -103,13 +103,24 @@ export const unstagePaths = (id: RepoId, paths: string[]) => call<void>("unstage
 /** Discards unstaged changes (tracked: restore from index; untracked: delete). Resolves with the paths touched. */
 export const discardPaths = (id: RepoId, paths: string[]) => call<string[]>("discard_paths", { id, paths });
 
-/** Hunk indices into the `unstaged` diff of `path` (`staged` when `reverse`, which unstages). */
-export const stageHunks = (id: RepoId, path: string, hunks: number[], reverse: boolean) =>
-  call<void>("stage_hunks", { id, path, hunks, reverse });
+/**
+ * Hunk indices into the `unstaged` diff of `path` (`staged` when `reverse`, which unstages);
+ * `context` must be the one the shown diff was loaded with, or the indices point elsewhere.
+ */
+export const stageHunks = (id: RepoId, path: string, hunks: number[], reverse: boolean, context: number) =>
+  call<void>("stage_hunks", { id, path, hunks, reverse, context });
 
 /** `[hunkIndex, lineIndexWithinHunk]` pairs; same target rule as `stageHunks`. */
-export const stageLines = (id: RepoId, path: string, lines: [number, number][], reverse: boolean) =>
-  call<void>("stage_lines", { id, path, lines, reverse });
+export const stageLines = (id: RepoId, path: string, lines: [number, number][], reverse: boolean, context: number) =>
+  call<void>("stage_lines", { id, path, lines, reverse, context });
+
+/** Throws `hunks` of the `unstaged` diff away — the working file loses them, the index keeps what is staged. */
+export const discardHunks = (id: RepoId, path: string, hunks: number[], context: number) =>
+  call<void>("discard_hunks", { id, path, hunks, context });
+
+/** `[hunkIndex, lineIndexWithinHunk]` pairs of the `unstaged` diff; same rule as `discardHunks`. */
+export const discardLines = (id: RepoId, path: string, lines: [number, number][], context: number) =>
+  call<void>("discard_lines", { id, path, lines, context });
 
 /** `git commit` via the CLI (hook output streams as `op://event`); resolves with the new HEAD oid. */
 export const commit = (id: RepoId, message: string, amend: boolean, signoff: boolean) =>

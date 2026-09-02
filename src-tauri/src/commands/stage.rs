@@ -200,33 +200,55 @@ async fn run_checkout_merge(
     .await
 }
 
+/// What a hunk / line selection does. `Discard` reverse-applies to the working
+/// tree instead of the index: the unstaged diff's NEW side *is* the file on
+/// disk, so the same patch `git apply -R` takes — minus `--cached`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PatchOp {
+    Stage,
+    Unstage,
+    Discard,
+}
+
 /// Builds the patch for `selection` from the stage-able diff of `path`
-/// (`Unstaged`, or `Staged` when `reverse`) and applies it to the index.
+/// (`Staged` for an unstage, `Unstaged` otherwise) and applies it.
 async fn apply_selection(
     app: &AppHandle,
     state: &AppState,
     id: &RepoId,
     path: String,
     selection: PatchSelection,
-    reverse: bool,
+    op: PatchOp,
+    context: u32,
 ) -> Result<(), AppError> {
-    mutate(app, state, id, &[ChangeKind::Index], |handle| async move {
-        let target = if reverse {
-            DiffTarget::Staged
-        } else {
-            DiffTarget::Unstaged
+    // A discard rewrites the working tree, a stage / unstage the index.
+    let kinds = match op {
+        PatchOp::Discard => [ChangeKind::Workdir],
+        _ => [ChangeKind::Index],
+    };
+    mutate(app, state, id, &kinds, |handle| async move {
+        let target = match op {
+            PatchOp::Unstage => DiffTarget::Staged,
+            _ => DiffTarget::Unstaged,
         };
+        // The hunk / line indices come from a diff the frontend rendered, so the
+        // context has to match the one it asked for.
         let opts = DiffOptions {
+            context,
             max_lines: usize::MAX,
             ..DiffOptions::default()
         };
+        let reverse = op != PatchOp::Stage;
         let h = Arc::clone(&handle);
         let patch = blocking(move || {
             let d = diff::file_diff(&h.git2.lock(), &target, &path, &opts)?;
             Ok(patch::build_patch(&d, &selection, reverse)?)
         })
         .await?;
-        let args = stage::stage_patch_args(reverse);
+        let args = match op {
+            PatchOp::Discard => stage::discard_patch_args(),
+            _ => stage::stage_patch_args(reverse),
+        };
         let run = run_git_op(
             app,
             state,
@@ -251,14 +273,21 @@ pub async fn stage_hunks(
     path: String,
     hunks: Vec<usize>,
     reverse: bool,
+    context: u32,
 ) -> Result<(), AppError> {
+    let op = if reverse {
+        PatchOp::Unstage
+    } else {
+        PatchOp::Stage
+    };
     apply_selection(
         &app,
         &state,
         &id,
         path,
         PatchSelection::Hunks(hunks),
-        reverse,
+        op,
+        context,
     )
     .await
 }
@@ -272,6 +301,58 @@ pub async fn stage_lines(
     path: String,
     lines: Vec<[usize; 2]>,
     reverse: bool,
+    context: u32,
+) -> Result<(), AppError> {
+    let lines = lines.into_iter().map(|[h, l]| (h, l)).collect();
+    let op = if reverse {
+        PatchOp::Unstage
+    } else {
+        PatchOp::Stage
+    };
+    apply_selection(
+        &app,
+        &state,
+        &id,
+        path,
+        PatchSelection::Lines(lines),
+        op,
+        context,
+    )
+    .await
+}
+
+/// Throws away `hunks` of the unstaged diff of `path` — the working file loses
+/// them, the index keeps whatever is staged. Not undoable.
+#[tauri::command]
+pub async fn discard_hunks(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: RepoId,
+    path: String,
+    hunks: Vec<usize>,
+    context: u32,
+) -> Result<(), AppError> {
+    apply_selection(
+        &app,
+        &state,
+        &id,
+        path,
+        PatchSelection::Hunks(hunks),
+        PatchOp::Discard,
+        context,
+    )
+    .await
+}
+
+/// `lines` are `[hunkIndex, lineIndexWithinHunk]` pairs of the unstaged diff.
+#[tauri::command]
+pub async fn discard_lines(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: RepoId,
+    path: String,
+    lines: Vec<[usize; 2]>,
+    context: u32,
 ) -> Result<(), AppError> {
     let lines = lines.into_iter().map(|[h, l]| (h, l)).collect();
     apply_selection(
@@ -280,7 +361,8 @@ pub async fn stage_lines(
         &id,
         path,
         PatchSelection::Lines(lines),
-        reverse,
+        PatchOp::Discard,
+        context,
     )
     .await
 }

@@ -113,8 +113,8 @@ describe("DiffViewer", () => {
 
     fireEvent.click(getByText("Stage hunk"));
     expect(actions.onStageHunk).toHaveBeenCalledWith(0);
-    // No hunk / line Discard exists: the backend has no reverse-apply-to-workdir.
-    expect(queryByText("Discard")).toBeNull();
+    // No discard callbacks (a staged diff edits the index): no Discard buttons either.
+    expect(queryByText("Discard hunk")).toBeNull();
 
     expect(queryByRole("toolbar", { name: "Selected lines" })).toBeNull();
     fireEvent.click(rows[1]); // context line: ignored
@@ -129,11 +129,38 @@ describe("DiffViewer", () => {
     fireEvent.click(rows[3], { ctrlKey: true }); // toggle the middle one off
     expect(getByRole("toolbar", { name: "Selected lines" }).textContent).toContain("2 lines selected");
 
+    expect(queryByRole("button", { name: "Discard 2 lines" })).toBeNull();
     fireEvent.click(getAllByRole("button", { name: "Stage 2 lines" })[0]);
     expect(actions.onStageLines).toHaveBeenCalledWith([
       [0, 1],
       [0, 3],
     ]);
+  });
+
+  it("the discard buttons only exist when the callbacks do, and Delete discards the selection", () => {
+    useDiffStore.setState({ view: "unified" });
+    const actions: DiffActions = {
+      target: "unstaged",
+      wholeFile: false,
+      onStageHunk: vi.fn(),
+      onStageLines: vi.fn(),
+      onDiscardHunk: vi.fn(),
+      onDiscardLines: vi.fn(),
+    };
+    const { getByRole } = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} actions={actions} />);
+    fireEvent.click(getByRole("button", { name: "Discard hunk" }));
+    expect(actions.onDiscardHunk).toHaveBeenCalledWith(0);
+
+    const region = getByRole("region", { name: "Diff" });
+    const rows = Array.from(region.firstElementChild!.children);
+    fireEvent.click(rows[2]); // del
+    fireEvent.click(getByRole("button", { name: "Discard 1 line" }));
+    expect(actions.onDiscardLines).toHaveBeenCalledWith([[0, 1]]);
+
+    // Delete is the keyboard half of that button, the way Enter is of "Stage lines".
+    fireEvent.keyDown(region, { key: "Delete" });
+    expect(actions.onDiscardLines).toHaveBeenCalledTimes(2);
+    expect(actions.onStageLines).not.toHaveBeenCalled();
   });
 
   it("actions mode is a listbox of options and can be driven from the keyboard", () => {

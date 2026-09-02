@@ -28,9 +28,11 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
     stagePaths: vi.fn(() => Promise.resolve()),
     unstagePaths: vi.fn(() => Promise.resolve()),
     recreateConflict: vi.fn(() => Promise.resolve()),
+    discardHunks: vi.fn(() => Promise.resolve()),
   };
 });
-vi.mock("@tauri-apps/plugin-dialog", () => ({ ask: vi.fn(() => Promise.resolve(true)) }));
+const ask = vi.hoisted(() => vi.fn((_message: string, _options?: unknown) => Promise.resolve(true)));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ ask }));
 // jsdom has no ResizeObserver: flatten the resizable layout.
 vi.mock("react-resizable-panels", () => ({
   Group: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -55,7 +57,7 @@ vi.mock("@tanstack/react-virtual", async (importOriginal) => {
 });
 
 import * as ipc from "../../../api/ipc";
-const mocked = ipc as unknown as Record<"stagePaths" | "getFileDiff" | "getStatus" | "getAuthor" | "recreateConflict", ReturnType<typeof vi.fn>>;
+const mocked = ipc as unknown as Record<"stagePaths" | "getFileDiff" | "getStatus" | "getAuthor" | "recreateConflict" | "discardHunks", ReturnType<typeof vi.fn>>;
 
 const STATUS: WorkdirStatus = {
   entries: [
@@ -170,6 +172,46 @@ describe("CommitPanel", () => {
     const second = renderPanel();
     await act(async () => {});
     expect(second.queryByRole("button", { name: "Restore conflict" })).toBeNull();
+  });
+
+  it("hunk Discard is offered for the unstaged diff only, and asks before rewriting the file", async () => {
+    mocked.getFileDiff.mockImplementation((_id: string, _t: unknown, path: string) =>
+      Promise.resolve({
+        path,
+        oldPath: null,
+        status: "modified",
+        binary: false,
+        truncated: false,
+        maxLines: 20_000,
+        additions: 1,
+        deletions: 1,
+        hunks: [
+          {
+            header: "@@ -1,1 +1,1 @@",
+            oldStart: 1,
+            oldLines: 1,
+            newStart: 1,
+            newLines: 1,
+            lines: [
+              { kind: "del", oldNo: 1, newNo: null, text: "old", noNewline: false },
+              { kind: "add", oldNo: null, newNo: 1, text: "new", noNewline: false },
+            ],
+          },
+        ],
+      }),
+    );
+    const { getByRole, queryByRole } = renderPanel();
+    await act(async () => {});
+
+    fireEvent.click(getByRole("button", { name: "Discard hunk" }));
+    await waitFor(() => expect(mocked.discardHunks).toHaveBeenCalledWith("r", "a.rs", [0], 3));
+    expect(ask.mock.calls[0][0]).toContain("Discard this hunk from a.rs?");
+
+    // The staged diff edits the index: unstaging is the only thing on offer there.
+    fireEvent.click(Array.from(getByRole("listbox", { name: "Staged files" }).querySelectorAll('[role="option"]'))[0]);
+    await act(async () => {});
+    expect(getByRole("button", { name: "Unstage hunk" })).toBeTruthy();
+    expect(queryByRole("button", { name: "Discard hunk" })).toBeNull();
   });
 
   it("click / ctrl / shift build a multi-selection in one list", () => {

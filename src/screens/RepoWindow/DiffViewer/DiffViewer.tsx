@@ -47,6 +47,9 @@ export interface DiffActions {
   onRestoreConflict?: () => void;
   onStageHunk: (hunk: number) => void;
   onStageLines: (lines: [number, number][]) => void;
+  /** Unstaged diff only: throws the hunk / lines away instead of staging them. */
+  onDiscardHunk?: (hunk: number) => void;
+  onDiscardLines?: (lines: [number, number][]) => void;
 }
 
 export interface DiffViewerProps {
@@ -102,7 +105,7 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
   const pickAt = useRef(new Map<string, number>());
   pickAt.current = useMemo(() => new Map(picks.map((p, i) => [lineKey(p.ref.hunk, p.ref.line), i])), [picks]);
 
-  /** Space toggles, Shift+↑/↓ extends inside the hunk, Enter stages, plain ↑/↓ moves the cursor. */
+  /** Space toggles, Shift+↑/↓ extends inside the hunk, Enter stages, Delete discards, plain ↑/↓ moves the cursor. */
   const onBodyKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (!lineActions || !diff || picks.length === 0) return;
@@ -122,6 +125,11 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
       if (e.key === "Enter" && sel.keys.size > 0 && !lineActions.busy) {
         e.preventDefault();
         lineActions.onStageLines(toPairs(sel));
+        return;
+      }
+      if (e.key === "Delete" && sel.keys.size > 0 && !lineActions.busy && lineActions.onDiscardLines) {
+        e.preventDefault();
+        lineActions.onDiscardLines(toPairs(sel));
       }
     },
     [lineActions, diff, picks, cursor, sel],
@@ -218,6 +226,11 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
           <Button size="sm" variant="primary" className={s.barBtn} disabled={lineActions.busy} onClick={() => lineActions.onStageLines(toPairs(sel))}>
             {verb} {n} line{n === 1 ? "" : "s"}
           </Button>
+          {lineActions.onDiscardLines && (
+            <Button size="sm" variant="danger" className={s.barBtn} disabled={lineActions.busy} onClick={() => lineActions.onDiscardLines?.(toPairs(sel))}>
+              Discard {n} line{n === 1 ? "" : "s"}
+            </Button>
+          )}
         </div>
       )}
     </div>
@@ -365,10 +378,14 @@ const UnifiedRowView = memo(function UnifiedRowView({ row, top, lang, actions, s
         <span className={s.grow}>{row.header}</span>
         {actions && (
           <span className={s.hunkActions}>
-            {/* No hunk / line Discard: the backend has no reverse-apply-to-workdir. File-level discard lives in FilesColumn. */}
             <Button size="sm" variant="primary" className={s.hunkBtn} disabled={actions.busy} onClick={() => actions.onStageHunk(row.hunk)}>
               {actions.target === "staged" ? "Unstage hunk" : "Stage hunk"}
             </Button>
+            {actions.onDiscardHunk && (
+              <Button size="sm" variant="danger" className={s.hunkBtn} disabled={actions.busy} onClick={() => actions.onDiscardHunk?.(row.hunk)}>
+                Discard hunk
+              </Button>
+            )}
           </span>
         )}
       </div>
