@@ -166,6 +166,8 @@ From the real-window walkthrough: opening a large repo showed only the 14px stat
 - **Right-click outside a custom menu showed the webview's own menu** (Reload / Save as / Print — browser chrome in an app window). Suppressed app-wide from `App` via `lib/nativeMenu.ts`, except in editable fields and on selected `.selectable` text, where it is the only mouse route to cut/copy/paste. Tauri 2.11 exposes no switch for this: wry has `with_default_context_menus`, but tauri-runtime-wry never calls it — and the JS rule is better anyway, since it can be selective and also covers WebKitGTK/macOS. File rows still have no menu of their own (Stage/Discard/Copy path would be the natural set) — noted, not done.
 
 ### Known gaps / deferred (v1 ships with these)
+_Kept as the v1 record. The live list of open items is `2026-09-02-next-plan.md`._
+
 **Not implemented — needs a new backend command**
 - Hunk-/line-level **Discard**: needs reverse-apply-to-workdir; only file-level `discard_paths` exists. No button is rendered for it (the disabled placeholders were removed in the review pass).
 - **Settings screen**: the button is disabled everywhere ("Settings arrive after v1"). Would carry the git executable path (`set_git_path` exists since the 2026-09-02 review pass and backs "Locate git…" on the git-missing screen; Settings would just expose it), theme override, and diff context/whitespace defaults.

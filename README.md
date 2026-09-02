@@ -76,4 +76,6 @@ only (no rendering check, no signing / notarization yet), and the installer has 
 clean Windows machine. Deliberate v1 omissions are listed in
 `docs/plans/2026-08-31-git-ui-v1-plan.md` › Known gaps.
 
-Next: interactive rebase, blame and file history, submodules and worktrees, cherry-pick / revert, hunk- and line-level discard, custom titlebar, multi-repo tabs, settings dialog (git path, theme), i18n.
+What is still open — deferred features, verification that needs other machines, and the longer
+roadmap (interactive rebase, blame, submodules, multi-repo tabs, …) — is listed in one place:
+`docs/plans/2026-09-02-next-plan.md`.

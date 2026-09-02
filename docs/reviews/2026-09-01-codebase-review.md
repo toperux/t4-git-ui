@@ -37,7 +37,7 @@ Not read (judged low value): CSS modules, tests, `docs/design/*`, `main.rs`, `bu
 | H1 tsc twice in CI | fix | explicit `tsc` step dropped; `cargo test --workspace` now (src-tauri tests included) |
 | H2 no src-tauri tests | fix | `state.rs` + `error.rs` unit tests |
 | H3 CRLF working copies | fix | `.editorconfig` (`end_of_line = lf`); the 7 files converted |
-| H4 README "Next" vs plan gaps | later | fold into the next plan when it is written |
+| H4 README "Next" vs plan gaps | fix (2026-09-02) | folded into `docs/plans/2026-09-02-next-plan.md`; README points there |
 
 Severity: **M** = user-visible misbehaviour or a real leak · **L** = edge case / polish ·
 **P** = performance (no bug) · **H** = hygiene.
