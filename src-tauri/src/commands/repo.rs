@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::panic::AssertUnwindSafe;
+use std::path::{Component, Path};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -10,6 +11,7 @@ use git_core::watch::Watcher;
 use git_core::{RepoHandle, RepoId};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
+use tauri_plugin_opener::OpenerExt;
 
 use crate::{AppError, AppState};
 
@@ -318,6 +320,42 @@ pub async fn get_log_page(
             complete,
             generation,
         })
+    })
+    .await
+}
+
+/// Opens a working-tree file with the OS handler, or reveals it in the file
+/// manager (`reveal`). `path` is repository-relative: the opener is not
+/// scope-restricted, so anything that could point outside the working directory
+/// is refused here.
+#[tauri::command]
+pub async fn open_path(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: RepoId,
+    path: String,
+    reveal: bool,
+) -> Result<(), AppError> {
+    let handle = state.repo(&id)?;
+    // Plain names only — that rules out `..`, absolute paths, and (on Windows) a
+    // drive prefix or a leading separator, all of which escape the workdir.
+    let inside = Path::new(&path)
+        .components()
+        .all(|c| matches!(c, Component::Normal(_) | Component::CurDir));
+    if path.is_empty() || !inside {
+        return Err(AppError::Internal(format!(
+            "{path} is not a path inside the repository"
+        )));
+    }
+    let abs = handle.path.join(&path);
+    blocking(move || {
+        let opener = app.opener();
+        if reveal {
+            opener.reveal_item_in_dir(&abs)
+        } else {
+            opener.open_path(abs.to_string_lossy(), None::<&str>)
+        }
+        .map_err(|e| AppError::Internal(format!("could not open {path}: {e}")))
     })
     .await
 }

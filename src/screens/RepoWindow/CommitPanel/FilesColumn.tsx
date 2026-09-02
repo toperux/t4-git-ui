@@ -17,6 +17,7 @@ import { useTreeMode } from "../../../store/treeModeStore";
 import { Stats } from "../ChangedFileList/ChangedFileList";
 import { buildFileTree, flattenTree, hiddenSlot, type TreeLine } from "../ChangedFileList/fileTree";
 import s from "./CommitPanel.module.css";
+import { FileContextMenu, type FileMenuState } from "./FileContextMenu";
 
 /** `--row-h`; the virtualizer needs the number, and the rule below pins the same value. */
 const ROW_H = 26;
@@ -110,6 +111,7 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
   const unstage = useCommitStore((st) => st.unstage);
   const discard = useCommitStore((st) => st.discard);
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const [menu, setMenu] = useState<FileMenuState | null>(null);
 
   const rowId = useId();
   const nodes = useMemo(() => (tree ? buildFileTree(entries) : null), [tree, entries]);
@@ -175,6 +177,21 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
     select(list, clickSelect(all, sel, path, mods(e), visible));
   }
 
+  /** The menu acts on the selection, so a row outside it becomes the selection first. */
+  function openMenu(el: HTMLElement, at: { x: number; y: number }) {
+    const path = el.dataset.path;
+    if (!path) return;
+    if (!sel.selected.includes(path)) select(list, { selected: [path], anchor: path });
+    setMenu({ at, el, path });
+  }
+
+  function onContextMenu(e: MouseEvent<HTMLDivElement>) {
+    const row = (e.target as HTMLElement).closest<HTMLElement>("[data-path]");
+    if (!row) return;
+    e.preventDefault();
+    openMenu(row, { x: e.clientX, y: e.clientY });
+  }
+
   function onDoubleClick(e: MouseEvent<HTMLDivElement>) {
     if (busy || (e.target as HTMLElement).closest("[data-folder]")) return;
     act(sel.selected);
@@ -216,6 +233,16 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
         if (busy || list !== "unstaged" || sel.selected.length === 0) return;
         void discard(sel.selected);
         break;
+      case "F10":
+      case "ContextMenu": {
+        if (e.key === "F10" && !e.shiftKey) return;
+        // Keyboard menu: below the focused row. Found by walking the rows — a path is not a safe selector.
+        const row = Array.from(e.currentTarget.querySelectorAll<HTMLElement>("[data-path]")).find((r) => r.dataset.path === sel.anchor);
+        if (!row) return;
+        const r = row.getBoundingClientRect();
+        openMenu(row, { x: r.left + 8, y: r.bottom });
+        break;
+      }
       default:
         return;
     }
@@ -235,6 +262,7 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
       tabIndex={0}
       onKeyDown={onKeyDown}
       onClick={onClick}
+      onContextMenu={onContextMenu}
       onDoubleClick={onDoubleClick}
     >
       {entries.length === 0 ? (
@@ -283,6 +311,7 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
           })}
         </div>
       )}
+      <FileContextMenu list={list} paths={sel.selected} entries={entries} menu={menu} onClose={() => setMenu(null)} act={act} discard={(ps) => void discard(ps)} />
     </div>
   );
 }

@@ -74,6 +74,10 @@ export const findLogRow = (id: RepoId, generation: number, oid: string) =>
 /** Recomputes ref labels for the current walk; resolves with the current generation. */
 export const refreshLabels = (id: RepoId) => call<number>("refresh_labels", { id });
 
+/** Opens a repository-relative working-tree file with the OS handler, or reveals it in the file manager. */
+export const openPath = (id: RepoId, path: string, reveal: boolean) =>
+  call<void>("open_path", { id, path, reveal });
+
 // --- src-tauri/src/commands/diff.rs ---
 
 /** Files changed by `oid` vs its first parent. */

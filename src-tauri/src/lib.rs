@@ -145,6 +145,7 @@ pub fn run() {
             commands::repo::get_log_page,
             commands::repo::find_log_row,
             commands::repo::refresh_labels,
+            commands::repo::open_path,
             commands::diff::get_commit_files,
             commands::diff::get_changed_files,
             commands::diff::get_file_diff,

@@ -30,10 +30,14 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
     recreateConflict: vi.fn(() => Promise.resolve()),
     resolveConflict: vi.fn(() => Promise.resolve()),
     discardHunks: vi.fn(() => Promise.resolve()),
+    openPath: vi.fn(() => Promise.resolve()),
   };
 });
 const ask = vi.hoisted(() => vi.fn((_message: string, _options?: unknown) => Promise.resolve(true)));
-vi.mock("@tauri-apps/plugin-dialog", () => ({ ask }));
+// `open` is the folder picker `actions.ts` imports; the menu's Copy path pulls that module in.
+vi.mock("@tauri-apps/plugin-dialog", () => ({ ask, open: vi.fn() }));
+const writeText = vi.hoisted(() => vi.fn(() => Promise.resolve()));
+vi.mock("@tauri-apps/plugin-clipboard-manager", () => ({ writeText }));
 // jsdom has no ResizeObserver: flatten the resizable layout.
 vi.mock("react-resizable-panels", () => ({
   Group: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -58,7 +62,7 @@ vi.mock("@tanstack/react-virtual", async (importOriginal) => {
 });
 
 import * as ipc from "../../../api/ipc";
-const mocked = ipc as unknown as Record<"stagePaths" | "getFileDiff" | "getStatus" | "getAuthor" | "recreateConflict" | "resolveConflict" | "discardHunks", ReturnType<typeof vi.fn>>;
+const mocked = ipc as unknown as Record<"stagePaths" | "getFileDiff" | "getStatus" | "getAuthor" | "recreateConflict" | "resolveConflict" | "discardHunks" | "openPath", ReturnType<typeof vi.fn>>;
 
 const STATUS: WorkdirStatus = {
   entries: [
@@ -283,6 +287,74 @@ describe("CommitPanel", () => {
     );
     expect((await findAllByText(/Ada <ada@x>/)).length).toBe(2);
     expect(mocked.getAuthor).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("CommitPanel file context menu", () => {
+  /** Item labels only: the `Kbd` hint lives in the same button. */
+  const labels = (root: HTMLElement) => Array.from(root.querySelectorAll('[role="menuitem"]')).map((el) => text(el.querySelector('[class*="grow"]')!));
+  const rows = (root: HTMLElement, list: string) => Array.from(root.querySelector(`[aria-label="${list} files"]`)!.querySelectorAll('[role="option"]')) as HTMLElement[];
+
+  it("an unstaged file offers Stage, Discard, Copy path and the openers", () => {
+    const { getByRole, container } = renderPanel();
+    fireEvent.contextMenu(rows(container, "Unstaged")[0]);
+    expect(labels(getByRole("menu", { name: "File actions" }))).toEqual(["Stage", "Discard…", "Copy path", "Open", "Reveal in folder"]);
+  });
+
+  it("a staged file offers Unstage, with no Discard", () => {
+    const { getByRole, container } = renderPanel();
+    fireEvent.contextMenu(rows(container, "Staged")[1]);
+    expect(labels(getByRole("menu", { name: "File actions" }))).toEqual(["Unstage", "Copy path", "Open", "Reveal in folder"]);
+  });
+
+  it("a conflicted file offers either side by the branch name the backend put on it", () => {
+    useRepoStore.setState({ refs: { ...REFS, state: "merge", conflictSides: { ours: "main", theirs: "feature" } } });
+    const { getByRole, container } = renderPanel();
+    fireEvent.contextMenu(rows(container, "Unstaged")[2]);
+    const menu = getByRole("menu", { name: "File actions" });
+    expect(labels(menu)).toEqual(["Stage", "Discard…", "Keep main's version", "Keep feature's version", "Copy path", "Open", "Reveal in folder"]);
+    fireEvent.click(getByRole("menuitem", { name: "Keep feature's version" }));
+    expect(ask).toHaveBeenCalled();
+  });
+
+  it("Stage acts on the whole selection, not just the clicked row", () => {
+    const { getByRole, container } = renderPanel();
+    fireEvent.click(rows(container, "Unstaged")[0]);
+    fireEvent.click(rows(container, "Unstaged")[1], { ctrlKey: true });
+    fireEvent.contextMenu(rows(container, "Unstaged")[1]);
+    fireEvent.click(getByRole("menuitem", { name: "Stage 2 files" }));
+    expect(mocked.stagePaths).toHaveBeenCalledWith("r", ["a.rs", "both.rs"]);
+  });
+
+  it("right-clicking a row outside the selection selects just it", () => {
+    const { container } = renderPanel();
+    fireEvent.click(rows(container, "Unstaged")[0]);
+    fireEvent.contextMenu(rows(container, "Unstaged")[3]);
+    expect(useCommitStore.getState()).toMatchObject({ list: "unstaged", selected: ["untracked.txt"], anchor: "untracked.txt" });
+  });
+
+  it("Copy path copies the selected paths, one per line", () => {
+    const { getByRole, container } = renderPanel();
+    fireEvent.click(rows(container, "Unstaged")[0]);
+    fireEvent.click(rows(container, "Unstaged")[1], { shiftKey: true });
+    fireEvent.contextMenu(rows(container, "Unstaged")[0]);
+    fireEvent.click(getByRole("menuitem", { name: "Copy path" }));
+    expect(writeText).toHaveBeenCalledWith("a.rs\nboth.rs");
+  });
+
+  it("Reveal in folder hands the path to the backend; a deleted file has nothing to open", () => {
+    const { getByRole, container } = renderPanel();
+    fireEvent.contextMenu(rows(container, "Unstaged")[0]);
+    fireEvent.click(getByRole("menuitem", { name: "Reveal in folder" }));
+    expect(mocked.openPath).toHaveBeenCalledWith("r", "a.rs", true);
+
+    cleanup();
+    useStatusStore.setState({ status: { ...STATUS, entries: [{ path: "gone.rs", oldPath: null, index: null, workdir: "deleted", conflicted: false, workdirStamp: null }] } });
+    useCommitStore.getState().reset();
+    const second = renderPanel();
+    fireEvent.contextMenu(rows(second.container, "Unstaged")[0]);
+    expect(second.getByRole("menuitem", { name: "Open" }).hasAttribute("disabled")).toBe(true);
+    expect(second.getByRole("menuitem", { name: "Reveal in folder" }).hasAttribute("disabled")).toBe(true);
   });
 });
 
