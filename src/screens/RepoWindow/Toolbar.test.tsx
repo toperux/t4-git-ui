@@ -38,3 +38,12 @@ describe("Toolbar Fetch", () => {
     expect(useDialogStore.getState().dialog).toEqual({ kind: "fetch" });
   });
 });
+
+describe("Toolbar Repository menu", () => {
+  it("offers Run git command…, which opens the dialog", () => {
+    const { getByRole } = render(<Toolbar />);
+    fireEvent.click(getByRole("button", { name: "r" }));
+    fireEvent.click(getByRole("menuitem", { name: /Run git command/ }));
+    expect(useDialogStore.getState().dialog).toEqual({ kind: "runCommand" });
+  });
+});

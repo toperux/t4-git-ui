@@ -1,11 +1,13 @@
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RefsSnapshot, RepoSummary } from "../../../api/types";
+import { useCmdHistoryStore } from "../../../store/cmdHistoryStore";
 import { useOpsStore } from "../../../store/opsStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { useToastStore } from "../../../store/toastStore";
 import { DeleteRemoteTagDialog, MergeDialog, PullDialog, PushDialog, PushTagDialog, ResetBranchDialog, ResetDialog } from "./OpsDialogs";
 import { CheckoutBranchDialog, CreateBranchDialog, CreateTagDialog, DeleteTagDialog } from "./RefDialogs";
+import { RunCommandDialog } from "./RunCommandDialog";
 
 vi.mock("../../../api/ipc", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../../api/ipc")>();
@@ -21,6 +23,7 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
     createTag: vi.fn(() => Promise.resolve()),
     deleteTag: vi.fn(() => Promise.resolve()),
     deleteRemoteBranch: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
+    runGit: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     getDefaultRemote: vi.fn(() => Promise.resolve("origin")),
     getConfig: vi.fn(() => Promise.resolve(null)),
     getStatus: vi.fn(() => new Promise(() => {})),
@@ -30,7 +33,7 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
 
 import * as ipc from "../../../api/ipc";
 const mocked = ipc as unknown as Record<
-  "push" | "merge" | "pull" | "reset" | "resetBranch" | "checkout" | "createBranch" | "createTag" | "deleteTag" | "deleteRemoteBranch",
+  "push" | "merge" | "pull" | "reset" | "resetBranch" | "checkout" | "createBranch" | "createTag" | "deleteTag" | "deleteRemoteBranch" | "runGit",
   ReturnType<typeof vi.fn>
 >;
 
@@ -52,6 +55,7 @@ beforeEach(() => {
   useRepoStore.setState({ repo: REPO, refs: REFS });
   useOpsStore.setState({ ops: [], open: false, busy: null });
   useToastStore.setState({ toasts: [] });
+  useCmdHistoryStore.setState({ history: [] });
 });
 afterEach(cleanup);
 
@@ -242,5 +246,28 @@ describe("MergeDialog", () => {
     fireEvent.click(getByRole("button", { name: "Merge" }));
     expect(onClose).toHaveBeenCalled();
     await waitFor(() => expect(mocked.merge).toHaveBeenCalledWith("r", "feature/lane-graph", "no", true, "custom msg"));
+  });
+});
+
+describe("RunCommandDialog", () => {
+  it("previews the parsed line re-quoted, runs it, and records it in the history", async () => {
+    const { getByRole } = render(<RunCommandDialog onClose={() => {}} />);
+    const dialog = getByRole("dialog", { name: "Run git command" });
+    expect(getByRole("button", { name: "Run" }).hasAttribute("disabled")).toBe(true);
+    fireEvent.change(getByRole("combobox", { name: "Git command" }), { target: { value: 'commit -m "two words"' } });
+    expect(preview(dialog)).toBe("git commit -m 'two words'");
+    fireEvent.click(getByRole("button", { name: "Run" }));
+    await waitFor(() => expect(mocked.runGit).toHaveBeenCalledWith("r", ["commit", "-m", "two words"]));
+    expect(useCmdHistoryStore.getState().history).toEqual(['commit -m "two words"']);
+    expect(useOpsStore.getState().open).toBe(true);
+  });
+
+  it("refuses a flag that needs a terminal before running", () => {
+    const { getByRole, getByText } = render(<RunCommandDialog onClose={() => {}} />);
+    fireEvent.change(getByRole("combobox", { name: "Git command" }), { target: { value: "add -i" } });
+    expect(getByText(/-i needs a terminal/)).toBeTruthy();
+    expect(getByRole("button", { name: "Run" }).hasAttribute("disabled")).toBe(true);
+    fireEvent.keyDown(getByRole("combobox", { name: "Git command" }), { key: "Enter" });
+    expect(mocked.runGit).not.toHaveBeenCalled();
   });
 });

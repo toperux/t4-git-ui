@@ -1,0 +1,101 @@
+/* Input anatomy (Input.module.css .input / .field) with a `$ git` prefix; the list is Select's listbox
+   with a hint column. */
+.wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  white-space: nowrap;
+  height: var(--control-h);
+  padding: 0 var(--space-4);
+  background: var(--bg-inset);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: var(--mono-size);
+  transition:
+    background-color var(--dur) var(--ease),
+    border-color var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease);
+}
+.wrap:hover {
+  border-color: var(--border-strong);
+}
+.wrap:focus-within {
+  background: var(--bg-panel);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.invalid,
+.invalid:focus-within {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px var(--danger-soft);
+}
+.prefix {
+  color: var(--fg-muted);
+  flex: none;
+  user-select: none;
+}
+.field {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  outline: none;
+  cursor: text;
+  user-select: text;
+}
+.field:focus-visible {
+  box-shadow: none;
+}
+.field::placeholder {
+  color: var(--fg-faint);
+}
+.field:disabled {
+  opacity: 0.5;
+}
+/* Portalled to the body, so z-index clears the dialog scrim (40). */
+.listbox {
+  position: fixed;
+  z-index: 45;
+  max-height: 320px;
+  overflow: auto;
+  padding: var(--space-2);
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+}
+.opt {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  height: var(--row-h);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+.optActive {
+  background: var(--accent);
+  color: var(--fg-on-accent);
+}
+.optText {
+  font-family: var(--font-mono);
+  font-size: var(--mono-size);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.optHint {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.optActive .optHint {
+  color: inherit;
+  opacity: 0.85;
+}

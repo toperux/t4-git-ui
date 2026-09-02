@@ -374,6 +374,37 @@ pub fn classify_failure(code: i32, stdout: &str, stderr: &str) -> OpFailure {
     OpFailure::Other { message }
 }
 
+/// Refuses argv that would need a terminal, before anything runs: `--interactive`
+/// anywhere, `-i` for add / rebase / clean / stash, `-p` / `--patch` for add /
+/// reset / checkout / restore / stash / commit — scanned up to the first `--`
+/// (what follows are pathspecs). An empty argv is refused too.
+/// Kept in step with `interactiveFlag` in `src/lib/argv.ts`.
+pub fn check_custom_args(args: &[String]) -> Result<(), String> {
+    let cmd = args
+        .first()
+        .map(String::as_str)
+        .ok_or_else(|| "Type a git command, e.g. status".to_string())?;
+    let flag_i = matches!(cmd, "add" | "rebase" | "clean" | "stash");
+    let flag_p = matches!(
+        cmd,
+        "add" | "reset" | "checkout" | "restore" | "stash" | "commit"
+    );
+    for a in args.iter().take_while(|a| a.as_str() != "--") {
+        let interactive = match a.as_str() {
+            "--interactive" => true,
+            "-i" => flag_i,
+            "-p" | "--patch" => flag_p,
+            _ => false,
+        };
+        if interactive {
+            return Err(format!(
+                "{a} needs a terminal; interactive mode is not supported here"
+            ));
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -657,5 +688,34 @@ mod tests {
         assert_eq!(mode, PullMode::FfOnly);
         let ff: FfMode = serde_json::from_str("\"no\"").unwrap();
         assert_eq!(ff, FfMode::No);
+    }
+
+    #[test]
+    fn custom_args_refuse_what_needs_a_terminal() {
+        let v = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        for bad in [
+            v(&["add", "-i"]),
+            v(&["rebase", "--interactive", "main"]),
+            v(&["add", "-p"]),
+            v(&["stash", "push", "--patch"]),
+            v(&["clean", "-i"]),
+            v(&[]),
+        ] {
+            assert!(check_custom_args(&bad).is_err(), "{bad:?}");
+        }
+        for ok in [
+            v(&["status"]),
+            v(&["commit", "-m", "x"]),
+            v(&["add", "--", "-i"]),
+            v(&["log", "-p"]),
+            v(&["show", "-p", "HEAD"]),
+            v(&["commit", "-i", "a.txt"]),
+        ] {
+            assert!(check_custom_args(&ok).is_ok(), "{ok:?}");
+        }
+        assert_eq!(
+            check_custom_args(&v(&["add", "-p"])).unwrap_err(),
+            "-p needs a terminal; interactive mode is not supported here"
+        );
     }
 }

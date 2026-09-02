@@ -73,3 +73,17 @@
   color: var(--fg-muted);
   font-style: italic;
 }
+/* The prompt line sits under the log, outside `.output` (not selectable text, not part of the log). */
+.prompt {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex: none;
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--border);
+  background: var(--bg-app);
+}
+.prompt > :first-child {
+  flex: 1;
+  min-width: 0;
+}

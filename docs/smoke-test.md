@@ -257,6 +257,21 @@ Use `C:\tmp\t4\work` and the bare remote.
 - [ ] `Ctrl+Shift+W` during an op → refused with the same toast; the repo menu's Open / recents /
       Close items are disabled with that tooltip (the op would finish against a repository that is
       no longer open)
+- [ ] Repository menu → **Run git command…** (`Ctrl+Shift+R`): type `sta` → the list offers `status` /
+      `stash` with hints; `Tab` completes `status `; type `-` → its flags; **Run** → the dock expands
+      on its own with the output and `exit 0`; no toast
+- [ ] Same dialog: type `checkout ` → the list shows local branches, `origin/…`, tags, `stash@{0}` and
+      remote names; pick `feature` → checked out, sidebar and grid follow
+- [ ] `add -i` → inline "-i needs a terminal…" help, Run disabled; `commit -m "two words"` → the
+      preview reads `git commit -m 'two words'` and the dock line `git commit -m "two words"`
+      (quoting survives the round trip)
+- [ ] Expanded dock (`` Ctrl+` ``) has a `$ git` prompt at the bottom: `status` + `Enter` runs and
+      clears the line; `↑` recalls it, `↑` again the one before, `↓` returns to what was typed;
+      the completion list opens **upward**; `F5` / `Ctrl+B` typed there do nothing
+- [ ] While an op runs the prompt is disabled ("Running…"); restart the app and open another
+      repository → the history is still there (it is global)
+- [ ] From the prompt, `fetch slow` → elapsed timer + **Cancel** in the dock header kills it; the
+      "Cancelled" toast appears; `fetch nowhere` → error toast naming `git fetch nowhere`
 
 ## 6. Cross-cutting
 

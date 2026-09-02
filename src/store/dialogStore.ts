@@ -5,6 +5,7 @@ export type DialogSpec =
   | { kind: "push"; branch?: string }
   | { kind: "pull" }
   | { kind: "fetch" }
+  | { kind: "runCommand" }
   | { kind: "merge"; branch?: string }
   | { kind: "rebase"; onto?: string }
   | { kind: "checkout" }

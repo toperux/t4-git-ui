@@ -157,6 +157,7 @@ pub fn run() {
             commands::ops::stash_pop,
             commands::ops::stash_drop,
             commands::ops::delete_remote_branch,
+            commands::ops::run_git,
             commands::ops::create_branch,
             commands::ops::delete_branch,
             commands::ops::rename_branch,

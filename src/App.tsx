@@ -10,6 +10,7 @@ import { GitMissingScreen } from "./screens/GitMissingScreen/GitMissingScreen";
 import { closeRepo } from "./screens/RepoWindow/actions";
 import { RepoWindow } from "./screens/RepoWindow/RepoWindow";
 import { StartScreen } from "./screens/StartScreen/StartScreen";
+import { useCmdHistoryStore } from "./store/cmdHistoryStore";
 import { useOpsStore } from "./store/opsStore";
 import { useRecentsStore } from "./store/recentsStore";
 import { useRepoStore } from "./store/repoStore";
@@ -33,6 +34,7 @@ export default function App() {
       setPhase({ kind: "gitMissing", message: toAppError(e).message });
       return;
     }
+    void useCmdHistoryStore.getState().load();
     // Reopen the repository that was open at last exit; any failure just lands on the start screen.
     const recents = useRecentsStore.getState();
     try {

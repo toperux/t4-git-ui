@@ -3,9 +3,14 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "../../components/ui/Button/Button";
 import { IconButton } from "../../components/ui/IconButton/IconButton";
 import { PanelHeader } from "../../components/ui/PanelHeader/PanelHeader";
+import { CommandInput } from "../../components/ui/CommandInput/CommandInput";
 import { Spinner } from "../../components/ui/Spinner/Spinner";
+import { interactiveFlag, splitArgs } from "../../lib/argv";
 import { cx } from "../../lib/cx";
-import { selectLastOp, useOpsStore, type OpRecord } from "../../store/opsStore";
+import { useCmdHistoryStore } from "../../store/cmdHistoryStore";
+import { selectLastOp, selectRunning, useOpsStore, type OpRecord } from "../../store/opsStore";
+import { useRepoStore } from "../../store/repoStore";
+import { runGit } from "./actions";
 import s from "./OutputDock.module.css";
 
 const secs = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
@@ -40,6 +45,53 @@ export function OutputDock() {
     <div className={s.panel}>
       {header}
       <OutputBody ops={ops} />
+      <DockPrompt />
+    </div>
+  );
+}
+
+/** `$ git …` line under the log: Enter runs (actions `runGit`), ↑ / ↓ recall earlier lines, disabled while an op runs. */
+function DockPrompt() {
+  const [text, setText] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const busy = useOpsStore(selectRunning);
+  const history = useCmdHistoryStore((st) => st.history);
+  const refs = useRepoStore((st) => st.refs);
+
+  function run() {
+    const parsed = splitArgs(text);
+    if (!parsed.ok) {
+      setError(parsed.error);
+      return;
+    }
+    if (parsed.args.length === 0) return;
+    const flag = interactiveFlag(parsed.args);
+    if (flag) {
+      setError(`${flag} needs a terminal`);
+      return;
+    }
+    setText("");
+    void runGit(text);
+  }
+
+  return (
+    <div className={s.prompt}>
+      <CommandInput
+        aria-label="Run git command"
+        placement="up"
+        placeholder={busy ? "Running…" : "Type a git command"}
+        disabled={busy}
+        invalid={error !== null}
+        value={text}
+        onChange={(v) => {
+          setText(v);
+          setError(null);
+        }}
+        onSubmit={run}
+        history={history}
+        refs={refs}
+      />
+      {error && <span className={cx(s.xs, s.err)}>{error}</span>}
     </div>
   );
 }

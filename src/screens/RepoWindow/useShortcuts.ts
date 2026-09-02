@@ -34,6 +34,9 @@ export function useShortcuts() {
       } else if (ctrl && e.shiftKey && key === "l") {
         e.preventDefault();
         if (!busy) open({ kind: "pull" });
+      } else if (ctrl && e.shiftKey && key === "r") {
+        e.preventDefault();
+        if (!busy) open({ kind: "runCommand" });
       } else if (ctrl && !e.shiftKey && key === "b") {
         e.preventDefault();
         if (!busy) open({ kind: "createBranch" });

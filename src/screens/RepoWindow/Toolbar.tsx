@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Search,
   Settings,
+  Terminal,
   X,
 } from "lucide-react";
 import { useEffect, useState, type MouseEvent } from "react";
@@ -110,6 +111,9 @@ export function Toolbar() {
       >
         <MenuItem icon={<FolderOpen size={16} aria-hidden />} disabled={running} title={running ? BUSY : undefined} onClick={pick(() => void pickAndOpenRepo(), () => setRepoMenu(false))}>
           Open repository…
+        </MenuItem>
+        <MenuItem icon={<Terminal size={16} aria-hidden />} kbd="Ctrl+Shift+R" disabled={running} title={running ? BUSY : undefined} onClick={pickDialog({ kind: "runCommand" }, () => setRepoMenu(false))}>
+          Run git command…
         </MenuItem>
         <MenuSeparator />
         {others.length === 0 ? (

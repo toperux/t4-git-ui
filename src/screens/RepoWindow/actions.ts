@@ -4,11 +4,14 @@ import { open as openFolder } from "@tauri-apps/plugin-dialog";
 import * as ipc from "../../api/ipc";
 import { toAppError } from "../../api/ipc";
 import type { Branch, RemoteBranch } from "../../api/types";
+import { splitArgs } from "../../lib/argv";
+import { useCmdHistoryStore } from "../../store/cmdHistoryStore";
 import { useDialogStore } from "../../store/dialogStore";
 import { runOp, selectRunning, useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
 import { useStatusStore } from "../../store/statusStore";
 import { toastError, useToastStore } from "../../store/toastStore";
+import { gitCmd } from "./dialogs/gitArgs";
 
 export const currentBranch = (): Branch | null => useRepoStore.getState().refs?.local.find((b) => b.isHead) ?? null;
 
@@ -49,6 +52,20 @@ export const rebaseContinue = () => runOp("Continuing rebase…", (id) => ipc.re
 export const stashApply = (index: number) => runOp(`Applying stash@{${index}}…`, (id) => ipc.stashApply(id, index), { success: `Applied stash@{${index}}` });
 export const stashPop = (index: number) => runOp(`Popping stash@{${index}}…`, (id) => ipc.stashPop(id, index), { success: `Popped stash@{${index}}` });
 export const stashDrop = (index: number) => runOp(`Dropping stash@{${index}}…`, (id) => ipc.stashDrop(id, index), { success: `Dropped stash@{${index}}` });
+
+/**
+ * `git <line>` typed by the user. The line goes into the history as it runs (a failing command is
+ * worth recalling too) and the dock opens for its output; there is no success toast, the dock's
+ * exit line is the result.
+ */
+export function runGit(line: string) {
+  const parsed = splitArgs(line);
+  if (!parsed.ok || parsed.args.length === 0) return;
+  useCmdHistoryStore.getState().push(line.trim());
+  useOpsStore.getState().setOpen(true);
+  const label = gitCmd(parsed.args);
+  return runOp(label.length > 48 ? `${label.slice(0, 47)}…` : label, (id) => ipc.runGit(id, parsed.args));
+}
 
 export function copyText(text: string, what: string) {
   void writeText(text)

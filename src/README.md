@@ -51,6 +51,8 @@ src/
     recentsStore.ts        zustand: RecentRepo{path,name,lastOpened,pinned} persisted via lib/kv; load (migrates the M1
                            `localStorage.lastRepo`), touch (20 unpinned cap), remove, togglePin, lastOpen, lastCloneDir;
                            pure helpers sortRecents / capRecents / filterRecents
+    cmdHistoryStore.ts     zustand: lines typed into "Run git command…" / the dock prompt, newest first, global across
+                           repositories (lib/kv `cmdHistory`, 50 entries); pushCmd (dedupe → front, cap)
     opsStore.ts            zustand: OpRecord[] from `op://event` (started/stdout/stderr/progress-redraw/exit), max 50 ops × 5000 lines,
                            cancel(opId), dock open (a non-zero exit opens it, unless that op was cancelled),
                            `busy` (statusbar text of the running op) + selectRunning;
@@ -71,6 +73,11 @@ src/
                            nativeMenu.ts (keepsNativeMenu: the webview's own context menu is suppressed app-wide from
                            App.tsx, kept only in editable fields and on selected `.selectable` text),
                            msgHistory.ts (localStorage `msgHistory:<repoId>`, 20 entries; splitMessage/joinMessage, CRLF-safe),
+                           argv.ts (splitArgs: a typed `git …` line → argv, shell quoting rules; interactiveFlag mirrors
+                           cli/ops.rs `check_custom_args` for the inline error — the Rust side is what enforces it),
+                           gitCompletions.ts (GIT_COMMANDS table: porcelain commands, everyday flags with hints, two-level
+                           stash/remote/submodule/worktree; complete(text, refs, history) → history lines first, then
+                           commands | subcommands | flags | refs by caret position, 30 max),
                            kv.ts (store plugin `recents.json`, localStorage fallback; an unreadable value reads as absent),
                            paths.ts (baseName/parentDir/pathSep/joinPath/repoNameFromUrl/prettyUrl — the one path helper module),
                            branchName.ts (validateRefName: the check-ref-format subset — spaces, `..`, `//`, leading `-`,
@@ -80,6 +87,9 @@ src/
                            parses ONE line → {text, cls}[] spans, 5k-entry LRU; cls ∈ keyword|string|comment|number|type|function|punct)
   components/ui/<Name>/    one folder per style-guide component: <Name>.tsx + <Name>.module.css (incl. StatusGlyph A/M/D/R/U/C,
                            Checkbox, Kbd (the one shortcut-chip anatomy, used by MenuItem + StartScreen),
+                           CommandInput (`$ git …` field + portalled completion list from lib/gitCompletions, above or
+                           below; focus stays in the field via aria-activedescendant; Tab/Enter accept, Enter alone
+                           submits, Escape closes the list before the dialog sees it, ↑/↓ walk the history),
                            Input + Select (`<option>` children, `onChange` shaped like a native change; the list is
                            app-drawn and portalled — a native <select> popup is an OS window that ignores the theme),
                            BusyOverlay (scrim + spinner card while repoStore.opening is set; rendered once in App.tsx
@@ -104,17 +114,21 @@ src/
                            closeRepo — the git ones through runOp),
                            banners.ts (pure refs+status → detached | merge | rebase | sequencer (cherry-pick/revert/bisect,
                            text only — no backend abort) | conflicts banners),
-                           useShortcuts.ts (Ctrl+Shift+U push, Ctrl+Shift+L pull, Ctrl+B branch, Ctrl+F5 fetch, F5 refresh, Ctrl+`),
+                           useShortcuts.ts (Ctrl+Shift+U push, Ctrl+Shift+L pull, Ctrl+Shift+R run git command, Ctrl+B branch,
+                           Ctrl+F5 fetch, F5 refresh, Ctrl+`),
                            dialogs/ (DialogHost + OpsDialogs Push/Push tag + Delete remote tag (`refs/tags/<name>` with a
                            remote picker, from the sidebar tag menu)/Pull/Fetch/Merge/Rebase, RefDialogs Checkout picker /
-                           Create-Rename-Delete branch / remote branch / tags, StashDialogs; gitArgs.ts mirrors cli/ops.rs
+                           Create-Rename-Delete branch / remote branch / tags, StashDialogs, RunCommandDialog (one
+                           CommandInput; Run → actions `runGit`); gitArgs.ts mirrors cli/ops.rs
                            for the footer's "Runs `git …`" preview — that file is the source of truth),
                            DetailsPane (bottom pane: CommitDetails 340 | ChangedFileList 320 | DiffViewer, resizable;
                            an annotated tag pointing at the selected commit adds its own message block under the
                            commit message — `refs.tags[].message` is `null` on a lightweight tag, which is all that
                            tells the two apart once the tag is peeled),
                            OutputDock (collapsed 28px: `$ cmd` + Check/X icon, exit · elapsed / spinner + Cancel; expanded
-                           `.output` log inside `RepoWindow`'s resizable `DockPanel`, 160–320px, opens at 200 every launch)
+                           `.output` log + a `$ git` prompt line (CommandInput, list opens upward, disabled while an op
+                           runs, Enter → actions `runGit`) inside `RepoWindow`'s resizable `DockPanel`, 160–320px, opens
+                           at 200 every launch)
       RevisionGrid/        RevisionGrid (virtualized; role=grid wraps the header row + the scrolling rowgroup, owns the keyboard
                            and aria-activedescendant; row 0 = WorkingTreeRow while dirty & unfiltered —
                            commit rows shift by one, store indices stay commit-based), GridRow (memo, per-row store selectors),

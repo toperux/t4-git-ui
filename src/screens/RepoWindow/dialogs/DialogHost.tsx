@@ -13,6 +13,7 @@ import {
   DeleteTagDialog,
   RenameBranchDialog,
 } from "./RefDialogs";
+import { RunCommandDialog } from "./RunCommandDialog";
 import { StashDialog, StashPushDialog } from "./StashDialogs";
 
 export function DialogHost() {
@@ -33,6 +34,8 @@ function renderDialog(dialog: DialogSpec, close: () => void): ReactNode {
       return <PullDialog onClose={close} />;
     case "fetch":
       return <FetchDialog onClose={close} />;
+    case "runCommand":
+      return <RunCommandDialog onClose={close} />;
     case "merge":
       return <MergeDialog onClose={close} branch={dialog.branch} />;
     case "rebase":

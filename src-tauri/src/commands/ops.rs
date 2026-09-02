@@ -362,6 +362,20 @@ pub async fn delete_remote_branch(
     cli_op(&app, &state, &id, args, false).await
 }
 
+/// `git <args>` as typed by the user: the same op lock, streaming and refresh
+/// as every other CLI op. Flags that need a terminal are refused (kind
+/// `refused`) before anything runs.
+#[tauri::command]
+pub async fn run_git(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: RepoId,
+    args: Vec<String>,
+) -> Result<OpResult, AppError> {
+    gitops::check_custom_args(&args).map_err(GitError::Refused)?;
+    cli_op(&app, &state, &id, args, false).await
+}
+
 // ---- git2-backed ops ----
 
 /// Creates `name` at `target`. With `checkout` it runs `git checkout -b`
