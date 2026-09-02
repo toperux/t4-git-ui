@@ -109,6 +109,12 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the first two perfo
       ellipsizes the branch name instead; the full text is in its tooltip; same for
       "Reset `<local>` to `<remote>`…" — only the local name ellipsizes, `to origin/x…` stays
 - [ ] Sidebar: the checked-out branch never shows a `merged` badge, even with a branch ahead of it
+- [ ] **Settings** (toolbar gear, also on the start screen): a bogus git path + Apply → the error shows
+      inline, the old path stays and the app keeps working; the real path → `git version …` shows and
+      the statusbar version follows; **Theme → Follow system** → the window tracks the OS again after
+      the toolbar toggle had pinned it; **Context lines** 1 → the open diff reloads with one line of
+      context and **Stage hunk** still stages the right hunk; **Ignore whitespace by default** → the
+      details-pane diff opens with the toggle on; quit and relaunch → every value survives
 - [ ] Right-click the toolbar, a panel header or the statusbar → **nothing** (no browser menu with
       Reload / Save as / Print); right-click inside a text field still offers Cut / Copy / Paste, and
       so does selected diff / commit-message / output-dock text
@@ -155,6 +161,10 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the first two perfo
       tree mode → the selection moves to the row below it (not the status-order neighbour)
 - [ ] Stage via `Enter`, double-click, and the hover `+` button; `Stage all` / `Unstage all` work
 - [ ] Hover a hunk header → **Stage hunk**; click it → only that hunk moves to Staged
+- [ ] Hover a hunk header → **Discard hunk** beside it → confirm → the hunk is gone from the working
+      tree and the other hunks of `hunks.txt` are untouched; select two lines → **Discard 2 lines**
+      (or `Delete`) → confirm → only those lines revert; a CRLF file behaves the same; the staged
+      side, an untracked file and a conflicted file offer no Discard
 - [ ] Stage a second hunk of the same file straight after → the diff drops that one too; every stage
       updates the view, not just the first (`hunks.txt` has three to work through)
 - [ ] Click add/del lines (`Shift` for a range, `Ctrl` to toggle) → the sticky bar reads
@@ -168,6 +178,15 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the first two perfo
       remaining line selection are preserved
 - [ ] Save an unrelated file in your editor while lines are selected → the selection survives
 - [ ] `Delete` on unstaged rows → confirm dialog (untracked wording says "delete") → discards
+- [ ] Right-click an unstaged row (or `Shift+F10`) → Stage / Discard… / Copy path / Open / Reveal in
+      folder; a staged row offers Unstage instead and no Discard; right-click a row outside the
+      selection → only that row is selected; with three rows selected the items read "3 files" and
+      Open / Reveal are gone; **Open** launches the file's default app, **Reveal in folder** opens
+      Explorer with the file selected, **Copy path** toasts the repo-relative path; a deleted file
+      keeps Copy path but Open / Reveal are disabled
+- [ ] `chmod +x` a tracked file and edit a line (WSL / Linux / macOS only) → the diff header shows
+      `100644 → 100755`; **Stage hunk** → the staged entry carries the new mode (`git diff --cached`
+      shows `old mode` / `new mode`) and the unstaged side is clean
 - [ ] Check **Amend** → summary and body prefill from HEAD; the staged header notes amending
 - [ ] Type a summary → the counter turns danger past 72 characters
 - [ ] `Ctrl+Enter` commits → the output dock shows `$ git commit …` and `✓ exit 0`; the editor clears,
@@ -215,6 +234,13 @@ Use `C:\tmp\t4\work` and the bare remote.
       (git drops the three stages on `add`, and no unstage brings them back), so the header says
       "Marked resolved, but the conflict markers are still here" with a **Restore conflict** button →
       confirm → the file is conflicted again and "Resolve in editor" is back
+- [ ] **Keep main's version** / **Keep feature's version** sit before "Resolve in editor" (labels are the
+      branch names, `main` first — git's *ours*); the same two items are in the file row's right-click
+      menu → pick the second → confirm → the file holds `feature`'s content, has no markers, and is
+      already staged; `Restore conflict` brings the conflict back
+- [ ] Rebase `feature` onto `main` so the same file conflicts → the labels are **Keep main's version**
+      (git's *ours* = the branch rebased onto) and **Keep feature's version**; each keeps the content
+      its label says — not the other way round
 - [ ] Resolve the conflict (in that editor or any other) → **the file can be staged** (whole-file) →
       commit → banners clear
 - [ ] **Rebase** onto a diverged branch, then Abort → the branch is restored, banner clears
@@ -225,6 +251,10 @@ Use `C:\tmp\t4\work` and the bare remote.
 - [ ] Right-click an unmerged branch → Delete… → refused → the dialog re-offers **Force delete**
 - [ ] Create an annotated and a lightweight tag from a commit row (right-click → Create tag here…) →
       both land on **that** row, not on HEAD; with a Message the preview reads `git tag -a -m '…' …`
+- [ ] Create tag with **Push to remote after creating** ticked → the preview ends in
+      `&& git push origin refs/tags/<name>`, two ops run back to back, the tag is on the bare remote
+      (`git -C <bare> tag`); a name that already exists → the create fails and nothing is pushed;
+      in a repo without remotes the checkbox is absent
 - [ ] Select the tagged row → commit details shows the **annotated** tag's message in its own block
       under the commit message; the lightweight one adds nothing
 - [ ] Sidebar → Tags → right-click the annotated tag → **Push…** → preview reads
@@ -339,10 +369,8 @@ The first two need a large repo; the last two use the fixture.
 
 These are recorded in `docs/plans/2026-08-31-git-ui-v1-plan.md` › Known gaps:
 
-- No **Discard** on a hunk or on selected lines — file-level discard only
-- **Settings** button is disabled everywhere (the git-missing screen's "Locate git…" covers the git path)
-- No reveal-in-folder, no context menu on the diff, no interactive rebase / blame / file history /
-  submodules / worktrees / bisect / cherry-pick / revert UI, no multi-repo tabs, no i18n
+- No context menu on the diff body or on the details pane's file list, no interactive rebase / blame /
+  file history / submodules / worktrees / bisect / cherry-pick / revert UI, no multi-repo tabs, no i18n
 - Syntax highlighting is per line, so block comments and template strings colour line by line
 - Hunk/line staging of a **non-UTF-8** file may fail or misapply — whole-file staging is fine
 - Native OS titlebar (deliberate)

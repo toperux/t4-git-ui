@@ -11,11 +11,12 @@ Rust core (`git2` for reads and the index, the system `git` for everything that 
 - **Revision grid** — lane graph for all branches or the current one (the graph column fits the rows in view), ref chips (HEAD, local, remote, tags, stashes), text filter, working-tree row while the tree is dirty; virtualized, fine with very large histories. Right-click a commit to check out or reset the branches sitting on it, merge it (or a branch on it) into the current branch, rebase the current branch onto it, create a branch or tag there, or copy the SHA.
 - **Sidebar** — local branches, remotes, tags and stashes; branches with `/` nest in folders (remote ones too), a branch whose tip is already inside another is marked `merged`.
 - **Details pane** — commit metadata, changed files (flat / tree), unified and side-by-side diffs with per-line syntax highlighting (JS/TS, Rust, CSS, JSON, HTML, Python), whitespace toggle.
-- **Commit panel** — unstaged / staged lists (flat or as a folder tree — chains of single folders fold into one row, guide lines mark the depth) with multi-select, stage / unstage whole files, hunks or selected lines, discard, amend, Signed-off-by, message history, Commit & Push; or the same as a full-window commit dialog (lists and message stacked left, diff right). Hooks and GPG signing run through the real `git`.
-- **Branch and remote operations** — fetch / pull / push, merge, rebase (continue / abort), checkout, create / rename / delete branches, create / push / delete tags (locally or on a remote), stash push / apply / pop / drop, each with a dialog that previews the exact `git …` command; output streams into a dock with Cancel. Anything else: **Run git command…** (`Ctrl+Shift+R`, or the prompt line in the dock) runs any `git …` line with completions for subcommands, flags, refs and your history.
+- **Commit panel** — unstaged / staged lists (flat or as a folder tree — chains of single folders fold into one row, guide lines mark the depth) with multi-select and a right-click menu (stage / unstage, discard, copy path, open, reveal in folder), stage / unstage / discard whole files, hunks or selected lines (mode changes ride along), keep *ours* or *theirs* per conflicted file, amend, Signed-off-by, message history, Commit & Push; or the same as a full-window commit dialog (lists and message stacked left, diff right). Hooks and GPG signing run through the real `git`.
+- **Branch and remote operations** — fetch / pull / push, merge, rebase (continue / abort), checkout, create / rename / delete branches, create (optionally pushing right away) / push / delete tags (locally or on a remote), stash push / apply / pop / drop, each with a dialog that previews the exact `git …` command; output streams into a dock with Cancel. Anything else: **Run git command…** (`Ctrl+Shift+R`, or the prompt line in the dock) runs any `git …` line with completions for subcommands, flags, refs and your history.
 - **State banners** — detached HEAD, merge / rebase in progress, conflicts.
 - **Start screen** — recent repositories (pin, filter), open, clone with progress, init; a friendly screen when `git` is missing.
 - Light and dark themes following the OS, or a toggle in the toolbar; no flash on launch; every colour pair audited for WCAG contrast.
+- **Settings** — git executable, theme (light / dark / follow the OS), diff context lines and whitespace default; applied on change.
 
 Not in v1: interactive rebase, blame, file history, submodules, worktrees, bisect, cherry-pick / revert UI, multi-repo tabs.
 
@@ -66,8 +67,8 @@ Ctrl is ⌘ on macOS.
 | Commit panel | `Enter` / double-click · `Delete` | Stage / unstage selection · discard |
 | Commit panel | `Ctrl+Enter` | Commit |
 | Commit panel | double-click the working-tree row | Open the commit dialog |
-| Diff (staging) | click · `Shift`+click · `Ctrl`+click | Select lines / extend / toggle |
-| Grid · Sidebar | `Shift+F10` · right-click | Context menu |
+| Diff (staging) | click · `Shift`+click · `Ctrl`+click · `Enter` · `Delete` | Select lines / extend / toggle · stage · discard |
+| Grid · Sidebar · Commit panel rows | `Shift+F10` · right-click | Context menu |
 | Sidebar | double-click | Checkout |
 | Dialogs | `Enter` · `Esc` | Submit · close |
 

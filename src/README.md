@@ -24,7 +24,8 @@ src/
                            ensureRows (500-row pages, dedupe, stale drop), select, selectWorkingTree, revealOid;
                            a page rejected with `staleGeneration` restarts the walk, any other kind toasts once (never loops);
                            `__resetForTests()` clears the module-level page bookkeeping
-    diffStore.ts           zustand: selected commit → files (get_commit_files), selectedPath (default first), diff (get_file_diff, context 3),
+    diffStore.ts           zustand: selected commit → files (get_commit_files), selectedPath (default first), diff (get_file_diff with `context` — 3 unless Settings says otherwise;
+                           setContext reloads),
                            stale responses dropped via seq counters; view unified|split (localStorage.diffView), ignoreWhitespace,
                            fileListMode flat|tree (localStorage.fileListMode)
     statusStore.ts         zustand: WorkdirStatus; refresh (seq-guarded) / scheduleRefresh (100 ms debounce); onChanged(`repo://changed`):
@@ -45,7 +46,10 @@ src/
                            keeps the `diff` object identity when the hunks are equal, and refetches
                            the stats only when the entry list changed — one call in flight), stage/unstage/discard
                            (native ask(); discard resolves `false` when declined *or* when another mutation held `busy`),
-                           stageHunk/stageLines (reverse for staged), setAmend (get_head_message prefill), useMessage, commit
+                           stageHunk/stageLines (reverse for staged; both send diffStore's `context` so the backend rebuilds
+                           the same hunks), discardHunk/discardLines (native ask, then `discard_hunks` / `discard_lines` —
+                           `git apply -R` on the working tree), resolveConflict(paths, side, label) (ask, then
+                           `resolve_conflict` = `checkout --ours|--theirs` + add), setAmend (get_head_message prefill), useMessage, commit
                            (→ oid | null, clears the editor incl. after an amend, msgHistory, toast, status + refs refresh),
                            reset on repo change
     recentsStore.ts        zustand: RecentRepo{path,name,lastOpened,pinned} persisted via lib/kv; load (migrates the M1
@@ -57,6 +61,10 @@ src/
                            cancel(opId), dock open (a non-zero exit opens it, unless that op was cancelled),
                            `busy` (statusbar text of the running op) + selectRunning;
                            runOp(busy, fn, {success, onRefused}) — the single entry point for every branch/remote/stash op
+    settingsStore.ts       zustand: diffContext / ignoreWhitespace / gitPath (+ gitVersion, gitError) from lib/kv; load() after the
+                           git probe seeds diffStore; setters persist and apply at once (setGitPath probes through
+                           set_git_path first and keeps only a working path; the version is mirrored into repoStore).
+                           Theme stays in theme/theme.ts
     dialogStore.ts         zustand: one `DialogSpec` at a time — open(spec, {returnFocusTo}) / close(); DialogHost renders it
                            and feeds `returnFocusTo` to `Dialog` through `DialogReturnFocus`
     toastStore.ts          zustand: toasts (info|success auto-dismiss after 6 s, errors persist until dismissed);
@@ -108,14 +116,20 @@ src/
                            restored, aria-modal) + Field / FieldRow / Options / DialogText / Mono)
   screens/
     StartScreen/           recents list (filter, keyboard, pin, remove) | Open / Clone… / Initialize… cards + shortcuts;
-                           CloneDialog.tsx (components/ui/Dialog with `busy`; form → progress mode)
-    GitMissingScreen/      probe_git failed → "Git not found" + Retry + "Locate git…" (file picker → set_git_path, kept in kv `gitPath`)
+                           CloneDialog.tsx (components/ui/Dialog with `busy`; form → progress mode); the gear opens
+                           SettingsDialog from local state (no DialogHost here)
+    SettingsDialog/        Settings (wide Dialog, Close only — every field applies on change): Git executable (path, Locate…,
+                           Apply → version or error inline), Theme (Light / Dark / Follow system → theme.setTheme), Diff
+                           (context lines 0–99, ignore whitespace by default) — backed by store/settingsStore
+    GitMissingScreen/      probe_git failed → "Git not found" + Retry + "Locate git…" (file picker → set_git_path, kept in kv `gitPath`;
+                           Settings edits the same key)
     RepoWindow/            RepoWindow (layout: toolbar 40 / sidebar 260 | StateBanners + grid ÷ (DetailsPane | CommitPanel when
                            wtSelected) / dock / statusbar 24 w/ spinner + busy text; hosts DialogHost + useShortcuts)
                            Toolbar (repo menu = open repository name → folder picker / other recents / close, Fetch = split
                            button: click → default remote w/ prune, ▾ → the Fetch dialog (remote, prune, tags), Pull / Push
                            dialogs + ahead/behind counts, Branch and Stash menus, Commit button
-                           = change count, Repository menu › Commit… / Run git command…, ThemeToggle beside Settings;
+                           = change count, Repository menu › Commit… / Run git command…, ThemeToggle beside the Settings gear
+                           (dialogStore kind `settings`);
                            every op button disabled while one runs),
                            Sidebar (one `role="tree"` per section with a roving tabIndex; branches with `/` nest in
                            folder rows under Local and under each remote; a `mergedInto` branch (never the current one) is muted with a
@@ -169,15 +183,23 @@ src/
                            thing that draws it: ↑/↓ scroll it into view and focus it (`[data-cursor]`), a click adopts it, and
                            focusing the region hands off to the cursor line (outside staging there is none, so the region keeps
                            the focus for scrolling); wholeFile (untracked / conflicted) = header `note`, no hunk/line actions;
-                           `onResolve` / `onRestoreConflict` add a "Resolve in editor" / "Restore conflict" button. The body scrolls back
-                           to the top only when the file path changes. No hunk/line Discard: the backend has no
-                           reverse-apply-to-workdir — file-level discard lives in `CommitPanel/FilesColumn`
+                           `onResolve` / `onRestoreConflict` add a "Resolve in editor" / "Restore conflict" button, `sides` +
+                           `onKeepSide` add "Keep <ours>'s version" / "Keep <theirs>'s version" (labels = refs.conflictSides,
+                           git's own direction — during a rebase *ours* is the branch rebased onto); `onDiscardHunk` /
+                           `onDiscardLines` add "Discard hunk" / "Discard N lines" (+ `Delete` on a selection), wired for the
+                           unstaged side only; a mode change shows as a `100644 → 100755` chip beside the stats. The body
+                           scrolls back to the top only when the file path changes
                            diffRows.ts (pure: flattenUnified (rows carry hunk/index) / flattenSplit), lineSelection.ts (pure: clickLine, toPairs)
       CommitPanel/         CommitPanel (Files 320 | Diff | Message 340, resizable; `useCommitSync` — called once from RepoWindow
                            while the panel or the commit dialog is up — feeds statusStore.status →
                            commitStore.syncWithStatus; the message header's "Open commit window" opens dialogs/CommitDialog:
                            the same columns as a full-window dialog, Unstaged / Staged / Message stacked left, diff right,
                            closing itself after a commit — also Repository menu › Commit… and a double-click on the working-tree row),
+                           FileContextMenu (right-click / Shift+F10 on a row — a row outside the selection is selected alone
+                           first: Stage / Unstage the selection, Discard… (unstaged), Keep <side>'s version when every
+                           selected file is conflicted, Copy path, Open (OS default app) and Reveal in folder — single file,
+                           still on disk — through `open_path`, a Rust command that joins the repo-relative path itself so the
+                           webview never gets an arbitrary-path opener scope),
                            FilesColumn (Unstaged + Stage all / Staged + Unstage all; virtualized 26px rows, role=listbox
                            aria-multiselectable + aria-activedescendant — or role=tree with folder rows when the header's
                            "Show as tree" toggle beside the title is on (store/treeModeStore.ts, one mode for every mount, `localStorage.commitFileListMode`;
