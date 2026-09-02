@@ -18,6 +18,7 @@ import {
 import { useEffect, useState, type MouseEvent } from "react";
 import type { RevSpec, Stash } from "../../api/types";
 import { IconButton } from "../../components/ui/IconButton/IconButton";
+import { ThemeToggle } from "../../components/ui/ThemeToggle/ThemeToggle";
 import { Input, Select } from "../../components/ui/Input/Input";
 import { Menu, MenuItem, MenuSeparator } from "../../components/ui/Menu/Menu";
 import { ToolbarButton, ToolbarSeparator } from "../../components/ui/ToolbarButton/ToolbarButton";
@@ -267,6 +268,7 @@ export function Toolbar() {
       <IconButton label="Refresh" title="Refresh (F5)" onClick={refreshAll}>
         <RefreshCw size={16} aria-hidden />
       </IconButton>
+      <ThemeToggle />
       <IconButton label="Settings" title={SETTINGS_SOON} disabled>
         <Settings size={16} aria-hidden />
       </IconButton>

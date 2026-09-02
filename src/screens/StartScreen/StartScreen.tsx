@@ -7,6 +7,7 @@ import { toAppError } from "../../api/ipc";
 import type { AppError } from "../../api/types";
 import { EmptyState } from "../../components/ui/EmptyState/EmptyState";
 import { IconButton } from "../../components/ui/IconButton/IconButton";
+import { ThemeToggle } from "../../components/ui/ThemeToggle/ThemeToggle";
 import { Kbd } from "../../components/ui/Kbd/Kbd";
 import { Input } from "../../components/ui/Input/Input";
 import { Spinner } from "../../components/ui/Spinner/Spinner";
@@ -169,6 +170,7 @@ export function StartScreen() {
         <span className={s.title}>t4 git ui</span>
         <span className={s.version}>{pkg.version}</span>
         <span className={s.grow} />
+        <ThemeToggle />
         <IconButton label="Settings" title="Settings arrive after v1" disabled>
           <Settings size={16} aria-hidden />
         </IconButton>
