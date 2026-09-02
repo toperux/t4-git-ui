@@ -146,29 +146,33 @@ export function Sidebar() {
   const mergedBadge = (mergedInto: string | null) => mergedInto && <Badge title={`Merged into ${mergedInto} — safe to delete`}>merged</Badge>;
   const mergedTitle = (name: string, mergedInto: string | null) => (mergedInto ? `${name} — merged into ${mergedInto}` : name);
 
-  const branchRow = (b: Branch, label: string, depth: number) => (
-    <TreeRow
-      key={b.name}
-      role="treeitem"
-      aria-level={depth + 1}
-      depth={depth}
-      icon={<GitBranch size={14} aria-hidden />}
-      label={mergedLabel(label, b.mergedInto)}
-      title={mergedTitle(b.name, b.mergedInto)}
-      current={b.isHead}
-      selected={b.isHead}
-      meta={
-        <>
-          <AheadBehind ahead={b.ahead} behind={b.behind} />
-          {b.gone && <Badge title="Upstream is gone">gone</Badge>}
-          {mergedBadge(b.mergedInto)}
-        </>
-      }
-      onClick={() => void revealOid(b.oid)}
-      onDoubleClick={() => !b.isHead && void checkoutBranch(b.name)}
-      {...rowMenu({ kind: "local", branch: b })}
-    />
-  );
+  const branchRow = (b: Branch, label: string, depth: number) => {
+    // The checked-out branch cannot be deleted, so it is never "safe to delete" whatever the backend says.
+    const mergedInto = b.isHead ? null : b.mergedInto;
+    return (
+      <TreeRow
+        key={b.name}
+        role="treeitem"
+        aria-level={depth + 1}
+        depth={depth}
+        icon={<GitBranch size={14} aria-hidden />}
+        label={mergedLabel(label, mergedInto)}
+        title={mergedTitle(b.name, mergedInto)}
+        current={b.isHead}
+        selected={b.isHead}
+        meta={
+          <>
+            <AheadBehind ahead={b.ahead} behind={b.behind} />
+            {b.gone && <Badge title="Upstream is gone">gone</Badge>}
+            {mergedBadge(mergedInto)}
+          </>
+        }
+        onClick={() => void revealOid(b.oid)}
+        onDoubleClick={() => !b.isHead && void checkoutBranch(b.name)}
+        {...rowMenu({ kind: "local", branch: b })}
+      />
+    );
+  };
 
   const remoteRow = (remote: string) => (rb: RemoteBranch, label: string, depth: number) => (
     <TreeRow

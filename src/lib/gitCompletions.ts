@@ -17,6 +17,8 @@ export interface Completions {
 }
 
 export const MAX_ITEMS = 30;
+/** History rows lead the list; capped on their own so they never crowd out the flags / refs. */
+export const MAX_HISTORY_ITEMS = 8;
 
 type Flags = [flag: string, hint: string][];
 
@@ -105,7 +107,10 @@ export const GIT_COMMANDS: Record<string, Cmd> = {
   "count-objects": { hint: "Object counts", flags: [["-v", "verbose"]] },
 };
 
-/** Where the word being typed starts (after the last whitespace outside quotes); `null` inside an open quote. */
+/**
+ * Where the word being typed starts (after the last whitespace outside quotes); `null` inside an
+ * open quote. Same rules as `splitArgs`: `\"` / `\'` outside quotes is a literal, whitespace is ASCII.
+ */
 function wordStart(text: string): number | null {
   let quote: string | null = null;
   let start = 0;
@@ -113,8 +118,9 @@ function wordStart(text: string): number | null {
     const c = text[i];
     if (quote) {
       if (c === quote) quote = null;
-    } else if (c === '"' || c === "'") quote = c;
-    else if (/\s/.test(c)) start = i + 1;
+    } else if (c === "\\" && (text[i + 1] === '"' || text[i + 1] === "'")) i++;
+    else if (c === '"' || c === "'") quote = c;
+    else if (/[ \t\r\n]/.test(c)) start = i + 1;
   }
   return quote ? null : start;
 }
@@ -142,7 +148,12 @@ export function complete(text: string, refs: RefsSnapshot | null, history: strin
   const words = before.ok ? before.args : [];
   const items: Completion[] = [];
   const line = text.trimStart();
-  if (line) for (const h of history) if (h.startsWith(line) && h !== line) items.push({ text: h, hint: "history", kind: "history" });
+  if (line) {
+    for (const h of history) {
+      if (items.length === MAX_HISTORY_ITEMS) break;
+      if (h.startsWith(line) && h !== line) items.push({ text: h, hint: "history", kind: "history" });
+    }
+  }
 
   const matches = (name: string) => name.startsWith(cur);
   const top = own(GIT_COMMANDS, words[0] ?? "");

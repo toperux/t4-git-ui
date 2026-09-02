@@ -101,7 +101,9 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the first two perfo
       branch on it adds Checkout `<branch>` (or Checkout branch… when several sit there), and one
       with a remote branch whose local branch is elsewhere adds Reset `<local>` to `<remote>`…
 - [ ] Check out a long-named branch, right-click a row → the Reset item keeps `to here…` visible and
-      ellipsizes the branch name instead; the full text is in its tooltip
+      ellipsizes the branch name instead; the full text is in its tooltip; same for
+      "Reset `<local>` to `<remote>`…" — only the local name ellipsizes, `to origin/x…` stays
+- [ ] Sidebar: the checked-out branch never shows a `merged` badge, even with a branch ahead of it
 - [ ] Right-click the toolbar, a panel header or the statusbar → **nothing** (no browser menu with
       Reload / Save as / Print); right-click inside a text field still offers Cut / Copy / Paste, and
       so does selected diff / commit-message / output-dock text
@@ -138,6 +140,10 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the first two perfo
 - [ ] **Show as tree** (the folder button beside the Unstaged title; it turns into a list icon once in tree mode) → both lists nest by folder with
       folders first; clicking a folder collapses it and `↑` `↓` / `Shift+click` skip its files; the
       hover `+` / `−`, `Enter` and double-click still act on file rows; the choice survives a restart
+- [ ] Tree view keys: `Enter` / `Space` / `←` / `→` on a clicked folder row toggle it and stage nothing;
+      select a file, collapse its folder → it stays selected, `Ctrl+A` then `Enter` stages the hidden
+      one too; `↓` from the hidden file lands on the first file after the folder; stage a file in
+      tree mode → the selection moves to the row below it (not the status-order neighbour)
 - [ ] Stage via `Enter`, double-click, and the hover `+` button; `Stage all` / `Unstage all` work
 - [ ] Hover a hunk header → **Stage hunk**; click it → only that hunk moves to Staged
 - [ ] Stage a second hunk of the same file straight after → the diff drops that one too; every stage
@@ -161,7 +167,9 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the first two perfo
 - [ ] **Open commit window** (the expand button in the Commit message header, a double-click on the
       working-tree row, or Repository menu › Commit…) → a full-window dialog: Unstaged / Staged / Message stacked on the left, the diff on
       the right, all three splitters drag; staging there is mirrored in the panel behind; `Esc`
-      closes it, and a successful Commit closes it by itself
+      closes it, and a successful Commit closes it by itself; `Esc` with the Message history menu
+      open closes only the menu; the tree toggle in the dialog flips the panel behind it too;
+      Commit & Push from the dialog → after closing Push, focus is back where the dialog was opened
 - [ ] With `user.name` unset → a warning line appears and Commit is disabled
 - [ ] `touch .git/index.lock` then try to stage → error toast **that stays put** with a Retry action;
       remove the lock, press Retry → succeeds
@@ -269,19 +277,25 @@ Use `C:\tmp\t4\work` and the bare remote.
       on its own with the output and `exit 0`; no toast
 - [ ] Same dialog: type `checkout ` → the list shows local branches, `origin/…`, tags, `stash@{0}` and
       remote names; pick `feature` → checked out, sidebar and grid follow
-- [ ] `add -i` → inline "-i needs a terminal…" help, Run disabled; `commit -m "two words"` → the
+- [ ] `add -i` → inline "-i needs a terminal…" help, Run disabled; so does `add -ip`, while
+      `commit -m -p` is allowed (`-p` is the message); `commit` with no `-m` runs and fails at once
+      with "Aborting commit due to empty commit message" (no editor, no hang); `commit -m "two words"` → the
       preview reads `git commit -m 'two words'` and the dock line `git commit -m "two words"`
       (quoting survives the round trip)
 - [ ] Expanded dock (`` Ctrl+` ``) has a `$ git` prompt at the bottom: `status` + `Enter` runs and
       clears the line; `↑` recalls it, `↑` again the one before, `↓` returns to what was typed;
       the completion list opens **upward**; `F5` / `Ctrl+B` typed there do nothing
-- [ ] While an op runs the prompt is disabled ("Running…"); restart the app and open another
+- [ ] While an op runs the prompt stays focused and shows "Running…", Enter does nothing until it
+      ends; `` Ctrl+` `` collapses the dock from inside the prompt; restart the app and open another
       repository → the history is still there (it is global)
 - [ ] From the prompt, `fetch slow` → elapsed timer + **Cancel** in the dock header kills it; the
-      "Cancelled" toast appears; `fetch nowhere` → error toast naming `git fetch nowhere`
+      "Cancelled" toast appears; `fetch nowhere` → **no** toast; the dock's exit line shows the non-zero code
+      (a typed `push` that is rejected still toasts, with its Pull action)
 
 ## 6. Cross-cutting
 
+- [ ] Toggle to light, quit, relaunch on a dark-mode OS → the window is light from its first frame
+      (the preference is mirrored into the kv store; toggle back to "system" → follows the OS again)
 - [ ] **No theme flash**: on a dark-mode OS the window never flashes light during launch (test both
       dev and the installed release build)
 - [ ] Switch the OS theme while the app runs → the UI follows, including graph lane colours

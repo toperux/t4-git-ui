@@ -1,12 +1,16 @@
-import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { WorkdirStatus } from "../../../api/types";
+import type { RefsSnapshot, WorkdirStatus } from "../../../api/types";
 import { useCommitStore } from "../../../store/commitStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { useDialogStore } from "../../../store/dialogStore";
 import { useStatusStore } from "../../../store/statusStore";
+import { __resetForTests as resetTreeMode, useTreeModeStore } from "../../../store/treeModeStore";
 import { CommitDialog } from "../dialogs/CommitDialog";
-import { CommitPanel } from "./CommitPanel";
+import { CommitPanel, useCommitSync } from "./CommitPanel";
+
+/** `commit()` refreshes status + refs afterwards; the refs side resolves so the promise settles. */
+const REFS = vi.hoisted<RefsSnapshot>(() => ({ head: { oid: "h", branch: "main", detached: false }, state: "clean", local: [], remotes: [], tags: [], stashes: [] }));
 
 vi.mock("../../../api/ipc", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../../api/ipc")>();
@@ -16,6 +20,11 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
     getChangedFiles: vi.fn(() => Promise.resolve([])),
     getFileDiff: vi.fn(() => new Promise(() => {})),
     getAuthor: vi.fn(() => Promise.resolve({ name: "Ada", email: "ada@x" })),
+    getRefs: vi.fn(() => Promise.resolve(REFS)),
+    refreshLabels: vi.fn(() => Promise.resolve(1)),
+    startLog: vi.fn(() => Promise.resolve(1)),
+    getLogPage: vi.fn(() => new Promise(() => {})),
+    commit: vi.fn(() => Promise.resolve("abcdef1234")),
     stagePaths: vi.fn(() => Promise.resolve()),
     unstagePaths: vi.fn(() => Promise.resolve()),
     recreateConflict: vi.fn(() => Promise.resolve()),
@@ -46,7 +55,7 @@ vi.mock("@tanstack/react-virtual", async (importOriginal) => {
 });
 
 import * as ipc from "../../../api/ipc";
-const mocked = ipc as unknown as Record<"stagePaths" | "getFileDiff" | "recreateConflict", ReturnType<typeof vi.fn>>;
+const mocked = ipc as unknown as Record<"stagePaths" | "getFileDiff" | "getStatus" | "getAuthor" | "recreateConflict", ReturnType<typeof vi.fn>>;
 
 const STATUS: WorkdirStatus = {
   entries: [
@@ -64,17 +73,32 @@ const STATUS: WorkdirStatus = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.removeItem("commitFileListMode");
+  resetTreeMode();
   useRepoStore.setState({ repo: { id: "r", name: "r", path: "r", head: { oid: "h", branch: "main", detached: false } }, wtSelected: true });
   useStatusStore.setState({ status: STATUS, error: null });
+  useDialogStore.setState({ dialog: null, returnFocus: null });
   useCommitStore.getState().reset();
 });
 afterEach(cleanup);
 
 const text = (el: Element) => el.textContent?.replace(/\s+/g, " ").trim();
 
+/** What `RepoWindow` does above the panel and the dialog: feed the status into the commit store, once. */
+function Synced({ children }: { children: React.ReactNode }) {
+  useCommitSync(true);
+  return children;
+}
+const renderPanel = () =>
+  render(
+    <Synced>
+      <CommitPanel />
+    </Synced>,
+  );
+
 describe("CommitPanel", () => {
   it("splits the status into Unstaged / Staged lists with glyphs; conflicts stay stageable", () => {
-    const { getByRole } = render(<CommitPanel />);
+    const { getByRole } = renderPanel();
     const unstaged = Array.from(getByRole("listbox", { name: "Unstaged files" }).querySelectorAll('[role="option"]'));
     const staged = Array.from(getByRole("listbox", { name: "Staged files" }).querySelectorAll('[role="option"]'));
     expect(unstaged.map(text)).toEqual(["Ma.rs", "Mboth.rs", "Cconflict.rs", "Uuntracked.txt"]);
@@ -90,7 +114,7 @@ describe("CommitPanel", () => {
   });
 
   it("Stage all skips conflicted files (staging one is 'mark resolved') and says so", () => {
-    const { getByRole } = render(<CommitPanel />);
+    const { getByRole } = renderPanel();
     const btn = getByRole("button", { name: "Stage all" });
     expect(btn.getAttribute("title")).toContain("1 skipped");
     fireEvent.click(btn);
@@ -98,7 +122,7 @@ describe("CommitPanel", () => {
   });
 
   it("the row action stages a single conflicted file, and its diff is whole-file only", () => {
-    const { getByRole, getByText } = render(<CommitPanel />);
+    const { getByRole, getByText } = renderPanel();
     const rows = Array.from(getByRole("listbox", { name: "Unstaged files" }).querySelectorAll('[role="option"]'));
     fireEvent.click(rows[2]);
     expect(getByText("Conflict — stage the file once resolved")).toBeTruthy();
@@ -131,8 +155,8 @@ describe("CommitPanel", () => {
         ],
       }),
     );
-    useRepoStore.setState({ refs: { head: { oid: "h", branch: "main", detached: false }, state: "merge", local: [], remotes: [], tags: [], stashes: [] } });
-    const { getByRole, getByText } = render(<CommitPanel />);
+    useRepoStore.setState({ refs: { ...REFS, state: "merge" } });
+    const { getByRole, getByText } = renderPanel();
     await act(async () => {});
 
     expect(getByText("Marked resolved, but the conflict markers are still here")).toBeTruthy();
@@ -142,14 +166,14 @@ describe("CommitPanel", () => {
 
     // Outside a merge the same markers are just text in a file.
     cleanup();
-    useRepoStore.setState({ refs: { head: { oid: "h", branch: "main", detached: false }, state: "clean", local: [], remotes: [], tags: [], stashes: [] } });
-    const second = render(<CommitPanel />);
+    useRepoStore.setState({ refs: REFS });
+    const second = renderPanel();
     await act(async () => {});
     expect(second.queryByRole("button", { name: "Restore conflict" })).toBeNull();
   });
 
   it("click / ctrl / shift build a multi-selection in one list", () => {
-    const { getByRole } = render(<CommitPanel />);
+    const { getByRole } = renderPanel();
     const rows = () => Array.from(getByRole("listbox", { name: "Unstaged files" }).querySelectorAll('[role="option"]'));
     fireEvent.click(rows()[0]);
     fireEvent.click(rows()[3], { shiftKey: true });
@@ -164,7 +188,7 @@ describe("CommitPanel", () => {
   });
 
   it("Commit is disabled until a summary exists; the counter turns danger past 72", async () => {
-    const { getByRole, getByLabelText, findByText } = render(<CommitPanel />);
+    const { getByRole, getByLabelText, findByText } = renderPanel();
     const commit = getByRole("button", { name: "Commit" });
     expect(commit.hasAttribute("disabled")).toBe(true);
     // Commit & Push follows the same rules as Commit (it commits, then opens the Push dialog).
@@ -185,11 +209,22 @@ describe("CommitPanel", () => {
   it("Commit stays disabled with nothing staged unless amending; the staged header says so", () => {
     useStatusStore.setState({ status: { ...STATUS, staged: 0, entries: STATUS.entries.filter((e) => e.index === null) } });
     useCommitStore.setState({ summary: "msg" });
-    const { getByRole, getByText } = render(<CommitPanel />);
+    const { getByRole, getByText } = renderPanel();
     expect(getByRole("button", { name: "Commit" }).hasAttribute("disabled")).toBe(true);
     act(() => useCommitStore.setState({ amend: true }));
     expect(getByRole("button", { name: "Commit" }).hasAttribute("disabled")).toBe(false);
     expect(getByText("Staged (amending)")).toBeTruthy();
+  });
+
+  it("the author is fetched once for the panel and the dialog together", async () => {
+    const { findAllByText } = render(
+      <Synced>
+        <CommitPanel />
+        <CommitDialog onClose={() => {}} />
+      </Synced>,
+    );
+    expect((await findAllByText(/Ada <ada@x>/)).length).toBe(2);
+    expect(mocked.getAuthor).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -207,53 +242,134 @@ describe("CommitPanel tree view", () => {
   };
 
   beforeEach(() => {
-    localStorage.clear();
     useStatusStore.setState({ status: NESTED, error: null });
     useCommitStore.getState().reset();
   });
 
+  /** Treeitems of the unstaged tree: `src`, `lib`, `b.rs`, `a.rs`, `top.rs` while everything is expanded. */
+  const items = (root: HTMLElement) => Array.from(root.querySelectorAll('[role="treeitem"]'));
+
   it("the toggle nests both lists by folder, remembers the choice, and a folder click collapses it", () => {
-    const { getByRole, queryByRole } = render(<CommitPanel />);
+    const { getByRole, queryByRole } = renderPanel();
     expect(getByRole("listbox", { name: "Unstaged files" })).toBeTruthy();
     fireEvent.click(getByRole("button", { name: "Show as tree" }));
     expect(localStorage.getItem("commitFileListMode")).toBe("tree");
     expect(queryByRole("listbox", { name: "Unstaged files" })).toBeNull();
 
-    const items = () => Array.from(getByRole("tree", { name: "Unstaged files" }).querySelectorAll('[role="treeitem"]'));
-    expect(items().map(text)).toEqual(["src", "lib", "Mb.rs", "Ma.rs", "Mtop.rs"]);
-    expect(items().map((r) => r.getAttribute("aria-level"))).toEqual(["1", "2", "3", "2", "1"]);
-    expect(items()[2].getAttribute("title")).toBe("src/lib/b.rs");
-    expect(Array.from(getByRole("tree", { name: "Staged files" }).querySelectorAll('[role="treeitem"]')).map(text)).toEqual(["src", "Ma.rs"]);
+    const tree = () => getByRole("tree", { name: "Unstaged files" });
+    expect(items(tree()).map(text)).toEqual(["src", "lib", "Mb.rs", "Ma.rs", "Mtop.rs"]);
+    expect(items(tree()).map((r) => r.getAttribute("aria-level"))).toEqual(["1", "2", "3", "2", "1"]);
+    expect(items(tree())[2].getAttribute("title")).toBe("src/lib/b.rs");
+    expect(items(getByRole("tree", { name: "Staged files" })).map(text)).toEqual(["src", "Ma.rs"]);
 
     // Collapsing skips the folder's files for ↑/↓ and Shift ranges; the selection is untouched.
-    fireEvent.click(items()[3]);
-    fireEvent.click(items()[1]);
-    expect(items().map(text)).toEqual(["src", "lib", "Ma.rs", "Mtop.rs"]);
-    expect(items()[2].getAttribute("aria-selected")).toBe("true");
-    fireEvent.keyDown(getByRole("tree", { name: "Unstaged files" }), { key: "ArrowUp" });
-    expect(items()[2].getAttribute("aria-selected")).toBe("true");
-    fireEvent.click(items()[3], { shiftKey: true });
-    expect(items().map((r) => r.getAttribute("aria-selected"))).toEqual([null, null, "true", "true"]);
+    fireEvent.click(items(tree())[3]);
+    fireEvent.click(items(tree())[1]);
+    expect(items(tree()).map(text)).toEqual(["src", "lib", "Ma.rs", "Mtop.rs"]);
+    expect(items(tree())[2].getAttribute("aria-selected")).toBe("true");
+    fireEvent.keyDown(tree(), { key: "ArrowUp" });
+    expect(items(tree())[2].getAttribute("aria-selected")).toBe("true");
+    fireEvent.click(items(tree())[3], { shiftKey: true });
+    expect(items(tree()).map((r) => r.getAttribute("aria-selected"))).toEqual([null, null, "true", "true"]);
 
-    // The preference is read back on the next mount.
+    // The preference is read back on the next launch.
     cleanup();
-    const again = render(<CommitPanel />);
+    resetTreeMode();
+    const again = renderPanel();
     expect(again.getByRole("tree", { name: "Unstaged files" })).toBeTruthy();
     expect(again.getByRole("button", { name: "Show as list" })).toBeTruthy();
+  });
+
+  it("one mode for every mount: the dialog's toggle switches the panel behind it", () => {
+    const { getAllByRole } = render(
+      <Synced>
+        <CommitPanel />
+        <CommitDialog onClose={() => {}} />
+      </Synced>,
+    );
+    expect(getAllByRole("button", { name: "Show as tree" })).toHaveLength(2);
+    fireEvent.click(getAllByRole("button", { name: "Show as tree" })[1]);
+    expect(getAllByRole("button", { name: "Show as list" })).toHaveLength(2);
+    expect(getAllByRole("tree", { name: "Unstaged files" })).toHaveLength(2);
+  });
+
+  it("Enter / Space / ← / → on a focused folder row toggle it and never stage", () => {
+    useTreeModeStore.setState({ tree: true });
+    const { getByRole } = renderPanel();
+    const tree = () => getByRole("tree", { name: "Unstaged files" });
+    fireEvent.click(items(tree())[3]); // select a.rs
+    const lib = () => items(tree())[1];
+    fireEvent.keyDown(lib(), { key: "Enter" });
+    expect(items(tree()).map(text)).toEqual(["src", "lib", "Ma.rs", "Mtop.rs"]);
+    fireEvent.keyDown(lib(), { key: "ArrowLeft" }); // already collapsed: nothing
+    expect(items(tree())).toHaveLength(4);
+    fireEvent.keyDown(lib(), { key: "ArrowRight" });
+    expect(items(tree())).toHaveLength(5);
+    fireEvent.keyDown(lib(), { key: "ArrowLeft" });
+    expect(items(tree())).toHaveLength(4);
+    fireEvent.keyDown(lib(), { key: " " });
+    expect(items(tree())).toHaveLength(5);
+    expect(mocked.stagePaths).not.toHaveBeenCalled();
+    // Other keys still drive the file selection.
+    fireEvent.keyDown(lib(), { key: "ArrowDown" });
+    expect(items(tree())[4].getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("a collapsed folder keeps its selected files: Ctrl+click, Ctrl+A and Enter cover them; ↑/↓ resume from its row", async () => {
+    useTreeModeStore.setState({ tree: true });
+    const { getByRole } = renderPanel();
+    const tree = () => getByRole("tree", { name: "Unstaged files" });
+    const lib = () => items(tree())[1];
+    fireEvent.click(items(tree())[2]); // b.rs
+    fireEvent.click(lib());
+    expect(tree().getAttribute("aria-activedescendant")).toBeNull();
+    fireEvent.click(items(tree())[2], { ctrlKey: true }); // a.rs
+    expect(useCommitStore.getState().selected).toEqual(["src/lib/b.rs", "src/a.rs"]);
+    fireEvent.keyDown(tree(), { key: "Enter" });
+    expect(mocked.stagePaths).toHaveBeenLastCalledWith("r", ["src/lib/b.rs", "src/a.rs"]);
+    await act(async () => {}); // the mutation settles (`busy` off); the status stays as mocked
+
+    fireEvent.keyDown(tree(), { key: "a", ctrlKey: true });
+    expect(useCommitStore.getState().selected).toEqual(["src/lib/b.rs", "src/a.rs", "top.rs"]);
+    fireEvent.keyDown(tree(), { key: "Enter" });
+    expect(mocked.stagePaths).toHaveBeenLastCalledWith("r", ["src/lib/b.rs", "src/a.rs", "top.rs"]);
+
+    // Hidden anchor: ↓ lands on the first file after the folder row, ↑ has nothing above it and stays.
+    fireEvent.click(lib());
+    fireEvent.click(items(tree())[2]); // b.rs
+    fireEvent.click(lib());
+    expect(useCommitStore.getState().anchor).toBe("src/lib/b.rs");
+    fireEvent.keyDown(tree(), { key: "ArrowUp" });
+    expect(useCommitStore.getState()).toMatchObject({ anchor: "src/lib/b.rs", selected: ["src/lib/b.rs"] });
+    fireEvent.keyDown(tree(), { key: "ArrowDown" });
+    expect(useCommitStore.getState().anchor).toBe("src/a.rs");
+  });
+
+  it("a staged row hands the selection to its display neighbour, not the status-order one", () => {
+    useTreeModeStore.setState({ tree: true });
+    const { getByRole } = renderPanel();
+    const tree = () => getByRole("tree", { name: "Unstaged files" });
+    fireEvent.click(items(tree())[2]); // b.rs: first in the tree and in the status
+    // b.rs staged: in status order top.rs follows it, on screen a.rs does.
+    act(() => useStatusStore.setState({ status: { ...NESTED, entries: NESTED.entries.filter((e) => e.path !== "src/lib/b.rs") } }));
+    expect(useCommitStore.getState()).toMatchObject({ list: "unstaged", anchor: "src/a.rs", selected: ["src/a.rs"] });
+    expect(items(tree()).map((r) => r.getAttribute("aria-selected"))).toEqual([null, "true", "false"]);
   });
 });
 
 describe("CommitDialog", () => {
   it("opens from the message header and shows both lists, the editor and the diff in one dialog", () => {
-    useDialogStore.setState({ dialog: null });
-    localStorage.removeItem("commitFileListMode");
-    const { getByRole } = render(<CommitPanel />);
+    const { getByRole } = renderPanel();
     fireEvent.click(getByRole("button", { name: "Open commit window" }));
     expect(useDialogStore.getState().dialog).toEqual({ kind: "commit" });
     cleanup();
 
     const onClose = vi.fn();
-    const dlg = render(<CommitDialog onClose={onClose} />);
+    const dlg = render(
+      <Synced>
+        <CommitDialog onClose={onClose} />
+      </Synced>,
+    );
     const dialog = dlg.getByRole("dialog", { name: "Commit" });
     expect(dialog.querySelectorAll('[role="listbox"]').length).toBe(2);
     expect(Array.from(dlg.getByRole("listbox", { name: "Staged files" }).querySelectorAll('[role="option"]')).map(text)).toEqual(["Mboth.rs", "Anew.rs"]);
@@ -263,5 +379,37 @@ describe("CommitDialog", () => {
     expect(dlg.getByRole("button", { name: "Show as tree" })).toBeTruthy();
     fireEvent.click(dlg.getByRole("button", { name: "Close" }));
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("a successful Commit closes the dialog", async () => {
+    mocked.getStatus.mockResolvedValueOnce({ ...STATUS, entries: [], staged: 0, unstaged: 0, untracked: 0, conflicted: 0 });
+    const onClose = vi.fn();
+    const { getByRole, getByLabelText } = render(
+      <Synced>
+        <CommitDialog onClose={onClose} />
+      </Synced>,
+    );
+    fireEvent.change(getByLabelText("Summary"), { target: { value: "Fix lanes" } });
+    fireEvent.click(getByRole("button", { name: "Commit" }));
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(useDialogStore.getState().dialog).toBeNull();
+  });
+
+  it("Commit & Push closes the dialog, then opens Push returning focus to the commit dialog's opener", async () => {
+    mocked.getStatus.mockResolvedValueOnce({ ...STATUS, entries: [], staged: 0, unstaged: 0, untracked: 0, conflicted: 0 });
+    // The toolbar button that opened the commit dialog; it outlives the dialog, its buttons don't.
+    const opener = document.createElement("button");
+    document.body.appendChild(opener);
+    useDialogStore.setState({ dialog: { kind: "commit" }, returnFocus: opener });
+    const { getByRole, getByLabelText } = render(
+      <Synced>
+        <CommitDialog onClose={() => useDialogStore.getState().close()} />
+      </Synced>,
+    );
+    fireEvent.change(getByLabelText("Summary"), { target: { value: "Fix lanes" } });
+    fireEvent.click(getByRole("button", { name: "Commit & Push" }));
+    await waitFor(() => expect(useDialogStore.getState().dialog).toEqual({ kind: "push" }));
+    expect(useDialogStore.getState().returnFocus).toBe(opener);
+    opener.remove();
   });
 });

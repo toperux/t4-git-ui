@@ -309,7 +309,6 @@ export function DeleteTagDialog({ onClose, name }: { onClose: () => void; name: 
   );
 }
 
-/** Searchable branch / tag picker: type to filter, ↑/↓ to move, Enter checks out. */
 /** Several branches sit at the commit the context menu was opened on: pick the one to check out. */
 export function CheckoutBranchDialog({ onClose, branches }: { onClose: () => void; branches: { name: string; remote: string | null }[] }) {
   const [name, setName] = useState(branches[0]?.name ?? "");
@@ -352,6 +351,7 @@ export function CheckoutBranchDialog({ onClose, branches }: { onClose: () => voi
   );
 }
 
+/** Searchable branch / tag picker: type to filter, ↑/↓ to move, Enter checks out. */
 export function CheckoutDialog({ onClose }: { onClose: () => void }) {
   const refs = useRepoStore((st) => st.refs);
   const [query, setQuery] = useState("");

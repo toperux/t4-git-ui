@@ -5,7 +5,7 @@ import { ask } from "@tauri-apps/plugin-dialog";
 import { create } from "zustand";
 import * as ipc from "../api/ipc";
 import { toAppError } from "../api/ipc";
-import type { FileChange, FileDiff, FileStatus, StatusEntry, WorkdirStatus } from "../api/types";
+import type { AppError, Author, FileChange, FileDiff, FileStatus, StatusEntry, WorkdirStatus } from "../api/types";
 import { joinMessage, pushHistory, splitMessage } from "../lib/msgHistory";
 import { EMPTY_SELECTION, pruneSelection, type Selection } from "../lib/multiSelect";
 import { DIFF_CONTEXT } from "./diffStore";
@@ -43,10 +43,17 @@ export interface CommitStore {
   selected: string[];
   /** Focused row (its diff is shown). */
   anchor: string | null;
-  /** Index of `anchor` in its list when selected — where the selection lands after the row vanishes. */
-  anchorIndex: number;
+  /**
+   * Each list's files as its mounted view orders them (tree or flat), registered by `FileList`; `null`
+   * until one mounts. Where the selection lands when the focused row vanishes.
+   */
+  order: Record<ListId, string[] | null>;
   /** `+N −M` per path from `get_changed_files`. */
   stats: Record<ListId, Record<string, FileChange>>;
+
+  /** Author line — fetched once per repository, shared by every `MessageColumn` (panel and dialog). */
+  author: Author | null;
+  authorError: AppError | null;
 
   diff: FileDiff | null;
   diffPath: string | null;
@@ -64,8 +71,12 @@ export interface CommitStore {
   busy: boolean;
 
   select(list: ListId, sel: Selection): void;
-  /** Prunes the selection against a fresh status, picks a neighbour when the focused row vanished, reloads diff + stats. */
+  /** `FileList` registers its display order; a focused row missing from the new order hands the selection to its neighbour. */
+  setOrder(list: ListId, order: string[]): void;
+  /** Prunes the selection against a fresh status (first row when nothing is left), reloads diff + stats. */
   syncWithStatus(status: WorkdirStatus | null): void;
+  /** Fetches the author unless known; a failed fetch is retried on the next call (the user may have just set user.name). */
+  loadAuthor(): Promise<void>;
   stage(paths: string[]): Promise<void>;
   unstage(paths: string[]): Promise<void>;
   /** Confirms with a native dialog first; resolves `false` when cancelled or when a mutation was already running. */
@@ -93,8 +104,11 @@ let diffEntry: StatusEntry | null = null;
 let statsKey = "";
 let statsInflight = false;
 let statsPending: string | null = null;
+/** Repository whose author fetch is in flight. */
+let authorFor: string | null = null;
 
 const EMPTY_STATS = { unstaged: {}, staged: {} };
+const NO_ORDER = { unstaged: null, staged: null };
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -186,8 +200,10 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
     list: "unstaged",
     selected: [],
     anchor: null,
-    anchorIndex: 0,
+    order: NO_ORDER,
     stats: EMPTY_STATS,
+    author: null,
+    authorError: null,
     diff: null,
     diffPath: null,
     diffList: "unstaged",
@@ -202,10 +218,24 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
 
     select(list, sel) {
       const s = get();
-      const lists = splitStatus(useStatusStore.getState().status);
-      const anchorIndex = sel.anchor ? Math.max(0, lists[list].findIndex((e) => e.path === sel.anchor)) : s.anchorIndex;
-      set({ list, selected: sel.selected, anchor: sel.anchor, anchorIndex });
+      set({ list, selected: sel.selected, anchor: sel.anchor });
       if (sel.anchor !== s.diffPath || list !== s.diffList) void loadDiff();
+    },
+
+    setOrder(list, order) {
+      const s = get();
+      const prev = s.order[list];
+      set({ order: { ...s.order, [list]: order } });
+      if (list !== s.list || !s.anchor || !prev || order.includes(s.anchor)) return;
+      // The focused row left the list (staged / unstaged / discarded). The list's effect runs before
+      // `syncWithStatus` prunes (child effects first), so `prev` still says where the row was: land on
+      // the one below it, else the last one above. Only when nothing else stays selected — a surviving
+      // multi-selection keeps its rows and just loses the focus.
+      if (order.some((p) => s.selected.includes(p))) return;
+      const i = prev.indexOf(s.anchor);
+      const live = new Set(order);
+      const next = prev.slice(i + 1).find((p) => live.has(p)) ?? prev.slice(0, i).reverse().find((p) => live.has(p));
+      if (next !== undefined) get().select(list, { selected: [next], anchor: next });
     },
 
     syncWithStatus(status) {
@@ -215,20 +245,34 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       let list = s.list;
       let sel = pruneSelection(paths[list], { selected: s.selected, anchor: s.anchor });
       if (sel.selected.length === 0) {
-        const own = paths[list];
-        let item = own[Math.min(s.anchorIndex, own.length - 1)];
+        // Nothing (left) selected: the first row of this list, else of the other one.
+        let item = paths[list][0];
         if (item === undefined && paths[other(list)].length > 0) {
           list = other(list);
           item = paths[list][0];
         }
         sel = item === undefined ? EMPTY_SELECTION : { selected: [item], anchor: item };
       }
-      set({ list, selected: sel.selected, anchor: sel.anchor, anchorIndex: sel.anchor ? paths[list].indexOf(sel.anchor) : s.anchorIndex });
+      set({ list, selected: sel.selected, anchor: sel.anchor });
       // An unrelated file changing on disk must not reload (and so reset the scroll / line selection of)
       // the shown diff: only reload when the focused row moved or its own status entry changed.
       const entry = sel.anchor ? (status?.entries.find((e) => e.path === sel.anchor) ?? null) : null;
       if (sel.anchor !== s.diffPath || list !== s.diffList || !same(entry, diffEntry)) void loadDiff();
       void loadStats(entriesKey(status));
+    },
+
+    async loadAuthor() {
+      const id = repoId();
+      if (!id || get().author || authorFor === id) return;
+      authorFor = id;
+      try {
+        const author = await ipc.getAuthor(id);
+        if (repoId() === id) set({ author, authorError: null });
+      } catch (e) {
+        if (repoId() === id) set({ authorError: toAppError(e) });
+      } finally {
+        if (authorFor === id) authorFor = null;
+      }
     },
 
     async stage(paths) {
@@ -325,12 +369,15 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       diffEntry = null;
       statsKey = "";
       statsPending = null;
+      authorFor = null;
       set({
         list: "unstaged",
         selected: [],
         anchor: null,
-        anchorIndex: 0,
+        order: NO_ORDER,
         stats: EMPTY_STATS,
+        author: null,
+        authorError: null,
         diff: null,
         diffPath: null,
         diffLoading: false,

@@ -161,15 +161,17 @@ pub fn natural_cmp(a: &str, b: &str) -> Ordering {
 /// cleared when it grows past a few thousand pairs.
 ///
 /// `merged`: every branch's `merged_into`, keyed by the exact list of branches
-/// (name, tip, is HEAD) it was computed for — one walk per change of refs.
+/// (name, tip, is HEAD, upstream) it was computed for — one walk per change
+/// of refs.
 #[derive(Debug, Default)]
 pub struct AheadBehindCache {
     pairs: HashMap<(Oid, Oid), (usize, usize)>,
     merged: Option<(MergedKey, Vec<Option<String>>)>,
 }
 
-/// The branches (name, tip, is HEAD) a `merged` entry was computed for.
-type MergedKey = Vec<(String, Oid, bool)>;
+/// The branches (name, tip, is HEAD, upstream) a `merged` entry was computed
+/// for; `upstream` is in because it decides who counts as a counterpart.
+type MergedKey = Vec<(String, Oid, bool, Option<String>)>;
 
 impl AheadBehindCache {
     const MAX: usize = 4096;
@@ -197,6 +199,8 @@ struct Tip {
     short: String,
     upstream: Option<String>,
     is_head: bool,
+    /// Listed under a remote in the snapshot (a remote-tracking branch).
+    remote: bool,
 }
 
 /// Which tips reach each tip: `out[i]` has bit `j` set when `tips[j]` has
@@ -257,7 +261,8 @@ fn reachers(repo: &Repository, tips: &[Oid]) -> Result<Vec<Vec<u64>>, GitError> 
 /// Sets every branch's `merged_into` to the branch whose tip reaches it —
 /// the current branch when that is one, else the first local, else the first
 /// remote one — ignoring the branch's own counterparts (see
-/// [`Branch::merged_into`]).
+/// [`Branch::merged_into`]). The checked-out branch never gets one: it can't
+/// be deleted, and a feature branch ahead of it doesn't make it "merged".
 fn fill_merged_into(
     repo: &Repository,
     cache: &mut AheadBehindCache,
@@ -273,22 +278,30 @@ fn fill_merged_into(
             short: b.name.clone(),
             upstream: b.upstream.clone(),
             is_head: b.is_head,
+            remote: false,
         });
     }
     for r in remotes.iter() {
         for rb in &r.branches {
+            // A flat `refs/remotes/x` (git-svn's `trunk`) is grouped under a
+            // remote named after itself: nothing to strip.
+            let short = rb
+                .name
+                .strip_prefix(&format!("{}/", r.name))
+                .unwrap_or(&rb.name);
             tips.push(Tip {
                 name: rb.name.clone(),
                 oid: parse(&rb.oid)?,
-                short: rb.name[r.name.len() + 1..].to_string(),
+                short: short.to_string(),
                 upstream: None,
                 is_head: false,
+                remote: true,
             });
         }
     }
     let key: MergedKey = tips
         .iter()
-        .map(|t| (t.name.clone(), t.oid, t.is_head))
+        .map(|t| (t.name.clone(), t.oid, t.is_head, t.upstream.clone()))
         .collect();
     let merged = match &cache.merged {
         Some((k, v)) if *k == key => v.clone(),
@@ -298,15 +311,19 @@ fn fill_merged_into(
             } else {
                 reachers(repo, &tips.iter().map(|t| t.oid).collect::<Vec<_>>())?
             };
+            // A local upstream (`--track main`) is a merge target, not a copy.
             let counterpart = |a: &Tip, b: &Tip| {
                 a.short == b.short
-                    || a.upstream.as_deref() == Some(&b.name)
-                    || b.upstream.as_deref() == Some(&a.name)
+                    || (b.remote && a.upstream.as_deref() == Some(&b.name))
+                    || (a.remote && b.upstream.as_deref() == Some(&a.name))
             };
             let merged: Vec<Option<String>> = tips
                 .iter()
                 .enumerate()
                 .map(|(i, t)| {
+                    if t.is_head {
+                        return None;
+                    }
                     let reached_by = |j: usize| bits[i][j / 64] & (1 << (j % 64)) != 0;
                     let mut pick: Option<&Tip> = None;
                     for (j, other) in tips.iter().enumerate() {

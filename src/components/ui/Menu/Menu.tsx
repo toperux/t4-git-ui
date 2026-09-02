@@ -27,6 +27,8 @@ function useMenuDismiss(open: boolean, onClose: () => void, wrap: RefObject<HTML
     const onDown = (e: MouseEvent) => {
       if (!wrap.current?.contains(e.target as Node)) onClose();
     };
+    // Escape normally lands on a focused item and `closeOnEscape` stops it there; this catches it
+    // when focus stayed outside (every item disabled, so nothing in the menu took focus).
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
@@ -43,7 +45,10 @@ function useMenuDismiss(open: boolean, onClose: () => void, wrap: RefObject<HTML
   }, [open, menu]);
 }
 
-/** Focus returns to whatever opened the menu (its trigger) once it closes. */
+/**
+ * Focus returns to whatever opened the menu (its trigger) once it closes. Call it before
+ * `useMenuDismiss`: effects run in order, and that one moves focus onto the first item.
+ */
 function useRestoreFocus(open: boolean) {
   useEffect(() => {
     if (!open) return;
@@ -52,6 +57,16 @@ function useRestoreFocus(open: boolean) {
       if (opener?.isConnected) opener.focus();
     };
   }, [open]);
+}
+
+/** Escape closes the menu and stops there: a `Dialog` around it handles Escape too and must not close as well. */
+function closeOnEscape(open: boolean, onClose: () => void) {
+  return (e: KeyboardEvent<HTMLDivElement>) => {
+    if (!open || e.key !== "Escape") return;
+    e.preventDefault();
+    e.stopPropagation();
+    onClose();
+  };
 }
 
 /** ↑/↓ move focus between enabled items (wrapping). */
@@ -69,11 +84,11 @@ function onMenuKeyDown(e: KeyboardEvent<HTMLDivElement>) {
 export function Menu({ open, onClose, anchor, label, children, align = "right", className }: MenuProps) {
   const wrap = useRef<HTMLDivElement>(null);
   const menu = useRef<HTMLDivElement>(null);
-  useMenuDismiss(open, onClose, wrap, menu);
   useRestoreFocus(open);
+  useMenuDismiss(open, onClose, wrap, menu);
 
   return (
-    <div ref={wrap} className={cx(s.wrap, className)}>
+    <div ref={wrap} className={cx(s.wrap, className)} onKeyDown={closeOnEscape(open, onClose)}>
       {anchor}
       {open && (
         <div ref={menu} role="menu" aria-label={label} className={cx(s.menu, align === "left" && s.left)} onKeyDown={onMenuKeyDown}>
@@ -97,8 +112,8 @@ export function ContextMenu({ at, onClose, label, children }: ContextMenuProps) 
   const menu = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState(at);
   const open = at !== null;
-  useMenuDismiss(open, onClose, menu, menu);
   useRestoreFocus(open);
+  useMenuDismiss(open, onClose, menu, menu);
 
   // Clamp to the viewport once the menu has a size.
   useLayoutEffect(() => {

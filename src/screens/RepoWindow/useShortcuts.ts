@@ -1,5 +1,7 @@
 // Window-level shortcuts of the repo window (style guide §Keyboard hints). Ignored while the focus
-// is in a text field or a dialog is open — those own their own keys.
+// is in a text field or a dialog is open — those own their own keys. Ctrl+` is the exception: it has
+// no meaning in a field, and the dock prompt (the field most likely to have focus) lives in the dock
+// it collapses.
 import { useEffect } from "react";
 import { useDialogStore } from "../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../store/opsStore";
@@ -15,10 +17,15 @@ function inTextField(target: EventTarget | null): boolean {
 export function useShortcuts() {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.defaultPrevented || inTextField(e.target)) return;
-      if (useDialogStore.getState().dialog) return;
-      const open = useDialogStore.getState().open;
+      if (e.defaultPrevented || useDialogStore.getState().dialog) return;
       const ctrl = e.ctrlKey || e.metaKey;
+      if (ctrl && !e.shiftKey && e.key === "`") {
+        e.preventDefault();
+        useOpsStore.getState().setOpen(!useOpsStore.getState().open);
+        return;
+      }
+      if (inTextField(e.target)) return;
+      const open = useDialogStore.getState().open;
       const busy = selectRunning(useOpsStore.getState());
       const key = e.key.toLowerCase();
 
@@ -40,9 +47,6 @@ export function useShortcuts() {
       } else if (ctrl && !e.shiftKey && key === "b") {
         e.preventDefault();
         if (!busy) open({ kind: "createBranch" });
-      } else if (ctrl && !e.shiftKey && e.key === "`") {
-        e.preventDefault();
-        useOpsStore.getState().setOpen(!useOpsStore.getState().open);
       }
     }
     window.addEventListener("keydown", onKey);

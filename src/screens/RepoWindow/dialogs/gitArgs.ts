@@ -62,5 +62,5 @@ export const stashPushArgs = (message: string | null, includeUntracked: boolean,
   ...(message ? ["-m", message] : []),
 ];
 
-/** `git …` with shell-style quoting of arguments that need it. */
-export const gitCmd = (args: string[]) => `git ${args.map((a) => (/[\s'"]/.test(a) ? `'${a.replace(/'/g, "'\\''")}'` : a)).join(" ")}`;
+/** `git …` with shell-style quoting of arguments that need it (an empty one too, or it vanishes). */
+export const gitCmd = (args: string[]) => `git ${args.map((a) => (a === "" || /[\s'"]/.test(a) ? `'${a.replace(/'/g, "'\\''")}'` : a)).join(" ")}`;

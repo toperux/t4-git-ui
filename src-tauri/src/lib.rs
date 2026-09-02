@@ -8,6 +8,7 @@ pub use state::AppState;
 use std::sync::Mutex;
 
 use tauri::{Manager, RunEvent};
+use tauri_plugin_store::StoreExt;
 use tauri_plugin_window_state::StateFlags;
 use tracing_subscriber::EnvFilter;
 
@@ -66,18 +67,36 @@ fn shutdown_logging(app: &tauri::AppHandle) {
     }
 }
 
-/// Match the native window background to the OS theme before first paint so a
+/// The kv store `src/lib/kv.ts` writes (app_data_dir); the theme toggle
+/// mirrors its preference there because Rust can't read the WebView's
+/// localStorage.
+const KV_STORE: &str = "recents.json";
+
+/// Match the native window background to the theme before first paint so a
 /// light-theme user doesn't see a dark flash (the window starts hidden, see
 /// `visible: false` in `tauri.conf.json`, and is shown once the color is set).
+/// The stored preference wins, as in `index.html`; else the OS theme.
 fn init_window_background(app: &tauri::App) {
     use tauri::window::Color;
     let Some(win) = app.get_webview_window("main") else {
         return;
     };
-    // --bg-app: light #e0e3e8, dark #16181d
-    let color = match win.theme() {
-        Ok(tauri::Theme::Light) => Color(0xe0, 0xe3, 0xe8, 0xff),
-        _ => Color(0x16, 0x18, 0x1d, 0xff),
+    // Missing / unreadable store or no preference: follow the OS.
+    let stored = app
+        .store(KV_STORE)
+        .ok()
+        .and_then(|s| s.get("theme"))
+        .and_then(|v| v.as_str().map(String::from));
+    let light = match stored.as_deref() {
+        Some("light") => true,
+        Some("dark") => false,
+        _ => matches!(win.theme(), Ok(tauri::Theme::Light)),
+    };
+    // --bg-app: light #e0e3e8, dark #16181d (index.html paints the same two)
+    let color = if light {
+        Color(0xe0, 0xe3, 0xe8, 0xff)
+    } else {
+        Color(0x16, 0x18, 0x1d, 0xff)
     };
     if let Err(e) = win.set_background_color(Some(color)) {
         tracing::warn!(error = %e, "failed to set window background color");

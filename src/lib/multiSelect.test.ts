@@ -42,6 +42,32 @@ describe("multiSelect", () => {
     expect(moveSelect([], s, 1)).toEqual(EMPTY_SELECTION);
   });
 
+  it("a tree: hidden files stay selected; ranges follow the visible order; Ctrl+A takes everything", () => {
+    // `b` sits in a collapsed folder: on screen are a, c, d, e.
+    const VISIBLE = ["a", "c", "d", "e"];
+    let s = clickSelect(ITEMS, EMPTY_SELECTION, "b");
+    s = clickSelect(ITEMS, s, "d", { ctrl: true }, VISIBLE);
+    expect(s).toEqual({ selected: ["b", "d"], anchor: "d" });
+    s = clickSelect(ITEMS, s, "a", { shift: true }, VISIBLE);
+    expect(s).toEqual({ selected: ["a", "c", "d"], anchor: "d" });
+    expect(selectAll(ITEMS, s)).toEqual({ selected: ITEMS, anchor: "d" });
+    // A Shift click from a hidden anchor is a plain click.
+    expect(clickSelect(ITEMS, { selected: ["b"], anchor: "b" }, "d", { shift: true }, VISIBLE)).toEqual({ selected: ["d"], anchor: "d" });
+  });
+
+  it("arrows from a hidden anchor resume at its folder's row", () => {
+    const VISIBLE = ["a", "c", "d", "e"];
+    const hidden = { selected: ["b"], anchor: "b" };
+    // b's folder row sits after a: one visible item above it.
+    expect(moveSelect(VISIBLE, hidden, 1, 1)).toEqual({ selected: ["c"], anchor: "c" });
+    expect(moveSelect(VISIBLE, hidden, -1, 1)).toEqual({ selected: ["a"], anchor: "a" });
+    // Nothing above the folder: ↑ stays put.
+    expect(moveSelect(VISIBLE, hidden, -1, 0)).toEqual(hidden);
+    expect(moveSelect(VISIBLE, hidden, Infinity, 0)).toEqual({ selected: ["e"], anchor: "e" });
+    // No slot known: the plain fallback, ↓ from the top.
+    expect(moveSelect(VISIBLE, hidden, 1)).toEqual({ selected: ["a"], anchor: "a" });
+  });
+
   it("select all and prune", () => {
     expect(selectAll(ITEMS, { selected: ["c"], anchor: "c" })).toEqual({ selected: ITEMS, anchor: "c" });
     expect(pruneSelection(["a", "c"], { selected: ["a", "b", "c"], anchor: "b" })).toEqual({ selected: ["a", "c"], anchor: null });

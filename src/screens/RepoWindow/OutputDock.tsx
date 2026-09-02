@@ -50,7 +50,11 @@ export function OutputDock() {
   );
 }
 
-/** `$ git …` line under the log: Enter runs (actions `runGit`), ↑ / ↓ recall earlier lines, disabled while an op runs. */
+/**
+ * `$ git …` line under the log: Enter runs (actions `runGit`), ↑ / ↓ recall earlier lines. While an
+ * op runs the field stays enabled (a disabled input drops focus, and nothing would give it back) and
+ * Enter does nothing; the header's spinner + Cancel say why.
+ */
 function DockPrompt() {
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +63,7 @@ function DockPrompt() {
   const refs = useRepoStore((st) => st.refs);
 
   function run() {
+    if (busy) return;
     const parsed = splitArgs(text);
     if (!parsed.ok) {
       setError(parsed.error);
@@ -75,12 +80,11 @@ function DockPrompt() {
   }
 
   return (
-    <div className={s.prompt}>
+    <div className={s.prompt} aria-busy={busy || undefined}>
       <CommandInput
         aria-label="Run git command"
         placement="up"
         placeholder={busy ? "Running…" : "Type a git command"}
-        disabled={busy}
         invalid={error !== null}
         value={text}
         onChange={(v) => {

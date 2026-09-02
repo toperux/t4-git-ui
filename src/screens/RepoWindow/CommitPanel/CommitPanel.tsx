@@ -15,16 +15,21 @@ import s from "./CommitPanel.module.css";
 import { FilesColumn } from "./FilesColumn";
 import { MessageColumn } from "./MessageColumn";
 
-/** Feeds every status refresh into the commit store (selection pruning, diff reload). */
-export function useCommitSync() {
+/**
+ * Feeds every status refresh into the commit store (selection pruning, diff reload) while `on`.
+ * Mounted once, in `RepoWindow`, above the panel and the commit dialog: each mounted list registers
+ * its display order in its own effect, and this one must run after those (child effects first).
+ */
+export function useCommitSync(on: boolean) {
   const status = useStatusStore((st) => st.status);
   const sync = useCommitStore((st) => st.syncWithStatus);
-  useEffect(() => sync(status), [status, sync]);
+  useEffect(() => {
+    if (on) sync(status);
+  }, [on, status, sync]);
 }
 
 /** Bottom pane while the working-tree row is selected: Unstaged/Staged 320 | Diff | Message 340 (Commit.mjs). */
 export function CommitPanel() {
-  useCommitSync();
   const open = useDialogStore((st) => st.open);
   return (
     <Group orientation="horizontal" className={s.pane}>

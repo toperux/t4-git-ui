@@ -139,6 +139,10 @@ impl GitCli {
         cmd.args(args)
             .current_dir(repo_dir)
             .env("GIT_TERMINAL_PROMPT", "0")
+            // No tty to edit in: a command that wants a message (`commit`,
+            // `tag -a`, `rebase --continue`) fails with "empty message"
+            // instead of popping the user's editor or stalling until Cancel.
+            .env("GIT_EDITOR", "true")
             .env("LC_ALL", "C")
             .env("GIT_FLUSH", "1")
             .env("GIT_OPTIONAL_LOCKS", "0")
@@ -566,6 +570,26 @@ mod tests {
             out.stdout.trim(),
             "ce013625030ba8dba906f756967f9e9ca394464a"
         );
+    }
+
+    #[tokio::test]
+    async fn editor_is_disabled() {
+        if !have_git() {
+            return;
+        }
+        let t = TempRepo::new();
+        let out = GitCli::new("git")
+            .run(
+                t.path(),
+                "op-5",
+                &["var", "GIT_EDITOR"],
+                None,
+                CancellationToken::new(),
+                |_| {},
+            )
+            .await
+            .expect("run");
+        assert_eq!(out.stdout.trim(), "true", "{:?}", out.stderr);
     }
 
     #[tokio::test]

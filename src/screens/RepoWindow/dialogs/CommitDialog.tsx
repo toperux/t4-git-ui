@@ -1,17 +1,18 @@
 import { Group, Panel, Separator } from "react-resizable-panels";
 import { Dialog } from "../../../components/ui/Dialog/Dialog";
-import { DiffColumn, useCommitSync } from "../CommitPanel/CommitPanel";
+import { useTreeMode } from "../../../store/treeModeStore";
+import { DiffColumn } from "../CommitPanel/CommitPanel";
 import s from "../CommitPanel/CommitPanel.module.css";
-import { StagedFiles, UnstagedFiles, useTreeMode } from "../CommitPanel/FilesColumn";
+import { StagedFiles, UnstagedFiles } from "../CommitPanel/FilesColumn";
 import { MessageColumn } from "../CommitPanel/MessageColumn";
 import w from "../RepoWindow.module.css";
 
 /**
  * The commit panel as a full-window dialog: Unstaged / Staged / Message stacked on the left, the
- * diff taking the rest. Same stores as the panel, so both show one selection. Closes after a commit.
+ * diff taking the rest. Same stores as the panel (`RepoWindow` runs the one status sync for both),
+ * so both show one selection. Closes after a commit.
  */
 export function CommitDialog({ onClose }: { onClose: () => void }) {
-  useCommitSync();
   const [tree, toggleTree] = useTreeMode();
   return (
     <Dialog title="Commit" full onClose={onClose}>

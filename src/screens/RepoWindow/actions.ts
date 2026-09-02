@@ -55,16 +55,25 @@ export const stashDrop = (index: number) => runOp(`Dropping stash@{${index}}…`
 
 /**
  * `git <line>` typed by the user. The line goes into the history as it runs (a failing command is
- * worth recalling too) and the dock opens for its output; there is no success toast, the dock's
- * exit line is the result.
+ * worth recalling too) and the dock opens for its output; no success or failure toast, the dock's
+ * exit line is the result (`quietFailure`: a non-zero exit is often the answer).
  */
 export function runGit(line: string) {
   const parsed = splitArgs(line);
   if (!parsed.ok || parsed.args.length === 0) return;
   useCmdHistoryStore.getState().push(line.trim());
   useOpsStore.getState().setOpen(true);
-  const label = gitCmd(parsed.args);
-  return runOp(label.length > 48 ? `${label.slice(0, 47)}…` : label, (id) => ipc.runGit(id, parsed.args));
+  return runOp(busyLabel(gitCmd(parsed.args)), (id) => ipc.runGit(id, parsed.args), { quietFailure: true });
+}
+
+/**
+ * Statusbar-sized. Cut by code point (half an emoji is a broken glyph), and marked with `[…]`
+ * rather than `…`: `runOp` strips a trailing `…` from its failure title, which would make the cut
+ * command read as a complete one.
+ */
+export function busyLabel(cmd: string): string {
+  const cps = [...cmd];
+  return cps.length > 48 ? `${cps.slice(0, 45).join("")}[…]` : cmd;
 }
 
 export function copyText(text: string, what: string) {

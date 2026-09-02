@@ -50,6 +50,21 @@ describe("useVisibleLanes", () => {
     expect(result.current).toBe(3);
   });
 
+  it("keeps the count while the view holds unloaded rows, however long the page takes", () => {
+    const { result, rerender } = render({ startIndex: 2, endIndex: 2 });
+    expect(result.current).toBe(10);
+    // Dragged into an unloaded page: nothing in view says how many lanes it needs.
+    useRepoStore.setState({ rows: [row(0, 0), row(1, 1), row(2, 9), undefined, row(4, 0)] });
+    rerender({ range: { startIndex: 3, endIndex: 4 }, offset: 0 });
+    act(() => void vi.advanceTimersByTime(SHRINK_DELAY_MS * 2));
+    expect(result.current).toBe(10);
+    // The page lands: the shrink starts from there.
+    act(() => useRepoStore.setState({ rows: [row(0, 0), row(1, 1), row(2, 9), row(3, 0), row(4, 0)] }));
+    expect(result.current).toBe(10);
+    act(() => void vi.advanceTimersByTime(SHRINK_DELAY_MS));
+    expect(result.current).toBe(3);
+  });
+
   it("maps grid rows to commits past the working-tree row", () => {
     // Grid rows 0–2 with the pseudo-row first are commits 0 and 1; the busy commit 2 is not in view.
     expect(render({ startIndex: 0, endIndex: 2 }, 1).result.current).toBe(3);

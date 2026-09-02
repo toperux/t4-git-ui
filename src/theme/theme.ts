@@ -1,5 +1,8 @@
 // Theme preference: explicit 'light' | 'dark' persisted in localStorage('theme'); 'system' follows the OS.
+// Also mirrored into the kv store (`theme`), which the Rust side reads to colour the native window
+// before the first paint (localStorage is WebView-private).
 import { useSyncExternalStore } from "react";
+import { kvSet } from "../lib/kv";
 
 export type ThemePref = "light" | "dark" | "system";
 export type Theme = "light" | "dark";
@@ -29,6 +32,8 @@ function apply() {
 export function setTheme(pref: ThemePref) {
   if (pref === "system") localStorage.removeItem(KEY);
   else localStorage.setItem(KEY, pref);
+  // Fire-and-forget: the window colour at the next launch is a nicety, not state the UI waits on.
+  kvSet(KEY, pref === "system" ? null : pref).catch(() => {});
   apply();
 }
 

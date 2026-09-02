@@ -9,7 +9,7 @@ describe("graph geometry", () => {
     expect(graphWidth(3, 13)).toBe(51);
   });
 
-  it("clamps lane count to [3, 12]", () => {
+  it("clamps lane count to [3, 40]", () => {
     expect(graphLanes(0)).toBe(3);
     expect(graphLanes(4)).toBe(5);
     expect(graphLanes(20)).toBe(21);

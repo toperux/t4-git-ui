@@ -21,8 +21,8 @@ jobs:
             args: --target x86_64-apple-darwin
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
@@ -30,6 +30,9 @@ jobs:
         with:
           targets: ${{ runner.os == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
       - uses: Swatinem/rust-cache@v2
+        with:
+          # The two macOS legs share a job id and lockfiles; without this they share a key too.
+          key: ${{ matrix.args }}
       - name: Linux deps (Tauri 2)
         if: runner.os == 'Linux'
         run: |

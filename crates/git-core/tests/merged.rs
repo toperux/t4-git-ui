@@ -1,7 +1,7 @@
 //! `Branch::merged_into` / `RemoteBranch::merged_into`: which branches add
 //! nothing over another one, and which containing branch gets named.
 
-use git_core::refs::{snapshot, RefsSnapshot};
+use git_core::refs::{snapshot, snapshot_with, AheadBehindCache, RefsSnapshot};
 use git_core::test_util::TempRepo;
 
 fn local<'a>(snap: &'a RefsSnapshot, name: &str) -> Option<&'a str> {
@@ -100,4 +100,103 @@ fn a_same_named_branch_on_a_remote_is_a_counterpart_without_tracking() {
     assert_eq!(local(&snap, "master"), Some("feature"));
     assert_eq!(remote(&snap, "origin/feature"), Some("master"));
     assert_eq!(local(&snap, "feature"), None);
+}
+
+#[test]
+fn the_current_branch_is_never_a_subject() {
+    let (mut t, _) = fixture();
+    // A feature branch ahead of master reaches master's tip; master is checked out.
+    let c3 = t.repo.head().unwrap().target().unwrap();
+    t.branch("feature", c3);
+    t.checkout("feature");
+    t.commit(&[("f", "1")], "c7");
+    t.checkout("master");
+    let snap = snapshot(&mut t.repo).expect("snapshot");
+    assert_eq!(local(&snap, "master"), None);
+    assert_eq!(local(&snap, "feature"), None);
+    // Detached, master is a plain branch again and every subject falls back to the first local.
+    t.detach(c3);
+    let snap = snapshot(&mut t.repo).expect("snapshot");
+    assert_eq!(local(&snap, "master"), Some("feature"));
+    assert_eq!(local(&snap, "old"), Some("feature"));
+}
+
+#[test]
+fn without_the_current_branch_the_first_local_is_named() {
+    let mut t = TempRepo::new();
+    let c1 = t.commit(&[("a", "1")], "c1");
+    t.branch("b", c1);
+    t.checkout("b");
+    let c2 = t.commit(&[("b", "1")], "c2");
+    t.branch("a", c1);
+    t.checkout("a");
+    t.commit(&[("a", "2")], "c3");
+    t.branch("base", c1);
+    t.branch("master", c2);
+    // HEAD on an unrelated root reaches none of them.
+    t.orphan("solo");
+    t.commit(&[("s", "1")], "c4");
+    let snap = snapshot(&mut t.repo).expect("snapshot");
+    // `base` is inside a, b and master; `a` sorts first.
+    assert_eq!(local(&snap, "base"), Some("a"));
+}
+
+#[test]
+fn a_flat_remote_ref_is_its_own_remote() {
+    let (mut t, _) = fixture();
+    let c1 = snap_oid(&t, "refs/heads/old");
+    // git-svn style: `refs/remotes/trunk` with no `trunk` remote configured.
+    t.reference("refs/remotes/trunk", c1);
+    let snap = snapshot(&mut t.repo).expect("snapshot");
+    let r = snap
+        .remotes
+        .iter()
+        .find(|r| r.name == "trunk")
+        .expect("remote named after the ref");
+    assert_eq!(r.branches.len(), 1);
+    assert_eq!(remote(&snap, "trunk"), Some("master"));
+}
+
+#[test]
+fn a_local_upstream_is_not_a_counterpart() {
+    let mut t = TempRepo::new();
+    let c1 = t.commit(&[("a", "1")], "c1");
+    // `git checkout -b feat --track master`, one commit, then master fast-forwards to it.
+    t.branch("feat", c1);
+    t.set_upstream("feat", "master");
+    t.checkout("feat");
+    let c2 = t.commit(&[("f", "1")], "c2");
+    t.branch("master", c2);
+    t.checkout("master");
+    let snap = snapshot(&mut t.repo).expect("snapshot");
+    assert_eq!(local(&snap, "feat"), Some("master"));
+}
+
+#[test]
+fn an_upstream_only_change_recomputes_a_cached_result() {
+    let mut t = TempRepo::new();
+    let c1 = t.commit(&[("a", "1")], "c1");
+    t.remote("origin");
+    t.branch("feat", c1);
+    t.checkout("feat");
+    let c2 = t.commit(&[("f", "1")], "c2");
+    t.reference("refs/remotes/origin/feature-1", c2);
+    t.set_upstream("feat", "origin/feature-1");
+    t.checkout("master");
+    let mut cache = AheadBehindCache::default();
+    // Sits on its upstream: pushed, not merged.
+    let snap = snapshot_with(&mut t.repo, &mut cache).expect("snapshot");
+    assert_eq!(local(&snap, "feat"), None);
+    // No tip moved, only the tracking config; the cache must not answer from before.
+    t.repo
+        .find_branch("feat", git2::BranchType::Local)
+        .unwrap()
+        .set_upstream(None)
+        .unwrap();
+    let snap = snapshot_with(&mut t.repo, &mut cache).expect("snapshot");
+    assert_eq!(local(&snap, "feat"), Some("origin/feature-1"));
+}
+
+fn snap_oid(t: &TempRepo, name: &str) -> git2::Oid {
+    t.repo.find_reference(name).unwrap().target().unwrap()
 }

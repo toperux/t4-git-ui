@@ -26,7 +26,8 @@ export function splitArgs(text: string): SplitResult {
     } else if (c === '"' || c === "'") {
       quote = c;
       inWord = true;
-    } else if (/\s/.test(c)) {
+    } else if (/[ \t\r\n]/.test(c)) {
+      // ASCII whitespace only, like a shell: an NBSP pasted from a web page stays in the word.
       if (inWord) args.push(cur);
       cur = "";
       inWord = false;
@@ -42,19 +43,30 @@ export function splitArgs(text: string): SplitResult {
 
 const FLAG_I = ["add", "rebase", "clean", "stash"];
 const FLAG_P = ["add", "reset", "checkout", "restore", "stash", "commit"];
+/** Options whose next token is a value, never a flag (`commit -m -p` commits with the message `-p`). */
+const TAKES_VALUE = ["-m", "-F", "--message", "--file"];
 
 /**
  * The flag that would need a terminal, or `null`: `--interactive` anywhere, `-i` / `-p` / `--patch`
- * for the commands where they mean that — scanned up to the first `--`. Mirror of
- * `check_custom_args` in crates/git-core/src/cli/ops.rs, which is what actually enforces it.
+ * for the commands where they mean that — scanned up to the first `--`, with a bundle like `-ip`
+ * read letter by letter and the value after `-m` / `-F` skipped. Mirror of `check_custom_args` in
+ * crates/git-core/src/cli/ops.rs, which is what actually enforces it.
  */
 export function interactiveFlag(args: string[]): string | null {
   const cmd = args[0] ?? "";
   const flagI = FLAG_I.includes(cmd);
   const flagP = FLAG_P.includes(cmd);
-  for (const a of args) {
+  const needsTerminal = (a: string) => a === "--interactive" || (a === "-i" && flagI) || ((a === "-p" || a === "--patch") && flagP);
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
     if (a === "--") break;
-    if (a === "--interactive" || (a === "-i" && flagI) || ((a === "-p" || a === "--patch") && flagP)) return a;
+    if (TAKES_VALUE.includes(a)) {
+      i++;
+      continue;
+    }
+    const flags = /^-[A-Za-z]{2,}$/.test(a) ? [...a.slice(1)].map((c) => `-${c}`) : [a];
+    const hit = flags.find(needsTerminal);
+    if (hit) return hit;
   }
   return null;
 }

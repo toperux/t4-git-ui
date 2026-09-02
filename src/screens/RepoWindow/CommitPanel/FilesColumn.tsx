@@ -13,39 +13,16 @@ import { mods } from "../../../lib/keys";
 import { clickSelect, EMPTY_SELECTION, moveSelect, selectAll, type Selection } from "../../../lib/multiSelect";
 import { entryStatus, splitStatus, useCommitStore, type ListId } from "../../../store/commitStore";
 import { useStatusStore } from "../../../store/statusStore";
+import { useTreeMode } from "../../../store/treeModeStore";
 import { Stats } from "../ChangedFileList/ChangedFileList";
-import { buildFileTree, flattenTree, type TreeLine } from "../ChangedFileList/fileTree";
+import { buildFileTree, flattenTree, hiddenSlot, type TreeLine } from "../ChangedFileList/fileTree";
 import s from "./CommitPanel.module.css";
 
 /** `--row-h`; the virtualizer needs the number, and the rule below pins the same value. */
 const ROW_H = 26;
 const OVERSCAN = 10;
 
-/** Both lists flat or both nested by folder; persisted in `localStorage.commitFileListMode`. */
-const MODE_KEY = "commitFileListMode";
-const readTreeMode = () => {
-  try {
-    return localStorage.getItem(MODE_KEY) === "tree";
-  } catch {
-    return false;
-  }
-};
-
-/** `[tree, toggle]` for both lists; the commit dialog and the panel each keep their own copy. */
-export function useTreeMode(): [boolean, () => void] {
-  const [tree, setTree] = useState(readTreeMode);
-  const toggle = useCallback(() => {
-    setTree((t) => {
-      try {
-        localStorage.setItem(MODE_KEY, t ? "flat" : "tree");
-      } catch {
-        // Storage unavailable: the choice just doesn't persist.
-      }
-      return !t;
-    });
-  }, []);
-  return [tree, toggle];
-}
+const NONE: ReadonlySet<string> = new Set();
 
 /** Unstaged (+ Stage all) over Staged (+ Unstage all); each a multi-select listbox, or a tree. */
 export function FilesColumn() {
@@ -74,14 +51,12 @@ export function UnstagedFiles({ tree, onToggleTree }: { tree: boolean; onToggleT
     <div className={s.col}>
       <PanelHeader
         icon={<File size={14} aria-hidden />}
-        title={
-          <span className={s.titleRow}>
-            Unstaged
-            {/* Beside the title, not with the right-aligned actions; the icon shows the view a click switches to. */}
-            <IconButton label={tree ? "Show as list" : "Show as tree"} onClick={onToggleTree}>
-              {tree ? <Rows2 size={16} aria-hidden /> : <FolderTree size={16} aria-hidden />}
-            </IconButton>
-          </span>
+        title="Unstaged"
+        after={
+          /* Beside the title, not with the right-aligned actions; the icon shows the view a click switches to. */
+          <IconButton label={tree ? "Show as list" : "Show as tree"} onClick={onToggleTree}>
+            {tree ? <Rows2 size={16} aria-hidden /> : <FolderTree size={16} aria-hidden />}
+          </IconButton>
         }
       >
         <Badge>{entries.length}</Badge>
@@ -130,20 +105,29 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
   const stats = useCommitStore((st) => st.stats[list]);
   const busy = useCommitStore((st) => st.busy);
   const select = useCommitStore((st) => st.select);
+  const setOrder = useCommitStore((st) => st.setOrder);
   const stage = useCommitStore((st) => st.stage);
   const unstage = useCommitStore((st) => st.unstage);
   const discard = useCommitStore((st) => st.discard);
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
 
   const rowId = useId();
+  const nodes = useMemo(() => (tree ? buildFileTree(entries) : null), [tree, entries]);
   const rows = useMemo<Row[]>(
-    () => (tree ? flattenTree(buildFileTree(entries), collapsed) : entries.map((e) => ({ kind: "file", file: e, label: e.path, depth: undefined }))),
-    [tree, entries, collapsed],
+    () => (nodes ? flattenTree(nodes, collapsed) : entries.map((e) => ({ kind: "file", file: e, label: e.path, depth: undefined }))),
+    [nodes, entries, collapsed],
   );
-  // Files in display order — what ↑/↓ and Shift ranges walk (a collapsed folder's files are skipped).
-  const paths = useMemo(() => rows.flatMap((r) => (r.kind === "file" ? [r.file.path] : [])), [rows]);
+  // Every file in display order: the selection's order (Ctrl+A takes them all, collapsed or not) and
+  // where the store lands when the focused row vanishes.
+  const all = useMemo(() => (nodes ? filePaths(flattenTree(nodes, NONE)) : entries.map((e) => e.path)), [nodes, entries]);
+  // The files on screen — what ↑/↓ and Shift ranges walk (a collapsed folder's are skipped).
+  const visible = useMemo(() => filePaths(rows), [rows]);
   const sel: Selection = active ? { selected, anchor } : EMPTY_SELECTION;
   const anchorRow = active && anchor ? rows.findIndex((r) => r.kind === "file" && r.file.path === anchor) : -1;
+  // An anchor inside a collapsed folder: ↑/↓ resume from that folder's row.
+  const hiddenAt = anchorRow < 0 && sel.anchor ? hiddenSlot(rows, sel.anchor) : -1;
+
+  useEffect(() => setOrder(list, all), [list, all, setOrder]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
@@ -188,7 +172,7 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
       if (!busy) act([path]);
       return;
     }
-    select(list, clickSelect(paths, sel, path, mods(e)));
+    select(list, clickSelect(all, sel, path, mods(e), visible));
   }
 
   function onDoubleClick(e: MouseEvent<HTMLDivElement>) {
@@ -198,23 +182,31 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (entries.length === 0) return;
+    // A clicked folder row holds focus (it is a button): Enter / Space toggle it, ← collapses, → expands —
+    // none of them stage. Other keys fall through to the list.
+    const folder = (e.target as HTMLElement).closest<HTMLElement>("[data-folder]")?.dataset.folder;
+    if (folder !== undefined && folderKey(e.key, collapsed.has(folder))) {
+      toggleFolder(folder);
+      e.preventDefault();
+      return;
+    }
     switch (e.key) {
       case "ArrowDown":
-        select(list, moveSelect(paths, sel, 1));
+        select(list, moveSelect(visible, sel, 1, hiddenAt));
         break;
       case "ArrowUp":
-        select(list, moveSelect(paths, sel, -1));
+        select(list, moveSelect(visible, sel, -1, hiddenAt));
         break;
       case "Home":
-        select(list, moveSelect(paths, sel, -Infinity));
+        select(list, moveSelect(visible, sel, -Infinity));
         break;
       case "End":
-        select(list, moveSelect(paths, sel, Infinity));
+        select(list, moveSelect(visible, sel, Infinity));
         break;
       case "a":
       case "A":
         if (!(e.ctrlKey || e.metaKey)) return;
-        select(list, selectAll(paths, sel));
+        select(list, selectAll(all, sel));
         break;
       case "Enter":
         if (busy) return;
@@ -252,10 +244,11 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
           {virtualizer.getVirtualItems().map((item) => {
             const row = rows[item.index];
             const id = `${rowId}-${item.index}`;
+            // Keyed by kind: a deleted file `a` and an untracked `a/b` put a file and a folder at the same path.
             if (row.kind === "folder")
               return (
                 <TreeRow
-                  key={row.path}
+                  key={`d:${row.path}`}
                   id={id}
                   role="treeitem"
                   aria-level={row.depth + 1}
@@ -273,7 +266,7 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
             const e = row.file;
             return (
               <FileRow
-                key={e.path}
+                key={`f:${e.path}`}
                 id={id}
                 top={item.start}
                 list={list}
@@ -292,6 +285,11 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
     </div>
   );
 }
+
+const filePaths = (rows: Row[]) => rows.flatMap((r) => (r.kind === "file" ? [r.file.path] : []));
+
+/** Keys a focused folder row answers itself. */
+const folderKey = (key: string, isCollapsed: boolean) => key === "Enter" || key === " " || (key === "ArrowLeft" && !isCollapsed) || (key === "ArrowRight" && isCollapsed);
 
 interface FileRowProps {
   id: string;

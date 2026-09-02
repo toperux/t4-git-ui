@@ -275,7 +275,10 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
           {...op}
           onClick={run(() => openDialog(r.current ? { kind: "reset", target: r.remote } : { kind: "resetBranch", branch: r.branch, target: r.remote }))}
         >
-          Reset <MenuRef>{r.branch}</MenuRef> to <MenuRef remote>{r.remote}</MenuRef>…
+          {/* Only the local name ellipsizes: the destination and the "…" hint stay visible. */}
+          <span className={s.menuLabel}>
+            Reset <MenuRef className={s.menuBranch}>{r.branch}</MenuRef> <span>to <MenuRef remote>{r.remote}</MenuRef>…</span>
+          </span>
         </MenuItem>
       ))}
       <MenuItem icon={<Tag size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "createTag", target: oid }))}>

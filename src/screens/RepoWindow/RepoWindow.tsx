@@ -15,7 +15,7 @@ import { useRepoStore } from "../../store/repoStore";
 import { useShowWorkingTree, useStatusStore } from "../../store/statusStore";
 import { checkoutBranch, mergeAbort, openCommitPanel, rebaseAbort, rebaseContinue } from "./actions";
 import { computeBanners, defaultBranch, type BannerAction } from "./banners";
-import { CommitPanel } from "./CommitPanel/CommitPanel";
+import { CommitPanel, useCommitSync } from "./CommitPanel/CommitPanel";
 import { DetailsPane } from "./DetailsPane";
 import { DialogHost } from "./dialogs/DialogHost";
 import { OutputDock } from "./OutputDock";
@@ -45,6 +45,9 @@ export function RepoWindow() {
   const showWt = useShowWorkingTree();
   // The commit panel belongs to the working-tree row: it can only show while the grid shows that row.
   const wtSelected = selectedWt && showWt;
+  // One status sync serves the panel and the commit dialog (which can open from the toolbar with the panel hidden).
+  const commitOpen = useDialogStore((st) => st.dialog?.kind === "commit");
+  useCommitSync(wtSelected || commitOpen);
   const dockOpen = useOpsStore((st) => st.open);
   useShortcuts();
 

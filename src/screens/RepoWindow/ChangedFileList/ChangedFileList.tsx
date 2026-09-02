@@ -134,10 +134,11 @@ export function ChangedFileList() {
             {virtualizer.getVirtualItems().map((item) => {
               const row = rows[item.index];
               const id = `${rowId}-${item.index}`;
+              // Keyed by kind: a deleted file `a` and an added `a/b` put a file and a folder at the same path.
               if (row.kind === "folder")
                 return (
                   <TreeRow
-                    key={row.path}
+                    key={`d:${row.path}`}
                     id={id}
                     role="treeitem"
                     aria-level={row.depth + 1}
@@ -154,7 +155,7 @@ export function ChangedFileList() {
                 );
               return (
                 <FileRow
-                  key={row.file.path}
+                  key={`f:${row.file.path}`}
                   id={id}
                   top={item.start}
                   tree={tree}

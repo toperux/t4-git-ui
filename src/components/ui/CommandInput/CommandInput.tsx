@@ -46,7 +46,8 @@ function useListPosition(open: boolean, placement: "up" | "down", anchor: RefObj
  * Focus never leaves the field: the list is `aria-activedescendant`-driven like `Select`, so a
  * dialog's focus trap and Tab order are unaffected. Tab or Enter accept the highlighted row (Tab
  * takes the first without one), Enter without a highlight submits, Escape closes the list before it
- * reaches whatever is behind, and ↑ / ↓ walk the history while the list is closed.
+ * reaches whatever is behind, and ↑ / ↓ walk the history while the list is closed. Completion is
+ * for the word at the caret, like a shell: what follows the caret is kept.
  */
 export function CommandInput({ value, onChange, onSubmit, history, refs, placement, disabled, autoFocus, invalid, placeholder, "aria-label": label }: CommandInputProps) {
   // Dismissed (Escape / accept / blur) since the last edit: an edit reopens it.
@@ -54,12 +55,27 @@ export function CommandInput({ value, onChange, onSubmit, history, refs, placeme
   const [active, setActive] = useState(-1);
   // Walking the history: which entry is shown, and what was typed before ↑ was pressed.
   const [hist, setHist] = useState<{ index: number; draft: string } | null>(null);
+  // `selectionStart` as of the last edit / caret move; `null` until then (= the end).
+  const [caret, setCaret] = useState<number | null>(null);
+  // Where the caret goes once the controlled value from `accept` has landed in the DOM.
+  const pendingCaret = useRef<number | null>(null);
   const wrap = useRef<HTMLLabelElement>(null);
+  const field = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const id = useId();
-  const { items, replaceFrom } = useMemo(() => complete(value, refs, history), [value, refs, history]);
+  const head = caret === null ? value : value.slice(0, caret);
+  const { items, replaceFrom } = useMemo(() => complete(head, refs, history), [head, refs, history]);
   const open = !closed && !disabled && value.trim() !== "" && items.length > 0;
   const pos = useListPosition(open, placement, wrap, list, items.length);
+
+  // Setting a controlled value puts the caret at the end; an accept mid-line wants it after the
+  // inserted word instead.
+  useLayoutEffect(() => {
+    const at = pendingCaret.current;
+    if (at === null) return;
+    pendingCaret.current = null;
+    field.current?.setSelectionRange(at, at);
+  }, [value]);
 
   // The list is placed once, from the field's rect: close it rather than let it drift.
   useEffect(() => {
@@ -80,8 +96,9 @@ export function CommandInput({ value, onChange, onSubmit, history, refs, placeme
     if (open && active >= 0) list.current?.children[active]?.scrollIntoView?.({ block: "nearest" });
   }, [open, active]);
 
-  function change(next: string) {
-    onChange(next);
+  function change(el: HTMLInputElement) {
+    onChange(el.value);
+    setCaret(el.selectionStart);
     setClosed(false);
     setActive(-1);
     setHist(null);
@@ -90,7 +107,11 @@ export function CommandInput({ value, onChange, onSubmit, history, refs, placeme
   function accept(i: number) {
     const item = items[i];
     if (!item) return;
-    onChange(item.kind === "history" ? item.text : `${value.slice(0, replaceFrom)}${item.text} `);
+    // A history row is a whole line; anything else replaces the word at the caret and keeps the rest.
+    const inserted = item.kind === "history" ? item.text : `${head.slice(0, replaceFrom)}${item.text} `;
+    onChange(item.kind === "history" ? inserted : inserted + value.slice(head.length));
+    pendingCaret.current = inserted.length;
+    setCaret(inserted.length);
     setClosed(true);
     setActive(-1);
     setHist(null);
@@ -102,6 +123,7 @@ export function CommandInput({ value, onChange, onSubmit, history, refs, placeme
     const draft = hist?.draft ?? value;
     onChange(next === -1 ? draft : history[next]);
     setHist(next === -1 ? null : { index: next, draft });
+    setCaret(null);
     setClosed(true);
     setActive(-1);
   }
@@ -125,7 +147,11 @@ export function CommandInput({ value, onChange, onSubmit, history, refs, placeme
     } else if (e.key === "Enter") {
       e.preventDefault();
       if (open && active >= 0) accept(active);
-      else onSubmit();
+      else {
+        // The walk ends with the line: after a run ↑ must recall it, not the entry before it.
+        setHist(null);
+        onSubmit();
+      }
     } else if (e.key === "Escape") {
       if (!open) return;
       // The list owns Escape while it is open; the dialog behind it must not close too.
@@ -143,6 +169,7 @@ export function CommandInput({ value, onChange, onSubmit, history, refs, placeme
           $ git
         </span>
         <input
+          ref={field}
           className={s.field}
           role="combobox"
           aria-label={label}
@@ -152,7 +179,8 @@ export function CommandInput({ value, onChange, onSubmit, history, refs, placeme
           aria-activedescendant={open && active >= 0 ? `${id}-${active}` : undefined}
           aria-invalid={invalid || undefined}
           value={value}
-          onChange={(e) => change(e.target.value)}
+          onChange={(e) => change(e.target)}
+          onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
           onKeyDown={onKeyDown}
           onBlur={() => setClosed(true)}
           disabled={disabled}
@@ -176,7 +204,8 @@ export function CommandInput({ value, onChange, onSubmit, history, refs, placeme
           >
             {items.map((item, i) => (
               <div
-                key={`${item.kind}:${item.text}`}
+                // A local branch and a remote can share a name; both are `ref`, the hint tells them apart.
+                key={`${item.kind}:${item.hint}:${item.text}`}
                 id={`${id}-${i}`}
                 role="option"
                 aria-selected={i === active}

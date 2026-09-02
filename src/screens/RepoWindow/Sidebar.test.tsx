@@ -70,6 +70,15 @@ describe("Sidebar section counts", () => {
     expect(titles).toContain("main");
   });
 
+  it("never marks the current branch as merged: it cannot be deleted", () => {
+    useRepoStore.setState({ refs: { ...REFS, local: [{ ...branch("main", true), mergedInto: "feature" }, branch("feature")] } });
+    const { queryByText, getAllByRole } = render(<Sidebar />);
+    expect(queryByText("merged")).toBeNull();
+    const titles = getAllByRole("treeitem").map((r) => r.title);
+    expect(titles).toContain("main");
+    expect(titles).not.toContain("main — merged into feature");
+  });
+
   it("nests remote branches in folders like local ones, collapsing per remote", () => {
     const { getAllByRole, queryByRole } = render(<Sidebar />);
     // `feature/panels` (local) and `origin/feature/lanes` each get a `feature` folder.

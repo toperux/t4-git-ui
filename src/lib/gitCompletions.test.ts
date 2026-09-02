@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RefsSnapshot } from "../api/types";
-import { complete, MAX_ITEMS } from "./gitCompletions";
+import { complete, MAX_HISTORY_ITEMS, MAX_ITEMS } from "./gitCompletions";
 
 const REFS: RefsSnapshot = {
   head: { oid: "a", branch: "main", detached: false },
@@ -67,8 +67,30 @@ describe("complete", () => {
     expect(complete('commit -m "two words" --am', REFS, []).replaceFrom).toBe(22);
   });
 
-  it("caps the list", () => {
+  it("reads an escaped quote outside quotes as a literal, like splitArgs", () => {
+    expect(texts("commit -m it\\'s --am")).toEqual(["--amend"]);
+    expect(complete('commit -m say\\"hi --am', REFS, []).replaceFrom).toBe(18);
+  });
+
+  it("splits words on ASCII whitespace only", () => {
+    expect(texts("commit -m a\u00a0b --am")).toEqual(["--amend"]);
+    expect(complete("commit\u00a0--am", REFS, []).items).toEqual([]);
+  });
+
+  it("keeps a local branch and a remote of the same name apart by hint", () => {
+    const refs = { ...REFS, local: [...REFS.local, { ...REFS.local[1], name: "upstream" }], remotes: [...REFS.remotes, { name: "upstream", url: null, branches: [] }] };
+    expect(complete("checkout up", refs, []).items.map((i) => [i.text, i.hint])).toEqual([
+      ["upstream", "branch"],
+      ["upstream", "remote"],
+    ]);
+  });
+
+  it("caps history rows on their own so flags still show, and the whole list", () => {
     const history = Array.from({ length: 40 }, (_, i) => `log -${i}`);
-    expect(texts("log", history)).toHaveLength(MAX_ITEMS);
+    const { items } = complete("log -", REFS, history);
+    expect(items.filter((i) => i.kind === "history")).toHaveLength(MAX_HISTORY_ITEMS);
+    expect(items.map((i) => i.text)).toContain("--oneline");
+    const many = { ...REFS, local: Array.from({ length: 40 }, (_, i) => ({ ...REFS.local[1], name: `b${i}` })) };
+    expect(complete("checkout ", many, []).items).toHaveLength(MAX_ITEMS);
   });
 });

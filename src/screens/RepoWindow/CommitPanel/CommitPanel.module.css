@@ -17,11 +17,6 @@
 
 /* --- file lists --- */
 /* Title text + the list/tree toggle, sitting together on the left of the header. */
-.titleRow {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-}
 .stagedHeader {
   border-top: 1px solid var(--border);
 }

@@ -20,6 +20,18 @@ describe("splitArgs", () => {
     expect(args('commit -m "say \\"hi\\""')).toEqual(["commit", "-m", 'say "hi"']);
     expect(args('-m "a \\\\ b"')).toEqual(["-m", "a \\ b"]);
     expect(args('x ""')).toEqual(["x", ""]);
+    // A backslash before anything else stays, as in a shell.
+    expect(args('-m "a\\nb"')).toEqual(["-m", "a\\nb"]);
+  });
+
+  it("joins quoted and bare runs of one word", () => {
+    expect(args('a"b c"d')).toEqual(["ab cd"]);
+    expect(args("-m'x y'\"z\"")).toEqual(["-mx yz"]);
+  });
+
+  it("splits on ASCII whitespace only: an NBSP is part of the word", () => {
+    expect(args("commit -m a\u00a0b")).toEqual(["commit", "-m", "a\u00a0b"]);
+    expect(args("a\tb\r\nc")).toEqual(["a", "b", "c"]);
   });
 
   it("keeps a single-quoted group literally, with the '\\'' idiom", () => {
@@ -62,5 +74,25 @@ describe("interactiveFlag", () => {
     expect(interactiveFlag(["commit", "-i", "a.txt"])).toBeNull();
     expect(interactiveFlag(["status"])).toBeNull();
     expect(interactiveFlag([])).toBeNull();
+  });
+
+  it("reads a bundle of short flags letter by letter", () => {
+    expect(interactiveFlag(["add", "-ip"])).toBe("-i");
+    expect(interactiveFlag(["checkout", "-pb", "x"])).toBe("-p");
+    expect(interactiveFlag(["add", "-An"])).toBeNull();
+    // Not a bundle: a negative number, `--long`, a lone dash.
+    expect(interactiveFlag(["log", "-5"])).toBeNull();
+    expect(interactiveFlag(["add", "-"])).toBeNull();
+  });
+
+  it("skips the value after -m / -F / --message / --file", () => {
+    expect(interactiveFlag(["commit", "-m", "-p"])).toBeNull();
+    expect(interactiveFlag(["stash", "push", "-m", "--patch"])).toBeNull();
+    expect(interactiveFlag(["commit", "--message", "-i", "-F", "--interactive"])).toBeNull();
+    expect(interactiveFlag(["commit", "-m", "-p", "-p"])).toBe("-p");
+  });
+
+  it("only knows the first word as the command: a global option before it hides the rule (as in ops.rs)", () => {
+    expect(interactiveFlag(["-c", "x=y", "add", "-p"])).toBeNull();
   });
 });

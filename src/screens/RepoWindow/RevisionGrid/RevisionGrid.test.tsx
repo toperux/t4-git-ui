@@ -1,8 +1,9 @@
 // Static render check: chips lead the row, HEAD chip before the branch chip, before the subject.
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { LogRow } from "../../../api/types";
+import type { Branch, LogRow, RefsSnapshot } from "../../../api/types";
 import { useDialogStore } from "../../../store/dialogStore";
+import { useOpsStore } from "../../../store/opsStore";
 import { __resetForTests as resetRepo, useRepoStore } from "../../../store/repoStore";
 import { __resetForTests as resetStatus, useStatusStore } from "../../../store/statusStore";
 import { RevisionGrid } from "./RevisionGrid";
@@ -41,6 +42,39 @@ function row(i: number, summary: string, labels: LogRow["labels"]): LogRow {
     },
     labels,
   };
+}
+
+const branch = (name: string, oid: string, extra: Partial<Branch> = {}): Branch => ({ name, oid, upstream: null, gone: false, mergedInto: null, ahead: 0, behind: 0, isHead: false, ...extra });
+
+// `main` (current) and `stale` are at oid0; `feature` / `hotfix` sit at oid1 with origin/main and
+// origin/renamed (tracked by `stale`); origin/new at oid2 has no local counterpart.
+const REFS: RefsSnapshot = {
+  head: { oid: "oid0", branch: "main", detached: false },
+  state: "clean",
+  local: [branch("main", "oid0", { upstream: "origin/main", isHead: true }), branch("feature", "oid1"), branch("hotfix", "oid1"), branch("stale", "oid0", { upstream: "origin/renamed" })],
+  remotes: [
+    {
+      name: "origin",
+      url: null,
+      branches: [
+        { name: "origin/main", oid: "oid1", mergedInto: null },
+        { name: "origin/renamed", oid: "oid1", mergedInto: null },
+        { name: "origin/new", oid: "oid2", mergedInto: null },
+      ],
+    },
+  ],
+  tags: [],
+  stashes: [],
+};
+
+function withRefs() {
+  useRepoStore.setState({
+    repo: { id: "r", name: "r", path: "r", head: { oid: "oid0", branch: "main", detached: false } },
+    refs: REFS,
+    log: { generation: 1, total: 3, complete: true, error: null, flat: false },
+    rows: [row(0, "Top", []), row(1, "Middle", []), row(2, "Initial", [])],
+    selectedIndex: 0,
+  });
 }
 
 // jsdom has no canvas backend; GraphCell skips drawing when getContext returns null.
@@ -142,5 +176,62 @@ describe("RevisionGrid", () => {
     fireEvent.keyDown(getByRole("grid"), { key: "ArrowUp" });
     expect(useRepoStore.getState().wtSelected).toBe(true);
     useStatusStore.setState({ status: null });
+  });
+
+  it("offers the branches at a right-clicked row and opens the dialogs on them", () => {
+    withRefs();
+    useDialogStore.setState({ dialog: null, returnFocus: null });
+    const { container, getByRole, getAllByRole, queryByRole } = render(<RevisionGrid />);
+    const rows = container.querySelectorAll('[role="row"][aria-rowindex]');
+    const items = () => getAllByRole("menuitem").map((el) => el.textContent);
+    const pick = (name: string) => {
+      fireEvent.click(getByRole("menuitem", { name }));
+      expect(queryByRole("menu", { name: "Commit actions" })).toBeNull();
+      return useDialogStore.getState();
+    };
+
+    fireEvent.contextMenu(rows[1], { clientX: 10, clientY: 20 });
+    expect(useRepoStore.getState().selectedIndex).toBe(1);
+    expect(items()).toEqual([
+      "Checkout branch…",
+      "Checkout (detached)",
+      "Create branch here…",
+      "Reset main to here…",
+      "Reset main to origin/main…",
+      "Reset stale to origin/renamed…",
+      "Create tag here…",
+      "Copy SHA",
+    ]);
+    // Two locals at the row: the dialog picks; focus is handed back to the row the menu came from.
+    const picker = pick("Checkout branch…");
+    expect(picker.dialog).toEqual({ kind: "checkoutBranch", branches: [{ name: "feature", remote: null }, { name: "hotfix", remote: null }] });
+    // `toBe`: matching a DOM node structurally walks React's fiber props on it and never returns.
+    expect(picker.returnFocus).toBe(rows[1]);
+    fireEvent.contextMenu(rows[1]);
+    expect(pick("Reset main to here…").dialog).toEqual({ kind: "reset", target: "oid1" });
+    fireEvent.contextMenu(rows[1]);
+    // The current branch takes a `git reset`; another local moves with `branch -f`.
+    expect(pick("Reset main to origin/main…").dialog).toEqual({ kind: "reset", target: "origin/main" });
+    fireEvent.contextMenu(rows[1]);
+    expect(pick("Reset stale to origin/renamed…").dialog).toEqual({ kind: "resetBranch", branch: "stale", target: "origin/renamed" });
+
+    // A lone remote branch without a local: a direct checkout item, not the picker.
+    fireEvent.contextMenu(rows[2]);
+    expect(items()).toEqual(["Checkout origin/new", "Checkout (detached)", "Create branch here…", "Reset main to here…", "Create tag here…", "Copy SHA"]);
+    expect(pick("Create tag here…").dialog).toEqual({ kind: "createTag", target: "oid2" });
+    useDialogStore.setState({ dialog: null, returnFocus: null });
+  });
+
+  it("greys every item but Copy SHA while an operation runs", () => {
+    withRefs();
+    useOpsStore.setState({ busy: "Fetching…" });
+    const { container, getAllByRole } = render(<RevisionGrid />);
+    fireEvent.contextMenu(container.querySelectorAll('[role="row"][aria-rowindex]')[1]);
+    const items = getAllByRole("menuitem") as HTMLButtonElement[];
+    const disabled = items.filter((el) => el.disabled).map((el) => el.textContent);
+    expect(disabled).toHaveLength(items.length - 1);
+    expect(disabled).not.toContain("Copy SHA");
+    expect(items.filter((el) => el.disabled).every((el) => el.title === "Operation in progress")).toBe(true);
+    useOpsStore.setState({ busy: null });
   });
 });

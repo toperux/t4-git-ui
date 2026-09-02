@@ -114,17 +114,28 @@ describe("OutputDock", () => {
     expect(useCmdHistoryStore.getState().history).toEqual(["status"]);
   });
 
-  it("the prompt is disabled while an op runs, and refuses a flag that needs a terminal", () => {
+  it("while an op runs the prompt stays enabled (and focused) but Enter waits; afterwards it runs", async () => {
+    useRepoStore.setState({ repo: { id: "r", name: "r", path: "/r", head: { oid: "a", branch: "main", detached: false } } });
     useOpsStore.setState({ open: true, busy: "Fetching…" });
-    const { getByRole, getByText, rerender } = renderDock(true);
-    expect((getByRole("combobox", { name: "Run git command" }) as HTMLInputElement).disabled).toBe(true);
+    const { getByRole } = renderDock(true);
+    const prompt = getByRole("combobox", { name: "Run git command" }) as HTMLInputElement;
+    expect(prompt.disabled).toBe(false);
+    expect(prompt.placeholder).toBe("Running…");
+    prompt.focus();
+    fireEvent.change(prompt, { target: { value: "status" } });
+    fireEvent.keyDown(prompt, { key: "Enter" });
+    expect(ipc.runGit).not.toHaveBeenCalled();
+    expect(prompt.value).toBe("status");
 
     act(() => useOpsStore.setState({ busy: null }));
-    rerender(
-      <Group orientation="vertical">
-        <DockPanel open />
-      </Group>,
-    );
+    expect(document.activeElement).toBe(prompt);
+    fireEvent.keyDown(prompt, { key: "Enter" });
+    await waitFor(() => expect(ipc.runGit).toHaveBeenCalledWith("r", ["status"]));
+  });
+
+  it("refuses a flag that needs a terminal", () => {
+    useOpsStore.setState({ open: true });
+    const { getByRole, getByText } = renderDock(true);
     const prompt = getByRole("combobox", { name: "Run git command" });
     fireEvent.change(prompt, { target: { value: "add -p" } });
     fireEvent.keyDown(prompt, { key: "Enter" });

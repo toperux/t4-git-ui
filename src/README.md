@@ -65,10 +65,12 @@ src/
     tokens.css             GENERATED from docs/design/canvases/build/tokens.css — never edit; run `node docs/design/canvases/build/build.mjs`
     base.css               reset, body, scrollbar, :focus-visible, .selectable, reduced-motion
     fonts.css              @font-face for the bundled variable fonts in assets/fonts
-    theme.ts               light/dark preference → <html data-theme>
+    theme.ts               light/dark preference → <html data-theme>; also mirrored into kv `theme` so src-tauri/lib.rs can
+                           colour the native window before the first paint
     useThemeTokens.ts      reads --graph-0..7 / --lane-w / --node-r / --lane-stroke / --row-h via getComputedStyle; re-reads on data-theme change
   assets/fonts/            InterVariable(.woff2, -Italic), JetBrainsMono[wght](.woff2, -Italic) + licenses
-  lib/                     cx(), relativeDate()/absoluteDate(), multiSelect.ts (pure click/ctrl/shift/↑↓/Ctrl+A model),
+  lib/                     cx(), relativeDate()/absoluteDate(), multiSelect.ts (pure click/ctrl/shift/↑↓/Ctrl+A model over an all-items list plus the visible
+                           order — hidden items stay selected, ranges and ↑/↓ walk what is visible),
                            keys.ts (mods(e) → {ctrl, shift} for the selection models),
                            nativeMenu.ts (keepsNativeMenu: the webview's own context menu is suppressed app-wide from
                            App.tsx, kept only in editable fields and on selected `.selectable` text),
@@ -76,9 +78,10 @@ src/
                            argv.ts (splitArgs: a typed `git …` line → argv, shell quoting rules; interactiveFlag mirrors
                            cli/ops.rs `check_custom_args` for the inline error — the Rust side is what enforces it),
                            gitCompletions.ts (GIT_COMMANDS table: porcelain commands, everyday flags with hints, two-level
-                           stash/remote/submodule/worktree; complete(text, refs, history) → history lines first, then
-                           commands | subcommands | flags | refs by caret position, 30 max),
-                           kv.ts (store plugin `recents.json`, localStorage fallback; an unreadable value reads as absent),
+                           stash/remote/submodule/worktree; complete(text, refs, history) → up to 8 history lines first, then
+                           commands | subcommands | flags | refs for the word at the caret, 30 max),
+                           kv.ts (store plugin `recents.json` — the same file src-tauri/lib.rs reads at startup for `theme` —,
+                           localStorage fallback; an unreadable value reads as absent),
                            paths.ts (baseName/parentDir/pathSep/joinPath/repoNameFromUrl/prettyUrl — the one path helper module),
                            branchName.ts (validateRefName: the check-ref-format subset — spaces, `..`, `//`, leading `-`,
                            leading/trailing `/`, trailing `.`, `.`-leading or `.lock`-trailing components, bare `@`, `@{`,
@@ -88,13 +91,15 @@ src/
   components/ui/<Name>/    one folder per style-guide component: <Name>.tsx + <Name>.module.css (incl. StatusGlyph A/M/D/R/U/C,
                            Checkbox, Kbd (the one shortcut-chip anatomy, used by MenuItem + StartScreen),
                            CommandInput (`$ git …` field + portalled completion list from lib/gitCompletions, above or
-                           below; focus stays in the field via aria-activedescendant; Tab/Enter accept, Enter alone
-                           submits, Escape closes the list before the dialog sees it, ↑/↓ walk the history),
+                           below; completes the word at the caret and keeps what follows it; focus stays in the field via
+                           aria-activedescendant; Tab/Enter accept, Enter alone submits, Escape closes the list before the
+                           dialog sees it, ↑/↓ walk the history — the walk resets on submit),
                            Input + Select (`<option>` children, `onChange` shaped like a native change; the list is
                            app-drawn and portalled — a native <select> popup is an OS window that ignores the theme),
                            BusyOverlay (scrim + spinner card while repoStore.opening is set; rendered once in App.tsx
                            so it covers the start screen and a toolbar-menu repo switch alike),
-                           Menu/MenuItem/MenuSeparator (anchor + dropdown, Esc/outside click, ↑/↓, `kbd` hint, `align`)
+                           Menu/MenuItem/MenuSeparator (anchor + dropdown, Esc handled on the menu itself so a surrounding
+                           Dialog stays open, outside click, ↑/↓, `kbd` hint, `align`, focus back on the trigger)
                            + ContextMenu (portal at a viewport point, clamped) + MenuRef (a branch name inside an item:
                            mono, chip colours for local / remote), ThemeToggle (Sun/Moon, theme/theme.ts `toggleTheme`),
                            Toast + ToastStack,
@@ -113,14 +118,16 @@ src/
                            = change count, Repository menu › Commit… / Run git command…, ThemeToggle beside Settings;
                            every op button disabled while one runs),
                            Sidebar (one `role="tree"` per section with a roving tabIndex; branches with `/` nest in
-                           folder rows under Local and under each remote; a `mergedInto` branch is muted with a
+                           folder rows under Local and under each remote; a `mergedInto` branch (never the current one) is muted with a
                            `merged` badge; context menus per ref kind on right-click / Shift+F10, double-click = checkout),
                            actions.ts (fetchDefault / checkout* / stash* / copyText / refreshAll / switchRepo / pickAndOpenRepo /
-                           closeRepo — the git ones through runOp),
+                           closeRepo / runGit — the git ones through runOp; runGit with `quietFailure`: no toast on a
+                           non-zero exit unless conflicts / auth / non-fast-forward, the dock's exit line says it;
+                           busyLabel cuts the label by code point with a marker runOp keeps),
                            banners.ts (pure refs+status → detached | merge | rebase | sequencer (cherry-pick/revert/bisect,
                            text only — no backend abort) | conflicts banners),
                            useShortcuts.ts (Ctrl+Shift+U push, Ctrl+Shift+L pull, Ctrl+Shift+R run git command, Ctrl+B branch,
-                           Ctrl+F5 fetch, F5 refresh, Ctrl+`),
+                           Ctrl+F5 fetch, F5 refresh; Ctrl+` also inside text fields — it is the only way out of the dock prompt),
                            dialogs/ (DialogHost + OpsDialogs Push/Push tag + Delete remote tag (`refs/tags/<name>` with a
                            remote picker, from the sidebar tag menu)/Pull/Fetch/Merge/Rebase, RefDialogs Checkout picker /
                            Create-Rename-Delete branch / remote branch / tags, StashDialogs, RunCommandDialog (one
@@ -131,8 +138,8 @@ src/
                            commit message — `refs.tags[].message` is `null` on a lightweight tag, which is all that
                            tells the two apart once the tag is peeled),
                            OutputDock (collapsed 28px: `$ cmd` + Check/X icon, exit · elapsed / spinner + Cancel; expanded
-                           `.output` log + a `$ git` prompt line (CommandInput, list opens upward, disabled while an op
-                           runs, Enter → actions `runGit`) inside `RepoWindow`'s resizable `DockPanel`, 160–320px, opens
+                           `.output` log + a `$ git` prompt line (CommandInput, list opens upward, stays enabled while an op
+                           runs — Enter waits — Enter → actions `runGit`) inside `RepoWindow`'s resizable `DockPanel`, 160–320px, opens
                            at 200 every launch)
       RevisionGrid/        RevisionGrid (virtualized; role=grid wraps the header row + the scrolling rowgroup, owns the keyboard
                            and aria-activedescendant; row 0 = WorkingTreeRow while dirty & unfiltered —
@@ -159,21 +166,26 @@ src/
                            to the top only when the file path changes. No hunk/line Discard: the backend has no
                            reverse-apply-to-workdir — file-level discard lives in `CommitPanel/FilesColumn`
                            diffRows.ts (pure: flattenUnified (rows carry hunk/index) / flattenSplit), lineSelection.ts (pure: clickLine, toPairs)
-      CommitPanel/         CommitPanel (Files 320 | Diff | Message 340, resizable; `useCommitSync` feeds statusStore.status →
+      CommitPanel/         CommitPanel (Files 320 | Diff | Message 340, resizable; `useCommitSync` — called once from RepoWindow
+                           while the panel or the commit dialog is up — feeds statusStore.status →
                            commitStore.syncWithStatus; the message header's "Open commit window" opens dialogs/CommitDialog:
                            the same columns as a full-window dialog, Unstaged / Staged / Message stacked left, diff right,
                            closing itself after a commit — also Repository menu › Commit… and a double-click on the working-tree row),
                            FilesColumn (Unstaged + Stage all / Staged + Unstage all; virtualized 26px rows, role=listbox
                            aria-multiselectable + aria-activedescendant — or role=tree with folder rows when the header's
-                           "Show as tree" toggle beside the title is on (`localStorage.commitFileListMode`; ChangedFileList/fileTree builds +
-                           flattens it, a collapsed folder's files drop out of the ↑/↓ + Shift order), delegated click so memo(FileRow) holds, the 2px
+                           "Show as tree" toggle beside the title is on (store/treeModeStore.ts, one mode for every mount, `localStorage.commitFileListMode`;
+                           ChangedFileList/fileTree builds + flattens it; a collapsed folder's files leave the ↑/↓ + Shift *walk*
+                           only — they stay selected, Ctrl+A takes every file, Enter acts on all, ↑/↓ from a hidden anchor resume at
+                           its folder row (fileTree `hiddenSlot`); Enter / Space / ← / → on a folder row toggle it; a row that
+                           vanishes hands the selection to its display-order neighbour (`commitStore.setOrder`)), delegated click so memo(FileRow) holds, the 2px
                            accent bar only while more than one row is selected (`.list.multi`), hover Stage/Unstage IconButton, Enter/double-click act on the selection, Delete → discard w/
                            native confirm; conflicted rows = glyph C, stageable whole-file — the diff header says so, and shows
                            the file with the markers git left in it plus a "Resolve in editor" button → `open_merge_editor`;
                            staging one unresolved drops its index stages for good, so a still-markered file mid-merge/rebase
                            offers "Restore conflict" → `recreate_conflict` (`git checkout --merge`, behind a native confirm)),
                            MessageColumn (summary input + len/72 counter (danger past 72), body textarea, Amend (prefill) / Signed-off-by,
-                           author line or "Set user.name and user.email" (config error → Commit disabled), Commit (Ctrl+Enter),
+                           author line (cached per repo in commitStore `loadAuthor`) or "Set user.name and user.email" (config error →
+                           Commit disabled), Commit (Ctrl+Enter),
                            Commit & Push (commits, then opens the Push dialog when `commit()` returned an oid),
                            history Menu from msgHistory)
 ```

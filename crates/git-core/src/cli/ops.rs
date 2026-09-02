@@ -167,10 +167,10 @@ pub fn rebase(onto: &str) -> Vec<String> {
     a
 }
 
-/// `rebase --continue` with the editor disabled (git would otherwise open one
-/// for the resumed commit's message and hang without a tty).
+/// `rebase --continue`. The resumed commit's message would open an editor;
+/// the runner's `GIT_EDITOR=true` keeps that from hanging without a tty.
 pub fn rebase_continue() -> Vec<String> {
-    args(["-c", "core.editor=true", "rebase", "--continue"])
+    args(["rebase", "--continue"])
 }
 
 pub fn rebase_abort() -> Vec<String> {
@@ -374,11 +374,18 @@ pub fn classify_failure(code: i32, stdout: &str, stderr: &str) -> OpFailure {
     OpFailure::Other { message }
 }
 
-/// Refuses argv that would need a terminal, before anything runs: `--interactive`
-/// anywhere, `-i` for add / rebase / clean / stash, `-p` / `--patch` for add /
-/// reset / checkout / restore / stash / commit — scanned up to the first `--`
-/// (what follows are pathspecs). An empty argv is refused too.
-/// Kept in step with `interactiveFlag` in `src/lib/argv.ts`.
+/// Refuses argv that would need a terminal, before anything runs. The rule,
+/// mirrored exactly by `interactiveFlag` in `src/lib/argv.ts`:
+/// - tokens are scanned up to the first `--` (what follows are pathspecs);
+/// - the token right after `-m`, `-F`, `--message` or `--file` is a value
+///   and is skipped (`commit -m -p` is a message);
+/// - a bundle of short flags (`-[A-Za-z]{2,}`) is treated as its letters,
+///   each as `-x` (`add -ip` is `-i -p`; `checkout -pb x` is `-p -b`);
+/// - `--interactive` anywhere, `-i` for add / rebase / clean / stash, and
+///   `-p` / `--patch` for add / reset / checkout / restore / stash / commit
+///   are refused.
+///
+/// An empty argv is refused too.
 pub fn check_custom_args(args: &[String]) -> Result<(), String> {
     let cmd = args
         .first()
@@ -389,14 +396,31 @@ pub fn check_custom_args(args: &[String]) -> Result<(), String> {
         cmd,
         "add" | "reset" | "checkout" | "restore" | "stash" | "commit"
     );
+    let interactive = |flag: &str| match flag {
+        "--interactive" => true,
+        "-i" => flag_i,
+        "-p" | "--patch" => flag_p,
+        _ => false,
+    };
+    let mut skip = false;
     for a in args.iter().take_while(|a| a.as_str() != "--") {
-        let interactive = match a.as_str() {
-            "--interactive" => true,
-            "-i" => flag_i,
-            "-p" | "--patch" => flag_p,
-            _ => false,
+        if std::mem::replace(&mut skip, false) {
+            continue;
+        }
+        if matches!(a.as_str(), "-m" | "-F" | "--message" | "--file") {
+            skip = true;
+            continue;
+        }
+        let bundle = a
+            .strip_prefix('-')
+            .filter(|l| l.len() >= 2 && l.bytes().all(|b| b.is_ascii_alphabetic()));
+        let refused = match bundle {
+            Some(letters) => letters
+                .bytes()
+                .any(|b| interactive(&format!("-{}", b as char))),
+            None => interactive(a),
         };
-        if interactive {
+        if refused {
             return Err(format!(
                 "{a} needs a terminal; interactive mode is not supported here"
             ));
@@ -503,10 +527,7 @@ mod tests {
             ["merge", "--ff-only", "feat"]
         );
         assert_eq!(rebase("main"), ["rebase", "main"]);
-        assert_eq!(
-            rebase_continue(),
-            ["-c", "core.editor=true", "rebase", "--continue"]
-        );
+        assert_eq!(rebase_continue(), ["rebase", "--continue"]);
         assert_eq!(rebase_abort(), ["rebase", "--abort"]);
         assert_eq!(merge_abort(), ["merge", "--abort"]);
     }
@@ -699,6 +720,8 @@ mod tests {
             v(&["add", "-p"]),
             v(&["stash", "push", "--patch"]),
             v(&["clean", "-i"]),
+            v(&["add", "-ip"]),
+            v(&["checkout", "-pb", "x"]),
             v(&[]),
         ] {
             assert!(check_custom_args(&bad).is_err(), "{bad:?}");
@@ -710,12 +733,21 @@ mod tests {
             v(&["log", "-p"]),
             v(&["show", "-p", "HEAD"]),
             v(&["commit", "-i", "a.txt"]),
+            v(&["commit", "-m", "-p"]),
+            v(&["stash", "push", "-m", "--patch"]),
+            v(&["commit", "--message", "-p"]),
+            v(&["commit", "-F", "-p"]),
+            v(&["commit", "--allow-empty-message", "-m", ""]),
         ] {
             assert!(check_custom_args(&ok).is_ok(), "{ok:?}");
         }
         assert_eq!(
             check_custom_args(&v(&["add", "-p"])).unwrap_err(),
             "-p needs a terminal; interactive mode is not supported here"
+        );
+        assert_eq!(
+            check_custom_args(&v(&["add", "-ip"])).unwrap_err(),
+            "-ip needs a terminal; interactive mode is not supported here"
         );
     }
 }

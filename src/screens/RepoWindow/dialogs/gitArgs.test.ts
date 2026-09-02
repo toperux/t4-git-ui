@@ -26,4 +26,8 @@ describe("gitArgs (preview line)", () => {
     expect(checkoutArgs("main", null, true)).toEqual(["checkout", "main"]);
     expect(stashPushArgs("wip", true, true)).toEqual(["stash", "push", "-u", "-k", "-m", "wip"]);
   });
+
+  it("quotes an empty argument, or the preview would drop it", () => {
+    expect(gitCmd(["commit", "--allow-empty-message", "-m", ""])).toBe("git commit --allow-empty-message -m ''");
+  });
 });

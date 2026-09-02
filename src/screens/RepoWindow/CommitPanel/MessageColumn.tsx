@@ -1,7 +1,5 @@
 import { Check, GitCommitHorizontal, History, Maximize2, TriangleAlert } from "lucide-react";
 import { useEffect, useState, type KeyboardEvent } from "react";
-import { getAuthor, toAppError } from "../../../api/ipc";
-import type { AppError, Author } from "../../../api/types";
 import { Button } from "../../../components/ui/Button/Button";
 import { Checkbox } from "../../../components/ui/Checkbox/Checkbox";
 import { IconButton } from "../../../components/ui/IconButton/IconButton";
@@ -44,20 +42,10 @@ export function MessageColumn({ onExpand, onCommitted, autoFocus }: MessageColum
   const commit = useCommitStore((st) => st.commit);
   const stagedCount = useStatusStore((st) => st.status?.staged ?? 0);
 
-  const [author, setAuthor] = useState<Author | null>(null);
-  const [authorError, setAuthorError] = useState<AppError | null>(null);
-  useEffect(() => {
-    setAuthor(null);
-    setAuthorError(null);
-    if (!repoId) return;
-    let live = true;
-    getAuthor(repoId)
-      .then((a) => live && setAuthor(a))
-      .catch((e: unknown) => live && setAuthorError(toAppError(e)));
-    return () => {
-      live = false;
-    };
-  }, [repoId]);
+  const author = useCommitStore((st) => st.author);
+  const authorError = useCommitStore((st) => st.authorError);
+  const loadAuthor = useCommitStore((st) => st.loadAuthor);
+  useEffect(() => void loadAuthor(), [loadAuthor, repoId]);
 
   const [histOpen, setHistOpen] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
@@ -80,9 +68,12 @@ export function MessageColumn({ onExpand, onCommitted, autoFocus }: MessageColum
   /** Commits, then opens the Push dialog (which carries the remote / upstream options). */
   async function commitAndPush() {
     if (!canCommit || running) return;
+    // Read before `onCommitted` closes the commit dialog (which clears it): Push hands focus back to
+    // that dialog's opener, not to this button — it unmounts with the dialog.
+    const returnFocusTo = useDialogStore.getState().returnFocus;
     if (await commit()) {
       onCommitted?.();
-      useDialogStore.getState().open({ kind: "push" });
+      useDialogStore.getState().open({ kind: "push" }, { returnFocusTo });
     }
   }
 

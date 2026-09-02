@@ -52,3 +52,18 @@ export function flattenTree<T>(nodes: FileNode<T>[], collapsed: ReadonlySet<stri
   }
   return out;
 }
+
+/**
+ * For a file hidden inside a collapsed folder: how many file lines come before that folder's line —
+ * where the keyboard walk resumes from it. −1 when the file is shown (or not in the tree at all).
+ */
+export function hiddenSlot(lines: ({ kind: "folder"; path: string; expanded: boolean } | { kind: "file"; file: { path: string } })[], path: string): number {
+  let files = 0;
+  for (const l of lines) {
+    if (l.kind === "file") {
+      if (l.file.path === path) return -1;
+      files++;
+    } else if (!l.expanded && path.startsWith(l.path + "/")) return files;
+  }
+  return -1;
+}

@@ -17,6 +17,7 @@ vi.mock("../api/ipc", async (importOriginal) => {
     getLogPage: vi.fn(() => new Promise(() => {})),
     commit: vi.fn(),
     getHeadMessage: vi.fn(),
+    getAuthor: vi.fn(() => Promise.resolve({ name: "Ada", email: "ada@x" })),
     stagePaths: vi.fn(() => Promise.resolve()),
     unstagePaths: vi.fn(() => Promise.resolve()),
     discardPaths: vi.fn((_id: string, paths: string[]) => Promise.resolve(paths)),
@@ -39,6 +40,7 @@ type MockName =
   | "getChangedFiles"
   | "commit"
   | "getHeadMessage"
+  | "getAuthor"
   | "stagePaths"
   | "unstagePaths"
   | "discardPaths"
@@ -134,15 +136,42 @@ describe("commitStore.syncWithStatus", () => {
     expect(mocked.getChangedFiles).toHaveBeenCalledTimes(4);
   });
 
-  it("a vanished anchor falls to its neighbour at the same index", async () => {
+  it("a vanished anchor lands on its display neighbour: the row below, else the last one above", async () => {
+    await sync([entry("a.rs"), entry("b.rs"), entry("c.rs")]);
+    const st = useCommitStore.getState();
+    // A tree shows the files in an order that is not status order.
+    st.setOrder("unstaged", ["c.rs", "a.rs", "b.rs"]);
+    st.select("unstaged", { selected: ["a.rs"], anchor: "a.rs" });
+    await flush();
+
+    // Staging a.rs: the list re-registers its order before the status sync prunes (child effect first).
+    st.setOrder("unstaged", ["c.rs", "b.rs"]);
+    await sync([entry("b.rs"), entry("c.rs")]);
+    expect(useCommitStore.getState()).toMatchObject({ list: "unstaged", anchor: "b.rs", selected: ["b.rs"], diffPath: "b.rs" });
+    expect(mocked.getFileDiff).toHaveBeenCalledTimes(2); // a.rs, then b.rs once — the sync sees it already shown
+
+    // The last row falls back to the one above it.
+    useCommitStore.getState().setOrder("unstaged", ["c.rs"]);
+    await sync([entry("c.rs")]);
+    expect(useCommitStore.getState()).toMatchObject({ anchor: "c.rs", selected: ["c.rs"] });
+  });
+
+  it("a surviving multi-selection keeps its rows and only loses the focus", async () => {
+    await sync([entry("a.rs"), entry("b.rs"), entry("c.rs")]);
+    useCommitStore.getState().setOrder("unstaged", ["a.rs", "b.rs", "c.rs"]);
+    useCommitStore.getState().select("unstaged", { selected: ["a.rs", "b.rs"], anchor: "b.rs" });
+    await flush();
+    useCommitStore.getState().setOrder("unstaged", ["a.rs", "c.rs"]);
+    await sync([entry("a.rs"), entry("c.rs")]);
+    expect(useCommitStore.getState()).toMatchObject({ selected: ["a.rs"], anchor: null });
+  });
+
+  it("with no list mounted (no order registered) a vanished anchor falls to the first row", async () => {
     await sync([entry("a.rs"), entry("b.rs"), entry("c.rs")]);
     useCommitStore.getState().select("unstaged", { selected: ["b.rs"], anchor: "b.rs" });
     await flush();
-    expect(useCommitStore.getState()).toMatchObject({ anchor: "b.rs", anchorIndex: 1 });
-
-    // Staging b.rs drops it from the unstaged list: index 1 is now c.rs.
     await sync([entry("a.rs"), entry("c.rs")]);
-    expect(useCommitStore.getState()).toMatchObject({ list: "unstaged", anchor: "c.rs", selected: ["c.rs"] });
+    expect(useCommitStore.getState()).toMatchObject({ list: "unstaged", anchor: "a.rs", selected: ["a.rs"] });
   });
 
   it("an emptied list hands the selection to the other list", async () => {
@@ -255,6 +284,31 @@ describe("commitStore mutations", () => {
     t.action!.onClick();
     await flush();
     expect(mocked.unstagePaths).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("commitStore.loadAuthor", () => {
+  it("fetches once per repository, however many message columns ask", async () => {
+    const load = () => useCommitStore.getState().loadAuthor();
+    await Promise.all([load(), load()]);
+    await load();
+    expect(mocked.getAuthor).toHaveBeenCalledTimes(1);
+    expect(useCommitStore.getState().author).toEqual({ name: "Ada", email: "ada@x" });
+
+    // Another repository starts over.
+    useRepoStore.setState({ repo: { ...REPO, id: "r2" } });
+    expect(useCommitStore.getState().author).toBeNull();
+    await load();
+    expect(mocked.getAuthor).toHaveBeenLastCalledWith("r2");
+  });
+
+  it("keeps a failure but retries it on the next call — the user may have just set user.name", async () => {
+    mocked.getAuthor.mockRejectedValueOnce({ kind: "config", message: "no identity" });
+    await useCommitStore.getState().loadAuthor();
+    expect(useCommitStore.getState()).toMatchObject({ author: null, authorError: { kind: "config" } });
+    await useCommitStore.getState().loadAuthor();
+    expect(mocked.getAuthor).toHaveBeenCalledTimes(2);
+    expect(useCommitStore.getState()).toMatchObject({ author: { name: "Ada" }, authorError: null });
   });
 });
 

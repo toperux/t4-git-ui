@@ -156,6 +156,21 @@ describe("runOp", () => {
     ]);
   });
 
+  it("quietFailure: no toast for a plain failure, still one for conflicts / authFailed / nonFastForward", async () => {
+    const out = await runOp("git grep needle", () => Promise.resolve({ ...ok, code: 1, failure: { kind: "other", message: "exit 1" } }), { quietFailure: true });
+    expect(out).toMatchObject({ ok: false, failure: { kind: "other" } });
+    expect(toasts()).toHaveLength(0);
+    await runOp("git merge x", () => Promise.resolve({ ...ok, code: 1, conflicts: ["a"], failure: { kind: "conflicts", paths: ["a"] } }), { quietFailure: true });
+    await runOp("git push", () => Promise.resolve({ ...ok, code: 128, failure: { kind: "authFailed" } }), { quietFailure: true });
+    await runOp("git push", () => Promise.resolve({ ...ok, code: 1, failure: { kind: "nonFastForward" } }), { quietFailure: true });
+    expect(toasts().map((t) => t.title)).toEqual([
+      "1 conflict — resolve in the commit panel",
+      "Authentication failed — check your credential helper",
+      "Rejected: remote has new commits — Pull first",
+    ]);
+    expect(useRepoStore.getState().wtSelected).toBe(true);
+  });
+
   it("refused rejection goes to onRefused; other rejections toast; busy is cleared", async () => {
     const onRefused = vi.fn();
     const out = await runOp("Deleting branch…", () => Promise.reject({ kind: "refused", message: "branch 'x' is not fully merged" }), { onRefused });
