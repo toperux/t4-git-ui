@@ -110,11 +110,25 @@ impl From<RepositoryState> for RepoState {
     }
 }
 
+/// Human labels for the two sides of an in-progress operation, in **git's**
+/// sense: `ours` is what `checkout --ours` keeps, `theirs` what `--theirs`
+/// does. A rebase swaps what a person would call them — git's `--ours` is the
+/// branch being rebased *onto* and `--theirs` the one being replayed — so the
+/// names have to come from here; nothing in the UI can work them out.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConflictSides {
+    pub ours: String,
+    pub theirs: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RefsSnapshot {
     pub head: HeadInfo,
     pub state: RepoState,
+    /// Set while `state` is not `Clean`.
+    pub conflict_sides: Option<ConflictSides>,
     pub local: Vec<Branch>,
     pub remotes: Vec<Remote>,
     pub tags: Vec<Tag>,
@@ -381,6 +395,96 @@ pub fn head_info(repo: &Repository) -> Result<HeadInfo, GitError> {
     }
 }
 
+/// A branch sitting exactly on `oid` — a local one, else a remote-tracking one,
+/// else the abbreviated oid. Reuses the lists the snapshot already built.
+fn branch_at(local: &[Branch], remotes: &[Remote], oid: Oid) -> String {
+    let full = oid.to_string();
+    local
+        .iter()
+        .find(|b| b.oid == full)
+        .map(|b| b.name.clone())
+        .or_else(|| {
+            remotes
+                .iter()
+                .flat_map(|r| &r.branches)
+                .find(|rb| rb.oid == full)
+                .map(|rb| rb.name.clone())
+        })
+        .unwrap_or_else(|| full[..7].to_string())
+}
+
+/// Single trimmed line of a file in the git directory (`rebase-merge/onto`,
+/// `CHERRY_PICK_HEAD`, …); `None` when it isn't there or is empty.
+fn gitdir_line(repo: &Repository, rel: &str) -> Option<String> {
+    std::fs::read_to_string(repo.path().join(rel))
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+/// Names the two sides of whatever `state` says is in progress (see
+/// [`ConflictSides`]); `None` on a clean repository. Needs `&mut` for
+/// `mergehead_foreach`.
+fn conflict_sides(
+    repo: &mut Repository,
+    state: RepoState,
+    head: &HeadInfo,
+    local: &[Branch],
+    remotes: &[Remote],
+) -> Option<ConflictSides> {
+    let head_name = || head.branch.clone().unwrap_or_else(|| "HEAD".to_string());
+    let sides = match state {
+        RepoState::Clean => return None,
+        RepoState::Merge => {
+            let mut merge_head = None;
+            // The first MERGE_HEAD is the one `--theirs` refers to; an octopus
+            // merge stops on conflicts before it gets to the rest anyway.
+            let _ = repo.mergehead_foreach(|oid| {
+                merge_head = Some(*oid);
+                false
+            });
+            ConflictSides {
+                ours: head_name(),
+                theirs: merge_head
+                    .map(|oid| branch_at(local, remotes, oid))
+                    .unwrap_or_else(|| "theirs".to_string()),
+            }
+        }
+        RepoState::Rebase => {
+            // `rebase-merge` for a merge/interactive rebase, `rebase-apply` for
+            // the mailbox-style one.
+            let onto = gitdir_line(repo, "rebase-merge/onto")
+                .or_else(|| gitdir_line(repo, "rebase-apply/onto"))
+                .and_then(|s| Oid::from_str(&s).ok());
+            let replayed = gitdir_line(repo, "rebase-merge/head-name")
+                .or_else(|| gitdir_line(repo, "rebase-apply/head-name"));
+            ConflictSides {
+                ours: onto
+                    .map(|oid| branch_at(local, remotes, oid))
+                    .unwrap_or_else(head_name),
+                // Anything but a branch ref is git's literal `detached HEAD`.
+                theirs: replayed
+                    .map(|n| n.strip_prefix("refs/heads/").unwrap_or("HEAD").to_string())
+                    .unwrap_or_else(head_name),
+            }
+        }
+        RepoState::CherryPick | RepoState::Revert | RepoState::Bisect => ConflictSides {
+            ours: head_name(),
+            theirs: match state {
+                RepoState::CherryPick => gitdir_line(repo, "CHERRY_PICK_HEAD"),
+                RepoState::Revert => gitdir_line(repo, "REVERT_HEAD"),
+                _ => None,
+            }
+            .and_then(|s| Oid::from_str(&s).ok())
+            .map_or_else(
+                || "HEAD".to_string(),
+                |oid| oid.to_string()[..7].to_string(),
+            ),
+        },
+    };
+    Some(sides)
+}
+
 /// Reads branches, remotes, tags and stashes. Needs `&mut` for `stash_foreach`.
 pub fn snapshot(repo: &mut Repository) -> Result<RefsSnapshot, GitError> {
     snapshot_with(repo, &mut AheadBehindCache::default())
@@ -550,9 +654,12 @@ pub fn snapshot_with(
     })
     .map_err(map_git2)?;
 
+    let conflict_sides = conflict_sides(repo, state, &head, &local, &remotes);
+
     Ok(RefsSnapshot {
         head,
         state,
+        conflict_sides,
         local,
         remotes,
         tags,
@@ -789,7 +896,8 @@ pub fn delete_tag(repo: &Repository, name: &str) -> Result<(), GitError> {
 
 #[cfg(test)]
 mod tests {
-    use super::natural_cmp;
+    use super::{natural_cmp, snapshot, ConflictSides};
+    use crate::test_util::TempRepo;
 
     #[test]
     fn natural_order_reads_numbers_and_ignores_case() {
@@ -824,6 +932,52 @@ mod tests {
                 "v1.0.0",
                 "Zeta"
             ]
+        );
+    }
+
+    /// master with a `feature` branch off it, `feature` one commit ahead.
+    fn two_branches() -> (TempRepo, git2::Oid, git2::Oid) {
+        let t = TempRepo::new();
+        let base = t.commit(&[("a.txt", "a\n")], "base");
+        t.branch("feature", base);
+        t.checkout("feature");
+        let feature = t.commit(&[("a.txt", "theirs\n")], "feature");
+        t.checkout("master");
+        let master = t.commit(&[("a.txt", "ours\n")], "ours");
+        (t, master, feature)
+    }
+
+    #[test]
+    fn conflict_sides_name_the_branches_of_a_merge_and_stay_empty_when_clean() {
+        let (mut t, _, feature) = two_branches();
+        assert_eq!(snapshot(&mut t.repo).unwrap().conflict_sides, None);
+
+        t.write_ref("MERGE_HEAD", &feature.to_string());
+        assert_eq!(
+            snapshot(&mut t.repo).unwrap().conflict_sides,
+            Some(ConflictSides {
+                ours: "master".to_string(),
+                theirs: "feature".to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn a_rebase_reports_gits_own_direction_onto_is_ours() {
+        // The branch being replayed is `--theirs` and the one it lands on is
+        // `--ours` — the opposite of what the person running it would say.
+        let (mut t, master, _) = two_branches();
+        let dir = t.repo.path().join("rebase-merge");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("head-name"), "refs/heads/feature\n").unwrap();
+        std::fs::write(dir.join("onto"), format!("{master}\n")).unwrap();
+
+        assert_eq!(
+            snapshot(&mut t.repo).unwrap().conflict_sides,
+            Some(ConflictSides {
+                ours: "master".to_string(),
+                theirs: "feature".to_string(),
+            })
         );
     }
 }

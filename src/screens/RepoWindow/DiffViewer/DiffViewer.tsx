@@ -1,7 +1,7 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowDownUp, Columns2, File, FileDiff, Rows2 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
-import type { DiffLine, FileDiff as FileDiffModel } from "../../../api/types";
+import type { ConflictSide, ConflictSides, DiffLine, FileDiff as FileDiffModel } from "../../../api/types";
 import { Banner } from "../../../components/ui/Banner/Banner";
 import { Button } from "../../../components/ui/Button/Button";
 import { EmptyState } from "../../../components/ui/EmptyState/EmptyState";
@@ -43,6 +43,10 @@ export interface DiffActions {
   busy?: boolean;
   /** Conflicted file: opens its three sides in an external merge editor. */
   onResolve?: () => void;
+  /** Conflicted file: what to call the two sides on the "Keep …'s version" buttons. */
+  sides?: ConflictSides;
+  /** Replaces the file with one whole side of its conflict. Rendered only with `sides`. */
+  onKeepSide?: (side: ConflictSide) => void;
   /** File staged (and so marked resolved) with its conflict markers still in it. */
   onRestoreConflict?: () => void;
   onStageHunk: (hunk: number) => void;
@@ -175,6 +179,8 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
 
   const n = sel.keys.size;
   const verb = actions?.target === "staged" ? "Unstage" : "Stage";
+  const sides = actions?.sides;
+  const onKeepSide = actions?.onKeepSide;
 
   return (
     <div className={s.viewer}>
@@ -183,6 +189,16 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
         title={path && <span className={s.path}>{oldPath ? `${oldPath} → ${path}` : path}</span>}
       >
         {actions?.note && <span className={s.note}>{actions.note}</span>}
+        {sides && onKeepSide && (
+          <>
+            <Button size="sm" className={s.resolve} disabled={actions?.busy} title="git checkout --ours" onClick={() => onKeepSide("ours")}>
+              Keep {sides.ours}'s version
+            </Button>
+            <Button size="sm" className={s.resolve} disabled={actions?.busy} title="git checkout --theirs" onClick={() => onKeepSide("theirs")}>
+              Keep {sides.theirs}'s version
+            </Button>
+          </>
+        )}
         {actions?.onResolve && (
           <Button size="sm" className={s.resolve} disabled={actions.busy} onClick={actions.onResolve}>
             Resolve in editor

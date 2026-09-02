@@ -163,9 +163,24 @@ export interface Stash {
 
 export type RepoState = "clean" | "merge" | "rebase" | "cherryPick" | "revert" | "bisect";
 
+/** Which side of a conflict to keep, in git's own sense (`git checkout --ours` / `--theirs`). */
+export type ConflictSide = "ours" | "theirs";
+
+/**
+ * Human labels for the two sides of an in-progress operation, in git's sense: a rebase's `ours` is
+ * the branch being rebased *onto* and `theirs` the one being replayed. The backend works them out so
+ * nothing here has to.
+ */
+export interface ConflictSides {
+  ours: string;
+  theirs: string;
+}
+
 export interface RefsSnapshot {
   head: HeadInfo;
   state: RepoState;
+  /** Set while `state` is not `clean`. Optional so the many `RefsSnapshot` test fixtures stay valid. */
+  conflictSides?: ConflictSides | null;
   local: Branch[];
   remotes: Remote[];
   tags: Tag[];

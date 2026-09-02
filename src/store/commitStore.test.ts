@@ -21,6 +21,7 @@ vi.mock("../api/ipc", async (importOriginal) => {
     stagePaths: vi.fn(() => Promise.resolve()),
     unstagePaths: vi.fn(() => Promise.resolve()),
     discardPaths: vi.fn((_id: string, paths: string[]) => Promise.resolve(paths)),
+    resolveConflict: vi.fn(() => Promise.resolve()),
     stageHunks: vi.fn(() => Promise.resolve()),
     stageLines: vi.fn(() => Promise.resolve()),
     discardHunks: vi.fn(() => Promise.resolve()),
@@ -47,6 +48,7 @@ type MockName =
   | "stagePaths"
   | "unstagePaths"
   | "discardPaths"
+  | "resolveConflict"
   | "stageHunks"
   | "stageLines"
   | "discardHunks"
@@ -287,6 +289,22 @@ describe("commitStore mutations", () => {
     mocked.discardPaths.mockClear();
     await expect(useCommitStore.getState().discard(["a.rs"])).resolves.toBe(false);
     expect(mocked.discardPaths).not.toHaveBeenCalled();
+  });
+
+  it("keeping one side of a conflict names the branch in the confirmation before overwriting the file", async () => {
+    await sync([entry("a.rs")]);
+    await useCommitStore.getState().resolveConflict(["a.rs"], "theirs", "feature");
+    expect(ask.mock.calls[0][0]).toBe("Replace a.rs with feature's version? Your edits to it are lost.");
+    expect(ask.mock.calls[0][1]).toMatchObject({ okLabel: "Replace", kind: "warning" });
+    expect(mocked.resolveConflict).toHaveBeenCalledWith(REPO.id, ["a.rs"], "theirs");
+
+    await useCommitStore.getState().resolveConflict(["a.rs", "b.rs"], "ours", "main");
+    expect(ask.mock.calls[1][0]).toBe("Replace 2 files with main's version? Your edits to them are lost.");
+
+    // Declined → the working files are untouched.
+    ask.mockResolvedValue(false);
+    await useCommitStore.getState().resolveConflict(["a.rs"], "ours", "main");
+    expect(mocked.resolveConflict).toHaveBeenCalledTimes(2);
   });
 
   it("discard returns false when another mutation is already running", async () => {

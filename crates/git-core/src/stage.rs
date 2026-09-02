@@ -6,6 +6,7 @@ use std::path::Path;
 
 use git2::build::CheckoutBuilder;
 use git2::{ErrorCode, ObjectType, Repository, Status};
+use serde::{Deserialize, Serialize};
 
 use crate::{map_git2, GitError};
 
@@ -113,6 +114,29 @@ pub fn recreate_conflict_args(paths: &[&str]) -> Vec<String> {
         "--merge".to_string(),
         "--".to_string(),
     ];
+    args.extend(paths.iter().map(|p| (*p).to_string()));
+    args
+}
+
+/// Which side of a conflict to keep, in **git's** sense — during a rebase
+/// `Ours` is the branch being rebased onto (see [`crate::refs::ConflictSides`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ConflictSide {
+    Ours,
+    Theirs,
+}
+
+/// Arguments for `git checkout --ours|--theirs -- <paths>`: replaces each
+/// conflicted file with one whole side of its conflict. libgit2 has no
+/// equivalent, and a side that does not exist (deleted by the other branch)
+/// is git's error to report.
+pub fn checkout_side_args(side: ConflictSide, paths: &[&str]) -> Vec<String> {
+    let flag = match side {
+        ConflictSide::Ours => "--ours",
+        ConflictSide::Theirs => "--theirs",
+    };
+    let mut args = vec!["checkout".to_string(), flag.to_string(), "--".to_string()];
     args.extend(paths.iter().map(|p| (*p).to_string()));
     args
 }
@@ -310,6 +334,18 @@ mod tests {
         assert_eq!(
             stage_patch_args(true),
             ["apply", "--cached", "--whitespace=nowarn", "-R", "-"]
+        );
+    }
+
+    #[test]
+    fn checkout_side_args_carry_gits_own_flag() {
+        assert_eq!(
+            checkout_side_args(ConflictSide::Ours, &["a.rs"]),
+            ["checkout", "--ours", "--", "a.rs"]
+        );
+        assert_eq!(
+            checkout_side_args(ConflictSide::Theirs, &["a.rs", "dir/b.rs"]),
+            ["checkout", "--theirs", "--", "a.rs", "dir/b.rs"]
         );
     }
 

@@ -4,6 +4,7 @@ import type {
   AppError,
   Author,
   CommitDetail,
+  ConflictSide,
   DiffOptions,
   DiffTarget,
   FfMode,
@@ -102,6 +103,10 @@ export const unstagePaths = (id: RepoId, paths: string[]) => call<void>("unstage
 
 /** Discards unstaged changes (tracked: restore from index; untracked: delete). Resolves with the paths touched. */
 export const discardPaths = (id: RepoId, paths: string[]) => call<string[]>("discard_paths", { id, paths });
+
+/** `git checkout --ours|--theirs -- <paths>` + stage: keeps one whole side of each conflict. */
+export const resolveConflict = (id: RepoId, paths: string[], side: ConflictSide) =>
+  call<void>("resolve_conflict", { id, paths, side });
 
 /**
  * Hunk indices into the `unstaged` diff of `path` (`staged` when `reverse`, which unstages);

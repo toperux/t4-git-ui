@@ -5,7 +5,7 @@ import { ask } from "@tauri-apps/plugin-dialog";
 import { create } from "zustand";
 import * as ipc from "../api/ipc";
 import { toAppError } from "../api/ipc";
-import type { AppError, Author, FileChange, FileDiff, FileStatus, StatusEntry, WorkdirStatus } from "../api/types";
+import type { AppError, Author, ConflictSide, FileChange, FileDiff, FileStatus, StatusEntry, WorkdirStatus } from "../api/types";
 import { joinMessage, pushHistory, splitMessage } from "../lib/msgHistory";
 import { EMPTY_SELECTION, pruneSelection, type Selection } from "../lib/multiSelect";
 import { useDiffStore } from "./diffStore";
@@ -81,6 +81,11 @@ export interface CommitStore {
   unstage(paths: string[]): Promise<void>;
   /** Confirms with a native dialog first; resolves `false` when cancelled or when a mutation was already running. */
   discard(paths: string[]): Promise<boolean>;
+  /**
+   * Keeps one whole side of `paths`' conflicts, `label` naming it for the confirmation (`side` is
+   * git's own sense, `label` the branch the backend put on it). Overwrites the working files.
+   */
+  resolveConflict(paths: string[], side: ConflictSide, label: string): Promise<void>;
   /** Hunk of the shown diff; unstages when the diff is the staged one. */
   stageHunk(hunk: number): Promise<void>;
   stageLines(lines: [number, number][]): Promise<void>;
@@ -302,6 +307,15 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       if (!ok) return false;
       // `false` too when another mutation was already running: nothing was discarded.
       return await run("Discard failed", (id) => ipc.discardPaths(id, paths));
+    },
+
+    async resolveConflict(paths, side, label) {
+      const n = paths.length;
+      const files = n === 1 ? paths[0] : `${n} files`;
+      // No confirmation available → declined: the checkout overwrites the working file.
+      const ok = await ask(`Replace ${files} with ${label}'s version? Your edits to ${n === 1 ? "it" : "them"} are lost.`, { title: "Resolve conflict", kind: "warning", okLabel: "Replace" }).catch(() => false);
+      if (!ok) return;
+      await run("Resolve failed", (id) => ipc.resolveConflict(id, paths, side));
     },
 
     async stageHunk(hunk) {

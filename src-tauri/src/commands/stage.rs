@@ -200,6 +200,44 @@ async fn run_checkout_merge(
     .await
 }
 
+/// Replaces `paths` with one whole side of their conflict (`git checkout
+/// --ours|--theirs`) and stages them, which is what takes them out of the
+/// conflicted state. A side that does not exist (deleted by the other branch)
+/// fails with git's own message.
+#[tauri::command]
+pub async fn resolve_conflict(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: RepoId,
+    paths: Vec<String>,
+    side: stage::ConflictSide,
+) -> Result<(), AppError> {
+    let (app, state) = (&app, state.inner());
+    mutate(
+        app,
+        state,
+        &id,
+        &[ChangeKind::Index, ChangeKind::Workdir],
+        |handle| async move {
+            let args = stage::checkout_side_args(side, &as_strs(&paths));
+            let argv: Vec<&str> = args.iter().map(String::as_str).collect();
+            let run = run_git_op(
+                app,
+                state,
+                Some(&handle.id),
+                &handle.path,
+                &argv,
+                None,
+                false,
+            )
+            .await?;
+            run.out.check(&format!("git {}", argv.join(" ")))?;
+            blocking(move || Ok(stage::stage_paths(&handle.git2.lock(), &as_strs(&paths))?)).await
+        },
+    )
+    .await
+}
+
 /// What a hunk / line selection does. `Discard` reverse-applies to the working
 /// tree instead of the index: the unstaged diff's NEW side *is* the file on
 /// disk, so the same patch `git apply -R` takes — minus `--cached`.

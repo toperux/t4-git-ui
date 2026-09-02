@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import * as ipc from "../../../api/ipc";
 import { toAppError } from "../../../api/ipc";
-import type { FileDiff } from "../../../api/types";
+import type { ConflictSides, FileDiff } from "../../../api/types";
 import { useCommitStore } from "../../../store/commitStore";
 import { useDialogStore } from "../../../store/dialogStore";
 import { useRepoStore } from "../../../store/repoStore";
@@ -48,6 +48,9 @@ export function CommitPanel() {
   );
 }
 
+/** Until the backend names the two sides (a snapshot from before this field, say): git's vocabulary. */
+const GENERIC_SIDES: ConflictSides = { ours: "our", theirs: "their" };
+
 /** `DiffViewer` in actions mode for the focused working-tree file. */
 export function DiffColumn() {
   const diff = useCommitStore((st) => st.diff);
@@ -61,9 +64,11 @@ export function DiffColumn() {
   const stageLines = useCommitStore((st) => st.stageLines);
   const discardHunk = useCommitStore((st) => st.discardHunk);
   const discardLines = useCommitStore((st) => st.discardLines);
+  const resolveConflict = useCommitStore((st) => st.resolveConflict);
   const entry = useStatusStore((st) => st.status?.entries.find((e) => e.path === path));
 
   const state = useRepoStore((st) => st.refs?.state);
+  const sides = useRepoStore((st) => st.refs?.conflictSides) ?? GENERIC_SIDES;
 
   // Conflicted and untracked files can only be staged whole — no hunk or line indices to work with.
   const conflicted = list === "unstaged" && !!entry?.conflicted;
@@ -89,6 +94,8 @@ export function DiffColumn() {
               : undefined,
         busy,
         onResolve: conflicted ? () => void resolveInEditor(path) : undefined,
+        sides: conflicted ? sides : undefined,
+        onKeepSide: conflicted ? (side) => void resolveConflict([path], side, sides[side]) : undefined,
         onRestoreConflict: stranded && path ? () => void restoreConflict(path) : undefined,
         onStageHunk: (h) => void stageHunk(h),
         onStageLines: (l) => void stageLines(l),

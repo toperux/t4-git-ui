@@ -233,6 +233,25 @@ describe("DiffViewer", () => {
     expect(scrolls.offsets).toEqual([0]);
   });
 
+  it("a conflict offers to keep either side, named the way the backend labelled them", () => {
+    const onKeepSide = vi.fn();
+    const actions: DiffActions = {
+      target: "unstaged",
+      wholeFile: true,
+      sides: { ours: "main", theirs: "feature" },
+      onKeepSide,
+      onResolve: vi.fn(),
+      onStageHunk: vi.fn(),
+      onStageLines: vi.fn(),
+    };
+    const { getByRole } = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} actions={actions} />);
+    // The names come from `sides`, and the title says which git flag each one is.
+    expect(getByRole("button", { name: "Keep main's version" }).getAttribute("title")).toBe("git checkout --ours");
+    expect(getByRole("button", { name: "Keep feature's version" }).getAttribute("title")).toBe("git checkout --theirs");
+    fireEvent.click(getByRole("button", { name: "Keep feature's version" }));
+    expect(onKeepSide).toHaveBeenCalledWith("theirs");
+  });
+
   it("untracked (whole file): note in the header, no hunk buttons, lines not selectable", () => {
     const actions: DiffActions = { target: "unstaged", wholeFile: true, note: "Untracked — stage whole file", onStageHunk: vi.fn(), onStageLines: vi.fn() };
     const { getByRole, getByText, queryByText, queryByRole } = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} actions={actions} />);

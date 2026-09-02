@@ -28,6 +28,7 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
     stagePaths: vi.fn(() => Promise.resolve()),
     unstagePaths: vi.fn(() => Promise.resolve()),
     recreateConflict: vi.fn(() => Promise.resolve()),
+    resolveConflict: vi.fn(() => Promise.resolve()),
     discardHunks: vi.fn(() => Promise.resolve()),
   };
 });
@@ -57,7 +58,7 @@ vi.mock("@tanstack/react-virtual", async (importOriginal) => {
 });
 
 import * as ipc from "../../../api/ipc";
-const mocked = ipc as unknown as Record<"stagePaths" | "getFileDiff" | "getStatus" | "getAuthor" | "recreateConflict" | "discardHunks", ReturnType<typeof vi.fn>>;
+const mocked = ipc as unknown as Record<"stagePaths" | "getFileDiff" | "getStatus" | "getAuthor" | "recreateConflict" | "resolveConflict" | "discardHunks", ReturnType<typeof vi.fn>>;
 
 const STATUS: WorkdirStatus = {
   entries: [
@@ -130,6 +131,21 @@ describe("CommitPanel", () => {
     expect(getByText("Conflict — stage the file once resolved")).toBeTruthy();
     fireEvent.click(rows[2].querySelector('button[aria-label="Stage"]')!);
     expect(mocked.stagePaths).toHaveBeenCalledWith("r", ["conflict.rs"]);
+  });
+
+  it("a conflicted file offers either side by the branch name the backend put on it", async () => {
+    // Mid-merge on `main`: git's `--theirs` is the branch being merged in, and only the backend
+    // knows that (during a rebase the two are the other way round).
+    useRepoStore.setState({ refs: { ...REFS, state: "merge", conflictSides: { ours: "main", theirs: "feature" } } });
+    const { getByRole } = renderPanel();
+    fireEvent.click(Array.from(getByRole("listbox", { name: "Unstaged files" }).querySelectorAll('[role="option"]'))[2]);
+    await act(async () => {});
+
+    expect(getByRole("button", { name: "Keep main's version" })).toBeTruthy();
+    fireEvent.click(getByRole("button", { name: "Keep feature's version" }));
+    await act(async () => {});
+    expect(ask.mock.calls[0][0]).toContain("Replace conflict.rs with feature's version?");
+    expect(mocked.resolveConflict).toHaveBeenCalledWith("r", ["conflict.rs"], "theirs");
   });
 
   it("offers to restore a conflict staged with its markers still in the file", async () => {
