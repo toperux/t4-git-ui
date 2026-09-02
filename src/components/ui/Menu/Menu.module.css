@@ -86,3 +86,18 @@
   background: var(--border);
   margin: var(--space-2) var(--space-4);
 }
+/* A ref name inside an item's label: mono, coloured by kind; plain on hover / focus. */
+.ref {
+  font-family: var(--font-mono);
+  font-size: var(--mono-size);
+}
+.local {
+  color: var(--chip-local-fg);
+}
+.remote {
+  color: var(--chip-remote-fg);
+}
+.item:hover:not(:disabled) .ref,
+.item:focus-visible .ref {
+  color: inherit;
+}

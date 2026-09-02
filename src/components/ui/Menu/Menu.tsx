@@ -144,3 +144,8 @@ export function MenuItem({ icon, danger, kbd, className, children, type = "butto
 export function MenuSeparator() {
   return <div className={s.sep} role="separator" />;
 }
+
+/** A branch name inside a `MenuItem` label: mono, accent for local, muted for remote; plain on hover. */
+export function MenuRef({ remote, className, children }: { remote?: boolean; className?: string; children: ReactNode }) {
+  return <span className={cx(s.ref, remote ? s.remote : s.local, className)}>{children}</span>;
+}

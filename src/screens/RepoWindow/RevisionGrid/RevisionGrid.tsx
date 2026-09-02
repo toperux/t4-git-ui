@@ -3,7 +3,7 @@ import { ChevronDown, Copy, GitBranch, GitCommitHorizontal, Plus, RotateCcw, Sea
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { Button } from "../../../components/ui/Button/Button";
 import { EmptyState } from "../../../components/ui/EmptyState/EmptyState";
-import { ContextMenu, MenuItem } from "../../../components/ui/Menu/Menu";
+import { ContextMenu, MenuItem, MenuRef } from "../../../components/ui/Menu/Menu";
 import { Progress } from "../../../components/ui/Progress/Progress";
 import { useDialogStore, type DialogSpec } from "../../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../../store/opsStore";
@@ -243,7 +243,7 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
     <ContextMenu at={menu.at} onClose={onClose} label="Commit actions">
       {branches.checkout.length === 1 && (
         <MenuItem icon={<GitBranch size={16} aria-hidden />} title={`Checkout ${branches.checkout[0].name}`} {...op} onClick={run(() => void checkout(branches.checkout[0]))}>
-          Checkout {branches.checkout[0].name}
+          Checkout <MenuRef remote={branches.checkout[0].remote !== null}>{branches.checkout[0].name}</MenuRef>
         </MenuItem>
       )}
       {branches.checkout.length > 1 && (
@@ -264,7 +264,7 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
         onClick={run(() => openDialog({ kind: "reset", target: oid }))}
       >
         <span className={s.menuLabel}>
-          Reset <span className={s.menuBranch}>{current}</span> to here…
+          Reset <MenuRef className={s.menuBranch}>{current}</MenuRef> to here…
         </span>
       </MenuItem>
       {branches.reset.map((r) => (
@@ -275,7 +275,7 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
           {...op}
           onClick={run(() => openDialog(r.current ? { kind: "reset", target: r.remote } : { kind: "resetBranch", branch: r.branch, target: r.remote }))}
         >
-          Reset {r.branch} to {r.remote}…
+          Reset <MenuRef>{r.branch}</MenuRef> to <MenuRef remote>{r.remote}</MenuRef>…
         </MenuItem>
       ))}
       <MenuItem icon={<Tag size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "createTag", target: oid }))}>
