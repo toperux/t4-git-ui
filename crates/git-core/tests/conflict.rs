@@ -1,7 +1,52 @@
-//! Unmerged index entries: the three sides a merge editor needs.
+//! Unmerged index entries: the three sides a merge editor needs, and resolving
+//! a conflict by keeping one whole side (`git checkout --ours|--theirs` through
+//! the CLI runner, then the libgit2 staging). The CLI-backed tests are skipped
+//! at runtime when `git` is missing.
 
+use std::path::Path;
+
+use git_core::cli::GitCli;
 use git_core::conflict;
+use git_core::stage::{self, ConflictSide};
 use git_core::test_util::TempRepo;
+use git_core::GitError;
+use tokio_util::sync::CancellationToken;
+
+fn have_git() -> bool {
+    match git_core::git_version("git") {
+        Ok(_) => true,
+        Err(GitError::GitNotFound) => {
+            eprintln!("git not on PATH; skipping");
+            false
+        }
+        Err(e) => panic!("git --version failed: {e}"),
+    }
+}
+
+/// Runs `args` in the repo through the same runner the app uses; panics on failure.
+async fn git(t: &TempRepo, args: &[String]) {
+    let argv: Vec<&str> = args.iter().map(String::as_str).collect();
+    let out = GitCli::new("git")
+        .run(
+            t.path(),
+            "test",
+            &argv,
+            None,
+            CancellationToken::new(),
+            |_| {},
+        )
+        .await
+        .expect("run");
+    out.check(&format!("git {}", argv.join(" "))).expect("git");
+}
+
+fn index_content(t: &TempRepo, path: &str) -> Option<String> {
+    let mut index = t.repo.index().expect("index");
+    index.read(false).expect("read index");
+    let e = index.get_path(Path::new(path), 0)?;
+    let blob = t.repo.find_blob(e.id).expect("blob");
+    Some(String::from_utf8_lossy(blob.content()).into_owned())
+}
 
 /// `master` and `feat` both edit `f.txt`; `feat` also deletes `d.txt`, which
 /// `master` edits — a modify/delete conflict, whose "theirs" side is absent.
@@ -71,6 +116,72 @@ fn resolving_a_conflict_on_disk_moves_the_stamp_and_nothing_else() {
         (before.conflicted, before.index, before.workdir),
         "only the stamp may move — the letters are what used to be compared"
     );
+}
+
+#[tokio::test]
+async fn keeping_a_side_that_exists_resolves_the_path() {
+    if !have_git() {
+        return;
+    }
+    let t = conflicted();
+    let (present, missing) =
+        stage::split_by_side(&t.repo, &["f.txt"], ConflictSide::Theirs).expect("split");
+    assert_eq!((present, missing), (vec!["f.txt"], vec![]));
+
+    git(
+        &t,
+        &stage::checkout_side_args(ConflictSide::Theirs, &["f.txt"]),
+    )
+    .await;
+    // `git checkout --theirs` rewrites .git/index and leaves the path unmerged;
+    // staging is what resolves it, and it must not write back a stale index.
+    stage::stage_paths(&t.repo, &["f.txt"]).expect("stage");
+
+    assert_eq!(conflict::stages(&t.repo, "f.txt").expect("stages"), None);
+    assert_eq!(index_content(&t, "f.txt").as_deref(), Some("feat\n"));
+    assert_eq!(
+        std::fs::read_to_string(t.path().join("f.txt")).expect("read"),
+        "feat\n"
+    );
+    // The other conflict is untouched.
+    assert!(conflict::stages(&t.repo, "d.txt")
+        .expect("stages")
+        .is_some());
+}
+
+#[test]
+fn a_side_the_other_branch_deleted_is_resolved_as_a_removal() {
+    let t = conflicted();
+    // `d.txt` has no stage 3: `checkout --theirs` could never produce it, and
+    // one such path aborts the whole batch.
+    let (present, missing) = stage::split_by_side(
+        &t.repo,
+        &["f.txt", "d.txt", "untracked.txt"],
+        ConflictSide::Theirs,
+    )
+    .expect("split");
+    assert_eq!(present, vec!["f.txt", "untracked.txt"]);
+    assert_eq!(missing, vec!["d.txt"]);
+    // Ours exists on both, so nothing is missing that way round.
+    let (_, missing) =
+        stage::split_by_side(&t.repo, &["f.txt", "d.txt"], ConflictSide::Ours).expect("split");
+    assert!(missing.is_empty());
+
+    stage::remove_paths(&t.repo, &["d.txt"]).expect("remove");
+    assert_eq!(conflict::stages(&t.repo, "d.txt").expect("stages"), None);
+    assert_eq!(index_content(&t, "d.txt"), None);
+    assert!(!t.path().join("d.txt").exists());
+}
+
+/// The ignore guard used to look at stage 0 only, which an unmerged path never
+/// has — so a tracked, conflicted, ignored file was refused *after* the
+/// checkout had already overwritten it.
+#[test]
+fn staging_a_conflicted_file_is_not_blocked_by_an_ignore_rule() {
+    let t = conflicted();
+    t.write(".gitignore", "*.txt\n");
+    stage::stage_paths(&t.repo, &["f.txt"]).expect("stage");
+    assert_eq!(conflict::stages(&t.repo, "f.txt").expect("stages"), None);
 }
 
 fn entry(t: &TempRepo, path: &str) -> git_core::status::StatusEntry {

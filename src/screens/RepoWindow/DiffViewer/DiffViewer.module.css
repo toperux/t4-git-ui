@@ -40,6 +40,14 @@
 /* Sits in the panel header, which is 28px: the sm button is the tallest thing in it. */
 .resolve {
   flex: none;
+  /* Two of these carry a branch name: unbounded they squeeze the path out of the header. Full label in `title`. */
+  max-width: 12rem;
+  min-width: 0;
+}
+.resolveLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* base.css .diff — the pane edges are the frame (mockup: border 0, radius 0); mono 12/18 */

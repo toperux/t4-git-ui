@@ -202,8 +202,9 @@ async fn run_checkout_merge(
 
 /// Replaces `paths` with one whole side of their conflict (`git checkout
 /// --ours|--theirs`) and stages them, which is what takes them out of the
-/// conflicted state. A side that does not exist (deleted by the other branch)
-/// fails with git's own message.
+/// conflicted state. A path whose chosen side does not exist (a modify/delete
+/// conflict) is resolved as the deletion instead — `checkout --<side>` can
+/// never produce it, and one such path would abort the whole batch.
 #[tauri::command]
 pub async fn resolve_conflict(
     app: AppHandle,
@@ -219,20 +220,44 @@ pub async fn resolve_conflict(
         &id,
         &[ChangeKind::Index, ChangeKind::Workdir],
         |handle| async move {
-            let args = stage::checkout_side_args(side, &as_strs(&paths));
-            let argv: Vec<&str> = args.iter().map(String::as_str).collect();
-            let run = run_git_op(
-                app,
-                state,
-                Some(&handle.id),
-                &handle.path,
-                &argv,
-                None,
-                false,
-            )
+            let h = Arc::clone(&handle);
+            let split = paths.clone();
+            let (present, missing) = blocking(move || {
+                let repo = h.git2.lock();
+                let (present, missing) = stage::split_by_side(&repo, &as_strs(&split), side)?;
+                let own = |v: Vec<&str>| v.into_iter().map(str::to_string).collect::<Vec<_>>();
+                Ok((own(present), own(missing)))
+            })
             .await?;
-            run.out.check(&format!("git {}", argv.join(" ")))?;
-            blocking(move || Ok(stage::stage_paths(&handle.git2.lock(), &as_strs(&paths))?)).await
+
+            if !present.is_empty() {
+                let args = stage::checkout_side_args(side, &as_strs(&present));
+                let argv: Vec<&str> = args.iter().map(String::as_str).collect();
+                let run = run_git_op(
+                    app,
+                    state,
+                    Some(&handle.id),
+                    &handle.path,
+                    &argv,
+                    None,
+                    false,
+                )
+                .await?;
+                run.out.check(&format!("git {}", argv.join(" ")))?;
+                let h = Arc::clone(&handle);
+                blocking(move || Ok(stage::stage_paths(&h.git2.lock(), &as_strs(&present))?))
+                    .await?;
+            }
+            if !missing.is_empty() {
+                blocking(move || {
+                    Ok(stage::remove_paths(
+                        &handle.git2.lock(),
+                        &as_strs(&missing),
+                    )?)
+                })
+                .await?;
+            }
+            Ok(())
         },
     )
     .await
@@ -277,15 +302,20 @@ async fn apply_selection(
             ..DiffOptions::default()
         };
         let reverse = op != PatchOp::Stage;
+        // The exec bit is not part of a hunk selection, and `-R` would reverse
+        // its header lines along with the hunks (see `build_patch`).
+        let mode = op != PatchOp::Discard;
         let h = Arc::clone(&handle);
         let patch = blocking(move || {
             let d = diff::file_diff(&h.git2.lock(), &target, &path, &opts)?;
-            Ok(patch::build_patch(&d, &selection, reverse)?)
+            Ok(patch::build_patch(&d, &selection, reverse, mode)?)
         })
         .await?;
+        // Zero-context hunks have nothing for git apply to match on.
+        let zero = context == 0;
         let args = match op {
-            PatchOp::Discard => stage::discard_patch_args(),
-            _ => stage::stage_patch_args(reverse),
+            PatchOp::Discard => stage::discard_patch_args(zero),
+            _ => stage::stage_patch_args(reverse, zero),
         };
         let run = run_git_op(
             app,

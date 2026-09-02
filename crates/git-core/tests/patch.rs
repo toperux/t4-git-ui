@@ -47,7 +47,7 @@ fn change_lines(d: &FileDiff, h: usize) -> Vec<usize> {
 /// `git apply --cached --check` then the real apply; panics on failure.
 async fn apply(t: &TempRepo, patch: &str, reverse: bool) {
     let cli = GitCli::new("git");
-    let mut check = stage_patch_args(reverse);
+    let mut check = stage_patch_args(reverse, false);
     check.insert(1, "--check");
     let out = cli
         .run(
@@ -66,7 +66,7 @@ async fn apply(t: &TempRepo, patch: &str, reverse: bool) {
         .run(
             t.path(),
             "apply",
-            &stage_patch_args(reverse),
+            &stage_patch_args(reverse, false),
             Some(patch.as_bytes().to_vec()),
             CancellationToken::new(),
             |_| {},
@@ -86,7 +86,7 @@ async fn apply(t: &TempRepo, patch: &str, reverse: bool) {
 /// `git apply -R` on the working tree (no `--cached`, no `--check`); panics on failure.
 async fn discard(t: &TempRepo, patch: &str) {
     let cli = GitCli::new("git");
-    let args = discard_patch_args();
+    let args = discard_patch_args(false);
     let out = cli
         .run(
             t.path(),
@@ -127,7 +127,7 @@ async fn stage_hunk_subset_then_unstage_it() {
 
     let d = diff(&t, DiffTarget::Unstaged, "f.txt");
     assert_eq!(d.hunks.len(), 3);
-    let p = build_patch(&d, &PatchSelection::Hunks(vec![1, 2]), false).unwrap();
+    let p = build_patch(&d, &PatchSelection::Hunks(vec![1, 2]), false, true).unwrap();
     apply(&t, &p, false).await;
 
     let mut expected: Vec<String> = numbered(30).lines().map(String::from).collect();
@@ -149,7 +149,7 @@ async fn stage_hunk_subset_then_unstage_it() {
     // Now unstage the insertion only (reverse of the staged diff's first hunk).
     let s = diff(&t, DiffTarget::Staged, "f.txt");
     assert_eq!(s.hunks.len(), 2);
-    let p = build_patch(&s, &PatchSelection::Hunks(vec![0]), true).unwrap();
+    let p = build_patch(&s, &PatchSelection::Hunks(vec![0]), true, true).unwrap();
     apply(&t, &p, true).await;
     let mut expected: Vec<String> = numbered(30).lines().map(String::from).collect();
     expected.remove(27);
@@ -174,7 +174,7 @@ async fn stage_line_subsets() {
     assert_eq!(ch, vec![1, 2, 3, 5, 6]);
 
     // Only `+B1`: index gets b, B1 (b kept as context), d unchanged.
-    let p = build_patch(&d, &PatchSelection::Lines(vec![(0, 2)]), false).unwrap();
+    let p = build_patch(&d, &PatchSelection::Lines(vec![(0, 2)]), false, true).unwrap();
     apply(&t, &p, false).await;
     assert_eq!(index_content(&t, "f.txt").unwrap(), "a\nb\nB1\nc\nd\n");
 
@@ -185,7 +185,7 @@ async fn stage_line_subsets() {
         .iter()
         .position(|l| l.kind == DiffLineKind::Del && l.text == "d")
         .unwrap();
-    let p = build_patch(&d, &PatchSelection::Lines(vec![(0, del_d)]), false).unwrap();
+    let p = build_patch(&d, &PatchSelection::Lines(vec![(0, del_d)]), false, true).unwrap();
     apply(&t, &p, false).await;
     assert_eq!(index_content(&t, "f.txt").unwrap(), "a\nb\nB1\nc\n");
 
@@ -196,7 +196,7 @@ async fn stage_line_subsets() {
         .iter()
         .position(|l| l.kind == DiffLineKind::Add && l.text == "B1")
         .unwrap();
-    let p = build_patch(&s, &PatchSelection::Lines(vec![(0, add_b1)]), true).unwrap();
+    let p = build_patch(&s, &PatchSelection::Lines(vec![(0, add_b1)]), true, true).unwrap();
     apply(&t, &p, true).await;
     assert_eq!(index_content(&t, "f.txt").unwrap(), "a\nb\nc\n");
 }
@@ -212,24 +212,24 @@ async fn added_deleted_and_partial_new_file() {
     std::fs::remove_file(t.path().join("old.txt")).unwrap();
 
     let d = diff(&t, DiffTarget::Unstaged, "new.txt");
-    let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), false).unwrap();
+    let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), false, true).unwrap();
     apply(&t, &p, false).await;
     assert_eq!(index_content(&t, "new.txt").unwrap(), "n1\nn2\nn3\n");
 
     let d = diff(&t, DiffTarget::Unstaged, "old.txt");
-    let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), false).unwrap();
+    let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), false, true).unwrap();
     apply(&t, &p, false).await;
     assert!(index_content(&t, "old.txt").is_none());
 
     // Unstage the middle line of the new file: index keeps n1, n3.
     let s = diff(&t, DiffTarget::Staged, "new.txt");
-    let p = build_patch(&s, &PatchSelection::Lines(vec![(0, 1)]), true).unwrap();
+    let p = build_patch(&s, &PatchSelection::Lines(vec![(0, 1)]), true, true).unwrap();
     apply(&t, &p, true).await;
     assert_eq!(index_content(&t, "new.txt").unwrap(), "n1\nn3\n");
 
     // Unstage the deletion of `o2` only: index gets o2 back (partial deletion).
     let s = diff(&t, DiffTarget::Staged, "old.txt");
-    let p = build_patch(&s, &PatchSelection::Lines(vec![(0, 1)]), true).unwrap();
+    let p = build_patch(&s, &PatchSelection::Lines(vec![(0, 1)]), true, true).unwrap();
     apply(&t, &p, true).await;
     assert_eq!(index_content(&t, "old.txt").unwrap(), "o2\n");
 }
@@ -244,7 +244,7 @@ async fn crlf_and_no_newline_round_trip() {
     t.commit(&[("f.txt", "a\r\nb\r\nc\r\n")], "base");
     t.write("f.txt", "a\r\nB\r\nc\r\nd");
     let d = diff(&t, DiffTarget::Unstaged, "f.txt");
-    let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), false).unwrap();
+    let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), false, true).unwrap();
     apply(&t, &p, false).await;
     assert_eq!(index_content(&t, "f.txt").unwrap(), "a\r\nB\r\nc\r\nd");
 }
@@ -266,7 +266,7 @@ async fn autocrlf_repo_stages_lf_content() {
         "{:?}",
         d.hunks[0].lines
     );
-    let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), false).unwrap();
+    let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), false, true).unwrap();
     apply(&t, &p, false).await;
     assert_eq!(index_content(&t, "f.txt").unwrap(), "a\nB\nc\n");
     // Nothing left to stage.
@@ -298,7 +298,7 @@ async fn stages_the_exec_bit_with_the_first_hunk() {
     assert_eq!(d.old_mode.as_deref(), Some("100644"));
     assert_eq!(d.new_mode.as_deref(), Some("100755"));
 
-    let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), false).unwrap();
+    let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), false, true).unwrap();
     apply(&t, &p, false).await;
 
     let index = t.repo.index().expect("index");
@@ -324,12 +324,131 @@ async fn discard_hunk_subset_keeps_the_other_hunk() {
 
     let d = diff(&t, DiffTarget::Unstaged, "f.txt");
     assert_eq!(d.hunks.len(), 2);
-    let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), true).unwrap();
+    // Stage the second edit first: dropping `--cached` is what keeps the
+    // discard off the index, so there has to be something in it to keep.
+    let p = build_patch(&d, &PatchSelection::Hunks(vec![1]), false, true).unwrap();
+    apply(&t, &p, false).await;
+    let staged = index_content(&t, "f.txt").unwrap();
+
+    let d = diff(&t, DiffTarget::Unstaged, "f.txt");
+    assert_eq!(d.hunks.len(), 1);
+    let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), true, false).unwrap();
     discard(&t, &p).await;
 
     let mut expected: Vec<String> = numbered(30).lines().map(String::from).collect();
     expected[26] = "LINE 27".into();
     assert_eq!(read(&t, "f.txt"), expected.join("\n") + "\n");
+    assert_eq!(
+        index_content(&t, "f.txt").unwrap(),
+        staged,
+        "the index keeps the hunk that was staged"
+    );
+}
+
+/// The working-tree apply runs the content through the filters on write, so a
+/// discard in an `autocrlf` repo has to come back out with CRLFs.
+#[tokio::test]
+async fn discard_hunk_in_an_autocrlf_repo() {
+    if !have_git() {
+        return;
+    }
+    let t = TempRepo::new();
+    t.set_config("core.autocrlf", "true");
+    t.commit(&[("f.txt", "a\nb\n")], "base");
+    t.write("f.txt", "a\r\nB\r\nc\r\n");
+
+    let d = diff(&t, DiffTarget::Unstaged, "f.txt");
+    // The stage-able diff is post-filter (LF); the patch is built from it.
+    assert!(d.hunks[0].lines.iter().all(|l| !l.text.ends_with('\r')));
+    let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), true, false).unwrap();
+    discard(&t, &p).await;
+    assert_eq!(read(&t, "f.txt"), "a\r\nb\r\n");
+}
+
+/// Unix only, as [`stages_the_exec_bit_with_the_first_hunk`]: `git apply -R`
+/// reverses `old mode` / `new mode` along with the hunks, so a discard must
+/// not emit them — the exec bit was never part of the selection.
+#[cfg(unix)]
+#[tokio::test]
+async fn discard_hunk_leaves_the_exec_bit_alone() {
+    use std::os::unix::fs::PermissionsExt;
+
+    if !have_git() {
+        return;
+    }
+    let t = TempRepo::new();
+    t.set_config("core.filemode", "true");
+    t.set_config("core.autocrlf", "false");
+    t.commit(&[("s.sh", &numbered(30))], "base");
+
+    let mut lines: Vec<String> = numbered(30).lines().map(String::from).collect();
+    for i in [2, 14, 26] {
+        lines[i] = format!("LINE {}", i + 1);
+    }
+    t.write("s.sh", lines.join("\n") + "\n");
+    let full = t.path().join("s.sh");
+    let mut perms = std::fs::metadata(&full).expect("metadata").permissions();
+    perms.set_mode(0o755);
+    std::fs::set_permissions(&full, perms).expect("chmod");
+
+    let d = diff(&t, DiffTarget::Unstaged, "s.sh");
+    assert_eq!(d.hunks.len(), 3);
+    assert_eq!(d.new_mode.as_deref(), Some("100755"));
+    let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), true, false).unwrap();
+    discard(&t, &p).await;
+
+    let mode = std::fs::metadata(&full)
+        .expect("metadata")
+        .permissions()
+        .mode();
+    assert_eq!(mode & 0o777, 0o755, "{p}");
+    let mut expected: Vec<String> = numbered(30).lines().map(String::from).collect();
+    for i in [14, 26] {
+        expected[i] = format!("LINE {}", i + 1);
+    }
+    assert_eq!(read(&t, "s.sh"), expected.join("\n") + "\n");
+}
+
+/// The mirror of [`stages_the_exec_bit_with_the_first_hunk`]: the mode change
+/// rides back out with the first partial unstage.
+#[cfg(unix)]
+#[tokio::test]
+async fn unstage_carries_the_mode_change_out_of_the_index() {
+    use std::os::unix::fs::PermissionsExt;
+
+    if !have_git() {
+        return;
+    }
+    let t = TempRepo::new();
+    t.set_config("core.filemode", "true");
+    t.commit(&[("s.sh", "a\nb\n")], "base");
+
+    let full = t.path().join("s.sh");
+    std::fs::write(&full, "a\nB\n").expect("write");
+    let mut perms = std::fs::metadata(&full).expect("metadata").permissions();
+    perms.set_mode(0o755);
+    std::fs::set_permissions(&full, perms).expect("chmod");
+
+    let d = diff(&t, DiffTarget::Unstaged, "s.sh");
+    let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), false, true).unwrap();
+    apply(&t, &p, false).await;
+    let entry_mode = |t: &TempRepo| {
+        t.repo
+            .index()
+            .expect("index")
+            .get_path(Path::new("s.sh"), 0)
+            .expect("entry")
+            .mode
+    };
+    assert_eq!(entry_mode(&t), 0o100755);
+
+    let s = diff(&t, DiffTarget::Staged, "s.sh");
+    assert_eq!(s.old_mode.as_deref(), Some("100644"));
+    assert_eq!(s.new_mode.as_deref(), Some("100755"));
+    let p = build_patch(&s, &PatchSelection::Hunks(vec![0]), true, true).unwrap();
+    apply(&t, &p, true).await;
+    assert_eq!(entry_mode(&t), 0o100644, "{p}");
+    assert_eq!(index_content(&t, "s.sh").unwrap(), "a\nb\n");
 }
 
 #[tokio::test]
@@ -350,7 +469,7 @@ async fn discard_lines_subset() {
         .unwrap();
 
     // Only `+X` goes; `+Y` is unselected, so it stays as context.
-    let p = build_patch(&d, &PatchSelection::Lines(vec![(0, x)]), true).unwrap();
+    let p = build_patch(&d, &PatchSelection::Lines(vec![(0, x)]), true, false).unwrap();
     discard(&t, &p).await;
     assert_eq!(read(&t, "f.txt"), "a\nY\nb\n");
 }
@@ -373,7 +492,7 @@ async fn discard_hunk_in_a_crlf_file() {
 
     let d = diff(&t, DiffTarget::Unstaged, "f.txt");
     assert_eq!(d.hunks.len(), 2);
-    let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), true).unwrap();
+    let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), true, false).unwrap();
     discard(&t, &p).await;
 
     let mut expected = base.clone();

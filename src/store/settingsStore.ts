@@ -28,6 +28,8 @@ export interface SettingsStore {
   setIgnoreWhitespace(b: boolean): void;
   /** Tries `path` before keeping it; `false` (with `gitError` set) when git refused to answer. */
   setGitPath(path: string): Promise<boolean>;
+  /** Drops the last probe's message: it describes a path that is being edited away. */
+  clearGitError(): void;
 }
 
 const persist = (key: string, value: unknown) => kvSet(key, value).catch((e: unknown) => console.warn(`kv: could not persist "${key}"`, e));
@@ -65,6 +67,8 @@ export const useSettingsStore = create<SettingsStore>()((set) => ({
   },
 
   async setGitPath(path) {
+    // The error belongs to the previous probe: the dialog must not show it beside this one's result.
+    set({ gitError: null });
     try {
       const gitVersion = await ipc.setGitPath(path || "git");
       set({ gitPath: path, gitVersion, gitError: null });
@@ -78,4 +82,6 @@ export const useSettingsStore = create<SettingsStore>()((set) => ({
       return false;
     }
   },
+
+  clearGitError: () => set({ gitError: null }),
 }));

@@ -1,27 +1,24 @@
-import { Copy, ExternalLink, FolderOpen, Minus, Plus, Trash2 } from "lucide-react";
+import { Copy, ExternalLink, FolderOpen, GitMerge, Minus, Plus, Trash2 } from "lucide-react";
 import * as ipc from "../../../api/ipc";
 import { toAppError } from "../../../api/ipc";
-import type { ConflictSides, StatusEntry } from "../../../api/types";
+import type { StatusEntry } from "../../../api/types";
 import { ContextMenu, MenuItem, MenuSeparator } from "../../../components/ui/Menu/Menu";
+import { sideLabel, sideName } from "../../../lib/conflictSides";
 import { useCommitStore, type ListId } from "../../../store/commitStore";
 import { selectRunning, useOpsStore } from "../../../store/opsStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { toastError } from "../../../store/toastStore";
 import { copyText } from "../actions";
 
-/** The right-clicked row: where to put the menu, and which file it came from. */
+/** Where to put the menu, and the paths it was opened over — a snapshot: the list moves under it. */
 export interface FileMenuState {
   at: { x: number; y: number };
-  el: HTMLElement;
-  path: string;
+  paths: string[];
 }
-
-/** Without a merge in progress the backend names no sides; git's own words do. */
-const GENERIC_SIDES: ConflictSides = { ours: "our", theirs: "their" };
 
 export interface FileContextMenuProps {
   list: ListId;
-  /** The selection the items act on (the right-clicked row is always in it). */
+  /** The selection as it was when the menu opened (the right-clicked row is always in it). */
   paths: string[];
   entries: StatusEntry[];
   menu: FileMenuState | null;
@@ -33,8 +30,9 @@ export interface FileContextMenuProps {
 /** File-row actions: stage / unstage, discard, keep a conflict side, copy the path, open the file. */
 export function FileContextMenu({ list, paths, entries, menu, onClose, act, discard }: FileContextMenuProps) {
   const running = useOpsStore(selectRunning);
+  const busy = useCommitStore((st) => st.busy);
   const repoId = useRepoStore((st) => st.repo?.id ?? null);
-  const sides = useRepoStore((st) => st.refs?.conflictSides) ?? GENERIC_SIDES;
+  const sides = useRepoStore((st) => st.refs?.conflictSides);
   const resolveConflict = useCommitStore((st) => st.resolveConflict);
   if (!menu || paths.length === 0) return null;
 
@@ -46,15 +44,19 @@ export function FileContextMenu({ list, paths, entries, menu, onClose, act, disc
   const single = n === 1 ? entryOf(paths[0]) : undefined;
   // Nothing on disk to hand the OS: a deletion staged or not.
   const gone = !single || single.workdir === "deleted" || single.index === "deleted";
+  // Staging a conflicted file is "mark resolved" with the markers still in it — the row's own Stage
+  // action does that one file at a time, on purpose; a selection skips them, like "Stage all".
+  const target = list === "unstaged" ? paths.filter((p) => !entryOf(p)?.conflicted) : paths;
+  const skipped = n - target.length;
 
   /** Every item closes the menu first. */
   const run = (fn: () => void) => () => {
     onClose();
     fn();
   };
-  // Everything that touches the repository is greyed while an operation runs, like the toolbar;
-  // copy / open only read.
-  const op = running ? { disabled: true, title: "Operation in progress" } : {};
+  // Everything that touches the repository is greyed while an operation runs, like the toolbar, and
+  // while the commit store is mid-mutation (it would drop the call silently); copy / open only read.
+  const op: { disabled?: boolean; title?: string } = running || busy ? { disabled: true, title: "Operation in progress" } : {};
 
   const open = (reveal: boolean) => {
     if (!repoId) return;
@@ -63,7 +65,13 @@ export function FileContextMenu({ list, paths, entries, menu, onClose, act, disc
 
   return (
     <ContextMenu at={menu.at} onClose={onClose} label="File actions">
-      <MenuItem icon={list === "unstaged" ? <Plus size={16} aria-hidden /> : <Minus size={16} aria-hidden />} {...op} onClick={run(() => act(paths))}>
+      <MenuItem
+        icon={list === "unstaged" ? <Plus size={16} aria-hidden /> : <Minus size={16} aria-hidden />}
+        {...op}
+        disabled={op.disabled || target.length === 0}
+        title={skipped > 0 ? `Conflicted files are staged one by one, once resolved (${skipped} skipped)` : op.title}
+        onClick={run(() => act(target))}
+      >
         {list === "unstaged" ? "Stage" : "Unstage"}
         {many}
       </MenuItem>
@@ -73,13 +81,13 @@ export function FileContextMenu({ list, paths, entries, menu, onClose, act, disc
         </MenuItem>
       )}
       {conflicted && (
-        <MenuItem {...op} onClick={run(() => void resolveConflict(paths, "ours", sides.ours))}>
-          Keep {sides.ours}&apos;s version
+        <MenuItem icon={<GitMerge size={16} aria-hidden />} {...op} onClick={run(() => void resolveConflict(paths, "ours", sideName(sides, "ours")))}>
+          {sideLabel(sides, "ours")}
         </MenuItem>
       )}
       {conflicted && (
-        <MenuItem {...op} onClick={run(() => void resolveConflict(paths, "theirs", sides.theirs))}>
-          Keep {sides.theirs}&apos;s version
+        <MenuItem icon={<GitMerge size={16} aria-hidden />} {...op} onClick={run(() => void resolveConflict(paths, "theirs", sideName(sides, "theirs")))}>
+          {sideLabel(sides, "theirs")}
         </MenuItem>
       )}
       <MenuSeparator />

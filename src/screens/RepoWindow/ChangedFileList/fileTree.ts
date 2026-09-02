@@ -7,6 +7,8 @@ export interface FileNode<T = FileChange> {
   name: string;
   /** Folder path (`a/b`) or the file's path. */
   path: string;
+  /** Every folder path a compacted node stands for (`a`, `a/b`, `a/b/c`); absent when it stands for one. */
+  chain?: string[];
   children: FileNode<T>[];
   /** Set on leaves. */
   file?: T;
@@ -40,7 +42,8 @@ export function buildFileTree<T extends { path: string }>(files: T[]): FileNode<
 /**
  * Collapse `a` → `b` → `c` chains of single-child folders into one `a/b/c` node. The node keeps the
  * *deepest* folder's `path`, so `collapsed` keys and `hiddenSlot`'s `path.startsWith(l.path + "/")`
- * test still name a real prefix of the files underneath.
+ * test still name a real prefix of the files underneath — and the whole `chain`, because staging a
+ * file re-compacts the tree and a key stored against yesterday's shape must still name this row.
  */
 function compact<T>(nodes: FileNode<T>[]): void {
   nodes.forEach((n, i) => {
@@ -48,7 +51,7 @@ function compact<T>(nodes: FileNode<T>[]): void {
     let node = n;
     while (node.children.length === 1 && !node.children[0].file) {
       const child = node.children[0];
-      node = { name: `${node.name}/${child.name}`, path: child.path, children: child.children };
+      node = { name: `${node.name}/${child.name}`, path: child.path, chain: [...(node.chain ?? [node.path]), child.path], children: child.children };
     }
     nodes[i] = node;
     compact(node.children);
@@ -57,7 +60,7 @@ function compact<T>(nodes: FileNode<T>[]): void {
 
 /** One rendered line of a tree: a folder, or a file (the only selectable kind). */
 export type TreeLine<T> =
-  | { kind: "folder"; path: string; name: string; depth: number; expanded: boolean }
+  | { kind: "folder"; path: string; name: string; /** The folder paths this row stands for; any of them collapsed collapses it. */ chain: string[]; depth: number; expanded: boolean }
   | { kind: "file"; file: T; label: string; depth: number };
 
 /** Tree → the visible lines in display order (collapsed folders contribute only their own row). */
@@ -65,8 +68,9 @@ export function flattenTree<T>(nodes: FileNode<T>[], collapsed: ReadonlySet<stri
   for (const n of nodes) {
     if (n.file) out.push({ kind: "file", file: n.file, label: n.name, depth });
     else {
-      const expanded = !collapsed.has(n.path);
-      out.push({ kind: "folder", path: n.path, name: n.name, depth, expanded });
+      const chain = n.chain ?? [n.path];
+      const expanded = !chain.some((p) => collapsed.has(p));
+      out.push({ kind: "folder", path: n.path, name: n.name, chain, depth, expanded });
       if (expanded) flattenTree(n.children, collapsed, depth + 1, out);
     }
   }

@@ -237,12 +237,14 @@ Invoke-Git -C $work push -q origin feature-nested:topic/on-origin
 Invoke-Git -C $work switch -q main
 Invoke-Git -C $work branch --delete --force feature-nested | Out-Null
 
-$chain = Join-Path $work 'examples\exclude\schema'
+$chain = Join-Path (Join-Path (Join-Path $work 'examples') 'exclude') 'schema'
 New-Item -ItemType Directory -Path $chain | Out-Null
 Write-Text (Join-Path $chain 'tables.txt') "deep down a chain of single folders`n"
-New-Item -ItemType Directory -Path (Join-Path $work 'src\lib') | Out-Null
-Write-Text (Join-Path $work 'src\a.txt') "src a`n"
-Write-Text (Join-Path $work 'src\lib\b.txt') "src lib b`n"
+$src = Join-Path $work 'src'
+$srcLib = Join-Path $src 'lib'
+New-Item -ItemType Directory -Path $srcLib | Out-Null
+Write-Text (Join-Path $src 'a.txt') "src a`n"
+Write-Text (Join-Path $srcLib 'b.txt') "src lib b`n"
 Write-Text (Join-Path $work 'gone.txt') "deleted from the working tree later`n"
 $crlfLines = 1..10 | ForEach-Object { 'crlf {0:d2}' -f $_ }
 Write-Text (Join-Path $work 'crlf-hunks.txt') (($crlfLines -join "`r`n") + "`r`n")
@@ -291,10 +293,11 @@ if ($hunkCount -ne 3) {
 # folder to collapse), an untracked file at the bottom of a single-folder chain (one tree row,
 # `deep / one / two`), a deleted file, and one CRLF line changed so crlf-hunks.txt shows a hunk
 # whose discard has to keep the CRs.
-Write-Text (Join-Path $work 'src\a.txt') "src a edited`n"
-Write-Text (Join-Path $work 'src\lib\b.txt') "src lib b edited`n"
-New-Item -ItemType Directory -Path (Join-Path $work 'deep\one\two') | Out-Null
-Write-Text (Join-Path $work 'deep\one\two\z.txt') "untracked, three folders down`n"
+Write-Text (Join-Path $src 'a.txt') "src a edited`n"
+Write-Text (Join-Path $srcLib 'b.txt') "src lib b edited`n"
+$deep = Join-Path (Join-Path (Join-Path $work 'deep') 'one') 'two'
+New-Item -ItemType Directory -Path $deep | Out-Null
+Write-Text (Join-Path $deep 'z.txt') "untracked, three folders down`n"
 Remove-Item -LiteralPath (Join-Path $work 'gone.txt')
 $crlfEdited = $crlfLines | ForEach-Object { if ($_ -eq 'crlf 05') { 'crlf 05 edited' } else { $_ } }
 Write-Text (Join-Path $work 'crlf-hunks.txt') (($crlfEdited -join "`r`n") + "`r`n")

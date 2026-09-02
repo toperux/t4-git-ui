@@ -36,8 +36,9 @@ export default function App() {
       return;
     }
     void useCmdHistoryStore.getState().load();
-    // Preferences seed the diff store, so they land before the first commit is selected.
-    void useSettingsStore.getState().load();
+    // Preferences seed the diff store: awaited, so a reopened repository cannot fetch its first diff
+    // (panel or details pane) at the default context and leave the stored one to land afterwards.
+    await useSettingsStore.getState().load();
     // Reopen the repository that was open at last exit; any failure just lands on the start screen.
     const recents = useRecentsStore.getState();
     try {

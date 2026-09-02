@@ -148,10 +148,16 @@ export interface MenuItemProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 export function MenuItem({ icon, danger, kbd, className, children, type = "button", ...rest }: MenuItemProps) {
   return (
-    <button type={type} role="menuitem" className={cx(s.item, danger && s.danger, className)} {...rest}>
+    // The chip is a picture of the shortcut, not part of the item's name ("Discard… Delete"):
+    // `aria-keyshortcuts` is what carries it to a screen reader.
+    <button type={type} role="menuitem" className={cx(s.item, danger && s.danger, className)} aria-keyshortcuts={kbd} {...rest}>
       {icon && <span className={s.icon}>{icon}</span>}
       <span className={s.grow}>{children}</span>
-      {kbd && <Kbd className={s.kbd}>{kbd}</Kbd>}
+      {kbd && (
+        <Kbd className={s.kbd} aria-hidden>
+          {kbd}
+        </Kbd>
+      )}
     </button>
   );
 }

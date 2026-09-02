@@ -33,7 +33,7 @@ const REFS: RefsSnapshot = {
 
 describe("commitBranchActions", () => {
   it("offers local branches at the commit, minus the current one", () => {
-    expect(commitBranchActions(REFS, "a")).toEqual({ checkout: [], reset: [], merge: [], rebaseOnto: null, headCommit: true });
+    expect(commitBranchActions(REFS, "a")).toEqual({ checkout: [], reset: [], merge: [], rebaseOnto: null, canRebase: false, headCommit: true });
     const { checkout } = commitBranchActions(REFS, "b");
     expect(checkout.filter((b) => !b.remote).map((b) => b.name)).toEqual(["feature", "hotfix"]);
   });
@@ -57,22 +57,38 @@ describe("commitBranchActions", () => {
       reset: [{ branch: "feature", remote: "fork/feature", current: false }],
       merge: [{ name: "origin/new", remote: "origin" }, { name: "fork/feature", remote: "fork" }],
       rebaseOnto: { name: "origin/new", remote: "origin" },
+      canRebase: true,
       headCommit: false,
     });
   });
 
-  it("merges any branch at the commit, a remote one with a local counterpart included", () => {
-    // `origin/main` / `origin/feature` are no checkout candidates (a local sits on them) but are merge sources.
+  it("merges any branch at the commit, minus a remote one its local counterpart already names", () => {
+    // `origin/main` / `origin/renamed` are no checkout candidates (a local tracks them from elsewhere)
+    // but they are merge sources. `origin/feature` is not: local `feature` is the same commit, and
+    // right after a push offering both would replace "Merge feature into main…" with a branch picker.
     expect(commitBranchActions(REFS, "b").merge).toEqual([
       { name: "feature", remote: null },
       { name: "hotfix", remote: null },
       { name: "origin/main", remote: "origin" },
-      { name: "origin/feature", remote: "origin" },
       { name: "origin/renamed", remote: "origin" },
     ]);
-    // The checked-out branch is never a merge source, even when HEAD has moved off it.
-    const detached: RefsSnapshot = { ...REFS, head: { oid: "z", branch: null, detached: true } };
-    expect(commitBranchActions(detached, "a").merge).toEqual([]);
+  });
+
+  it("a detached HEAD merges into itself but rebases nothing", () => {
+    // Detached means no branch is checked out: with `main` still `isHead` the state is unreachable.
+    const detached: RefsSnapshot = { ...REFS, head: { oid: "z", branch: null, detached: true }, local: REFS.local.map((b) => ({ ...b, isHead: false })) };
+    const at = commitBranchActions(detached, "a");
+    // `main` sits at `a` and is nobody's HEAD any more, so it is a merge source; a rebase has no branch to move.
+    expect(at.merge).toEqual([{ name: "main", remote: null }]);
+    expect(at).toMatchObject({ rebaseOnto: null, canRebase: false, headCommit: false });
+  });
+
+  it("an unborn HEAD offers neither — it sits at no commit at all", () => {
+    const unborn: RefsSnapshot = { ...REFS, head: { oid: null, branch: "wip", detached: false }, local: REFS.local.map((b) => ({ ...b, isHead: false })) };
+    const at = commitBranchActions(unborn, "b");
+    expect(at).toMatchObject({ merge: [], rebaseOnto: null, canRebase: false, headCommit: false });
+    // Checking one of them out is exactly what leaves the orphan branch, so those items stay.
+    expect(at.checkout.map((b) => b.name)).toEqual(["feature", "hotfix"]);
   });
 
   it("rebases onto a local branch at the commit, else a remote one, else nothing", () => {
@@ -86,6 +102,6 @@ describe("commitBranchActions", () => {
   });
 
   it("is empty without refs", () => {
-    expect(commitBranchActions(null, "a")).toEqual({ checkout: [], reset: [], merge: [], rebaseOnto: null, headCommit: false });
+    expect(commitBranchActions(null, "a")).toEqual({ checkout: [], reset: [], merge: [], rebaseOnto: null, canRebase: false, headCommit: false });
   });
 });

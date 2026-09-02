@@ -40,11 +40,29 @@ describe("SettingsDialog", () => {
     expect((getByRole("checkbox", { name: "Ignore whitespace by default" }) as HTMLInputElement).checked).toBe(true);
   });
 
-  it("applies the context lines as they are typed", () => {
+  it("applies the context lines once the field is left, not on every keystroke", () => {
     const setDiffContext = vi.spyOn(useSettingsStore.getState(), "setDiffContext");
     const { getByRole } = render(<SettingsDialog onClose={() => {}} />);
-    fireEvent.change(getByRole("spinbutton", { name: "Context lines" }), { target: { value: "5" } });
-    expect(setDiffContext).toHaveBeenCalledWith(5);
+    const field = getByRole("spinbutton", { name: "Context lines" });
+    // Typing "12" over "3" passes through "1": applying it would persist 1 and reload the diff at 1.
+    fireEvent.change(field, { target: { value: "1" } });
+    fireEvent.change(field, { target: { value: "12" } });
+    expect(setDiffContext).not.toHaveBeenCalled();
+    fireEvent.keyDown(field, { key: "Enter" });
+    expect(setDiffContext).toHaveBeenCalledTimes(1);
+    expect(setDiffContext).toHaveBeenCalledWith(12);
+  });
+
+  it("an emptied field applies nothing and comes back with the stored value", () => {
+    useSettingsStore.setState({ diffContext: 8 });
+    const setDiffContext = vi.spyOn(useSettingsStore.getState(), "setDiffContext");
+    const { getByRole } = render(<SettingsDialog onClose={() => {}} />);
+    const field = getByRole("spinbutton", { name: "Context lines" }) as HTMLInputElement;
+    fireEvent.change(field, { target: { value: "" } });
+    fireEvent.blur(field);
+    expect(setDiffContext).not.toHaveBeenCalled();
+    expect(useSettingsStore.getState().diffContext).toBe(8);
+    expect(field.value).toBe("8");
   });
 
   it("applies the whitespace default as it is ticked", () => {
@@ -77,6 +95,44 @@ describe("SettingsDialog", () => {
     fireEvent.click(getByRole("button", { name: "Apply" }));
     expect(await findByText("not a git executable")).toBeTruthy();
     expect(useSettingsStore.getState().gitPath).toBe("");
+  });
+
+  it("the rejection is cleared by an edit and is gone the next time the dialog opens", async () => {
+    mocked.setGitPath.mockRejectedValue({ kind: "gitNotFound", message: "not a git executable" });
+    const first = render(<SettingsDialog onClose={() => {}} />);
+    const field = first.getByRole("textbox", { name: "Git executable" });
+    fireEvent.change(field, { target: { value: "C:\\nope.exe" } });
+    fireEvent.click(first.getByRole("button", { name: "Apply" }));
+    expect(await first.findByText("not a git executable")).toBeTruthy();
+
+    // The message describes the path that was probed, not the one being typed over it.
+    fireEvent.change(field, { target: { value: "C:\\git\\bin\\git.exe" } });
+    expect(first.queryByText("not a git executable")).toBe(null);
+    cleanup();
+
+    const second = render(<SettingsDialog onClose={() => {}} />);
+    expect(second.getByText("Leave empty to use the git found on PATH.")).toBeTruthy();
+  });
+
+  it("strips the quotes Explorer's Copy as path leaves around the executable", async () => {
+    mocked.setGitPath.mockResolvedValue("git version 2.55.0");
+    const { getByRole } = render(<SettingsDialog onClose={() => {}} />);
+    fireEvent.change(getByRole("textbox", { name: "Git executable" }), { target: { value: '"C:\\Program Files\\Git\\bin\\git.exe"' } });
+    fireEvent.click(getByRole("button", { name: "Apply" }));
+    await waitFor(() => expect(mocked.setGitPath).toHaveBeenCalledWith("C:\\Program Files\\Git\\bin\\git.exe"));
+  });
+
+  it("Enter applies the git path and nothing else does", async () => {
+    mocked.setGitPath.mockResolvedValue("git version 2.55.0");
+    const { getByRole } = render(<SettingsDialog onClose={() => {}} />);
+    // The dialog has no submit action: Enter in another field must not start a git probe.
+    fireEvent.keyDown(getByRole("spinbutton", { name: "Context lines" }), { key: "Enter" });
+    expect(mocked.setGitPath).not.toHaveBeenCalled();
+
+    const field = getByRole("textbox", { name: "Git executable" });
+    fireEvent.change(field, { target: { value: "C:\\git\\bin\\git.exe" } });
+    fireEvent.keyDown(field, { key: "Enter" });
+    await waitFor(() => expect(mocked.setGitPath).toHaveBeenCalledWith("C:\\git\\bin\\git.exe"));
   });
 
   it("Locate… fills the field from the picker and applies it", async () => {

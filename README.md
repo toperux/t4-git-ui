@@ -16,7 +16,7 @@ Rust core (`git2` for reads and the index, the system `git` for everything that 
 - **State banners** — detached HEAD, merge / rebase in progress, conflicts.
 - **Start screen** — recent repositories (pin, filter), open, clone with progress, init; a friendly screen when `git` is missing.
 - Light and dark themes following the OS, or a toggle in the toolbar; no flash on launch; every colour pair audited for WCAG contrast.
-- **Settings** — git executable, theme (light / dark / follow the OS), diff context lines and whitespace default; applied on change.
+- **Settings** — git executable, theme (light / dark / follow the OS), diff context lines and whitespace default; applied on change, the git path on Apply.
 
 Not in v1: interactive rebase, blame, file history, submodules, worktrees, bisect, cherry-pick / revert UI, multi-repo tabs.
 
@@ -74,7 +74,7 @@ Ctrl is ⌘ on macOS.
 
 ## Status / roadmap
 
-v1 is feature-complete, covered by 126 Rust and 247 frontend tests, and **accepted on Windows**:
+v1 is feature-complete, covered by 158 Rust and 367 frontend tests, and **accepted on Windows**:
 the `docs/smoke-test.md` walkthrough was completed end to end on 2026-09-01 and everything it
 found is fixed. CI is green on Linux, Windows and macOS, but Linux and macOS are compiled there
 only (no rendering check, no signing / notarization yet), and the installer has not been tried on a

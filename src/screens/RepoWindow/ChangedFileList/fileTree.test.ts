@@ -39,6 +39,15 @@ describe("buildFileTree", () => {
     expect(lines.map((l) => (l.kind === "folder" ? `d:${l.name}` : `f:${l.label}`))).toEqual(["d:a", "d:b", "f:x.rs", "d:c", "f:y.rs"]);
   });
 
+  it("a compacted node is collapsed by any folder in its chain, so staging a file doesn't reopen it", () => {
+    // `a` is a real row while `a/c.rs` exists, and the user collapsed it. Staging that file compacts
+    // the folder into `a / b`, whose own path is `a/b` — the stored key must still name this row.
+    const open = flattenTree(buildFileTree([f("a/b/x.rs"), f("a/c.rs")]), new Set(["a"]));
+    expect(open).toMatchObject([{ kind: "folder", name: "a", path: "a", chain: ["a"], expanded: false }]);
+    const compacted = flattenTree(buildFileTree([f("a/b/x.rs")]), new Set(["a"]));
+    expect(compacted).toMatchObject([{ kind: "folder", name: "a/b", path: "a/b", chain: ["a", "a/b"], expanded: false }]);
+  });
+
   it("compacts only the chain: a folder beside a file keeps its own line", () => {
     const tree = buildFileTree([f("a/b/c/x.rs"), f("a/d.rs")]);
     expect(tree).toMatchObject([{ name: "a", path: "a" }]);

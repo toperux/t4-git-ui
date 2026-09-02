@@ -232,6 +232,61 @@ describe("commitStore mutations", () => {
     expect(mocked.discardHunks).toHaveBeenCalledTimes(1);
   });
 
+  it("a context change rebuilds the panel diff, and the rebuilt one's context is what the next action sends", async () => {
+    await sync([entry("a.rs")]);
+    expect(mocked.getFileDiff).toHaveBeenLastCalledWith(REPO.id, { kind: "unstaged" }, "a.rs", { context: 3 });
+
+    // Settings → Context lines: the details pane reloads on its own, the panel has to follow, or the
+    // hunks on screen keep the old shape while the next stage / discard is resolved with the new one.
+    useDiffStore.getState().setContext(8);
+    await flush();
+    expect(mocked.getFileDiff).toHaveBeenLastCalledWith(REPO.id, { kind: "unstaged" }, "a.rs", { context: 8 });
+    await useCommitStore.getState().stageHunk(0);
+    expect(mocked.stageHunks).toHaveBeenCalledWith(REPO.id, "a.rs", [0], false, 8);
+  });
+
+  it("sends the context of the diff on screen while its rebuild is still in flight", async () => {
+    await sync([entry("a.rs")]);
+    mocked.getFileDiff.mockImplementation(() => new Promise(() => {}));
+    useDiffStore.getState().setContext(8);
+    await flush();
+
+    // The reload has not landed: what the user sees is still the context-3 diff, so its indices are.
+    await useCommitStore.getState().stageHunk(0);
+    expect(mocked.stageHunks).toHaveBeenCalledWith(REPO.id, "a.rs", [0], false, 3);
+  });
+
+  it("drops a discard whose diff was replaced while the confirmation was up", async () => {
+    await sync([entry("a.rs")]);
+    // A formatter-on-save rewrites the file behind the native dialog and the panel reloads: the hunk
+    // index the user picked belongs to the diff they were looking at, not to this one.
+    const swap = () => {
+      useCommitStore.setState({ diff: diff("a.rs", "reloaded") });
+      return Promise.resolve(true);
+    };
+
+    ask.mockImplementationOnce(swap);
+    await useCommitStore.getState().discardHunk(0);
+    expect(mocked.discardHunks).not.toHaveBeenCalled();
+    expect(useToastStore.getState().toasts[0]).toMatchObject({ kind: "info", title: "Discard cancelled" });
+
+    ask.mockImplementationOnce(swap);
+    await useCommitStore.getState().discardLines([[0, 1]]);
+    expect(mocked.discardLines).not.toHaveBeenCalled();
+  });
+
+  it("discardLines: a declined confirmation deletes nothing, a failed one toasts", async () => {
+    await sync([entry("a.rs")]);
+    ask.mockResolvedValue(false);
+    await useCommitStore.getState().discardLines([[0, 1]]);
+    expect(mocked.discardLines).not.toHaveBeenCalled();
+
+    ask.mockResolvedValue(true);
+    mocked.discardLines.mockRejectedValueOnce({ kind: "git", message: "boom" });
+    await useCommitStore.getState().discardLines([[0, 1]]);
+    expect(useToastStore.getState().toasts[0]).toMatchObject({ kind: "error", title: "Discard failed", detail: "boom" });
+  });
+
   it("stages one hunk after another and reloads the diff every time", async () => {
     // Staging a hunk of a file that has more leaves the entry at modified/modified. The shown diff
     // changed, its status entry did not — and the indices of what is left come from that diff, so a

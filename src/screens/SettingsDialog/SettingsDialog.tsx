@@ -1,8 +1,9 @@
 // App preferences, reachable from both screens (toolbar gear / start screen gear).
-// Every control applies as it changes — the footer only closes.
+// Theme and the whitespace default apply as they change; the two text fields apply on Enter (the git
+// path on Apply / Locate… too, since trying it starts a process). The footer only closes.
 import { open as openFile } from "@tauri-apps/plugin-dialog";
 import { FolderSearch } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Button } from "../../components/ui/Button/Button";
 import { Checkbox } from "../../components/ui/Checkbox/Checkbox";
 import { Dialog, Field, Options } from "../../components/ui/Dialog/Dialog";
@@ -17,18 +18,39 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const gitPath = useSettingsStore((st) => st.gitPath);
   const gitVersion = useSettingsStore((st) => st.gitVersion);
   const gitError = useSettingsStore((st) => st.gitError);
-  const { setDiffContext, setIgnoreWhitespace, setGitPath } = useSettingsStore.getState();
+  const { setDiffContext, setIgnoreWhitespace, setGitPath, clearGitError } = useSettingsStore.getState();
 
-  // The path is edited freely and only tried on Apply; the rest of the dialog applies on change.
+  // The path is edited freely and only tried on Apply / Enter — trying it runs `git --version`.
   const [path, setPath] = useState(gitPath);
   const [busy, setBusy] = useState(false);
   const [pref, setPref] = useState<ThemePref>(getThemePref);
+  // The number is a string while it is typed: an emptied field is not "0", and applying every keystroke
+  // would persist and reload the diff for each one. Re-synced when the store moves (a clamp, another dialog).
+  const [context, setContext] = useState(String(diffContext));
+  useEffect(() => {
+    setContext(String(diffContext));
+  }, [diffContext]);
+
+  function applyContext() {
+    const n = Number.parseInt(context, 10);
+    // Empty or unparsable: nothing to apply, so the field goes back to what is stored.
+    if (Number.isFinite(n)) setDiffContext(n);
+    else setContext(String(diffContext));
+  }
 
   async function apply() {
     if (busy) return;
     setBusy(true);
-    await setGitPath(path.trim());
+    // Explorer's "Copy as path" wraps the path in quotes; git is not what `"C:\…\git.exe"` names.
+    await setGitPath(path.trim().replace(/^"(.*)"$/, "$1"));
     setBusy(false);
+  }
+
+  function onPathKeyDown(e: ReactKeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
+    // The dialog has no submit action of its own: Enter applies here and nowhere else.
+    e.preventDefault();
+    void apply();
   }
 
   // Same picker as the "Locate git…" button on the git-missing screen; a pick is applied at once.
@@ -52,7 +74,6 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
       title="Settings"
       wide
       onClose={onClose}
-      onSubmit={() => void apply()}
       footer={
         <Button variant="primary" onClick={onClose}>
           Close
@@ -66,7 +87,12 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             <Input
               aria-label="Git executable"
               value={path}
-              onChange={(e) => setPath(e.target.value)}
+              onChange={(e) => {
+                setPath(e.target.value);
+                // The message describes the path that was probed, not the one being typed.
+                if (gitError) clearGitError();
+              }}
+              onKeyDown={onPathKeyDown}
               placeholder="git (from PATH)"
               disabled={busy}
               spellCheck={false}
@@ -101,8 +127,12 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             type="number"
             min={0}
             max={MAX_CONTEXT}
-            value={diffContext}
-            onChange={(e) => setDiffContext(e.target.valueAsNumber)}
+            value={context}
+            onChange={(e) => setContext(e.target.value)}
+            onBlur={applyContext}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") applyContext();
+            }}
           />
         </Field>
         <Options>

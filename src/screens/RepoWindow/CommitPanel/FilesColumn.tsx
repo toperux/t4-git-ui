@@ -130,6 +130,9 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
   const hiddenAt = anchorRow < 0 && sel.anchor ? hiddenSlot(rows, sel.anchor) : -1;
 
   useEffect(() => setOrder(list, all), [list, all, setOrder]);
+  // The menu's paths are a snapshot of the selection: once the list itself changes (a background
+  // refresh re-prunes the selection onto other files) they name rows the user never right-clicked.
+  useEffect(() => setMenu(null), [entries]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
@@ -145,11 +148,16 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
     if (anchorRow >= 0) scrollToIndex(anchorRow, { align: "auto" });
   }, [anchorRow, scrollToIndex]);
 
-  const toggleFolder = (path: string) =>
+  /** The folder row at `path` — a compacted one stands for its whole `chain`. */
+  const folderRow = (path: string) => rows.find((r) => r.kind === "folder" && r.path === path);
+
+  // Keyed by the path that was clicked, and cleared along the whole chain: after a compaction the
+  // row on screen may be collapsed by an ancestor's key, and only removing that one reopens it.
+  const toggleFolder = (chain: string[]) =>
     setCollapsed((c) => {
       const next = new Set(c);
-      if (next.has(path)) next.delete(path);
-      else next.add(path);
+      if (chain.some((p) => next.has(p))) chain.forEach((p) => next.delete(p));
+      else next.add(chain[chain.length - 1]);
       return next;
     });
 
@@ -158,13 +166,21 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
     void (list === "unstaged" ? stage(ps) : unstage(ps));
   }
 
+  /**
+   * Staging a conflicted file whole is "mark resolved" with the markers still in it: the row's own
+   * Stage action does that one file at a time, on purpose. Anything that acts on a selection —
+   * Enter, double-click, the menu — skips them, the way "Stage all" does.
+   */
+  const stageable = (ps: string[]) => (list === "unstaged" ? ps.filter((p) => !entries.find((e) => e.path === p)?.conflicted) : ps);
+
   // One delegated listener per list keeps every `FileRow` prop stable, so `memo` actually skips rows.
   function onClick(e: MouseEvent<HTMLDivElement>) {
     const target = e.target as HTMLElement;
     const row = target.closest<HTMLElement>("[data-path], [data-folder]");
     if (!row) return;
     if (row.dataset.folder !== undefined) {
-      toggleFolder(row.dataset.folder);
+      const folder = folderRow(row.dataset.folder);
+      toggleFolder(folder?.kind === "folder" ? folder.chain : [row.dataset.folder]);
       return;
     }
     const path = row.dataset.path;
@@ -177,24 +193,26 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
     select(list, clickSelect(all, sel, path, mods(e), visible));
   }
 
-  /** The menu acts on the selection, so a row outside it becomes the selection first. */
-  function openMenu(el: HTMLElement, at: { x: number; y: number }) {
-    const path = el.dataset.path;
-    if (!path) return;
-    if (!sel.selected.includes(path)) select(list, { selected: [path], anchor: path });
-    setMenu({ at, el, path });
+  /**
+   * The menu acts on the row it was opened over, so a row outside the selection becomes the
+   * selection first — and the paths are snapshotted here, not read back while the menu is up.
+   */
+  function openMenu(path: string, at: { x: number; y: number }) {
+    const inSelection = sel.selected.includes(path);
+    if (!inSelection) select(list, { selected: [path], anchor: path });
+    setMenu({ at, paths: inSelection ? sel.selected : [path] });
   }
 
   function onContextMenu(e: MouseEvent<HTMLDivElement>) {
-    const row = (e.target as HTMLElement).closest<HTMLElement>("[data-path]");
-    if (!row) return;
+    const path = (e.target as HTMLElement).closest<HTMLElement>("[data-path]")?.dataset.path;
+    if (!path) return;
     e.preventDefault();
-    openMenu(row, { x: e.clientX, y: e.clientY });
+    openMenu(path, { x: e.clientX, y: e.clientY });
   }
 
   function onDoubleClick(e: MouseEvent<HTMLDivElement>) {
     if (busy || (e.target as HTMLElement).closest("[data-folder]")) return;
-    act(sel.selected);
+    act(stageable(sel.selected));
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
@@ -202,8 +220,9 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
     // A clicked folder row holds focus (it is a button): Enter / Space toggle it, ← collapses, → expands —
     // none of them stage. Other keys fall through to the list.
     const folder = (e.target as HTMLElement).closest<HTMLElement>("[data-folder]")?.dataset.folder;
-    if (folder !== undefined && folderKey(e.key, collapsed.has(folder))) {
-      toggleFolder(folder);
+    const row = folder === undefined ? undefined : folderRow(folder);
+    if (folder !== undefined && row?.kind === "folder" && folderKey(e.key, !row.expanded)) {
+      toggleFolder(row.chain);
       e.preventDefault();
       return;
     }
@@ -227,7 +246,7 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
         break;
       case "Enter":
         if (busy) return;
-        act(sel.selected);
+        act(stageable(sel.selected));
         break;
       case "Delete":
         if (busy || list !== "unstaged" || sel.selected.length === 0) return;
@@ -236,11 +255,14 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
       case "F10":
       case "ContextMenu": {
         if (e.key === "F10" && !e.shiftKey) return;
-        // Keyboard menu: below the focused row. Found by walking the rows — a path is not a safe selector.
-        const row = Array.from(e.currentTarget.querySelectorAll<HTMLElement>("[data-path]")).find((r) => r.dataset.path === sel.anchor);
-        if (!row) return;
-        const r = row.getBoundingClientRect();
-        openMenu(row, { x: r.left + 8, y: r.bottom });
+        // The focused row, or the first one on screen in a list that has never been clicked.
+        const path = sel.anchor ?? visible[0];
+        if (path === undefined) return;
+        // Below that row, found by walking the mounted rows — a path is not a safe selector. Inside a
+        // collapsed folder it is not mounted at all: the list's own top-left corner stands in.
+        const el = Array.from(e.currentTarget.querySelectorAll<HTMLElement>("[data-path]")).find((r) => r.dataset.path === path);
+        const r = (el ?? e.currentTarget).getBoundingClientRect();
+        openMenu(path, el ? { x: r.left + 8, y: r.bottom } : { x: r.left + 8, y: r.top + 8 });
         break;
       }
       default:
@@ -287,8 +309,13 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
                   depth={row.depth}
                   expanded={row.expanded}
                   icon={<Folder size={14} aria-hidden />}
-                  /* A compacted chain reads as `a / b / c`; the tooltip keeps the real path. */
-                  label={row.name.split("/").join(" / ")}
+                  /* A compacted chain reads as `a / b / c`, ellipsized at the start like a file row;
+                     the tooltip keeps the real path. */
+                  label={
+                    <span className={s.folder}>
+                      <bdi dir="ltr">{row.name.split("/").join(" / ")}</bdi>
+                    </span>
+                  }
                   title={row.path}
                 />
               );
@@ -311,7 +338,7 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
           })}
         </div>
       )}
-      <FileContextMenu list={list} paths={sel.selected} entries={entries} menu={menu} onClose={() => setMenu(null)} act={act} discard={(ps) => void discard(ps)} />
+      <FileContextMenu list={list} paths={menu?.paths ?? []} entries={entries} menu={menu} onClose={() => setMenu(null)} act={act} discard={(ps) => void discard(ps)} />
     </div>
   );
 }

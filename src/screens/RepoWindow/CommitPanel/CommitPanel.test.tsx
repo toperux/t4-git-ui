@@ -30,6 +30,7 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
     recreateConflict: vi.fn(() => Promise.resolve()),
     resolveConflict: vi.fn(() => Promise.resolve()),
     discardHunks: vi.fn(() => Promise.resolve()),
+    discardPaths: vi.fn(() => Promise.resolve()),
     openPath: vi.fn(() => Promise.resolve()),
   };
 });
@@ -62,7 +63,10 @@ vi.mock("@tanstack/react-virtual", async (importOriginal) => {
 });
 
 import * as ipc from "../../../api/ipc";
-const mocked = ipc as unknown as Record<"stagePaths" | "getFileDiff" | "getStatus" | "getAuthor" | "recreateConflict" | "resolveConflict" | "discardHunks" | "openPath", ReturnType<typeof vi.fn>>;
+const mocked = ipc as unknown as Record<
+  "stagePaths" | "getFileDiff" | "getStatus" | "getAuthor" | "recreateConflict" | "resolveConflict" | "discardHunks" | "discardPaths" | "openPath",
+  ReturnType<typeof vi.fn>
+>;
 
 const STATUS: WorkdirStatus = {
   entries: [
@@ -90,6 +94,31 @@ beforeEach(() => {
 afterEach(cleanup);
 
 const text = (el: Element) => el.textContent?.replace(/\s+/g, " ").trim();
+
+/** One modified line in one hunk — enough for the hunk / line actions to have something to sit on. */
+const ONE_HUNK = (path: string) => ({
+  path,
+  oldPath: null,
+  status: "modified",
+  binary: false,
+  truncated: false,
+  maxLines: 20_000,
+  additions: 1,
+  deletions: 1,
+  hunks: [
+    {
+      header: "@@ -1,1 +1,1 @@",
+      oldStart: 1,
+      oldLines: 1,
+      newStart: 1,
+      newLines: 1,
+      lines: [
+        { kind: "del", oldNo: 1, newNo: null, text: "old", noNewline: false },
+        { kind: "add", oldNo: null, newNo: 1, text: "new", noNewline: false },
+      ],
+    },
+  ],
+});
 
 /** What `RepoWindow` does above the panel and the dialog: feed the status into the commit store, once. */
 function Synced({ children }: { children: React.ReactNode }) {
@@ -234,6 +263,25 @@ describe("CommitPanel", () => {
     expect(queryByRole("button", { name: "Discard hunk" })).toBeNull();
   });
 
+  it("a truncated or typechanged diff offers no hunk / line actions at all", async () => {
+    // The backend rebuilds the file's diff untruncated to apply a patch, so the indices of a cut
+    // diff name other hunks; a blob ↔ symlink patch git refuses outright.
+    mocked.getFileDiff.mockImplementation((_id: string, _t: unknown, path: string) => Promise.resolve({ ...ONE_HUNK(path), truncated: true }));
+    const { queryByRole, getByText } = renderPanel();
+    await act(async () => {});
+    expect(queryByRole("button", { name: "Stage hunk" })).toBeNull();
+    expect(queryByRole("button", { name: "Discard hunk" })).toBeNull();
+    expect(getByText(/Diff truncated/)).toBeTruthy();
+
+    cleanup();
+    useCommitStore.getState().reset();
+    mocked.getFileDiff.mockImplementation((_id: string, _t: unknown, path: string) => Promise.resolve({ ...ONE_HUNK(path), status: "typechange" }));
+    const second = renderPanel();
+    await act(async () => {});
+    expect(second.queryByRole("button", { name: "Stage hunk" })).toBeNull();
+    expect(second.queryByRole("button", { name: "Discard hunk" })).toBeNull();
+  });
+
   it("click / ctrl / shift build a multi-selection in one list", () => {
     const { getByRole } = renderPanel();
     const rows = () => Array.from(getByRole("listbox", { name: "Unstaged files" }).querySelectorAll('[role="option"]'));
@@ -307,14 +355,71 @@ describe("CommitPanel file context menu", () => {
     expect(labels(getByRole("menu", { name: "File actions" }))).toEqual(["Unstage", "Copy path", "Open", "Reveal in folder"]);
   });
 
-  it("a conflicted file offers either side by the branch name the backend put on it", () => {
+  it("a conflicted file offers either side by the branch name the backend put on it", async () => {
     useRepoStore.setState({ refs: { ...REFS, state: "merge", conflictSides: { ours: "main", theirs: "feature" } } });
     const { getByRole, container } = renderPanel();
     fireEvent.contextMenu(rows(container, "Unstaged")[2]);
     const menu = getByRole("menu", { name: "File actions" });
     expect(labels(menu)).toEqual(["Stage", "Discard…", "Keep main's version", "Keep feature's version", "Copy path", "Open", "Reveal in folder"]);
     fireEvent.click(getByRole("menuitem", { name: "Keep feature's version" }));
-    expect(ask).toHaveBeenCalled();
+    await act(async () => {});
+    expect(ask.mock.calls[0][0]).toContain("Replace conflict.rs with feature's version?");
+    expect(mocked.resolveConflict).toHaveBeenCalledWith("r", ["conflict.rs"], "theirs");
+  });
+
+  it("a selection that is not conflicted through and through offers neither side", () => {
+    useRepoStore.setState({ refs: { ...REFS, state: "merge", conflictSides: { ours: "main", theirs: "feature" } } });
+    const { getByRole, container } = renderPanel();
+    fireEvent.click(rows(container, "Unstaged")[0]); // a.rs
+    fireEvent.click(rows(container, "Unstaged")[2], { ctrlKey: true }); // conflict.rs
+    fireEvent.contextMenu(rows(container, "Unstaged")[2]);
+    expect(labels(getByRole("menu", { name: "File actions" }))).toEqual(["Stage 2 files", "Discard 2 files…", "Copy path"]);
+  });
+
+  it("Stage skips the conflicted files in a selection, the way Stage all does", () => {
+    const { getByRole, container } = renderPanel();
+    fireEvent.click(rows(container, "Unstaged")[0]); // a.rs
+    fireEvent.click(rows(container, "Unstaged")[2], { ctrlKey: true }); // conflict.rs
+    fireEvent.contextMenu(rows(container, "Unstaged")[2]);
+    const item = getByRole("menuitem", { name: "Stage 2 files" });
+    expect(item.getAttribute("title")).toContain("1 skipped");
+    fireEvent.click(item);
+    expect(mocked.stagePaths).toHaveBeenCalledWith("r", ["a.rs"]);
+  });
+
+  it("acts on the row it was opened over, never on a selection that moved under it", async () => {
+    const { getByRole, container, queryByRole } = renderPanel();
+    fireEvent.contextMenu(rows(container, "Unstaged")[0]); // a.rs
+    // A background refresh re-prunes the selection onto another file while the menu is up.
+    act(() => useCommitStore.setState({ selected: ["both.rs"], anchor: "both.rs" }));
+    fireEvent.click(getByRole("menuitem", { name: "Discard…" }));
+    await act(async () => {});
+    expect(ask.mock.calls[0][0]).toContain("Discard changes in a.rs?");
+    expect(mocked.discardPaths).toHaveBeenCalledWith("r", ["a.rs"]);
+
+    // And once the list itself changes there is nothing left to act on: the menu goes.
+    fireEvent.contextMenu(rows(container, "Unstaged")[0]);
+    expect(getByRole("menu", { name: "File actions" })).toBeTruthy();
+    act(() => useStatusStore.setState({ status: { ...STATUS, entries: STATUS.entries.filter((e) => e.path !== "a.rs") } }));
+    expect(queryByRole("menu", { name: "File actions" })).toBeNull();
+  });
+
+  it("the git items are disabled while a commit-store mutation runs", () => {
+    const { getByRole, container } = renderPanel();
+    fireEvent.contextMenu(rows(container, "Unstaged")[0]);
+    act(() => useCommitStore.setState({ busy: true }));
+    expect(getByRole("menuitem", { name: "Stage" }).hasAttribute("disabled")).toBe(true);
+    expect(getByRole("menuitem", { name: "Discard…" }).hasAttribute("disabled")).toBe(true);
+    // Reading the path touches no repository.
+    expect(getByRole("menuitem", { name: "Copy path" }).hasAttribute("disabled")).toBe(false);
+  });
+
+  it("Shift+F10 opens the menu on the first row of a list that has never been clicked", () => {
+    const { getByRole, container } = renderPanel();
+    const staged = container.querySelector('[aria-label="Staged files"]') as HTMLElement;
+    expect(fireEvent.keyDown(staged, { key: "F10", shiftKey: true })).toBe(false); // preventDefault
+    expect(getByRole("menu", { name: "File actions" })).toBeTruthy();
+    expect(useCommitStore.getState()).toMatchObject({ list: "staged", selected: ["both.rs"], anchor: "both.rs" });
   });
 
   it("Stage acts on the whole selection, not just the clicked row", () => {
@@ -491,6 +596,18 @@ describe("CommitPanel tree view", () => {
     expect(useCommitStore.getState()).toMatchObject({ anchor: "src/lib/b.rs", selected: ["src/lib/b.rs"] });
     fireEvent.keyDown(tree(), { key: "ArrowDown" });
     expect(useCommitStore.getState().anchor).toBe("src/a.rs");
+  });
+
+  it("Shift+F10 still opens the menu for a file hidden inside a collapsed folder", () => {
+    // The anchor's row is not mounted, so there is no rectangle to drop the menu under: the list's own is used.
+    useTreeModeStore.setState({ tree: true });
+    const { getByRole } = renderPanel();
+    const tree = () => getByRole("tree", { name: "Unstaged files" });
+    fireEvent.click(items(tree())[2]); // b.rs
+    fireEvent.click(items(tree())[1]); // collapse lib
+    expect(fireEvent.keyDown(tree(), { key: "F10", shiftKey: true })).toBe(false); // preventDefault
+    expect(getByRole("menu", { name: "File actions" })).toBeTruthy();
+    expect(useCommitStore.getState().selected).toEqual(["src/lib/b.rs"]);
   });
 
   it("a staged row hands the selection to its display neighbour, not the status-order one", () => {

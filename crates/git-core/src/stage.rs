@@ -1,6 +1,8 @@
 //! Path-level stage / unstage / discard via the libgit2 index. Hunk and line
-//! staging goes through the CLI (`git apply --cached`), see
-//! [`stage_patch_args`] and [`crate::patch`].
+//! selections go through the CLI: `git apply --cached` for a stage / unstage
+//! ([`stage_patch_args`]) and `git apply` on the working tree for a discard
+//! ([`discard_patch_args`], deliberately without `--cached`); see
+//! [`crate::patch`].
 
 use std::path::Path;
 
@@ -22,12 +24,17 @@ fn workdir(repo: &Repository) -> Result<&Path, GitError> {
 pub fn stage_paths(repo: &Repository, paths: &[&str]) -> Result<(), GitError> {
     let workdir = workdir(repo)?;
     let mut index = repo.index().map_err(map_git2)?;
+    // The CLI may have written this index a moment ago (a merge, a checkout of
+    // one conflict side, `apply --cached`), and libgit2 hands back the copy it
+    // last read — writing that back would undo git's write.
+    index.read(false).map_err(map_git2)?;
     for p in paths {
         let rel = Path::new(p);
         if workdir.join(rel).symlink_metadata().is_ok() {
-            if index.get_path(rel, 0).is_none()
-                && repo.status_should_ignore(rel).map_err(map_git2)?
-            {
+            // Stages 1–3 are the sides of a conflict: an unmerged path has no
+            // stage 0, and it is tracked either way.
+            let tracked = (0..=3).any(|s| index.get_path(rel, s).is_some());
+            if !tracked && repo.status_should_ignore(rel).map_err(map_git2)? {
                 return Err(GitError::Refused(format!("{p} is ignored")));
             }
             index.add_path(rel)
@@ -54,6 +61,11 @@ fn prune_empty_dirs(workdir: &Path, file: &Path) {
 
 /// Resets the index entries of `paths` to HEAD (removes them when HEAD is unborn).
 pub fn unstage_paths(repo: &Repository, paths: &[&str]) -> Result<(), GitError> {
+    // As in `stage_paths`: `reset_default` writes the index libgit2 cached.
+    repo.index()
+        .map_err(map_git2)?
+        .read(false)
+        .map_err(map_git2)?;
     let head = match repo.head() {
         Ok(head) => Some(head.peel(ObjectType::Commit).map_err(map_git2)?),
         Err(e) if e.code() == ErrorCode::UnbornBranch => None,
@@ -127,10 +139,61 @@ pub enum ConflictSide {
     Theirs,
 }
 
+/// Splits `paths` into those whose `side` exists as an index stage and those
+/// where it does not — a modify/delete conflict, where `checkout --ours|--theirs`
+/// can never succeed and one bad path aborts the whole batch. Accepting that
+/// side means removing the path ([`remove_paths`]).
+///
+/// A path that is not unmerged at all counts as present: git's own message for
+/// it is the right one.
+pub fn split_by_side<'a>(
+    repo: &Repository,
+    paths: &[&'a str],
+    side: ConflictSide,
+) -> Result<(Vec<&'a str>, Vec<&'a str>), GitError> {
+    let mut index = repo.index().map_err(map_git2)?;
+    // The merge that made these conflicts was the CLI's write (see `stage_paths`).
+    index.read(false).map_err(map_git2)?;
+    let wanted = match side {
+        ConflictSide::Ours => 2,
+        ConflictSide::Theirs => 3,
+    };
+    let (mut present, mut missing) = (Vec::new(), Vec::new());
+    for p in paths {
+        let rel = Path::new(p);
+        let unmerged = (1..=3).any(|s| index.get_path(rel, s).is_some());
+        if !unmerged || index.get_path(rel, wanted).is_some() {
+            present.push(*p);
+        } else {
+            missing.push(*p);
+        }
+    }
+    Ok((present, missing))
+}
+
+/// Removes `paths` from the index (every stage) and deletes their working
+/// files: how the side that *deleted* a file is kept.
+pub fn remove_paths(repo: &Repository, paths: &[&str]) -> Result<(), GitError> {
+    let workdir = workdir(repo)?;
+    let mut index = repo.index().map_err(map_git2)?;
+    index.read(false).map_err(map_git2)?;
+    for p in paths {
+        let rel = Path::new(p);
+        index.remove_path(rel).map_err(map_git2)?;
+        let file = workdir.join(rel);
+        if file.symlink_metadata().is_ok() {
+            std::fs::remove_file(&file)?;
+            prune_empty_dirs(workdir, &file);
+        }
+    }
+    index.write().map_err(map_git2)
+}
+
 /// Arguments for `git checkout --ours|--theirs -- <paths>`: replaces each
 /// conflicted file with one whole side of its conflict. libgit2 has no
 /// equivalent, and a side that does not exist (deleted by the other branch)
-/// is git's error to report.
+/// is git's error to report — see [`split_by_side`] for keeping those paths
+/// out of the batch.
 pub fn checkout_side_args(side: ConflictSide, paths: &[&str]) -> Vec<String> {
     let flag = match side {
         ConflictSide::Ours => "--ours",
@@ -141,12 +204,23 @@ pub fn checkout_side_args(side: ConflictSide, paths: &[&str]) -> Vec<String> {
     args
 }
 
+/// `git apply` refuses (or silently misplaces) a zero-context hunk without
+/// this: with no surrounding lines it cannot find where the hunk goes and
+/// takes the line numbers literally.
+fn zero_context_arg(args: &mut Vec<&'static str>, zero_context: bool) {
+    if zero_context {
+        args.push("--unidiff-zero");
+    }
+}
+
 /// Arguments for applying a patch (on stdin) to the index; `reverse` unstages.
-pub fn stage_patch_args(reverse: bool) -> Vec<&'static str> {
+/// `zero_context` when the patch was built from a `context == 0` diff.
+pub fn stage_patch_args(reverse: bool, zero_context: bool) -> Vec<&'static str> {
     let mut args = vec!["apply", "--cached", "--whitespace=nowarn"];
     if reverse {
         args.push("-R");
     }
+    zero_context_arg(&mut args, zero_context);
     args.push("-");
     args
 }
@@ -154,8 +228,11 @@ pub fn stage_patch_args(reverse: bool) -> Vec<&'static str> {
 /// Arguments for reverse-applying a patch (on stdin) to the WORKING TREE — no
 /// `--cached`, so the file on disk is the one edited. The patch is built from
 /// the unstaged diff with `reverse = true`: its new side *is* the working tree.
-pub fn discard_patch_args() -> Vec<&'static str> {
-    vec!["apply", "-R", "--whitespace=nowarn", "-"]
+pub fn discard_patch_args(zero_context: bool) -> Vec<&'static str> {
+    let mut args = vec!["apply", "-R", "--whitespace=nowarn"];
+    zero_context_arg(&mut args, zero_context);
+    args.push("-");
+    args
 }
 
 #[cfg(test)]
@@ -328,12 +405,41 @@ mod tests {
     #[test]
     fn patch_args() {
         assert_eq!(
-            stage_patch_args(false),
+            stage_patch_args(false, false),
             ["apply", "--cached", "--whitespace=nowarn", "-"]
         );
         assert_eq!(
-            stage_patch_args(true),
+            stage_patch_args(true, false),
             ["apply", "--cached", "--whitespace=nowarn", "-R", "-"]
+        );
+    }
+
+    #[test]
+    fn zero_context_patches_carry_unidiff_zero() {
+        assert_eq!(
+            stage_patch_args(false, true),
+            [
+                "apply",
+                "--cached",
+                "--whitespace=nowarn",
+                "--unidiff-zero",
+                "-"
+            ]
+        );
+        assert_eq!(
+            stage_patch_args(true, true),
+            [
+                "apply",
+                "--cached",
+                "--whitespace=nowarn",
+                "-R",
+                "--unidiff-zero",
+                "-"
+            ]
+        );
+        assert_eq!(
+            discard_patch_args(true),
+            ["apply", "-R", "--whitespace=nowarn", "--unidiff-zero", "-"]
         );
     }
 
@@ -351,7 +457,7 @@ mod tests {
 
     #[test]
     fn discard_patch_args_never_touch_the_index() {
-        let args = discard_patch_args();
+        let args = discard_patch_args(false);
         assert_eq!(args, ["apply", "-R", "--whitespace=nowarn", "-"]);
         assert!(!args.contains(&"--cached"));
     }

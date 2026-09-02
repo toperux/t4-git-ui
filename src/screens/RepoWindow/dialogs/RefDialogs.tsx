@@ -11,8 +11,8 @@ import { validateRefName } from "../../../lib/branchName";
 import { runOp } from "../../../store/opsStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { checkoutBranch, checkoutDetached, checkoutRemoteBranch, stripRemote } from "../actions";
-import { checkoutArgs, gitCmd } from "./gitArgs";
-import { RemoteField, useDefaultRemote, useRemotes } from "./OpsDialogs";
+import { checkoutArgs, gitCmd, pushArgs } from "./gitArgs";
+import { RemoteField, shortRef, useDefaultRemote, useRemotes } from "./OpsDialogs";
 import s from "./RefDialogs.module.css";
 
 /** Start points a branch / tag can be created at: HEAD, local branches, remote branches, tags. */
@@ -46,7 +46,7 @@ export function CreateBranchDialog({ onClose, startPoint: initial }: { onClose: 
   const valid = !!name && !error;
   // An oid from the grid ("Create branch here…") is not in the list: keep it as an extra option,
   // otherwise the Select falls back to its first entry and the branch lands on HEAD.
-  const starts = known || !initial ? options : [{ value: initial, label: initial.slice(0, 7) }, ...options];
+  const starts = known || !initial ? options : [{ value: initial, label: shortRef(initial) }, ...options];
   const preview = checkout ? gitCmd(checkoutArgs(start, name || "<name>", isRemote && track)) : `git branch ${name || "<name>"} ${start}`;
 
   function submit() {
@@ -220,15 +220,17 @@ export function CreateTagDialog({ onClose, target: initial }: { onClose: () => v
   const error = name ? validateRefName(name, existing) : null;
   const valid = !!name && !error;
   // An oid from the grid is not in the list: keep it as an extra option.
-  const targets = known || !initial ? options : [{ value: initial, label: initial.slice(0, 7) }, ...options];
+  const targets = known || !initial ? options : [{ value: initial, label: shortRef(initial) }, ...options];
   const tagCmd = `git tag ${message.trim() ? `-a -m '…' ` : ""}${name || "<name>"} ${target}`;
-  const preview = push ? `${tagCmd} && git push ${remote || "origin"} refs/tags/${name || "<name>"}` : tagCmd;
+  // The push half is the real call's own argv, or the preview and the dock disagree.
+  const preview = push ? `${tagCmd} && ${gitCmd(pushArgs(remote || "origin", `refs/tags/${name || "<name>"}`, false, false, false))}` : tagCmd;
 
   async function submit() {
     if (!valid) return;
     onClose();
     const r = await runOp(`Creating tag ${name}…`, (id) => ipc.createTag(id, name, target, message.trim() || null), { success: `Created tag ${name}` });
-    if (!r.ok || !push) return;
+    // The tag is created either way; without a remote there is nothing to push it to.
+    if (!r.ok || !push || !remote) return;
     await runOp(`Pushing tag ${name}…`, (id) => ipc.push(id, remote, `refs/tags/${name}`, false, false, false), { success: `Pushed ${name} to ${remote}` });
   }
 
@@ -241,7 +243,7 @@ export function CreateTagDialog({ onClose, target: initial }: { onClose: () => v
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" type="submit" disabled={!valid}>
+          <Button variant="primary" type="submit" disabled={!valid || (push && !remote)}>
             Create
           </Button>
         </>

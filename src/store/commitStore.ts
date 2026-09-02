@@ -58,6 +58,8 @@ export interface CommitStore {
   diff: FileDiff | null;
   diffPath: string | null;
   diffList: ListId;
+  /** Context lines the shown diff was built with — its hunk / line indices line up with nothing else. */
+  diffContext: number;
   diffLoading: boolean;
   diffError: string | null;
 
@@ -75,6 +77,8 @@ export interface CommitStore {
   setOrder(list: ListId, order: string[]): void;
   /** Prunes the selection against a fresh status (first row when nothing is left), reloads diff + stats. */
   syncWithStatus(status: WorkdirStatus | null): void;
+  /** Rebuilds the shown diff: the context setting moved, so the indices of what is on screen did too. */
+  reloadDiff(): Promise<void>;
   /** Fetches the author unless known; a failed fetch is retried on the next call (the user may have just set user.name). */
   loadAuthor(): Promise<void>;
   stage(paths: string[]): Promise<void>;
@@ -136,14 +140,16 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       return;
     }
     set({ diffLoading: true, diffError: null, diffPath: anchor, diffList: list });
+    // The context the shown diff is built with is what every hunk / line action has to send back:
+    // the backend rebuilds the diff to resolve the indices, and another context merges / splits hunks.
+    const context = useDiffStore.getState().context;
     try {
-      // Must match the backend's stage-able diff (default options) so hunk / line indices line up.
-      const diff = await ipc.getFileDiff(id, { kind: list }, anchor, { context: useDiffStore.getState().context });
+      const diff = await ipc.getFileDiff(id, { kind: list }, anchor, { context });
       if (mySeq !== diffSeq) return;
       // Identical content → keep the old object: `DiffViewer` keys its scroll / line selection off it.
       const prev = get().diff;
       const unchanged = prev && prev.path === diff.path && same(prev.hunks, diff.hunks);
-      set({ diff: unchanged ? prev : diff, diffLoading: false });
+      set({ diff: unchanged ? prev : diff, diffContext: context, diffLoading: false });
     } catch (e) {
       if (mySeq !== diffSeq) return;
       set({ diff: null, diffLoading: false, diffError: toAppError(e).message });
@@ -176,6 +182,17 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       statsPending = null;
       if (next !== null) void loadStats(next);
     }
+  }
+
+  /**
+   * The native confirmation blocks nothing behind it: a `repo://changed` (a save by another tool) can
+   * reload the diff while it is up, and the picked hunk / line indices belong to the diff the user saw.
+   * An in-range index still applies — at the wrong lines, with no undo — so the discard is dropped.
+   */
+  function stillShown(diff: FileDiff | null): boolean {
+    if (get().diff === diff) return true;
+    useToastStore.getState().push({ kind: "info", title: "Discard cancelled", detail: "The diff changed while you were confirming — try again" });
+    return false;
   }
 
   /**
@@ -215,6 +232,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
     diff: null,
     diffPath: null,
     diffList: "unstaged",
+    diffContext: useDiffStore.getState().context,
     diffLoading: false,
     diffError: null,
     summary: "",
@@ -269,6 +287,8 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       void loadStats(entriesKey(status));
     },
 
+    reloadDiff: loadDiff,
+
     async loadAuthor() {
       const id = repoId();
       if (!id || get().author || authorFor === id) return;
@@ -319,40 +339,36 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
     },
 
     async stageHunk(hunk) {
-      const { diffPath, diffList } = get();
+      // The indices are the shown diff's, so the backend has to rebuild it with the same context.
+      const { diffPath, diffList, diffContext } = get();
       if (!diffPath) return;
       const reverse = diffList === "staged";
-      // The indices are the shown diff's, so the backend has to rebuild it with the same context.
-      const context = useDiffStore.getState().context;
-      await run(reverse ? "Unstage failed" : "Stage failed", (id) => ipc.stageHunks(id, diffPath, [hunk], reverse, context));
+      await run(reverse ? "Unstage failed" : "Stage failed", (id) => ipc.stageHunks(id, diffPath, [hunk], reverse, diffContext));
     },
 
     async stageLines(lines) {
-      const { diffPath, diffList } = get();
+      const { diffPath, diffList, diffContext } = get();
       if (!diffPath || lines.length === 0) return;
       const reverse = diffList === "staged";
-      const context = useDiffStore.getState().context;
-      await run(reverse ? "Unstage failed" : "Stage failed", (id) => ipc.stageLines(id, diffPath, lines, reverse, context));
+      await run(reverse ? "Unstage failed" : "Stage failed", (id) => ipc.stageLines(id, diffPath, lines, reverse, diffContext));
     },
 
     async discardHunk(hunk) {
-      const { diffPath } = get();
+      const { diffPath, diff, diffContext } = get();
       if (!diffPath) return;
       // No confirmation available → declined; a discard has no undo.
       const ok = await ask(`Discard this hunk from ${diffPath}? This cannot be undone.`, { title: "Discard hunk", kind: "warning", okLabel: "Discard" }).catch(() => false);
-      if (!ok) return;
-      const context = useDiffStore.getState().context;
-      await run("Discard failed", (id) => ipc.discardHunks(id, diffPath, [hunk], context));
+      if (!ok || !stillShown(diff)) return;
+      await run("Discard failed", (id) => ipc.discardHunks(id, diffPath, [hunk], diffContext));
     },
 
     async discardLines(lines) {
-      const { diffPath } = get();
+      const { diffPath, diff, diffContext } = get();
       if (!diffPath || lines.length === 0) return;
       const n = lines.length;
       const ok = await ask(`Discard ${n} selected line${n === 1 ? "" : "s"} from ${diffPath}? This cannot be undone.`, { title: "Discard lines", kind: "warning", okLabel: "Discard" }).catch(() => false);
-      if (!ok) return;
-      const context = useDiffStore.getState().context;
-      await run("Discard failed", (id) => ipc.discardLines(id, diffPath, lines, context));
+      if (!ok || !stillShown(diff)) return;
+      await run("Discard failed", (id) => ipc.discardLines(id, diffPath, lines, diffContext));
     },
 
     setSummary: (summary) => set({ summary }),
@@ -420,6 +436,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
         authorError: null,
         diff: null,
         diffPath: null,
+        diffContext: useDiffStore.getState().context,
         diffLoading: false,
         diffError: null,
         summary: "",
@@ -436,4 +453,10 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
 // The editor belongs to one repository.
 useRepoStore.subscribe((st, prev) => {
   if (st.repo?.id !== prev.repo?.id) useCommitStore.getState().reset();
+});
+
+// `setContext` reloads the details-pane diff only. The panel's is built with the same setting, so it
+// has to follow — otherwise the hunks on screen keep the old shape while the next action sends the new one.
+useDiffStore.subscribe((st, prev) => {
+  if (st.context !== prev.context && useCommitStore.getState().diffPath) void useCommitStore.getState().reloadDiff();
 });

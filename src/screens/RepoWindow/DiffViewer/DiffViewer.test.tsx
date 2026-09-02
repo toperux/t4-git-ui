@@ -114,6 +114,18 @@ describe("DiffViewer", () => {
     expect(none.queryByTitle("File mode")).toBeNull();
   });
 
+  it("an added or deleted file gets a one-sided chip — the only place its exec bit shows", () => {
+    const added = render(<DiffViewer path={SMALL.path} diff={{ ...SMALL, status: "added", newMode: "100755" }} {...idle} />);
+    expect(added.getByTitle("File mode").textContent).toBe("→ 100755");
+    cleanup();
+    const deleted = render(<DiffViewer path={SMALL.path} diff={{ ...SMALL, status: "deleted", oldMode: "120000" }} {...idle} />);
+    expect(deleted.getByTitle("File mode").textContent).toBe("120000 →");
+    cleanup();
+    // An ordinary new file has nothing to say.
+    const plain = render(<DiffViewer path={SMALL.path} diff={{ ...SMALL, status: "added", newMode: "100644" }} {...idle} />);
+    expect(plain.queryByTitle("File mode")).toBeNull();
+  });
+
   it("actions mode: forces unified, hunk buttons, line selection → sticky bar → stage_lines pairs", () => {
     useDiffStore.setState({ view: "split" }); // must be ignored while staging
     const actions: DiffActions = { target: "unstaged", wholeFile: false, onStageHunk: vi.fn(), onStageLines: vi.fn() };
@@ -256,11 +268,20 @@ describe("DiffViewer", () => {
       onStageLines: vi.fn(),
     };
     const { getByRole } = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} actions={actions} />);
-    // The names come from `sides`, and the title says which git flag each one is.
-    expect(getByRole("button", { name: "Keep main's version" }).getAttribute("title")).toBe("git checkout --ours");
-    expect(getByRole("button", { name: "Keep feature's version" }).getAttribute("title")).toBe("git checkout --theirs");
+    // The names come from `sides`; the title repeats the label (it is ellipsized) and says which git flag it is.
+    expect(getByRole("button", { name: "Keep main's version" }).getAttribute("title")).toBe("Keep main's version (git checkout --ours)");
+    expect(getByRole("button", { name: "Keep feature's version" }).getAttribute("title")).toBe("Keep feature's version (git checkout --theirs)");
     fireEvent.click(getByRole("button", { name: "Keep feature's version" }));
     expect(onKeepSide).toHaveBeenCalledWith("theirs");
+  });
+
+  it("without named sides the buttons fall back to git's own words, not 'our's'", () => {
+    // A snapshot from before the backend named the sides, or an operation whose sides it can't tell apart.
+    const actions: DiffActions = { target: "unstaged", wholeFile: true, onKeepSide: vi.fn(), onStageHunk: vi.fn(), onStageLines: vi.fn() };
+    const { getByRole } = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} actions={actions} />);
+    expect(getByRole("button", { name: "Keep our version" })).toBeTruthy();
+    fireEvent.click(getByRole("button", { name: "Keep their version" }));
+    expect(actions.onKeepSide).toHaveBeenCalledWith("theirs");
   });
 
   it("untracked (whole file): note in the header, no hunk buttons, lines not selectable", () => {

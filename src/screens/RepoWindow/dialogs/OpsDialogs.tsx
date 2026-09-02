@@ -290,18 +290,21 @@ export function MergeDialog({ onClose, branch: initial }: { onClose: () => void;
     const remotes = (refs?.remotes ?? []).flatMap((r) => r.branches.map((b) => ({ value: b.name, label: b.name })));
     return [...locals, ...remotes];
   }, [refs]);
+  const remoteNames = useMemo(() => new Set((refs?.remotes ?? []).flatMap((r) => r.branches.map((b) => b.name))), [refs]);
   const known = !!initial && candidates.some((c) => c.value === initial);
   // An oid from the grid is not in the list: keep it as an extra option, shown abbreviated.
-  const options = known || !initial ? candidates : [{ value: initial, label: initial.slice(0, 7) }, ...candidates];
+  const options = known || !initial ? candidates : [{ value: initial, label: shortRef(initial) }, ...candidates];
   const [branch, setBranch] = useState(initial ?? candidates[0]?.value ?? "");
   const [ff, setFf] = useState<FfMode>("auto");
   const [squash, setSquash] = useState(false);
   const [message, setMessage] = useState("");
 
   const label = options.find((o) => o.value === branch)?.label ?? branch;
-  // Merging a commit rather than a branch: git's own wording, so an unchanged message still means "let git decide".
+  // git's own wording, so an unchanged message still means "let git decide": the full oid for a commit,
+  // and `remote-tracking branch` for a remote one.
   const commit = !!branch && !candidates.some((c) => c.value === branch);
-  const defaultMessage = branch ? (commit ? `Merge commit '${label}'` : `Merge branch '${branch}' into ${current}`) : "";
+  const kind = remoteNames.has(branch) ? "remote-tracking branch" : "branch";
+  const defaultMessage = branch ? (commit ? `Merge commit '${branch}'` : `Merge ${kind} '${branch}' into ${current}`) : "";
   const effective = message.trim() && message !== defaultMessage ? message : null;
   const preview = branch ? gitCmd(mergeArgs(branch, ff, squash, effective)) : "";
 
@@ -364,8 +367,8 @@ const RESET_LABEL: Record<ResetMode, string> = {
   hard: "Hard — discard all uncommitted changes",
 };
 
-/** A reset target is an oid (shown abbreviated) or a ref name such as `origin/main` (shown as is). */
-const shortRef = (target: string) => (/^[0-9a-f]{40}$/.test(target) ? target.slice(0, 7) : target);
+/** A target is an oid (shown abbreviated) or a ref name such as `origin/main` (shown as is). */
+export const shortRef = (target: string) => (/^[0-9a-f]{40}$/.test(target) ? target.slice(0, 7) : target);
 
 /** Reset the current branch (or a detached HEAD) to a commit picked in the grid, or to a ref sitting there. */
 export function ResetDialog({ onClose, target }: { onClose: () => void; target: string }) {
@@ -465,7 +468,7 @@ export function RebaseDialog({ onClose, onto: initial }: { onClose: () => void; 
   }, [refs]);
   const known = !!initial && candidates.some((c) => c.value === initial);
   // An oid from the grid is not in the list: keep it as an extra option, shown abbreviated.
-  const options = known || !initial ? candidates : [{ value: initial, label: initial.slice(0, 7) }, ...candidates];
+  const options = known || !initial ? candidates : [{ value: initial, label: shortRef(initial) }, ...candidates];
   const [onto, setOnto] = useState(initial ?? candidates[0]?.value ?? "");
   const label = options.find((o) => o.value === onto)?.label ?? onto;
   const pushed = !!head?.upstream && (head?.ahead ?? 0) === 0 && !head?.gone;

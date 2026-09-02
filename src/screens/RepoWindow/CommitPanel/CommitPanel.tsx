@@ -3,7 +3,8 @@ import { useEffect } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import * as ipc from "../../../api/ipc";
 import { toAppError } from "../../../api/ipc";
-import type { ConflictSides, FileDiff } from "../../../api/types";
+import type { FileDiff } from "../../../api/types";
+import { sideName } from "../../../lib/conflictSides";
 import { useCommitStore } from "../../../store/commitStore";
 import { useDialogStore } from "../../../store/dialogStore";
 import { useRepoStore } from "../../../store/repoStore";
@@ -48,9 +49,6 @@ export function CommitPanel() {
   );
 }
 
-/** Until the backend names the two sides (a snapshot from before this field, say): git's vocabulary. */
-const GENERIC_SIDES: ConflictSides = { ours: "our", theirs: "their" };
-
 /** `DiffViewer` in actions mode for the focused working-tree file. */
 export function DiffColumn() {
   const diff = useCommitStore((st) => st.diff);
@@ -68,11 +66,14 @@ export function DiffColumn() {
   const entry = useStatusStore((st) => st.status?.entries.find((e) => e.path === path));
 
   const state = useRepoStore((st) => st.refs?.state);
-  const sides = useRepoStore((st) => st.refs?.conflictSides) ?? GENERIC_SIDES;
+  const sides = useRepoStore((st) => st.refs?.conflictSides);
 
   // Conflicted and untracked files can only be staged whole — no hunk or line indices to work with.
   const conflicted = list === "unstaged" && !!entry?.conflicted;
   const untracked = list === "unstaged" && entry?.workdir === "untracked";
+  // Nor these: a truncated diff's last hunk is cut mid-hunk and the backend rebuilds it untruncated,
+  // so the indices name something else; a typechange patch git refuses outright (blob ↔ symlink).
+  const wholeOnly = !!diff && (diff.truncated || diff.status === "typechange" || entry?.workdir === "typechange" || entry?.index === "typechange");
   // Staging an unresolved file marks it resolved and drops its three index stages — git's own
   // behaviour, and no unstage brings them back. The markers are still in the file, so say so and
   // offer the one command that undoes it. Only mid-merge: a marker in a file is otherwise just text.
@@ -84,7 +85,7 @@ export function DiffColumn() {
   const actions: DiffActions | undefined = path
     ? {
         target: list,
-        wholeFile: conflicted || untracked,
+        wholeFile: conflicted || untracked || wholeOnly,
         note: conflicted
           ? "Conflict — stage the file once resolved"
           : stranded
@@ -95,7 +96,7 @@ export function DiffColumn() {
         busy,
         onResolve: conflicted ? () => void resolveInEditor(path) : undefined,
         sides: conflicted ? sides : undefined,
-        onKeepSide: conflicted ? (side) => void resolveConflict([path], side, sides[side]) : undefined,
+        onKeepSide: conflicted ? (side) => void resolveConflict([path], side, sideName(sides, side)) : undefined,
         onRestoreConflict: stranded && path ? () => void restoreConflict(path) : undefined,
         onStageHunk: (h) => void stageHunk(h),
         onStageLines: (l) => void stageLines(l),

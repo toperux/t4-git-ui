@@ -84,6 +84,17 @@ describe("settingsStore setters", () => {
     expect(stored("gitPath")).toBe("");
   });
 
+  it("setGitPath drops the previous probe's error before it tries again", async () => {
+    useSettingsStore.setState({ gitError: "not a git executable" });
+    let answer: (v: string) => void = () => {};
+    mocked.setGitPath.mockReturnValueOnce(new Promise<string>((res) => (answer = res)));
+    const done = useSettingsStore.getState().setGitPath("C:\\git\\bin\\git.exe");
+    // The message describes the path that was refused, not the one being probed now.
+    expect(useSettingsStore.getState().gitError).toBeNull();
+    answer("git version 2.55.0");
+    await done;
+  });
+
   it("setGitPath leaves the stored path untouched when git refuses", async () => {
     mocked.setGitPath.mockRejectedValue({ kind: "gitNotFound", message: "not a git executable" });
     await expect(useSettingsStore.getState().setGitPath("C:\\nope.exe")).resolves.toBe(false);

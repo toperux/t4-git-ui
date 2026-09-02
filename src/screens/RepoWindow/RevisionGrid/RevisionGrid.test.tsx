@@ -263,6 +263,18 @@ describe("RevisionGrid", () => {
     useDialogStore.setState({ dialog: null, returnFocus: null });
   });
 
+  it("a detached HEAD keeps the merge item and offers no rebase", () => {
+    withRefs();
+    // Nothing is checked out, so `main` / `stale` are merge sources of their own — and a rebase has no
+    // branch to move: offering it would replay the loose commits onto the row.
+    useRepoStore.setState({ refs: { ...REFS, head: { oid: "oid9", branch: null, detached: true }, local: REFS.local.map((b) => ({ ...b, isHead: false })), remotes: [] } });
+    const { container, getAllByRole } = render(<RevisionGrid />);
+    fireEvent.contextMenu(container.querySelectorAll('[role="row"][aria-rowindex]')[0]);
+    const items = getAllByRole("menuitem").map((el) => el.textContent);
+    expect(items).toContain("Merge branch here…");
+    expect(items.some((t) => t?.startsWith("Rebase"))).toBe(false);
+  });
+
   it("greys every item but Copy SHA while an operation runs", () => {
     withRefs();
     useOpsStore.setState({ busy: "Fetching…" });

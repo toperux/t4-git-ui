@@ -20,11 +20,11 @@ _Shipped 2026-09-02: `bf7b29b`, `21289fb`, review fix `ae61c75`._
 - [ ] A branch whose tip is already inside another branch is muted with a `merged` badge whose
       tooltip names the container: `feature` (merged into `main`), `twin-a` / `twin-b` (each other);
       `main`, `reset-me`, `topic`-style tips and `origin/reset-me` (only inside its own local
-      `reset-me`) carry none. Check out `feature` → `origin/feature`'s badge stays, `feature`'s goes
-      (the current branch never counts as merged into anything)
+      `reset-me`) carry none. Check out `feature` → `origin/twin-remote`'s badge (merged into
+      `twin-a`) stays, `feature`'s goes (the current branch never counts as merged into anything)
 - [ ] Branches with `/` in the name nest in folders — under Local and under each remote alike:
       `topic/nested` sits in a `topic` folder under Local, `origin/topic/on-origin` in one under
-      origin (`feature-upstream` stays flat); collapsing one `topic` folder leaves the other open
+      origin (`origin/feature-upstream` stays flat); collapsing one folder leaves the other open
 - [ ] Sidebar: the checked-out branch never shows a `merged` badge, even with a branch ahead of it
 
 ## B. Commit context menu — checkout, reset, merge, rebase (main §2 and §5)
@@ -95,7 +95,8 @@ _Shipped 2026-09-02: `9e756fb`; behaviour fixes `ae61c75`._
 _Shipped 2026-09-02; kv mirror `ae61c75`._
 
 - [ ] Toggle to light, quit, relaunch on a dark-mode OS → the window is light from its first frame
-      (the preference is mirrored into the kv store; toggle back to "system" → follows the OS again)
+      (the preference is mirrored into the kv store). The toolbar toggle only flips light ↔ dark —
+      Settings › Theme › **Follow system** puts it back on the OS, checked in J
 
 ## E. Commit panel — tree view, full-window commit dialog (main §4)
 _Shipped 2026-09-02: `a86a494`, `82978bc`, `7f37902`. Tree bullets go after "Multi-select in the
@@ -130,7 +131,9 @@ _Shipped 2026-09-02: `78f8f02`._
       and a conflicted file offer no Discard
 
 ## G. File-row context menu, mode changes (main §4, after the `Delete` check)
-_Shipped 2026-09-02: `2600ae6`, `a03c727`. The mode check needs a Unix box or WSL._
+_Shipped 2026-09-02: `2600ae6`, `a03c727`. The mode check needs a Unix box or WSL. §4's `Delete`
+check runs on `hunks.txt` alone, so `gone.txt` is still deleted and `crlf-hunks.txt` still modified
+when this group starts._
 
 - [ ] Right-click an unstaged row (or `Shift+F10`) → Stage / Discard… / Copy path / Open / Reveal in
       folder; a staged row offers Unstage instead and no Discard; right-click a row outside the
@@ -149,7 +152,8 @@ _Shipped 2026-09-02: `9c4bc35`._
       **Keep conflict's version** sit before "Resolve in editor" (labels are the branch names, `main`
       first — git's *ours*); the same two items are in the file row's right-click menu → pick the
       second → confirm → the file reads `the conflict branch's line`, has no markers, and is already
-      staged; `Restore conflict` brings the conflict back. Abort the merge afterwards
+      staged — no **Restore conflict** here: it is only offered for a file staged *with* its markers,
+      which main §5 covers. Abort the merge afterwards
 - [ ] Check out `conflict`, Rebase… onto `main` → the same file conflicts, and the labels are
       **Keep main's version** (git's *ours* = the branch rebased onto) and **Keep conflict's version**;
       pick the first → the file reads `main's line`, pick the second → `the conflict branch's line`
@@ -160,8 +164,11 @@ _Shipped 2026-09-02: `21c2158`._
 
 - [ ] Create tag with **Push to remote after creating** ticked → the preview ends in
       `&& git push origin refs/tags/<name>`, two ops run back to back, the tag is on the bare remote
-      (`git -C <bare> tag`); a name that already exists → the create fails and nothing is pushed;
+      (`git -C <bare> tag`); a name that already exists is refused inline and Create stays disabled;
       in a repo without remotes the checkbox is absent
+- [ ] Same dialog, same tick, but pick the `nowhere` remote (the fixture's path that does not exist)
+      → the tag is created locally and its create toast shows, then the push fails with its own
+      error toast; the tag stays local (it is in the sidebar, not in `git -C <bare> tag`)
 
 ## J. Settings (main §6)
 _Shipped 2026-09-02: `8b8102a`._
@@ -170,8 +177,9 @@ _Shipped 2026-09-02: `8b8102a`._
       inline, the old path stays and the app keeps working; the real path → `git version …` shows and
       the statusbar version follows; **Theme → Follow system** → the window tracks the OS again after
       the toolbar toggle had pinned it; **Context lines** 1 → the open diff reloads with one line of
-      context and **Stage hunk** still stages the right hunk; **Ignore whitespace by default** → the
-      details-pane diff opens with the toggle on; quit and relaunch → every value survives
+      context (the commit panel's diff reloads too) and **Stage hunk** still stages the right hunk;
+      **Ignore whitespace by default** → the details-pane diff opens with the toggle on; quit and
+      relaunch → every value survives
 
 ## Reporting
 

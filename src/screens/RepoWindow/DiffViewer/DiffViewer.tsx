@@ -9,6 +9,7 @@ import { IconButton } from "../../../components/ui/IconButton/IconButton";
 import { PanelHeader } from "../../../components/ui/PanelHeader/PanelHeader";
 import { Progress } from "../../../components/ui/Progress/Progress";
 import { ToolbarSeparator } from "../../../components/ui/ToolbarButton/ToolbarButton";
+import { sideLabel } from "../../../lib/conflictSides";
 import { cx } from "../../../lib/cx";
 import { highlightLine, isLoaded, langForPath, loadLang, type Lang, type SynClass } from "../../../lib/highlight";
 import { mods } from "../../../lib/keys";
@@ -36,16 +37,16 @@ const SYN: Record<SynClass, string> = {
 export interface DiffActions {
   /** `staged` reverses (unstages). */
   target: "unstaged" | "staged";
-  /** Untracked / conflicted file: whole-file only, no hunk / line actions. */
+  /** Untracked / conflicted file, a truncated diff or a typechange: whole-file only, no hunk / line actions. */
   wholeFile: boolean;
   /** Header note explaining the file's state ("Untracked — stage whole file"). */
   note?: string;
   busy?: boolean;
   /** Conflicted file: opens its three sides in an external merge editor. */
   onResolve?: () => void;
-  /** Conflicted file: what to call the two sides on the "Keep …'s version" buttons. */
-  sides?: ConflictSides;
-  /** Replaces the file with one whole side of its conflict. Rendered only with `sides`. */
+  /** Conflicted file: what to call the two sides. Absent → git's own "our" / "their" (`sideLabel`). */
+  sides?: ConflictSides | null;
+  /** Replaces the file with one whole side of its conflict; the two buttons exist only with it. */
   onKeepSide?: (side: ConflictSide) => void;
   /** File staged (and so marked resolved) with its conflict markers still in it. */
   onRestoreConflict?: () => void;
@@ -177,8 +178,9 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
       />
     );
 
-  // Both modes known and different: an exec-bit / symlink change the line rows can't show.
-  const modeChange = diff?.oldMode && diff.newMode && diff.oldMode !== diff.newMode ? ([diff.oldMode, diff.newMode] as const) : null;
+  // An exec-bit / symlink change the line rows can't show. An added or deleted file has one side
+  // only — worth a chip when it isn't the ordinary 100644, the one case where the bit is invisible.
+  const modeChip = fileMode(diff?.oldMode, diff?.newMode);
 
   const n = sel.keys.size;
   const verb = actions?.target === "staged" ? "Unstage" : "Stage";
@@ -192,29 +194,25 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
         title={path && <span className={s.path}>{oldPath ? `${oldPath} → ${path}` : path}</span>}
       >
         {actions?.note && <span className={s.note}>{actions.note}</span>}
-        {sides && onKeepSide && (
+        {onKeepSide && (
           <>
-            <Button size="sm" className={s.resolve} disabled={actions?.busy} title="git checkout --ours" onClick={() => onKeepSide("ours")}>
-              Keep {sides.ours}'s version
-            </Button>
-            <Button size="sm" className={s.resolve} disabled={actions?.busy} title="git checkout --theirs" onClick={() => onKeepSide("theirs")}>
-              Keep {sides.theirs}'s version
-            </Button>
+            <KeepSide side="ours" sides={sides} busy={actions?.busy} onKeepSide={onKeepSide} />
+            <KeepSide side="theirs" sides={sides} busy={actions?.busy} onKeepSide={onKeepSide} />
           </>
         )}
         {actions?.onResolve && (
-          <Button size="sm" className={s.resolve} disabled={actions.busy} onClick={actions.onResolve}>
+          <Button size="sm" className={s.resolve} disabled={actions.busy} title="Resolve in editor" onClick={actions.onResolve}>
             Resolve in editor
           </Button>
         )}
         {actions?.onRestoreConflict && (
-          <Button size="sm" className={s.resolve} disabled={actions.busy} onClick={actions.onRestoreConflict}>
+          <Button size="sm" className={s.resolve} disabled={actions.busy} title="Restore conflict" onClick={actions.onRestoreConflict}>
             Restore conflict
           </Button>
         )}
-        {modeChange && (
+        {modeChip && (
           <span className={s.mode} title="File mode">
-            {modeChange[0]} → {modeChange[1]}
+            {modeChip}
           </span>
         )}
         {stats && !stats.binary && <Stats additions={stats.additions} deletions={stats.deletions} className={s.stats} />}
@@ -258,6 +256,28 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * `100644 → 100755`, or the one side an added / deleted file has when it is not the ordinary
+ * `100644`. Two equal modes, or nothing but a default one, say nothing worth a chip.
+ */
+function fileMode(oldMode: string | null | undefined, newMode: string | null | undefined): string | null {
+  if (oldMode && newMode) return oldMode === newMode ? null : `${oldMode} → ${newMode}`;
+  if (newMode && newMode !== PLAIN_MODE) return `→ ${newMode}`;
+  if (oldMode && oldMode !== PLAIN_MODE) return `${oldMode} →`;
+  return null;
+}
+const PLAIN_MODE = "100644";
+
+/** Header button replacing the file with one whole side of its conflict; the label is ellipsized, `title` isn't. */
+function KeepSide({ side, sides, busy, onKeepSide }: { side: ConflictSide; sides?: ConflictSides | null; busy?: boolean; onKeepSide: (side: ConflictSide) => void }) {
+  const label = sideLabel(sides, side);
+  return (
+    <Button size="sm" className={s.resolve} disabled={busy} title={`${label} (git checkout --${side})`} onClick={() => onKeepSide(side)}>
+      <span className={s.resolveLabel}>{label}</span>
+    </Button>
   );
 }
 

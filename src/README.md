@@ -36,8 +36,8 @@ src/
                            a clean tree clears wtSelected; useShowWorkingTree() = dirty && !flat; follows repoStore.repo;
                            `__resetForTests()` clears the debounce timer and the seq / coalescing guards
     commitStore.ts         zustand: commit-panel state — list (unstaged|staged) + multi-selection + anchor, `+N −M` stats
-                           (get_changed_files ×2), diff of the anchor (unstaged|staged target, context 3, no whitespace option so hunk /
-                           line indices match the backend), editor (summary/body/amend/signoff/prefill), busy;
+                           (get_changed_files ×2), diff of the anchor (unstaged|staged target, the settings' context — remembered as
+                           `diffContext` beside the diff — no whitespace option, so hunk / line indices match the backend), editor (summary/body/amend/signoff/prefill), busy;
                            actions: select, syncWithStatus (prune → neighbour → other list; reloads the diff only when the anchor
                            or its own StatusEntry changed — the entry carries `workdirStamp` (mtime:size) precisely so an edit on
                            disk counts as a change: resolving a conflict in an editor leaves every status letter as it was —
@@ -46,10 +46,13 @@ src/
                            keeps the `diff` object identity when the hunks are equal, and refetches
                            the stats only when the entry list changed — one call in flight), stage/unstage/discard
                            (native ask(); discard resolves `false` when declined *or* when another mutation held `busy`),
-                           stageHunk/stageLines (reverse for staged; both send diffStore's `context` so the backend rebuilds
-                           the same hunks), discardHunk/discardLines (native ask, then `discard_hunks` / `discard_lines` —
-                           `git apply -R` on the working tree), resolveConflict(paths, side, label) (ask, then
-                           `resolve_conflict` = `checkout --ours|--theirs` + add), setAmend (get_head_message prefill), useMessage, commit
+                           stageHunk/stageLines (reverse for staged; every hunk / line action sends the context the *shown*
+                           diff was built with, and a diffStore `context` change reloads the panel diff first),
+                           discardHunk/discardLines (native ask, then `discard_hunks` / `discard_lines` — `git apply -R` on
+                           the working tree; dropped with a toast when the diff was replaced during the confirmation),
+                           resolveConflict(paths, side, label) (ask, then
+                           `resolve_conflict` = `checkout --ours|--theirs` + add; a path whose chosen side the other branch
+                           deleted is resolved as a removal instead), setAmend (get_head_message prefill), useMessage, commit
                            (→ oid | null, clears the editor incl. after an amend, msgHistory, toast, status + refs refresh),
                            reset on repo change
     recentsStore.ts        zustand: RecentRepo{path,name,lastOpened,pinned} persisted via lib/kv; load (migrates the M1
@@ -62,8 +65,9 @@ src/
                            `busy` (statusbar text of the running op) + selectRunning;
                            runOp(busy, fn, {success, onRefused}) — the single entry point for every branch/remote/stash op
     settingsStore.ts       zustand: diffContext / ignoreWhitespace / gitPath (+ gitVersion, gitError) from lib/kv; load() after the
-                           git probe seeds diffStore; setters persist and apply at once (setGitPath probes through
-                           set_git_path first and keeps only a working path; the version is mirrored into repoStore).
+                           git probe seeds diffStore; setters persist and apply at once (setGitPath clears gitError, probes through
+                           set_git_path and keeps only a working path; the version is mirrored into repoStore;
+                           clearGitError on edit).
                            Theme stays in theme/theme.ts
     dialogStore.ts         zustand: one `DialogSpec` at a time — open(spec, {returnFocusTo}) / close(); DialogHost renders it
                            and feeds `returnFocusTo` to `Dialog` through `DialogReturnFocus`
@@ -80,6 +84,8 @@ src/
   lib/                     cx(), relativeDate()/absoluteDate(), multiSelect.ts (pure click/ctrl/shift/↑↓/Ctrl+A model over an all-items list plus the visible
                            order — hidden items stay selected, ranges and ↑/↓ walk what is visible),
                            keys.ts (mods(e) → {ctrl, shift} for the selection models),
+                           conflictSides.ts (sideLabel / sideName: the two sides' names for the diff header, the file
+                           menu and the resolve confirmation — "our" / "their" when the backend names none),
                            nativeMenu.ts (keepsNativeMenu: the webview's own context menu is suppressed app-wide from
                            App.tsx, kept only in editable fields and on selected `.selectable` text),
                            msgHistory.ts (localStorage `msgHistory:<repoId>`, 20 entries; splitMessage/joinMessage, CRLF-safe),
@@ -118,9 +124,9 @@ src/
     StartScreen/           recents list (filter, keyboard, pin, remove) | Open / Clone… / Initialize… cards + shortcuts;
                            CloneDialog.tsx (components/ui/Dialog with `busy`; form → progress mode); the gear opens
                            SettingsDialog from local state (no DialogHost here)
-    SettingsDialog/        Settings (wide Dialog, Close only — every field applies on change): Git executable (path, Locate…,
-                           Apply → version or error inline), Theme (Light / Dark / Follow system → theme.setTheme), Diff
-                           (context lines 0–99, ignore whitespace by default) — backed by store/settingsStore
+    SettingsDialog/        Settings (wide Dialog, Close only — fields apply on change; context lines on blur / Enter; the git path on
+                           Apply, Enter or Locate…): Git executable (path, Locate…, Apply → version or error inline), Theme
+                           (Light / Dark / Follow system → theme.setTheme), Diff (context lines 0–99, ignore whitespace by default) — backed by store/settingsStore
     GitMissingScreen/      probe_git failed → "Git not found" + Retry + "Locate git…" (file picker → set_git_path, kept in kv `gitPath`;
                            Settings edits the same key)
     RepoWindow/            RepoWindow (layout: toolbar 40 / sidebar 260 | StateBanners + grid ÷ (DetailsPane | CommitPanel when
@@ -164,7 +170,8 @@ src/
                            (dashed ring; double-click opens the commit dialog), graphGeometry.ts, visibleLanes.ts (graph
                            column width follows the busiest row in view, grows at once / shrinks after 300 ms, up to 40
                            lanes), commitMenu.ts (pure: the Checkout / Reset / Merge / Rebase targets for the branches at a commit;
-                           merge and rebase are empty on HEAD's own commit), the row ContextMenu (checkout / merge into
+                           merge and rebase are empty on HEAD's own commit and on an unborn HEAD, a remote branch whose local
+                           twin sits at the commit is skipped, `canRebase` is false while HEAD is detached), the row ContextMenu (checkout / merge into
                            current — the branch on the row, or the commit itself when none sits there / rebase current onto
                            the branch on the row, else the commit / branch / reset / tag / copy SHA; branch names via MenuRef),
                            RefChips (max 3 chips, `+N` opens a portalled popover of the rest)
@@ -184,8 +191,9 @@ src/
                            focusing the region hands off to the cursor line (outside staging there is none, so the region keeps
                            the focus for scrolling); wholeFile (untracked / conflicted) = header `note`, no hunk/line actions;
                            `onResolve` / `onRestoreConflict` add a "Resolve in editor" / "Restore conflict" button, `sides` +
-                           `onKeepSide` add "Keep <ours>'s version" / "Keep <theirs>'s version" (labels = refs.conflictSides,
-                           git's own direction — during a rebase *ours* is the branch rebased onto); `onDiscardHunk` /
+                           `onKeepSide` add "Keep <ours>'s version" / "Keep <theirs>'s version" (labels = refs.conflictSides via
+                           lib/conflictSides, git's own direction — during a rebase *ours* is the branch rebased onto; the
+                           label column is capped at 12rem, full text in `title`); `onDiscardHunk` /
                            `onDiscardLines` add "Discard hunk" / "Discard N lines" (+ `Delete` on a selection), wired for the
                            unstaged side only; a mode change shows as a `100644 → 100755` chip beside the stats. The body
                            scrolls back to the top only when the file path changes

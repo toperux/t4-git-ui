@@ -67,7 +67,8 @@
 }
 /* base.css .tree .row / .tw — indent by depth, and a guide line under each ancestor's chevron
    (x = pad + 8px + indent·k).
-   `.rows .treeRow` outranks TreeRow's own `.row { background: transparent }`, whose module may load later. */
+   `.rows .treeRow` is two classes on purpose: TreeRow's own `.row` sets the `padding` shorthand, and a
+   single class would tie with it (whose module loads last decides). */
 .rows .treeRow {
   padding-left: calc(var(--space-4) + var(--tree-indent) * var(--d, 0));
   background-image: repeating-linear-gradient(90deg, var(--border) 0 1px, transparent 1px var(--tree-indent));
@@ -94,6 +95,18 @@
   font-size: var(--mono-size);
 }
 .path > bdi {
+  unicode-bidi: isolate;
+}
+/* Folder label (`a / b / c`): same start-ellipsis as the file rows, inside TreeRow's own label box. */
+.folder {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  text-align: left;
+}
+.folder > bdi {
   unicode-bidi: isolate;
 }
 

@@ -103,14 +103,28 @@ fn transform<'a>(
 
 /// Builds the patch text for `selection`; `reverse` when it will be applied
 /// with `git apply -R` (i.e. the diff is HEAD → index and the index is the
-/// side being edited).
+/// side being edited). `mode` emits the `old mode` / `new mode` header lines
+/// for a mode change — wanted for a stage / unstage, never for a discard: `-R`
+/// reverses those lines too, and the working tree's exec bit was not part of
+/// the selection.
 pub fn build_patch(
     diff: &FileDiff,
     selection: &PatchSelection,
     reverse: bool,
+    mode: bool,
 ) -> Result<String, GitError> {
     if diff.binary || diff.truncated || diff.hunks.is_empty() {
         return Err(GitError::InvalidPatch);
+    }
+    // Blob ↔ symlink ↔ gitlink: git rejects a patch whose two modes disagree
+    // in their type bits, and the two contents have nothing in common anyway.
+    if let (Some(o), Some(n)) = (diff.old_mode.as_deref(), diff.new_mode.as_deref()) {
+        if o.get(..2) != n.get(..2) {
+            return Err(GitError::Refused(format!(
+                "{} is a type change; stage the whole file",
+                diff.path
+            )));
+        }
     }
     let selected = selected_hunks(diff, selection)?;
 
@@ -169,7 +183,7 @@ pub fn build_patch(
     // Only a real change earns the header lines; git apply carries the exec bit
     // into the index from them, so a partial stage of the file takes it along.
     let mode_lines = match (old_mode, new_mode) {
-        (Some(o), Some(n)) if o != n => format!("old mode {o}\nnew mode {n}\n"),
+        (Some(o), Some(n)) if mode && o != n => format!("old mode {o}\nnew mode {n}\n"),
         _ => String::new(),
     };
     let mut s = String::new();
@@ -276,7 +290,7 @@ mod tests {
 
         // Only the middle and last hunks: the first (unselected) edit doesn't
         // shift anything, the insert shifts the last hunk's new side by +2.
-        let p = build_patch(&d, &PatchSelection::Hunks(vec![1, 2]), false).unwrap();
+        let p = build_patch(&d, &PatchSelection::Hunks(vec![1, 2]), false, true).unwrap();
         assert!(
             p.starts_with(
                 "diff --git a/f.txt b/f.txt\n--- a/f.txt\n+++ b/f.txt\n@@ -13,6 +13,8 @@\n"
@@ -300,28 +314,34 @@ mod tests {
         assert_eq!(ch, vec![1, 2, 3]);
 
         // Only the first add: `-b` becomes context.
-        let p = build_patch(&d, &PatchSelection::Lines(vec![(0, 2)]), false).unwrap();
+        let p = build_patch(&d, &PatchSelection::Lines(vec![(0, 2)]), false, true).unwrap();
         assert!(p.ends_with("@@ -1,3 +1,4 @@\n a\n b\n+B1\n c\n"), "{p}");
 
         // Only the del: both adds dropped.
-        let p = build_patch(&d, &PatchSelection::Lines(vec![(0, 1)]), false).unwrap();
+        let p = build_patch(&d, &PatchSelection::Lines(vec![(0, 1)]), false, true).unwrap();
         assert!(p.ends_with("@@ -1,3 +1,2 @@\n a\n-b\n c\n"), "{p}");
 
         // Mixed: del + second add.
-        let p = build_patch(&d, &PatchSelection::Lines(vec![(0, 1), (0, 3)]), false).unwrap();
+        let p = build_patch(
+            &d,
+            &PatchSelection::Lines(vec![(0, 1), (0, 3)]),
+            false,
+            true,
+        )
+        .unwrap();
         assert!(p.ends_with("@@ -1,3 +1,3 @@\n a\n-b\n+B2\n c\n"), "{p}");
 
         // Context-only selection is not a patch.
         assert!(matches!(
-            build_patch(&d, &PatchSelection::Lines(vec![(0, 0)]), false),
+            build_patch(&d, &PatchSelection::Lines(vec![(0, 0)]), false, true),
             Err(GitError::InvalidPatch)
         ));
         assert!(matches!(
-            build_patch(&d, &PatchSelection::Lines(vec![(0, 99)]), false),
+            build_patch(&d, &PatchSelection::Lines(vec![(0, 99)]), false, true),
             Err(GitError::InvalidPatch)
         ));
         assert!(matches!(
-            build_patch(&d, &PatchSelection::Hunks(vec![]), false),
+            build_patch(&d, &PatchSelection::Hunks(vec![]), false, true),
             Err(GitError::InvalidPatch)
         ));
     }
@@ -335,10 +355,10 @@ mod tests {
         let d = staged(&t, "f.txt");
         // Unstage only `+B1`: `+B2` stays in the index (context), `-b` is not
         // in the index (dropped).
-        let p = build_patch(&d, &PatchSelection::Lines(vec![(0, 2)]), true).unwrap();
+        let p = build_patch(&d, &PatchSelection::Lines(vec![(0, 2)]), true, true).unwrap();
         assert!(p.ends_with("@@ -1,3 +1,4 @@\n a\n+B1\n B2\n c\n"), "{p}");
         // Unstage only `-b`: index gets `b` back before B1/B2.
-        let p = build_patch(&d, &PatchSelection::Lines(vec![(0, 1)]), true).unwrap();
+        let p = build_patch(&d, &PatchSelection::Lines(vec![(0, 1)]), true, true).unwrap();
         assert!(
             p.ends_with("@@ -1,5 +1,4 @@\n a\n-b\n B1\n B2\n c\n"),
             "{p}"
@@ -352,7 +372,7 @@ mod tests {
         t.write("new.txt", "x\ny\n");
         let d = unstaged(&t, "new.txt");
         assert_eq!(d.status, FileStatus::Untracked);
-        let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), false).unwrap();
+        let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), false, true).unwrap();
         assert_eq!(
             p,
             "diff --git a/new.txt b/new.txt\nnew file mode 100644\n--- /dev/null\n+++ b/new.txt\n@@ -0,0 +1,2 @@\n+x\n+y\n"
@@ -362,7 +382,7 @@ mod tests {
         let d = staged(&t, "new.txt");
         assert_eq!(d.status, FileStatus::Added);
         // Partial unstage of a new file: a modification of the index copy.
-        let p = build_patch(&d, &PatchSelection::Lines(vec![(0, 1)]), true).unwrap();
+        let p = build_patch(&d, &PatchSelection::Lines(vec![(0, 1)]), true, true).unwrap();
         assert_eq!(
             p,
             "diff --git a/new.txt b/new.txt\n--- a/new.txt\n+++ b/new.txt\n@@ -1,1 +1,2 @@\n x\n+y\n"
@@ -371,7 +391,7 @@ mod tests {
         std::fs::remove_file(t.path().join("keep.txt")).unwrap();
         let d = unstaged(&t, "keep.txt");
         assert_eq!(d.status, FileStatus::Deleted);
-        let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), false).unwrap();
+        let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), false, true).unwrap();
         assert_eq!(
             p,
             "diff --git a/keep.txt b/keep.txt\ndeleted file mode 100644\n--- a/keep.txt\n+++ /dev/null\n@@ -1,1 +0,0 @@\n-k\n"
@@ -388,7 +408,7 @@ mod tests {
         // exec bit is set on the fixture; tests/patch.rs covers the real thing.
         d.old_mode = Some("100644".into());
         d.new_mode = Some("100755".into());
-        let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), false).unwrap();
+        let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), false, true).unwrap();
         assert_eq!(
             p,
             "diff --git a/f.txt b/f.txt\nold mode 100644\nnew mode 100755\n--- a/f.txt\n+++ b/f.txt\n@@ -1,2 +1,2 @@\n a\n-b\n+B\n"
@@ -402,7 +422,7 @@ mod tests {
         t.write("new.sh", "x\n");
         let mut d = unstaged(&t, "new.sh");
         d.new_mode = Some("100755".into());
-        let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), false).unwrap();
+        let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), false, true).unwrap();
         assert_eq!(
             p,
             "diff --git a/new.sh b/new.sh\nnew file mode 100755\n--- /dev/null\n+++ b/new.sh\n@@ -0,0 +1,1 @@\n+x\n"
@@ -417,8 +437,45 @@ mod tests {
         let d = unstaged(&t, "f.txt");
         assert_eq!(d.old_mode.as_deref(), Some("100644"));
         assert_eq!(d.new_mode, d.old_mode);
-        let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), false).unwrap();
+        let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), false, true).unwrap();
         assert!(!p.contains("mode"), "{p}");
+    }
+
+    #[test]
+    fn a_discard_never_carries_the_mode_lines() {
+        let t = TempRepo::new();
+        t.commit(&[("f.txt", "a\nb\n")], "base");
+        t.write("f.txt", "a\nB\n");
+        let mut d = unstaged(&t, "f.txt");
+        d.old_mode = Some("100644".into());
+        d.new_mode = Some("100755".into());
+        // `git apply -R` would reverse them too, chmod'ing a file the user only
+        // asked to revert the lines of.
+        let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), true, false).unwrap();
+        assert!(!p.contains("old mode"), "{p}");
+        assert!(!p.contains("new mode"), "{p}");
+        assert!(
+            p.starts_with("diff --git a/f.txt b/f.txt\n--- a/f.txt\n"),
+            "{p}"
+        );
+    }
+
+    #[test]
+    fn a_type_change_is_refused() {
+        let t = TempRepo::new();
+        t.commit(&[("f.txt", "a\nb\n")], "base");
+        t.write("f.txt", "a\nB\n");
+        let mut d = unstaged(&t, "f.txt");
+        d.old_mode = Some("100644".into());
+        d.new_mode = Some("120000".into());
+        let e = build_patch(&d, &PatchSelection::Hunks(vec![0]), false, true);
+        assert!(
+            matches!(&e, Err(GitError::Refused(m)) if m == "f.txt is a type change; stage the whole file"),
+            "{e:?}"
+        );
+        // Same type, different bits (the exec bit) is not a type change.
+        d.new_mode = Some("100755".into());
+        assert!(build_patch(&d, &PatchSelection::Hunks(vec![0]), false, true).is_ok());
     }
 
     #[test]
@@ -429,7 +486,7 @@ mod tests {
         t.commit(&[("f.txt", "a\r\nb\r\n")], "base");
         t.write("f.txt", "a\r\nB\r\nc");
         let d = unstaged(&t, "f.txt");
-        let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), false).unwrap();
+        let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), false, true).unwrap();
         assert!(
             p.ends_with("@@ -1,2 +1,3 @@\n a\r\n-b\r\n+B\r\n+c\n\\ No newline at end of file\n"),
             "{p:?}"

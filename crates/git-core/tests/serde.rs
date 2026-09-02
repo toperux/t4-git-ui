@@ -107,6 +107,45 @@ fn git_error_shape() {
     );
 }
 
+/// `RefsSnapshot.conflictSides` and the side the UI sends back
+/// (`src/api/types.ts`).
+#[test]
+fn conflict_sides_are_camel_case() {
+    use git_core::refs::{ConflictSides, HeadInfo, RefsSnapshot, RepoState};
+    use git_core::stage::ConflictSide;
+
+    let snap = RefsSnapshot {
+        head: HeadInfo {
+            oid: Some("abc".into()),
+            branch: Some("main".into()),
+            detached: false,
+        },
+        state: RepoState::Merge,
+        conflict_sides: Some(ConflictSides {
+            ours: "main".into(),
+            theirs: "feature".into(),
+        }),
+        local: vec![],
+        remotes: vec![],
+        tags: vec![],
+        stashes: vec![],
+    };
+    let v = serde_json::to_value(&snap).expect("ser");
+    assert_eq!(v["state"], "merge");
+    assert_eq!(v["conflictSides"]["ours"], "main");
+    assert_eq!(v["conflictSides"]["theirs"], "feature");
+    assert!(v.get("conflict_sides").is_none());
+
+    assert_eq!(
+        serde_json::to_value(ConflictSide::Ours).expect("ser"),
+        json!("ours")
+    );
+    assert_eq!(
+        serde_json::to_value(ConflictSide::Theirs).expect("ser"),
+        json!("theirs")
+    );
+}
+
 #[test]
 fn diff_target_round_trips() {
     use git_core::diff::DiffTarget;

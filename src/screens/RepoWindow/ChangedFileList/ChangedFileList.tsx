@@ -53,11 +53,15 @@ export function ChangedFileList() {
     if (selectedRow >= 0) scrollToIndex(selectedRow, { align: "auto" });
   }, [selectedRow, scrollToIndex]);
 
+  // Keyed by the path that was clicked, and cleared along the whole chain: a compacted row may be
+  // collapsed by an ancestor's key, and only removing that one reopens it.
   const toggleFolder = (path: string) =>
     setCollapsed((c) => {
+      const row = rows.find((r) => r.kind === "folder" && r.path === path);
+      const chain = row?.kind === "folder" ? row.chain : [path];
       const next = new Set(c);
-      if (next.has(path)) next.delete(path);
-      else next.add(path);
+      if (chain.some((p) => next.has(p))) chain.forEach((p) => next.delete(p));
+      else next.add(chain[chain.length - 1]);
       return next;
     });
 
@@ -149,8 +153,13 @@ export function ChangedFileList() {
                     depth={row.depth}
                     expanded={row.expanded}
                     icon={<Folder size={14} aria-hidden />}
-                    /* A compacted chain reads as `a / b / c`; the tooltip keeps the real path. */
-                    label={row.name.split("/").join(" / ")}
+                    /* A compacted chain reads as `a / b / c`, ellipsized at the start like a file row;
+                       the tooltip keeps the real path. */
+                    label={
+                      <span className={s.folder}>
+                        <bdi dir="ltr">{row.name.split("/").join(" / ")}</bdi>
+                      </span>
+                    }
                     title={row.path}
                   />
                 );

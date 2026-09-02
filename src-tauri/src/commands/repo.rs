@@ -8,7 +8,7 @@ use git_core::commit::CommitDetail;
 use git_core::log::{walk, LogFilter, LogRow, RefLabel, RevSpec};
 use git_core::refs::{self, HeadInfo, RefsSnapshot};
 use git_core::watch::Watcher;
-use git_core::{RepoHandle, RepoId};
+use git_core::{GitError, RepoHandle, RepoId};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_opener::OpenerExt;
@@ -324,10 +324,29 @@ pub async fn get_log_page(
     .await
 }
 
+/// Checks that `path` is a plain repository-relative name before it is joined
+/// onto the working directory: no absolute path, no `..`, and (on Windows) no
+/// drive prefix, UNC prefix or leading separator.
+///
+/// The test is **lexical**. A symlink or junction stored inside the repository
+/// still resolves wherever it points, so this bounds what the frontend can
+/// name, not what the OS ends up opening.
+fn repo_relative(path: &str) -> Result<&Path, AppError> {
+    let p = Path::new(path);
+    let inside = p
+        .components()
+        .all(|c| matches!(c, Component::Normal(_) | Component::CurDir));
+    if path.is_empty() || !inside {
+        return Err(
+            GitError::Refused(format!("{path} is not a path inside the repository")).into(),
+        );
+    }
+    Ok(p)
+}
+
 /// Opens a working-tree file with the OS handler, or reveals it in the file
-/// manager (`reveal`). `path` is repository-relative: the opener is not
-/// scope-restricted, so anything that could point outside the working directory
-/// is refused here.
+/// manager (`reveal`). `path` is repository-relative and validated by
+/// [`repo_relative`]: the opener itself is not scope-restricted.
 #[tauri::command]
 pub async fn open_path(
     app: AppHandle,
@@ -337,17 +356,7 @@ pub async fn open_path(
     reveal: bool,
 ) -> Result<(), AppError> {
     let handle = state.repo(&id)?;
-    // Plain names only — that rules out `..`, absolute paths, and (on Windows) a
-    // drive prefix or a leading separator, all of which escape the workdir.
-    let inside = Path::new(&path)
-        .components()
-        .all(|c| matches!(c, Component::Normal(_) | Component::CurDir));
-    if path.is_empty() || !inside {
-        return Err(AppError::Internal(format!(
-            "{path} is not a path inside the repository"
-        )));
-    }
-    let abs = handle.path.join(&path);
+    let abs = handle.path.join(repo_relative(&path)?);
     blocking(move || {
         let opener = app.opener();
         if reveal {
@@ -355,7 +364,9 @@ pub async fn open_path(
         } else {
             opener.open_path(abs.to_string_lossy(), None::<&str>)
         }
-        .map_err(|e| AppError::Internal(format!("could not open {path}: {e}")))
+        .map_err(|e| {
+            GitError::Io(std::io::Error::other(format!("could not open {path}: {e}"))).into()
+        })
     })
     .await
 }
@@ -382,4 +393,30 @@ pub async fn find_log_row(
         Ok(log.find(&oid))
     })
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn repo_relative_takes_plain_names_only() {
+        assert_eq!(repo_relative("a/b.txt").unwrap(), Path::new("a/b.txt"));
+        assert_eq!(repo_relative("./x").unwrap(), Path::new("./x"));
+
+        // Everything that could leave the working directory. The drive- and
+        // UNC-prefixed ones are plain file names off Windows, so they are only
+        // components there.
+        let mut bad = vec!["", "..", "../x", "a/../../x", "/abs"];
+        if cfg!(windows) {
+            bad.extend(["C:foo", r"C:\abs", r"\\srv\share\x", r"a\..\..\x"]);
+        }
+        for path in bad {
+            let e = repo_relative(path);
+            assert!(
+                matches!(&e, Err(AppError::Git(GitError::Refused(_)))),
+                "{path:?} → {e:?}"
+            );
+        }
+    }
 }

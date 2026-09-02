@@ -33,6 +33,17 @@ describe("Menu", () => {
     expect(outer).toHaveBeenCalledWith("Escape");
   });
 
+  it("a shortcut chip is a picture, not part of the item's name", () => {
+    const { getByRole } = render(
+      <Menu open onClose={() => {}} label="History" anchor={null}>
+        <MenuItem kbd="Delete">Discard…</MenuItem>
+      </Menu>,
+    );
+    const item = getByRole("menuitem", { name: "Discard…" });
+    expect(item.getAttribute("aria-keyshortcuts")).toBe("Delete");
+    expect(item.querySelector("kbd")?.getAttribute("aria-hidden")).toBe("true");
+  });
+
   it("gives focus back to the trigger once closed", () => {
     const { getByRole, queryByRole } = render(<Harness />);
     const trigger = getByRole("button", { name: "Open" });

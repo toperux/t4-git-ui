@@ -237,7 +237,8 @@ describe("CreateTagDialog", () => {
     const { getByRole } = render(<CreateTagDialog onClose={() => {}} />);
     fireEvent.change(getByRole("textbox", { name: "Name" }), { target: { value: "v1" } });
     fireEvent.click(getByRole("checkbox", { name: "Push to remote after creating" }));
-    await waitFor(() => expect(preview(getByRole("dialog"))).toBe("git tag v1 HEAD && git push origin refs/tags/v1"));
+    // The push half is built from the real argv, `--progress` included.
+    await waitFor(() => expect(preview(getByRole("dialog"))).toBe("git tag v1 HEAD && git push --progress origin refs/tags/v1"));
     fireEvent.click(getByRole("button", { name: "Create" }));
     await waitFor(() => expect(mocked.push).toHaveBeenCalledWith("r", "origin", "refs/tags/v1", false, false, false));
     // The push only makes sense once the tag exists.
@@ -253,6 +254,22 @@ describe("CreateTagDialog", () => {
     await waitFor(() => expect(mocked.createTag).toHaveBeenCalled());
     await new Promise((r) => setTimeout(r, 0));
     expect(mocked.push).not.toHaveBeenCalled();
+  });
+
+  it("a rejected push leaves the created tag in place and reports the push", async () => {
+    mocked.push.mockRejectedValueOnce({ kind: "cli", message: "`git push` exited with code 1: remote rejected" });
+    const { getByRole } = render(<CreateTagDialog onClose={() => {}} />);
+    fireEvent.change(getByRole("textbox", { name: "Name" }), { target: { value: "v1" } });
+    fireEvent.click(getByRole("checkbox", { name: "Push to remote after creating" }));
+    fireEvent.click(getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(mocked.push).toHaveBeenCalled());
+    // The tag exists locally whatever the remote said: both halves report their own outcome.
+    await waitFor(() =>
+      expect(useToastStore.getState().toasts).toMatchObject([
+        { kind: "success", title: "Created tag v1" },
+        { kind: "error", title: "Pushing tag v1 failed", detail: "remote rejected" },
+      ]),
+    );
   });
 
   it("hides the push option in a repo without remotes", () => {
@@ -291,11 +308,25 @@ describe("MergeDialog", () => {
     const { getByRole } = render(<MergeDialog onClose={onClose} branch={oid} />);
     expect(getByRole("combobox", { name: "Branch to merge" }).textContent).toBe("0123456");
     expect(preview(getByRole("dialog"))).toBe(`git merge --ff ${oid}`);
-    expect(getByRole("textbox", { name: "Commit message" }).getAttribute("placeholder")).toBe("Merge commit '0123456'");
+    // The option is abbreviated, the message git would write is not.
+    expect(getByRole("textbox", { name: "Commit message" }).getAttribute("placeholder")).toBe(`Merge commit '${oid}'`);
     fireEvent.click(getByRole("button", { name: "Merge" }));
     expect(onClose).toHaveBeenCalled();
     // The full oid goes to git; only the label is abbreviated.
     await waitFor(() => expect(mocked.merge).toHaveBeenCalledWith("r", oid, "auto", false, null));
+  });
+
+  it("words a remote-tracking branch's default message the way git does", () => {
+    const { getByRole } = render(<MergeDialog onClose={() => {}} branch="origin/main" />);
+    expect(getByRole("textbox", { name: "Commit message" }).getAttribute("placeholder")).toBe("Merge remote-tracking branch 'origin/main' into main");
+  });
+
+  it("keeps a ref name that is not a 40-hex oid whole", () => {
+    // The refs refreshed between the click and the mount and the branch is gone: cutting it to seven
+    // characters would label the option `feature` and toast a merge of a branch that never existed.
+    useRepoStore.setState({ refs: { ...REFS, local: [REFS.local[0]] } });
+    const { getByRole } = render(<MergeDialog onClose={() => {}} branch="feature/lane-graph" />);
+    expect(getByRole("combobox", { name: "Branch to merge" }).textContent).toBe("feature/lane-graph");
   });
 });
 

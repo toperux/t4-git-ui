@@ -126,7 +126,8 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the first two perfo
 
 - [ ] The fixture leaves `hunks.txt` modified, so the **Working tree** row is at the top of the grid
       from the start; edit `a.txt` in an external editor → within ~1 s the Commit toolbar badge and
-      the statusbar counts follow (stage and commit `a.txt` again to leave `hunks.txt` on its own)
+      the statusbar counts follow (stage and commit `a.txt` again to get back to the fixture's six
+      working-tree changes)
 - [ ] Click the working-tree row (or the Commit button) → three columns: Unstaged | Diff | Message
 - [ ] `hunks.txt` renders as **three** hunks — an edited line plus an added one, an indentation-only
       change, and a deletion — each with its own `@@` header
@@ -145,7 +146,9 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the first two perfo
 - [ ] **Staging does not jump the view**: stage a hunk in a long file → scroll position and any
       remaining line selection are preserved
 - [ ] Save an unrelated file in your editor while lines are selected → the selection survives
-- [ ] `Delete` on unstaged rows → confirm dialog (untracked wording says "delete") → discards
+- [ ] Select `hunks.txt` **on its own**, press `Delete` → confirm dialog (untracked wording says
+      "delete") → discards it. Only that row: the groups slotted in after this one still need
+      `gone.txt` deleted and `crlf-hunks.txt` modified
 - [ ] Check **Amend** → summary and body prefill from HEAD; the staged header notes amending
 - [ ] Type a summary → the counter turns danger past 72 characters
 - [ ] `Ctrl+Enter` commits → the output dock shows `$ git commit …` and `✓ exit 0`; the editor clears,
@@ -173,8 +176,9 @@ Use `C:\tmp\t4\work` and the bare remote.
 - [ ] Check out `feature` (it tracks `origin/feature-upstream`, and an unrelated `origin/feature`
       exists too) and Pull → it brings `upstream.txt`; `decoy.txt` means it followed the name
       instead of the upstream
-- [ ] **Merge** the fixture's `conflict` branch → conflicts toast, working-tree row selected, danger banner
-      "N files have conflicts", plus a merge-in-progress banner with Abort
+- [ ] Check out `main` first, then **Merge** the fixture's `conflict` branch (from `feature` it only
+      fast-forwards) → conflicts toast, working-tree row selected, danger banner "N files have
+      conflicts", plus a merge-in-progress banner with Abort
 - [ ] Click the conflicted file → the diff shows the file **with its `<<<<<<<` / `=======` / `>>>>>>>`
       markers** (libgit2 reports no content for an unmerged path, so this is built from the index
       stages), the header says "Conflict — stage the file once resolved"

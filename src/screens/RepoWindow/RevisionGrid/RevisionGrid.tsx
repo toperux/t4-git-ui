@@ -282,7 +282,8 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
           </span>
         </MenuItem>
       )}
-      {!branches.headCommit && (
+      {/* No rebase without a branch to move: a detached or unborn HEAD offers the merge only. */}
+      {branches.canRebase && (
         <MenuItem
           icon={<ListRestart size={16} aria-hidden />}
           title={rebaseTitle}
