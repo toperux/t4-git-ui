@@ -33,7 +33,7 @@ const REFS: RefsSnapshot = {
 
 describe("commitBranchActions", () => {
   it("offers local branches at the commit, minus the current one", () => {
-    expect(commitBranchActions(REFS, "a")).toEqual({ checkout: [], reset: [] });
+    expect(commitBranchActions(REFS, "a")).toEqual({ checkout: [], reset: [], merge: [], rebaseOnto: null, headCommit: true });
     const { checkout } = commitBranchActions(REFS, "b");
     expect(checkout.filter((b) => !b.remote).map((b) => b.name)).toEqual(["feature", "hotfix"]);
   });
@@ -55,10 +55,37 @@ describe("commitBranchActions", () => {
     expect(commitBranchActions(REFS, "d")).toEqual({
       checkout: [{ name: "origin/new", remote: "origin" }],
       reset: [{ branch: "feature", remote: "fork/feature", current: false }],
+      merge: [{ name: "origin/new", remote: "origin" }, { name: "fork/feature", remote: "fork" }],
+      rebaseOnto: { name: "origin/new", remote: "origin" },
+      headCommit: false,
     });
   });
 
+  it("merges any branch at the commit, a remote one with a local counterpart included", () => {
+    // `origin/main` / `origin/feature` are no checkout candidates (a local sits on them) but are merge sources.
+    expect(commitBranchActions(REFS, "b").merge).toEqual([
+      { name: "feature", remote: null },
+      { name: "hotfix", remote: null },
+      { name: "origin/main", remote: "origin" },
+      { name: "origin/feature", remote: "origin" },
+      { name: "origin/renamed", remote: "origin" },
+    ]);
+    // The checked-out branch is never a merge source, even when HEAD has moved off it.
+    const detached: RefsSnapshot = { ...REFS, head: { oid: "z", branch: null, detached: true } };
+    expect(commitBranchActions(detached, "a").merge).toEqual([]);
+  });
+
+  it("rebases onto a local branch at the commit, else a remote one, else nothing", () => {
+    expect(commitBranchActions(REFS, "b").rebaseOnto).toEqual({ name: "feature", remote: null });
+    expect(commitBranchActions(REFS, "d").rebaseOnto).toEqual({ name: "origin/new", remote: "origin" });
+    expect(commitBranchActions(REFS, "nothing-here").rebaseOnto).toBeNull();
+  });
+
+  it("offers neither at HEAD's own commit", () => {
+    expect(commitBranchActions(REFS, "a")).toMatchObject({ merge: [], rebaseOnto: null, headCommit: true });
+  });
+
   it("is empty without refs", () => {
-    expect(commitBranchActions(null, "a")).toEqual({ checkout: [], reset: [] });
+    expect(commitBranchActions(null, "a")).toEqual({ checkout: [], reset: [], merge: [], rebaseOnto: null, headCommit: false });
   });
 });

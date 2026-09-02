@@ -100,6 +100,11 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the first two perfo
       branch here… / Reset `<current branch>` to here… / Create tag here… / Copy SHA; a row with a
       branch on it adds Checkout `<branch>` (or Checkout branch… when several sit there), and one
       with a remote branch whose local branch is elsewhere adds Reset `<local>` to `<remote>`…
+- [ ] On `main`, right-click `feature`'s tip → Merge `feature` into `main`… opens the Merge dialog
+      with `feature` selected; Rebase `main` onto `feature`… opens the Rebase dialog with `feature`
+      selected. A plain commit (no branch) → Merge commit `<sha7>` into `main`… (the dialog lists the
+      7-char sha as an extra option, message `Merge commit '<sha7>'`) and Rebase `main` onto here…
+      (Rebase dialog onto the sha). The HEAD row shows neither item; both are disabled while an op runs
 - [ ] Check out a long-named branch, right-click a row → the Reset item keeps `to here…` visible and
       ellipsizes the branch name instead; the full text is in its tooltip; same for
       "Reset `<local>` to `<remote>`…" — only the local name ellipsizes, `to origin/x…` stays

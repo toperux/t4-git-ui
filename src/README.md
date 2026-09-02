@@ -129,7 +129,9 @@ src/
                            useShortcuts.ts (Ctrl+Shift+U push, Ctrl+Shift+L pull, Ctrl+Shift+R run git command, Ctrl+B branch,
                            Ctrl+F5 fetch, F5 refresh; Ctrl+` also inside text fields — it is the only way out of the dock prompt),
                            dialogs/ (DialogHost + OpsDialogs Push/Push tag + Delete remote tag (`refs/tags/<name>` with a
-                           remote picker, from the sidebar tag menu)/Pull/Fetch/Merge/Rebase, RefDialogs Checkout picker /
+                           remote picker, from the sidebar tag menu)/Pull/Fetch/Merge/Rebase — Merge and Rebase take a commit oid as
+                           well as a branch, shown as an extra 7-char option; a commit merge defaults to git's
+                           `Merge commit '<short>'` message —, RefDialogs Checkout picker /
                            Create-Rename-Delete branch / remote branch / tags, StashDialogs, RunCommandDialog (one
                            CommandInput; Run → actions `runGit`); gitArgs.ts mirrors cli/ops.rs
                            for the footer's "Runs `git …`" preview — that file is the source of truth),
@@ -147,8 +149,10 @@ src/
                            GraphCell (<canvas> per row, `useDevicePixelRatio()` repaints on a DPI change) + WorkingTreeNode
                            (dashed ring; double-click opens the commit dialog), graphGeometry.ts, visibleLanes.ts (graph
                            column width follows the busiest row in view, grows at once / shrinks after 300 ms, up to 40
-                           lanes), commitMenu.ts (pure: the Checkout / Reset items for the branches at a commit),
-                           the row ContextMenu (checkout / branch / reset / tag / copy SHA; branch names via MenuRef),
+                           lanes), commitMenu.ts (pure: the Checkout / Reset / Merge / Rebase targets for the branches at a commit;
+                           merge and rebase are empty on HEAD's own commit), the row ContextMenu (checkout / merge into
+                           current — the branch on the row, or the commit itself when none sits there / rebase current onto
+                           the branch on the row, else the commit / branch / reset / tag / copy SHA; branch names via MenuRef),
                            RefChips (max 3 chips, `+N` opens a portalled popover of the rest)
       ChangedFileList/     ChangedFileList (virtualized 26px rows + aria-activedescendant; flat = role=listbox of options,
                            tree = role=tree of treeitems with aria-expanded/aria-level; ↑/↓, StatusGlyph + start-ellipsis

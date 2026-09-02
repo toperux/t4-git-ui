@@ -5,7 +5,7 @@ import { useCmdHistoryStore } from "../../../store/cmdHistoryStore";
 import { useOpsStore } from "../../../store/opsStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { useToastStore } from "../../../store/toastStore";
-import { DeleteRemoteTagDialog, MergeDialog, PullDialog, PushDialog, PushTagDialog, ResetBranchDialog, ResetDialog } from "./OpsDialogs";
+import { DeleteRemoteTagDialog, MergeDialog, PullDialog, PushDialog, PushTagDialog, RebaseDialog, ResetBranchDialog, ResetDialog } from "./OpsDialogs";
 import { CheckoutBranchDialog, CreateBranchDialog, CreateTagDialog, DeleteTagDialog } from "./RefDialogs";
 import { RunCommandDialog } from "./RunCommandDialog";
 
@@ -15,6 +15,7 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
     ...actual,
     push: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     merge: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
+    rebase: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     pull: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     reset: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     resetBranch: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
@@ -33,7 +34,7 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
 
 import * as ipc from "../../../api/ipc";
 const mocked = ipc as unknown as Record<
-  "push" | "merge" | "pull" | "reset" | "resetBranch" | "checkout" | "createBranch" | "createTag" | "deleteTag" | "deleteRemoteBranch" | "runGit",
+  "push" | "merge" | "rebase" | "pull" | "reset" | "resetBranch" | "checkout" | "createBranch" | "createTag" | "deleteTag" | "deleteRemoteBranch" | "runGit",
   ReturnType<typeof vi.fn>
 >;
 
@@ -246,6 +247,43 @@ describe("MergeDialog", () => {
     fireEvent.click(getByRole("button", { name: "Merge" }));
     expect(onClose).toHaveBeenCalled();
     await waitFor(() => expect(mocked.merge).toHaveBeenCalledWith("r", "feature/lane-graph", "no", true, "custom msg"));
+  });
+
+  it("preselects the branch it was opened on", () => {
+    const { getByRole } = render(<MergeDialog onClose={() => {}} branch="feature/lane-graph" />);
+    expect(getByRole("combobox", { name: "Branch to merge" }).textContent).toBe("feature/lane-graph");
+    expect(preview(getByRole("dialog"))).toBe("git merge --ff feature/lane-graph");
+    expect(getByRole("textbox", { name: "Commit message" }).getAttribute("placeholder")).toBe("Merge branch 'feature/lane-graph' into main");
+  });
+
+  it("keeps a commit oid that is not a branch, and words the default message as git does", async () => {
+    const oid = "0123456789abcdef0123456789abcdef01234567";
+    const onClose = vi.fn();
+    const { getByRole } = render(<MergeDialog onClose={onClose} branch={oid} />);
+    expect(getByRole("combobox", { name: "Branch to merge" }).textContent).toBe("0123456");
+    expect(preview(getByRole("dialog"))).toBe(`git merge --ff ${oid}`);
+    expect(getByRole("textbox", { name: "Commit message" }).getAttribute("placeholder")).toBe("Merge commit '0123456'");
+    fireEvent.click(getByRole("button", { name: "Merge" }));
+    expect(onClose).toHaveBeenCalled();
+    // The full oid goes to git; only the label is abbreviated.
+    await waitFor(() => expect(mocked.merge).toHaveBeenCalledWith("r", oid, "auto", false, null));
+  });
+});
+
+describe("RebaseDialog", () => {
+  it("rebases onto a commit oid from the grid, or onto a preset branch", async () => {
+    const oid = "0123456789abcdef0123456789abcdef01234567";
+    const { getByRole, unmount } = render(<RebaseDialog onClose={() => {}} onto={oid} />);
+    const dialog = getByRole("dialog", { name: "Rebase main" });
+    expect(getByRole("combobox", { name: "Onto" }).textContent).toBe("0123456");
+    expect(preview(dialog)).toBe(`git rebase ${oid}`);
+    fireEvent.click(getByRole("button", { name: "Rebase" }));
+    await waitFor(() => expect(mocked.rebase).toHaveBeenCalledWith("r", oid));
+    unmount();
+
+    const second = render(<RebaseDialog onClose={() => {}} onto="feature/lane-graph" />);
+    expect(second.getByRole("combobox", { name: "Onto" }).textContent).toBe("feature/lane-graph");
+    expect(preview(second.getByRole("dialog"))).toBe("git rebase feature/lane-graph");
   });
 });
 

@@ -195,6 +195,8 @@ describe("RevisionGrid", () => {
     expect(items()).toEqual([
       "Checkout branch…",
       "Checkout (detached)",
+      "Merge branch here…",
+      "Rebase main onto feature…",
       "Create branch here…",
       "Reset main to here…",
       "Reset main to origin/main…",
@@ -217,8 +219,47 @@ describe("RevisionGrid", () => {
 
     // A lone remote branch without a local: a direct checkout item, not the picker.
     fireEvent.contextMenu(rows[2]);
-    expect(items()).toEqual(["Checkout origin/new", "Checkout (detached)", "Create branch here…", "Reset main to here…", "Create tag here…", "Copy SHA"]);
+    expect(items()).toEqual([
+      "Checkout origin/new",
+      "Checkout (detached)",
+      "Merge origin/new into main…",
+      "Rebase main onto origin/new…",
+      "Create branch here…",
+      "Reset main to here…",
+      "Create tag here…",
+      "Copy SHA",
+    ]);
     expect(pick("Create tag here…").dialog).toEqual({ kind: "createTag", target: "oid2" });
+    useDialogStore.setState({ dialog: null, returnFocus: null });
+  });
+
+  it("merges and rebases against the branch at the row, the commit itself without one, and neither at HEAD", () => {
+    withRefs();
+    // One local branch per row: the merge item names it instead of handing the pick to the dialog.
+    useRepoStore.setState({ refs: { ...REFS, local: [branch("main", "oid0", { isHead: true }), branch("feature", "oid1")], remotes: [] } });
+    useDialogStore.setState({ dialog: null, returnFocus: null });
+    const { container, getByRole, getAllByRole } = render(<RevisionGrid />);
+    const rows = container.querySelectorAll('[role="row"][aria-rowindex]');
+    const items = () => getAllByRole("menuitem").map((el) => el.textContent);
+    const pick = (name: string) => {
+      fireEvent.click(getByRole("menuitem", { name }));
+      return useDialogStore.getState().dialog;
+    };
+
+    fireEvent.contextMenu(rows[1]);
+    expect(pick("Merge feature into main…")).toEqual({ kind: "merge", branch: "feature" });
+    fireEvent.contextMenu(rows[1]);
+    expect(pick("Rebase main onto feature…")).toEqual({ kind: "rebase", onto: "feature" });
+
+    // No branch here: the commit is the merge source and the rebase target.
+    fireEvent.contextMenu(rows[2]);
+    expect(pick("Merge commit oid2 into main…")).toEqual({ kind: "merge", branch: "oid2" });
+    fireEvent.contextMenu(rows[2]);
+    expect(pick("Rebase main onto here…")).toEqual({ kind: "rebase", onto: "oid2" });
+
+    // HEAD's own commit: merging into it / rebasing onto it would be a no-op.
+    fireEvent.contextMenu(rows[0]);
+    expect(items().filter((t) => t?.startsWith("Merge") || t?.startsWith("Rebase"))).toEqual([]);
     useDialogStore.setState({ dialog: null, returnFocus: null });
   });
 
@@ -231,6 +272,8 @@ describe("RevisionGrid", () => {
     const disabled = items.filter((el) => el.disabled).map((el) => el.textContent);
     expect(disabled).toHaveLength(items.length - 1);
     expect(disabled).not.toContain("Copy SHA");
+    expect(disabled).toContain("Merge branch here…");
+    expect(disabled).toContain("Rebase main onto feature…");
     expect(items.filter((el) => el.disabled).every((el) => el.title === "Operation in progress")).toBe(true);
     useOpsStore.setState({ busy: null });
   });

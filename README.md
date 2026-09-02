@@ -8,7 +8,7 @@ Rust core (`git2` for reads and the index, the system `git` for everything that 
 
 ## Features (v1)
 
-- **Revision grid** — lane graph for all branches or the current one (the graph column fits the rows in view), ref chips (HEAD, local, remote, tags, stashes), text filter, working-tree row while the tree is dirty; virtualized, fine with very large histories. Right-click a commit to check out or reset the branches sitting on it, create a branch or tag there, or copy the SHA.
+- **Revision grid** — lane graph for all branches or the current one (the graph column fits the rows in view), ref chips (HEAD, local, remote, tags, stashes), text filter, working-tree row while the tree is dirty; virtualized, fine with very large histories. Right-click a commit to check out or reset the branches sitting on it, merge it (or a branch on it) into the current branch, rebase the current branch onto it, create a branch or tag there, or copy the SHA.
 - **Sidebar** — local branches, remotes, tags and stashes; branches with `/` nest in folders (remote ones too), a branch whose tip is already inside another is marked `merged`.
 - **Details pane** — commit metadata, changed files (flat / tree), unified and side-by-side diffs with per-line syntax highlighting (JS/TS, Rust, CSS, JSON, HTML, Python), whitespace toggle.
 - **Commit panel** — unstaged / staged lists (flat or as a folder tree — chains of single folders fold into one row, guide lines mark the depth) with multi-select, stage / unstage whole files, hunks or selected lines, discard, amend, Signed-off-by, message history, Commit & Push; or the same as a full-window commit dialog (lists and message stacked left, diff right). Hooks and GPG signing run through the real `git`.

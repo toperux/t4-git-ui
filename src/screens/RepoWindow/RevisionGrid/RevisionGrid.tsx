@@ -1,5 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, Copy, GitBranch, GitCommitHorizontal, Plus, RotateCcw, Search, Tag } from "lucide-react";
+import { ChevronDown, Copy, GitBranch, GitCommitHorizontal, GitMerge, ListRestart, Plus, RotateCcw, Search, Tag } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { Button } from "../../../components/ui/Button/Button";
 import { EmptyState } from "../../../components/ui/EmptyState/EmptyState";
@@ -220,7 +220,7 @@ export function RevisionGrid() {
   );
 }
 
-/** Commit row actions: checkout a branch here / detached, branch / tag here, reset a branch here, copy SHA. */
+/** Commit row actions: checkout a branch here / detached, merge / rebase, branch / tag here, reset a branch here, copy SHA. */
 function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number }; oid: string; el: HTMLElement } | null; onClose: () => void }) {
   const open = useDialogStore((st) => st.open);
   const running = useOpsStore(selectRunning);
@@ -239,6 +239,11 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
   const openDialog = (spec: DialogSpec) => open(spec, { returnFocusTo: menu.el });
   // Everything but Copy touches the repository: greyed while an operation runs, like the toolbar.
   const op = running ? { disabled: true, title: "Operation in progress" } : {};
+  // With no branch here the commit itself is the merge source; several branches leave the pick to the dialog.
+  const m = branches.merge;
+  const mergeTitle = m.length === 1 ? `Merge ${m[0].name} into ${current}…` : m.length === 0 ? `Merge commit ${short} into ${current}…` : "Merge branch here…";
+  const onto = branches.rebaseOnto;
+  const rebaseTitle = `Rebase ${current} onto ${onto ? onto.name : "here"}…`;
   return (
     <ContextMenu at={menu.at} onClose={onClose} label="Commit actions">
       {branches.checkout.length === 1 && (
@@ -254,6 +259,41 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
       <MenuItem icon={<GitBranch size={16} aria-hidden />} {...op} onClick={run(() => void checkoutDetached(oid, short))}>
         Checkout (detached)
       </MenuItem>
+      {!branches.headCommit && (
+        <MenuItem
+          icon={<GitMerge size={16} aria-hidden />}
+          title={mergeTitle}
+          {...op}
+          onClick={run(() => openDialog({ kind: "merge", branch: m[0]?.name ?? oid }))}
+        >
+          {/* As in the reset items: only the source name ellipsizes, the destination and the "…" hint stay visible. */}
+          <span className={s.menuLabel}>
+            {m.length === 1 ? (
+              <>
+                Merge <MenuRef className={s.menuBranch} remote={m[0].remote !== null}>{m[0].name}</MenuRef> <span>into <MenuRef>{current}</MenuRef>…</span>
+              </>
+            ) : m.length === 0 ? (
+              <>
+                Merge commit <MenuRef>{short}</MenuRef> <span>into <MenuRef>{current}</MenuRef>…</span>
+              </>
+            ) : (
+              "Merge branch here…"
+            )}
+          </span>
+        </MenuItem>
+      )}
+      {!branches.headCommit && (
+        <MenuItem
+          icon={<ListRestart size={16} aria-hidden />}
+          title={rebaseTitle}
+          {...op}
+          onClick={run(() => openDialog({ kind: "rebase", onto: onto?.name ?? oid }))}
+        >
+          <span className={s.menuLabel}>
+            Rebase <MenuRef className={s.menuBranch}>{current}</MenuRef> <span>onto {onto ? <MenuRef remote={onto.remote !== null}>{onto.name}</MenuRef> : "here"}…</span>
+          </span>
+        </MenuItem>
+      )}
       <MenuItem icon={<Plus size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "createBranch", startPoint: oid }))}>
         Create branch here…
       </MenuItem>

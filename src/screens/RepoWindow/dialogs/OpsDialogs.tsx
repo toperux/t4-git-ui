@@ -286,16 +286,22 @@ export function MergeDialog({ onClose, branch: initial }: { onClose: () => void;
   const refs = useRepoStore((st) => st.refs);
   const current = refs?.local.find((b) => b.isHead)?.name ?? "HEAD";
   const candidates = useMemo(() => {
-    const locals = (refs?.local ?? []).filter((b) => !b.isHead).map((b) => b.name);
-    const remotes = (refs?.remotes ?? []).flatMap((r) => r.branches.map((b) => b.name));
+    const locals = (refs?.local ?? []).filter((b) => !b.isHead).map((b) => ({ value: b.name, label: b.name }));
+    const remotes = (refs?.remotes ?? []).flatMap((r) => r.branches.map((b) => ({ value: b.name, label: b.name })));
     return [...locals, ...remotes];
   }, [refs]);
-  const [branch, setBranch] = useState(initial ?? candidates[0] ?? "");
+  const known = !!initial && candidates.some((c) => c.value === initial);
+  // An oid from the grid is not in the list: keep it as an extra option, shown abbreviated.
+  const options = known || !initial ? candidates : [{ value: initial, label: initial.slice(0, 7) }, ...candidates];
+  const [branch, setBranch] = useState(initial ?? candidates[0]?.value ?? "");
   const [ff, setFf] = useState<FfMode>("auto");
   const [squash, setSquash] = useState(false);
   const [message, setMessage] = useState("");
 
-  const defaultMessage = branch ? `Merge branch '${branch}' into ${current}` : "";
+  const label = options.find((o) => o.value === branch)?.label ?? branch;
+  // Merging a commit rather than a branch: git's own wording, so an unchanged message still means "let git decide".
+  const commit = !!branch && !candidates.some((c) => c.value === branch);
+  const defaultMessage = branch ? (commit ? `Merge commit '${label}'` : `Merge branch '${branch}' into ${current}`) : "";
   const effective = message.trim() && message !== defaultMessage ? message : null;
   const preview = branch ? gitCmd(mergeArgs(branch, ff, squash, effective)) : "";
 
@@ -303,8 +309,8 @@ export function MergeDialog({ onClose, branch: initial }: { onClose: () => void;
     if (!branch) return;
     onClose();
     // `--squash` records nothing: the changes land in the index and the user still has to commit.
-    const success = squash ? `Squashed ${branch} into the index — commit to finish` : `Merged ${branch} into ${current}`;
-    void runOp(`Merging ${branch}…`, (id) => ipc.merge(id, branch, ff, squash, effective), { success });
+    const success = squash ? `Squashed ${label} into the index — commit to finish` : `Merged ${label} into ${current}`;
+    void runOp(`Merging ${label}…`, (id) => ipc.merge(id, branch, ff, squash, effective), { success });
   }
 
   return (
@@ -324,9 +330,9 @@ export function MergeDialog({ onClose, branch: initial }: { onClose: () => void;
     >
       <Field label="Branch to merge" help={candidates.length === 0 ? "No other branches" : undefined}>
         <Select aria-label="Branch to merge" value={branch} onChange={(e) => setBranch(e.target.value)} autoFocus>
-          {candidates.map((b) => (
-            <option key={b} value={b}>
-              {b}
+          {options.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
             </option>
           ))}
         </Select>
@@ -453,18 +459,22 @@ export function RebaseDialog({ onClose, onto: initial }: { onClose: () => void; 
   const head = refs?.local.find((b) => b.isHead);
   const current = head?.name ?? "HEAD";
   const candidates = useMemo(() => {
-    const locals = (refs?.local ?? []).filter((b) => !b.isHead).map((b) => b.name);
-    const remotes = (refs?.remotes ?? []).flatMap((r) => r.branches.map((b) => b.name));
+    const locals = (refs?.local ?? []).filter((b) => !b.isHead).map((b) => ({ value: b.name, label: b.name }));
+    const remotes = (refs?.remotes ?? []).flatMap((r) => r.branches.map((b) => ({ value: b.name, label: b.name })));
     return [...locals, ...remotes];
   }, [refs]);
-  const [onto, setOnto] = useState(initial ?? candidates[0] ?? "");
+  const known = !!initial && candidates.some((c) => c.value === initial);
+  // An oid from the grid is not in the list: keep it as an extra option, shown abbreviated.
+  const options = known || !initial ? candidates : [{ value: initial, label: initial.slice(0, 7) }, ...candidates];
+  const [onto, setOnto] = useState(initial ?? candidates[0]?.value ?? "");
+  const label = options.find((o) => o.value === onto)?.label ?? onto;
   const pushed = !!head?.upstream && (head?.ahead ?? 0) === 0 && !head?.gone;
   const preview = onto ? gitCmd(rebaseArgs(onto)) : "";
 
   function submit() {
     if (!onto) return;
     onClose();
-    void runOp(`Rebasing onto ${onto}…`, (id) => ipc.rebase(id, onto), { success: `Rebased ${current} onto ${onto}` });
+    void runOp(`Rebasing onto ${label}…`, (id) => ipc.rebase(id, onto), { success: `Rebased ${current} onto ${label}` });
   }
 
   return (
@@ -493,9 +503,9 @@ export function RebaseDialog({ onClose, onto: initial }: { onClose: () => void; 
         }
       >
         <Select aria-label="Onto" value={onto} onChange={(e) => setOnto(e.target.value)} autoFocus>
-          {candidates.map((b) => (
-            <option key={b} value={b}>
-              {b}
+          {options.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
             </option>
           ))}
         </Select>
