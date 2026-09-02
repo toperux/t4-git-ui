@@ -190,3 +190,53 @@ describe("CommitPanel", () => {
     expect(getByText("Staged (amending)")).toBeTruthy();
   });
 });
+
+describe("CommitPanel tree view", () => {
+  const NESTED: WorkdirStatus = {
+    entries: [
+      { path: "src/lib/b.rs", oldPath: null, index: null, workdir: "modified", conflicted: false, workdirStamp: "1:1" },
+      { path: "top.rs", oldPath: null, index: null, workdir: "modified", conflicted: false, workdirStamp: "1:1" },
+      { path: "src/a.rs", oldPath: null, index: "modified", workdir: "modified", conflicted: false, workdirStamp: "1:1" },
+    ],
+    staged: 1,
+    unstaged: 3,
+    untracked: 0,
+    conflicted: 0,
+  };
+
+  beforeEach(() => {
+    localStorage.clear();
+    useStatusStore.setState({ status: NESTED, error: null });
+    useCommitStore.getState().reset();
+  });
+
+  it("the toggle nests both lists by folder, remembers the choice, and a folder click collapses it", () => {
+    const { getByRole, queryByRole } = render(<CommitPanel />);
+    expect(getByRole("listbox", { name: "Unstaged files" })).toBeTruthy();
+    fireEvent.click(getByRole("button", { name: "Show as tree" }));
+    expect(localStorage.getItem("commitFileListMode")).toBe("tree");
+    expect(queryByRole("listbox", { name: "Unstaged files" })).toBeNull();
+
+    const items = () => Array.from(getByRole("tree", { name: "Unstaged files" }).querySelectorAll('[role="treeitem"]'));
+    expect(items().map(text)).toEqual(["src", "lib", "Mb.rs", "Ma.rs", "Mtop.rs"]);
+    expect(items().map((r) => r.getAttribute("aria-level"))).toEqual(["1", "2", "3", "2", "1"]);
+    expect(items()[2].getAttribute("title")).toBe("src/lib/b.rs");
+    expect(Array.from(getByRole("tree", { name: "Staged files" }).querySelectorAll('[role="treeitem"]')).map(text)).toEqual(["src", "Ma.rs"]);
+
+    // Collapsing skips the folder's files for ↑/↓ and Shift ranges; the selection is untouched.
+    fireEvent.click(items()[3]);
+    fireEvent.click(items()[1]);
+    expect(items().map(text)).toEqual(["src", "lib", "Ma.rs", "Mtop.rs"]);
+    expect(items()[2].getAttribute("aria-selected")).toBe("true");
+    fireEvent.keyDown(getByRole("tree", { name: "Unstaged files" }), { key: "ArrowUp" });
+    expect(items()[2].getAttribute("aria-selected")).toBe("true");
+    fireEvent.click(items()[3], { shiftKey: true });
+    expect(items().map((r) => r.getAttribute("aria-selected"))).toEqual([null, null, "true", "true"]);
+
+    // The preference is read back on the next mount.
+    cleanup();
+    const again = render(<CommitPanel />);
+    expect(again.getByRole("tree", { name: "Unstaged files" })).toBeTruthy();
+    expect(again.getByRole("button", { name: "Show as list" })).toBeTruthy();
+  });
+});

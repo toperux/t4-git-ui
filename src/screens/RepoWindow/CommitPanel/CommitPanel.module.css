@@ -16,6 +16,12 @@
 }
 
 /* --- file lists --- */
+/* Title text + the list/tree toggle, sitting together on the left of the header. */
+.titleRow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
 .stagedHeader {
   border-top: 1px solid var(--border);
 }
@@ -38,7 +44,7 @@
 .list:focus-visible:not(:has(.selected)) {
   box-shadow: inset 0 0 0 1px var(--accent);
 }
-/* Virtualized rows: absolute inside a spacer of the total height. */
+/* Virtualized rows: absolute inside a spacer of the total height (beats TreeRow's own `.row` rule). */
 .rows {
   position: relative;
   width: 100%;
@@ -48,6 +54,7 @@
   top: 0;
   left: 0;
   right: 0;
+  width: auto;
 }
 .empty {
   padding: var(--space-4);
@@ -69,6 +76,16 @@
 }
 .row:hover {
   background: var(--bg-hover);
+}
+/* Tree mode (base.css .tree .row / .tw): indent by depth, chevron-width spacer on file rows.
+   After `.row`: its `padding` shorthand would otherwise win and every file would sit at depth 0. */
+.treeRow {
+  padding-left: calc(var(--space-4) + var(--tree-indent) * var(--d, 0));
+}
+.tw {
+  width: 16px;
+  height: 16px;
+  flex: none;
 }
 .selected {
   background: var(--bg-selected-unfocused);

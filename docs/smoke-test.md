@@ -135,6 +135,9 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the first two perfo
 - [ ] `hunks.txt` renders as **three** hunks — an edited line plus an added one, an indentation-only
       change, and a deletion — each with its own `@@` header
 - [ ] Multi-select in the lists: click, `Ctrl+click`, `Shift+click`, `↑` `↓`, `Ctrl+A`
+- [ ] **Show as tree** (the folder button beside the Unstaged title; it turns into a list icon once in tree mode) → both lists nest by folder with
+      folders first; clicking a folder collapses it and `↑` `↓` / `Shift+click` skip its files; the
+      hover `+` / `−`, `Enter` and double-click still act on file rows; the choice survives a restart
 - [ ] Stage via `Enter`, double-click, and the hover `+` button; `Stage all` / `Unstage all` work
 - [ ] Hover a hunk header → **Stage hunk**; click it → only that hunk moves to Staged
 - [ ] Stage a second hunk of the same file straight after → the diff drops that one too; every stage

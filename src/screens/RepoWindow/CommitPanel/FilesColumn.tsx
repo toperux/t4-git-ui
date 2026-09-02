@@ -1,25 +1,37 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Check, File, Minus, Plus } from "lucide-react";
-import { memo, useCallback, useEffect, useId, useMemo, useRef, type KeyboardEvent, type MouseEvent } from "react";
+import { Check, File, Folder, FolderTree, Minus, Plus, Rows2 } from "lucide-react";
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from "react";
 import type { FileChange, StatusEntry } from "../../../api/types";
 import { Badge } from "../../../components/ui/Badge/Badge";
 import { Button } from "../../../components/ui/Button/Button";
 import { IconButton } from "../../../components/ui/IconButton/IconButton";
 import { PanelHeader } from "../../../components/ui/PanelHeader/PanelHeader";
 import { StatusGlyph } from "../../../components/ui/StatusGlyph/StatusGlyph";
+import { TreeRow } from "../../../components/ui/TreeRow/TreeRow";
 import { cx } from "../../../lib/cx";
 import { mods } from "../../../lib/keys";
 import { clickSelect, EMPTY_SELECTION, moveSelect, selectAll, type Selection } from "../../../lib/multiSelect";
 import { entryStatus, splitStatus, useCommitStore, type ListId } from "../../../store/commitStore";
 import { useStatusStore } from "../../../store/statusStore";
 import { Stats } from "../ChangedFileList/ChangedFileList";
+import { buildFileTree, flattenTree, type TreeLine } from "../ChangedFileList/fileTree";
 import s from "./CommitPanel.module.css";
 
 /** `--row-h`; the virtualizer needs the number, and the rule below pins the same value. */
 const ROW_H = 26;
 const OVERSCAN = 10;
 
-/** Unstaged (+ Stage all) over Staged (+ Unstage all); each a multi-select listbox. */
+/** Both lists flat or both nested by folder; persisted in `localStorage.commitFileListMode`. */
+const MODE_KEY = "commitFileListMode";
+const readTreeMode = () => {
+  try {
+    return localStorage.getItem(MODE_KEY) === "tree";
+  } catch {
+    return false;
+  }
+};
+
+/** Unstaged (+ Stage all) over Staged (+ Unstage all); each a multi-select listbox, or a tree. */
 export function FilesColumn() {
   const status = useStatusStore((st) => st.status);
   const lists = useMemo(() => splitStatus(status), [status]);
@@ -27,15 +39,37 @@ export function FilesColumn() {
   const busy = useCommitStore((st) => st.busy);
   const stage = useCommitStore((st) => st.stage);
   const unstage = useCommitStore((st) => st.unstage);
+  const [tree, setTree] = useState(readTreeMode);
   // Staging a conflicted file whole is "mark resolved" (`index.add_path` drops the stages), which is
   // how a resolved file leaves the list — one at a time, on purpose. Stage all skips them: one click
   // would otherwise resolve every conflict with the markers still in the files.
   const unstagedPaths = lists.unstaged.filter((e) => !e.conflicted).map((e) => e.path);
   const skipped = lists.unstaged.length - unstagedPaths.length;
 
+  function toggleTree() {
+    const next = !tree;
+    setTree(next);
+    try {
+      localStorage.setItem(MODE_KEY, next ? "tree" : "flat");
+    } catch {
+      // Storage unavailable: the choice just doesn't persist.
+    }
+  }
+
   return (
     <div className={s.col}>
-      <PanelHeader icon={<File size={14} aria-hidden />} title="Unstaged">
+      <PanelHeader
+        icon={<File size={14} aria-hidden />}
+        title={
+          <span className={s.titleRow}>
+            Unstaged
+            {/* Beside the title, not with the right-aligned actions; the icon shows the view a click switches to. */}
+            <IconButton label={tree ? "Show as list" : "Show as tree"} onClick={toggleTree}>
+              {tree ? <Rows2 size={16} aria-hidden /> : <FolderTree size={16} aria-hidden />}
+            </IconButton>
+          </span>
+        }
+      >
         <Badge>{lists.unstaged.length}</Badge>
         <Button
           size="sm"
@@ -47,19 +81,22 @@ export function FilesColumn() {
           Stage all
         </Button>
       </PanelHeader>
-      <FileList list="unstaged" entries={lists.unstaged} />
+      <FileList list="unstaged" entries={lists.unstaged} tree={tree} />
       <PanelHeader className={s.stagedHeader} icon={<Check size={14} aria-hidden />} title={amend ? "Staged (amending)" : "Staged"}>
         <Badge>{lists.staged.length}</Badge>
         <Button size="sm" className={s.headerBtn} disabled={busy || lists.staged.length === 0} onClick={() => void unstage(lists.staged.map((e) => e.path))}>
           Unstage all
         </Button>
       </PanelHeader>
-      <FileList list="staged" entries={lists.staged} />
+      <FileList list="staged" entries={lists.staged} tree={tree} />
     </div>
   );
 }
 
-function FileList({ list, entries }: { list: ListId; entries: StatusEntry[] }) {
+/** Flat mode has no folders and shows full paths; `depth` is what indents a tree row. */
+type Row = TreeLine<StatusEntry> | { kind: "file"; file: StatusEntry; label: string; depth: undefined };
+
+function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[]; tree: boolean }) {
   const active = useCommitStore((st) => st.list === list);
   const selected = useCommitStore((st) => st.selected);
   const anchor = useCommitStore((st) => st.anchor);
@@ -69,15 +106,21 @@ function FileList({ list, entries }: { list: ListId; entries: StatusEntry[] }) {
   const stage = useCommitStore((st) => st.stage);
   const unstage = useCommitStore((st) => st.unstage);
   const discard = useCommitStore((st) => st.discard);
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
 
   const rowId = useId();
-  const paths = entries.map((e) => e.path);
+  const rows = useMemo<Row[]>(
+    () => (tree ? flattenTree(buildFileTree(entries), collapsed) : entries.map((e) => ({ kind: "file", file: e, label: e.path, depth: undefined }))),
+    [tree, entries, collapsed],
+  );
+  // Files in display order — what ↑/↓ and Shift ranges walk (a collapsed folder's files are skipped).
+  const paths = useMemo(() => rows.flatMap((r) => (r.kind === "file" ? [r.file.path] : [])), [rows]);
   const sel: Selection = active ? { selected, anchor } : EMPTY_SELECTION;
-  const anchorIndex = active && anchor ? paths.indexOf(anchor) : -1;
+  const anchorRow = active && anchor ? rows.findIndex((r) => r.kind === "file" && r.file.path === anchor) : -1;
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
-    count: entries.length,
+    count: rows.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => ROW_H,
     overscan: OVERSCAN,
@@ -86,8 +129,16 @@ function FileList({ list, entries }: { list: ListId; entries: StatusEntry[] }) {
   // Keep the focused row in view — only that one; the rest never scroll themselves.
   const scrollToIndex = virtualizer.scrollToIndex;
   useEffect(() => {
-    if (anchorIndex >= 0) scrollToIndex(anchorIndex, { align: "auto" });
-  }, [anchorIndex, scrollToIndex]);
+    if (anchorRow >= 0) scrollToIndex(anchorRow, { align: "auto" });
+  }, [anchorRow, scrollToIndex]);
+
+  const toggleFolder = (path: string) =>
+    setCollapsed((c) => {
+      const next = new Set(c);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
 
   function act(ps: string[]) {
     if (ps.length === 0) return;
@@ -97,15 +148,25 @@ function FileList({ list, entries }: { list: ListId; entries: StatusEntry[] }) {
   // One delegated listener per list keeps every `FileRow` prop stable, so `memo` actually skips rows.
   function onClick(e: MouseEvent<HTMLDivElement>) {
     const target = e.target as HTMLElement;
-    const row = target.closest<HTMLElement>("[data-path]");
-    const path = row?.dataset.path;
+    const row = target.closest<HTMLElement>("[data-path], [data-folder]");
+    if (!row) return;
+    if (row.dataset.folder !== undefined) {
+      toggleFolder(row.dataset.folder);
+      return;
+    }
+    const path = row.dataset.path;
     if (!path) return;
-    // The only button in a row is its Stage / Unstage action.
+    // The only button in a file row is its Stage / Unstage action.
     if (target.closest("button")) {
       if (!busy) act([path]);
       return;
     }
     select(list, clickSelect(paths, sel, path, mods(e)));
+  }
+
+  function onDoubleClick(e: MouseEvent<HTMLDivElement>) {
+    if (busy || (e.target as HTMLElement).closest("[data-folder]")) return;
+    act(sel.selected);
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
@@ -147,28 +208,51 @@ function FileList({ list, entries }: { list: ListId; entries: StatusEntry[] }) {
       ref={scrollRef}
       /* The 2px accent bar is a multi-selection affordance (style guide §3 ListRow), not a single-row one. */
       className={cx(s.list, sel.selected.length > 1 && s.multi)}
-      role="listbox"
+      // A folder row is a `treeitem`, not an `option`: tree mode can't be a listbox.
+      role={tree ? "tree" : "listbox"}
       aria-multiselectable
       aria-label={list === "unstaged" ? "Unstaged files" : "Staged files"}
-      aria-activedescendant={anchorIndex >= 0 ? `${rowId}-${anchorIndex}` : undefined}
+      aria-activedescendant={anchorRow >= 0 ? `${rowId}-${anchorRow}` : undefined}
       tabIndex={0}
       onKeyDown={onKeyDown}
       onClick={onClick}
-      onDoubleClick={() => !busy && act(sel.selected)}
+      onDoubleClick={onDoubleClick}
     >
       {entries.length === 0 ? (
         <div className={s.empty}>{list === "unstaged" ? "No unstaged changes" : "Nothing staged"}</div>
       ) : (
         <div className={s.rows} style={{ height: virtualizer.getTotalSize() }}>
           {virtualizer.getVirtualItems().map((item) => {
-            const e = entries[item.index];
+            const row = rows[item.index];
+            const id = `${rowId}-${item.index}`;
+            if (row.kind === "folder")
+              return (
+                <TreeRow
+                  key={row.path}
+                  id={id}
+                  role="treeitem"
+                  aria-level={row.depth + 1}
+                  tabIndex={-1}
+                  className={s.vrow}
+                  style={{ transform: `translateY(${item.start}px)` }}
+                  data-folder={row.path}
+                  depth={row.depth}
+                  expanded={row.expanded}
+                  icon={<Folder size={14} aria-hidden />}
+                  label={row.name}
+                  title={row.path}
+                />
+              );
+            const e = row.file;
             return (
               <FileRow
                 key={e.path}
-                id={`${rowId}-${item.index}`}
+                id={id}
                 top={item.start}
                 list={list}
                 entry={e}
+                label={row.label}
+                depth={row.depth}
                 stat={stats[e.path]}
                 selected={active && selected.includes(e.path)}
                 anchor={active && anchor === e.path}
@@ -187,30 +271,37 @@ interface FileRowProps {
   top: number;
   list: ListId;
   entry: StatusEntry;
+  /** Leaf name in a tree, full path in a flat list. */
+  label: string;
+  /** Tree mode: `treeitem` indented by `depth`. Flat mode: `option`. */
+  depth: number | undefined;
   stat?: FileChange;
   selected: boolean;
   anchor: boolean;
   busy: boolean;
 }
 
-const FileRow = memo(function FileRow({ id, top, list, entry, stat, selected, anchor, busy }: FileRowProps) {
+const FileRow = memo(function FileRow({ id, top, list, entry, label, depth, stat, selected, anchor, busy }: FileRowProps) {
   const full = entry.oldPath ? `${entry.oldPath} → ${entry.path}` : entry.path;
+  const tree = depth !== undefined;
   // Clicks are handled by the list (delegation): the row only carries the data the handler reads.
   const stop = useCallback((e: MouseEvent) => e.stopPropagation(), []);
   return (
     <div
       id={id}
-      role="option"
+      role={tree ? "treeitem" : "option"}
       aria-selected={selected}
+      aria-level={tree ? depth + 1 : undefined}
       data-path={entry.path}
-      className={cx(s.row, s.vrow, selected && s.selected, anchor && s.anchor)}
-      style={{ transform: `translateY(${top}px)` }}
+      className={cx(s.row, s.vrow, tree && s.treeRow, selected && s.selected, anchor && s.anchor)}
+      style={{ transform: `translateY(${top}px)`, ...(tree ? ({ "--d": depth } as CSSProperties) : null) }}
       title={full}
     >
+      {tree && <span className={s.tw} />}
       <StatusGlyph status={entryStatus(list, entry)} />
       {/* rtl + isolated ltr content: the ellipsis lands at the start so the file name stays visible */}
       <span className={s.path}>
-        <bdi dir="ltr">{full}</bdi>
+        <bdi dir="ltr">{tree ? label : full}</bdi>
       </span>
       {stat && <Stats additions={stat.additions} deletions={stat.deletions} />}
       <IconButton

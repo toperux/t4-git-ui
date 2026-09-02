@@ -152,7 +152,9 @@ src/
                            diffRows.ts (pure: flattenUnified (rows carry hunk/index) / flattenSplit), lineSelection.ts (pure: clickLine, toPairs)
       CommitPanel/         CommitPanel (Files 320 | Diff | Message 340, resizable; feeds statusStore.status → commitStore.syncWithStatus),
                            FilesColumn (Unstaged + Stage all / Staged + Unstage all; virtualized 26px rows, role=listbox
-                           aria-multiselectable + aria-activedescendant, delegated click so memo(FileRow) holds, the 2px
+                           aria-multiselectable + aria-activedescendant — or role=tree with folder rows when the header's
+                           "Show as tree" toggle beside the title is on (`localStorage.commitFileListMode`; ChangedFileList/fileTree builds +
+                           flattens it, a collapsed folder's files drop out of the ↑/↓ + Shift order), delegated click so memo(FileRow) holds, the 2px
                            accent bar only while more than one row is selected (`.list.multi`), hover Stage/Unstage IconButton, Enter/double-click act on the selection, Delete → discard w/
                            native confirm; conflicted rows = glyph C, stageable whole-file — the diff header says so, and shows
                            the file with the markers git left in it plus a "Resolve in editor" button → `open_merge_editor`;

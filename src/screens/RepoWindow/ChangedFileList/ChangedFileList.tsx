@@ -10,30 +10,15 @@ import { StatusGlyph } from "../../../components/ui/StatusGlyph/StatusGlyph";
 import { TreeRow } from "../../../components/ui/TreeRow/TreeRow";
 import { cx } from "../../../lib/cx";
 import { useDiffStore } from "../../../store/diffStore";
-import { buildFileTree, type FileNode } from "./fileTree";
+import { buildFileTree, flattenTree, type TreeLine } from "./fileTree";
 import s from "./ChangedFileList.module.css";
 
 /** `--row-h`; the virtualizer needs the number. */
 const ROW_H = 26;
 const OVERSCAN = 10;
 
-/** One rendered line: a folder in tree mode, or a file (the only selectable kind). */
-type Row =
-  | { kind: "folder"; path: string; name: string; depth: number; expanded: boolean }
-  | { kind: "file"; file: FileChange; label: string; depth: number | undefined };
-
-/** Tree → the visible lines in display order (collapsed folders contribute only their own row). */
-function flattenTree(nodes: FileNode[], collapsed: ReadonlySet<string>, depth = 0, out: Row[] = []): Row[] {
-  for (const n of nodes) {
-    if (n.file) out.push({ kind: "file", file: n.file, label: n.name, depth });
-    else {
-      const expanded = !collapsed.has(n.path);
-      out.push({ kind: "folder", path: n.path, name: n.name, depth, expanded });
-      if (expanded) flattenTree(n.children, collapsed, depth + 1, out);
-    }
-  }
-  return out;
-}
+/** One rendered line: a folder in tree mode, or a file (the only selectable kind); flat rows carry no depth. */
+type Row = TreeLine<FileChange> | { kind: "file"; file: FileChange; label: string; depth: undefined };
 
 export function ChangedFileList() {
   const oid = useDiffStore((st) => st.oid);
