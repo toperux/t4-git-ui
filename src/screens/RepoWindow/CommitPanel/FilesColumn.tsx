@@ -31,30 +31,44 @@ const readTreeMode = () => {
   }
 };
 
+/** `[tree, toggle]` for both lists; the commit dialog and the panel each keep their own copy. */
+export function useTreeMode(): [boolean, () => void] {
+  const [tree, setTree] = useState(readTreeMode);
+  const toggle = useCallback(() => {
+    setTree((t) => {
+      try {
+        localStorage.setItem(MODE_KEY, t ? "flat" : "tree");
+      } catch {
+        // Storage unavailable: the choice just doesn't persist.
+      }
+      return !t;
+    });
+  }, []);
+  return [tree, toggle];
+}
+
 /** Unstaged (+ Stage all) over Staged (+ Unstage all); each a multi-select listbox, or a tree. */
 export function FilesColumn() {
+  const [tree, toggleTree] = useTreeMode();
+  return (
+    <div className={s.col}>
+      <UnstagedFiles tree={tree} onToggleTree={toggleTree} />
+      <StagedFiles tree={tree} headerClassName={s.stagedHeader} />
+    </div>
+  );
+}
+
+/** Unstaged header (tree toggle, count, Stage all) + list. */
+export function UnstagedFiles({ tree, onToggleTree }: { tree: boolean; onToggleTree: () => void }) {
   const status = useStatusStore((st) => st.status);
-  const lists = useMemo(() => splitStatus(status), [status]);
-  const amend = useCommitStore((st) => st.amend);
+  const entries = useMemo(() => splitStatus(status).unstaged, [status]);
   const busy = useCommitStore((st) => st.busy);
   const stage = useCommitStore((st) => st.stage);
-  const unstage = useCommitStore((st) => st.unstage);
-  const [tree, setTree] = useState(readTreeMode);
   // Staging a conflicted file whole is "mark resolved" (`index.add_path` drops the stages), which is
   // how a resolved file leaves the list — one at a time, on purpose. Stage all skips them: one click
   // would otherwise resolve every conflict with the markers still in the files.
-  const unstagedPaths = lists.unstaged.filter((e) => !e.conflicted).map((e) => e.path);
-  const skipped = lists.unstaged.length - unstagedPaths.length;
-
-  function toggleTree() {
-    const next = !tree;
-    setTree(next);
-    try {
-      localStorage.setItem(MODE_KEY, next ? "tree" : "flat");
-    } catch {
-      // Storage unavailable: the choice just doesn't persist.
-    }
-  }
+  const unstagedPaths = entries.filter((e) => !e.conflicted).map((e) => e.path);
+  const skipped = entries.length - unstagedPaths.length;
 
   return (
     <div className={s.col}>
@@ -64,13 +78,13 @@ export function FilesColumn() {
           <span className={s.titleRow}>
             Unstaged
             {/* Beside the title, not with the right-aligned actions; the icon shows the view a click switches to. */}
-            <IconButton label={tree ? "Show as list" : "Show as tree"} onClick={toggleTree}>
+            <IconButton label={tree ? "Show as list" : "Show as tree"} onClick={onToggleTree}>
               {tree ? <Rows2 size={16} aria-hidden /> : <FolderTree size={16} aria-hidden />}
             </IconButton>
           </span>
         }
       >
-        <Badge>{lists.unstaged.length}</Badge>
+        <Badge>{entries.length}</Badge>
         <Button
           size="sm"
           className={s.headerBtn}
@@ -81,14 +95,27 @@ export function FilesColumn() {
           Stage all
         </Button>
       </PanelHeader>
-      <FileList list="unstaged" entries={lists.unstaged} tree={tree} />
-      <PanelHeader className={s.stagedHeader} icon={<Check size={14} aria-hidden />} title={amend ? "Staged (amending)" : "Staged"}>
-        <Badge>{lists.staged.length}</Badge>
-        <Button size="sm" className={s.headerBtn} disabled={busy || lists.staged.length === 0} onClick={() => void unstage(lists.staged.map((e) => e.path))}>
+      <FileList list="unstaged" entries={entries} tree={tree} />
+    </div>
+  );
+}
+
+/** Staged header (count, Unstage all) + list. */
+export function StagedFiles({ tree, headerClassName }: { tree: boolean; headerClassName?: string }) {
+  const status = useStatusStore((st) => st.status);
+  const entries = useMemo(() => splitStatus(status).staged, [status]);
+  const amend = useCommitStore((st) => st.amend);
+  const busy = useCommitStore((st) => st.busy);
+  const unstage = useCommitStore((st) => st.unstage);
+  return (
+    <div className={s.col}>
+      <PanelHeader className={headerClassName} icon={<Check size={14} aria-hidden />} title={amend ? "Staged (amending)" : "Staged"}>
+        <Badge>{entries.length}</Badge>
+        <Button size="sm" className={s.headerBtn} disabled={busy || entries.length === 0} onClick={() => void unstage(entries.map((e) => e.path))}>
           Unstage all
         </Button>
       </PanelHeader>
-      <FileList list="staged" entries={lists.staged} tree={tree} />
+      <FileList list="staged" entries={entries} tree={tree} />
     </div>
   );
 }

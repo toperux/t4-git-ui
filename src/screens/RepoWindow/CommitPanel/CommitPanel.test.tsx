@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkdirStatus } from "../../../api/types";
 import { useCommitStore } from "../../../store/commitStore";
 import { useRepoStore } from "../../../store/repoStore";
+import { useDialogStore } from "../../../store/dialogStore";
 import { useStatusStore } from "../../../store/statusStore";
+import { CommitDialog } from "../dialogs/CommitDialog";
 import { CommitPanel } from "./CommitPanel";
 
 vi.mock("../../../api/ipc", async (importOriginal) => {
@@ -238,5 +240,28 @@ describe("CommitPanel tree view", () => {
     const again = render(<CommitPanel />);
     expect(again.getByRole("tree", { name: "Unstaged files" })).toBeTruthy();
     expect(again.getByRole("button", { name: "Show as list" })).toBeTruthy();
+  });
+});
+
+describe("CommitDialog", () => {
+  it("opens from the message header and shows both lists, the editor and the diff in one dialog", () => {
+    useDialogStore.setState({ dialog: null });
+    localStorage.removeItem("commitFileListMode");
+    const { getByRole } = render(<CommitPanel />);
+    fireEvent.click(getByRole("button", { name: "Open commit window" }));
+    expect(useDialogStore.getState().dialog).toEqual({ kind: "commit" });
+    cleanup();
+
+    const onClose = vi.fn();
+    const dlg = render(<CommitDialog onClose={onClose} />);
+    const dialog = dlg.getByRole("dialog", { name: "Commit" });
+    expect(dialog.querySelectorAll('[role="listbox"]').length).toBe(2);
+    expect(Array.from(dlg.getByRole("listbox", { name: "Staged files" }).querySelectorAll('[role="option"]')).map(text)).toEqual(["Mboth.rs", "Anew.rs"]);
+    expect(document.activeElement).toBe(dlg.getByRole("textbox", { name: "Summary" }));
+    // No second expand button inside the dialog; the tree toggle is there.
+    expect(dlg.queryByRole("button", { name: "Open commit window" })).toBeNull();
+    expect(dlg.getByRole("button", { name: "Show as tree" })).toBeTruthy();
+    fireEvent.click(dlg.getByRole("button", { name: "Close" }));
+    expect(onClose).toHaveBeenCalled();
   });
 });

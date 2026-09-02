@@ -28,6 +28,22 @@
 .wide {
   width: 560px;
 }
+/* Full-window dialog (Commit): a slim even margin, the form stretched to it. */
+.scrimFull {
+  align-items: stretch;
+  padding: var(--space-6);
+}
+.full {
+  width: 100%;
+  height: 100%;
+}
+.bodyFull {
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
 @keyframes rise {
   from {
     opacity: 0;

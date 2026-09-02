@@ -40,6 +40,12 @@ describe("Toolbar Fetch", () => {
 });
 
 describe("Toolbar Repository menu", () => {
+  it("offers Commit…, which opens the commit dialog", () => {
+    const { getByRole } = render(<Toolbar />);
+    fireEvent.click(getByRole("button", { name: "r" }));
+    fireEvent.click(getByRole("menuitem", { name: /Commit…/ }));
+    expect(useDialogStore.getState().dialog).toEqual({ kind: "commit" });
+  });
   it("offers Run git command…, which opens the dialog", () => {
     const { getByRole } = render(<Toolbar />);
     fireEvent.click(getByRole("button", { name: "r" }));

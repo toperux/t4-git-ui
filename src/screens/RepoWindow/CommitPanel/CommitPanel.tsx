@@ -5,6 +5,7 @@ import * as ipc from "../../../api/ipc";
 import { toAppError } from "../../../api/ipc";
 import type { FileDiff } from "../../../api/types";
 import { useCommitStore } from "../../../store/commitStore";
+import { useDialogStore } from "../../../store/dialogStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { useStatusStore } from "../../../store/statusStore";
 import { toastError, useToastStore } from "../../../store/toastStore";
@@ -14,12 +15,17 @@ import s from "./CommitPanel.module.css";
 import { FilesColumn } from "./FilesColumn";
 import { MessageColumn } from "./MessageColumn";
 
-/** Bottom pane while the working-tree row is selected: Unstaged/Staged 320 | Diff | Message 340 (Commit.mjs). */
-export function CommitPanel() {
+/** Feeds every status refresh into the commit store (selection pruning, diff reload). */
+export function useCommitSync() {
   const status = useStatusStore((st) => st.status);
   const sync = useCommitStore((st) => st.syncWithStatus);
   useEffect(() => sync(status), [status, sync]);
+}
 
+/** Bottom pane while the working-tree row is selected: Unstaged/Staged 320 | Diff | Message 340 (Commit.mjs). */
+export function CommitPanel() {
+  useCommitSync();
+  const open = useDialogStore((st) => st.open);
   return (
     <Group orientation="horizontal" className={s.pane}>
       <Panel defaultSize={320} minSize={220} maxSize={560} className={w.panel}>
@@ -31,14 +37,14 @@ export function CommitPanel() {
       </Panel>
       <Separator className={w.splitH} aria-label="Resize commit message" />
       <Panel defaultSize={340} minSize={260} maxSize={560} className={w.panel}>
-        <MessageColumn />
+        <MessageColumn onExpand={() => open({ kind: "commit" })} />
       </Panel>
     </Group>
   );
 }
 
 /** `DiffViewer` in actions mode for the focused working-tree file. */
-function DiffColumn() {
+export function DiffColumn() {
   const diff = useCommitStore((st) => st.diff);
   const path = useCommitStore((st) => st.diffPath);
   const list = useCommitStore((st) => st.diffList);

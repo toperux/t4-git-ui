@@ -6,6 +6,8 @@ export type DialogSpec =
   | { kind: "pull" }
   | { kind: "fetch" }
   | { kind: "runCommand" }
+  /** The commit panel as a full-window dialog (Unstaged / Staged / Message stacked | Diff). */
+  | { kind: "commit" }
   | { kind: "merge"; branch?: string }
   | { kind: "rebase"; onto?: string }
   | { kind: "checkout" }

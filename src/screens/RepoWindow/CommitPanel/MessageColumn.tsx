@@ -1,4 +1,4 @@
-import { Check, GitCommitHorizontal, History, TriangleAlert } from "lucide-react";
+import { Check, GitCommitHorizontal, History, Maximize2, TriangleAlert } from "lucide-react";
 import { useEffect, useState, type KeyboardEvent } from "react";
 import { getAuthor, toAppError } from "../../../api/ipc";
 import type { AppError, Author } from "../../../api/types";
@@ -18,8 +18,17 @@ import s from "./CommitPanel.module.css";
 
 export const SUMMARY_LIMIT = 72;
 
+export interface MessageColumnProps {
+  /** Header button that opens the commit dialog (the panel has one; the dialog itself doesn't). */
+  onExpand?: () => void;
+  /** Runs after a successful Commit — the dialog closes itself with it. */
+  onCommitted?: () => void;
+  /** Focus the summary on mount. */
+  autoFocus?: boolean;
+}
+
 /** Message editor (summary + body), amend / sign-off, author line, Commit (Ctrl+Enter). */
-export function MessageColumn() {
+export function MessageColumn({ onExpand, onCommitted, autoFocus }: MessageColumnProps) {
   const repoId = useRepoStore((st) => st.repo?.id ?? null);
   const summary = useCommitStore((st) => st.summary);
   const body = useCommitStore((st) => st.body);
@@ -63,23 +72,35 @@ export function MessageColumn() {
   const noIdentity = authorError?.kind === "config";
   const canCommit = !busy && !!summary.trim() && (stagedCount > 0 || amend) && !noIdentity;
 
+  /** An amend keeps a non-empty editor no longer, but the oid is the only reliable success signal. */
+  async function commitOnly() {
+    if (await commit()) onCommitted?.();
+  }
+
   /** Commits, then opens the Push dialog (which carries the remote / upstream options). */
   async function commitAndPush() {
     if (!canCommit || running) return;
-    // An amend keeps a non-empty editor no longer, but the oid is the only reliable success signal.
-    if (await commit()) useDialogStore.getState().open({ kind: "push" });
+    if (await commit()) {
+      onCommitted?.();
+      useDialogStore.getState().open({ kind: "push" });
+    }
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && canCommit) {
       e.preventDefault();
-      void commit();
+      void commitOnly();
     }
   }
 
   return (
     <div className={s.col}>
       <PanelHeader icon={<GitCommitHorizontal size={14} aria-hidden />} title="Commit message">
+        {onExpand && (
+          <IconButton label="Open commit window" onClick={onExpand}>
+            <Maximize2 size={16} aria-hidden />
+          </IconButton>
+        )}
         <Menu
           open={histOpen}
           onClose={() => setHistOpen(false)}
@@ -117,6 +138,7 @@ export function MessageColumn() {
               onChange={(e) => setSummary(e.target.value.replace(/[\r\n]+/g, " "))}
               placeholder="Summary"
               aria-label="Summary"
+              autoFocus={autoFocus}
               /* `readOnly`, not `disabled`: a stage/unstage landing mid-typing must not steal focus. */
               readOnly={busy}
               aria-busy={busy}
@@ -158,7 +180,7 @@ export function MessageColumn() {
           )
         )}
         <div className={s.actions}>
-          <Button variant="primary" className={s.commitBtn} icon={<Check size={14} aria-hidden />} disabled={!canCommit} onClick={() => void commit()}>
+          <Button variant="primary" className={s.commitBtn} icon={<Check size={14} aria-hidden />} disabled={!canCommit} onClick={() => void commitOnly()}>
             Commit
           </Button>
           <Button disabled={!canCommit || running} title={running ? "Operation in progress" : "Commit, then open the Push dialog"} onClick={() => void commitAndPush()}>

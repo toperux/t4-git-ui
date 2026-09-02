@@ -158,6 +158,10 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the first two perfo
 - [ ] `Ctrl+Enter` commits → the output dock shows `$ git commit …` and `✓ exit 0`; the editor clears,
       the grid gains the new commit
 - [ ] Amend a commit → after success the editor is cleared and Amend is unchecked
+- [ ] **Open commit window** (the expand button in the Commit message header, a double-click on the
+      working-tree row, or Repository menu › Commit…) → a full-window dialog: Unstaged / Staged / Message stacked on the left, the diff on
+      the right, all three splitters drag; staging there is mirrored in the panel behind; `Esc`
+      closes it, and a successful Commit closes it by itself
 - [ ] With `user.name` unset → a warning line appears and Commit is disabled
 - [ ] `touch .git/index.lock` then try to stage → error toast **that stays put** with a Retry action;
       remove the lock, press Retry → succeeds

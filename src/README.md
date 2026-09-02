@@ -150,7 +150,10 @@ src/
                            to the top only when the file path changes. No hunk/line Discard: the backend has no
                            reverse-apply-to-workdir — file-level discard lives in `CommitPanel/FilesColumn`
                            diffRows.ts (pure: flattenUnified (rows carry hunk/index) / flattenSplit), lineSelection.ts (pure: clickLine, toPairs)
-      CommitPanel/         CommitPanel (Files 320 | Diff | Message 340, resizable; feeds statusStore.status → commitStore.syncWithStatus),
+      CommitPanel/         CommitPanel (Files 320 | Diff | Message 340, resizable; `useCommitSync` feeds statusStore.status →
+                           commitStore.syncWithStatus; the message header's "Open commit window" opens dialogs/CommitDialog:
+                           the same columns as a full-window dialog, Unstaged / Staged / Message stacked left, diff right,
+                           closing itself after a commit — also Repository menu › Commit… and a double-click on the working-tree row),
                            FilesColumn (Unstaged + Stage all / Staged + Unstage all; virtualized 26px rows, role=listbox
                            aria-multiselectable + aria-activedescendant — or role=tree with folder rows when the header's
                            "Show as tree" toggle beside the title is on (`localStorage.commitFileListMode`; ChangedFileList/fileTree builds +

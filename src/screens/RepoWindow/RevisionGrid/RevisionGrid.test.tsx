@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LogRow } from "../../../api/types";
+import { useDialogStore } from "../../../store/dialogStore";
 import { __resetForTests as resetRepo, useRepoStore } from "../../../store/repoStore";
 import { __resetForTests as resetStatus, useStatusStore } from "../../../store/statusStore";
 import { RevisionGrid } from "./RevisionGrid";
@@ -130,6 +131,11 @@ describe("RevisionGrid", () => {
     expect(rows[1].getAttribute("aria-selected")).toBe("true");
     fireEvent.mouseDown(rows[0]);
     expect(useRepoStore.getState().wtSelected).toBe(true);
+    // A double-click opens the full-window commit dialog.
+    useDialogStore.setState({ dialog: null });
+    fireEvent.doubleClick(rows[0]);
+    expect(useDialogStore.getState().dialog).toEqual({ kind: "commit" });
+    useDialogStore.setState({ dialog: null });
     // ArrowDown from the pseudo-row lands on the first commit.
     fireEvent.keyDown(getByRole("grid"), { key: "ArrowDown" });
     expect(useRepoStore.getState()).toMatchObject({ wtSelected: false, selectedIndex: 0 });

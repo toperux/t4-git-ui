@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { cx } from "../../../lib/cx";
+import { useDialogStore } from "../../../store/dialogStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { WorkingTreeNode } from "./GraphCell";
 import s from "./RevisionGrid.module.css";
@@ -19,6 +20,7 @@ export const WorkingTreeRow = memo(function WorkingTreeRow({ id, top, rowH, lane
   const selected = useRepoStore((st) => st.wtSelected);
   const selectWorkingTree = useRepoStore((st) => st.selectWorkingTree);
   const first = useRepoStore((st) => st.rows[0]?.row ?? null);
+  const openDialog = useDialogStore((st) => st.open);
 
   return (
     <div
@@ -29,6 +31,7 @@ export const WorkingTreeRow = memo(function WorkingTreeRow({ id, top, rowH, lane
       className={cx(s.row, selected && s.selected)}
       style={{ transform: `translateY(${top}px)`, height: rowH }}
       onMouseDown={() => selectWorkingTree()}
+      onDoubleClick={() => openDialog({ kind: "commit" })}
     >
       <div role="gridcell" className={s.graph} style={{ width: graphW }}>
         <WorkingTreeNode lanes={lanes} first={first} />

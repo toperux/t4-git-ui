@@ -15,6 +15,8 @@ export interface DialogProps {
   title: string;
   /** 560px (output-bearing / two-column) instead of 440px. */
   wide?: boolean;
+  /** Fills the window (commit dialog); the body is an unpadded flex column for the caller's own layout. */
+  full?: boolean;
   onClose: () => void;
   /** A long-running action owns the dialog: Esc and the close button are inert. */
   busy?: boolean;
@@ -22,8 +24,8 @@ export interface DialogProps {
   onSubmit?: () => void;
   /** Footer left: `Runs git …` (mono). */
   preview?: string;
-  /** Footer buttons, primary last (`type="submit"`). */
-  footer: ReactNode;
+  /** Footer buttons, primary last (`type="submit"`); no footer at all when omitted. */
+  footer?: ReactNode;
   children: ReactNode;
 }
 
@@ -33,7 +35,7 @@ const FOCUSABLE = 'button:not(:disabled), input:not(:disabled), select:not(:disa
  * Modal dialog (style guide `Dialog`): scrim, title + close, body, footer. Esc closes, Enter submits,
  * Tab is trapped inside, focus returns to the opener on unmount. Rendered into `document.body`.
  */
-export function Dialog({ title, wide, onClose, busy, onSubmit, preview, footer, children }: DialogProps) {
+export function Dialog({ title, wide, full, onClose, busy, onSubmit, preview, footer, children }: DialogProps) {
   const ref = useRef<HTMLFormElement>(null);
   const titleId = useId();
   const returnFocusTo = useContext(DialogReturnFocus);
@@ -79,8 +81,16 @@ export function Dialog({ title, wide, onClose, busy, onSubmit, preview, footer, 
   }
 
   return createPortal(
-    <div className={s.scrim}>
-      <form ref={ref} role="dialog" aria-modal="true" aria-labelledby={titleId} className={cx(s.dialog, wide && s.wide)} onKeyDown={onKeyDown} onSubmit={submit}>
+    <div className={cx(s.scrim, full && s.scrimFull)}>
+      <form
+        ref={ref}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className={cx(s.dialog, wide && s.wide, full && s.full)}
+        onKeyDown={onKeyDown}
+        onSubmit={submit}
+      >
         <div className={s.title}>
           <span id={titleId} className={s.grow}>
             {title}
@@ -89,16 +99,18 @@ export function Dialog({ title, wide, onClose, busy, onSubmit, preview, footer, 
             <X size={16} aria-hidden />
           </IconButton>
         </div>
-        <div className={s.body}>{children}</div>
-        <div className={s.foot}>
-          {preview && (
-            <span className={s.preview} title={preview}>
-              Runs <code>{preview}</code>
-            </span>
-          )}
-          <span className={s.grow} />
-          {footer}
-        </div>
+        <div className={cx(s.body, full && s.bodyFull)}>{children}</div>
+        {(footer || preview) && (
+          <div className={s.foot}>
+            {preview && (
+              <span className={s.preview} title={preview}>
+                Runs <code>{preview}</code>
+              </span>
+            )}
+            <span className={s.grow} />
+            {footer}
+          </div>
+        )}
       </form>
     </div>,
     document.body,
