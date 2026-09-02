@@ -95,8 +95,11 @@ src/
                            BusyOverlay (scrim + spinner card while repoStore.opening is set; rendered once in App.tsx
                            so it covers the start screen and a toolbar-menu repo switch alike),
                            Menu/MenuItem/MenuSeparator (anchor + dropdown, Esc/outside click, ↑/↓, `kbd` hint, `align`)
-                           + ContextMenu (portal at a viewport point, clamped), Toast + ToastStack,
-                           Dialog (440 / `.wide` 560 over `--scrim`, portal, Esc closes, Enter submits, Tab trapped, focus
+                           + ContextMenu (portal at a viewport point, clamped) + MenuRef (a branch name inside an item:
+                           mono, chip colours for local / remote), ThemeToggle (Sun/Moon, theme/theme.ts `toggleTheme`),
+                           Toast + ToastStack,
+                           Dialog (440 / `.wide` 560 / `full` = the window minus a margin, unpadded body, footer optional —
+                           over `--scrim`, portal, Esc closes, Enter submits, Tab trapped, focus
                            restored, aria-modal) + Field / FieldRow / Options / DialogText / Mono)
   screens/
     StartScreen/           recents list (filter, keyboard, pin, remove) | Open / Clone… / Initialize… cards + shortcuts;
@@ -107,9 +110,11 @@ src/
                            Toolbar (repo menu = open repository name → folder picker / other recents / close, Fetch = split
                            button: click → default remote w/ prune, ▾ → the Fetch dialog (remote, prune, tags), Pull / Push
                            dialogs + ahead/behind counts, Branch and Stash menus, Commit button
-                           = change count; every op button disabled while one runs),
-                           Sidebar (one `role="tree"` per section with a roving tabIndex, context menus per ref kind on
-                           right-click / Shift+F10, double-click = checkout),
+                           = change count, Repository menu › Commit… / Run git command…, ThemeToggle beside Settings;
+                           every op button disabled while one runs),
+                           Sidebar (one `role="tree"` per section with a roving tabIndex; branches with `/` nest in
+                           folder rows under Local and under each remote; a `mergedInto` branch is muted with a
+                           `merged` badge; context menus per ref kind on right-click / Shift+F10, double-click = checkout),
                            actions.ts (fetchDefault / checkout* / stash* / copyText / refreshAll / switchRepo / pickAndOpenRepo /
                            closeRepo — the git ones through runOp),
                            banners.ts (pure refs+status → detached | merge | rebase | sequencer (cherry-pick/revert/bisect,
@@ -133,7 +138,11 @@ src/
                            and aria-activedescendant; row 0 = WorkingTreeRow while dirty & unfiltered —
                            commit rows shift by one, store indices stay commit-based), GridRow (memo, per-row store selectors),
                            GraphCell (<canvas> per row, `useDevicePixelRatio()` repaints on a DPI change) + WorkingTreeNode
-                           (dashed ring), graphGeometry.ts, RefChips (max 3 chips, `+N` opens a portalled popover of the rest)
+                           (dashed ring; double-click opens the commit dialog), graphGeometry.ts, visibleLanes.ts (graph
+                           column width follows the busiest row in view, grows at once / shrinks after 300 ms, up to 40
+                           lanes), commitMenu.ts (pure: the Checkout / Reset items for the branches at a commit),
+                           the row ContextMenu (checkout / branch / reset / tag / copy SHA; branch names via MenuRef),
+                           RefChips (max 3 chips, `+N` opens a portalled popover of the rest)
       ChangedFileList/     ChangedFileList (virtualized 26px rows + aria-activedescendant; flat = role=listbox of options,
                            tree = role=tree of treeitems with aria-expanded/aria-level; ↑/↓, StatusGlyph + start-ellipsis
                            mono path + `+N −M`), fileTree.ts (pure: nest by `/`, folders first)
