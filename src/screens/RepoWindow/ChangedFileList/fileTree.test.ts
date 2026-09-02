@@ -24,6 +24,29 @@ describe("buildFileTree", () => {
     const lines = flattenTree(tree, new Set());
     expect(lines.map((l) => (l.kind === "folder" ? `d:${l.path}` : `f:${l.file.path}`))).toEqual(["d:a", "f:a/b", "f:a"]);
   });
+
+  it("compacts a chain of single-child folders into one line named a/b/c, pathed at the deepest", () => {
+    const lines = flattenTree(buildFileTree([f("a/b/c/x.rs"), f("a/b/c/y.rs")]), new Set());
+    expect(lines[0]).toMatchObject({ kind: "folder", name: "a/b/c", path: "a/b/c", depth: 0 });
+    expect(lines.slice(1)).toMatchObject([
+      { kind: "file", label: "x.rs", depth: 1 },
+      { kind: "file", label: "y.rs", depth: 1 },
+    ]);
+  });
+
+  it("a folder with two children is never compacted", () => {
+    const lines = flattenTree(buildFileTree([f("a/b/x.rs"), f("a/c/y.rs")]), new Set());
+    expect(lines.map((l) => (l.kind === "folder" ? `d:${l.name}` : `f:${l.label}`))).toEqual(["d:a", "d:b", "f:x.rs", "d:c", "f:y.rs"]);
+  });
+
+  it("compacts only the chain: a folder beside a file keeps its own line", () => {
+    const tree = buildFileTree([f("a/b/c/x.rs"), f("a/d.rs")]);
+    expect(tree).toMatchObject([{ name: "a", path: "a" }]);
+    expect(tree[0].children.map((n) => [n.name, n.path, !!n.file])).toEqual([
+      ["b/c", "a/b/c", false],
+      ["d.rs", "a/d.rs", true],
+    ]);
+  });
 });
 
 describe("hiddenSlot", () => {
@@ -36,5 +59,10 @@ describe("hiddenSlot", () => {
     // The outermost collapsed ancestor is the one on screen.
     expect(hiddenSlot(flattenTree(tree, new Set(["a", "a/n"])), "a/n/y.ts")).toBe(0);
     expect(hiddenSlot(flattenTree(tree, new Set(["a"])), "nope.ts")).toBe(-1);
+  });
+
+  it("a compacted chain is collapsed by its deepest path, and still hides the files under it", () => {
+    const tree = buildFileTree([f("a/b/c/x.ts"), f("z.ts")]);
+    expect(hiddenSlot(flattenTree(tree, new Set(["a/b/c"])), "a/b/c/x.ts")).toBe(0);
   });
 });

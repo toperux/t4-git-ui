@@ -140,6 +140,10 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the first two perfo
 - [ ] **Show as tree** (the folder button beside the Unstaged title; it turns into a list icon once in tree mode) → both lists nest by folder with
       folders first; clicking a folder collapses it and `↑` `↓` / `Shift+click` skip its files; the
       hover `+` / `−`, `Enter` and double-click still act on file rows; the choice survives a restart
+- [ ] Tree view look: a chain of single folders (`a/b/c/x.rs` alone) is one row `a / b / c` with the
+      full path in its tooltip; collapsing it hides everything under it; every nested row shows a thin
+      guide line under each ancestor's chevron, and the lines stay visible on hover and when selected;
+      the details pane's changed-files tree does the same
 - [ ] Tree view keys: `Enter` / `Space` / `←` / `→` on a clicked folder row toggle it and stage nothing;
       select a file, collapse its folder → it stays selected, `Ctrl+A` then `Enter` stages the hidden
       one too; `↓` from the hidden file lands on the first file after the folder; stage a file in

@@ -52,21 +52,28 @@
   white-space: nowrap;
   transition: background-color var(--dur) var(--ease);
 }
+/* Longhand, not the `background` shorthand: that would erase `.treeRow`'s indent-guide image. */
 .row:hover {
-  background: var(--bg-hover);
+  background-color: var(--bg-hover);
 }
 .selected {
-  background: var(--bg-selected-unfocused);
+  background-color: var(--bg-selected-unfocused);
 }
 .list:focus-within .selected {
-  background: var(--bg-selected);
+  background-color: var(--bg-selected);
 }
 .list:focus-visible .selected {
   box-shadow: inset 0 0 0 1px var(--accent);
 }
-/* base.css .tree .row / .tw */
-.treeRow {
+/* base.css .tree .row / .tw — indent by depth, and a guide line under each ancestor's chevron
+   (x = pad + 8px + indent·k).
+   `.rows .treeRow` outranks TreeRow's own `.row { background: transparent }`, whose module may load later. */
+.rows .treeRow {
   padding-left: calc(var(--space-4) + var(--tree-indent) * var(--d, 0));
+  background-image: repeating-linear-gradient(90deg, var(--border) 0 1px, transparent 1px var(--tree-indent));
+  background-repeat: no-repeat;
+  background-size: calc(var(--tree-indent) * var(--d, 0)) 100%;
+  background-position: calc(var(--space-4) + 8px) 0;
 }
 .tw {
   width: 16px;

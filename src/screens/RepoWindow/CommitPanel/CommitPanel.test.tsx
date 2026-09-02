@@ -280,6 +280,24 @@ describe("CommitPanel tree view", () => {
     expect(again.getByRole("button", { name: "Show as list" })).toBeTruthy();
   });
 
+  it("a chain of single-child folders is one row, `a / b / c`, that collapses as a whole", () => {
+    // Its own fixture: the shared one's row indexes are load-bearing for the tests around this.
+    useStatusStore.setState({
+      status: { ...NESTED, entries: [...NESTED.entries, { path: "deep/one/two/z.rs", oldPath: null, index: null, workdir: "modified", conflicted: false, workdirStamp: "1:1" }] },
+      error: null,
+    });
+    useTreeModeStore.setState({ tree: true });
+    const { getByRole } = renderPanel();
+    const tree = () => getByRole("tree", { name: "Unstaged files" });
+    const chain = () => items(tree())[0];
+    expect(text(chain())).toBe("deep / one / two");
+    expect(chain().getAttribute("title")).toBe("deep/one/two");
+    expect(chain().getAttribute("aria-level")).toBe("1");
+    expect(items(tree()).map(text)).toEqual(["deep / one / two", "Mz.rs", "src", "lib", "Mb.rs", "Ma.rs", "Mtop.rs"]);
+    fireEvent.click(chain());
+    expect(items(tree()).map(text)).toEqual(["deep / one / two", "src", "lib", "Mb.rs", "Ma.rs", "Mtop.rs"]);
+  });
+
   it("one mode for every mount: the dialog's toggle switches the panel behind it", () => {
     const { getAllByRole } = render(
       <Synced>

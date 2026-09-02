@@ -3,6 +3,7 @@
 import type { FileChange } from "../../../api/types";
 
 export interface FileNode<T = FileChange> {
+  /** Segment, or `a/b/c` for a compacted chain of single-child folders. */
   name: string;
   /** Folder path (`a/b`) or the file's path. */
   path: string;
@@ -32,7 +33,26 @@ export function buildFileTree<T extends { path: string }>(files: T[]): FileNode<
     nodes.forEach((n) => sort(n.children));
   };
   sort(root.children);
+  compact(root.children);
   return root.children;
+}
+
+/**
+ * Collapse `a` → `b` → `c` chains of single-child folders into one `a/b/c` node. The node keeps the
+ * *deepest* folder's `path`, so `collapsed` keys and `hiddenSlot`'s `path.startsWith(l.path + "/")`
+ * test still name a real prefix of the files underneath.
+ */
+function compact<T>(nodes: FileNode<T>[]): void {
+  nodes.forEach((n, i) => {
+    if (n.file) return;
+    let node = n;
+    while (node.children.length === 1 && !node.children[0].file) {
+      const child = node.children[0];
+      node = { name: `${node.name}/${child.name}`, path: child.path, children: child.children };
+    }
+    nodes[i] = node;
+    compact(node.children);
+  });
 }
 
 /** One rendered line of a tree: a folder, or a file (the only selectable kind). */

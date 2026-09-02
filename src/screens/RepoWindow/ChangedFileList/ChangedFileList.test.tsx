@@ -57,11 +57,13 @@ describe("ChangedFileList", () => {
     expect(getByRole("tree", { name: "Changed files" })).toBeTruthy();
     expect(queryByRole("listbox")).toBeNull();
     expect(container.querySelectorAll('[role="option"]')).toHaveLength(0);
-    const folders = getAllByRole("treeitem", { expanded: true }).map((b) => b.textContent);
-    expect(folders).toEqual(["crates", "git-core", "src", "log", "src", "log"]);
+    // Single-child chains are one row each, with the full path still in the tooltip.
+    const folders = getAllByRole("treeitem", { expanded: true });
+    expect(folders.map((b) => b.textContent)).toEqual(["crates / git-core / src / log", "src / log"]);
+    expect(folders[0].getAttribute("title")).toBe("crates/git-core/src/log");
     // Leaves are treeitems too, levelled by depth.
     const leaves = getAllByRole("treeitem").filter((r) => !r.hasAttribute("aria-expanded"));
     expect(leaves.map((r) => r.textContent?.replace(/\s+/g, ""))).toEqual(["Acache.rs+88", "Mgraph.rs+42−7", "Rmod.rs"]);
-    expect(leaves[0].getAttribute("aria-level")).toBe("5"); // crates / git-core / src / log / cache.rs
+    expect(leaves[0].getAttribute("aria-level")).toBe("2"); // crates/git-core/src/log > cache.rs
   });
 });

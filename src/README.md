@@ -152,7 +152,10 @@ src/
                            RefChips (max 3 chips, `+N` opens a portalled popover of the rest)
       ChangedFileList/     ChangedFileList (virtualized 26px rows + aria-activedescendant; flat = role=listbox of options,
                            tree = role=tree of treeitems with aria-expanded/aria-level; ↑/↓, StatusGlyph + start-ellipsis
-                           mono path + `+N −M`), fileTree.ts (pure: nest by `/`, folders first)
+                           mono path + `+N −M`), fileTree.ts (pure: nest by `/`, folders first; a chain of single-child folders folds into one
+                           node named `a/b/c`, keyed by its deepest path, rendered `a / b / c`); tree rows draw a guide line
+                           under each ancestor's chevron (`.rows .treeRow` background-image, so hover / selected rules use
+                           `background-color`)
       DiffViewer/          DiffViewer props {path, oldPath, stats, diff, loading, error, actions?} (header: path, stats, unified/split/
                            whitespace IconButtons; virtualized body, role=region, `.selectable` text, CR → ␍, no-newline marker,
                            binary/truncated states; per-line syntax highlighting via lib/highlight → `--syn-*`). `actions` = staging mode: forced unified, hunk-row "Discard | Stage/Unstage hunk"

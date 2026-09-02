@@ -143,13 +143,14 @@ export function ChangedFileList() {
                     role="treeitem"
                     aria-level={row.depth + 1}
                     tabIndex={-1}
-                    className={s.vrow}
+                    className={cx(s.vrow, s.treeRow)}
                     style={{ transform: `translateY(${item.start}px)` }}
                     data-folder={row.path}
                     depth={row.depth}
                     expanded={row.expanded}
                     icon={<Folder size={14} aria-hidden />}
-                    label={row.name}
+                    /* A compacted chain reads as `a / b / c`; the tooltip keeps the real path. */
+                    label={row.name.split("/").join(" / ")}
                     title={row.path}
                   />
                 );
