@@ -99,6 +99,16 @@ describe("StartScreen", () => {
     expect(useRecentsStore.getState().recents.map((r) => r.name)).toEqual(["t4-git-ui", "dotfiles"]);
   });
 
+  it("the gear opens Settings, and closing it puts the dialog away", () => {
+    const { getAllByRole, getByRole, queryByRole } = render(<StartScreen />);
+    fireEvent.click(getByRole("button", { name: "Settings" }));
+    expect(getByRole("dialog", { name: "Settings" })).toBeTruthy();
+    // Title-bar X and the footer button share the name; the footer one is last.
+    const closers = getAllByRole("button", { name: "Close" });
+    fireEvent.click(closers[closers.length - 1]);
+    expect(queryByRole("dialog", { name: "Settings" })).toBeNull();
+  });
+
   it("clone dialog derives the folder name, runs clone_repo and shows the latest progress line", async () => {
     const { getByRole, findByRole, getByText } = render(<StartScreen />);
     fireEvent.click(getByRole("button", { name: /^Clone…/ }));

@@ -2,6 +2,7 @@
 import type { ReactNode } from "react";
 import { DialogReturnFocus } from "../../../components/ui/Dialog/Dialog";
 import { useDialogStore, type DialogSpec } from "../../../store/dialogStore";
+import { SettingsDialog } from "../../SettingsDialog/SettingsDialog";
 import { CommitDialog } from "./CommitDialog";
 import { DeleteRemoteTagDialog, FetchDialog, MergeDialog, PullDialog, PushDialog, PushTagDialog, RebaseDialog, ResetBranchDialog, ResetDialog } from "./OpsDialogs";
 import {
@@ -37,6 +38,8 @@ function renderDialog(dialog: DialogSpec, close: () => void): ReactNode {
       return <FetchDialog onClose={close} />;
     case "runCommand":
       return <RunCommandDialog onClose={close} />;
+    case "settings":
+      return <SettingsDialog onClose={close} />;
     case "commit":
       return <CommitDialog onClose={close} />;
     case "merge":

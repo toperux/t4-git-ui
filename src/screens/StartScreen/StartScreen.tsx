@@ -20,6 +20,7 @@ import { filterRecents, useRecentsStore } from "../../store/recentsStore";
 import { useRepoStore } from "../../store/repoStore";
 import { toastError, useToastStore } from "../../store/toastStore";
 import pkg from "../../../package.json";
+import { SettingsDialog } from "../SettingsDialog/SettingsDialog";
 import { CloneDialog } from "./CloneDialog";
 import s from "./StartScreen.module.css";
 
@@ -42,6 +43,8 @@ export function StartScreen() {
   const [selected, setSelected] = useState(0);
   const [busy, setBusy] = useState(false);
   const [clone, setClone] = useState<{ parent: string } | null>(null);
+  // No `DialogHost` on this screen (it lives in RepoWindow), so the dialog is local state.
+  const [settings, setSettings] = useState(false);
 
   const visible = useMemo(() => filterRecents(recents, filter), [recents, filter]);
   const sel = Math.min(selected, Math.max(visible.length - 1, 0));
@@ -115,7 +118,7 @@ export function StartScreen() {
 
   useEffect(() => {
     function onKey(e: globalThis.KeyboardEvent) {
-      if (!e.ctrlKey || e.altKey || clone) return;
+      if (!e.ctrlKey || e.altKey || clone || settings) return;
       const k = e.key.toLowerCase();
       if (k === "o" && !e.shiftKey) void pick();
       else if (k === "o" && e.shiftKey) void startClone();
@@ -127,7 +130,7 @@ export function StartScreen() {
     return () => window.removeEventListener("keydown", onKey);
     // `pick` / `startClone` / `init` are recreated every render; these are the values they actually read.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clone, busy, lastCloneDir, recents, openRepo]);
+  }, [clone, settings, busy, lastCloneDir, recents, openRepo]);
 
   /** Shared by the filter input and the listbox: ↑/↓ move, Enter opens, Delete removes. */
   function onListKey(e: KeyboardEvent) {
@@ -171,7 +174,7 @@ export function StartScreen() {
         <span className={s.version}>{pkg.version}</span>
         <span className={s.grow} />
         <ThemeToggle />
-        <IconButton label="Settings" title="Settings arrive after v1" disabled>
+        <IconButton label="Settings" onClick={() => setSettings(true)}>
           <Settings size={16} aria-hidden />
         </IconButton>
       </div>
@@ -303,6 +306,7 @@ export function StartScreen() {
           }}
         />
       )}
+      {settings && <SettingsDialog onClose={() => setSettings(false)} />}
       <ToastStack />
     </div>
   );

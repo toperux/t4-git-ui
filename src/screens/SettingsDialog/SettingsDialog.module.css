@@ -1,0 +1,27 @@
+/* Settings groups on top of components/ui/Dialog: a heading per topic, then its fields. */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+.head {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--fg);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+/* Path field + Locate… + Apply on one line. */
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+.row > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+.number {
+  width: 96px;
+}

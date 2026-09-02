@@ -14,6 +14,7 @@ import { useCmdHistoryStore } from "./store/cmdHistoryStore";
 import { useOpsStore } from "./store/opsStore";
 import { useRecentsStore } from "./store/recentsStore";
 import { useRepoStore } from "./store/repoStore";
+import { useSettingsStore } from "./store/settingsStore";
 import { useStatusStore } from "./store/statusStore";
 
 type Phase = { kind: "probing" } | { kind: "gitMissing"; message: string } | { kind: "ready" };
@@ -35,6 +36,8 @@ export default function App() {
       return;
     }
     void useCmdHistoryStore.getState().load();
+    // Preferences seed the diff store, so they land before the first commit is selected.
+    void useSettingsStore.getState().load();
     // Reopen the repository that was open at last exit; any failure just lands on the start screen.
     const recents = useRecentsStore.getState();
     try {

@@ -39,6 +39,14 @@ describe("Toolbar Fetch", () => {
   });
 });
 
+describe("Toolbar settings", () => {
+  it("the gear opens the settings dialog", () => {
+    const { getByRole } = render(<Toolbar />);
+    fireEvent.click(getByRole("button", { name: "Settings" }));
+    expect(useDialogStore.getState().dialog).toEqual({ kind: "settings" });
+  });
+});
+
 describe("Toolbar Repository menu", () => {
   it("offers Commit…, which opens the commit dialog", () => {
     const { getByRole } = render(<Toolbar />);

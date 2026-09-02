@@ -6,6 +6,8 @@ export type DialogSpec =
   | { kind: "pull" }
   | { kind: "fetch" }
   | { kind: "runCommand" }
+  /** App preferences (git executable, theme, diff defaults). */
+  | { kind: "settings" }
   /** The commit panel as a full-window dialog (Unstaged / Staged / Message stacked | Diff). */
   | { kind: "commit" }
   | { kind: "merge"; branch?: string }

@@ -37,6 +37,11 @@ export function setTheme(pref: ThemePref) {
   apply();
 }
 
+/** The stored preference, not the resolved theme — the settings dialog shows the three-way choice. */
+export function getThemePref(): ThemePref {
+  return stored() ?? "system";
+}
+
 /** Flip to the other theme, as an explicit preference (no longer following the OS). */
 export function toggleTheme() {
   setTheme(current === "dark" ? "light" : "dark");

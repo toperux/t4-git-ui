@@ -33,7 +33,6 @@ import { closeRepo, fetchDefault, pickAndOpenRepo, refreshAll, stashApply, stash
 import s from "./Toolbar.module.css";
 
 const SEARCH_DEBOUNCE_MS = 250;
-const SETTINGS_SOON = "Settings arrive after v1";
 const BUSY = "Operation in progress";
 const NO_STASHES: Stash[] = [];
 
@@ -276,7 +275,7 @@ export function Toolbar() {
         <RefreshCw size={16} aria-hidden />
       </IconButton>
       <ThemeToggle />
-      <IconButton label="Settings" title={SETTINGS_SOON} disabled>
+      <IconButton label="Settings" onClick={() => openDialog({ kind: "settings" })}>
         <Settings size={16} aria-hidden />
       </IconButton>
     </div>
