@@ -230,6 +230,35 @@ describe("CreateTagDialog", () => {
     expect(preview(getByRole("dialog"))).toBe(`git tag v1.2.0 ${oid}`);
     fireEvent.click(getByRole("button", { name: "Create" }));
     await waitFor(() => expect(mocked.createTag).toHaveBeenCalledWith("r", "v1.2.0", oid, null));
+    expect(mocked.push).not.toHaveBeenCalled();
+  });
+
+  it("pushes the new tag by its full ref when the box is ticked", async () => {
+    const { getByRole } = render(<CreateTagDialog onClose={() => {}} />);
+    fireEvent.change(getByRole("textbox", { name: "Name" }), { target: { value: "v1" } });
+    fireEvent.click(getByRole("checkbox", { name: "Push to remote after creating" }));
+    await waitFor(() => expect(preview(getByRole("dialog"))).toBe("git tag v1 HEAD && git push origin refs/tags/v1"));
+    fireEvent.click(getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(mocked.push).toHaveBeenCalledWith("r", "origin", "refs/tags/v1", false, false, false));
+    // The push only makes sense once the tag exists.
+    expect(mocked.createTag.mock.invocationCallOrder[0]).toBeLessThan(mocked.push.mock.invocationCallOrder[0]);
+  });
+
+  it("leaves the tag unpushed when creating it failed", async () => {
+    mocked.createTag.mockRejectedValueOnce(new Error("tag exists"));
+    const { getByRole } = render(<CreateTagDialog onClose={() => {}} />);
+    fireEvent.change(getByRole("textbox", { name: "Name" }), { target: { value: "v1" } });
+    fireEvent.click(getByRole("checkbox", { name: "Push to remote after creating" }));
+    fireEvent.click(getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(mocked.createTag).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 0));
+    expect(mocked.push).not.toHaveBeenCalled();
+  });
+
+  it("hides the push option in a repo without remotes", () => {
+    useRepoStore.setState({ refs: { ...REFS, remotes: [] } });
+    const { queryByRole } = render(<CreateTagDialog onClose={() => {}} />);
+    expect(queryByRole("checkbox", { name: "Push to remote after creating" })).toBe(null);
   });
 });
 

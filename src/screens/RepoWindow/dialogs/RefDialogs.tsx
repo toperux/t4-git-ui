@@ -214,23 +214,30 @@ export function CreateTagDialog({ onClose, target: initial }: { onClose: () => v
   const [name, setName] = useState("");
   const [target, setTarget] = useState(initial ?? "HEAD");
   const [message, setMessage] = useState("");
+  const remotes = useRemotes();
+  const [remote, setRemote] = useDefaultRemote(remotes);
+  const [push, setPush] = useState(false);
   const error = name ? validateRefName(name, existing) : null;
   const valid = !!name && !error;
   // An oid from the grid is not in the list: keep it as an extra option.
   const targets = known || !initial ? options : [{ value: initial, label: initial.slice(0, 7) }, ...options];
+  const tagCmd = `git tag ${message.trim() ? `-a -m '…' ` : ""}${name || "<name>"} ${target}`;
+  const preview = push ? `${tagCmd} && git push ${remote || "origin"} refs/tags/${name || "<name>"}` : tagCmd;
 
-  function submit() {
+  async function submit() {
     if (!valid) return;
     onClose();
-    void runOp(`Creating tag ${name}…`, (id) => ipc.createTag(id, name, target, message.trim() || null), { success: `Created tag ${name}` });
+    const r = await runOp(`Creating tag ${name}…`, (id) => ipc.createTag(id, name, target, message.trim() || null), { success: `Created tag ${name}` });
+    if (!r.ok || !push) return;
+    await runOp(`Pushing tag ${name}…`, (id) => ipc.push(id, remote, `refs/tags/${name}`, false, false, false), { success: `Pushed ${name} to ${remote}` });
   }
 
   return (
     <Dialog
       title="Create tag"
       onClose={onClose}
-      onSubmit={submit}
-      preview={`git tag ${message.trim() ? `-a -m '…' ` : ""}${name || "<name>"} ${target}`}
+      onSubmit={() => void submit()}
+      preview={preview}
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
@@ -255,6 +262,14 @@ export function CreateTagDialog({ onClose, target: initial }: { onClose: () => v
       <Field label="Message" help="With a message the tag is annotated (and signed by user.name / user.email)">
         <Input aria-label="Message" value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Optional" />
       </Field>
+      {remotes.length > 0 && (
+        <Options>
+          <Checkbox checked={push} onChange={setPush} title="Runs a second push once the tag exists locally">
+            Push to remote after creating
+          </Checkbox>
+        </Options>
+      )}
+      {push && <RemoteField remotes={remotes} value={remote} onChange={setRemote} />}
     </Dialog>
   );
 }
