@@ -103,6 +103,17 @@ describe("DiffViewer", () => {
     expect(b.getByText("Binary file")).toBeTruthy();
   });
 
+  it("a mode change gets a chip in the header; an unchanged mode gets none", () => {
+    const { getByTitle } = render(<DiffViewer path={SMALL.path} diff={{ ...SMALL, oldMode: "100644", newMode: "100755" }} {...idle} />);
+    expect(getByTitle("File mode").textContent).toBe("100644 → 100755");
+    cleanup();
+    const same = render(<DiffViewer path={SMALL.path} diff={{ ...SMALL, oldMode: "100644", newMode: "100644" }} {...idle} />);
+    expect(same.queryByTitle("File mode")).toBeNull();
+    cleanup();
+    const none = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} />);
+    expect(none.queryByTitle("File mode")).toBeNull();
+  });
+
   it("actions mode: forces unified, hunk buttons, line selection → sticky bar → stage_lines pairs", () => {
     useDiffStore.setState({ view: "split" }); // must be ignored while staging
     const actions: DiffActions = { target: "unstaged", wholeFile: false, onStageHunk: vi.fn(), onStageLines: vi.fn() };

@@ -274,6 +274,39 @@ async fn autocrlf_repo_stages_lf_content() {
     assert!(rest.iter().all(|f| f.path != "f.txt"), "{rest:?}");
 }
 
+/// Unix only: Windows sets `core.filemode=false`, so no mode change is ever
+/// reported there and there is nothing to stage.
+#[cfg(unix)]
+#[tokio::test]
+async fn stages_the_exec_bit_with_the_first_hunk() {
+    use std::os::unix::fs::PermissionsExt;
+
+    if !have_git() {
+        return;
+    }
+    let t = TempRepo::new();
+    t.set_config("core.filemode", "true");
+    t.commit(&[("s.sh", "a\nb\n")], "base");
+
+    let full = t.path().join("s.sh");
+    std::fs::write(&full, "a\nB\n").expect("write");
+    let mut perms = std::fs::metadata(&full).expect("metadata").permissions();
+    perms.set_mode(0o755);
+    std::fs::set_permissions(&full, perms).expect("chmod");
+
+    let d = diff(&t, DiffTarget::Unstaged, "s.sh");
+    assert_eq!(d.old_mode.as_deref(), Some("100644"));
+    assert_eq!(d.new_mode.as_deref(), Some("100755"));
+
+    let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), false).unwrap();
+    apply(&t, &p, false).await;
+
+    let index = t.repo.index().expect("index");
+    let e = index.get_path(Path::new("s.sh"), 0).expect("entry");
+    assert_eq!(e.mode, 0o100755, "{p}");
+    assert_eq!(index_content(&t, "s.sh").unwrap(), "a\nB\n");
+}
+
 /// Discard = the unstaged patch reverse-applied to the working tree: the diff's
 /// new side *is* the file on disk, so `-R` without `--cached` undoes it there.
 #[tokio::test]

@@ -164,28 +164,38 @@ pub fn build_patch(
     let path = diff.path.as_str();
     let old_path = diff.old_path.as_deref().unwrap_or(path);
     let all = |kind: DiffLineKind| hunks.iter().all(|h| h.lines.iter().all(|l| l.kind == kind));
+    let old_mode = diff.old_mode.as_deref();
+    let new_mode = diff.new_mode.as_deref();
+    // Only a real change earns the header lines; git apply carries the exec bit
+    // into the index from them, so a partial stage of the file takes it along.
+    let mode_lines = match (old_mode, new_mode) {
+        (Some(o), Some(n)) if o != n => format!("old mode {o}\nnew mode {n}\n"),
+        _ => String::new(),
+    };
     let mut s = String::new();
     match diff.status {
         // A subset of an added/deleted file's lines is a modification of the
         // (index) file, not a whole-file creation/deletion.
         FileStatus::Added | FileStatus::Untracked if all(DiffLineKind::Add) => {
+            let mode = new_mode.unwrap_or("100644");
             s.push_str(&format!(
-                "diff --git a/{path} b/{path}\nnew file mode 100644\n--- /dev/null\n+++ b/{path}\n"
+                "diff --git a/{path} b/{path}\nnew file mode {mode}\n--- /dev/null\n+++ b/{path}\n"
             ));
         }
         FileStatus::Deleted if all(DiffLineKind::Del) => {
+            let mode = old_mode.unwrap_or("100644");
             s.push_str(&format!(
-                "diff --git a/{path} b/{path}\ndeleted file mode 100644\n--- a/{path}\n+++ /dev/null\n"
+                "diff --git a/{path} b/{path}\ndeleted file mode {mode}\n--- a/{path}\n+++ /dev/null\n"
             ));
         }
         FileStatus::Renamed | FileStatus::Copied if old_path != path => {
             s.push_str(&format!(
-                "diff --git a/{old_path} b/{path}\nrename from {old_path}\nrename to {path}\n--- a/{old_path}\n+++ b/{path}\n"
+                "diff --git a/{old_path} b/{path}\nrename from {old_path}\nrename to {path}\n{mode_lines}--- a/{old_path}\n+++ b/{path}\n"
             ));
         }
         _ => {
             s.push_str(&format!(
-                "diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+                "diff --git a/{path} b/{path}\n{mode_lines}--- a/{path}\n+++ b/{path}\n"
             ));
         }
     }
@@ -366,6 +376,49 @@ mod tests {
             p,
             "diff --git a/keep.txt b/keep.txt\ndeleted file mode 100644\n--- a/keep.txt\n+++ /dev/null\n@@ -1,1 +0,0 @@\n-k\n"
         );
+    }
+
+    #[test]
+    fn mode_change_emits_old_and_new_mode_lines() {
+        let t = TempRepo::new();
+        t.commit(&[("f.txt", "a\nb\n")], "base");
+        t.write("f.txt", "a\nB\n");
+        let mut d = unstaged(&t, "f.txt");
+        // Windows never reports a mode change (core.filemode=false), so the
+        // exec bit is set on the fixture; tests/patch.rs covers the real thing.
+        d.old_mode = Some("100644".into());
+        d.new_mode = Some("100755".into());
+        let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), false).unwrap();
+        assert_eq!(
+            p,
+            "diff --git a/f.txt b/f.txt\nold mode 100644\nnew mode 100755\n--- a/f.txt\n+++ b/f.txt\n@@ -1,2 +1,2 @@\n a\n-b\n+B\n"
+        );
+    }
+
+    #[test]
+    fn new_executable_file_uses_its_mode() {
+        let t = TempRepo::new();
+        t.commit(&[("keep.txt", "k\n")], "base");
+        t.write("new.sh", "x\n");
+        let mut d = unstaged(&t, "new.sh");
+        d.new_mode = Some("100755".into());
+        let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), false).unwrap();
+        assert_eq!(
+            p,
+            "diff --git a/new.sh b/new.sh\nnew file mode 100755\n--- /dev/null\n+++ b/new.sh\n@@ -0,0 +1,1 @@\n+x\n"
+        );
+    }
+
+    #[test]
+    fn unchanged_mode_emits_no_mode_lines() {
+        let t = TempRepo::new();
+        t.commit(&[("f.txt", "a\nb\n")], "base");
+        t.write("f.txt", "a\nB\n");
+        let d = unstaged(&t, "f.txt");
+        assert_eq!(d.old_mode.as_deref(), Some("100644"));
+        assert_eq!(d.new_mode, d.old_mode);
+        let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), false).unwrap();
+        assert!(!p.contains("mode"), "{p}");
     }
 
     #[test]

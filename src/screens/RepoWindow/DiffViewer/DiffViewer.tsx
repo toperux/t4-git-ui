@@ -177,6 +177,9 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
       />
     );
 
+  // Both modes known and different: an exec-bit / symlink change the line rows can't show.
+  const modeChange = diff?.oldMode && diff.newMode && diff.oldMode !== diff.newMode ? ([diff.oldMode, diff.newMode] as const) : null;
+
   const n = sel.keys.size;
   const verb = actions?.target === "staged" ? "Unstage" : "Stage";
   const sides = actions?.sides;
@@ -208,6 +211,11 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
           <Button size="sm" className={s.resolve} disabled={actions.busy} onClick={actions.onRestoreConflict}>
             Restore conflict
           </Button>
+        )}
+        {modeChange && (
+          <span className={s.mode} title="File mode">
+            {modeChange[0]} → {modeChange[1]}
+          </span>
         )}
         {stats && !stats.binary && <Stats additions={stats.additions} deletions={stats.deletions} className={s.stats} />}
         <ToolbarSeparator />

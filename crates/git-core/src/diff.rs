@@ -7,7 +7,7 @@
 
 use std::cell::{Cell, RefCell};
 
-use git2::{Delta, DiffFindOptions, DiffLineType, Oid, Patch, Repository, Tree};
+use git2::{Delta, DiffFindOptions, DiffLineType, FileMode, Oid, Patch, Repository, Tree};
 use serde::{Deserialize, Serialize};
 
 use crate::{map_git2, GitError};
@@ -122,6 +122,22 @@ pub struct FileDiff {
     /// Full counts (not affected by truncation).
     pub additions: u32,
     pub deletions: u32,
+    /// Octal file modes, so hunk / line staging can carry an exec-bit change
+    /// and the header can show it. `None` when the side has no blob mode.
+    pub old_mode: Option<String>,
+    pub new_mode: Option<String>,
+}
+
+/// Octal text of a blob-ish mode; `None` for a tree / unreadable entry (and
+/// for the obsolete group-writable blob, which git no longer produces).
+fn mode_text(mode: FileMode) -> Option<String> {
+    match mode {
+        FileMode::Blob => Some("100644".into()),
+        FileMode::BlobExecutable => Some("100755".into()),
+        FileMode::Link => Some("120000".into()),
+        FileMode::Commit => Some("160000".into()),
+        FileMode::Unreadable | FileMode::Tree | FileMode::BlobGroupWritable => None,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -343,7 +359,11 @@ pub fn file_diff(
     let patch = patch_for(&diff, idx)?;
     let delta = diff.get_delta(idx).expect("delta index in range");
     let (path, old_path) = delta_paths(&delta);
-    file_diff_from_patch(patch, path, old_path, delta.status().into(), opts)
+    let modes = (
+        mode_text(delta.old_file().mode()),
+        mode_text(delta.new_file().mode()),
+    );
+    file_diff_from_patch(patch, path, old_path, delta.status().into(), modes, opts)
 }
 
 /// Hunks — or the binary marker — of one patch that has already been located.
@@ -352,6 +372,7 @@ fn file_diff_from_patch(
     path: String,
     old_path: Option<String>,
     status: FileStatus,
+    (old_mode, new_mode): (Option<String>, Option<String>),
     opts: &DiffOptions,
 ) -> Result<FileDiff, GitError> {
     let Some(patch) = patch else {
@@ -365,6 +386,8 @@ fn file_diff_from_patch(
             max_lines: opts.max_lines,
             additions: 0,
             deletions: 0,
+            old_mode,
+            new_mode,
         });
     };
 
@@ -426,6 +449,8 @@ fn file_diff_from_patch(
         max_lines: opts.max_lines,
         additions: count(additions),
         deletions: count(deletions),
+        old_mode,
+        new_mode,
     })
 }
 
@@ -467,6 +492,8 @@ fn conflicted_file_diff(
         path.to_string(),
         None,
         FileStatus::Conflicted,
+        // Buffer diff: the stages carry no mode worth showing.
+        (None, None),
         opts,
     )?))
 }

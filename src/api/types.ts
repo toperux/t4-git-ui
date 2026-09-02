@@ -291,6 +291,9 @@ export interface FileDiff {
   /** Full counts (not affected by truncation). */
   additions: number;
   deletions: number;
+  /** Octal file modes; a difference is an exec-bit (or symlink) change. */
+  oldMode?: string | null;
+  newMode?: string | null;
 }
 
 /** All fields default on the Rust side (context 3, maxLines 20 000, ignoreWhitespace false). */

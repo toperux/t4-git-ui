@@ -163,9 +163,12 @@ fn diff_shapes_are_camel_case() {
         max_lines: 20_000,
         additions: 1,
         deletions: 1,
+        old_mode: Some("100644".into()),
+        new_mode: Some("100755".into()),
     };
     let v = serde_json::to_value(&d).expect("ser");
     assert_eq!(v["oldPath"], "a");
+    assert_eq!(v["newMode"], "100755");
     assert_eq!(v["maxLines"], 20_000);
     assert_eq!(v["status"], "renamed");
     assert_eq!(v["hunks"][0]["oldStart"], 1);
