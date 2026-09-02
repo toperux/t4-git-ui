@@ -4,10 +4,13 @@ Companion to `docs/smoke-test.md` (the v1 walkthrough, accepted 2026-09-01). Eve
 feature that landed afterwards; **none of them has been walked in a real window yet**. Each group
 names the section of the main walkthrough it belongs to, so it can be run on its own or slotted in.
 
-Same setup as the main doc: the `docs/smoke-fixtures.ps1` repos under `C:\tmp\t4` (§0 there — the
-fixture already builds the branches these checks name: `reset-me`, `twin-a` / `twin-b` /
-`origin/twin-remote`, `origin/solo`, `feature-upstream`), a dev run or the installed release. Tick
-as you go; note anything surprising with the group letter and bullet number.
+Same setup as the main doc: the `docs/smoke-fixtures.ps1` repos under `C:\tmp\t4` (§0 there), a
+dev run or the installed release. Rebuild the fixture with `-Force` if yours predates 2026-09-03:
+the script now also makes the `conflict` branch (H), `topic/nested` and `origin/topic/on-origin`
+(A), the `nested folders` commit with `examples/exclude/schema/` and `src/` (E), and leaves the
+working tree with `src/a.txt` + `src/lib/b.txt` edited, `deep/one/two/z.txt` untracked, `gone.txt`
+deleted and a CRLF hunk in `crlf-hunks.txt` (E, F, G). Tick as you go; note anything surprising
+with the group letter and bullet number.
 
 ---
 
@@ -19,9 +22,9 @@ _Shipped 2026-09-02: `bf7b29b`, `21289fb`, review fix `ae61c75`._
       `main`, `reset-me`, `topic`-style tips and `origin/reset-me` (only inside its own local
       `reset-me`) carry none. Check out `feature` → `origin/feature`'s badge stays, `feature`'s goes
       (the current branch never counts as merged into anything)
-- [ ] Branches with `/` in the name nest in folders — under Local and under each remote alike (the
-      fixture's `feature-upstream` is flat; `git push origin main:feature/nested` gives origin one);
-      a folder collapses independently of its namesake on another remote
+- [ ] Branches with `/` in the name nest in folders — under Local and under each remote alike:
+      `topic/nested` sits in a `topic` folder under Local, `origin/topic/on-origin` in one under
+      origin (`feature-upstream` stays flat); collapsing one `topic` folder leaves the other open
 - [ ] Sidebar: the checked-out branch never shows a `merged` badge, even with a branch ahead of it
 
 ## B. Commit context menu — checkout, reset, merge, rebase (main §2 and §5)
@@ -101,10 +104,11 @@ lists"; the commit window after "Amend a commit"._
 - [ ] **Show as tree** (the folder button beside the Unstaged title; it turns into a list icon once in tree mode) → both lists nest by folder with
       folders first; clicking a folder collapses it and `↑` `↓` / `Shift+click` skip its files; the
       hover `+` / `−`, `Enter` and double-click still act on file rows; the choice survives a restart
-- [ ] Tree view look: a chain of single folders (`a/b/c/x.rs` alone) is one row `a / b / c` with the
-      full path in its tooltip; collapsing it hides everything under it; every nested row shows a thin
-      guide line under each ancestor's chevron, and the lines stay visible on hover and when selected;
-      the details pane's changed-files tree does the same
+- [ ] Tree view look: the untracked `deep/one/two/z.txt` is one row `deep / one / two` with the
+      full path in its tooltip, `src` holds `a.txt` and a `lib` folder; collapsing `deep / one / two`
+      hides `z.txt`; every nested row shows a thin guide line under each ancestor's chevron, and the
+      lines stay visible on hover and when selected; select the `nested folders` commit → the details
+      pane's tree shows `examples / exclude / schema` as one row and does the same
 - [ ] Tree view keys: `Enter` / `Space` / `←` / `→` on a clicked folder row toggle it and stage nothing;
       select a file, collapse its folder → it stays selected, `Ctrl+A` then `Enter` stages the hidden
       one too; `↓` from the hidden file lands on the first file after the folder; stage a file in
@@ -121,8 +125,9 @@ _Shipped 2026-09-02: `78f8f02`._
 
 - [ ] Hover a hunk header → **Discard hunk** beside it → confirm → the hunk is gone from the working
       tree and the other hunks of `hunks.txt` are untouched; select two lines → **Discard 2 lines**
-      (or `Delete`) → confirm → only those lines revert; a CRLF file behaves the same; the staged
-      side, an untracked file and a conflicted file offer no Discard
+      (or `Delete`) → confirm → only those lines revert; `crlf-hunks.txt` (one CRLF hunk) discards
+      the same way and `git diff` is then empty — no CRs lost; the staged side, an untracked file
+      and a conflicted file offer no Discard
 
 ## G. File-row context menu, mode changes (main §4, after the `Delete` check)
 _Shipped 2026-09-02: `2600ae6`, `a03c727`. The mode check needs a Unix box or WSL._
@@ -131,8 +136,8 @@ _Shipped 2026-09-02: `2600ae6`, `a03c727`. The mode check needs a Unix box or WS
       folder; a staged row offers Unstage instead and no Discard; right-click a row outside the
       selection → only that row is selected; with three rows selected the items read "3 files" and
       Open / Reveal are gone; **Open** launches the file's default app, **Reveal in folder** opens
-      Explorer with the file selected, **Copy path** toasts the repo-relative path; a deleted file
-      keeps Copy path but Open / Reveal are disabled
+      Explorer with the file selected, **Copy path** toasts the repo-relative path; `gone.txt`
+      (deleted) keeps Copy path but Open / Reveal are disabled
 - [ ] `chmod +x` a tracked file and edit a line (WSL / Linux / macOS only) → the diff header shows
       `100644 → 100755`; **Stage hunk** → the staged entry carries the new mode (`git diff --cached`
       shows `old mode` / `new mode`) and the unstaged side is clean
@@ -140,13 +145,15 @@ _Shipped 2026-09-02: `2600ae6`, `a03c727`. The mode check needs a Unix box or WS
 ## H. Keep ours / theirs per conflicted file (main §5, before "Resolve the conflict")
 _Shipped 2026-09-02: `9c4bc35`._
 
-- [ ] **Keep main's version** / **Keep feature's version** sit before "Resolve in editor" (labels are the
-      branch names, `main` first — git's *ours*); the same two items are in the file row's right-click
-      menu → pick the second → confirm → the file holds `feature`'s content, has no markers, and is
-      already staged; `Restore conflict` brings the conflict back
-- [ ] Rebase `feature` onto `main` so the same file conflicts → the labels are **Keep main's version**
-      (git's *ours* = the branch rebased onto) and **Keep feature's version**; each keeps the content
-      its label says — not the other way round
+- [ ] On `main`, Branch menu › Merge… `conflict` → `conflict.txt` conflicts; **Keep main's version** /
+      **Keep conflict's version** sit before "Resolve in editor" (labels are the branch names, `main`
+      first — git's *ours*); the same two items are in the file row's right-click menu → pick the
+      second → confirm → the file reads `the conflict branch's line`, has no markers, and is already
+      staged; `Restore conflict` brings the conflict back. Abort the merge afterwards
+- [ ] Check out `conflict`, Rebase… onto `main` → the same file conflicts, and the labels are
+      **Keep main's version** (git's *ours* = the branch rebased onto) and **Keep conflict's version**;
+      pick the first → the file reads `main's line`, pick the second → `the conflict branch's line`
+      — each keeps what its label says, not the other way round. Abort the rebase afterwards
 
 ## I. Create tag with push (main §5, after "Create an annotated and a lightweight tag")
 _Shipped 2026-09-02: `21c2158`._

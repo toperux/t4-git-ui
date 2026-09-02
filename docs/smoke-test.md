@@ -32,8 +32,10 @@ It creates a bare `bare.git` "remote", a `work` repo, and a second clone `other`
 checks in §5. `work` holds history with a `feature` branch, a merge, the tag `v0.1.0`, one commit
 that is **not** pushed yet (§5 pushes it), the CRLF / binary / no-trailing-newline files §3 checks,
 branches sitting on commits for the context-menu checks in §5 (`reset-me`, `twin-a` / `twin-b` /
-`origin/twin-remote`, `origin/solo`), and `hunks.txt` left modified in three hunks for the staging
-checks in §4.
+`origin/twin-remote`, `origin/solo`), a `conflict` branch that conflicts with `main` (§5's merge),
+and `hunks.txt` left modified in three hunks for the staging checks in §4. The rest of what it
+builds — folder branches, a folder-chain commit, more working-tree edits — serves
+`docs/smoke-test-post-v1.md`.
 
 `work` turns `core.autocrlf` off, or git rewrites `crlf.txt` to LF on the way into the index and
 the committed blob has no CR left for §3 to show. The script fails loudly if that happens anyway.
@@ -171,7 +173,7 @@ Use `C:\tmp\t4\work` and the bare remote.
 - [ ] Check out `feature` (it tracks `origin/feature-upstream`, and an unrelated `origin/feature`
       exists too) and Pull → it brings `upstream.txt`; `decoy.txt` means it followed the name
       instead of the upstream
-- [ ] **Merge** a conflicting branch → conflicts toast, working-tree row selected, danger banner
+- [ ] **Merge** the fixture's `conflict` branch → conflicts toast, working-tree row selected, danger banner
       "N files have conflicts", plus a merge-in-progress banner with Abort
 - [ ] Click the conflicted file → the diff shows the file **with its `<<<<<<<` / `=======` / `>>>>>>>`
       markers** (libgit2 reports no content for an unmerged path, so this is built from the index

@@ -12,8 +12,11 @@
 #             yet (section 5 pushes it), the odd files the diff viewer is checked
 #             against - CRLF, binary, no trailing newline - a 25 000-line diff and a
 #             300-file commit for the section 7 checks, branches sitting on commits
-#             for the section 5 context-menu checks, and hunks.txt modified in the
-#             working tree, in three hunks, for the staging checks
+#             for the section 5 context-menu checks, hunks.txt modified in the
+#             working tree, in three hunks, for the staging checks, and the data the
+#             post-v1 checklist (docs/smoke-test-post-v1.md) names: a `conflict`
+#             branch, nested branch names, a folder-chain commit, a CRLF file with a
+#             working-tree hunk, a deleted and an untracked file
 #   other     a second clone of bare.git, for the divergence checks in section 5
 # plus two extra remotes on work: `nowhere` (a path that doesn't exist) and `slow`
 # (bare.git behind an upload-pack that sleeps a minute), for the failed / cancelled
@@ -200,6 +203,54 @@ Invoke-Git -C $work push -q origin solo
 Invoke-Git -C $work switch -q main
 Invoke-Git -C $work branch --delete --force solo | Out-Null
 
+# docs/smoke-test-post-v1.md needs a few more things:
+#   conflict              changes conflict.txt one way while main changes it the other, so merging
+#                         it conflicts (group H and section 5's merge) and so does rebasing it onto
+#                         main - the ours / theirs labels are checked in both directions
+#   topic/nested          a local branch with a `/`; origin/topic/on-origin a remote one (group A's
+#                         sidebar folders, the same folder name in both sections). Each has a commit of its own, or an equal tip would
+#                         earn main a `merged` badge
+#   'nested folders'      a commit with a single-child folder chain (examples/exclude/schema) and a
+#                         two-file folder (src/), for the details-pane tree (group E); the same
+#                         files are edited in the working tree below for the commit-panel tree,
+#                         crlf-hunks.txt gets a working-tree hunk (group F), gone.txt is deleted
+#                         from the working tree (group G)
+Write-Text (Join-Path $work 'conflict.txt') "base`n"
+Invoke-Git -C $work add .
+Invoke-Git -C $work commit -qm 'conflict base'
+Invoke-Git -C $work switch -qc conflict
+Write-Text (Join-Path $work 'conflict.txt') "the conflict branch's line`n"
+Invoke-Git -C $work commit -qam 'conflict branch side'
+Invoke-Git -C $work switch -q main
+Write-Text (Join-Path $work 'conflict.txt') "main's line`n"
+Invoke-Git -C $work commit -qam 'main side of the conflict'
+
+Invoke-Git -C $work switch -qc topic/nested
+Write-Text (Join-Path $work 'topic.txt') "a branch in a folder`n"
+Invoke-Git -C $work add .
+Invoke-Git -C $work commit -qm 'topic/nested (folder branch)'
+Invoke-Git -C $work switch -qc feature-nested main
+Write-Text (Join-Path $work 'nested.txt') "a remote branch in a folder`n"
+Invoke-Git -C $work add .
+Invoke-Git -C $work commit -qm 'origin/topic/on-origin (remote folder branch)'
+Invoke-Git -C $work push -q origin feature-nested:topic/on-origin
+Invoke-Git -C $work switch -q main
+Invoke-Git -C $work branch --delete --force feature-nested | Out-Null
+
+$chain = Join-Path $work 'examples\exclude\schema'
+New-Item -ItemType Directory -Path $chain | Out-Null
+Write-Text (Join-Path $chain 'tables.txt') "deep down a chain of single folders`n"
+New-Item -ItemType Directory -Path (Join-Path $work 'src\lib') | Out-Null
+Write-Text (Join-Path $work 'src\a.txt') "src a`n"
+Write-Text (Join-Path $work 'src\lib\b.txt') "src lib b`n"
+Write-Text (Join-Path $work 'gone.txt') "deleted from the working tree later`n"
+$crlfLines = 1..10 | ForEach-Object { 'crlf {0:d2}' -f $_ }
+Write-Text (Join-Path $work 'crlf-hunks.txt') (($crlfLines -join "`r`n") + "`r`n")
+Invoke-Git -C $work add .
+Invoke-Git -C $work commit -qm 'nested folders'
+# Keep "one commit not pushed yet" true: everything up to here goes out, 'odd files' below stays.
+Invoke-Git -C $work push -q origin main
+
 Write-Text (Join-Path $work 'crlf.txt') "x`r`ny`r`n"
 Write-Text (Join-Path $work 'nonl.txt') 'no newline'
 $binary = [byte[]] (@(0, 1, 2) + [System.Text.Encoding]::ASCII.GetBytes('binary'))
@@ -236,6 +287,18 @@ if ($hunkCount -ne 3) {
     Stop-WithMessage "hunks.txt came out as $hunkCount hunks, expected 3 - the edits drifted too close together"
 }
 
+# The rest of the working tree the post-v1 checklist looks at: two edited files under src/ (a
+# folder to collapse), an untracked file at the bottom of a single-folder chain (one tree row,
+# `deep / one / two`), a deleted file, and one CRLF line changed so crlf-hunks.txt shows a hunk
+# whose discard has to keep the CRs.
+Write-Text (Join-Path $work 'src\a.txt') "src a edited`n"
+Write-Text (Join-Path $work 'src\lib\b.txt') "src lib b edited`n"
+New-Item -ItemType Directory -Path (Join-Path $work 'deep\one\two') | Out-Null
+Write-Text (Join-Path $work 'deep\one\two\z.txt') "untracked, three folders down`n"
+Remove-Item -LiteralPath (Join-Path $work 'gone.txt')
+$crlfEdited = $crlfLines | ForEach-Object { if ($_ -eq 'crlf 05') { 'crlf 05 edited' } else { $_ } }
+Write-Text (Join-Path $work 'crlf-hunks.txt') (($crlfEdited -join "`r`n") + "`r`n")
+
 Invoke-Git clone -q $bareUrl (Join-Path $Root 'other')
 
 $commits = Invoke-Git -C $work rev-list --count HEAD
@@ -246,4 +309,6 @@ Write-Host '         hunks.txt is modified in the working tree, in three hunks'
 Write-Host '         feature tracks origin/feature-upstream, while origin/feature is someone else'
 Write-Host '         reset-me, twin-a/twin-b/origin/twin-remote and origin/solo are the commit-menu branches'
 Write-Host '         "big diff" and "many files" are the section 7 commits'
+Write-Host '         conflict conflicts with main; topic/nested and origin/topic/on-origin are the folder branches'
+Write-Host '         src/ is edited, deep/one/two/z.txt untracked, gone.txt deleted, crlf-hunks.txt has a CRLF hunk'
 Write-Host '  other  second clone, for the divergence checks in section 5'
