@@ -121,6 +121,13 @@ export interface Branch {
   upstream: string | null;
   /** `upstream` is configured but its ref no longer resolves. */
   gone: boolean;
+  /**
+   * A branch whose tip reaches (or sits on) this one's, so this branch adds nothing and can go —
+   * the current branch when it is one, else a local one, else a remote one. The branch's own
+   * counterparts (upstream, tracking branch, same-named remote branch) never count: a branch that
+   * is merely pushed is not "merged".
+   */
+  mergedInto: string | null;
   ahead: number;
   behind: number;
   isHead: boolean;
@@ -130,6 +137,8 @@ export interface RemoteBranch {
   /** Short name including the remote (`origin/main`). */
   name: string;
   oid: string;
+  /** As `Branch.mergedInto`. */
+  mergedInto: string | null;
 }
 
 export interface Remote {

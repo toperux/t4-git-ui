@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Branch, RefsSnapshot, WorkdirStatus } from "../../api/types";
 import { computeBanners, defaultBranch } from "./banners";
 
-const branch = (name: string, isHead = false): Branch => ({ name, oid: "o", upstream: null, gone: false, ahead: 0, behind: 0, isHead });
+const branch = (name: string, isHead = false): Branch => ({ name, oid: "o", upstream: null, gone: false, mergedInto: null, ahead: 0, behind: 0, isHead });
 const refs = (over: Partial<RefsSnapshot>): RefsSnapshot => ({
   head: { oid: "abcdef0123", branch: "main", detached: false },
   state: "clean",

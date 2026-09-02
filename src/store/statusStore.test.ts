@@ -37,7 +37,7 @@ const refs = (oid: string, tags: string[] = []): RefsSnapshot => ({
 });
 const withRemote = (headOid: string, originOid: string): RefsSnapshot => ({
   ...refs(headOid),
-  remotes: [{ name: "origin", url: null, branches: [{ name: "origin/main", oid: originOid }] }],
+  remotes: [{ name: "origin", url: null, branches: [{ name: "origin/main", oid: originOid, mergedInto: null }] }],
 });
 const flush = () => new Promise((r) => setTimeout(r, 0));
 

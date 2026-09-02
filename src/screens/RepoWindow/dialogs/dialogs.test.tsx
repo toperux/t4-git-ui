@@ -39,10 +39,10 @@ const REFS: RefsSnapshot = {
   head: { oid: "a", branch: "main", detached: false },
   state: "clean",
   local: [
-    { name: "main", oid: "a", upstream: "origin/main", gone: false, ahead: 2, behind: 0, isHead: true },
-    { name: "feature/lane-graph", oid: "b", upstream: null, gone: false, ahead: 0, behind: 0, isHead: false },
+    { name: "main", oid: "a", upstream: "origin/main", gone: false, mergedInto: null, ahead: 2, behind: 0, isHead: true },
+    { name: "feature/lane-graph", oid: "b", upstream: null, gone: false, mergedInto: null, ahead: 0, behind: 0, isHead: false },
   ],
-  remotes: [{ name: "origin", url: "git@x/y.git", branches: [{ name: "origin/main", oid: "a" }] }],
+  remotes: [{ name: "origin", url: "git@x/y.git", branches: [{ name: "origin/main", oid: "a", mergedInto: null }] }],
   tags: [],
   stashes: [],
 };

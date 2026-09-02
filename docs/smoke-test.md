@@ -83,6 +83,11 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the first two perfo
 - [ ] Tab into the grid with nothing selected → a focus ring is visible
 - [ ] Sidebar: Local / Remotes / Tags / Stashes with counts; sections collapse; the current branch is
       bold with ahead/behind counts; `Tab` stops **once** per section, arrows move within it
+- [ ] A branch whose tip is already inside another branch is muted with a `merged` badge whose
+      tooltip names the container: `feature` (merged into `main`), `twin-a` / `twin-b` (each other);
+      `main`, `reset-me`, `topic`-style tips and `origin/reset-me` (only inside its own local
+      `reset-me`) carry none. Check out `feature` → `origin/feature`'s badge stays, `feature`'s goes
+      (the current branch never counts as merged into anything)
 - [ ] Branches with `/` in the name nest in folders — under Local and under each remote alike (the
       fixture's `feature-upstream` is flat; `git push origin main:feature/nested` gives origin one);
       a folder collapses independently of its namesake on another remote

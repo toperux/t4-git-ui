@@ -230,7 +230,7 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
   const short = oid.slice(0, 7);
   const current = refs?.local.find((b) => b.isHead)?.name ?? "HEAD";
   const branches = commitBranchActions(refs, oid);
-  const checkout = (b: BranchAt) => (b.remote ? checkoutRemoteBranch({ name: b.name, oid }, b.remote) : checkoutBranch(b.name));
+  const checkout = (b: BranchAt) => (b.remote ? checkoutRemoteBranch({ name: b.name, oid, mergedInto: null }, b.remote) : checkoutBranch(b.name));
   const run = (fn: () => void) => () => {
     onClose();
     fn();

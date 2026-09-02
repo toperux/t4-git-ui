@@ -141,6 +141,11 @@ export function Sidebar() {
   const tags = refs?.tags ?? [];
   const stashes = refs?.stashes ?? [];
 
+  /** A branch inside another one is muted and says so: it adds nothing and can go. */
+  const mergedLabel = (label: string, mergedInto: string | null) => (mergedInto ? <span className={s.merged}>{label}</span> : label);
+  const mergedBadge = (mergedInto: string | null) => mergedInto && <Badge title={`Merged into ${mergedInto} — safe to delete`}>merged</Badge>;
+  const mergedTitle = (name: string, mergedInto: string | null) => (mergedInto ? `${name} — merged into ${mergedInto}` : name);
+
   const branchRow = (b: Branch, label: string, depth: number) => (
     <TreeRow
       key={b.name}
@@ -148,14 +153,15 @@ export function Sidebar() {
       aria-level={depth + 1}
       depth={depth}
       icon={<GitBranch size={14} aria-hidden />}
-      label={label}
-      title={b.name}
+      label={mergedLabel(label, b.mergedInto)}
+      title={mergedTitle(b.name, b.mergedInto)}
       current={b.isHead}
       selected={b.isHead}
       meta={
         <>
           <AheadBehind ahead={b.ahead} behind={b.behind} />
           {b.gone && <Badge title="Upstream is gone">gone</Badge>}
+          {mergedBadge(b.mergedInto)}
         </>
       }
       onClick={() => void revealOid(b.oid)}
@@ -171,8 +177,9 @@ export function Sidebar() {
       aria-level={depth + 1}
       depth={depth}
       icon={<GitBranch size={14} aria-hidden />}
-      label={label}
-      title={rb.name}
+      label={mergedLabel(label, rb.mergedInto)}
+      title={mergedTitle(rb.name, rb.mergedInto)}
+      meta={mergedBadge(rb.mergedInto)}
       onClick={() => void revealOid(rb.oid)}
       onDoubleClick={() => void checkoutRemoteBranch(rb, remote)}
       {...rowMenu({ kind: "remote", remote, branch: rb })}

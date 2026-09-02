@@ -315,12 +315,12 @@ export function CheckoutBranchDialog({ onClose, branches }: { onClose: () => voi
   const [name, setName] = useState(branches[0]?.name ?? "");
   const pick = branches.find((b) => b.name === name) ?? branches[0];
   // A remote branch is checked out the way the sidebar does it: a new tracking local of the same short name.
-  const local = pick?.remote ? stripRemote({ name: pick.name, oid: "" }, pick.remote) : null;
+  const local = pick?.remote ? stripRemote({ name: pick.name, oid: "", mergedInto: null }, pick.remote) : null;
 
   function submit() {
     if (!pick) return;
     onClose();
-    if (pick.remote) void checkoutRemoteBranch({ name: pick.name, oid: "" }, pick.remote);
+    if (pick.remote) void checkoutRemoteBranch({ name: pick.name, oid: "", mergedInto: null }, pick.remote);
     else void checkoutBranch(pick.name);
   }
 
@@ -371,7 +371,7 @@ export function CheckoutDialog({ onClose }: { onClose: () => void }) {
     if (!pick || pick.current) return;
     onClose();
     if (pick.kind === "local") void checkoutBranch(pick.name);
-    else if (pick.kind === "remote") void checkoutRemoteBranch({ name: pick.name, oid: "" }, pick.remote);
+    else if (pick.kind === "remote") void checkoutRemoteBranch({ name: pick.name, oid: "", mergedInto: null }, pick.remote);
     else void checkoutDetached(pick.name);
   }
 

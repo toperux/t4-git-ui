@@ -7,6 +7,7 @@ const branch = (name: string, oid: string, extra: Partial<Branch> = {}): Branch 
   oid,
   upstream: null,
   gone: false,
+  mergedInto: null,
   ahead: 0,
   behind: 0,
   isHead: false,
@@ -23,8 +24,8 @@ const REFS: RefsSnapshot = {
     branch("stale", "c", { upstream: "origin/renamed" }),
   ],
   remotes: [
-    { name: "origin", url: null, branches: [{ name: "origin/main", oid: "b" }, { name: "origin/feature", oid: "b" }, { name: "origin/renamed", oid: "b" }, { name: "origin/new", oid: "d" }] },
-    { name: "fork", url: null, branches: [{ name: "fork/feature", oid: "d" }] },
+    { name: "origin", url: null, branches: [{ name: "origin/main", oid: "b", mergedInto: null }, { name: "origin/feature", oid: "b", mergedInto: null }, { name: "origin/renamed", oid: "b", mergedInto: null }, { name: "origin/new", oid: "d", mergedInto: null }] },
+    { name: "fork", url: null, branches: [{ name: "fork/feature", oid: "d", mergedInto: null }] },
   ],
   tags: [],
   stashes: [],

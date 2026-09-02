@@ -27,3 +27,7 @@
   font-family: var(--font-mono);
   font-size: var(--mono-size);
 }
+/* A branch inside another one (`mergedInto`): it adds nothing, so it steps back. */
+.merged {
+  color: var(--fg-muted);
+}

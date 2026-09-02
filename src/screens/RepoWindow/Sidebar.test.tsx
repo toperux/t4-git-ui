@@ -9,7 +9,7 @@ vi.mock("../../api/ipc", async (importOriginal) => {
   return { ...actual, getRefs: vi.fn(() => new Promise(() => {})), getStatus: vi.fn(() => new Promise(() => {})) };
 });
 
-const branch = (name: string, isHead = false) => ({ name, oid: name, upstream: null, gone: false, ahead: 0, behind: 0, isHead });
+const branch = (name: string, isHead = false) => ({ name, oid: name, upstream: null, gone: false, mergedInto: null, ahead: 0, behind: 0, isHead });
 
 const REFS: RefsSnapshot = {
   head: { oid: "a", branch: "main", detached: false },
@@ -20,12 +20,12 @@ const REFS: RefsSnapshot = {
       name: "origin",
       url: null,
       branches: [
-        { name: "origin/main", oid: "a" },
-        { name: "origin/cross-platform", oid: "b" },
-        { name: "origin/feature/lanes", oid: "d" },
+        { name: "origin/main", oid: "a", mergedInto: null },
+        { name: "origin/cross-platform", oid: "b", mergedInto: null },
+        { name: "origin/feature/lanes", oid: "d", mergedInto: null },
       ],
     },
-    { name: "fork", url: null, branches: [{ name: "fork/main", oid: "c" }] },
+    { name: "fork", url: null, branches: [{ name: "fork/main", oid: "c", mergedInto: null }] },
   ],
   tags: [{ name: "v0.1.0", oid: "a", message: null }],
   stashes: [],
@@ -52,6 +52,22 @@ describe("Sidebar section counts", () => {
     const { getAllByRole } = render(<Sidebar />);
     const rows = getAllByRole("treeitem").map((r) => r.textContent);
     expect(rows).toEqual(expect.arrayContaining(["origin", "fork", "main", "cross-platform"]));
+  });
+
+  it("marks a branch inside another one as merged, naming the container", () => {
+    useRepoStore.setState({
+      refs: {
+        ...REFS,
+        local: [branch("main", true), { ...branch("done"), mergedInto: "main" }],
+        remotes: [{ name: "origin", url: null, branches: [{ name: "origin/done", oid: "d", mergedInto: "origin/main" }] }],
+      },
+    });
+    const { getAllByText, getAllByRole } = render(<Sidebar />);
+    expect(getAllByText("merged")).toHaveLength(2);
+    const titles = getAllByRole("treeitem").map((r) => r.title);
+    expect(titles).toContain("done — merged into main");
+    expect(titles).toContain("origin/done — merged into origin/main");
+    expect(titles).toContain("main");
   });
 
   it("nests remote branches in folders like local ones, collapsing per remote", () => {

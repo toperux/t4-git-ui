@@ -35,6 +35,12 @@ pub struct Branch {
     pub ahead: u32,
     pub behind: u32,
     pub is_head: bool,
+    /// A branch whose tip reaches (or sits on) this one's — so this branch adds
+    /// nothing and can go. The branch's own counterparts (its upstream, the
+    /// branch tracking it, a same-named branch on a remote) don't count: a
+    /// local branch that is merely pushed is not "merged". See
+    /// [`fill_merged_into`] for which containing branch is named.
+    pub merged_into: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -43,6 +49,8 @@ pub struct RemoteBranch {
     /// Short name including the remote (`origin/main`).
     pub name: String,
     pub oid: String,
+    /// As [`Branch::merged_into`].
+    pub merged_into: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -146,26 +154,187 @@ pub fn natural_cmp(a: &str, b: &str) -> Ordering {
     x.len().cmp(&y.len()).then_with(|| a.cmp(b))
 }
 
-/// `(local tip, upstream tip) → (ahead, behind)`. History behind two fixed
-/// oids never changes, so an entry never goes stale; the map is just cleared
-/// when it grows past a few thousand pairs.
+/// What a refs snapshot has to walk history for, memoized across refreshes.
+///
+/// `pairs`: `(local tip, upstream tip) → (ahead, behind)`. History behind two
+/// fixed oids never changes, so an entry never goes stale; the map is just
+/// cleared when it grows past a few thousand pairs.
+///
+/// `merged`: every branch's `merged_into`, keyed by the exact list of branches
+/// (name, tip, is HEAD) it was computed for — one walk per change of refs.
 #[derive(Debug, Default)]
-pub struct AheadBehindCache(HashMap<(Oid, Oid), (usize, usize)>);
+pub struct AheadBehindCache {
+    pairs: HashMap<(Oid, Oid), (usize, usize)>,
+    merged: Option<(MergedKey, Vec<Option<String>>)>,
+}
+
+/// The branches (name, tip, is HEAD) a `merged` entry was computed for.
+type MergedKey = Vec<(String, Oid, bool)>;
 
 impl AheadBehindCache {
     const MAX: usize = 4096;
 
     fn get_or_compute(&mut self, repo: &Repository, local: Oid, upstream: Oid) -> (usize, usize) {
-        if let Some(&v) = self.0.get(&(local, upstream)) {
+        if let Some(&v) = self.pairs.get(&(local, upstream)) {
             return v;
         }
         let v = repo.graph_ahead_behind(local, upstream).unwrap_or((0, 0));
-        if self.0.len() >= Self::MAX {
-            self.0.clear();
+        if self.pairs.len() >= Self::MAX {
+            self.pairs.clear();
         }
-        self.0.insert((local, upstream), v);
+        self.pairs.insert((local, upstream), v);
         v
     }
+}
+
+/// One branch as `fill_merged_into` sees it: local branches first, then every
+/// remote's, in snapshot order.
+struct Tip {
+    name: String,
+    oid: Oid,
+    /// Name without the remote (`main` for `origin/main`): same-named branches
+    /// are counterparts.
+    short: String,
+    upstream: Option<String>,
+    is_head: bool,
+}
+
+/// Which tips reach each tip: `out[i]` has bit `j` set when `tips[j]` has
+/// `tips[i]` as an ancestor or sits on the same commit (`j != i`).
+///
+/// One walk from every tip, newest commit first, carrying down to each parent
+/// the set of tips its children were reached from, and stopping once every
+/// tip has been popped — so the cost is the history newer than the oldest tip,
+/// not all of it. Date order stands in for topological order (libgit2's
+/// topological sort walks everything up front); a commit stamped newer than
+/// its child is reached late and its reachers lost, which costs a badge, not
+/// history.
+fn reachers(repo: &Repository, tips: &[Oid]) -> Result<Vec<Vec<u64>>, GitError> {
+    let words = tips.len().div_ceil(64);
+    let mut at: HashMap<Oid, Vec<usize>> = HashMap::new();
+    for (i, &t) in tips.iter().enumerate() {
+        at.entry(t).or_default().push(i);
+    }
+    let mut walk = repo.revwalk().map_err(map_git2)?;
+    walk.set_sorting(git2::Sort::TIME).map_err(map_git2)?;
+    for &t in at.keys() {
+        walk.push(t).map_err(map_git2)?;
+    }
+    let mut out = vec![vec![0u64; words]; tips.len()];
+    // Tips reaching a commit the walk has not popped yet.
+    let mut pending: HashMap<Oid, Vec<u64>> = HashMap::new();
+    let mut left = at.len();
+    for oid in walk {
+        let oid = oid.map_err(map_git2)?;
+        let mut flags = pending.remove(&oid).unwrap_or_else(|| vec![0; words]);
+        if let Some(here) = at.get(&oid) {
+            for &i in here {
+                flags[i / 64] |= 1 << (i % 64);
+            }
+            for &i in here {
+                out[i].clone_from(&flags);
+                out[i][i / 64] &= !(1 << (i % 64));
+            }
+            left -= 1;
+            if left == 0 {
+                break;
+            }
+        }
+        if flags.iter().all(|w| *w == 0) {
+            continue;
+        }
+        let commit = repo.find_commit(oid).map_err(map_git2)?;
+        for parent in commit.parent_ids() {
+            let into = pending.entry(parent).or_insert_with(|| vec![0; words]);
+            for (d, s) in into.iter_mut().zip(&flags) {
+                *d |= s;
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Sets every branch's `merged_into` to the branch whose tip reaches it —
+/// the current branch when that is one, else the first local, else the first
+/// remote one — ignoring the branch's own counterparts (see
+/// [`Branch::merged_into`]).
+fn fill_merged_into(
+    repo: &Repository,
+    cache: &mut AheadBehindCache,
+    local: &mut [Branch],
+    remotes: &mut [Remote],
+) -> Result<(), GitError> {
+    let parse = |s: &str| Oid::from_str(s).map_err(map_git2);
+    let mut tips = Vec::new();
+    for b in local.iter() {
+        tips.push(Tip {
+            name: b.name.clone(),
+            oid: parse(&b.oid)?,
+            short: b.name.clone(),
+            upstream: b.upstream.clone(),
+            is_head: b.is_head,
+        });
+    }
+    for r in remotes.iter() {
+        for rb in &r.branches {
+            tips.push(Tip {
+                name: rb.name.clone(),
+                oid: parse(&rb.oid)?,
+                short: rb.name[r.name.len() + 1..].to_string(),
+                upstream: None,
+                is_head: false,
+            });
+        }
+    }
+    let key: MergedKey = tips
+        .iter()
+        .map(|t| (t.name.clone(), t.oid, t.is_head))
+        .collect();
+    let merged = match &cache.merged {
+        Some((k, v)) if *k == key => v.clone(),
+        _ => {
+            let bits = if tips.len() < 2 {
+                Vec::new()
+            } else {
+                reachers(repo, &tips.iter().map(|t| t.oid).collect::<Vec<_>>())?
+            };
+            let counterpart = |a: &Tip, b: &Tip| {
+                a.short == b.short
+                    || a.upstream.as_deref() == Some(&b.name)
+                    || b.upstream.as_deref() == Some(&a.name)
+            };
+            let merged: Vec<Option<String>> = tips
+                .iter()
+                .enumerate()
+                .map(|(i, t)| {
+                    let reached_by = |j: usize| bits[i][j / 64] & (1 << (j % 64)) != 0;
+                    let mut pick: Option<&Tip> = None;
+                    for (j, other) in tips.iter().enumerate() {
+                        if j == i || !reached_by(j) || counterpart(t, other) {
+                            continue;
+                        }
+                        if other.is_head {
+                            return Some(other.name.clone());
+                        }
+                        pick.get_or_insert(other);
+                    }
+                    pick.map(|p| p.name.clone())
+                })
+                .collect();
+            cache.merged = Some((key, merged.clone()));
+            merged
+        }
+    };
+    let mut it = merged.into_iter();
+    for b in local.iter_mut() {
+        b.merged_into = it.next().flatten();
+    }
+    for r in remotes.iter_mut() {
+        for rb in &mut r.branches {
+            rb.merged_into = it.next().flatten();
+        }
+    }
+    Ok(())
 }
 
 pub fn head_info(repo: &Repository) -> Result<HeadInfo, GitError> {
@@ -256,6 +425,7 @@ pub fn snapshot_with(
             gone,
             ahead,
             behind,
+            merged_into: None,
         });
     }
     local.sort_by(|a, b| natural_cmp(&a.name, &b.name));
@@ -312,12 +482,14 @@ pub fn snapshot_with(
             .push(RemoteBranch {
                 name,
                 oid: commit.id().to_string(),
+                merged_into: None,
             });
     }
     let mut remotes: Vec<Remote> = groups.into_values().collect();
     for r in &mut remotes {
         r.branches.sort_by(|a, b| natural_cmp(&a.name, &b.name));
     }
+    fill_merged_into(repo, cache, &mut local, &mut remotes)?;
 
     let mut raw_tags: Vec<(git2::Oid, String)> = Vec::new();
     repo.tag_foreach(|oid, name| {
@@ -493,6 +665,7 @@ pub fn create_branch(
         ahead: 0,
         behind: 0,
         is_head: branch.is_head(),
+        merged_into: None,
     })
 }
 
