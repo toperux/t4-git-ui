@@ -3,7 +3,16 @@ name: CI
 on:
   push:
     branches: [main]
-  pull_request:
+    # A docs-only push has nothing here to check. Mixed commits still run.
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+  workflow_dispatch:
+
+# One run per push: a burst of pushes cancels the superseded runs instead of stacking them.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   check:
