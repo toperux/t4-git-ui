@@ -220,13 +220,6 @@ pub fn branch_force(name: &str, target: &str) -> Vec<String> {
     a
 }
 
-/// `checkout --detach <oid>`
-pub fn checkout_detach(oid: &str) -> Vec<String> {
-    let mut a = args(["checkout", "--detach"]);
-    a.push(oid.into());
-    a
-}
-
 /// `push <remote> --delete <name>`
 pub fn delete_remote_branch(remote: &str, name: &str) -> Vec<String> {
     let mut a = args(["push"]);
@@ -543,7 +536,6 @@ mod tests {
             checkout("origin/x", Some("x"), true),
             ["checkout", "--track", "-b", "x", "origin/x"]
         );
-        assert_eq!(checkout_detach("abc"), ["checkout", "--detach", "abc"]);
         assert_eq!(
             delete_remote_branch("origin", "old"),
             ["push", "origin", "--delete", "old"]

@@ -2,7 +2,7 @@ import { homeDir } from "@tauri-apps/api/path";
 import { open } from "@tauri-apps/plugin-dialog";
 import { CircleCheck, Cloud, Folder, GitBranch, Pin, Plus, Search, Settings, X } from "lucide-react";
 import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
-import { initRepo } from "../../api/appIpc";
+import { initRepo } from "../../api/ipc";
 import { toAppError } from "../../api/ipc";
 import type { AppError } from "../../api/types";
 import { EmptyState } from "../../components/ui/EmptyState/EmptyState";

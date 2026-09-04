@@ -36,7 +36,7 @@ export function toAppError(e: unknown): AppError {
   return { kind: "unknown", message: e instanceof Error ? e.message : String(e) };
 }
 
-/** The one `invoke` wrapper: every rejection becomes an `AppError`. Shared with `appIpc.ts`. */
+/** The one `invoke` wrapper: every rejection becomes an `AppError`. */
 export async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   try {
     return await invoke<T>(cmd, args);
@@ -52,6 +52,24 @@ export const probeGit = () => call<string>("probe_git");
 export const setGitPath = (path: string) => call<string>("set_git_path", { path });
 
 export const openRepo = (path: string) => call<RepoSummary>("open_repo", { path });
+
+export interface CloneArgs {
+  url: string;
+  /** Full destination path (`<parent>/<name>`); the parent is created if missing. */
+  dest: string;
+  recurseSubmodules: boolean;
+  /** `--depth N`; omit for a full clone. */
+  depth?: number;
+}
+
+/**
+ * `git clone --progress …` (streams `op://event` with `repoId: null`), then opens the result.
+ * A failed clone rejects with kind `cli` (stderr in the message); `cancelOp(opId)` → kind `cancelled`.
+ */
+export const cloneRepo = (args: CloneArgs) => call<RepoSummary>("clone_repo", { ...args });
+
+/** `git init <path>` then opens it. An existing repository at `path` rejects with kind `refused`. */
+export const initRepo = (path: string) => call<RepoSummary>("init_repo", { path });
 
 export const closeRepo = (id: RepoId) => call<void>("close_repo", { id });
 

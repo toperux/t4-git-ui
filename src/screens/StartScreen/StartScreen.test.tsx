@@ -10,9 +10,16 @@ vi.mock("@tauri-apps/api/path", () => ({ homeDir: vi.fn(() => Promise.resolve("C
 vi.mock("../../api/ipc", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/ipc")>();
   const pending = () => new Promise<never>(() => {});
-  return { ...actual, openRepo: vi.fn(), getRefs: vi.fn(pending), startLog: vi.fn(pending), cancelOp: vi.fn(() => Promise.resolve(true)) };
+  return {
+    ...actual,
+    openRepo: vi.fn(),
+    getRefs: vi.fn(pending),
+    startLog: vi.fn(pending),
+    cancelOp: vi.fn(() => Promise.resolve(true)),
+    cloneRepo: vi.fn(pending),
+    initRepo: vi.fn(),
+  };
 });
-vi.mock("../../api/appIpc", () => ({ cloneRepo: vi.fn(() => new Promise(() => {})), initRepo: vi.fn() }));
 vi.mock("../../api/events", () => ({
   onOpEvent: vi.fn((cb: (e: OpEvent) => void) => {
     events.opCb = cb;
@@ -25,7 +32,6 @@ vi.mock("../../api/events", () => ({
   }),
 }));
 
-import * as appIpc from "../../api/appIpc";
 import * as ipc from "../../api/ipc";
 import { sortRecents, useRecentsStore } from "../../store/recentsStore";
 import { useRepoStore } from "../../store/repoStore";
@@ -123,7 +129,7 @@ describe("StartScreen", () => {
     await act(async () => {
       fireEvent.click(getByRole("button", { name: "Clone" }));
     });
-    expect(appIpc.cloneRepo).toHaveBeenCalledWith({ url: "https://github.com/x/repo.git", dest: "F:\\src\\repo", recurseSubmodules: false, depth: undefined });
+    expect(ipc.cloneRepo).toHaveBeenCalledWith({ url: "https://github.com/x/repo.git", dest: "F:\\src\\repo", recurseSubmodules: false, depth: undefined });
     expect(events.opCb).not.toBeNull();
     act(() => {
       events.opCb!({ repoId: null as unknown as string, opId: "op1", event: { kind: "started", opId: "op1", cmd: "git clone" } });

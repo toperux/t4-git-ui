@@ -1,7 +1,7 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpen } from "lucide-react";
 import { useState } from "react";
-import { cloneRepo } from "../../api/appIpc";
+import { cloneRepo } from "../../api/ipc";
 import { onOpEventReady } from "../../api/events";
 import { cancelOp, toAppError } from "../../api/ipc";
 import type { RepoSummary } from "../../api/types";

@@ -333,7 +333,8 @@ async fn checkout_creates_branch_and_detaches() {
     assert_eq!((h.branch.as_deref(), h.detached), (Some("topic"), false));
     assert_eq!(ref_oid(&t, "refs/heads/topic"), Some(a));
 
-    run_ok(&t, &ops::checkout_detach(&a.to_string())).await;
+    let detach = vec!["checkout".into(), "--detach".into(), a.to_string()];
+    run_ok(&t, &detach).await;
     let h = refs::head_info(&t.repo).unwrap();
     assert_eq!((h.branch, h.detached), (None, true));
 

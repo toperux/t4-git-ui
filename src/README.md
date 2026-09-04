@@ -9,12 +9,11 @@ src/
                            (shared with the toolbar repo menu: no-op while a dialog is open; info toast while an op runs)
   api/
     types.ts               TS mirror of the Rust IPC contract (serde camelCase) — edit only together with the Rust structs
-    ipc.ts                 `call()` (the one `invoke` wrapper, shared with appIpc) + one typed function per command; every
+    ipc.ts                 `call()` (the one `invoke` wrapper) + one typed function per command, including the start-screen
+                           cloneRepo {url,dest,recurseSubmodules,depth?} / initRepo {path} → RepoSummary; every
                            rejection is an AppError {kind, message}; isAppError/toAppError
     events.ts              onLogProgress / onRepoChanged / onOpEvent (cb) → unlisten  (`log://progress`, `repo://changed`, `op://event`);
                            onOpEventReady (cb) → Promise<unlisten> for callers that must be listening before they invoke
-    appIpc.ts              start-screen commands (through ipc.ts's `call`): cloneRepo {url,dest,recurseSubmodules,depth?} /
-                           initRepo {path} → RepoSummary
   store/
     repoStore.ts           zustand: repo, refs, log {generation,total,complete,error,flat} (a page response never lowers `total`
                            nor clears `complete` — a late page must not undo a newer `log://progress`), sparse rows[], selection (commit index +
