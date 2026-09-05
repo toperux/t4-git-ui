@@ -49,7 +49,12 @@ export function Dialog({ title, wide, full, onClose, busy, onSubmit, preview, fo
     if (el && !el.contains(document.activeElement)) el.querySelector<HTMLElement>(FOCUSABLE)?.focus();
     const back = opener.current;
     return () => {
-      if (back?.isConnected) back.focus();
+      // Only when closing dropped the focus: a dialog that opens another in the same commit (Commit &
+      // Push) has already let the new one's `autoFocus` control take it, and pulling it back to the
+      // opener would leave that dialog on its Close button.
+      const active = document.activeElement;
+      const lost = !active || active === document.body || !active.isConnected;
+      if (lost && back?.isConnected) back.focus();
     };
   }, []);
 

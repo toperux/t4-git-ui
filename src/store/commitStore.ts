@@ -101,6 +101,12 @@ export interface CommitStore {
   setSignoff(v: boolean): void;
   /** Turning amend on prefills the editor from HEAD unless the user already typed something. */
   setAmend(on: boolean): Promise<void>;
+  /**
+   * A merge / cherry-pick that stopped for conflicts (`on`) prefills the editor from `MERGE_MSG`,
+   * the way `git commit` would; ending it without a commit (abort) takes that prefill back. Neither
+   * touches a message the user typed.
+   */
+  prefillPending(on: boolean): Promise<void>;
   /** Fills the editor from a history entry. */
   useMessage(message: string): void;
   /** Resolves the new oid, or `null` when nothing was committed (invalid state / failure). */
@@ -123,6 +129,10 @@ const EMPTY_STATS = { unstaged: {}, staged: {} };
 const NO_ORDER = { unstaged: null, staged: null };
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
+/** Nothing the user typed is in the editor: it is empty, or holds exactly what the last prefill put there. */
+const untouched = ({ summary, body, prefill }: CommitStore) =>
+  (!summary.trim() && !body.trim()) || (prefill !== null && prefill.summary === summary && prefill.body === body);
 
 /** Signature of a status: stats only need refetching when an entry appears, vanishes or changes state. */
 const entriesKey = (status: WorkdirStatus | null) => JSON.stringify(status?.entries ?? []);
@@ -380,10 +390,24 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       const id = repoId();
       if (!on || !id) return;
       const message = await ipc.getHeadMessage(id).catch(() => null);
-      if (!message || !get().amend) return;
-      const { summary, body, prefill } = get();
-      const untouched = (!summary.trim() && !body.trim()) || (prefill !== null && prefill.summary === summary && prefill.body === body);
-      if (!untouched) return;
+      if (!message || !get().amend || !untouched(get())) return;
+      const split = splitMessage(message);
+      set({ summary: split.summary, body: split.body, prefill: split });
+    },
+
+    async prefillPending(on) {
+      if (!on) {
+        // Aborted: the editor holds a message for a merge that is no longer happening. An amend
+        // prefill (HEAD's message) is still right, so that one stays.
+        const { prefill, amend } = get();
+        if (prefill && !amend && untouched(get())) set({ summary: "", body: "", prefill: null });
+        return;
+      }
+      const id = repoId();
+      if (!id) return;
+      const message = await ipc.getMergeMessage(id).catch(() => null);
+      // The operation may have ended (or the repo changed) while the read was in flight.
+      if (!message || repoId() !== id || useRepoStore.getState().refs?.state === "clean" || !untouched(get())) return;
       const split = splitMessage(message);
       set({ summary: split.summary, body: split.body, prefill: split });
     },
@@ -453,6 +477,15 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
 // The editor belongs to one repository.
 useRepoStore.subscribe((st, prev) => {
   if (st.repo?.id !== prev.repo?.id) useCommitStore.getState().reset();
+});
+
+// A merge that stops for conflicts leaves the message it prepared behind; the editor opens with it,
+// as `git commit` would, and gives it back when the merge ends without a commit.
+useRepoStore.subscribe((st, prev) => {
+  const state = st.refs?.state;
+  // A switch between two repos both mid-operation is a change too (the reset above ran first).
+  if (!state || (state === prev.refs?.state && st.repo?.id === prev.repo?.id)) return;
+  void useCommitStore.getState().prefillPending(state !== "clean");
 });
 
 // `setContext` reloads the details-pane diff only. The panel's is built with the same setting, so it

@@ -142,6 +142,15 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
     overscan: OVERSCAN,
   });
 
+  // Staging / unstaging / discarding unmounts the rows it acted on, and the focus goes with them
+  // when it sat on one (a row's own +/− button): Enter would leave it on `<body>`. `held` is what
+  // says the loss is this list's to repair — a background refresh must not grab an idle focus.
+  const held = useRef(false);
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (held.current && root && (!document.activeElement || document.activeElement === document.body)) root.focus();
+  }, [rows]);
+
   // Keep the focused row in view — only that one; the rest never scroll themselves.
   const scrollToIndex = virtualizer.scrollToIndex;
   useEffect(() => {
@@ -286,6 +295,11 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
       aria-label={list === "unstaged" ? "Unstaged files" : "Staged files"}
       aria-activedescendant={anchorRow >= 0 ? `${rowId}-${anchorRow}` : undefined}
       tabIndex={0}
+      onFocus={() => (held.current = true)}
+      /* A removed row blurs with no `relatedTarget`; only a focus that actually moved away is a release. */
+      onBlur={(e) => {
+        if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget)) held.current = false;
+      }}
       onKeyDown={onKeyDown}
       onClick={onClick}
       onContextMenu={onContextMenu}

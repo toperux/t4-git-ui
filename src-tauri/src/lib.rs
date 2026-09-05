@@ -162,6 +162,7 @@ pub fn run() {
             commands::stage::discard_lines,
             commands::stage::commit,
             commands::stage::get_head_message,
+            commands::stage::get_merge_message,
             commands::stage::get_author,
             commands::stage::cancel_op,
             commands::ops::fetch,

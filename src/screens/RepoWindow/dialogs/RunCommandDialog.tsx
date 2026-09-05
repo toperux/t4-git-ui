@@ -42,7 +42,8 @@ export function RunCommandDialog({ onClose }: { onClose: () => void }) {
       }
     >
       <Field label="Command" help={error ?? "Tab completes · ↑ / ↓ recall earlier commands"} invalid={error !== null}>
-        <CommandInput aria-label="Git command" placement="down" autoFocus value={text} onChange={setText} onSubmit={submit} history={history} refs={refs} invalid={error !== null} />
+        {/* Upward, like the dock prompt: below the field the list covers the dialog's own Cancel / Run. */}
+        <CommandInput aria-label="Git command" placement="up" autoFocus value={text} onChange={setText} onSubmit={submit} history={history} refs={refs} invalid={error !== null} />
       </Field>
     </Dialog>
   );

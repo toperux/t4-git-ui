@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useState } from "react";
+import { Dialog } from "../Dialog/Dialog";
 import { Menu, MenuItem } from "./Menu";
 
 afterEach(cleanup);
@@ -42,6 +43,40 @@ describe("Menu", () => {
     const item = getByRole("menuitem", { name: "Discard…" });
     expect(item.getAttribute("aria-keyshortcuts")).toBe("Delete");
     expect(item.querySelector("kbd")?.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("leaves the focus alone when an item opened a dialog: its first field keeps it", () => {
+    // The item closes the menu and mounts the dialog in one commit, so this cleanup runs after the
+    // field's `autoFocus`. Taking the focus back would leave the dialog sitting on its Close button.
+    function WithDialog() {
+      const [open, setOpen] = useState(false);
+      const [dialog, setDialog] = useState(false);
+      return (
+        <>
+          <Menu open={open} onClose={() => setOpen(false)} label="Branch" anchor={<button onClick={() => setOpen(true)}>Branch</button>}>
+            <MenuItem
+              onClick={() => {
+                setOpen(false);
+                setDialog(true);
+              }}
+            >
+              Create branch…
+            </MenuItem>
+          </Menu>
+          {dialog && (
+            <Dialog title="Create branch" onClose={() => setDialog(false)}>
+              <input aria-label="Name" autoFocus />
+            </Dialog>
+          )}
+        </>
+      );
+    }
+    const { getByRole } = render(<WithDialog />);
+    const trigger = getByRole("button", { name: "Branch" });
+    trigger.focus();
+    fireEvent.click(trigger);
+    fireEvent.click(getByRole("menuitem", { name: "Create branch…" }));
+    expect(document.activeElement).toBe(getByRole("textbox", { name: "Name" }));
   });
 
   it("gives focus back to the trigger once closed", () => {

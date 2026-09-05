@@ -97,11 +97,16 @@ export function DockPanel({ open }: { open: boolean }) {
   // `defaultSize` already puts the panel in the right state at mount — and the imperative API is not
   // usable yet there (the Group registers itself after its children's effects run). Only react to changes.
   const wasOpen = useRef(open);
+  const neverOpened = useRef(!open);
   useEffect(() => {
     if (wasOpen.current === open) return;
     wasOpen.current = open;
-    if (open) panel.current?.expand();
-    else panel.current?.collapse();
+    if (!open) panel.current?.collapse();
+    else if (neverOpened.current) {
+      // A panel that mounted collapsed has no remembered size, so a bare expand() lands on minSize.
+      neverOpened.current = false;
+      panel.current?.resize(DOCK_DEFAULT_H);
+    } else panel.current?.expand();
   }, [open, panel]);
 
   return (

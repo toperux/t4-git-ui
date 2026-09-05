@@ -17,6 +17,7 @@ vi.mock("../api/ipc", async (importOriginal) => {
     getLogPage: vi.fn(() => new Promise(() => {})),
     commit: vi.fn(),
     getHeadMessage: vi.fn(),
+    getMergeMessage: vi.fn(() => Promise.resolve(null)),
     getAuthor: vi.fn(() => Promise.resolve({ name: "Ada", email: "ada@x" })),
     stagePaths: vi.fn(() => Promise.resolve()),
     unstagePaths: vi.fn(() => Promise.resolve()),
@@ -44,6 +45,7 @@ type MockName =
   | "getChangedFiles"
   | "commit"
   | "getHeadMessage"
+  | "getMergeMessage"
   | "getAuthor"
   | "stagePaths"
   | "unstagePaths"
@@ -437,6 +439,61 @@ describe("commitStore.setAmend", () => {
     mocked.getHeadMessage.mockResolvedValue(null);
     await useCommitStore.getState().setAmend(true);
     expect(useCommitStore.getState()).toMatchObject({ amend: true, summary: "", prefill: null });
+  });
+});
+
+describe("commitStore.prefillPending", () => {
+  it("fills the editor from MERGE_MSG when a merge stops, and takes it back when it is aborted", async () => {
+    mocked.getMergeMessage.mockResolvedValue("Merge branch 'conflict'\n\nSome detail\n");
+    useRepoStore.setState({ refs: { ...REFS, state: "merge" } });
+    await flush();
+    expect(useCommitStore.getState()).toMatchObject({ summary: "Merge branch 'conflict'", body: "Some detail" });
+
+    // Abort: the editor is holding the message of a merge that is no longer happening.
+    useRepoStore.setState({ refs: { ...REFS, state: "clean" } });
+    await flush();
+    expect(useCommitStore.getState()).toMatchObject({ summary: "", body: "", prefill: null });
+  });
+
+  it("never overwrites — or clears — a message the user typed", async () => {
+    mocked.getMergeMessage.mockResolvedValue("Merge branch 'conflict'");
+    useCommitStore.setState({ summary: "Mine" });
+    useRepoStore.setState({ refs: { ...REFS, state: "merge" } });
+    await flush();
+    expect(useCommitStore.getState()).toMatchObject({ summary: "Mine", prefill: null });
+
+    useRepoStore.setState({ refs: { ...REFS, state: "clean" } });
+    await flush();
+    expect(useCommitStore.getState().summary).toBe("Mine");
+  });
+
+  it("leaves the editor alone when the operation prepared no message", async () => {
+    mocked.getMergeMessage.mockResolvedValue(null);
+    useRepoStore.setState({ refs: { ...REFS, state: "rebase" } });
+    await flush();
+    expect(mocked.getMergeMessage).toHaveBeenCalledTimes(1);
+    expect(useCommitStore.getState()).toMatchObject({ summary: "", body: "", prefill: null });
+  });
+
+  it("switching to another repository mid-merge prefills that repository's message", async () => {
+    mocked.getMergeMessage.mockResolvedValue("Merge branch 'one'");
+    useRepoStore.setState({ refs: { ...REFS, state: "merge" } });
+    await flush();
+    mocked.getMergeMessage.mockResolvedValue("Merge branch 'two'");
+    useRepoStore.setState({ repo: { ...REPO, id: "r2" }, refs: { ...REFS, state: "merge" } });
+    await flush();
+    expect(mocked.getMergeMessage).toHaveBeenLastCalledWith("r2");
+    expect(useCommitStore.getState().summary).toBe("Merge branch 'two'");
+  });
+
+  it("an abort keeps an amend prefill: HEAD's message is still the right one", async () => {
+    mocked.getHeadMessage.mockResolvedValue("HEAD says");
+    useRepoStore.setState({ refs: { ...REFS, state: "merge" } });
+    await flush();
+    await useCommitStore.getState().setAmend(true);
+    useRepoStore.setState({ refs: { ...REFS, state: "clean" } });
+    await flush();
+    expect(useCommitStore.getState()).toMatchObject({ summary: "HEAD says", amend: true });
   });
 });
 

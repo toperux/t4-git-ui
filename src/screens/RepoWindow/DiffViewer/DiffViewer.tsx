@@ -141,6 +141,9 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
       if (e.key === "ArrowDown" || e.key === "ArrowUp") {
         const next = e.key === "ArrowDown" ? Math.min(i + 1, picks.length - 1) : Math.max(i - 1, 0);
         e.preventDefault();
+        // A range cannot span hunks: with Shift the cursor stops at the hunk's edge rather than
+        // starting a new selection in the next one. Plain ↑ / ↓ still cross.
+        if (e.shiftKey && picks[next].ref.hunk !== picks[i].ref.hunk) return;
         setCursor(next);
         if (e.shiftKey) setSel((prev) => clickLine(diff, prev.anchor ? prev : clickLine(diff, prev, picks[i].ref), picks[next].ref, { shift: true }));
         return;
@@ -342,18 +345,33 @@ function DiffBody({ path, view, rows, maxCols, lang, actions, selected, cursorRo
 
   // The cursor is drawn as `.pick:focus-visible`, so it only exists where the focus is. Move the
   // focus with it — but only while the diff already holds it, or picking a file in the list, or a
-  // reload, would yank the focus out from under whatever the user was actually using.
-  useEffect(() => {
-    const root = scrollRef.current;
-    if (cursorRow < 0 || !root || !root.contains(document.activeElement)) return;
-    virtualizer.scrollToIndex(cursorRow, { align: "auto" });
-    // The row is virtualized: after a scroll it may only mount on the next frame.
+  // reload, would yank the focus out from under whatever the user was actually using. Staging the
+  // selected lines unmounts the row the focus was on and drops it to `<body>`: `held` says the diff
+  // still owns it, so the reloaded cursor takes it back instead.
+  const held = useRef(false);
+  // The row is virtualized: after a scroll it may only mount on the next frame.
+  const focusCursor = (root: HTMLElement) => {
     const focus = () => root.querySelector<HTMLElement>("[data-cursor]")?.focus({ preventScroll: true });
     focus();
     const id = requestAnimationFrame(focus);
     return () => cancelAnimationFrame(id);
+  };
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (cursorRow < 0 || !root || !root.contains(document.activeElement)) return;
+    virtualizer.scrollToIndex(cursorRow, { align: "auto" });
+    return focusCursor(root);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cursorRow]);
+  // A reload remounts the row the focus sat on. Take it back without scrolling: the view stays
+  // wherever the user left it, and a cursor scrolled out of sight stays unfocused until ↑ / ↓.
+  useEffect(() => {
+    const root = scrollRef.current;
+    const lost = !document.activeElement || document.activeElement === document.body;
+    if (cursorRow < 0 || !root || !held.current || !lost) return;
+    return focusCursor(root);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
 
   const model = { view, rows } as Rows;
   return (
@@ -368,7 +386,12 @@ function DiffBody({ path, view, rows, maxCols, lang, actions, selected, cursorRo
       // moves off a line the user can see. Nothing to hand it to outside staging mode: no picks, no
       // `[data-cursor]`, and the region keeps the focus for scrolling.
       onFocus={(e) => {
+        held.current = true;
         if (e.target === e.currentTarget) e.currentTarget.querySelector<HTMLElement>("[data-cursor]")?.focus({ preventScroll: true });
+      }}
+      /* A removed row blurs with no `relatedTarget`; only a focus that actually moved away is a release. */
+      onBlur={(e) => {
+        if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget)) held.current = false;
       }}
     >
       <div

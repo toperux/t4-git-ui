@@ -174,6 +174,21 @@ describe("CommitPanel", () => {
     expect(mocked.stagePaths).toHaveBeenCalledWith("r", ["conflict.rs"]);
   });
 
+  it("staging a row the focus was on hands the focus back to the list, not to <body>", () => {
+    // A click on the row's own + button leaves the focus there; Enter stages the selection and the
+    // row unmounts, taking the focus with it — the list is what the next Enter has to reach.
+    const { getByRole } = renderPanel();
+    const list = () => getByRole("listbox", { name: "Unstaged files" });
+    const row = Array.from(list().querySelectorAll('[role="option"]'))[0];
+    fireEvent.click(row);
+    (row.querySelector('button[aria-label="Stage"]') as HTMLElement).focus();
+    fireEvent.keyDown(list(), { key: "Enter" });
+    expect(mocked.stagePaths).toHaveBeenCalledWith("r", ["a.rs"]);
+    // The refresh lands: a.rs is staged, so its unstaged row goes.
+    act(() => useStatusStore.setState({ status: { ...STATUS, entries: STATUS.entries.filter((e) => e.path !== "a.rs") } }));
+    expect(document.activeElement).toBe(list());
+  });
+
   it("double-clicking a single selected conflicted row stages it, like the row's own action", () => {
     const { getByRole } = renderPanel();
     const list = getByRole("listbox", { name: "Unstaged files" });
@@ -196,6 +211,22 @@ describe("CommitPanel", () => {
     await act(async () => {});
     expect(ask.mock.calls[0][0]).toContain("Replace conflict.rs with feature's version?");
     expect(mocked.resolveConflict).toHaveBeenCalledWith("r", ["conflict.rs"], "theirs");
+  });
+
+  it("a conflicted file with nothing left to show says so instead of leaving the header hanging", async () => {
+    // Resolved outside the app (an editor, rerere) back to our own version: the diff is "ours"
+    // against the file on disk, so it has no hunks and the body has nothing to draw.
+    mocked.getFileDiff.mockImplementation((_id: string, _t: unknown, path: string) =>
+      Promise.resolve({ ...ONE_HUNK(path), status: "conflicted", additions: 0, deletions: 0, hunks: [] }),
+    );
+    const { getByRole, getByText, queryByText } = renderPanel();
+    fireEvent.click(Array.from(getByRole("listbox", { name: "Unstaged files" }).querySelectorAll('[role="option"]'))[2]);
+    await act(async () => {});
+
+    expect(getByText("No conflict markers left — stage the file to mark it resolved")).toBeTruthy();
+    expect(queryByText("Conflict — stage the file once resolved")).toBeNull();
+    // Still a conflict: staging it is what marks it resolved.
+    expect(getByRole("button", { name: "Resolve in editor" })).toBeTruthy();
   });
 
   it("offers to restore a conflict staged with its markers still in the file", async () => {
@@ -659,8 +690,12 @@ describe("CommitPanel tree view", () => {
 describe("CommitDialog", () => {
   it("opens from the message header and shows both lists, the editor and the diff in one dialog", () => {
     const { getByRole } = renderPanel();
-    fireEvent.click(getByRole("button", { name: "Open commit window" }));
+    const expand = getByRole("button", { name: "Open commit window" });
+    fireEvent.click(expand);
     expect(useDialogStore.getState().dialog).toEqual({ kind: "commit" });
+    // Named, not left to the dialog's own `document.activeElement` fallback: Commit & Push hands
+    // this on to the Push dialog, and by then the only other candidate has unmounted.
+    expect(useDialogStore.getState().returnFocus).toBe(expand);
     cleanup();
 
     const onClose = vi.fn();

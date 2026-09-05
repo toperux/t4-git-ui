@@ -47,6 +47,24 @@ describe("Dialog", () => {
     opener.remove();
   });
 
+  it("a dialog replaced by another in the same commit leaves the focus on the new one's control", () => {
+    const opener = document.createElement("button");
+    document.body.appendChild(opener);
+    opener.focus();
+    const { getByRole, rerender } = render(<Harness onClose={() => {}} />);
+    expect(document.activeElement).toBe(getByRole("textbox", { name: "Name" }));
+    rerender(
+      <Dialog title="Push" onClose={() => {}}>
+        <select aria-label="Remote" autoFocus>
+          <option>origin</option>
+        </select>
+      </Dialog>,
+    );
+    // The closing dialog's focus-return must not pull it back to the opener (→ Close fallback).
+    expect(document.activeElement).toBe(getByRole("combobox", { name: "Remote" }));
+    opener.remove();
+  });
+
   it("busy makes Esc and the close button inert", () => {
     const onClose = vi.fn();
     const { getByRole } = render(<Harness onClose={onClose} busy />);

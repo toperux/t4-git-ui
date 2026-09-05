@@ -499,6 +499,17 @@ pub async fn get_head_message(
     blocking(move || Ok(commit::head_message(&handle.git2.lock())?)).await
 }
 
+/// The message a stopped merge / cherry-pick left in `MERGE_MSG`, for the commit
+/// editor to start from (`None` when there is none).
+#[tauri::command]
+pub async fn get_merge_message(
+    state: State<'_, AppState>,
+    id: RepoId,
+) -> Result<Option<String>, AppError> {
+    let handle = state.repo(&id)?;
+    blocking(move || Ok(commit::pending_message(&handle.git2.lock()))).await
+}
+
 #[tauri::command]
 pub async fn get_author(state: State<'_, AppState>, id: RepoId) -> Result<Author, AppError> {
     let handle = state.repo(&id)?;

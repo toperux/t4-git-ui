@@ -105,6 +105,17 @@ describe("StartScreen", () => {
     expect(useRecentsStore.getState().recents.map((r) => r.name)).toEqual(["t4-git-ui", "dotfiles"]);
   });
 
+  it("Delete with the caret mid-text edits the filter instead of removing the row", () => {
+    const { getByRole, getAllByRole } = render(<StartScreen />);
+    const input = getByRole("textbox", { name: "Filter repositories" }) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "RUST" } });
+    input.setSelectionRange(0, 0);
+    const ev = fireEvent.keyDown(input, { key: "Delete" });
+    expect(ev).toBe(true); // not preventDefault-ed: the browser forward-deletes
+    expect(getAllByRole("option")).toHaveLength(1);
+    expect(useRecentsStore.getState().recents).toHaveLength(3);
+  });
+
   it("the gear opens Settings, and closing it puts the dialog away", () => {
     const { getAllByRole, getByRole, queryByRole } = render(<StartScreen />);
     fireEvent.click(getByRole("button", { name: "Settings" }));

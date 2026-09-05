@@ -45,6 +45,21 @@ pub fn head_message(repo: &Repository) -> Result<Option<String>, GitError> {
     }
 }
 
+/// The message git prepared for the commit in progress — `MERGE_MSG`, written
+/// by a merge / cherry-pick / revert that stopped for conflicts — cleaned up
+/// the way `git commit` would: comment lines dropped, surrounding blank lines
+/// trimmed. `None` when there is no file, or nothing left of it.
+pub fn pending_message(repo: &Repository) -> Option<String> {
+    let raw = std::fs::read_to_string(repo.path().join("MERGE_MSG")).ok()?;
+    let msg = raw
+        .lines()
+        .filter(|l| !l.starts_with('#'))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let msg = msg.trim();
+    (!msg.is_empty()).then(|| msg.to_string())
+}
+
 /// Moved to [`crate::config::user_identity`]; kept under its old name.
 pub use crate::config::user_identity as author_identity;
 
@@ -133,5 +148,25 @@ mod tests {
         assert!(
             matches!(author_identity(&t.repo), Err(GitError::Config(m)) if m.contains("user.email"))
         );
+    }
+
+    #[test]
+    fn pending_message_drops_the_comments_git_would() {
+        let t = TempRepo::new();
+        assert_eq!(pending_message(&t.repo), None);
+        let path = t.repo.path().join("MERGE_MSG");
+        std::fs::write(&path, "Merge branch 'conflict'\n\n# Conflicts:\n#\tf.txt\n").unwrap();
+        assert_eq!(
+            pending_message(&t.repo).as_deref(),
+            Some("Merge branch 'conflict'")
+        );
+        // A body survives; the split into summary + body is the editor's job.
+        std::fs::write(&path, "Revert \"x\"\n\nThis reverts commit abc.\n").unwrap();
+        assert_eq!(
+            pending_message(&t.repo).as_deref(),
+            Some("Revert \"x\"\n\nThis reverts commit abc.")
+        );
+        std::fs::write(&path, "# nothing but comments\n").unwrap();
+        assert_eq!(pending_message(&t.repo), None);
     }
 }

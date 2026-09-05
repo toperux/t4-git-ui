@@ -209,6 +209,38 @@ describe("DiffViewer", () => {
     ]);
   });
 
+  it("Shift+↑/↓ stops at the hunk edge instead of restarting the selection in the next hunk", () => {
+    useDiffStore.setState({ view: "unified" });
+    const two = fileDiff(
+      [
+        hunk("@@ -1,2 +1,2 @@", [line("del", 1, null, "a"), line("add", null, 1, "A")]),
+        hunk("@@ -9,2 +9,2 @@", [line("del", 9, null, "b"), line("add", null, 9, "B")]),
+      ],
+      { path: "two.txt" },
+    );
+    const actions: DiffActions = { target: "unstaged", wholeFile: false, onStageHunk: vi.fn(), onStageLines: vi.fn() };
+    const { getByRole, getAllByRole } = render(<DiffViewer path={two.path} diff={two} {...idle} actions={actions} />);
+    const region = getByRole("region", { name: "Diff" });
+    const options = getAllByRole("option");
+    fireEvent.click(options[2]); // the del of the second hunk — its first pick
+
+    // Shift+↑ would leave the hunk: the cursor stays put and the selection is untouched.
+    fireEvent.keyDown(region, { key: "ArrowUp", shiftKey: true });
+    expect(options.map((o) => o.getAttribute("tabindex"))).toEqual(["-1", "-1", "0", "-1"]);
+    expect(getByRole("toolbar", { name: "Selected lines" }).textContent).toContain("1 line selected");
+    // Shift+↓ inside the hunk still extends.
+    fireEvent.keyDown(region, { key: "ArrowDown", shiftKey: true });
+    expect(getByRole("toolbar", { name: "Selected lines" }).textContent).toContain("2 lines selected");
+    // Shift+↓ at the last pick of the last hunk is a no-op too.
+    fireEvent.keyDown(region, { key: "ArrowDown", shiftKey: true });
+    expect(options.map((o) => o.getAttribute("tabindex"))).toEqual(["-1", "-1", "-1", "0"]);
+
+    // Without Shift the cursor crosses hunks as before.
+    fireEvent.keyDown(region, { key: "ArrowUp" });
+    fireEvent.keyDown(region, { key: "ArrowUp" });
+    expect(options.map((o) => o.getAttribute("tabindex"))).toEqual(["-1", "0", "-1", "-1"]);
+  });
+
   it("the keyboard cursor takes the focus with it, so you can see which line you are on", () => {
     // The cursor is drawn by `.pick:focus-visible`: a cursor the focus does not follow is invisible,
     // and the next Space lands on a line the user has no way of identifying.
@@ -305,6 +337,33 @@ describe("DiffViewer", () => {
       [0, 0],
       [0, 1],
     ]);
+  });
+
+  it("Enter stages the selection and the reloaded diff takes the focus back from <body>", () => {
+    useDiffStore.setState({ view: "unified" });
+    const two = fileDiff(
+      [
+        hunk("@@ -1,2 +1,2 @@", [line("del", 1, null, "a"), line("add", null, 1, "A")]),
+        hunk("@@ -9,3 +9,3 @@", [line("del", 9, null, "b"), line("add", null, 9, "B"), line("add", null, 10, "C")]),
+      ],
+      { path: "two.txt" },
+    );
+    const actions: DiffActions = { target: "unstaged", wholeFile: false, onStageHunk: vi.fn(), onStageLines: vi.fn() };
+    const { getByRole, getAllByRole, rerender } = render(<DiffViewer path={two.path} diff={two} {...idle} actions={actions} />);
+    const region = getByRole("region", { name: "Diff" });
+
+    // Cursor on the last pick — the row the shorter reload will not have.
+    region.focus();
+    for (let i = 0; i < 4; i++) fireEvent.keyDown(region, { key: "ArrowDown" });
+    fireEvent.keyDown(region, { key: " " });
+    expect(document.activeElement).toBe(getAllByRole("option")[4]);
+    fireEvent.keyDown(region, { key: "Enter" });
+    expect(actions.onStageLines).toHaveBeenCalledWith([[1, 2]]);
+
+    // The staged line is gone from the reload, and so is the row that held the focus.
+    const staged = fileDiff([two.hunks[0], hunk("@@ -9,3 +9,3 @@", two.hunks[1].lines.slice(0, 2))], { path: "two.txt" });
+    rerender(<DiffViewer path={staged.path} diff={staged} {...idle} actions={actions} />);
+    expect(document.activeElement).toBe(getAllByRole("option")[3]);
   });
 
   it("a conflict offers to keep either side, named the way the backend labelled them", () => {

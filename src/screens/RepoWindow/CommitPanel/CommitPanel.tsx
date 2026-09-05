@@ -43,7 +43,7 @@ export function CommitPanel() {
       </Panel>
       <Separator className={w.splitH} aria-label="Resize commit message" />
       <Panel defaultSize={340} minSize={260} maxSize={560} className={w.panel}>
-        <MessageColumn onExpand={() => open({ kind: "commit" })} />
+        <MessageColumn onExpand={(opener) => open({ kind: "commit" }, { returnFocusTo: opener })} />
       </Panel>
     </Group>
   );
@@ -87,7 +87,11 @@ export function DiffColumn() {
         target: list,
         wholeFile: conflicted || untracked || wholeOnly,
         note: conflicted
-          ? "Conflict — stage the file once resolved"
+          ? // The diff is "ours" against the file on disk: no hunks means the working copy is back to
+            // ours — resolved outside the app (an editor, rerere) — and the body has nothing to show.
+            diff?.path === path && diff.hunks.length === 0
+            ? "No conflict markers left — stage the file to mark it resolved"
+            : "Conflict — stage the file once resolved"
           : stranded
             ? "Marked resolved, but the conflict markers are still here"
             : untracked

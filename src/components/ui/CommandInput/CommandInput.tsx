@@ -13,7 +13,7 @@ export interface CommandInputProps {
   /** Earlier lines, newest first: ↑ walks them, and matching ones lead the list. */
   history: string[];
   refs: RefsSnapshot | null;
-  /** Side the list opens on (`up` for the dock, `down` in a dialog). */
+  /** Side the list opens on: `up` keeps it clear of what sits below the field (the dock, a dialog's buttons). */
   placement: "up" | "down";
   disabled?: boolean;
   autoFocus?: boolean;
@@ -108,7 +108,8 @@ export function CommandInput({ value, onChange, onSubmit, history, refs, placeme
     const item = items[i];
     if (!item) return;
     // A history row is a whole line; anything else replaces the word at the caret and keeps the rest.
-    const inserted = item.kind === "history" ? item.text : `${head.slice(0, replaceFrom)}${item.text} `;
+    // Either way the accepted word ends with a space, so the next `-` lists the flags.
+    const inserted = `${item.kind === "history" ? item.text : `${head.slice(0, replaceFrom)}${item.text}`} `;
     onChange(item.kind === "history" ? inserted : inserted + value.slice(head.length));
     pendingCaret.current = inserted.length;
     setCaret(inserted.length);

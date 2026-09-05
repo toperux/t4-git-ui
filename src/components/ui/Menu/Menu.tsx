@@ -48,13 +48,20 @@ function useMenuDismiss(open: boolean, onClose: () => void, wrap: RefObject<HTML
 /**
  * Focus returns to whatever opened the menu (its trigger) once it closes. Call it before
  * `useMenuDismiss`: effects run in order, and that one moves focus onto the first item.
+ *
+ * Only when the closing menu is what dropped the focus, though: an item that opens a dialog closes
+ * the menu and mounts the dialog in the same commit, and the dialog's `autoFocus` field has already
+ * taken the focus by the time this cleanup runs — pulling it back to the trigger would leave the
+ * dialog on its Close button.
  */
 function useRestoreFocus(open: boolean) {
   useEffect(() => {
     if (!open) return;
     const opener = document.activeElement as HTMLElement | null;
     return () => {
-      if (opener?.isConnected) opener.focus();
+      const active = document.activeElement;
+      const lost = !active || active === document.body || !active.isConnected;
+      if (lost && opener?.isConnected) opener.focus();
     };
   }, [open]);
 }

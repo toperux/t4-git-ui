@@ -31,7 +31,8 @@ export const WorkingTreeRow = memo(function WorkingTreeRow({ id, top, rowH, lane
       className={cx(s.row, selected && s.selected)}
       style={{ transform: `translateY(${top}px)`, height: rowH }}
       onMouseDown={() => selectWorkingTree()}
-      onDoubleClick={() => openDialog({ kind: "commit" })}
+      /* The grid, not the row, is what holds focus — and Commit & Push hands this on to the Push dialog. */
+      onDoubleClick={(e) => openDialog({ kind: "commit" }, { returnFocusTo: e.currentTarget.closest<HTMLElement>('[role="grid"]') })}
     >
       <div role="gridcell" className={s.graph} style={{ width: graphW }}>
         <WorkingTreeNode lanes={lanes} first={first} />

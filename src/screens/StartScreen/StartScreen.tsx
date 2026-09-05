@@ -63,7 +63,8 @@ export function StartScreen() {
         const id = push({
           kind: "error",
           title: openTitle(err),
-          detail: err.message,
+          // The notARepo message is the title again plus the path; the path is the useful half.
+          detail: err.kind === "notARepo" ? path : err.message,
           action: {
             label: "Remove from list",
             onClick: () => {
@@ -132,10 +133,17 @@ export function StartScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clone, settings, busy, lastCloneDir, recents, openRepo]);
 
-  /** Shared by the filter input and the listbox: ↑/↓ move, Enter opens, Delete removes. */
+  /**
+   * Shared by the filter input and the listbox: ↑/↓ move, Enter opens, Delete removes. Inside the
+   * input, Home / End stay caret keys and Delete only removes the row once there is nothing left to
+   * forward-delete (caret at the end, no selection).
+   */
   function onListKey(e: KeyboardEvent) {
     if (visible.length === 0) return;
     const row = visible[sel];
+    const input = e.target instanceof HTMLInputElement ? e.target : null;
+    if (input && (e.key === "Home" || e.key === "End")) return;
+    if (input && e.key === "Delete" && (input.selectionStart !== input.value.length || input.selectionEnd !== input.selectionStart)) return;
     switch (e.key) {
       case "ArrowDown":
         setSelected(Math.min(sel + 1, visible.length - 1));

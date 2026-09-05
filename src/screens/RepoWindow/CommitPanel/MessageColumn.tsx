@@ -17,8 +17,11 @@ import s from "./CommitPanel.module.css";
 export const SUMMARY_LIMIT = 72;
 
 export interface MessageColumnProps {
-  /** Header button that opens the commit dialog (the panel has one; the dialog itself doesn't). */
-  onExpand?: () => void;
+  /**
+   * Header button that opens the commit dialog (the panel has one; the dialog itself doesn't).
+   * Takes the button, which the dialog names as its opener — see `commitAndPush`.
+   */
+  onExpand?: (opener: HTMLElement) => void;
   /** Runs after a successful Commit — the dialog closes itself with it. */
   onCommitted?: () => void;
   /** Focus the summary on mount. */
@@ -69,7 +72,8 @@ export function MessageColumn({ onExpand, onCommitted, autoFocus }: MessageColum
   async function commitAndPush() {
     if (!canCommit || running) return;
     // Read before `onCommitted` closes the commit dialog (which clears it): Push hands focus back to
-    // that dialog's opener, not to this button — it unmounts with the dialog.
+    // that dialog's opener, not to this button — it unmounts with the dialog. Every path that opens
+    // the window names one, or this is null and Push falls back to the doomed button.
     const returnFocusTo = useDialogStore.getState().returnFocus;
     if (await commit()) {
       onCommitted?.();
@@ -88,7 +92,7 @@ export function MessageColumn({ onExpand, onCommitted, autoFocus }: MessageColum
     <div className={s.col}>
       <PanelHeader icon={<GitCommitHorizontal size={14} aria-hidden />} title="Commit message">
         {onExpand && (
-          <IconButton label="Open commit window" onClick={onExpand}>
+          <IconButton label="Open commit window" onClick={(e) => onExpand(e.currentTarget)}>
             <Maximize2 size={16} aria-hidden />
           </IconButton>
         )}

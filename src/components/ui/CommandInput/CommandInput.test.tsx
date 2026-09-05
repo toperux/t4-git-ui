@@ -90,6 +90,16 @@ describe("CommandInput", () => {
     expect(fireEvent.keyDown(input, { key: "Tab" })).toBe(true);
   });
 
+  it("Tab on a history row completes the line with a trailing space too", () => {
+    const { getByRole, getByTestId, getAllByRole } = render(<Harness history={["status"]} />);
+    const input = getByRole("combobox");
+    fireEvent.change(input, { target: { value: "sta" } });
+    // The history row leads the list, so Tab takes it.
+    expect(getAllByRole("option")[0].textContent).toBe("statushistory");
+    key(input, "Tab");
+    expect(getByTestId("value").textContent).toBe("status ");
+  });
+
   it("a click accepts a row, and pressing the mouse on the list does not blur the field", () => {
     const { getByRole, getByTestId, getAllByRole } = render(<Harness />);
     const input = getByRole("combobox");

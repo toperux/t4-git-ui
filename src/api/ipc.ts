@@ -156,6 +156,9 @@ export const commit = (id: RepoId, message: string, amend: boolean, signoff: boo
 /** Full HEAD message (`null` on an unborn HEAD). */
 export const getHeadMessage = (id: RepoId) => call<string | null>("get_head_message", { id });
 
+/** `MERGE_MSG` without its comment lines — what `git commit` would open with mid-merge (`null` when there is none). */
+export const getMergeMessage = (id: RepoId) => call<string | null>("get_merge_message", { id });
+
 /** Rejects with kind `config` when `user.name` / `user.email` are missing. */
 export const getAuthor = (id: RepoId) => call<Author>("get_author", { id });
 

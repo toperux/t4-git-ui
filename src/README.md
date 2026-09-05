@@ -51,7 +51,8 @@ src/
                            the working tree; dropped with a toast when the diff was replaced during the confirmation),
                            resolveConflict(paths, side, label) (ask, then
                            `resolve_conflict` = `checkout --ours|--theirs` + add; a path whose chosen side the other branch
-                           deleted is resolved as a removal instead), setAmend (get_head_message prefill), useMessage, commit
+                           deleted is resolved as a removal instead), setAmend (get_head_message prefill), prefillPending
+                           (get_merge_message prefill when `refs.state` leaves `clean`, taken back on abort), useMessage, commit
                            (→ oid | null, clears the editor incl. after an amend, msgHistory, toast, status + refs refresh),
                            reset on repo change
     recentsStore.ts        zustand: RecentRepo{path,name,lastOpened,pinned} persisted via lib/kv; load (migrates the M1
