@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
     # A docs-only push has nothing here to check. Mixed commits still run.
+    # This cannot let a tagged commit through unchecked: release.yml calls
+    # checks.yml on every tag, whatever paths the commit touched.
     paths-ignore:
       - "docs/**"
       - "**/*.md"
@@ -11,45 +13,9 @@ on:
 
 # One run per push: a burst of pushes cancels the superseded runs instead of stacking them.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   check:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: npm
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
-      - name: Linux deps (Tauri 2)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
-      - name: Versions
-        run: |
-          node --version
-          npm --version
-          cargo --version
-          git --version
-      - name: Git identity (tests that commit via the CLI)
-        run: |
-          git config --global user.name "CI"
-          git config --global user.email "ci@example.com"
-      - run: npm ci
-      - run: cargo fmt --check
-      - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: cargo test --workspace
-      - run: npm test -- --run
-      # `build` is `tsc && vite build`: the type check runs here.
-      - run: npm run build
+    uses: ./.github/workflows/checks.yml

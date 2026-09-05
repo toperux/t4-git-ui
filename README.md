@@ -24,9 +24,12 @@ Not in v1: interactive rebase, blame, file history, submodules, worktrees, bisec
 
 Grab the installer for your platform from the [Releases](../../releases) page:
 
-- Windows: `t4-git-ui_<version>_x64-setup.exe` (NSIS) or the `.msi`
-- macOS: `.dmg` (unsigned for now — right-click → Open on first launch)
+- Windows: `T4-Git-UI_<version>_x64-setup.exe` (NSIS, per-user, no admin prompt)
+- macOS: `T4-Git-UI_<version>_universal.dmg` (Apple Silicon and Intel; unsigned for now —
+  right-click → Open on first launch)
 - Linux: `.deb`, `.rpm` or `.AppImage`
+
+Every asset has a `.sha256` sidecar next to it.
 
 Requirements: `git` ≥ 2.20 on `PATH`. Windows installs the WebView2 runtime automatically if it is missing.
 

@@ -1,49 +1,244 @@
 name: Release
 
+# Tag a commit `v<version>` and push the tag; this builds the packages for all
+# three platforms and publishes them. `workflow_dispatch` builds the same
+# artifacts without releasing, for when you want to check the packaging without
+# burning a version number.
 on:
   push:
-    tags: ["v*"]
+    tags: ['v*']
+  workflow_dispatch:
 
-permissions:
-  contents: write
+env:
+  CARGO_TERM_COLOR: always
 
 jobs:
+  # Resolved once and shared. The tag and Cargo.toml must agree, or the release
+  # is called v0.2.0 and ships an installer named 0.1.0. Cheap to check,
+  # confusing to discover later.
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: read
+        shell: bash
+        run: |
+          set -euo pipefail
+          # [workspace.package] in the root Cargo.toml. src-tauri inherits it,
+          # and tauri.conf.json carries no version of its own.
+          crate=$(grep -m1 '^version = ' Cargo.toml | cut -d'"' -f2)
+          # workflow_dispatch has no tag, so there is nothing to compare against,
+          # and it is allowed to build whatever version the tree has - packaging
+          # can then be checked in the middle of a bump.
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            # Plain x.y.z only: the rpm tooling rejects a `-rc.1` suffix.
+            if ! [[ "$crate" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "version $crate is not a plain x.y.z release" >&2
+              exit 1
+            fi
+            tag="${GITHUB_REF_NAME#v}"
+            if [[ "$tag" != "$crate" ]]; then
+              echo "tag $tag does not match Cargo.toml version $crate" >&2
+              exit 1
+            fi
+          fi
+          echo "version=$crate" >> "$GITHUB_OUTPUT"
+
+  # The release build does not run the tests (D7), so the checks run here
+  # instead, at this exact commit. They gate `publish`, not `build`: the two
+  # run side by side, and a failure means the artifacts exist but nothing is
+  # published.
+  #
+  # Tags only. All this job protects is `publish`, and `publish` is itself
+  # tag-only, so on a workflow_dispatch packaging run the matrix would be
+  # three legs guarding nothing. Skipping it here also skips `publish`, which
+  # is what the dispatch wanted anyway.
+  checks:
+    if: startsWith(github.ref, 'refs/tags/')
+    uses: ./.github/workflows/checks.yml
+
   build:
+    needs: version
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          # bundle_dir is relative to the repo root: this is a cargo workspace,
+          # so the Tauri CLI writes under the root target/, not src-tauri/target/.
           - os: windows-latest
+            bundles: nsis
+            bundle_dir: target/release/bundle
           - os: macos-latest
-            args: --target aarch64-apple-darwin
-          - os: macos-latest
-            args: --target x86_64-apple-darwin
-    runs-on: ${{ matrix.os }}
+            bundles: app,dmg
+            # One .dmg for both Apple Silicon and Intel.
+            target: universal-apple-darwin
+            bundle_dir: target/universal-apple-darwin/release/bundle
+          # 22.04 rather than latest: the .deb links against the builder's
+          # glibc, so the oldest supported runner reaches the most distros.
+          - os: ubuntu-22.04
+            bundles: deb,rpm,appimage
+            bundle_dir: target/release/bundle
+
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ runner.os == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
-      - uses: Swatinem/rust-cache@v2
-        with:
-          # The two macOS legs share a job id and lockfiles; without this they share a key too.
-          key: ${{ matrix.args }}
-      - name: Linux deps (Tauri 2)
+
+      - name: Linux build dependencies (Tauri 2)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
-      - run: npm ci
-      - uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Add the Apple targets
+        if: runner.os == 'macOS'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+
+      # `cargo tauri build` runs `npm run build` first (beforeBuildCommand in
+      # tauri.conf.json), so the frontend dependencies have to be in place.
+      - name: Install npm dependencies
+        run: npm ci
+
+      # No moving major tag on this action; pinned to the release current on 2026-09-05.
+      - uses: cargo-bins/cargo-binstall@v1.22.0
+
+      - name: Install the Tauri CLI
+        # `--no-confirm` only. `-y` is its short form, and binstall rejects
+        # being given the same argument twice.
+        run: cargo binstall --no-confirm 'tauri-cli@^2'
+
+      # Staging picks the first file matching each glob, and the cache restores
+      # target/ from an earlier run. A leftover installer from a previous
+      # version would be staged as this version's. Cheaper to start from nothing.
+      - name: Clear stale bundle output
+        shell: bash
+        run: rm -rf "${{ matrix.bundle_dir }}"
+
+      # Run from the repo root: the Tauri CLI finds src-tauri/ on its own.
+      # Arguments after `--` go to `cargo build`.
+      - name: Build the packages
+        run: >
+          cargo tauri build --bundles ${{ matrix.bundles }}
+          ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
+          -- --locked
+
+      # Tauri names bundles with the product name, and GitHub rewrites spaces
+      # in asset names anyway. Pick the final names here instead of letting the
+      # upload mangle them.
+      - name: Stage the artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          ver='${{ needs.version.outputs.version }}'
+          out="$GITHUB_WORKSPACE/dist"
+          mkdir -p "$out"
+          cd "${{ matrix.bundle_dir }}"
+
+          stage() {
+            local src
+            src=$(find . -path "./$1" -print -quit)
+            if [ -z "$src" ]; then
+              echo "no bundle matched $1" >&2
+              exit 1
+            fi
+            cp "$src" "$out/$2"
+          }
+
+          case '${{ runner.os }}' in
+            Windows)
+              stage 'nsis/*-setup.exe'    "T4-Git-UI_${ver}_x64-setup.exe"
+              ;;
+            macOS)
+              stage 'dmg/*.dmg'           "T4-Git-UI_${ver}_universal.dmg"
+              ;;
+            Linux)
+              stage 'deb/*.deb'           "T4-Git-UI_${ver}_amd64.deb"
+              stage 'rpm/*.rpm'           "T4-Git-UI_${ver}_x86_64.rpm"
+              stage 'appimage/*.AppImage' "T4-Git-UI_${ver}_x86_64.AppImage"
+              ;;
+          esac
+
+          cd "$out"
+          for f in *; do
+            case "$f" in *.sha256) continue ;; esac
+            if command -v sha256sum >/dev/null 2>&1; then
+              hash=$(sha256sum "$f" | cut -d' ' -f1)
+            else
+              hash=$(shasum -a 256 "$f" | cut -d' ' -f1)
+            fi
+            printf '%s  %s' "$hash" "$f" > "$f.sha256"
+            echo "$f  $hash"
+          done
+
+      - uses: actions/upload-artifact@v7
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: t4-git-ui ${{ github.ref_name }}
-          releaseDraft: true
-          args: ${{ matrix.args }}
+          name: packages-${{ runner.os }}
+          path: dist/*
+
+  publish:
+    needs: [version, checks, build]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    # The only job that writes anything: it creates the release.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          draft: false
+          generate_release_notes: true
+          body: |
+            ### Windows
+
+            `T4-Git-UI_${{ needs.version.outputs.version }}_x64-setup.exe` —
+            per-user install, no admin prompt, into `%LOCALAPPDATA%\t4-git-ui`.
+
+            Not code-signed, so SmartScreen shows "Windows protected your PC" the
+            first few times: **More info** → **Run anyway**.
+
+            ### macOS
+
+            `T4-Git-UI_${{ needs.version.outputs.version }}_universal.dmg` —
+            Apple Silicon and Intel in one image. Drag to Applications, then:
+
+            ```sh
+            xattr -dr com.apple.quarantine "/Applications/t4-git-ui.app"
+            ```
+
+            Not signed or notarized, so without that Gatekeeper reports the app as
+            damaged. Right-click → **Open** works too.
+
+            ### Linux
+
+            `.deb`, `.rpm`, and `.AppImage`.
+
+            ```sh
+            sudo apt install ./T4-Git-UI_${{ needs.version.outputs.version }}_amd64.deb
+            ```
+
+            ### Verifying a download
+
+            Every asset ships a `.sha256` sidecar. Check one with `sha256sum -c`
+            on Linux, `shasum -a 256 -c` on macOS, or on Windows:
+
+            ```powershell
+            Get-FileHash '.\<file>' -Algorithm SHA256
+            ```

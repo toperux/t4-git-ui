@@ -1,0 +1,83 @@
+name: Checks
+
+# Called by ci.yml on a push and by release.yml on a tag. Referenced by a local
+# `./` path, so it always runs at the caller's commit - which is what lets a
+# release verify the exact tree it is about to publish.
+on:
+  workflow_call:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: ${{ matrix.os }}
+    # A called workflow runs with the caller's token, and release.yml grants
+    # `contents: write` for `publish`. Without this the check matrix would
+    # inherit write access it has no use for; it only builds and tests.
+    permissions:
+      contents: read
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # 22.04 rather than latest: the .deb links against the builder's glibc,
+        # so the oldest supported runner reaches the most distros. CI matches
+        # the release matrix so a break shows up here first.
+        os: [windows-latest, macos-latest, ubuntu-22.04]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Linux build dependencies (Tauri 2)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Git identity (tests that commit via the CLI)
+        run: |
+          git config --global user.name "CI"
+          git config --global user.email "ci@example.com"
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      # Formatting is platform-independent, so check it once, on the cheapest runner.
+      # `--all` is not optional here: the root Cargo.toml is a virtual workspace, and
+      # without it cargo fmt finds no targets and exits 1.
+      - name: Format
+        if: runner.os == 'Linux'
+        run: cargo fmt --all --check
+
+      # `-D warnings` goes after `--`, not in RUSTFLAGS: as an env var it also
+      # applies to every dependency, so one warning in a crate we do not own
+      # turns the build red.
+      #
+      # `--locked` because the release build passes it too: without it here a
+      # stale `Cargo.lock` goes green, and then kills every release leg after
+      # the tag is already public.
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Test
+        run: cargo test --workspace --locked
+
+      - name: Frontend tests
+        run: npm test -- --run
+
+      # `build` is `tsc && vite build`: the type check runs here.
+      - name: Frontend build
+        run: npm run build
