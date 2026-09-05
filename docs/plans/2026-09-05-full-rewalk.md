@@ -127,7 +127,23 @@ opens with the toggle on; every value survives a relaunch.
 Native folder pickers (`Ctrl+O` non-repo, `Ctrl+N` empty / existing, Choose folder…, so also I's
 "repo without remotes → checkbox absent"), **Resolve in editor** launch, OS theme switch while
 running, the first painted frame at launch, DPI change, "Git not found" screen, clone Cancel timing,
-G2 exec bit (needs Unix), the two large-repo performance checks, §2 native context-menu suppression.
+the two large-repo performance checks, §2 native context-menu suppression.
+
+G2 exec bit was walked later the same day on a Linux build of `9f53aff` under WSLg (Ubuntu 24.04,
+`npm run tauri build -- --no-bundle`): `chmod +x` + one edited line → header `100644 → 100755 +1 −1`;
+**Stage hunk** → `git diff --cached` shows `old mode 100644` / `new mode 100755` plus the hunk, the
+unstaged list is empty; **Unstage hunk** puts both back. First look at WebKitGTK rendering: fonts,
+dark theme (followed GTK), graph, panels all fine at 1500×1000.
+
+The Linux-only leftovers were walked the same day on the same build (light theme, 121-commit repo
+with a 400-line diff): styled scrollbars on the log and the diff (rounded thumb, darker on hover,
+wheel and PageDown scroll); the sidebar, grid/details, commit/files and files/diff splitters all
+drag, the output dock's top edge drags to ~320 px and collapses to the bar when dragged below its
+minimum (its chevron is disabled until a command has run); right-click on the toolbar, a panel
+header, the statusbar and the bare diff body → nothing; on the search field → GTK Cut/Copy/Paste
+menu; on selected diff text → GTK Copy menu; on a commit row → the app's own menu, Esc closes it.
+Note for the harness: a wheel synthesised on the Windows side (`mouse_event`) reaches the webview
+unreliably through WSLg; `xdotool click 4/5` inside WSL scrolls every pane.
 
 ## Cleanup done
 
