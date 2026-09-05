@@ -130,6 +130,23 @@ running, the first painted frame at launch, DPI change, "Git not found" screen, 
 the two large-repo performance checks. (§2 native context-menu suppression was walked on Linux the
 same day, below; on Windows it was part of the 2026-09-01 hand walk.)
 
+Walked by hand on 2026-09-06 in the installed 0.1.2 build and ticked: the folder pickers (`Ctrl+O`
+non-repo, `Ctrl+N` empty / existing), clone Cancel, no theme flash, the OS theme switch, the first
+painted frame after a light toggle, both large-repo checks. Over CDP the same day: "Git not found"
+(launched with git stripped from `PATH`: the screen, Retry staying put, a relaunch proceeding — the
+step now says a relaunch or Locate git… is the fix, since a running process cannot see a `PATH`
+change) and I's tag push (preview, two ops, tag on the bare remote, existing name refused inline,
+no checkbox in a repo without remotes). Still unticked: Resolve in editor (both steps) and the DPI
+change.
+
+Seen on the way: launching the app while an instance was already running left a second, windowless
+`t4-git-ui` process that never exited. Traced the same night: it happens only when the new launch's
+WebView2 browser arguments differ from the browser process already running on the shared user-data
+folder — the walks' `--remote-debugging-port` flag on one side and not the other. WebView2 then
+never finishes creating the webview and the process waits on it. Two plain launches open two
+windows; two launches both with the flag do too. Not a product bug; `docs/smoke-cdp.md` says to
+close every other instance before launching with the flag.
+
 G2 exec bit was walked later the same day on a Linux build of `9f53aff` under WSLg (Ubuntu 24.04,
 `npm run tauri build -- --no-bundle`): `chmod +x` + one edited line → header `100644 → 100755 +1 −1`;
 **Stage hunk** → `git diff --cached` shows `old mode 100644` / `new mode 100755` plus the hunk, the
@@ -162,8 +179,12 @@ smoke docs.
 
 Two observations, both fixed the same day (the merging state now counts as commit-able in the
 working-tree row, the toolbar, the panel's Commit and the status refresh; a hunk button click first
-moves the diff cursor to that hunk). Smoke steps added, unticked: main §4 after "Hover a hunk
-header", post-v1 H after the Keep-ours step.
+moves the diff cursor to that hunk). Smoke steps added — main §4 after "Hover a hunk header",
+post-v1 H after the Keep-ours step — and walked over CDP in the installed 0.1.2 build on
+2026-09-06: both pass. Seen on the way: a mouse-started focus paints no cursor ring until the
+first arrow key (Chromium's `:focus-visible` rule, the step says so now); after the merge commit a
+dirty tree brings the working-tree row back without reopening the panel (the stale-selection case
+the review of the fix caught).
 
 - **A merge whose resolution equals HEAD cannot be committed.** Keep main's version on the
   fixture's one-file conflict leaves `git status` empty while `MERGE_HEAD` exists: the working-tree

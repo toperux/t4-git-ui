@@ -14,7 +14,7 @@ the script now also makes the `conflict` branch (H), `topic/nested` and `origin/
 (A), the `nested folders` commit with `examples/exclude/schema/` and `src/` (E), and leaves the
 working tree with `src/a.txt` + `src/lib/b.txt` edited, `deep/one/two/z.txt` untracked, `gone.txt`
 deleted and a CRLF hunk in `crlf-hunks.txt` (E, F, G). Tick as you go; note anything surprising
-with the group letter and bullet number.
+with the group letter and bullet number. `docs/smoke-cdp.md` is how the walks were scripted.
 
 ---
 
@@ -98,7 +98,7 @@ _Shipped 2026-09-02: `9e756fb`; behaviour fixes `ae61c75`._
 ## D. Theme toggle (main §6, before "No theme flash")
 _Shipped 2026-09-02; kv mirror `ae61c75`._
 
-- [ ] Toggle to light, quit, relaunch on a dark-mode OS → the window is light from its first frame
+- [x] Toggle to light, quit, relaunch on a dark-mode OS → the window is light from its first frame
       (the preference is mirrored into the kv store). The toolbar toggle only flips light ↔ dark —
       Settings › Theme › **Follow system** puts it back on the OS, checked in J
 
@@ -158,7 +158,7 @@ _Shipped 2026-09-02: `9c4bc35`._
       second → confirm → the file reads `the conflict branch's line`, has no markers, and is already
       staged — no **Restore conflict** here: it is only offered for a file staged *with* its markers,
       which main §5 covers. Abort the merge afterwards
-- [ ] Merge `conflict` again and pick **Keep main's version** → `git status` is empty, yet the
+- [x] Merge `conflict` again and pick **Keep main's version** → `git status` is empty, yet the
       **Working tree · 0 changes** row stays, toolbar Commit is enabled and the banner's **Commit
       merge** opens the commit panel with the prefilled `Merge branch 'conflict'` message and Commit
       enabled with nothing staged → commit → a merge commit with two parents, the banner is gone and
@@ -171,8 +171,8 @@ _Shipped 2026-09-02: `9c4bc35`._
 ## I. Create tag with push (main §5, after "Create an annotated and a lightweight tag")
 _Shipped 2026-09-02: `21c2158`._
 
-- [ ] Create tag with **Push to remote after creating** ticked → the preview ends in
-      `&& git push origin refs/tags/<name>`, two ops run back to back, the tag is on the bare remote
+- [x] Create tag with **Push to remote after creating** ticked → the preview ends in
+      `&& git push --progress origin refs/tags/<name>`, two ops run back to back, the tag is on the bare remote
       (`git -C <bare> tag`); a name that already exists is refused inline and Create stays disabled;
       in a repo without remotes the checkbox is absent
 - [x] Same dialog, same tick, but pick the `nowhere` remote (the fixture's path that does not exist)

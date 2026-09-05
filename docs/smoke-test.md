@@ -17,6 +17,7 @@ files say which. Untick a step when a change touches what it checks; tick it aga
 - Release run: install `target/release/bundle/nsis/t4-git-ui_0.1.2_x64-setup.exe`
   (logs go to a daily file under the OS app-log dir)
 - Full shortcut table: `README.md` › Keyboard shortcuts
+- Driving the walk from a script instead of by hand: `docs/smoke-cdp.md`
 
 Everything shipped **after** the 2026-09-01 acceptance has its own checklist,
 `docs/smoke-test-post-v1.md`, grouped by feature and pointing back at the section it belongs to.
@@ -55,7 +56,7 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the first two perfo
 
 - [x] Launch with no previous repo → start screen: header `t4 git ui 0.1.2`, `RECENT` column,
       `START` column with three cards, statusbar shows `git <version>` and `N recent`
-- [ ] `Ctrl+O` → folder picker → choose a **non**-repo folder → error toast, stays on start screen
+- [x] `Ctrl+O` → folder picker → choose a **non**-repo folder → error toast, stays on start screen
 - [x] Open `C:\tmp\t4\work` → repo window opens; restart the app → it reopens automatically
 - [x] `Ctrl+Shift+W` → back to start screen; restart → no auto-open, but the repo is in RECENT
 - [x] Open a second repo → RECENT lists both, newest first
@@ -69,12 +70,15 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the first two perfo
 - [x] Clone → progress line updates live → repo window opens; reopen the dialog → the parent folder
       is remembered
 - [x] Clone again into the same folder → error banner **inside** the dialog, inputs preserved
-- [ ] Start a clone and hit Cancel → returns to the form, and the half-written destination folder is
+- [x] Start a clone and hit Cancel → returns to the form, and the half-written destination folder is
       gone (retry into the same path works)
-- [ ] `Ctrl+N` on an empty folder → repo opens in the **empty-repo state**: "No commits yet", branch
+- [x] `Ctrl+N` on an empty folder → repo opens in the **empty-repo state**: "No commits yet", branch
       name shown, primary button "Open commit panel"
-- [ ] `Ctrl+N` on an existing repo → opens it with an "Already a repository" info toast
-- [ ] Launch with git removed from `PATH` → "Git not found" screen; fix `PATH`, press Retry → proceeds
+- [x] `Ctrl+N` on an existing repo → opens it with an "Already a repository" info toast
+- [x] Launch with git removed from `PATH` → "Git not found" screen ("git executable not found",
+      Retry and Locate git…); Retry re-probes and stays while git is still missing; fix `PATH` and
+      relaunch (a running process cannot see a `PATH` change — Locate git… is the in-app way) →
+      proceeds to the last repository
 
 ## 2. Revision grid + graph + sidebar (M1)
 
@@ -142,9 +146,9 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the first two perfo
 - [x] Multi-select in the lists: click, `Ctrl+click`, `Shift+click`, `↑` `↓`, `Ctrl+A`
 - [x] Stage via `Enter`, double-click, and the hover `+` button; `Stage all` / `Unstage all` work
 - [x] Hover a hunk header → **Stage hunk**; click it → only that hunk moves to Staged
-- [ ] Scroll to the *second* hunk and click its **Stage hunk** with the mouse → the focus lands on the
-      first changed line now at that spot (a focus ring is visible), not on `<body>`; the view does
-      not jump
+- [x] Scroll to the *second* hunk and click its **Stage hunk** with the mouse → the focus stays in the
+      diff, on the changed line now at that spot (a mouse-started focus paints no ring; ↑ / ↓ moves
+      from there and shows it), not on `<body>`; the view does not jump
 - [x] Stage a second hunk of the same file straight after → the diff drops that one too; every stage
       updates the view, not just the first (`hunks.txt` has three to work through)
 - [x] Click add/del lines (`Shift` for a range, `Ctrl` to toggle) → the sticky bar reads
@@ -244,9 +248,9 @@ Use `C:\tmp\t4\work` and the bare remote.
 
 ## 6. Cross-cutting
 
-- [ ] **No theme flash**: on a dark-mode OS the window never flashes light during launch (test both
+- [x] **No theme flash**: on a dark-mode OS the window never flashes light during launch (test both
       dev and the installed release build)
-- [ ] Switch the OS theme while the app runs → the UI follows, including graph lane colours
+- [x] Switch the OS theme while the app runs → the UI follows, including graph lane colours
 - [x] Output dock: drag its top edge → resizes between roughly 160 and 320 px (per session — it
       opens at 200 px after a restart); the collapsed bar shows the last command and its exit status
 - [x] Toasts: stacked top-centre under the toolbar; errors **stay** until dismissed; info/success
@@ -262,9 +266,9 @@ Use `C:\tmp\t4\work` and the bare remote.
 
 The first two need a large repo; the last two use the fixture.
 
-- [ ] Open a `git/git` clone → the walk completes in a couple of seconds; scrolling the grid stays
+- [x] Open a `git/git` clone → the walk completes in a couple of seconds; scrolling the grid stays
       smooth while it is still loading
-- [ ] Scroll deep into the history, then run `git fetch` from a terminal → the UI refreshes without a
+- [x] Scroll deep into the history, then run `git fetch` from a terminal → the UI refreshes without a
       visible stall (only visible rows refetch their labels)
 - [x] In `C:\tmp\t4\work`, select the `big diff (25 000 lines)` commit and open `big.txt` → the diff
       scrolls smoothly (only visible lines are rendered) and ends in the **truncation banner**, since
