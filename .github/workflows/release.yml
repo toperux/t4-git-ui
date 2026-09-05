@@ -142,7 +142,8 @@ jobs:
         run: |
           set -euo pipefail
           ver='${{ needs.version.outputs.version }}'
-          out="$GITHUB_WORKSPACE/dist"
+          # Not `dist/`: that is the Vite output the bundle was built from.
+          out="$GITHUB_WORKSPACE/packages"
           mkdir -p "$out"
           cd "${{ matrix.bundle_dir }}"
 
@@ -185,7 +186,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: packages-${{ runner.os }}
-          path: dist/*
+          path: packages/*
 
   publish:
     needs: [version, checks, build]
