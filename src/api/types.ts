@@ -377,6 +377,7 @@ export type ResetMode = "soft" | "mixed" | "hard";
 export type OpFailure =
   | { kind: "conflicts"; paths: string[] }
   | { kind: "nonFastForward" }
+  | { kind: "diverged" }
   | { kind: "authFailed" }
   | { kind: "rejected"; message: string }
   | { kind: "other"; message: string };

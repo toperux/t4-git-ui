@@ -46,8 +46,11 @@ export function RevisionGrid() {
   const count = total + offset;
   const gridId = useId();
 
-  const [menu, setMenu] = useState<{ at: { x: number; y: number }; oid: string; el: HTMLElement } | null>(null);
-  const onRowMenu = useCallback((at: { x: number; y: number }, oid: string, el: HTMLElement) => setMenu({ at, oid, el }), []);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [menu, setMenu] = useState<{ at: { x: number; y: number }; oid: string; el: HTMLElement | null } | null>(null);
+  // Not the row: it is virtualized and the dialog's action refreshes the walk, so it is detached by the
+  // time focus should come back. The grid container outlives both.
+  const onRowMenu = useCallback((at: { x: number; y: number }, oid: string) => setMenu({ at, oid, el: gridRef.current }), []);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
@@ -181,6 +184,7 @@ export function RevisionGrid() {
         )
       ) : (
         <div
+          ref={gridRef}
           className={s.gridEl}
           role="grid"
           tabIndex={0}
@@ -221,7 +225,7 @@ export function RevisionGrid() {
 }
 
 /** Commit row actions: checkout a branch here / detached, merge / rebase, branch / tag here, reset a branch here, copy SHA. */
-function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number }; oid: string; el: HTMLElement } | null; onClose: () => void }) {
+function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number }; oid: string; el: HTMLElement | null } | null; onClose: () => void }) {
   const open = useDialogStore((st) => st.open);
   const running = useOpsStore(selectRunning);
   const refs = useRepoStore((st) => st.refs);

@@ -111,7 +111,9 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the first two perfo
 - [ ] Toggle **split** view → deletions and additions side by side, fillers on the shorter side;
       restart the app → the mode is remembered
 - [ ] Toggle **tree** mode → folders nest and collapse; remembered across restarts
-- [ ] Whitespace toggle on `hunks.txt` (working tree) → its middle hunk, an indentation-only change,
+- [ ] Whitespace toggle: on the working tree it is **disabled** ("unavailable while staging" — hunk
+      and line indices must match the stage-able diff). Check it on a commit instead: after §4
+      commits `hunks.txt`, select that commit → its middle hunk, an indentation-only change,
       disappears and the other two stay
 - [ ] Long paths ellipsize at the **start** so the filename stays readable; hover shows the full path
 - [ ] A renamed file reads `old → new` in both the row and the diff header
@@ -225,7 +227,8 @@ Use `C:\tmp\t4\work` and the bare remote.
 - [ ] Push (toolbar or `Ctrl+Shift+U`), pick the `nowhere` remote (a path that doesn't exist — the
       fixture adds it; a fixture built before it: `-RemotesOnly`, as above) → the dock
       expands by itself with git's "does not appear to be a git repository" line, error toast
-- [ ] While an op runs, click another op → "Operation in progress" toast; buttons show that tooltip
+- [ ] While an op runs, every op button and menu item is disabled with the "Operation in progress"
+      tooltip, and the op shortcuts (`Ctrl+F5`, `Ctrl+Shift+U`, …) do nothing
 - [ ] `Ctrl+Shift+W` during an op → refused with the same toast; the repo menu's Open / recents /
       Close items are disabled with that tooltip (the op would finish against a repository that is
       no longer open)

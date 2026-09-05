@@ -20,7 +20,14 @@ export function Toast({ toast, onClose }: { toast: ToastModel; onClose: () => vo
         {toast.detail && <div className={cx(s.detail, "selectable")}>{toast.detail}</div>}
         {toast.action && (
           <div className={s.actions}>
-            <Button size="sm" onClick={toast.action.onClick}>
+            {/* The action replaces the toast: retrying keeps the stale error on screen otherwise. */}
+            <Button
+              size="sm"
+              onClick={() => {
+                onClose();
+                toast.action?.onClick();
+              }}
+            >
               {toast.action.label}
             </Button>
           </div>

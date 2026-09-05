@@ -166,6 +166,23 @@ describe("CommitPanel", () => {
     expect(mocked.stagePaths).toHaveBeenCalledWith("r", ["conflict.rs"]);
   });
 
+  it("Enter on a single selected conflicted row stages it, like the row's own action", () => {
+    const { getByRole } = renderPanel();
+    const list = getByRole("listbox", { name: "Unstaged files" });
+    fireEvent.click(Array.from(list.querySelectorAll('[role="option"]'))[2]);
+    fireEvent.keyDown(list, { key: "Enter" });
+    expect(mocked.stagePaths).toHaveBeenCalledWith("r", ["conflict.rs"]);
+  });
+
+  it("double-clicking a single selected conflicted row stages it, like the row's own action", () => {
+    const { getByRole } = renderPanel();
+    const list = getByRole("listbox", { name: "Unstaged files" });
+    const row = Array.from(list.querySelectorAll('[role="option"]'))[2];
+    fireEvent.click(row);
+    fireEvent.doubleClick(row);
+    expect(mocked.stagePaths).toHaveBeenCalledWith("r", ["conflict.rs"]);
+  });
+
   it("a conflicted file offers either side by the branch name the backend put on it", async () => {
     // Mid-merge on `main`: git's `--theirs` is the branch being merged in, and only the backend
     // knows that (during a rebase the two are the other way round).
@@ -374,6 +391,16 @@ describe("CommitPanel file context menu", () => {
     fireEvent.click(rows(container, "Unstaged")[2], { ctrlKey: true }); // conflict.rs
     fireEvent.contextMenu(rows(container, "Unstaged")[2]);
     expect(labels(getByRole("menu", { name: "File actions" }))).toEqual(["Stage 2 files", "Copy path"]);
+  });
+
+  it("Stage on a lone conflicted row marks it resolved, like the row's own action", () => {
+    const { getByRole, container } = renderPanel();
+    fireEvent.contextMenu(rows(container, "Unstaged")[2]); // conflict.rs
+    const item = getByRole("menuitem", { name: "Stage" });
+    expect(item.hasAttribute("disabled")).toBe(false);
+    expect(item.hasAttribute("title")).toBe(false);
+    fireEvent.click(item);
+    expect(mocked.stagePaths).toHaveBeenCalledWith("r", ["conflict.rs"]);
   });
 
   it("Stage skips the conflicted files in a selection, the way Stage all does", () => {

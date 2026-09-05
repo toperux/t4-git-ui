@@ -61,9 +61,11 @@ pub enum OpFailure {
     Conflicts {
         paths: Vec<String>,
     },
-    /// Push rejected as non-fast-forward, or `--ff-only` pull/merge that
-    /// cannot fast-forward.
+    /// Push rejected as non-fast-forward: the remote has commits we lack.
     NonFastForward,
+    /// `--ff-only` pull / merge that cannot fast-forward: the branches have
+    /// diverged (the fetch already happened).
+    Diverged,
     AuthFailed,
     /// Any other `! [rejected]` / `! [remote rejected]` line.
     Rejected {
@@ -310,9 +312,9 @@ const AUTH_PATTERNS: &[&str] = &[
     "authentication failed",
 ];
 
-const NON_FF_PATTERNS: &[&str] = &[
-    "non-fast-forward",
-    "(fetch first)",
+const NON_FF_PATTERNS: &[&str] = &["non-fast-forward", "(fetch first)"];
+
+const DIVERGED_PATTERNS: &[&str] = &[
     "Not possible to fast-forward",
     "not possible to fast-forward",
 ];
@@ -347,6 +349,9 @@ pub fn classify_failure(code: i32, stdout: &str, stderr: &str) -> OpFailure {
     }
     if NON_FF_PATTERNS.iter().any(|p| stderr.contains(p)) {
         return OpFailure::NonFastForward;
+    }
+    if DIVERGED_PATTERNS.iter().any(|p| stderr.contains(p)) {
+        return OpFailure::Diverged;
     }
     if let Some(line) = stderr
         .lines()
@@ -625,14 +630,14 @@ mod tests {
     }
 
     #[test]
-    fn non_fast_forward_patterns() {
+    fn non_fast_forward_and_diverged_patterns() {
         let push = "To /tmp/bare\n ! [rejected]        master -> master (fetch first)\n\
                     error: failed to push some refs to '/tmp/bare'\n";
         assert_eq!(classify_failure(1, "", push), OpFailure::NonFastForward);
         let push2 = " ! [rejected]        master -> master (non-fast-forward)\n";
         assert_eq!(classify_failure(1, "", push2), OpFailure::NonFastForward);
         let pull = "fatal: Not possible to fast-forward, aborting.\n";
-        assert_eq!(classify_failure(128, "", pull), OpFailure::NonFastForward);
+        assert_eq!(classify_failure(128, "", pull), OpFailure::Diverged);
     }
 
     #[test]
@@ -689,6 +694,10 @@ mod tests {
         assert_eq!(
             serde_json::to_value(OpFailure::NonFastForward).unwrap(),
             serde_json::json!({ "kind": "nonFastForward" })
+        );
+        assert_eq!(
+            serde_json::to_value(OpFailure::Diverged).unwrap(),
+            serde_json::json!({ "kind": "diverged" })
         );
         assert_eq!(
             serde_json::to_value(OpFailure::Rejected {

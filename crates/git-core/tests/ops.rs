@@ -195,7 +195,7 @@ async fn fetch_updates_remote_tracking_and_pull_ff_only_fast_forwards() {
 }
 
 #[tokio::test]
-async fn pull_ff_only_on_diverged_history_is_non_fast_forward() {
+async fn pull_ff_only_on_diverged_history_is_diverged() {
     if !have_git() {
         return;
     }
@@ -213,7 +213,7 @@ async fn pull_ff_only_on_diverged_history_is_non_fast_forward() {
         &ops::pull(Some("origin"), Some("master"), PullMode::FfOnly),
     )
     .await;
-    assert_eq!(failure(&out), OpFailure::NonFastForward, "{}", out.stderr);
+    assert_eq!(failure(&out), OpFailure::Diverged, "{}", out.stderr);
     assert_eq!(head(&t2), c, "failed pull must not move HEAD");
 
     // And the push side of the same divergence.

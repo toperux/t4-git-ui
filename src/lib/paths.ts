@@ -28,10 +28,11 @@ export function repoNameFromUrl(url: string): string {
   return last.replace(/\.git$/i, "");
 }
 
-/** `https://github.com/x/y.git` → `github.com/x/y` */
+/** `https://github.com/x/y.git` → `github.com/x/y`, `file:///C:/tmp/bare.git` → `C:/tmp/bare` */
 export function prettyUrl(url: string): string {
   return url
-    .replace(/^[a-z+]+:\/\//i, "")
+    // The optional third slash is `file:///…`'s: dropping only two would leave a leading `/C:/…`.
+    .replace(/^[a-z+]+:\/\/\/?/i, "")
     .replace(/^git@/, "")
     .replace(/\.git$/, "");
 }

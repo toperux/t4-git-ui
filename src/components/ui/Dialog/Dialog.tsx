@@ -53,6 +53,13 @@ export function Dialog({ title, wide, full, onClose, busy, onSubmit, preview, fo
     };
   }, []);
 
+  // A control disabled while `busy` drops the focus to `<body>`: once the action fails and the
+  // dialog is live again, nothing inside it would take Esc or Tab.
+  useEffect(() => {
+    const el = ref.current;
+    if (!busy && el && !el.contains(document.activeElement)) el.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+  }, [busy]);
+
   function onKeyDown(e: KeyboardEvent<HTMLFormElement>) {
     if (e.key === "Escape") {
       e.preventDefault();

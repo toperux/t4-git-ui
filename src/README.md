@@ -203,7 +203,9 @@ src/
                            the same columns as a full-window dialog, Unstaged / Staged / Message stacked left, diff right,
                            closing itself after a commit — also Repository menu › Commit… and a double-click on the working-tree row),
                            FileContextMenu (right-click / Shift+F10 on a row — a row outside the selection is selected alone
-                           first: Stage / Unstage the selection, Discard… (unstaged, none conflicted), Keep <side>'s version when every
+                           first: Stage / Unstage the selection — a lone conflicted file stages, which marks it resolved, like
+                           its row's + / Enter / double-click; a multi-file selection and Stage all skip conflicted ones with
+                           a "(N skipped)" title — Discard… (unstaged, none conflicted), Keep <side>'s version when every
                            selected file is conflicted, Copy path, Open (OS default app) and Reveal in folder — single file,
                            still on disk — through `open_path`, a Rust command that joins the repo-relative path itself so the
                            webview never gets an arbitrary-path opener scope),
@@ -262,7 +264,7 @@ clone removes the half-written destination (backend) unless it already existed. 
 Every branch / remote / stash operation goes through `opsStore.runOp(busy, fn, opts)`. It refuses with an info toast while
 another op is in flight (the backend enforces the same with `AppError::busy`), awaits the command, and classifies the
 outcome: a streamed op resolves with `OpResult` whose `failure` is a *result*, not a rejection — `conflicts` toasts
-"N conflicts — resolve in the commit panel" and selects the working-tree row, `nonFastForward` offers a Pull action,
+"N conflicts — resolve in the commit panel" and selects the working-tree row, `nonFastForward` (a rejected push) offers a Pull action while `diverged` (an `--ff-only` pull that already fetched) just says so,
 `authFailed` points at the credential helper, `rejected` / `other` show git's message. Rejections are `AppError`s:
 `refused` (a safety check, e.g. an unmerged branch) is handed to `onRefused` so the Delete-branch dialog can re-offer
 itself as a force delete, `cancelled` is an info toast, everything else goes through `toastError`. Afterwards it refreshes

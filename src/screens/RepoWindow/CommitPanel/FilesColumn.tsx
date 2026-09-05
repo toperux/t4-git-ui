@@ -166,12 +166,13 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
     void (list === "unstaged" ? stage(ps) : unstage(ps));
   }
 
+  const conflicted = (p: string) => !!entries.find((e) => e.path === p)?.conflicted;
   /**
-   * Staging a conflicted file whole is "mark resolved" with the markers still in it: the row's own
-   * Stage action does that one file at a time, on purpose. Anything that acts on a selection —
-   * Enter, double-click, the menu — skips them, the way "Stage all" does.
+   * Staging a conflicted file whole is "mark resolved" with the markers still in it, one file at a
+   * time on purpose: acting on a lone file — Enter, double-click, the menu — is the row's own Stage
+   * action and stages it. More than one skips them, the way "Stage all" does.
    */
-  const stageable = (ps: string[]) => (list === "unstaged" ? ps.filter((p) => !entries.find((e) => e.path === p)?.conflicted) : ps);
+  const stageable = (ps: string[]) => (list === "unstaged" && ps.length > 1 ? ps.filter((p) => !conflicted(p)) : ps);
 
   // One delegated listener per list keeps every `FileRow` prop stable, so `memo` actually skips rows.
   function onClick(e: MouseEvent<HTMLDivElement>) {
@@ -252,7 +253,7 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
         break;
       case "Delete":
         // Like the menu item: no Discard once a conflicted file is in the selection.
-        if (busy || list !== "unstaged" || sel.selected.length === 0 || stageable(sel.selected).length < sel.selected.length) return;
+        if (busy || list !== "unstaged" || sel.selected.length === 0 || sel.selected.some(conflicted)) return;
         void discard(sel.selected);
         break;
       case "F10":

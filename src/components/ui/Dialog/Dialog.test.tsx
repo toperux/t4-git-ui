@@ -55,6 +55,20 @@ describe("Dialog", () => {
     expect(getByRole("button", { name: "Close" }).hasAttribute("disabled")).toBe(true);
   });
 
+  it("a failed action takes the focus back: busy had dropped it out of the dialog", () => {
+    // The submit button is disabled while busy, so the browser hands the focus to <body>; with
+    // nothing focused inside, Esc never reaches the form and the Tab trap has nothing to trap.
+    const onClose = vi.fn();
+    const { getByRole, rerender } = render(<Harness onClose={onClose} busy />);
+    (document.activeElement as HTMLElement).blur();
+    expect(document.activeElement).toBe(document.body);
+    rerender(<Harness onClose={onClose} busy={false} />);
+    const dialog = getByRole("dialog", { name: "Create branch" });
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("focus returns to the element the host names, not to whatever had focus at mount", () => {
     // A dialog opened from a menu item: the item unmounts in the same commit, so the store names the anchor.
     const anchor = document.createElement("button");

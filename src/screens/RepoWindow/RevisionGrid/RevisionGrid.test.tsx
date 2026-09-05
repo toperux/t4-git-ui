@@ -204,11 +204,11 @@ describe("RevisionGrid", () => {
       "Create tag here…",
       "Copy SHA",
     ]);
-    // Two locals at the row: the dialog picks; focus is handed back to the row the menu came from.
+    // Two locals at the row: the dialog picks; focus is handed back to the grid, not the (virtualized) row.
     const picker = pick("Checkout branch…");
     expect(picker.dialog).toEqual({ kind: "checkoutBranch", branches: [{ name: "feature", remote: null }, { name: "hotfix", remote: null }] });
     // `toBe`: matching a DOM node structurally walks React's fiber props on it and never returns.
-    expect(picker.returnFocus).toBe(rows[1]);
+    expect(picker.returnFocus).toBe(getByRole("grid"));
     fireEvent.contextMenu(rows[1]);
     expect(pick("Reset main to here…").dialog).toEqual({ kind: "reset", target: "oid1" });
     fireEvent.contextMenu(rows[1]);

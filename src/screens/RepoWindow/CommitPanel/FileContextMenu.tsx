@@ -44,9 +44,11 @@ export function FileContextMenu({ list, paths, entries, menu, onClose, act, disc
   const single = n === 1 ? entryOf(paths[0]) : undefined;
   // Nothing on disk to hand the OS: a deletion staged or not.
   const gone = !single || single.workdir === "deleted" || single.index === "deleted";
-  // Staging a conflicted file is "mark resolved" with the markers still in it — the row's own Stage
-  // action does that one file at a time, on purpose; a selection skips them, like "Stage all".
-  const target = list === "unstaged" ? paths.filter((p) => !entryOf(p)?.conflicted) : paths;
+  // Staging a conflicted file is "mark resolved" with the markers still in it — one file at a time,
+  // on purpose: a lone file is the row's own Stage action, so it stages; more than one skips them,
+  // like "Stage all".
+  const anyConflicted = paths.some((p) => entryOf(p)?.conflicted);
+  const target = list === "unstaged" && n > 1 ? paths.filter((p) => !entryOf(p)?.conflicted) : paths;
   const skipped = n - target.length;
 
   /** Every item closes the menu first. */
@@ -76,7 +78,7 @@ export function FileContextMenu({ list, paths, entries, menu, onClose, act, disc
         {many}
       </MenuItem>
       {/* A conflicted file has no single version to go back to: its two sides are the items below. */}
-      {list === "unstaged" && skipped === 0 && (
+      {list === "unstaged" && !anyConflicted && (
         <MenuItem icon={<Trash2 size={16} aria-hidden />} danger kbd="Delete" {...op} onClick={run(() => discard(paths))}>
           Discard{many}…
         </MenuItem>

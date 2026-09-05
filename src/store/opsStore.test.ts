@@ -139,12 +139,18 @@ describe("runOp", () => {
     expect(useRepoStore.getState().wtSelected).toBe(true);
   });
 
-  it("nonFastForward → toast with a Pull action that opens the Pull dialog", async () => {
+  it("nonFastForward on a push → toast with a Pull action that opens the Pull dialog", async () => {
     await runOp("Pushing…", () => Promise.resolve({ ...ok, code: 1, failure: { kind: "nonFastForward" } }));
     const t = toasts()[0];
     expect(t).toMatchObject({ kind: "error", title: "Rejected: remote has new commits — Pull first", action: { label: "Pull" } });
     t.action!.onClick();
     expect(useDialogStore.getState().dialog).toEqual({ kind: "pull" });
+  });
+
+  it("diverged → no Pull action, whatever the label", async () => {
+    await runOp("git pull --ff-only", () => Promise.resolve({ ...ok, code: 1, failure: { kind: "diverged" } }));
+    expect(toasts()).toMatchObject([{ kind: "error", title: "Cannot fast-forward — the branches have diverged" }]);
+    expect(toasts()[0].action).toBeUndefined();
   });
 
   it("authFailed / other → toasts", async () => {

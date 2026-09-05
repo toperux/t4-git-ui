@@ -17,7 +17,7 @@ import { useDiffStore, type DiffView } from "../../../store/diffStore";
 import { Stats } from "../ChangedFileList/ChangedFileList";
 import { flattenSplit, flattenUnified, rowHeight, type SplitRow, type UnifiedRow } from "./diffRows";
 import s from "./DiffViewer.module.css";
-import { clickLine, EMPTY_LINES, lineKey, toPairs, type LineRef, type LineSelection } from "./lineSelection";
+import { carryRef, carrySelection, clickLine, EMPTY_LINES, lineKey, toPairs, type LineRef, type LineSelection } from "./lineSelection";
 
 const OVERSCAN = 30;
 /** `20000` → `20 000` (the style guide's thousands separator). */
@@ -81,9 +81,28 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
 
   const [sel, setSel] = useState<LineSelection>(EMPTY_LINES);
   const [cursor, setCursor] = useState(0);
+  // Staging one hunk reloads the file's diff: the selection in the hunks that survived is carried
+  // over, and so is the cursor — an index into `picks`, which a staged hunk above it would otherwise
+  // leave pointing that many lines further down (and scroll to). Only another file starts over.
+  const loaded = useRef<FileDiffModel | null>(null);
+  const prevPicks = useRef<{ row: number; ref: LineRef }[]>([]);
   useEffect(() => {
-    setSel(EMPTY_LINES);
-    setCursor(0);
+    const prev = loaded.current;
+    loaded.current = diff;
+    if (diff && prev && prev.path === diff.path) {
+      setSel((s) => carrySelection(s, prev, diff));
+      const was = prevPicks.current[Math.min(cursor, prevPicks.current.length - 1)]?.ref;
+      const moved = was && carryRef(was, prev, diff);
+      // `pickAt` is rebuilt during render, so it already holds the reloaded picks.
+      const i = moved ? pickAt.current.get(lineKey(moved.hunk, moved.line)) : undefined;
+      // Nothing to move to — the cursor's own line was staged: leave it to `cursorRow`'s clamp.
+      if (i !== undefined) setCursor(i);
+    } else {
+      setSel(EMPTY_LINES);
+      setCursor(0);
+    }
+    // Only a new diff carries the cursor; `cursor` is read as it stood when that diff arrived.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [diff]);
   const onLineClick = useCallback(
     (ref: LineRef, mods: Mods) => {
@@ -105,6 +124,10 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
     if (!flat || flat.view !== "unified") return [];
     return flat.rows.flatMap((r, row) => (r.kind === "line" && r.line.kind !== "context" ? [{ row, ref: { hunk: r.hunk, line: r.index } }] : []));
   }, [flat]);
+  // Declared after the `[diff]` effect, which needs the picks from before the reload.
+  useEffect(() => {
+    prevPicks.current = picks;
+  }, [picks]);
   const cursorRow = picks[Math.min(cursor, picks.length - 1)]?.row ?? -1;
   // Line key → cursor index, for `onLineClick` (a ref, so clicking does not re-subscribe on every diff).
   const pickAt = useRef(new Map<string, number>());

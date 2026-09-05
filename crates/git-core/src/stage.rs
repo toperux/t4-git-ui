@@ -7,7 +7,7 @@
 use std::path::Path;
 
 use git2::build::CheckoutBuilder;
-use git2::{ErrorCode, ObjectType, Repository, Status};
+use git2::{ErrorCode, Index, ObjectType, Repository, Status};
 use serde::{Deserialize, Serialize};
 
 use crate::{map_git2, GitError};
@@ -15,6 +15,22 @@ use crate::{map_git2, GitError};
 fn workdir(repo: &Repository) -> Result<&Path, GitError> {
     repo.workdir()
         .ok_or_else(|| GitError::NotARepo(repo.path().to_path_buf()))
+}
+
+/// Mutates the index through `f` and writes it, rolling the in-memory copy back
+/// to what is on disk on any error — a path refused halfway through `f` as much
+/// as a failed write (a held `index.lock`). libgit2 caches one `Index` per
+/// `Repository`, so mutations kept after an error would make the next
+/// `statuses()` report a path as staged that git never wrote.
+fn with_index(
+    index: &mut Index,
+    f: impl FnOnce(&mut Index) -> Result<(), GitError>,
+) -> Result<(), GitError> {
+    f(index)
+        .and_then(|()| index.write().map_err(map_git2))
+        .inspect_err(|_| {
+            let _ = index.read(true);
+        })
 }
 
 /// Stages the current working-tree state of `paths` (repo-relative, `/`-separated):
@@ -28,22 +44,24 @@ pub fn stage_paths(repo: &Repository, paths: &[&str]) -> Result<(), GitError> {
     // one conflict side, `apply --cached`), and libgit2 hands back the copy it
     // last read — writing that back would undo git's write.
     index.read(false).map_err(map_git2)?;
-    for p in paths {
-        let rel = Path::new(p);
-        if workdir.join(rel).symlink_metadata().is_ok() {
-            // Stages 1–3 are the sides of a conflict: an unmerged path has no
-            // stage 0, and it is tracked either way.
-            let tracked = (0..=3).any(|s| index.get_path(rel, s).is_some());
-            if !tracked && repo.status_should_ignore(rel).map_err(map_git2)? {
-                return Err(GitError::Refused(format!("{p} is ignored")));
+    with_index(&mut index, |index| {
+        for p in paths {
+            let rel = Path::new(p);
+            if workdir.join(rel).symlink_metadata().is_ok() {
+                // Stages 1–3 are the sides of a conflict: an unmerged path has no
+                // stage 0, and it is tracked either way.
+                let tracked = (0..=3).any(|s| index.get_path(rel, s).is_some());
+                if !tracked && repo.status_should_ignore(rel).map_err(map_git2)? {
+                    return Err(GitError::Refused(format!("{p} is ignored")));
+                }
+                index.add_path(rel)
+            } else {
+                index.remove_path(rel)
             }
-            index.add_path(rel)
-        } else {
-            index.remove_path(rel)
+            .map_err(map_git2)?;
         }
-        .map_err(map_git2)?;
-    }
-    index.write().map_err(map_git2)
+        Ok(())
+    })
 }
 
 /// Removes the directories left empty by deleting `file`, up to (not
@@ -177,16 +195,18 @@ pub fn remove_paths(repo: &Repository, paths: &[&str]) -> Result<(), GitError> {
     let workdir = workdir(repo)?;
     let mut index = repo.index().map_err(map_git2)?;
     index.read(false).map_err(map_git2)?;
-    for p in paths {
-        let rel = Path::new(p);
-        index.remove_path(rel).map_err(map_git2)?;
-        let file = workdir.join(rel);
-        if file.symlink_metadata().is_ok() {
-            std::fs::remove_file(&file)?;
-            prune_empty_dirs(workdir, &file);
+    with_index(&mut index, |index| {
+        for p in paths {
+            let rel = Path::new(p);
+            index.remove_path(rel).map_err(map_git2)?;
+            let file = workdir.join(rel);
+            if file.symlink_metadata().is_ok() {
+                std::fs::remove_file(&file)?;
+                prune_empty_dirs(workdir, &file);
+            }
         }
-    }
-    index.write().map_err(map_git2)
+        Ok(())
+    })
 }
 
 /// Arguments for `git checkout --ours|--theirs -- <paths>`: replaces each
@@ -287,6 +307,46 @@ mod tests {
         let e = entry(&t, "d.txt").unwrap();
         assert_eq!((e.index, e.workdir), (None, Some(FileStatus::Deleted)));
         assert_eq!(index_content(&t, "m.txt").as_deref(), Some("m\n"));
+    }
+
+    /// A failed `index.write()` must not leave the mutation in libgit2's cached
+    /// index: the UI read the path back as staged while git had never written it.
+    #[test]
+    fn a_locked_index_leaves_the_path_unstaged() {
+        let t = TempRepo::new();
+        t.commit(&[("f.txt", "v0\n")], "base");
+        t.write("f.txt", "v1\n");
+
+        let lock = t.path().join(".git").join("index.lock");
+        std::fs::write(&lock, "").unwrap();
+        assert!(matches!(
+            stage_paths(&t.repo, &["f.txt"]),
+            Err(GitError::IndexLocked)
+        ));
+        let e = entry(&t, "f.txt").unwrap();
+        assert_eq!((e.index, e.workdir), (None, Some(FileStatus::Modified)));
+
+        std::fs::remove_file(&lock).unwrap();
+        stage_paths(&t.repo, &["f.txt"]).unwrap();
+        let e = entry(&t, "f.txt").unwrap();
+        assert_eq!((e.index, e.workdir), (Some(FileStatus::Modified), None));
+    }
+
+    /// The refusal comes mid-loop, after the earlier path was already added to
+    /// libgit2's cached index — nothing was written, so nothing may look staged.
+    #[test]
+    fn a_refused_path_leaves_the_earlier_ones_unstaged() {
+        let t = TempRepo::new();
+        t.commit(&[(".gitignore", "*.log\n"), ("a.txt", "v0\n")], "base");
+        t.write("a.txt", "v1\n");
+        t.write("debug.log", "x\n");
+
+        assert!(matches!(
+            stage_paths(&t.repo, &["a.txt", "debug.log"]),
+            Err(GitError::Refused(_))
+        ));
+        let e = entry(&t, "a.txt").unwrap();
+        assert_eq!((e.index, e.workdir), (None, Some(FileStatus::Modified)));
     }
 
     #[test]

@@ -38,5 +38,7 @@ describe("baseName / prettyUrl", () => {
     expect(prettyUrl("https://github.com/x/y.git")).toBe("github.com/x/y");
     expect(prettyUrl("git@github.com:x/y.git")).toBe("github.com:x/y");
     expect(prettyUrl("ssh://host/x/y")).toBe("host/x/y");
+    expect(prettyUrl("file:///C:/tmp/t4/bare.git")).toBe("C:/tmp/t4/bare");
+    expect(prettyUrl("file://server/share/bare.git")).toBe("server/share/bare");
   });
 });

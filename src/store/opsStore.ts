@@ -99,7 +99,7 @@ export interface RunOpOptions {
   /** Handles a `refused` rejection instead of the default error toast (e.g. offer a force delete). */
   onRefused?: (message: string) => void;
   /**
-   * No failure toast except for conflicts / authFailed / nonFastForward (those carry an action or a
+   * No failure toast except for conflicts / authFailed / nonFastForward / diverged (those carry an action or a
    * next step): the dock's exit line already says it, and for a typed command a non-zero exit is
    * often the answer (`grep`, `diff --exit-code`).
    */
@@ -120,6 +120,9 @@ export function failureToast(f: OpFailure): { title: string; detail?: string; ac
         title: "Rejected: remote has new commits — Pull first",
         action: { label: "Pull", onClick: () => useDialogStore.getState().open({ kind: "pull" }) },
       };
+    case "diverged":
+      // An `--ff-only` pull has already fetched: telling it to pull again is wrong.
+      return { title: "Cannot fast-forward — the branches have diverged" };
     case "authFailed":
       return { title: "Authentication failed — check your credential helper" };
     case "rejected":
@@ -147,7 +150,7 @@ export async function runOp(busy: string, fn: (id: RepoId) => Promise<OpResult |
     const result = await fn(repo.id);
     const failure = result?.failure ?? null;
     if (failure) {
-      const loud = failure.kind === "conflicts" || failure.kind === "authFailed" || failure.kind === "nonFastForward";
+      const loud = failure.kind === "conflicts" || failure.kind === "authFailed" || failure.kind === "nonFastForward" || failure.kind === "diverged";
       if (!opts.quietFailure || loud) push({ kind: failure.kind === "conflicts" ? "info" : "error", ...failureToast(failure) });
       if (failure.kind === "conflicts") useRepoStore.getState().selectWorkingTree();
       outcome = { ok: false, error: null, failure };

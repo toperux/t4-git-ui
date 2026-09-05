@@ -256,6 +256,57 @@ describe("DiffViewer", () => {
     expect(scrolls.offsets).toEqual([0]);
   });
 
+  it("staging one hunk keeps the selection in the hunks that survive the reload", () => {
+    useDiffStore.setState({ view: "unified" });
+    const two = fileDiff(
+      [
+        hunk("@@ -1,2 +1,2 @@", [line("del", 1, null, "a"), line("add", null, 1, "A")]),
+        hunk("@@ -9,2 +9,2 @@", [line("del", 9, null, "b"), line("add", null, 9, "B")]),
+      ],
+      { path: "two.txt" },
+    );
+    const actions: DiffActions = { target: "unstaged", wholeFile: false, onStageHunk: vi.fn(), onStageLines: vi.fn() };
+    const { getByRole, getAllByRole, rerender } = render(<DiffViewer path={two.path} diff={two} {...idle} actions={actions} />);
+    fireEvent.click(getAllByRole("option")[3]); // the add in the second hunk
+    expect(getByRole("toolbar", { name: "Selected lines" }).textContent).toContain("1 line selected");
+
+    // The first hunk was staged: the same file reloads without it, and the selection moves with its hunk.
+    const staged = fileDiff([two.hunks[1]], { path: "two.txt" });
+    rerender(<DiffViewer path={staged.path} diff={staged} {...idle} actions={actions} />);
+    const left = getAllByRole("option");
+    expect(left).toHaveLength(2);
+    expect(left.map((o) => o.getAttribute("aria-selected"))).toEqual(["false", "true"]);
+    fireEvent.click(getByRole("button", { name: "Stage 1 line" }));
+    expect(actions.onStageLines).toHaveBeenCalledWith([[0, 1]]);
+  });
+
+  it("staging a hunk above the cursor moves the cursor with its line, not down by the picks it lost", () => {
+    useDiffStore.setState({ view: "unified" });
+    const two = fileDiff(
+      [
+        hunk("@@ -1,2 +1,2 @@", [line("del", 1, null, "a"), line("add", null, 1, "A")]),
+        hunk("@@ -9,3 +9,3 @@", [line("del", 9, null, "b"), line("add", null, 9, "B"), line("add", null, 10, "C")]),
+      ],
+      { path: "two.txt" },
+    );
+    const actions: DiffActions = { target: "unstaged", wholeFile: false, onStageHunk: vi.fn(), onStageLines: vi.fn() };
+    const { getByRole, getAllByRole, rerender } = render(<DiffViewer path={two.path} diff={two} {...idle} actions={actions} />);
+    fireEvent.click(getAllByRole("option")[2]); // the del in the second hunk: cursor 2 of 5 picks
+
+    // The first hunk was staged, so two picks above the cursor are gone: the same index would now
+    // name a line two further down (and scroll there). ↓ then Space must land on the line after it.
+    const staged = fileDiff([two.hunks[1]], { path: "two.txt" });
+    rerender(<DiffViewer path={staged.path} diff={staged} {...idle} actions={actions} />);
+    const region = getByRole("region", { name: "Diff" });
+    fireEvent.keyDown(region, { key: "ArrowDown" });
+    fireEvent.keyDown(region, { key: " " });
+    fireEvent.click(getByRole("button", { name: "Stage 2 lines" }));
+    expect(actions.onStageLines).toHaveBeenCalledWith([
+      [0, 0],
+      [0, 1],
+    ]);
+  });
+
   it("a conflict offers to keep either side, named the way the backend labelled them", () => {
     const onKeepSide = vi.fn();
     const actions: DiffActions = {
