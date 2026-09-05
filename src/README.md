@@ -203,7 +203,7 @@ src/
                            the same columns as a full-window dialog, Unstaged / Staged / Message stacked left, diff right,
                            closing itself after a commit — also Repository menu › Commit… and a double-click on the working-tree row),
                            FileContextMenu (right-click / Shift+F10 on a row — a row outside the selection is selected alone
-                           first: Stage / Unstage the selection, Discard… (unstaged), Keep <side>'s version when every
+                           first: Stage / Unstage the selection, Discard… (unstaged, none conflicted), Keep <side>'s version when every
                            selected file is conflicted, Copy path, Open (OS default app) and Reveal in folder — single file,
                            still on disk — through `open_path`, a Rust command that joins the repo-relative path itself so the
                            webview never gets an arbitrary-path opener scope),

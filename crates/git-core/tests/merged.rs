@@ -197,6 +197,40 @@ fn an_upstream_only_change_recomputes_a_cached_result() {
     assert_eq!(local(&snap, "feat"), Some("origin/feature-1"));
 }
 
+/// A rebase (or a fixture script) stamps a whole chain in one second: the date-ordered walk
+/// then pops the parents in any order, and a tip popped before the merge that contains it
+/// used to lose its badge. Same timestamp on every commit here, on purpose.
+#[test]
+fn a_chain_stamped_in_one_second_is_still_merged() {
+    let mut t = TempRepo::new();
+    let root = t.commit(&[("a", "1")], "root");
+    let (feature, main) = {
+        let sig = git2::Signature::new(
+            "Test",
+            "test@example.com",
+            &git2::Time::new(1_788_530_913, 0),
+        )
+        .unwrap();
+        let tree = t.repo.find_commit(root).unwrap().tree().unwrap();
+        let commit = |msg: &str, parents: &[git2::Oid]| {
+            let parents: Vec<git2::Commit> = parents
+                .iter()
+                .map(|p| t.repo.find_commit(*p).unwrap())
+                .collect();
+            let refs: Vec<&git2::Commit> = parents.iter().collect();
+            t.repo.commit(None, &sig, &sig, msg, &tree, &refs).unwrap()
+        };
+        let first = commit("first", &[root]);
+        let feature = commit("feature edit", &[first]);
+        let merge = commit("merge feature", &[first, feature]);
+        (feature, commit("main edit", &[merge]))
+    };
+    t.branch("feature", feature);
+    t.reference("refs/heads/master", main);
+    let snap = snapshot(&mut t.repo).expect("snapshot");
+    assert_eq!(local(&snap, "feature"), Some("master"));
+}
+
 fn snap_oid(t: &TempRepo, name: &str) -> git2::Oid {
     t.repo.find_reference(name).unwrap().target().unwrap()
 }

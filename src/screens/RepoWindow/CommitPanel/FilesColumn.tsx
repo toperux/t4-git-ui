@@ -243,13 +243,16 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
       case "A":
         if (!(e.ctrlKey || e.metaKey)) return;
         select(list, selectAll(all, sel));
+        // From a focused folder row: the next Enter should act on the selection, not toggle the folder.
+        e.currentTarget.focus();
         break;
       case "Enter":
         if (busy) return;
         act(stageable(sel.selected));
         break;
       case "Delete":
-        if (busy || list !== "unstaged" || sel.selected.length === 0) return;
+        // Like the menu item: no Discard once a conflicted file is in the selection.
+        if (busy || list !== "unstaged" || sel.selected.length === 0 || stageable(sel.selected).length < sel.selected.length) return;
         void discard(sel.selected);
         break;
       case "F10":

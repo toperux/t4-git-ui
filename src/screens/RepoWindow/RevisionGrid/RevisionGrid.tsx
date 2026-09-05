@@ -239,9 +239,10 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
   const openDialog = (spec: DialogSpec) => open(spec, { returnFocusTo: menu.el });
   // Everything but Copy touches the repository: greyed while an operation runs, like the toolbar.
   const op = running ? { disabled: true, title: "Operation in progress" } : {};
-  // With no branch here the commit itself is the merge source; several branches leave the pick to the dialog.
+  // With no branch here the commit itself is the merge source; several branches name the first, like the
+  // rebase item — the dialog opens on it and lets the others be picked.
   const m = branches.merge;
-  const mergeTitle = m.length === 1 ? `Merge ${m[0].name} into ${current}…` : m.length === 0 ? `Merge commit ${short} into ${current}…` : "Merge branch here…";
+  const mergeTitle = m.length > 0 ? `Merge ${m[0].name} into ${current}…` : `Merge commit ${short} into ${current}…`;
   const onto = branches.rebaseOnto;
   const rebaseTitle = `Rebase ${current} onto ${onto ? onto.name : "here"}…`;
   return (
@@ -266,18 +267,22 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
           {...op}
           onClick={run(() => openDialog({ kind: "merge", branch: m[0]?.name ?? oid }))}
         >
-          {/* As in the reset items: only the source name ellipsizes, the destination and the "…" hint stay visible. */}
+          {/* Either name can be long: the source chip and the "into <name>…" tail each ellipsize on their own. */}
           <span className={s.menuLabel}>
-            {m.length === 1 ? (
+            {m.length > 0 ? (
               <>
-                Merge <MenuRef className={s.menuBranch} remote={m[0].remote !== null}>{m[0].name}</MenuRef> <span>into <MenuRef>{current}</MenuRef>…</span>
-              </>
-            ) : m.length === 0 ? (
-              <>
-                Merge commit <MenuRef>{short}</MenuRef> <span>into <MenuRef>{current}</MenuRef>…</span>
+                Merge <MenuRef className={s.menuBranch} remote={m[0].remote !== null}>{m[0].name}</MenuRef>{" "}
+                <span className={s.menuBranch}>
+                  into <MenuRef>{current}</MenuRef>…
+                </span>
               </>
             ) : (
-              "Merge branch here…"
+              <>
+                Merge commit <MenuRef>{short}</MenuRef>{" "}
+                <span className={s.menuBranch}>
+                  into <MenuRef>{current}</MenuRef>…
+                </span>
+              </>
             )}
           </span>
         </MenuItem>
@@ -291,7 +296,10 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
           onClick={run(() => openDialog({ kind: "rebase", onto: onto?.name ?? oid }))}
         >
           <span className={s.menuLabel}>
-            Rebase <MenuRef className={s.menuBranch}>{current}</MenuRef> <span>onto {onto ? <MenuRef remote={onto.remote !== null}>{onto.name}</MenuRef> : "here"}…</span>
+            Rebase <MenuRef className={s.menuBranch}>{current}</MenuRef>{" "}
+            <span className={s.menuBranch}>
+              onto {onto ? <MenuRef remote={onto.remote !== null}>{onto.name}</MenuRef> : "here"}…
+            </span>
           </span>
         </MenuItem>
       )}
@@ -316,9 +324,12 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
           {...op}
           onClick={run(() => openDialog(r.current ? { kind: "reset", target: r.remote } : { kind: "resetBranch", branch: r.branch, target: r.remote }))}
         >
-          {/* Only the local name ellipsizes: the destination and the "…" hint stay visible. */}
+          {/* Either name can be long: the local chip and the "to <remote>…" tail each ellipsize on their own. */}
           <span className={s.menuLabel}>
-            Reset <MenuRef className={s.menuBranch}>{r.branch}</MenuRef> <span>to <MenuRef remote>{r.remote}</MenuRef>…</span>
+            Reset <MenuRef className={s.menuBranch}>{r.branch}</MenuRef>{" "}
+            <span className={s.menuBranch}>
+              to <MenuRef remote>{r.remote}</MenuRef>…
+            </span>
           </span>
         </MenuItem>
       ))}

@@ -148,7 +148,7 @@ export async function runOp(busy: string, fn: (id: RepoId) => Promise<OpResult |
     const failure = result?.failure ?? null;
     if (failure) {
       const loud = failure.kind === "conflicts" || failure.kind === "authFailed" || failure.kind === "nonFastForward";
-      if (!opts.quietFailure || loud) push({ kind: "error", ...failureToast(failure) });
+      if (!opts.quietFailure || loud) push({ kind: failure.kind === "conflicts" ? "info" : "error", ...failureToast(failure) });
       if (failure.kind === "conflicts") useRepoStore.getState().selectWorkingTree();
       outcome = { ok: false, error: null, failure };
     } else {

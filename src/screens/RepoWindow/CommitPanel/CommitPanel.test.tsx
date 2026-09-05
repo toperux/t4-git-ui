@@ -360,7 +360,7 @@ describe("CommitPanel file context menu", () => {
     const { getByRole, container } = renderPanel();
     fireEvent.contextMenu(rows(container, "Unstaged")[2]);
     const menu = getByRole("menu", { name: "File actions" });
-    expect(labels(menu)).toEqual(["Stage", "Discard…", "Keep main's version", "Keep feature's version", "Copy path", "Open", "Reveal in folder"]);
+    expect(labels(menu)).toEqual(["Stage", "Keep main's version", "Keep feature's version", "Copy path", "Open", "Reveal in folder"]);
     fireEvent.click(getByRole("menuitem", { name: "Keep feature's version" }));
     await act(async () => {});
     expect(ask.mock.calls[0][0]).toContain("Replace conflict.rs with feature's version?");
@@ -373,7 +373,7 @@ describe("CommitPanel file context menu", () => {
     fireEvent.click(rows(container, "Unstaged")[0]); // a.rs
     fireEvent.click(rows(container, "Unstaged")[2], { ctrlKey: true }); // conflict.rs
     fireEvent.contextMenu(rows(container, "Unstaged")[2]);
-    expect(labels(getByRole("menu", { name: "File actions" }))).toEqual(["Stage 2 files", "Discard 2 files…", "Copy path"]);
+    expect(labels(getByRole("menu", { name: "File actions" }))).toEqual(["Stage 2 files", "Copy path"]);
   });
 
   it("Stage skips the conflicted files in a selection, the way Stage all does", () => {
@@ -586,6 +586,13 @@ describe("CommitPanel tree view", () => {
     expect(useCommitStore.getState().selected).toEqual(["src/lib/b.rs", "src/a.rs", "top.rs"]);
     fireEvent.keyDown(tree(), { key: "Enter" });
     expect(mocked.stagePaths).toHaveBeenLastCalledWith("r", ["src/lib/b.rs", "src/a.rs", "top.rs"]);
+    await act(async () => {});
+    // Ctrl+A from the focused folder row hands focus to the list, so Enter stages instead of toggling it.
+    fireEvent.keyDown(lib(), { key: "a", ctrlKey: true });
+    expect(document.activeElement).toBe(tree());
+    fireEvent.keyDown(tree(), { key: "Enter" });
+    expect(mocked.stagePaths).toHaveBeenLastCalledWith("r", ["src/lib/b.rs", "src/a.rs", "top.rs"]);
+    await act(async () => {});
 
     // Hidden anchor: ↓ lands on the first file after the folder row, ↑ has nothing above it and stays.
     fireEvent.click(lib());

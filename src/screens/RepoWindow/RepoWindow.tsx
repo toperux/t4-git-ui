@@ -181,7 +181,8 @@ function RepoStatusBar() {
   const busy = useOpsStore((st) => st.busy);
   const head = refs?.head;
   const current = refs?.local.find((b) => b.isHead);
-  const remote = refs?.remotes[0];
+  // The branch's own remote, else origin, else whatever comes first — not the alphabetical first.
+  const remote = refs?.remotes.find((r) => current?.upstream?.startsWith(`${r.name}/`)) ?? refs?.remotes.find((r) => r.name === "origin") ?? refs?.remotes[0];
   const state = refs?.state ?? "clean";
 
   return (

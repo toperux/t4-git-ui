@@ -2,7 +2,9 @@
 
 Companion to `docs/smoke-test.md` (the v1 walkthrough, accepted 2026-09-01). Every check below is a
 feature that landed afterwards; **none of them has been walked in a real window yet**. Each group
-names the section of the main walkthrough it belongs to, so it can be run on its own or slotted in.
+names the section of the main walkthrough it belongs to, so it can be run on its own or slotted in
+(B, C and H check out / merge / rebase, which the fixture's dirty tree refuses: start them with
+`git stash -u`, or walk E/F/G first and discard).
 
 Same setup as the main doc: the `docs/smoke-fixtures.ps1` repos under `C:\tmp\t4` (§0 there), a
 dev run or the installed release. Rebuild the fixture with `-Force` if yours predates 2026-09-03:
@@ -66,7 +68,7 @@ sit in §5 next to "Checkout a commit (detached)"; the merge / rebase and ellips
       (Rebase dialog onto the sha). The HEAD row shows neither item; both are disabled while an op runs
 - [ ] Check out a long-named branch, right-click a row → the Reset item keeps `to here…` visible and
       ellipsizes the branch name instead; the full text is in its tooltip; same for
-      "Reset `<local>` to `<remote>`…" — only the local name ellipsizes, `to origin/x…` stays
+      "Reset `<local>` to `<remote>`…" — the long name ellipsizes, `to origin/x…` stays visible
 
 ## C. Run git command, dock prompt (main §5, after the cancel checks)
 _Shipped 2026-09-02: `9e756fb`; behaviour fixes `ae61c75`._

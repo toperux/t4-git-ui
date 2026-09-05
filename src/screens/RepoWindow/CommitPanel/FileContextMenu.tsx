@@ -75,7 +75,8 @@ export function FileContextMenu({ list, paths, entries, menu, onClose, act, disc
         {list === "unstaged" ? "Stage" : "Unstage"}
         {many}
       </MenuItem>
-      {list === "unstaged" && (
+      {/* A conflicted file has no single version to go back to: its two sides are the items below. */}
+      {list === "unstaged" && skipped === 0 && (
         <MenuItem icon={<Trash2 size={16} aria-hidden />} danger kbd="Delete" {...op} onClick={run(() => discard(paths))}>
           Discard{many}…
         </MenuItem>

@@ -323,7 +323,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
             ? `Discard changes in ${files}? Tracked files are restored from the index; ${untracked} untracked file${untracked === 1 ? " is" : "s are"} deleted.`
             : `Discard changes in ${files}? This cannot be undone.`;
       // No confirmation available (no Tauri dialog plugin) → treat it as declined; nothing is lost.
-      const ok = await ask(message, { title: untracked === n ? "Delete files" : "Discard changes", kind: "warning", okLabel: untracked === n ? "Delete" : "Discard" }).catch(() => false);
+      const ok = await ask(message, { title: untracked === n ? "Delete files" : "Discard changes", kind: "warning", cancelLabel: "Cancel", okLabel: untracked === n ? "Delete" : "Discard" }).catch(() => false);
       if (!ok) return false;
       // `false` too when another mutation was already running: nothing was discarded.
       return await run("Discard failed", (id) => ipc.discardPaths(id, paths));
@@ -333,7 +333,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       const n = paths.length;
       const files = n === 1 ? paths[0] : `${n} files`;
       // No confirmation available → declined: the checkout overwrites the working file.
-      const ok = await ask(`Replace ${files} with ${label}'s version? Your edits to ${n === 1 ? "it" : "them"} are lost.`, { title: "Resolve conflict", kind: "warning", okLabel: "Replace" }).catch(() => false);
+      const ok = await ask(`Replace ${files} with ${label}'s version? Your edits to ${n === 1 ? "it" : "them"} are lost.`, { title: "Resolve conflict", kind: "warning", cancelLabel: "Cancel", okLabel: "Replace" }).catch(() => false);
       if (!ok) return;
       await run("Resolve failed", (id) => ipc.resolveConflict(id, paths, side));
     },
@@ -357,7 +357,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       const { diffPath, diff, diffContext } = get();
       if (!diffPath) return;
       // No confirmation available → declined; a discard has no undo.
-      const ok = await ask(`Discard this hunk from ${diffPath}? This cannot be undone.`, { title: "Discard hunk", kind: "warning", okLabel: "Discard" }).catch(() => false);
+      const ok = await ask(`Discard this hunk from ${diffPath}? This cannot be undone.`, { title: "Discard hunk", kind: "warning", cancelLabel: "Cancel", okLabel: "Discard" }).catch(() => false);
       if (!ok || !stillShown(diff)) return;
       await run("Discard failed", (id) => ipc.discardHunks(id, diffPath, [hunk], diffContext));
     },
@@ -366,7 +366,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       const { diffPath, diff, diffContext } = get();
       if (!diffPath || lines.length === 0) return;
       const n = lines.length;
-      const ok = await ask(`Discard ${n} selected line${n === 1 ? "" : "s"} from ${diffPath}? This cannot be undone.`, { title: "Discard lines", kind: "warning", okLabel: "Discard" }).catch(() => false);
+      const ok = await ask(`Discard ${n} selected line${n === 1 ? "" : "s"} from ${diffPath}? This cannot be undone.`, { title: "Discard lines", kind: "warning", cancelLabel: "Cancel", okLabel: "Discard" }).catch(() => false);
       if (!ok || !stillShown(diff)) return;
       await run("Discard failed", (id) => ipc.discardLines(id, diffPath, lines, diffContext));
     },

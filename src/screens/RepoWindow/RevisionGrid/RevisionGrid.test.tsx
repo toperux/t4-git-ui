@@ -195,7 +195,7 @@ describe("RevisionGrid", () => {
     expect(items()).toEqual([
       "Checkout branch…",
       "Checkout (detached)",
-      "Merge branch here…",
+      "Merge feature into main…",
       "Rebase main onto feature…",
       "Create branch here…",
       "Reset main to here…",
@@ -263,6 +263,20 @@ describe("RevisionGrid", () => {
     useDialogStore.setState({ dialog: null, returnFocus: null });
   });
 
+  it("both halves of the merge / rebase / reset items can ellipsize, so neither is squeezed out", () => {
+    withRefs();
+    const long = "feature/".padEnd(75, "x");
+    useRepoStore.setState({ refs: { ...REFS, local: REFS.local.map((b) => (b.isHead ? { ...b, name: long } : b)) } });
+    const { container, getByRole } = render(<RevisionGrid />);
+    const rows = container.querySelectorAll('[role="row"][aria-rowindex]');
+    const chips = (name: RegExp) => Array.from(getByRole("menuitem", { name }).querySelectorAll('[class*="menuBranch"]')).map((el) => el.textContent);
+    fireEvent.contextMenu(rows[2]);
+    expect(chips(/^Merge/)).toEqual(["origin/new", `into ${long}…`]);
+    expect(chips(/^Rebase/)).toEqual([long, "onto origin/new…"]);
+    fireEvent.contextMenu(rows[1]);
+    expect(chips(/^Reset .* to origin\/main/)).toEqual([long, "to origin/main…"]);
+  });
+
   it("a detached HEAD keeps the merge item and offers no rebase", () => {
     withRefs();
     // Nothing is checked out, so `main` / `stale` are merge sources of their own — and a rebase has no
@@ -271,7 +285,7 @@ describe("RevisionGrid", () => {
     const { container, getAllByRole } = render(<RevisionGrid />);
     fireEvent.contextMenu(container.querySelectorAll('[role="row"][aria-rowindex]')[0]);
     const items = getAllByRole("menuitem").map((el) => el.textContent);
-    expect(items).toContain("Merge branch here…");
+    expect(items).toContain("Merge main into HEAD…");
     expect(items.some((t) => t?.startsWith("Rebase"))).toBe(false);
   });
 
@@ -284,7 +298,7 @@ describe("RevisionGrid", () => {
     const disabled = items.filter((el) => el.disabled).map((el) => el.textContent);
     expect(disabled).toHaveLength(items.length - 1);
     expect(disabled).not.toContain("Copy SHA");
-    expect(disabled).toContain("Merge branch here…");
+    expect(disabled).toContain("Merge feature into main…");
     expect(disabled).toContain("Rebase main onto feature…");
     expect(items.filter((el) => el.disabled).every((el) => el.title === "Operation in progress")).toBe(true);
     useOpsStore.setState({ busy: null });

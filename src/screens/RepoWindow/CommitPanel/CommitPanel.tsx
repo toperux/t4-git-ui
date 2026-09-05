@@ -122,6 +122,7 @@ async function restoreConflict(path: string) {
     title: "Restore conflict",
     kind: "warning",
     okLabel: "Restore",
+    cancelLabel: "Cancel",
   });
   if (!ok) return;
   try {

@@ -135,7 +135,7 @@ describe("runOp", () => {
   it("conflicts → toast + selects the working-tree row", async () => {
     const out = await runOp("Merging…", () => Promise.resolve({ ...ok, code: 1, conflicts: ["a", "b"], failure: { kind: "conflicts", paths: ["a", "b"] } }));
     expect(out).toMatchObject({ ok: false, failure: { kind: "conflicts" } });
-    expect(toasts()).toMatchObject([{ kind: "error", title: "2 conflicts — resolve in the commit panel" }]);
+    expect(toasts()).toMatchObject([{ kind: "info", title: "2 conflicts — resolve in the commit panel" }]);
     expect(useRepoStore.getState().wtSelected).toBe(true);
   });
 

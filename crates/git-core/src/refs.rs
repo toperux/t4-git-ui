@@ -225,9 +225,11 @@ struct Tip {
 /// the set of tips its children were reached from, and stopping once every
 /// tip has been popped — so the cost is the history newer than the oldest tip,
 /// not all of it. Date order stands in for topological order (libgit2's
-/// topological sort walks everything up front); a commit stamped newer than
-/// its child is reached late and its reachers lost, which costs a badge, not
-/// history.
+/// topological sort walks everything up front), except that a run of commits
+/// stamped in the same second comes out in no particular order — a rebase or a
+/// script stamps whole chains that way — so each run is put children-first
+/// before use. A commit stamped newer than its child is still reached late and
+/// its reachers lost, which costs a badge, not history.
 fn reachers(repo: &Repository, tips: &[Oid]) -> Result<Vec<Vec<u64>>, GitError> {
     let words = tips.len().div_ceil(64);
     let mut at: HashMap<Oid, Vec<usize>> = HashMap::new();
@@ -239,38 +241,69 @@ fn reachers(repo: &Repository, tips: &[Oid]) -> Result<Vec<Vec<u64>>, GitError> 
     for &t in at.keys() {
         walk.push(t).map_err(map_git2)?;
     }
+    let mut walk = walk
+        .map(|oid| oid.and_then(|oid| repo.find_commit(oid)).map_err(map_git2))
+        .peekable();
     let mut out = vec![vec![0u64; words]; tips.len()];
     // Tips reaching a commit the walk has not popped yet.
     let mut pending: HashMap<Oid, Vec<u64>> = HashMap::new();
     let mut left = at.len();
-    for oid in walk {
-        let oid = oid.map_err(map_git2)?;
-        let mut flags = pending.remove(&oid).unwrap_or_else(|| vec![0; words]);
-        if let Some(here) = at.get(&oid) {
-            for &i in here {
-                flags[i / 64] |= 1 << (i % 64);
-            }
-            for &i in here {
-                out[i].clone_from(&flags);
-                out[i][i / 64] &= !(1 << (i % 64));
-            }
-            left -= 1;
-            if left == 0 {
+    'runs: while let Some(first) = walk.next() {
+        let first = first?;
+        let stamp = first.time().seconds();
+        let mut run = vec![first];
+        while let Some(Ok(next)) = walk.peek() {
+            if next.time().seconds() != stamp {
                 break;
             }
+            run.push(walk.next().expect("peeked")?);
         }
-        if flags.iter().all(|w| *w == 0) {
-            continue;
-        }
-        let commit = repo.find_commit(oid).map_err(map_git2)?;
-        for parent in commit.parent_ids() {
-            let into = pending.entry(parent).or_insert_with(|| vec![0; words]);
-            for (d, s) in into.iter_mut().zip(&flags) {
-                *d |= s;
+        for commit in children_first(run) {
+            let oid = commit.id();
+            let mut flags = pending.remove(&oid).unwrap_or_else(|| vec![0; words]);
+            if let Some(here) = at.get(&oid) {
+                for &i in here {
+                    flags[i / 64] |= 1 << (i % 64);
+                }
+                for &i in here {
+                    out[i].clone_from(&flags);
+                    out[i][i / 64] &= !(1 << (i % 64));
+                }
+                left -= 1;
+                if left == 0 {
+                    break 'runs;
+                }
+            }
+            if flags.iter().all(|w| *w == 0) {
+                continue;
+            }
+            for parent in commit.parent_ids() {
+                let into = pending.entry(parent).or_insert_with(|| vec![0; words]);
+                for (d, s) in into.iter_mut().zip(&flags) {
+                    *d |= s;
+                }
             }
         }
     }
     Ok(out)
+}
+
+/// Commits with one timestamp, ordered so that no commit comes after one of
+/// its own children. Runs are a handful of commits, so the quadratic pick is
+/// fine.
+fn children_first(mut run: Vec<git2::Commit<'_>>) -> Vec<git2::Commit<'_>> {
+    let mut ordered = Vec::with_capacity(run.len());
+    while !run.is_empty() {
+        let i = run
+            .iter()
+            .position(|c| {
+                !run.iter()
+                    .any(|child| child.parent_ids().any(|p| p == c.id()))
+            })
+            .unwrap_or(0);
+        ordered.push(run.remove(i));
+    }
+    ordered
 }
 
 /// Sets every branch's `merged_into` to the branch whose tip reaches it —
