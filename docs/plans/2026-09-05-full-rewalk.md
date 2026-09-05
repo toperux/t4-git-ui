@@ -127,7 +127,8 @@ opens with the toggle on; every value survives a relaunch.
 Native folder pickers (`Ctrl+O` non-repo, `Ctrl+N` empty / existing, Choose folder…, so also I's
 "repo without remotes → checkbox absent"), **Resolve in editor** launch, OS theme switch while
 running, the first painted frame at launch, DPI change, "Git not found" screen, clone Cancel timing,
-the two large-repo performance checks, §2 native context-menu suppression.
+the two large-repo performance checks. (§2 native context-menu suppression was walked on Linux the
+same day, below; on Windows it was part of the 2026-09-01 hand walk.)
 
 G2 exec bit was walked later the same day on a Linux build of `9f53aff` under WSLg (Ubuntu 24.04,
 `npm run tauri build -- --no-bundle`): `chmod +x` + one edited line → header `100644 → 100755 +1 −1`;
@@ -144,6 +145,35 @@ header, the statusbar and the bare diff body → nothing; on the search field �
 menu; on selected diff text → GTK Copy menu; on a commit row → the app's own menu, Esc closes it.
 Note for the harness: a wheel synthesised on the Windows side (`mouse_event`) reaches the webview
 unreliably through WSLg; `xdotool click 4/5` inside WSL scrolls every pane.
+
+## Retest of the fixed steps (2026-09-05, installed build from `fe12651`)
+
+The steps whose code the six fixes and the §D items touched, walked again over CDP: start-screen
+`Delete` (row at the caret's end, forward-delete mid-text, `Home` / `End` stay in the field),
+filter `↑` / `Enter`, renamed-repo toast with the path as detail; Enter-staging keeps the focus on
+the list, `Tab` into the diff lands on a line, `Shift+↓` stops at the hunk edge (2 lines of a
+2-line hunk after twelve presses), `Enter` stages and the focus stays on a line; staging a hunk in
+a 39-hunk `big.txt` holds the scroll offset (3146 → 3128) and a line selection elsewhere; two
+selected lines survive an external save; the merge summary is prefilled `Merge branch 'conflict'`,
+survives the panel closing and reopening, and the commit clears the banners; the dock opens at
+200 px on a fresh launch; `Esc` from a dialog opened from the commit-row menu lands on the grid;
+the Run-git-command list opens above the field and leaves Run clickable. All pass; ticked in the
+smoke docs.
+
+Two observations, not fixed:
+
+- **A merge whose resolution equals HEAD cannot be committed.** Keep main's version on the
+  fixture's one-file conflict leaves `git status` empty while `MERGE_HEAD` exists: the working-tree
+  row disappears, the toolbar Commit is disabled ("No changes"), and the banner's **Commit merge**
+  opens nothing. Only Abort is left, although `git commit` would record the merge. Needs the
+  merging state to count as a commit-able change (working-tree row and Commit enabled while
+  `MERGE_HEAD` exists).
+- Clicking **Stage hunk** with the mouse leaves the focus on `<body>` (the button had it and
+  unmounted); the `held` refocus only covers the keyboard path. Cosmetic.
+
+Unexplained: the `t4-git-ui` entry vanished from RECENT at some point during the walk; the Delete
+key paths were re-run afterwards and remove only the highlighted row. Restored by hand in
+`recents.json`. Watch for it.
 
 ## Cleanup done
 

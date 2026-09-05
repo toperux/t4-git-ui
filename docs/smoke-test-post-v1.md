@@ -1,7 +1,9 @@
 # Smoke test — features shipped after v1 acceptance
 
 Companion to `docs/smoke-test.md` (the v1 walkthrough, accepted 2026-09-01). Every check below is a
-feature that landed afterwards; **none of them has been walked in a real window yet**. Each group
+feature that landed afterwards. The ticks are the record, as in the main doc: ticked = walked and
+passed in its last walk (the 2026-09-05 CDP walks; G2 under WSLg), unticked = never walked here or
+changed since and needs a retest. Each group
 names the section of the main walkthrough it belongs to, so it can be run on its own or slotted in
 (B, C and H check out / merge / rebase, which the fixture's dirty tree refuses: start them with
 `git stash -u`, or walk E/F/G first and discard).
@@ -19,77 +21,77 @@ with the group letter and bullet number.
 ## A. Sidebar — merged badges, remote folders (main §2)
 _Shipped 2026-09-02: `bf7b29b`, `21289fb`, review fix `ae61c75`._
 
-- [ ] A branch whose tip is already inside another branch is muted with a `merged` badge whose
+- [x] A branch whose tip is already inside another branch is muted with a `merged` badge whose
       tooltip names the container: `feature` (merged into `main`), `twin-a` / `twin-b` (each other);
       `main`, `reset-me`, `topic`-style tips and `origin/reset-me` (only inside its own local
       `reset-me`) carry none. Check out `feature` → `origin/twin-remote`'s badge (merged into
       `twin-a`) stays, `feature`'s goes (the current branch never counts as merged into anything)
-- [ ] Branches with `/` in the name nest in folders — under Local and under each remote alike:
+- [x] Branches with `/` in the name nest in folders — under Local and under each remote alike:
       `topic/nested` sits in a `topic` folder under Local, `origin/topic/on-origin` in one under
       origin (`origin/feature-upstream` stays flat); collapsing one folder leaves the other open
-- [ ] Sidebar: the checked-out branch never shows a `merged` badge, even with a branch ahead of it
+- [x] Sidebar: the checked-out branch never shows a `merged` badge, even with a branch ahead of it
 
 ## B. Commit context menu — checkout, reset, merge, rebase (main §2 and §5)
 _Shipped 2026-09-02: `4bdd00e`, `7c6aadc`; ellipsis fix `ae61c75`. The checkout / reset bullets
 sit in §5 next to "Checkout a commit (detached)"; the merge / rebase and ellipsis ones in §2._
 
-- [ ] Right-click the `feature edit` row → **Checkout feature** (one branch, no picker) → checks it out
-- [ ] Right-click `solo (remote only)` → **Checkout origin/solo** → a local `solo` tracking
+- [x] Right-click the `feature edit` row → **Checkout feature** (one branch, no picker) → checks it out
+- [x] Right-click `solo (remote only)` → **Checkout origin/solo** → a local `solo` tracking
       `origin/solo` is created and checked out (one chip with a remote segment on the row)
-- [ ] Right-click `twins (three branches here)` → **Checkout branch…** → picker lists `twin-a`,
+- [x] Right-click `twins (three branches here)` → **Checkout branch…** → picker lists `twin-a`,
       `twin-b`, `origin/twin-remote`; pick `origin/twin-remote` → the help line says it creates
       `twin-remote`, preview reads `git checkout --track -b twin-remote origin/twin-remote` → Checkout →
       `twin-remote` is the current branch
-- [ ] Check out `reset-me` (sidebar double-click), right-click the `reset fixture 1` row → **Reset
+- [x] Check out `reset-me` (sidebar double-click), right-click the `reset fixture 1` row → **Reset
       reset-me to here…** → dialog defaults to Mixed, preview reads `git reset --mixed <sha>` → Reset →
       the `reset-me` chip moves down one row while `origin/reset-me` stays on `reset fixture 2`, and
       `reset.txt` shows up as an **unstaged** change
-- [ ] Right-click `reset fixture 2` → **Reset reset-me to origin/reset-me…** → same dialog (it is the
+- [x] Right-click `reset fixture 2` → **Reset reset-me to origin/reset-me…** → same dialog (it is the
       current branch), preview reads `git reset --mixed origin/reset-me`; pick **Hard** → the button
       turns danger and the text warns about uncommitted changes → Reset → `reset.txt` is clean again
       and the two chips are one row again
-- [ ] Reset `reset-me` to `reset fixture 1` once more, this time **Hard** (no leftover change), then
+- [x] Reset `reset-me` to `reset fixture 1` once more, this time **Hard** (no leftover change), then
       double-click `main` in the sidebar and right-click `reset fixture 2` → **Reset reset-me to
       origin/reset-me…** → a plain confirm dialog, preview reads `git branch -f reset-me origin/reset-me`
       (not `git reset`: the branch is not checked out) → Reset → the chip is back on the tip and the
       working tree was never touched
-- [ ] **Before** the Pull check on `feature` above (it needs `feature` behind its upstream — Cancel
+- [x] **Before** the Pull check on `feature` above (it needs `feature` behind its upstream — Cancel
       these dialogs): right-click `upstream branch commit` (`origin/feature-upstream`) → **Reset
       feature to origin/feature-upstream…** — the local branch is matched by **upstream**; right-click
       `decoy branch commit` (`origin/feature`) → **Reset feature to origin/feature…** — matched by
       **name**. After the Pull only the second one is still offered: `feature` then sits on
       `origin/feature-upstream`
-- [ ] Right-click a row where the only branch is the current one (its HEAD row) → no Checkout
+- [x] Right-click a row where the only branch is the current one (its HEAD row) → no Checkout
       `<branch>` item and no Reset-to-remote item, just the fixed entries
-- [ ] On `main`, right-click `feature`'s tip → Merge `feature` into `main`… opens the Merge dialog
+- [x] On `main`, right-click `feature`'s tip → Merge `feature` into `main`… opens the Merge dialog
       with `feature` selected; Rebase `main` onto `feature`… opens the Rebase dialog with `feature`
       selected. A plain commit (no branch) → Merge commit `<sha7>` into `main`… (the dialog lists the
       7-char sha as an extra option, message `Merge commit '<sha7>'`) and Rebase `main` onto here…
       (Rebase dialog onto the sha). The HEAD row shows neither item; both are disabled while an op runs
-- [ ] Check out a long-named branch, right-click a row → the Reset item keeps `to here…` visible and
+- [x] Check out a long-named branch, right-click a row → the Reset item keeps `to here…` visible and
       ellipsizes the branch name instead; the full text is in its tooltip; same for
       "Reset `<local>` to `<remote>`…" — the long name ellipsizes, `to origin/x…` stays visible
 
 ## C. Run git command, dock prompt (main §5, after the cancel checks)
 _Shipped 2026-09-02: `9e756fb`; behaviour fixes `ae61c75`._
 
-- [ ] Repository menu → **Run git command…** (`Ctrl+Shift+R`): type `sta` → the list offers `status` /
+- [x] Repository menu → **Run git command…** (`Ctrl+Shift+R`): type `sta` → the list offers `status` /
       `stash` with hints; `Tab` completes `status `; type `-` → its flags; **Run** → the dock expands
       on its own with the output and `exit 0`; no toast
-- [ ] Same dialog: type `checkout ` → the list shows local branches, `origin/…`, tags, `stash@{0}` and
+- [x] Same dialog: type `checkout ` → the list shows local branches, `origin/…`, tags, `stash@{0}` and
       remote names; pick `feature` → checked out, sidebar and grid follow
-- [ ] `add -i` → inline "-i needs a terminal…" help, Run disabled; so does `add -ip`, while
+- [x] `add -i` → inline "-i needs a terminal…" help, Run disabled; so does `add -ip`, while
       `commit -m -p` is allowed (`-p` is the message); `commit` with no `-m` runs and fails at once
       with "Aborting commit due to empty commit message" (no editor, no hang); `commit -m "two words"` → the
       preview reads `git commit -m 'two words'` and the dock line `git commit -m "two words"`
       (quoting survives the round trip)
-- [ ] Expanded dock (`` Ctrl+` ``) has a `$ git` prompt at the bottom: `status` + `Enter` runs and
+- [x] Expanded dock (`` Ctrl+` ``) has a `$ git` prompt at the bottom: `status` + `Enter` runs and
       clears the line; `↑` recalls it, `↑` again the one before, `↓` returns to what was typed;
       the completion list opens **upward**; `F5` / `Ctrl+B` typed there do nothing
-- [ ] While an op runs the prompt stays focused and shows "Running…", Enter does nothing until it
+- [x] While an op runs the prompt stays focused and shows "Running…", Enter does nothing until it
       ends; `` Ctrl+` `` collapses the dock from inside the prompt; restart the app and open another
       repository → the history is still there (it is global)
-- [ ] From the prompt, `fetch slow` → elapsed timer + **Cancel** in the dock header kills it; the
+- [x] From the prompt, `fetch slow` → elapsed timer + **Cancel** in the dock header kills it; the
       "Cancelled" toast appears; `fetch nowhere` → **no** toast; the dock's exit line shows the non-zero code
       (a typed `push` that is rejected still toasts, with its Pull action)
 
@@ -104,19 +106,19 @@ _Shipped 2026-09-02; kv mirror `ae61c75`._
 _Shipped 2026-09-02: `a86a494`, `82978bc`, `7f37902`. Tree bullets go after "Multi-select in the
 lists"; the commit window after "Amend a commit"._
 
-- [ ] **Show as tree** (the folder button beside the Unstaged title; it turns into a list icon once in tree mode) → both lists nest by folder with
+- [x] **Show as tree** (the folder button beside the Unstaged title; it turns into a list icon once in tree mode) → both lists nest by folder with
       folders first; clicking a folder collapses it and `↑` `↓` / `Shift+click` skip its files; the
       hover `+` / `−`, `Enter` and double-click still act on file rows; the choice survives a restart
-- [ ] Tree view look: the untracked `deep/one/two/z.txt` is one row `deep / one / two` with the
+- [x] Tree view look: the untracked `deep/one/two/z.txt` is one row `deep / one / two` with the
       full path in its tooltip, `src` holds `a.txt` and a `lib` folder; collapsing `deep / one / two`
       hides `z.txt`; every nested row shows a thin guide line under each ancestor's chevron, and the
       lines stay visible on hover and when selected; select the `nested folders` commit → the details
       pane's tree shows `examples / exclude / schema` as one row and does the same
-- [ ] Tree view keys: `Enter` / `Space` / `←` / `→` on a clicked folder row toggle it and stage nothing;
+- [x] Tree view keys: `Enter` / `Space` / `←` / `→` on a clicked folder row toggle it and stage nothing;
       select a file, collapse its folder → it stays selected, `Ctrl+A` then `Enter` stages the hidden
       one too; `↓` from the hidden file lands on the first file after the folder; stage a file in
       tree mode → the selection moves to the row below it (not the status-order neighbour)
-- [ ] **Open commit window** (the expand button in the Commit message header, a double-click on the
+- [x] **Open commit window** (the expand button in the Commit message header, a double-click on the
       working-tree row, or Repository menu › Commit…) → a full-window dialog: Unstaged / Staged / Message stacked on the left, the diff on
       the right, all three splitters drag; staging there is mirrored in the panel behind; `Esc`
       closes it, and a successful Commit closes it by itself; `Esc` with the Message history menu
@@ -126,7 +128,7 @@ lists"; the commit window after "Amend a commit"._
 ## F. Discard hunks and lines (main §4, after "Hover a hunk header → Stage hunk")
 _Shipped 2026-09-02: `78f8f02`._
 
-- [ ] Hover a hunk header → **Discard hunk** beside it → confirm → the hunk is gone from the working
+- [x] Hover a hunk header → **Discard hunk** beside it → confirm → the hunk is gone from the working
       tree and the other hunks of `hunks.txt` are untouched; select two lines → **Discard 2 lines**
       (or `Delete`) → confirm → only those lines revert; `crlf-hunks.txt` (one CRLF hunk) discards
       the same way and `git diff` is then empty — no CRs lost; the staged side, an untracked file
@@ -137,26 +139,26 @@ _Shipped 2026-09-02: `2600ae6`, `a03c727`. The mode check needs a Unix box or WS
 check runs on `hunks.txt` alone, so `gone.txt` is still deleted and `crlf-hunks.txt` still modified
 when this group starts._
 
-- [ ] Right-click an unstaged row (or `Shift+F10`) → Stage / Discard… / Copy path / Open / Reveal in
+- [x] Right-click an unstaged row (or `Shift+F10`) → Stage / Discard… / Copy path / Open / Reveal in
       folder; a staged row offers Unstage instead and no Discard; right-click a row outside the
       selection → only that row is selected; with three rows selected the items read "3 files" and
       Open / Reveal are gone; **Open** launches the file's default app, **Reveal in folder** opens
       Explorer with the file selected, **Copy path** toasts the repo-relative path; `gone.txt`
       (deleted) keeps Copy path but Open / Reveal are disabled
-- [ ] `chmod +x` a tracked file and edit a line (WSL / Linux / macOS only) → the diff header shows
+- [x] `chmod +x` a tracked file and edit a line (WSL / Linux / macOS only) → the diff header shows
       `100644 → 100755`; **Stage hunk** → the staged entry carries the new mode (`git diff --cached`
       shows `old mode` / `new mode`) and the unstaged side is clean
 
 ## H. Keep ours / theirs per conflicted file (main §5, before "Resolve the conflict")
 _Shipped 2026-09-02: `9c4bc35`._
 
-- [ ] On `main`, Branch menu › Merge… `conflict` → `conflict.txt` conflicts; **Keep main's version** /
+- [x] On `main`, Branch menu › Merge… `conflict` → `conflict.txt` conflicts; **Keep main's version** /
       **Keep conflict's version** sit before "Resolve in editor" (labels are the branch names, `main`
       first — git's *ours*); the same two items are in the file row's right-click menu → pick the
       second → confirm → the file reads `the conflict branch's line`, has no markers, and is already
       staged — no **Restore conflict** here: it is only offered for a file staged *with* its markers,
       which main §5 covers. Abort the merge afterwards
-- [ ] Check out `conflict`, Rebase… onto `main` → the same file conflicts, and the labels are
+- [x] Check out `conflict`, Rebase… onto `main` → the same file conflicts, and the labels are
       **Keep main's version** (git's *ours* = the branch rebased onto) and **Keep conflict's version**;
       pick the first → the file reads `main's line`, pick the second → `the conflict branch's line`
       — each keeps what its label says, not the other way round. Abort the rebase afterwards
@@ -168,14 +170,14 @@ _Shipped 2026-09-02: `21c2158`._
       `&& git push origin refs/tags/<name>`, two ops run back to back, the tag is on the bare remote
       (`git -C <bare> tag`); a name that already exists is refused inline and Create stays disabled;
       in a repo without remotes the checkbox is absent
-- [ ] Same dialog, same tick, but pick the `nowhere` remote (the fixture's path that does not exist)
+- [x] Same dialog, same tick, but pick the `nowhere` remote (the fixture's path that does not exist)
       → the tag is created locally and its create toast shows, then the push fails with its own
       error toast; the tag stays local (it is in the sidebar, not in `git -C <bare> tag`)
 
 ## J. Settings (main §6)
 _Shipped 2026-09-02: `8b8102a`._
 
-- [ ] **Settings** (toolbar gear, also on the start screen): a bogus git path + Apply → the error shows
+- [x] **Settings** (toolbar gear, also on the start screen): a bogus git path + Apply → the error shows
       inline, the old path stays and the app keeps working; the real path → `git version …` shows and
       the statusbar version follows; **Theme → Follow system** → the window tracks the OS again after
       the toolbar toggle had pinned it; **Context lines** 1 → the open diff reloads with one line of
