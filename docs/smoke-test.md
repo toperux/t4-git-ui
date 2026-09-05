@@ -14,7 +14,7 @@ its code changed after its last walk and it needs a retest — the dated `docs/p
 files say which. Untick a step when a change touches what it checks; tick it again after the walk.
 
 - Dev run: `npm run tauri dev` (logs go to stderr in the terminal)
-- Release run: install `target/release/bundle/nsis/t4-git-ui_0.1.1_x64-setup.exe`
+- Release run: install `target/release/bundle/nsis/t4-git-ui_0.1.2_x64-setup.exe`
   (logs go to a daily file under the OS app-log dir)
 - Full shortcut table: `README.md` › Keyboard shortcuts
 
@@ -53,7 +53,7 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the first two perfo
 
 ## 1. Start screen (M5)
 
-- [x] Launch with no previous repo → start screen: header `t4 git ui 0.1.1`, `RECENT` column,
+- [x] Launch with no previous repo → start screen: header `t4 git ui 0.1.2`, `RECENT` column,
       `START` column with three cards, statusbar shows `git <version>` and `N recent`
 - [ ] `Ctrl+O` → folder picker → choose a **non**-repo folder → error toast, stays on start screen
 - [x] Open `C:\tmp\t4\work` → repo window opens; restart the app → it reopens automatically
