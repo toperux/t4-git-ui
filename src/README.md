@@ -32,7 +32,7 @@ src/
                            refreshLabels : nothing) — coalesced into one in-flight run, never rejects;
                            walkSeeds = the oids the walk is pushed from (HEAD for `head`; + branches, remote branches and
                            tags for `all`), so a fetch that moves origin/* re-walks instead of only relabelling;
-                           a clean tree clears wtSelected; useShowWorkingTree() = dirty && !flat; follows repoStore.repo;
+                           a clean tree clears wtSelected (unless mid-merge); useShowWorkingTree() = (dirty || merging) && !flat; follows repoStore.repo;
                            `__resetForTests()` clears the debounce timer and the seq / coalescing guards
     commitStore.ts         zustand: commit-panel state — list (unstaged|staged) + multi-selection + anchor, `+N −M` stats
                            (get_changed_files ×2), diff of the anchor (unstaged|staged target, the settings' context — remembered as

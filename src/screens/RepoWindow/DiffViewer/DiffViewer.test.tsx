@@ -366,6 +366,31 @@ describe("DiffViewer", () => {
     expect(document.activeElement).toBe(getAllByRole("option")[3]);
   });
 
+  it("Stage hunk moves the cursor onto the hunk, so the reload refocuses there and not the top of the file", () => {
+    useDiffStore.setState({ view: "unified" });
+    const three = fileDiff(
+      [
+        hunk("@@ -1,2 +1,2 @@", [line("del", 1, null, "a"), line("add", null, 1, "A")]),
+        hunk("@@ -9,2 +9,2 @@", [line("del", 9, null, "b"), line("add", null, 9, "B")]),
+        hunk("@@ -20,2 +20,2 @@", [line("del", 20, null, "c"), line("add", null, 20, "C")]),
+      ],
+      { path: "three.txt" },
+    );
+    const actions: DiffActions = { target: "unstaged", wholeFile: false, onStageHunk: vi.fn(), onStageLines: vi.fn() };
+    const { getAllByRole, getAllByText, rerender } = render(<DiffViewer path={three.path} diff={three} {...idle} actions={actions} />);
+
+    // jsdom's click does not focus: the real button would hold the focus it is about to lose.
+    const button = getAllByText("Stage hunk")[1];
+    button.focus();
+    fireEvent.click(button);
+    expect(actions.onStageHunk).toHaveBeenCalledWith(1);
+
+    const staged = fileDiff([three.hunks[0], three.hunks[2]], { path: "three.txt" });
+    rerender(<DiffViewer path={staged.path} diff={staged} {...idle} actions={actions} />);
+    // The cursor sat on the staged hunk's first pick; the third hunk's del took its place.
+    expect(document.activeElement).toBe(getAllByRole("option")[2]);
+  });
+
   it("a conflict offers to keep either side, named the way the backend labelled them", () => {
     const onKeepSide = vi.fn();
     const actions: DiffActions = {

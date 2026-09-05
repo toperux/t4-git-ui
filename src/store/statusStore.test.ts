@@ -1,3 +1,4 @@
+import { renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RefsSnapshot, RepoSummary, WorkdirStatus } from "../api/types";
 
@@ -15,7 +16,7 @@ vi.mock("../api/ipc", async (importOriginal) => {
 
 import * as ipc from "../api/ipc";
 import { __resetForTests as resetRepo, useRepoStore } from "./repoStore";
-import { __resetForTests as resetStatus, STATUS_DEBOUNCE_MS, useStatusStore } from "./statusStore";
+import { __resetForTests as resetStatus, STATUS_DEBOUNCE_MS, useShowWorkingTree, useStatusStore } from "./statusStore";
 import { useToastStore } from "./toastStore";
 
 const mocked = ipc as unknown as Record<"getStatus" | "getRefs" | "refreshLabels" | "startLog" | "getLogPage", ReturnType<typeof vi.fn>>;
@@ -195,6 +196,17 @@ describe("statusStore", () => {
     useRepoStore.setState({ wtSelected: true });
     mocked.getStatus.mockResolvedValue(status(0));
     await useStatusStore.getState().refresh();
+    expect(useRepoStore.getState().wtSelected).toBe(false);
+  });
+
+  it("a merge whose resolution equals HEAD keeps the working-tree selection and its row", async () => {
+    useRepoStore.setState({ wtSelected: true, refs: { ...refs("h1"), state: "merge" } });
+    mocked.getStatus.mockResolvedValue(status(0));
+    await useStatusStore.getState().refresh();
+    expect(useRepoStore.getState().wtSelected).toBe(true);
+    expect(renderHook(() => useShowWorkingTree()).result.current).toBe(true);
+    // `commit()` refreshes the status before the refs: the merge ending afterwards drops the row.
+    useRepoStore.setState({ refs: refs("h2") });
     expect(useRepoStore.getState().wtSelected).toBe(false);
   });
 });

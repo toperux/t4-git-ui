@@ -32,14 +32,18 @@ export const selectChangeCount = (s: StatusStore) =>
 
 export const selectHasChanges = (s: StatusStore) => (s.status?.entries.length ?? 0) > 0;
 
+/** Mid-merge: a merge whose resolution equals HEAD has nothing in the status but still needs committing. */
+export const useMerging = () => useRepoStore((st) => st.refs?.state === "merge");
+
 /**
  * The working-tree pseudo-row exists: the tree is dirty and no text filter flattened the walk.
  * The grid row, the bottom pane and the grid's keyboard index math must all agree on this.
  */
 export const useShowWorkingTree = () => {
   const dirty = useStatusStore(selectHasChanges);
+  const merging = useMerging();
   const flat = useRepoStore((st) => st.log.flat);
-  return dirty && !flat;
+  return (dirty || merging) && !flat;
 };
 
 let seq = 0;
@@ -88,6 +92,16 @@ async function syncRefsOnce() {
   else if (!sameRefs(beforeRefs, after.refs)) await after.refreshLabels();
 }
 
+/**
+ * A clean tree has no pseudo-row: fall back to the commit selection — unless a merge is still to be
+ * committed. Checked on both halves, since `commit()` refreshes the status before the refs: the
+ * empty status alone keeps the selection, and the refs turning clean afterwards must drop it.
+ */
+function dropWorkingTreeIfClean() {
+  const rs = useRepoStore.getState();
+  if (useStatusStore.getState().status?.entries.length === 0 && rs.wtSelected && rs.refs?.state !== "merge") rs.selectWorkingTree(false);
+}
+
 export const useStatusStore = create<StatusStore>()((set, get) => ({
   status: null,
   error: null,
@@ -108,8 +122,7 @@ export const useStatusStore = create<StatusStore>()((set, get) => ({
       const status = await ipc.getStatus(repo.id);
       if (mySeq !== seq || useRepoStore.getState().repo?.id !== repo.id) return; // stale
       set({ status, error: null });
-      // A clean tree has no pseudo-row: fall back to the commit selection.
-      if (status.entries.length === 0 && useRepoStore.getState().wtSelected) useRepoStore.getState().selectWorkingTree(false);
+      dropWorkingTreeIfClean();
     } catch (e) {
       if (mySeq !== seq) return;
       set({ error: toAppError(e).message });
@@ -175,4 +188,5 @@ export function __resetForTests() {
 // Follow the open repository: load on open, clear on close.
 useRepoStore.subscribe((st, prev) => {
   if (st.repo !== prev.repo) void useStatusStore.getState().refresh();
+  else if (st.refs !== prev.refs) dropWorkingTreeIfClean();
 });

@@ -166,6 +166,22 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
     [lineActions, diff, picks, cursor, sel],
   );
 
+  // A hunk button is not a line: without this the cursor stays wherever it was left, so the reload
+  // refocuses a row far from the click (or none at all, if it is virtualized away, dropping the
+  // focus to `<body>`). Move it onto the hunk first and the `[diff]` carry-over lands on the line
+  // that takes the hunk's place, exactly as Enter on a selection does.
+  const hunkActions = useMemo(() => {
+    if (!lineActions) return undefined;
+    // `onDiscardHunk` gates the Discard button: stay undefined when the original is.
+    const onHunk = (run: ((hunk: number) => void) | undefined) =>
+      run &&
+      ((hunk: number) => {
+        setCursor(Math.max(0, picks.findIndex((p) => p.ref.hunk === hunk)));
+        run(hunk);
+      });
+    return { ...lineActions, onStageHunk: onHunk(lineActions.onStageHunk)!, onDiscardHunk: onHunk(lineActions.onDiscardHunk) };
+  }, [lineActions, picks]);
+
   const path = diff?.path ?? selectedPath;
   const oldPath = diff ? diff.oldPath : (listOldPath ?? null);
   const stats = diff ?? listStats;
@@ -196,7 +212,7 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
         rows={flat.rows}
         maxCols={flat.maxCols}
         lang={lang}
-        actions={lineActions}
+        actions={hunkActions}
         selected={sel.keys}
         cursorRow={cursorRow}
         onLineClick={onLineClick}

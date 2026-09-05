@@ -142,6 +142,9 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the first two perfo
 - [x] Multi-select in the lists: click, `Ctrl+click`, `Shift+click`, `↑` `↓`, `Ctrl+A`
 - [x] Stage via `Enter`, double-click, and the hover `+` button; `Stage all` / `Unstage all` work
 - [x] Hover a hunk header → **Stage hunk**; click it → only that hunk moves to Staged
+- [ ] Scroll to the *second* hunk and click its **Stage hunk** with the mouse → the focus lands on the
+      first changed line now at that spot (a focus ring is visible), not on `<body>`; the view does
+      not jump
 - [x] Stage a second hunk of the same file straight after → the diff drops that one too; every stage
       updates the view, not just the first (`hunks.txt` has three to work through)
 - [x] Click add/del lines (`Shift` for a range, `Ctrl` to toggle) → the sticky bar reads

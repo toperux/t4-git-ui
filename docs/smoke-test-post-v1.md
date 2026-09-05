@@ -158,6 +158,11 @@ _Shipped 2026-09-02: `9c4bc35`._
       second → confirm → the file reads `the conflict branch's line`, has no markers, and is already
       staged — no **Restore conflict** here: it is only offered for a file staged *with* its markers,
       which main §5 covers. Abort the merge afterwards
+- [ ] Merge `conflict` again and pick **Keep main's version** → `git status` is empty, yet the
+      **Working tree · 0 changes** row stays, toolbar Commit is enabled and the banner's **Commit
+      merge** opens the commit panel with the prefilled `Merge branch 'conflict'` message and Commit
+      enabled with nothing staged → commit → a merge commit with two parents, the banner is gone and
+      the row disappears. `git reset --hard HEAD~1` afterwards
 - [x] Check out `conflict`, Rebase… onto `main` → the same file conflicts, and the labels are
       **Keep main's version** (git's *ours* = the branch rebased onto) and **Keep conflict's version**;
       pick the first → the file reads `main's line`, pick the second → `the conflict branch's line`

@@ -11,7 +11,7 @@ import { useCommitStore } from "../../../store/commitStore";
 import { useDialogStore } from "../../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../../store/opsStore";
 import { useRepoStore } from "../../../store/repoStore";
-import { useStatusStore } from "../../../store/statusStore";
+import { useMerging, useStatusStore } from "../../../store/statusStore";
 import s from "./CommitPanel.module.css";
 
 export const SUMMARY_LIMIT = 72;
@@ -44,6 +44,7 @@ export function MessageColumn({ onExpand, onCommitted, autoFocus }: MessageColum
   const useMessage = useCommitStore((st) => st.useMessage);
   const commit = useCommitStore((st) => st.commit);
   const stagedCount = useStatusStore((st) => st.status?.staged ?? 0);
+  const merging = useMerging();
 
   const author = useCommitStore((st) => st.author);
   const authorError = useCommitStore((st) => st.authorError);
@@ -61,7 +62,7 @@ export function MessageColumn({ onExpand, onCommitted, autoFocus }: MessageColum
   }
 
   const noIdentity = authorError?.kind === "config";
-  const canCommit = !busy && !!summary.trim() && (stagedCount > 0 || amend) && !noIdentity;
+  const canCommit = !busy && !!summary.trim() && (stagedCount > 0 || amend || merging) && !noIdentity;
 
   /** An amend keeps a non-empty editor no longer, but the oid is the only reliable success signal. */
   async function commitOnly() {

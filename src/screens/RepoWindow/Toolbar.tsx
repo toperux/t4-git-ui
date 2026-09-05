@@ -28,7 +28,7 @@ import { useDialogStore, type DialogSpec } from "../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../store/opsStore";
 import { useRecentsStore } from "../../store/recentsStore";
 import { useRepoStore } from "../../store/repoStore";
-import { selectChangeCount, useStatusStore } from "../../store/statusStore";
+import { selectChangeCount, useMerging, useStatusStore } from "../../store/statusStore";
 import { closeRepo, fetchDefault, pickAndOpenRepo, refreshAll, stashApply, stashPop, switchRepo } from "./actions";
 import s from "./Toolbar.module.css";
 
@@ -43,6 +43,7 @@ export function Toolbar() {
   const stashes = useRepoStore((st) => st.refs?.stashes ?? NO_STASHES);
   const head = useRepoStore((st) => st.refs?.local.find((b) => b.isHead) ?? null);
   const changes = useStatusStore(selectChangeCount);
+  const merging = useMerging();
   const running = useOpsStore(selectRunning);
   const openDialog = useDialogStore((st) => st.open);
   const repo = useRepoStore((st) => st.repo);
@@ -249,8 +250,8 @@ export function Toolbar() {
       <ToolbarButton
         icon={<GitCommitHorizontal size={18} aria-hidden />}
         count={changes}
-        disabled={changes === 0}
-        title={changes === 0 ? "No changes" : `${changes} change${changes === 1 ? "" : "s"}`}
+        disabled={changes === 0 && !merging}
+        title={changes === 0 ? (merging ? "Merge to commit" : "No changes") : `${changes} change${changes === 1 ? "" : "s"}`}
         onClick={() => selectWorkingTree()}
       >
         Commit

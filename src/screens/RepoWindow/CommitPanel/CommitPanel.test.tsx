@@ -86,7 +86,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   localStorage.removeItem("commitFileListMode");
   resetTreeMode();
-  useRepoStore.setState({ repo: { id: "r", name: "r", path: "r", head: { oid: "h", branch: "main", detached: false } }, wtSelected: true });
+  useRepoStore.setState({ repo: { id: "r", name: "r", path: "r", head: { oid: "h", branch: "main", detached: false } }, refs: null, wtSelected: true });
   useStatusStore.setState({ status: STATUS, error: null });
   useDialogStore.setState({ dialog: null, returnFocus: null });
   useCommitStore.getState().reset();
@@ -372,6 +372,15 @@ describe("CommitPanel", () => {
     act(() => useCommitStore.setState({ amend: true }));
     expect(getByRole("button", { name: "Commit" }).hasAttribute("disabled")).toBe(false);
     expect(getByText("Staged (amending)")).toBeTruthy();
+  });
+
+  it("Commit is enabled with nothing staged while a merge is still to be committed", () => {
+    // "Keep main's version" on the only conflict: MERGE_HEAD is there, the status is empty.
+    useStatusStore.setState({ status: { entries: [], staged: 0, unstaged: 0, untracked: 0, conflicted: 0 } });
+    useRepoStore.setState({ refs: { ...REFS, state: "merge" } });
+    useCommitStore.setState({ summary: "Merge branch 'feature'" });
+    const { getByRole } = renderPanel();
+    expect(getByRole("button", { name: "Commit" }).hasAttribute("disabled")).toBe(false);
   });
 
   it("the author is fetched once for the panel and the dialog together", async () => {

@@ -160,7 +160,10 @@ survives the panel closing and reopening, and the commit clears the banners; the
 the Run-git-command list opens above the field and leaves Run clickable. All pass; ticked in the
 smoke docs.
 
-Two observations, not fixed:
+Two observations, both fixed the same day (the merging state now counts as commit-able in the
+working-tree row, the toolbar, the panel's Commit and the status refresh; a hunk button click first
+moves the diff cursor to that hunk). Smoke steps added, unticked: main §4 after "Hover a hunk
+header", post-v1 H after the Keep-ours step.
 
 - **A merge whose resolution equals HEAD cannot be committed.** Keep main's version on the
   fixture's one-file conflict leaves `git status` empty while `MERGE_HEAD` exists: the working-tree
