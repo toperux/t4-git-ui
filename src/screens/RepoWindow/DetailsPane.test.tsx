@@ -1,9 +1,13 @@
-import { cleanup, render, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as ipc from "../../api/ipc";
-import type { CommitDetail, CommitInfo, LogRow, RefsSnapshot } from "../../api/types";
+import type { CommitDetail, CommitInfo, FileChange, LogRow, RefsSnapshot } from "../../api/types";
+import { useDialogStore } from "../../store/dialogStore";
+import { useDiffStore } from "../../store/diffStore";
 import { __resetForTests as resetRepo, useRepoStore } from "../../store/repoStore";
 import { DetailsPane } from "./DetailsPane";
+import { DiffDialog } from "./dialogs/DiffDialog";
+import { fileDiff, hunk, line } from "./DiffViewer/diffFixtures";
 
 const DETAIL: CommitDetail = {
   info: {
@@ -60,6 +64,7 @@ const refs = (tags: RefsSnapshot["tags"]): RefsSnapshot => ({
 
 beforeEach(() => {
   resetRepo();
+  useDialogStore.setState({ dialog: null, returnFocus: null });
   useRepoStore.setState({
     repo: { id: "r", name: "r", path: "/r", head: { oid: "a", branch: "main", detached: false } },
     rows: [ROW],
@@ -105,5 +110,66 @@ describe("CompareDetails", () => {
     // Both commits: short SHA and summary, oldest first.
     for (const text of ["b0b0b0b", "Earlier work", "a1a1a1a", "Ship it"]) expect(container.textContent).toContain(text);
     await waitFor(() => expect(ipc.getChangedFiles).toHaveBeenLastCalledWith("r", { kind: "commitRange", from: "b0b0b0b", to: "a1a1a1a" }));
+  });
+});
+
+describe("DiffDialog", () => {
+  const FILES: FileChange[] = [{ path: "src/a.ts", oldPath: null, status: "modified", additions: 1, deletions: 0, binary: false }];
+  const DIFF = fileDiff([hunk("@@ -1 +1 @@", [line("add", null, 1, "let a = 1;")])]);
+
+  /** What the pane's `load` would have left behind; the dialog is rendered on its own here. */
+  function seedDiff() {
+    useDiffStore.setState({
+      target: { kind: "commit", oid: "a" },
+      files: FILES,
+      filesLoading: false,
+      filesError: null,
+      selectedPath: FILES[0].path,
+      fileListMode: "flat",
+      diff: DIFF,
+      diffLoading: false,
+      diffError: null,
+    });
+  }
+
+  it("opens from the diff header, naming the button as the focus target", async () => {
+    const { findByRole } = render(<DetailsPane />);
+    const expand = await findByRole("button", { name: "Open diff window" });
+    fireEvent.click(expand);
+    expect(useDialogStore.getState().dialog).toEqual({ kind: "diff" });
+    // The button stays mounted behind the scrim, but the dialog is told about it all the same.
+    expect(useDialogStore.getState().returnFocus).toBe(expand);
+  });
+
+  it("offers no expand button while nothing is selected", () => {
+    useRepoStore.setState({ selectedIndex: null });
+    const { queryByRole } = render(<DetailsPane />);
+    expect(queryByRole("button", { name: "Open diff window" })).toBeNull();
+  });
+
+  it("shows the selected commit's files and diff, focused on the file list", () => {
+    useRepoStore.setState({ rows: [{ ...ROW, row: { ...ROW.row, commit: { ...DETAIL.info, short: "a1b2c3d" } } }] });
+    seedDiff();
+    const onClose = vi.fn();
+    const { getByRole, queryByRole } = render(<DiffDialog onClose={onClose} />);
+    const dialog = getByRole("dialog", { name: /^Diff — a1b2c3d Ship it/ });
+    const list = getByRole("listbox", { name: "Changed files" });
+    expect(dialog.contains(list)).toBe(true);
+    expect(dialog.contains(getByRole("region", { name: "Diff" }))).toBe(true);
+    // ↑/↓ walk the files right away — the Dialog's own fallback would have taken Close.
+    expect(document.activeElement).toBe(list);
+    // No second expand button inside the dialog.
+    expect(queryByRole("button", { name: "Open diff window" })).toBeNull();
+    fireEvent.click(getByRole("button", { name: "Close" }));
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("titles a compare with both short SHAs", () => {
+    const from: CommitInfo = { ...DETAIL.info, oid: "b0b0b0b", short: "b0b0b0b" };
+    const to: CommitInfo = { ...DETAIL.info, oid: "a1a1a1a", short: "a1a1a1a" };
+    useRepoStore.setState({ compare: { from, to } });
+    seedDiff();
+    const { getByRole } = render(<DiffDialog onClose={vi.fn()} />);
+    expect(getByRole("dialog", { name: "Diff — b0b0b0b…a1a1a1a" })).toBeTruthy();
   });
 });

@@ -153,7 +153,9 @@ src/
                            well as a branch, shown as an extra 7-char option; a commit merge defaults to git's
                            `Merge commit '<short>'` message —, RefDialogs Checkout picker /
                            Create-Rename-Delete branch / remote branch / tags, RemoteDialogs Add / Rename / Change URL /
-                           Remove (a remote itself), StashDialogs, RunCommandDialog (one
+                           Remove (a remote itself), StashDialogs, DiffDialog (the selected commit's / compare's
+                           changed files + diff as a full-window dialog, off the diff header's expand button),
+                           RunCommandDialog (one
                            CommandInput; Run → actions `runGit`); gitArgs.ts mirrors cli/ops.rs
                            for the footer's "Runs `git …`" preview — that file is the source of truth),
                            DetailsPane (bottom pane: CommitDetails 340 | ChangedFileList 320 | DiffViewer, resizable;
@@ -203,7 +205,9 @@ src/
                            while the panel or the commit dialog is up — feeds statusStore.status →
                            commitStore.syncWithStatus; the message header's "Open commit window" opens dialogs/CommitDialog:
                            the same columns as a full-window dialog, Unstaged / Staged / Message stacked left, diff right,
-                           closing itself after a commit — also Repository menu › Commit… and a double-click on the working-tree row),
+                           closing itself after a commit — also Repository menu › Commit… and a double-click on the working-tree row;
+                           the details pane's diff header carries the sibling "Open diff window", which opens dialogs/DiffDialog
+                           the same way),
                            FileContextMenu (right-click / Shift+F10 on a row — a row outside the selection is selected alone
                            first: Stage / Unstage the selection — a lone conflicted file stages, which marks it resolved, like
                            its row's + / Enter / double-click; a multi-file selection and Stage all skip conflicted ones with

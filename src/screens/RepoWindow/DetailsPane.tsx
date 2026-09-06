@@ -7,6 +7,7 @@ import { EmptyState } from "../../components/ui/EmptyState/EmptyState";
 import { IconButton } from "../../components/ui/IconButton/IconButton";
 import { PanelHeader } from "../../components/ui/PanelHeader/PanelHeader";
 import { absoluteDate, relativeDate } from "../../lib/relativeDate";
+import { useDialogStore } from "../../store/dialogStore";
 import { useDiffStore } from "../../store/diffStore";
 import { selectCompare, selectSelectedOid, useRepoStore } from "../../store/repoStore";
 import { copyText } from "./actions";
@@ -21,6 +22,7 @@ export function DetailsPane() {
   const oid = useRepoStore(selectSelectedOid);
   const compare = useRepoStore(selectCompare);
   const load = useDiffStore((st) => st.load);
+  const open = useDialogStore((st) => st.open);
   // Memoised: a fresh object every render would re-run the effect (and re-fetch) on every store touch.
   const target = useMemo(
     () => (compare ? ({ kind: "commitRange", from: compare.from.oid, to: compare.to.oid } as const) : oid ? ({ kind: "commit", oid } as const) : null),
@@ -41,20 +43,20 @@ export function DetailsPane() {
       </Panel>
       <Separator className={w.splitH} aria-label="Resize file list" />
       <Panel minSize={200} className={w.panel}>
-        <CommitDiff />
+        <CommitDiff onExpand={target ? (opener) => open({ kind: "diff" }, { returnFocusTo: opener }) : undefined} />
       </Panel>
     </Group>
   );
 }
 
 /** `DiffViewer` bound to `diffStore` (the selected commit's file). */
-function CommitDiff() {
+export function CommitDiff({ onExpand }: { onExpand?: (opener: HTMLElement) => void }) {
   const path = useDiffStore((st) => st.selectedPath);
   const file = useDiffStore((st) => st.files.find((f) => f.path === st.selectedPath));
   const diff = useDiffStore((st) => st.diff);
   const loading = useDiffStore((st) => st.diffLoading);
   const error = useDiffStore((st) => st.diffError);
-  return <DiffViewer path={path} oldPath={file?.oldPath ?? null} stats={file ?? null} diff={diff} loading={loading} error={error} />;
+  return <DiffViewer path={path} oldPath={file?.oldPath ?? null} stats={file ?? null} diff={diff} loading={loading} error={error} onExpand={onExpand} />;
 }
 
 function CommitDetails() {

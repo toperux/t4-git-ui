@@ -20,7 +20,8 @@ const OVERSCAN = 10;
 /** One rendered line: a folder in tree mode, or a file (the only selectable kind); flat rows carry no depth. */
 type Row = TreeLine<FileChange> | { kind: "file"; file: FileChange; label: string; depth: undefined };
 
-export function ChangedFileList() {
+/** `autoFocus`: take the focus on mount, so the diff dialog opens on the list and not its Close button. */
+export function ChangedFileList({ autoFocus }: { autoFocus?: boolean }) {
   const target = useDiffStore((st) => st.target);
   const files = useDiffStore((st) => st.files);
   const loading = useDiffStore((st) => st.filesLoading);
@@ -52,6 +53,10 @@ export function ChangedFileList() {
   useEffect(() => {
     if (selectedRow >= 0) scrollToIndex(selectedRow, { align: "auto" });
   }, [selectedRow, scrollToIndex]);
+  // Runs before the dialog's own fallback (a child's effect goes first), so it keeps the focus.
+  useEffect(() => {
+    if (autoFocus) scrollRef.current?.focus();
+  }, [autoFocus]);
 
   // Keyed by the path that was clicked, and cleared along the whole chain: a compacted row may be
   // collapsed by an ancestor's key, and only removing that one reopens it.

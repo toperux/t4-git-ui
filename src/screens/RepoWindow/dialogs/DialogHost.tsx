@@ -4,6 +4,7 @@ import { DialogReturnFocus } from "../../../components/ui/Dialog/Dialog";
 import { useDialogStore, type DialogSpec } from "../../../store/dialogStore";
 import { SettingsDialog } from "../../SettingsDialog/SettingsDialog";
 import { CommitDialog } from "./CommitDialog";
+import { DiffDialog } from "./DiffDialog";
 import { DeleteRemoteTagDialog, FetchDialog, MergeDialog, PullDialog, PushDialog, PushTagDialog, RebaseDialog, ResetBranchDialog, ResetDialog } from "./OpsDialogs";
 import {
   CheckoutBranchDialog,
@@ -43,6 +44,8 @@ function renderDialog(dialog: DialogSpec, close: () => void): ReactNode {
       return <SettingsDialog onClose={close} />;
     case "commit":
       return <CommitDialog onClose={close} />;
+    case "diff":
+      return <DiffDialog onClose={close} />;
     case "merge":
       return <MergeDialog onClose={close} branch={dialog.branch} />;
     case "rebase":

@@ -547,4 +547,21 @@ describe("DiffViewer", () => {
     fireEvent.click(rows[2]);
     expect(queryByRole("toolbar", { name: "Selected lines" })).toBeNull();
   });
+
+  it("the expand button exists only with `onExpand`, and hands it the button itself", () => {
+    const plain = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} />);
+    expect(plain.queryByRole("button", { name: "Open diff window" })).toBeNull();
+    cleanup();
+
+    const onExpand = vi.fn();
+    const { getByRole } = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} onExpand={onExpand} />);
+    const expand = getByRole("button", { name: "Open diff window" });
+    // In the header, first of the trailing buttons.
+    const unified = getByRole("button", { name: "Unified view" });
+    expect(expand.parentElement).toBe(unified.parentElement);
+    expect(expand.nextElementSibling).toBe(unified);
+    fireEvent.click(expand);
+    // The dialog names it as the opener: it is behind the scrim, not `document.activeElement`.
+    expect(onExpand).toHaveBeenCalledWith(expand);
+  });
 });

@@ -374,6 +374,20 @@ _Shipped 2026-09-06 (this commit); walked the same day over CDP._
       the button opens the dialog with `origin` prefilled; Cancel. Remove the throwaway folder
       afterwards
 
+## Q. Diff window (main §3)
+_Shipped 2026-09-06 (this commit); walked the same day over CDP._
+
+- [x] **Open it** (§3): on `work`, select `nested folders` → the diff header's **Open diff window**
+      (Maximize2, left of Unified / Split) → a full-window `Diff — 9099161 nested folders` dialog:
+      the changed-file list left, the diff right, the splitter drags; pick another file → the diff
+      follows and the pane behind shows the same selection; Split view works there; Esc closes and
+      focus is back on the button
+- [x] **A compare** (§3): Ctrl+click `odd files` with `nested folders` selected → the button opens
+      `Diff — 9099161…00d78d3` with the compare's file list; close
+- [x] **Where it isn't** (§3): select the working-tree row → the commit panel's diff header has no
+      expand button, and the Commit dialog's diff has none either (only the details pane's diff
+      opens a diff window; the no-target case is unit-tested, the grid always selects a row on load)
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the

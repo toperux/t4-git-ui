@@ -10,6 +10,8 @@ export type DialogSpec =
   | { kind: "settings" }
   /** The commit panel as a full-window dialog (Unstaged / Staged / Message stacked | Diff). */
   | { kind: "commit" }
+  /** The details pane's files + diff as a full-window dialog (the selected commit or compare). */
+  | { kind: "diff" }
   | { kind: "merge"; branch?: string }
   | { kind: "rebase"; onto?: string }
   | { kind: "checkout" }

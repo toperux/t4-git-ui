@@ -1,5 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ArrowDownUp, Columns2, File, FileDiff, Rows2 } from "lucide-react";
+import { ArrowDownUp, Columns2, File, FileDiff, Maximize2, Rows2 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import type { ConflictSide, ConflictSides, DiffLine, FileDiff as FileDiffModel } from "../../../api/types";
 import { Banner } from "../../../components/ui/Banner/Banner";
@@ -67,11 +67,16 @@ export interface DiffViewerProps {
   loading: boolean;
   error: string | null;
   actions?: DiffActions;
+  /**
+   * Header button that opens the diff dialog (the details pane has one; the dialog itself doesn't).
+   * Takes the button, which the dialog names as its opener.
+   */
+  onExpand?: (opener: HTMLElement) => void;
 }
 
 type Mods = { ctrl?: boolean; shift?: boolean };
 
-export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: listStats, diff, loading, error, actions }: DiffViewerProps) {
+export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: listStats, diff, loading, error, actions, onExpand }: DiffViewerProps) {
   const storeView = useDiffStore((st) => st.view);
   const ignoreWhitespace = useDiffStore((st) => st.ignoreWhitespace);
   const setView = useDiffStore((st) => st.setView);
@@ -270,6 +275,11 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
         )}
         {stats && !stats.binary && <Stats additions={stats.additions} deletions={stats.deletions} className={s.stats} />}
         <ToolbarSeparator />
+        {onExpand && (
+          <IconButton label="Open diff window" onClick={(e) => onExpand(e.currentTarget)}>
+            <Maximize2 size={16} aria-hidden />
+          </IconButton>
+        )}
         <IconButton label="Unified view" on={view === "unified"} onClick={() => setView("unified")}>
           <Rows2 size={16} aria-hidden />
         </IconButton>
