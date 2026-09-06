@@ -128,6 +128,18 @@
   color: var(--fg-faint);
   user-select: none;
 }
+/* Intra-line highlight (§4): the changed words of a paired del/add line, one step past the row
+   tint. The word takes the row's fg, not its syntax colour — the syntax tokens do not clear 4.5:1
+   on these tints, the row fg does. Background only: padding or a border would shift the monospace
+   grid the `--cols` width is measured against. */
+.add .emph {
+  background: var(--diff-add-word);
+  color: var(--diff-add-fg);
+}
+.del .emph {
+  background: var(--diff-del-word);
+  color: var(--diff-del-fg);
+}
 /* Syntax highlighting (lib/highlight → --syn-* tokens; every one ≥4.5:1 on panel + add/del tints) */
 .synKeyword {
   color: var(--syn-keyword);

@@ -85,6 +85,33 @@ describe("DiffViewer", () => {
     expect(sides(3)[1]).toEqual(["114", "+", "    };"]);
   });
 
+  // `css: false` in vitest, so the CSS-module class is matched by substring rather than by value.
+  const emph = (el: Element) => Array.from(el.querySelectorAll('[class*="emph"]')).map((e) => e.textContent);
+
+  it("unified: only the changed words of the paired del/add line are emphasised", () => {
+    useDiffStore.setState({ view: "unified" });
+    const { getByRole } = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} />);
+    const rows = Array.from(getByRole("region", { name: "Diff" }).firstElementChild!.children);
+    expect(emph(rows[1])).toEqual([]); // context
+    expect(emph(rows[2])).toEqual(["[0];"]);
+    expect(emph(rows[3])).toEqual(["match ", ".first() {"]);
+    expect(emph(rows[4])).toEqual([]); // the unpaired add
+    // The extra spans change nothing about the text, copied or read.
+    expect(rows[2].textContent).toBe("113−    let lane = matches[0];␍");
+    expect(rows[3].textContent).toBe("113+    let lane = match matches.first() {");
+  });
+
+  it("split: each side of a pair carries its own emphasis", () => {
+    useDiffStore.setState({ view: "split" });
+    const { getByRole } = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} />);
+    const rows = Array.from(getByRole("region", { name: "Diff" }).firstElementChild!.children);
+    expect(emph(rows[1])).toEqual([]); // context, both sides
+    expect(emph(rows[2].children[0])).toEqual(["[0];"]);
+    expect(emph(rows[2].children[1])).toEqual(["match ", ".first() {"]);
+    expect(emph(rows[3])).toEqual([]); // filler + the unpaired add
+    expect(rows[2].textContent).toBe("113−    let lane = matches[0];␍113+    let lane = match matches.first() {");
+  });
+
   it("renders only the virtual window of a 30k-line diff and shows the truncation banner", () => {
     useDiffStore.setState({ view: "unified" });
     const big = { ...bigDiff(30_000), truncated: true };

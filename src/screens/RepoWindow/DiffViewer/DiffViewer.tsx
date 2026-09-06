@@ -17,6 +17,7 @@ import { useDiffStore, type DiffView } from "../../../store/diffStore";
 import { Stats } from "../ChangedFileList/ChangedFileList";
 import { flattenSplit, flattenUnified, rowHeight, type SplitRow, type UnifiedRow } from "./diffRows";
 import s from "./DiffViewer.module.css";
+import { cut, type EmphRange } from "./intraLine";
 import { carryRef, carrySelection, clickLine, EMPTY_LINES, hunkMap, lineKey, toPairs, type LineRef, type LineSelection } from "./lineSelection";
 
 const OVERSCAN = 30;
@@ -462,19 +463,21 @@ function DiffBody({ path, view, rows, maxCols, lang, actions, selected, cursorRo
 }
 
 /** Line text, syntax-highlighted per line (lib/highlight, cached); a trailing `\r` becomes a faint `␍` so CRLF content is visible. */
-function LineText({ text, lang }: { text: string; lang: Lang | null }) {
+function LineText({ text, lang, emph }: { text: string; lang: Lang | null; emph?: EmphRange[] }) {
   const cr = text.endsWith("\r");
   const body = cr ? text.slice(0, -1) : text;
   const spans = useMemo(() => highlightLine(lang, body), [lang, body]);
+  // The changed words cut across the syntax spans; the `␍` stays outside them (no range reaches it).
+  const parts = useMemo(() => cut(spans, emph), [spans, emph]);
   return (
     <>
-      {spans.map((sp, i) =>
-        sp.cls ? (
-          <span key={i} className={SYN[sp.cls]}>
-            {sp.text}
+      {parts.map((p, i) =>
+        p.on || p.cls ? (
+          <span key={i} className={cx(p.on && s.emph, p.cls && SYN[p.cls])}>
+            {p.text}
           </span>
         ) : (
-          sp.text
+          p.text
         ),
       )}
       {cr && (
@@ -549,20 +552,20 @@ const UnifiedRowView = memo(function UnifiedRowView({ row, top, lang, actions, s
       <span className={s.no}>{line.newNo ?? ""}</span>
       <span className={s.sg}>{SIGN[line.kind]}</span>
       <span className={cx(s.tx, "selectable")}>
-        <LineText text={line.text} lang={lang} />
+        <LineText text={line.text} lang={lang} emph={row.emph} />
       </span>
     </div>
   );
 });
 
-function Side({ line, no, lang }: { line: DiffLine | null; no: number | null; lang: Lang | null }) {
+function Side({ line, no, lang, emph }: { line: DiffLine | null; no: number | null; lang: Lang | null; emph?: EmphRange[] }) {
   if (!line) return <div className={cx(s.side, s.filler)} />;
   return (
     <div className={cx(s.side, line.kind === "add" && s.add, line.kind === "del" && s.del)}>
       <span className={s.no}>{no ?? ""}</span>
       <span className={s.sg}>{SIGN[line.kind]}</span>
       <span className={cx(s.tx, "selectable")}>
-        <LineText text={line.text} lang={lang} />
+        <LineText text={line.text} lang={lang} emph={emph} />
       </span>
     </div>
   );
@@ -594,8 +597,8 @@ const SplitRowView = memo(function SplitRowView({ row, top, lang }: { row: Split
   }
   return (
     <div className={s.dl} style={style}>
-      <Side line={row.left} no={row.left?.oldNo ?? null} lang={lang} />
-      <Side line={row.right} no={row.right?.newNo ?? null} lang={lang} />
+      <Side line={row.left} no={row.left?.oldNo ?? null} lang={lang} emph={row.emphL} />
+      <Side line={row.right} no={row.right?.newNo ?? null} lang={lang} emph={row.emphR} />
     </div>
   );
 });

@@ -265,6 +265,31 @@ core.commentChar` is set and unset inside K10 alone._
       `Shift+↓` → click the bar's **Stage 2 lines** with the mouse → the lines are staged and the
       ring is back on a diff line (`↓` moves it), not lost to the window
 
+## L. Intra-line highlight (main §4)
+_Shipped 2026-09-06; walked the same day over CDP (this commit). The working tree is always in
+staging mode, so the split-view half needs a commit; the fixture's commits rewrite their lines
+whole, so a real word pair comes from this repo's own history._
+
+- [x] **Changed words only, on paired lines only** (§4): open the commit panel, click `hunks.txt` in
+      **Unstaged** → in the first hunk the `line 02 edited` add tints ` edited` and nothing else, its
+      `line 02` delete tints nothing at all; the unpaired `line 02b` add and the lone `line 28`
+      delete tint nothing; no context line has a tint anywhere in the file; the third hunk's
+      `    line 15` add tints its four leading spaces. Every line still reads exactly as before —
+      select the `line 02 edited` row and `Ctrl+C`: the pasted text has no gaps or duplicates
+- [x] **Both views, and a rewritten line** (§4): still in the commit panel, click the `line 02`
+      delete and `Shift+↓` → the ring, the selection and the **Stage N lines** bar behave as they
+      did, and the tints stay put under the selection highlight. Select the `main side of the
+      conflict` commit → `conflict.txt`: `base` → `main's line` is a rewrite, so neither line tints
+      a word, in **Unified** and in **Split view**. Then a commit with a word pair (this repo's
+      `Walk group K…` commit → `smoke-test.md`, in the recents) in **Split view** → each `- [ ]` →
+      `- [x]` pair tints the ` ` on the left side and the `x` on the right, nothing else
+- [x] **Themes, syntax colours and CRLF** (§4): the fixture has no code files, so open a repo with a
+      changed `.ts` / `.rs` file (this repo's own working tree, in the recents, will do) → the words
+      inside a tint drop to the row's own foreground instead of their syntax colour, and the rest of
+      the line keeps its colours; toggle the theme → the tint follows it in both light and dark and
+      the text stays readable. Back in `work`, open `crlf-hunks.txt` → the `crlf 05 edited` add tints
+      ` edited` and the trailing `␍` glyph is never inside the tint
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the

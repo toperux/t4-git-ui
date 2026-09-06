@@ -65,6 +65,36 @@ describe("flattenSplit", () => {
   });
 });
 
+describe("intra-line emphasis", () => {
+  // The smoke fixture's first hunk: one paired edit, one unpaired add, and a lone delete.
+  const d = fileDiff([
+    hunk("h", [
+      line("context", 1, 1, "line 01"),
+      line("del", 2, null, "line 02"),
+      line("add", null, 2, "line 02 edited"),
+      line("add", null, 3, "line 02b"),
+      line("context", 3, 4, "line 03"),
+      line("del", 4, null, "line 28"),
+    ]),
+  ]);
+
+  it("flattenSplit attaches the changed words to the paired sides only", () => {
+    const rows = flattenSplit(d).rows.filter((r) => r.kind === "pair");
+    expect(rows.map((r) => [r.emphL, r.emphR])).toEqual([
+      [undefined, undefined], // context
+      [undefined, [[7, 14]]], // `line 02` → `line 02 edited`
+      [undefined, undefined], // unpaired add
+      [undefined, undefined], // context
+      [undefined, undefined], // del-only run
+    ]);
+  });
+
+  it("flattenUnified attaches the same ranges to the matching line rows", () => {
+    const rows = flattenUnified(d).rows.filter((r) => r.kind === "line");
+    expect(rows.map((r) => r.emph)).toEqual([undefined, undefined, [[7, 14]], undefined, undefined, undefined]);
+  });
+});
+
 describe("large diffs", () => {
   // A wall-clock budget is flaky on a loaded CI box; what matters is that both flatteners stay
   // single-pass and produce the whole diff, so assert the shape and keep only a generous

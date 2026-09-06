@@ -25,7 +25,7 @@ All values live in `tokens.css` as CSS custom properties on `:root` (light) and 
 | Scrollbar | `--scrollbar-thumb` `--scrollbar-thumb-hover` | overlay-style, 4px visible thumb in a 10px gutter, no track/arrows (`::-webkit-scrollbar`); thumb ≥3:1 on panel/app |
 | Graph | `--graph-0..7` | lane color = column index mod 8; every lane ≥3:1 on `--bg-panel` |
 | Diff | `--diff-add-*` `--diff-del-*` `--diff-hunk-*` `--diff-gutter-fg` | row bg → gutter one step darker → word highlight one more; `--diff-gutter-fg` aliases `--fg-muted` (≥4.5:1 on both gutters and on panel) |
-| Syntax | `--syn-{keyword,string,comment,number,type,function,punct}` | diff line highlighting only (`src/lib/highlight.ts`); every one ≥4.5:1 on `--bg-panel` and on both `--diff-add-bg` / `--diff-del-bg`; comment + punct alias `--fg-muted` (comments italic) |
+| Syntax | `--syn-{keyword,string,comment,number,type,function,punct}` | diff line highlighting only (`src/lib/highlight.ts`); every one ≥4.5:1 on `--bg-panel` and on both `--diff-add-bg` / `--diff-del-bg`; comment + punct alias `--fg-muted` (comments italic); inside the intra-line highlight the row's `--diff-{add,del}-fg` replaces the syntax colour, since none of these clears 4.5:1 on the `--diff-*-word` tints |
 | Ref chips | `--chip-{local,remote,tag,head,stash}-{bg,fg}` | see §4 |
 | File status | `--status-{added,modified,deleted,renamed,untracked,conflict}` | glyph color; conflict also gets `--danger-soft` box. Aliases: added→`--success`, modified→`--warning`, deleted/conflict→`--danger-text`, renamed→`--accent-text`, untracked→`--fg-muted` (likewise `--chip-local-bg`→`--accent-soft`, `--chip-tag-bg`→`--warning-soft`, `--chip-head-*`→`--accent`/`--fg-on-accent`) — `var()` aliases, so they cannot drift |
 
