@@ -17,10 +17,11 @@ export function useRemotes() {
   return useMemo(() => (remotes ?? []).map((r) => r.name), [remotes]);
 }
 
-/** `get_default_remote`, falling back to the first remote. */
-export function useDefaultRemote(remotes: string[]) {
-  const [remote, setRemote] = useState<string>(() => remotes[0] ?? "");
+/** `get_default_remote`, falling back to the first remote; `initial` (the row's own remote) wins outright. */
+export function useDefaultRemote(remotes: string[], initial?: string) {
+  const [remote, setRemote] = useState<string>(() => initial ?? remotes[0] ?? "");
   useEffect(() => {
+    if (initial) return;
     let live = true;
     void defaultRemote().then((r) => {
       if (live && r) setRemote(r);
@@ -28,7 +29,7 @@ export function useDefaultRemote(remotes: string[]) {
     return () => {
       live = false;
     };
-  }, []);
+  }, [initial]);
   return [remote, setRemote] as const;
 }
 
@@ -58,7 +59,7 @@ export function PushTagDialog({ onClose, name }: { onClose: () => void; name: st
   function submit() {
     if (!remote) return;
     onClose();
-    void runOp(`Pushing tag ${name}…`, (id) => ipc.push(id, remote, refspec, false, false, false), { success: `Pushed tag ${name} → ${remote}` });
+    void runOp(`Pushing tag ${name}…`, (id) => ipc.push(id, remote, refspec, false, false, false), { success: `Pushed tag ${name} → ${remote}`, remote });
   }
 
   return (
@@ -86,15 +87,15 @@ export function PushTagDialog({ onClose, name }: { onClose: () => void; name: st
 }
 
 /** `git push <remote> --delete refs/tags/<name>` — the branch command, given a full tag ref. */
-export function DeleteRemoteTagDialog({ onClose, name }: { onClose: () => void; name: string }) {
+export function DeleteRemoteTagDialog({ onClose, name, remote: initial }: { onClose: () => void; name: string; remote?: string }) {
   const remotes = useRemotes();
-  const [remote, setRemote] = useDefaultRemote(remotes);
+  const [remote, setRemote] = useDefaultRemote(remotes, initial);
   const refspec = `refs/tags/${name}`;
 
   function submit() {
     if (!remote) return;
     onClose();
-    void runOp(`Deleting tag ${name} on ${remote}…`, (id) => ipc.deleteRemoteBranch(id, remote, refspec), { success: `Deleted tag ${name} on ${remote}` });
+    void runOp(`Deleting tag ${name} on ${remote}…`, (id) => ipc.deleteRemoteBranch(id, remote, refspec), { success: `Deleted tag ${name} on ${remote}`, remote });
   }
 
   return (
@@ -136,7 +137,7 @@ export function PushDialog({ onClose, branch: branchProp }: { onClose: () => voi
   function submit() {
     if (!remote || !branch) return;
     onClose();
-    void runOp(`Pushing to ${remote}…`, (id) => ipc.push(id, remote, branch, setUpstream, force, tags), { success: `Pushed ${branch} → ${target}` });
+    void runOp(`Pushing to ${remote}…`, (id) => ipc.push(id, remote, branch, setUpstream, force, tags), { success: `Pushed ${branch} → ${target}`, remote });
   }
 
   return (
@@ -207,6 +208,8 @@ export function PullDialog({ onClose }: { onClose: () => void }) {
     onClose();
     void runOp(`Pulling from ${remote || "the default remote"}…`, (id) => ipc.pull(id, remote || null, branch, mode), {
       success: `Pulled ${branch && remote ? `${remote}/${branch}` : remote || "changes"}`,
+      // No remote picked: git followed the tracking configuration, so ask them all.
+      remote: remote || true,
     });
   }
 
@@ -249,7 +252,7 @@ export function FetchDialog({ onClose }: { onClose: () => void }) {
   function submit() {
     onClose();
     const what = remote || "all remotes";
-    void runOp(`Fetching ${what}…`, (id) => ipc.fetch(id, remote || null, prune, tags), { success: `Fetched ${what}` });
+    void runOp(`Fetching ${what}…`, (id) => ipc.fetch(id, remote || null, prune, tags), { success: `Fetched ${what}`, remote: remote || true });
   }
 
   return (

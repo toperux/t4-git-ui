@@ -104,6 +104,11 @@ export interface RunOpOptions {
    * often the answer (`grep`, `diff --exit-code`).
    */
   quietFailure?: boolean;
+  /**
+   * The remote the op talked to (fetch / push / pull / delete on remote): re-asked for its tags
+   * afterwards. `true` = all of them, for `fetch --all` and typed commands.
+   */
+  remote?: string | true;
 }
 
 export type OpOutcome = { ok: true } | { ok: false; error: AppError | null; failure: OpFailure | null };
@@ -173,6 +178,11 @@ export async function runOp(busy: string, fn: (id: RepoId) => Promise<OpResult |
   if (useRepoStore.getState().repo?.id === repo.id) {
     void useStatusStore.getState().refresh();
     void useStatusStore.getState().syncRefs();
+    // Also after a rejected push (the remote answered, the badges must stay honest) — but not after
+    // one the remote never answered: the re-ask would fail the same way and toast a second time.
+    const answered = outcome.ok || (outcome.failure !== null && outcome.failure.kind !== "authFailed" && outcome.failure.kind !== "other");
+    // Only the remote the op talked to: a dead mirror must not toast after every `origin` fetch.
+    if (opts.remote && answered) void useRepoStore.getState().refreshRemoteTags(opts.remote === true ? undefined : { remotes: [opts.remote] });
   }
   return outcome;
 }

@@ -1,6 +1,6 @@
-import { Archive, ArrowDown, Cloud, Copy, Folder, GitBranch, GitMerge, Link, Pencil, Plus, Tag, Trash2 } from "lucide-react";
-import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
-import type { Branch, Remote, RemoteBranch, Stash } from "../../api/types";
+import { Archive, ArrowDown, Cloud, Copy, Folder, GitBranch, GitMerge, Link, Pencil, Plus, RefreshCw, Tag, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import type { Branch, Remote, RemoteBranch, RemoteTag, Stash, Tag as TagRef } from "../../api/types";
 import { Badge } from "../../components/ui/Badge/Badge";
 import { Button } from "../../components/ui/Button/Button";
 import { ContextMenu, MenuItem, MenuSeparator } from "../../components/ui/Menu/Menu";
@@ -8,9 +8,11 @@ import { EmptyState } from "../../components/ui/EmptyState/EmptyState";
 import { SectionHeader } from "../../components/ui/SectionHeader/SectionHeader";
 import { AheadBehind, TREE_PANE_CLASS, TreeRow } from "../../components/ui/TreeRow/TreeRow";
 import { cx } from "../../lib/cx";
+import { relativeDate } from "../../lib/relativeDate";
 import { useDialogStore, type DialogSpec } from "../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
+import { useToastStore } from "../../store/toastStore";
 import { checkoutBranch, checkoutRemoteBranch, checkoutTag, copyText, fetchRemote, protectedNames, stashApply, stashDrop, stashPop, stripRemote } from "./actions";
 import s from "./Sidebar.module.css";
 
@@ -23,6 +25,8 @@ type Target =
   /** The remote's own folder row, not one of its branches. */
   | { kind: "remoteGroup"; remote: Remote }
   | { kind: "tag"; name: string; oid: string }
+  /** A tag one remote has, under that remote's folder in the Tags section. */
+  | { kind: "remoteTag"; remote: string; name: string }
   | { kind: "stash"; stash: Stash };
 
 /** Names nested by `/` segments (local branches, or one remote's branches without the remote prefix). */
@@ -109,6 +113,7 @@ function Tree({ label, children }: { label: string; children: ReactNode }) {
 
 export function Sidebar() {
   const refs = useRepoStore((st) => st.refs);
+  const remoteTags = useRepoStore((st) => st.remoteTags);
   const revealOid = useRepoStore((st) => st.revealOid);
   // `open` is the section state below, so the dialog opener keeps its own name here.
   const openDialog = useDialogStore((st) => st.open);
@@ -147,6 +152,17 @@ export function Sidebar() {
   const tags = refs?.tags ?? [];
   const stashes = refs?.stashes ?? [];
   const keep = protectedNames(remotes);
+
+  /**
+   * The remotes that answered, in the order the Remotes section lists them; one that is gone
+   * (removed or renamed since) is dropped, so no stale folder or badge outlives it.
+   */
+  const cachedRemotes = useMemo(
+    () => remotes.flatMap((r) => (remoteTags[r.name] ? [[r.name, remoteTags[r.name]] as const] : [])),
+    [remotes, remoteTags],
+  );
+  /** Tag names any of them has: a tag on none of them is the local-only one. */
+  const onRemote = useMemo(() => new Set(cachedRemotes.flatMap(([, e]) => e.tags.map((t) => t.name))), [cachedRemotes]);
 
   /** A branch inside another one is muted and says so: it adds nothing and can go. */
   const mergedLabel = (label: string, mergedInto: string | null) => (mergedInto ? <span className={s.merged}>{label}</span> : label);
@@ -199,6 +215,43 @@ export function Sidebar() {
       />
     );
   };
+
+  /** A tag whose commit the walk doesn't have (never fetched, filtered out) would just do nothing. */
+  const revealTag = async (oid: string) => {
+    if (!(await revealOid(oid))) useToastStore.getState().push({ kind: "info", title: "Not in the current history" });
+  };
+
+  // The badge is only as true as the stalest of the answers it is drawn from, so that is what it dates.
+  const badgeTitle = `Not on ${cachedRemotes.map(([r]) => r).join(" or ")} (as of ${relativeDate(Math.min(...cachedRemotes.map(([, e]) => e.at)) / 1000)})`;
+
+  const tagRow = (t: TagRef, label: string, depth: number) => (
+    <TreeRow
+      key={t.name}
+      role="treeitem"
+      aria-level={depth + 1}
+      depth={depth}
+      icon={<Tag size={14} aria-hidden />}
+      label={label}
+      title={t.name}
+      meta={cachedRemotes.length > 0 && !onRemote.has(t.name) && <Badge title={badgeTitle}>local</Badge>}
+      onClick={() => void revealTag(t.oid)}
+      {...rowMenu({ kind: "tag", name: t.name, oid: t.oid })}
+    />
+  );
+
+  const remoteTagRow = (remote: string) => (t: RemoteTag, label: string, depth: number) => (
+    <TreeRow
+      key={t.name}
+      role="treeitem"
+      aria-level={depth + 1}
+      depth={depth}
+      icon={<Tag size={14} aria-hidden />}
+      label={label}
+      title={t.name}
+      onClick={() => void revealTag(t.oid)}
+      {...rowMenu({ kind: "remoteTag", remote, name: t.name })}
+    />
+  );
 
   /** Leaves render through `row` with their last segment as the label; folders collapse under `folderKey(path)`. */
   function renderTree<T>(nodes: TreeNode<T>[], depth: number, row: (leaf: T, label: string, depth: number) => ReactNode, folderKey: (path: string) => string): ReactNode {
@@ -287,21 +340,34 @@ export function Sidebar() {
         </Tree>
       )}
 
+      {/* The count is the local tags, like Remotes counts branches: the remote folders are visible rows. */}
       <SectionHeader title="Tags" count={tags.length} open={open.tags} onToggle={() => toggle("tags")} />
-      {open.tags && tags.length > 0 && (
+      {open.tags && (tags.length > 0 || cachedRemotes.length > 0) && (
         <Tree label="Tags">
-          {tags.map((t) => (
-            <TreeRow
-              key={t.name}
-              role="treeitem"
-              aria-level={1}
-              icon={<Tag size={14} aria-hidden />}
-              label={t.name}
-              title={t.name}
-              onClick={() => void revealOid(t.oid)}
-              {...rowMenu({ kind: "tag", name: t.name, oid: t.oid })}
-            />
-          ))}
+          {renderTree(buildTree(tags, (t) => t.name), 0, tagRow, (path) => `tag:${path}`)}
+          {/* One folder per remote that answered, holding the tags it has — a tag can be in several. */}
+          {cachedRemotes.map(([remote, entry]) => {
+            const isCollapsed = collapsed.has(`tag:${remote}`);
+            return (
+              <div key={`tag:${remote}`} className={s.tree}>
+                <TreeRow
+                  role="treeitem"
+                  aria-level={1}
+                  depth={0}
+                  expanded={!isCollapsed}
+                  icon={<Cloud size={14} aria-hidden />}
+                  label={remote}
+                  title={`Checked ${relativeDate(entry.at / 1000)}`}
+                  onClick={() => toggleFolder(`tag:${remote}`)}
+                />
+                {!isCollapsed && (
+                  <div role="group" className={s.tree}>
+                    {renderTree(buildTree(entry.tags, (t) => t.name), 1, remoteTagRow(remote), (path) => `tag:${remote}/${path}`)}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </Tree>
       )}
 
@@ -446,6 +512,10 @@ function RefContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number 
               Create branch here…
             </MenuItem>
             <MenuItem {...op} onClick={run(() => openDialog({ kind: "pushTag", name: target.name }))}>Push…</MenuItem>
+            {/* The `local` badges are only as fresh as the last remote op: this re-asks, from any tag row. */}
+            <MenuItem icon={<RefreshCw size={16} aria-hidden />} {...op} onClick={run(() => void useRepoStore.getState().refreshRemoteTags({ announce: true }))}>
+              Refresh remote tags
+            </MenuItem>
             <MenuItem icon={<Copy size={16} aria-hidden />} onClick={run(() => copyText(target.name, "tag name"))}>
               Copy name
             </MenuItem>
@@ -454,6 +524,22 @@ function RefContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number 
               Delete…
             </MenuItem>
             <MenuItem icon={<Trash2 size={16} aria-hidden />} danger {...op} onClick={run(() => openDialog({ kind: "deleteRemoteTag", name: target.name }))}>
+              Delete on remote…
+            </MenuItem>
+          </>
+        );
+      // No Checkout / Create branch here: the tag's object may not exist locally at all.
+      case "remoteTag":
+        return (
+          <>
+            <MenuItem icon={<Copy size={16} aria-hidden />} onClick={run(() => copyText(target.name, "tag name"))}>
+              Copy name
+            </MenuItem>
+            <MenuItem icon={<RefreshCw size={16} aria-hidden />} {...op} onClick={run(() => void useRepoStore.getState().refreshRemoteTags({ announce: true }))}>
+              Refresh remote tags
+            </MenuItem>
+            <MenuSeparator />
+            <MenuItem icon={<Trash2 size={16} aria-hidden />} danger {...op} onClick={run(() => openDialog({ kind: "deleteRemoteTag", name: target.name, remote: target.remote }))}>
               Delete on remote…
             </MenuItem>
           </>

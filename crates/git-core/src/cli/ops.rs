@@ -3,6 +3,8 @@
 //! needed) so it is unit-tested directly; the runner and the Tauri layer
 //! wire the args to a process and the parsers to its output.
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
 use crate::status::WorkdirStatus;
@@ -238,6 +240,52 @@ pub fn delete_remote_branch(remote: &str, name: &str) -> Vec<String> {
     a.push("--delete".into());
     a.push(name.into());
     a
+}
+
+/// `ls-remote --tags <remote>` (no `--refs`: the `^{}` peeled lines carry the commit)
+pub fn ls_remote_tags(remote: &str) -> Vec<String> {
+    let mut a = args(["ls-remote", "--tags"]);
+    a.push(remote.into());
+    a
+}
+
+/// One tag a remote has, from `ls-remote`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteTag {
+    pub name: String,
+    /// The commit the tag points at (the peeled oid on an annotated tag).
+    pub oid: String,
+}
+
+/// Tags from `ls-remote` output, by name; anything but `<oid>\trefs/tags/<name>` is skipped.
+/// An annotated tag prints twice — the tag object, then `<name>^{}` with the commit it points at —
+/// and the peeled line is the one that wins whichever order the two arrive in.
+pub fn parse_ls_remote_tags(stdout: &str) -> Vec<RemoteTag> {
+    let mut by_name: BTreeMap<&str, &str> = BTreeMap::new();
+    for line in stdout.lines() {
+        let Some((oid, rest)) = line.split_once('\t') else {
+            continue;
+        };
+        let Some(name) = rest.strip_prefix("refs/tags/") else {
+            continue;
+        };
+        match name.strip_suffix("^{}") {
+            Some(peeled) => {
+                by_name.insert(peeled, oid);
+            }
+            None => {
+                by_name.entry(name).or_insert(oid);
+            }
+        }
+    }
+    by_name
+        .into_iter()
+        .map(|(name, oid)| RemoteTag {
+            name: name.into(),
+            oid: oid.into(),
+        })
+        .collect()
 }
 
 /// `stash push [-u] [-k] [-m <msg>]`
@@ -484,6 +532,23 @@ mod tests {
                 "main:main"
             ]
         );
+    }
+
+    #[test]
+    fn ls_remote_tags_args_and_parse() {
+        assert_eq!(ls_remote_tags("origin"), ["ls-remote", "--tags", "origin"]);
+        let tag = |name: &str, oid: &str| RemoteTag {
+            name: name.into(),
+            oid: oid.into(),
+        };
+        // `v1.0` is annotated: the tag object first, its commit on the `^{}` line (which sorts
+        // after `refs/tags/v1.0.1`, so the two lines of one tag are not always adjacent).
+        let stdout = "aaa\trefs/tags/v1.0\nddd\trefs/tags/v1.0.1\nbbb\trefs/tags/v1.0^{}\nccc\trefs/tags/rc/2\neee\trefs/heads/main\nnot a ref line\n";
+        assert_eq!(
+            parse_ls_remote_tags(stdout),
+            [tag("rc/2", "ccc"), tag("v1.0", "bbb"), tag("v1.0.1", "ddd")]
+        );
+        assert!(parse_ls_remote_tags("").is_empty());
     }
 
     #[test]

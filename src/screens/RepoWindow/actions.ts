@@ -38,7 +38,7 @@ export function protectedNames(remotes: Remote[]): Set<string> {
 
 /** Fetch one remote with prune and no tags; `null` = every remote. */
 export const fetchRemote = (remote: string | null) =>
-  runOp(`Fetching ${remote ?? "all remotes"}…`, (id) => ipc.fetch(id, remote, true, false), { success: `Fetched ${remote ?? "all remotes"}` });
+  runOp(`Fetching ${remote ?? "all remotes"}…`, (id) => ipc.fetch(id, remote, true, false), { success: `Fetched ${remote ?? "all remotes"}`, remote: remote ?? true });
 
 /** Toolbar Fetch: prune, no tags, default remote (all remotes without one). */
 export async function fetchDefault() {
@@ -79,7 +79,11 @@ export function runGit(line: string) {
   if (!parsed.ok || parsed.args.length === 0) return;
   useCmdHistoryStore.getState().push(line.trim());
   useOpsStore.getState().setOpen(true);
-  return runOp(busyLabel(gitCmd(parsed.args)), (id) => ipc.runGit(id, parsed.args), { quietFailure: true });
+  return runOp(busyLabel(gitCmd(parsed.args)), (id) => ipc.runGit(id, parsed.args), {
+    quietFailure: true,
+    // Which remote a typed line talked to is anybody's guess: ask them all.
+    remote: ["fetch", "push", "pull"].includes(parsed.args[0]) ? true : undefined,
+  });
 }
 
 /**

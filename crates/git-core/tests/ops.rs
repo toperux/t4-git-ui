@@ -399,6 +399,34 @@ async fn delete_remote_branch_removes_ref_on_remote() {
 }
 
 #[tokio::test]
+async fn ls_remote_lists_the_pushed_tag_and_not_the_local_one() {
+    if !have_git() {
+        return;
+    }
+    let t = TempRepo::new();
+    let a = t.commit(&[("f.txt", "1\n")], "A");
+    // Annotated: the remote answers with the tag object and a `^{}` line for the commit.
+    t.tag_annotated("pushed", a);
+    t.tag("local-only", a);
+    let (_bare, url) = bare_remote();
+    add_origin(&t, &url);
+    run_ok(
+        &t,
+        &ops::push("origin", Some("refs/tags/pushed"), false, false, false),
+    )
+    .await;
+
+    let out = run_ok(&t, &ops::ls_remote_tags("origin")).await;
+    assert_eq!(
+        ops::parse_ls_remote_tags(&out.stdout),
+        [ops::RemoteTag {
+            name: "pushed".into(),
+            oid: a.to_string(),
+        }]
+    );
+}
+
+#[tokio::test]
 async fn cancel_kills_push_and_its_hook() {
     if !have_git() {
         return;

@@ -213,4 +213,26 @@ describe("runOp", () => {
     expect(fn).not.toHaveBeenCalled();
     expect(toasts()).toHaveLength(0);
   });
+
+  // Last: the stubbed action outlives `resetRepo()`, which only resets data.
+  it("re-asks the remote for its tags only after an op that touched one", async () => {
+    const refreshRemoteTags = vi.fn(() => Promise.resolve());
+    useRepoStore.setState({ refreshRemoteTags });
+    await runOp("Committing…", () => Promise.resolve(ok));
+    await settle();
+    expect(refreshRemoteTags).not.toHaveBeenCalled();
+    // A failed push counts too: the badges must stay honest either way — and only the remote it
+    // pushed to is re-asked, so a dead mirror doesn't toast after every `origin` op.
+    await runOp("Pushing…", () => Promise.resolve({ ...ok, code: 1, failure: { kind: "nonFastForward" } }), { remote: "origin" });
+    await settle();
+    expect(refreshRemoteTags).toHaveBeenCalledWith({ remotes: ["origin"] });
+    // `true` = every remote (fetch --all, a typed command).
+    await runOp("Fetching…", () => Promise.resolve(ok), { remote: true });
+    await settle();
+    expect(refreshRemoteTags).toHaveBeenLastCalledWith(undefined);
+    // Not when the remote never answered: the re-ask would fail the same way and toast twice.
+    await runOp("Fetching…", () => Promise.resolve({ ...ok, code: 128, failure: { kind: "other", message: "could not resolve host" } }), { remote: true });
+    await settle();
+    expect(refreshRemoteTags).toHaveBeenCalledTimes(2);
+  });
 });

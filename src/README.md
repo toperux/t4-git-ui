@@ -17,9 +17,17 @@ src/
   store/
     repoStore.ts           zustand: repo, refs, log {generation,total,complete,error,flat} (a page response never lowers `total`
                            nor clears `complete` — a late page must not undo a newer `log://progress`), sparse rows[], selection (commit index +
-                           wtSelected for the working-tree row), reveal
-                           actions: openRepo, closeRepo, refreshRefs, refreshLabels (re-fetch the pages around the last
-                           `ensureRows` viewport, drop the rest so they reload lazily), startLog,
+                           wtSelected for the working-tree row), reveal,
+                           remoteTags {<remote>: {tags: RemoteTag[], at}} = each remote's tags when it last answered (git keeps no
+                           local record of them), `at` = when it answered (the folder row and the badge's tooltip date it),
+                           `{}` until one does; persisted through lib/kv as `remoteTags:<repo.id>` and read back on open
+                           (an entry from the old single-remote shape is ignored, not migrated)
+                           actions: openRepo, closeRepo, refreshRefs, refreshRemoteTags({remotes?, announce?}) (`remote_tags` per remote in parallel,
+                           every remote in `refs.remotes` by default; run by `runOp({remote})` with the remote the op talked to
+                           (`true` = all) after fetch/push/pull/delete-on-remote when it answered — not after `authFailed` / `other` — and by the tag row's Refresh remote tags with announce;
+                           each answer merges into the current state and prunes remotes that are gone, a failure toasts
+                           "Couldn't check <remote> for tags" and keeps that remote's entry, `announce` toasts the counts), refreshLabels (re-fetch the pages
+                           around the last `ensureRows` viewport, drop the rest so they reload lazily), startLog,
                            ensureRows (500-row pages, dedupe, stale drop), select, selectWorkingTree, revealOid;
                            a page rejected with `staleGeneration` restarts the walk, any other kind toasts once (never loops);
                            `__resetForTests()` clears the module-level page bookkeeping

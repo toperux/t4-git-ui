@@ -12,6 +12,7 @@ vi.mock("../api/ipc", async (importOriginal) => {
     closeRepo: vi.fn(),
     refreshLabels: vi.fn(),
     findLogRow: vi.fn(),
+    remoteTags: vi.fn(),
   };
 });
 
@@ -47,6 +48,7 @@ const mocked = ipc as unknown as {
   closeRepo: ReturnType<typeof vi.fn>;
   getRefs: ReturnType<typeof vi.fn>;
   findLogRow: ReturnType<typeof vi.fn>;
+  remoteTags: ReturnType<typeof vi.fn>;
 };
 
 beforeEach(() => {
@@ -153,6 +155,85 @@ describe("repoStore openRepo", () => {
 
     await useRepoStore.getState().openRepo("c:\\other");
     expect(mocked.closeRepo).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("repoStore remote tags", () => {
+  /** `openRepo` needs the rest of the open path to resolve before it reads the cache. */
+  function openable() {
+    mocked.openRepo.mockResolvedValue(REPO);
+    mocked.getRefs.mockResolvedValue(null);
+    mocked.startLog.mockResolvedValue(1);
+    mocked.getLogPage.mockResolvedValue(page(1, 0, 0, 0));
+  }
+
+  const tags = (...names: string[]) => names.map((name) => ({ name, oid: name }));
+  const withRemotes = (...names: string[]) => useRepoStore.setState({ refs: { ...REFS, remotes: names.map((name) => ({ name, url: null, branches: [] })) } });
+  /** Two remotes with different answers, so a merge that overwrites instead of merging shows. */
+  const answers = () => mocked.remoteTags.mockImplementation((_id: string, remote: string) => Promise.resolve(remote === "origin" ? tags("v1", "v2") : tags("v1")));
+
+  it("caches every remote's tags and reads them back when the repository opens", async () => {
+    localStorage.clear();
+    withRemotes("origin", "vendor");
+    answers();
+    const before = Date.now();
+    await useRepoStore.getState().refreshRemoteTags();
+    expect(mocked.remoteTags.mock.calls).toEqual([
+      [REPO.id, "origin"],
+      [REPO.id, "vendor"],
+    ]);
+    const cached = useRepoStore.getState().remoteTags;
+    expect(cached).toMatchObject({ origin: { tags: tags("v1", "v2") }, vendor: { tags: tags("v1") } });
+    expect(cached.origin.at).toBeGreaterThanOrEqual(before); // the badge's tooltip says how old the answer is
+
+    await flush(); // the kv write is fire-and-forget
+    __resetForTests();
+    openable();
+    await useRepoStore.getState().openRepo(REPO.path);
+    expect(useRepoStore.getState().remoteTags).toEqual(cached);
+  });
+
+  it("keeps a failing remote's cached answer and says so, without dropping the one that answered", async () => {
+    withRemotes("origin", "vendor");
+    useRepoStore.setState({ remoteTags: { vendor: { tags: tags("old"), at: 1 } } });
+    mocked.remoteTags.mockImplementation((_id: string, remote: string) =>
+      remote === "vendor" ? Promise.reject({ kind: "cli", message: "could not read from remote" }) : Promise.resolve(tags("v1")),
+    );
+    await useRepoStore.getState().refreshRemoteTags();
+    expect(useRepoStore.getState().remoteTags).toMatchObject({ origin: { tags: tags("v1") }, vendor: { tags: tags("old"), at: 1 } });
+    expect(useToastStore.getState().toasts).toMatchObject([{ kind: "error", title: "Couldn't check vendor for tags" }]);
+  });
+
+  it("toasts every count when the user asked for the check", async () => {
+    withRemotes("origin", "vendor");
+    answers();
+    await useRepoStore.getState().refreshRemoteTags({ announce: true });
+    expect(useToastStore.getState().toasts).toMatchObject([{ kind: "info", title: "Checked origin: 2 tags, vendor: 1 tag" }]);
+
+    useToastStore.setState({ toasts: [] });
+    withRemotes();
+    await useRepoStore.getState().refreshRemoteTags({ announce: true });
+    expect(useToastStore.getState().toasts).toMatchObject([{ kind: "info", title: "No remote to check" }]);
+  });
+
+  it("asks only the remote it was given, and forgets the remotes that are gone", async () => {
+    withRemotes("origin", "vendor");
+    answers();
+    await useRepoStore.getState().refreshRemoteTags();
+    mocked.remoteTags.mockClear();
+
+    withRemotes("origin"); // `vendor` removed since
+    await useRepoStore.getState().refreshRemoteTags({ remotes: ["origin"] });
+    expect(mocked.remoteTags.mock.calls).toEqual([[REPO.id, "origin"]]);
+    expect(Object.keys(useRepoStore.getState().remoteTags)).toEqual(["origin"]);
+  });
+
+  it("ignores a cache written by the single-remote version", async () => {
+    localStorage.clear();
+    localStorage.setItem(`kv:remoteTags:${REPO.id}`, JSON.stringify({ remote: "origin", names: ["v1"], at: 1 }));
+    openable();
+    await useRepoStore.getState().openRepo(REPO.path);
+    expect(useRepoStore.getState().remoteTags).toEqual({});
   });
 });
 

@@ -79,7 +79,7 @@ function renderDialog(dialog: DialogSpec, close: () => void): ReactNode {
     case "pushTag":
       return <PushTagDialog onClose={close} name={dialog.name} />;
     case "deleteRemoteTag":
-      return <DeleteRemoteTagDialog onClose={close} name={dialog.name} />;
+      return <DeleteRemoteTagDialog onClose={close} name={dialog.name} remote={dialog.remote} />;
     case "stashPush":
       return <StashPushDialog onClose={close} />;
     case "stash":

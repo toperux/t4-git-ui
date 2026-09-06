@@ -31,7 +31,8 @@ export type DialogSpec =
   | { kind: "createTag"; target?: string }
   | { kind: "deleteTag"; name: string }
   | { kind: "pushTag"; name: string }
-  | { kind: "deleteRemoteTag"; name: string }
+  /** `remote` preselects it (a remote tag row knows which one); the default remote otherwise. */
+  | { kind: "deleteRemoteTag"; name: string; remote?: string }
   | { kind: "deleteRemoteBranch"; remote: string; name: string }
   | { kind: "addRemote" }
   | { kind: "renameRemote"; name: string }

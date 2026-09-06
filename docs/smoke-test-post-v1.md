@@ -442,6 +442,78 @@ _Shipped 2026-09-06 (this commit); walked the same day over CDP on the installed
 - [x] **Git missing** (§6): launch with git off `PATH` (or point Settings › Git executable at a
       file that is not git) → the Git-missing screen's hint starts `T4 Git needs git 2.20 or newer`
 
+## T. Local-only tag badge (main §2)
+_Shipped 2026-09-06 (this commit); walked the same day over CDP on the installed build in `work` (origin = `bare.git`) and a throwaway repository with no remote. Git keeps no local record of a remote's tags, so the badge comes from `git ls-remote --tags` run quietly after a fetch / push / pull / delete on remote, and the answer is cached per repository in the kv store — nothing hits the network on open._
+
+- [x] **Nothing until the remote has been asked**: open `work` in a fresh install (no cache) → the
+      Tags section shows `v0.1.0` with no badge, no toast
+- [x] **Fetch marks the local-only ones**: **Fetch** → `v0.1.0` (never pushed) carries a `local`
+      badge, tooltip `Not on origin (as of the last fetch or push)`; `git tag t1` in a terminal
+      (the watcher or F5 picks it up) → `t1` carries `local` too
+- [x] **Push clears it, delete on remote brings it back**: right-click `v0.1.0` › **Push…** →
+      `Pushed tag v0.1.0 → origin`, the badge is gone (`git ls-remote --tags origin` lists it);
+      **Delete on remote…** → `Deleted tag v0.1.0 on origin`, the badge is back
+- [x] **Cached across opens**: **Repository › Close repository**, reopen `work` → the badges are
+      there at once, without a fetch (`recents.json` holds `remoteTags:<repo>`)
+- [x] **No remote, no badge**: a repository with a tag and no remote → the tag is plain, no toast
+
+## W. Remote tag check (main §1)
+_Shipped 2026-09-07 (this commit); walked the same day over CDP on the installed build in `work` (origin re-pointed at a missing path from a shell for the failure step and restored) and a throwaway remote-less repository. The `local` badge was only as fresh as the last fetch / push / pull / delete-on-remote from this app, and an `ls-remote` that failed (offline, auth without a terminal to prompt in) was swallowed. Now the cached answer carries the time it was given, the badge's tooltip says how old it is, `Refresh remote tags` on any tag row re-asks and reports, and a failed check toasts instead of leaving badges that quietly disagree with git._
+
+- [x] **The tooltip dates the answer**: open `work`, **Fetch**, hover the `local` badge on a tag the
+      remote does not have → `Not on origin (as of just now)`; leave it a few minutes and reopen the
+      Tags section → `5m ago`. A badge from a cache written before this change reads `(as of the
+      last fetch or push)` until the next check
+- [x] **Re-ask from the row**: right-click any tag → after **Push…**, **Refresh remote tags** →
+      toast `Checked origin: N tags` with the number `git ls-remote --tags origin | wc -l` gives
+      (`1 tag`, not `1 tags`), and the badges / tooltip age update
+- [x] **A failing check says so**: `git remote set-url origin c:/nowhere` in a shell →
+      **Refresh remote tags** → error toast `Couldn't check origin for tags` with git's first
+      stderr line, the badges unchanged (the old answer is kept, tooltip age unchanged); restore
+      with `git remote set-url origin <the bare repo>` → the next check succeeds
+- [x] **No remote**: in a repository with no remote, **Refresh remote tags** → info toast `No remote
+      to check`, no badges
+- [x] **Automatic checks stay quiet** (§5): **Fetch** in `work` → no `Checked origin…` toast, only
+      the fetch's own; the tooltip age resets to `just now`
+
+## X. Tags tree and per-remote tags (main §2)
+_Shipped 2026-09-07 (this commit); walked the same day over CDP on the installed build in `work` (`mirror` = a second bare remote with `nested/one` and `releases/qas/v1.1.1`, `origin` with the latter only, `nowhere` a missing path; the `slow` fixture removed for the walk because its 60 s upload-pack holds the summary toast, and put back) and on `acme-portal`, the repository this replaces the single-remote check for (`Checked vendor: 1 tag, origin: 7 tags`; only `backujp`, `fg`, `perf-hotfix-backup` badged). The single-remote check asked the branch's tracking remote — on a repository whose checked-out branch tracks a personal mirror that is the wrong remote, and ten of eleven real tags were badged `local`. Now every remote is asked and shown._
+
+- [x] **Local tags fold**: in `work`, tag something `releases/qas/v1.1.1` and `backup/old` from a
+      shell → the Tags section shows `releases` and `backup` folders that expand and collapse like
+      the branch folders, the leaf label being the last segment and the row's tooltip the full name;
+      the section count is still the number of local tags (folders and remote folders don't count)
+- [x] **A folder per remote**: with `origin` and `mirror` both pushed to, **Fetch** (or **Refresh
+      remote tags** on any tag row) → below the local tags, a cloud-icon `origin` row and a
+      `mirror` row, each expanding to that remote's tags (nested by `/` too); a tag on both remotes
+      and locally appears three times, like a branch does
+- [x] **The folder row is dated**: hover `origin` in the Tags section → `Checked just now`, and a
+      few minutes later `5m ago`
+- [x] **`local` means on no remote**: a tag pushed to `mirror` only carries **no** badge; one pushed
+      nowhere is badged `local` with the tooltip `Not on origin or mirror (as of <the older of the
+      two answers>)`; with nothing cached (a fresh open of a repository never checked) there are no
+      badges and no remote folders at all
+- [x] **A remote that is gone takes its folder with it**: `git remote remove mirror` in a shell →
+      after the refresh the `mirror` folder and its share of the badge tooltip are gone, without a
+      restart
+- [x] **The remote tag row reveals**: click a tag under `origin` → the grid scrolls to its commit;
+      click one whose commit the current walk hasn't got (filter the log to something else first, or
+      a tag never fetched) → info toast `Not in the current history`, nothing else happens
+- [x] **The remote tag menu**: right-click a tag under `origin` → **Copy name**, **Refresh remote
+      tags**, then **Delete on remote…** (no Checkout / Create branch here — the object may not
+      exist locally); the delete dialog opens with `origin` already selected, and deleting it drops
+      the row from `origin`'s folder after the re-check
+- [x] **One remote's failure doesn't poison the rest** (§5): `git remote set-url mirror c:/nowhere`
+      in a shell → **Fetch** on `origin` alone → no toast about `mirror` at all (only the remote
+      the op talked to is re-asked); **Refresh remote tags** → error toast `Couldn't check mirror
+      for tags`, `origin`'s folder still updated, `mirror`'s folder unchanged; restore the URL
+- [x] **The counts toast lists every remote**: **Refresh remote tags** with both remotes reachable →
+      one info toast `Checked origin: N tags, mirror: 1 tag` (singular `1 tag`), matching
+      `git ls-remote --tags <remote> --refs | wc -l` for each
+- [x] **A real mirror**: open a repository whose current branch tracks a secondary remote (the case
+      this replaces) → the tags that live on the main remote are **not** badged `local`, and only
+      the genuinely unpushed ones are
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the

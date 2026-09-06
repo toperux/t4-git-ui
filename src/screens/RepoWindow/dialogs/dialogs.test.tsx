@@ -32,6 +32,8 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
     deleteRemoteBranch: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     runGit: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     getDefaultRemote: vi.fn(() => Promise.resolve("origin")),
+    // Every remote op refreshes the remote's tags; a failure there toasts, which these tests would see.
+    remoteTags: vi.fn(() => Promise.resolve([])),
     getConfig: vi.fn(() => Promise.resolve(null)),
     getStatus: vi.fn(() => new Promise(() => {})),
     getRefs: vi.fn(() => new Promise(() => {})),
@@ -56,7 +58,8 @@ const mocked = ipc as unknown as Record<
   | "addRemote"
   | "renameRemote"
   | "setRemoteUrl"
-  | "removeRemote",
+  | "removeRemote"
+  | "getDefaultRemote",
   ReturnType<typeof vi.fn>
 >;
 
@@ -228,6 +231,14 @@ describe("DeleteRemoteTagDialog", () => {
     expect(preview(dialog)).toBe("git push fork --delete refs/tags/v1.2.0");
     fireEvent.click(getByRole("button", { name: "Delete on remote" }));
     await waitFor(() => expect(mocked.deleteRemoteBranch).toHaveBeenCalledWith("r", "fork", "refs/tags/v1.2.0"));
+  });
+
+  it("preselects the remote it was opened on, without asking for the default one", async () => {
+    useRepoStore.setState({ refs: { ...REFS, remotes: [...REFS.remotes, { name: "fork", url: null, branches: [] }] } });
+    const { getByRole } = render(<DeleteRemoteTagDialog onClose={() => {}} name="v1.2.0" remote="fork" />);
+    const dialog = getByRole("dialog", { name: "Delete remote tag" });
+    expect(preview(dialog)).toBe("git push fork --delete refs/tags/v1.2.0");
+    await waitFor(() => expect(mocked.getDefaultRemote).not.toHaveBeenCalled());
   });
 });
 

@@ -16,6 +16,7 @@ import type {
   PullMode,
   ResetMode,
   RefsSnapshot,
+  RemoteTag,
   RepoId,
   RepoSummary,
   RevSpec,
@@ -271,3 +272,6 @@ export const setConfig = (id: RepoId, key: string, value: string) => call<void>(
 
 /** The current branch's remote, else `origin` when it exists, else the only remote; `null` without remotes. */
 export const getDefaultRemote = (id: RepoId) => call<string | null>("get_default_remote", { id });
+
+/** Tags `remote` has right now (`git ls-remote`), peeled to their commits; rejects when the remote can't be reached. */
+export const remoteTags = (id: RepoId, remote: string) => call<RemoteTag[]>("remote_tags", { id, remote });

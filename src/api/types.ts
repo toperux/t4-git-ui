@@ -397,6 +397,12 @@ export type FfMode = "auto" | "only" | "no";
 /** `git reset` flavor: soft keeps index + worktree, mixed unstages, hard discards. */
 export type ResetMode = "soft" | "mixed" | "hard";
 
+/** One tag a remote has (`git ls-remote --tags`); `oid` is peeled to the commit. */
+export interface RemoteTag {
+  name: string;
+  oid: string;
+}
+
 /** `#[serde(tag = "kind")]` — why a streamed op exited non-zero. */
 export type OpFailure =
   | { kind: "conflicts"; paths: string[] }

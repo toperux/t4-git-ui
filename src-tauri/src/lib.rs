@@ -198,6 +198,7 @@ pub fn run() {
             commands::ops::get_config,
             commands::ops::set_config,
             commands::ops::get_default_remote,
+            commands::ops::remote_tags,
             commands::ops::clone_repo,
             commands::ops::init_repo
         ])

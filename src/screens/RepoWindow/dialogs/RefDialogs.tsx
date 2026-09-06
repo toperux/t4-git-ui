@@ -182,7 +182,7 @@ export function DeleteBranchDialog({ onClose, name }: { onClose: () => void; nam
 export function DeleteRemoteBranchDialog({ onClose, remote, name }: { onClose: () => void; remote: string; name: string }) {
   function submit() {
     onClose();
-    void runOp(`Deleting ${remote}/${name}…`, (id) => ipc.deleteRemoteBranch(id, remote, name), { success: `Deleted ${remote}/${name}` });
+    void runOp(`Deleting ${remote}/${name}…`, (id) => ipc.deleteRemoteBranch(id, remote, name), { success: `Deleted ${remote}/${name}`, remote });
   }
   return (
     <Dialog
@@ -231,7 +231,7 @@ export function CreateTagDialog({ onClose, target: initial }: { onClose: () => v
     const r = await runOp(`Creating tag ${name}…`, (id) => ipc.createTag(id, name, target, message.trim() || null), { success: `Created tag ${name}` });
     // The tag is created either way; without a remote there is nothing to push it to.
     if (!r.ok || !push || !remote) return;
-    await runOp(`Pushing tag ${name}…`, (id) => ipc.push(id, remote, `refs/tags/${name}`, false, false, false), { success: `Pushed ${name} to ${remote}` });
+    await runOp(`Pushing tag ${name}…`, (id) => ipc.push(id, remote, `refs/tags/${name}`, false, false, false), { success: `Pushed ${name} to ${remote}`, remote });
   }
 
   return (
@@ -292,7 +292,10 @@ export function DeleteTagDialog({ onClose, name }: { onClose: () => void; name: 
   async function submit() {
     onClose();
     if (onRemote) {
-      const r = await runOp(`Deleting tag ${name} on ${remote}…`, (id) => ipc.deleteRemoteBranch(id, remote, refspec), { success: `Deleted tag ${name} on ${remote}` });
+      const r = await runOp(`Deleting tag ${name} on ${remote}…`, (id) => ipc.deleteRemoteBranch(id, remote, refspec), {
+        success: `Deleted tag ${name} on ${remote}`,
+        remote,
+      });
       if (!r.ok) return;
     }
     await runOp(`Deleting tag ${name}…`, (id) => ipc.deleteTag(id, name), { success: `Deleted tag ${name}` });

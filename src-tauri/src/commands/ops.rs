@@ -10,7 +10,9 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use git_core::cli::ops::{self as gitops, CloneOpts, FfMode, MergeOpts, OpFailure, PullMode};
+use git_core::cli::ops::{
+    self as gitops, CloneOpts, FfMode, MergeOpts, OpFailure, PullMode, RemoteTag,
+};
 use git_core::cli::{CliEvent, CliOutput};
 use git_core::status::status;
 use git_core::watch::ChangeKind;
@@ -561,6 +563,25 @@ pub async fn get_default_remote(
 ) -> Result<Option<String>, AppError> {
     let handle = state.repo(&id)?;
     blocking(move || Ok(config::default_remote(&handle.git2.lock()))).await
+}
+
+/// Tags `remote` has right now (`git ls-remote`), each with the commit it
+/// points at. A read: no `op_lock`, so it never makes a later mutation report
+/// busy, and nothing is streamed to the output dock. A non-zero exit (offline,
+/// auth, no such remote) is a `cli` error.
+#[tauri::command]
+pub async fn remote_tags(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: RepoId,
+    remote: String,
+) -> Result<Vec<RemoteTag>, AppError> {
+    let handle = state.repo(&id)?;
+    let args = gitops::ls_remote_tags(&remote);
+    let argv: Vec<&str> = args.iter().map(String::as_str).collect();
+    let run = run_git_op(&app, &state, Some(&id), &handle.path, &argv, None, false).await?;
+    run.out.check("git ls-remote --tags")?;
+    Ok(gitops::parse_ls_remote_tags(&run.out.stdout))
 }
 
 // ---- repo creation ----

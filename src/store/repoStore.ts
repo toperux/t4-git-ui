@@ -3,9 +3,10 @@
 import { create } from "zustand";
 import * as ipc from "../api/ipc";
 import { toAppError } from "../api/ipc";
-import type { CommitInfo, LogFilter, LogProgress, LogRow, RefsSnapshot, RepoSummary, RevSpec } from "../api/types";
+import type { CommitInfo, LogFilter, LogProgress, LogRow, RefsSnapshot, RemoteTag, RepoSummary, RevSpec } from "../api/types";
+import { kvGet, kvSet } from "../lib/kv";
 import { baseName } from "../lib/paths";
-import { toastError } from "./toastStore";
+import { toastError, useToastStore } from "./toastStore";
 
 export const PAGE_SIZE = 500;
 
@@ -25,6 +26,12 @@ export interface RepoStore {
   /** Name of the repository `openRepo` is working on (drives the blocking overlay); `null` when idle. */
   opening: string | null;
   refs: RefsSnapshot | null;
+  /**
+   * Tags each remote had when it last answered (git keeps no local record of them), keyed by remote
+   * name; `{}` until one answers or a cached entry is read on open. `at` (ms) is when it answered —
+   * the sidebar dates its folder row and the `local` badge with it.
+   */
+  remoteTags: Record<string, { tags: RemoteTag[]; at: number }>;
   spec: RevSpec;
   filter: LogFilter;
   log: LogState;
@@ -46,6 +53,12 @@ export interface RepoStore {
   openRepo(path: string): Promise<void>;
   closeRepo(): Promise<void>;
   refreshRefs(): Promise<void>;
+  /**
+   * Asks `remotes` (every remote by default) which tags they have, in parallel; a failure toasts and
+   * keeps that remote's cached answer. `announce` also toasts the counts — for the user asking for
+   * the check from the tag menu.
+   */
+  refreshRemoteTags(opts?: { remotes?: string[]; announce?: boolean }): Promise<void>;
   /** Recomputes ref labels on the backend and re-fetches every loaded page (no re-walk). */
   refreshLabels(): Promise<void>;
   startLog(spec: RevSpec, filter: LogFilter): Promise<void>;
@@ -55,12 +68,17 @@ export interface RepoStore {
   /** Ctrl+click on a row: the second commit of a compare, or off again; a plain select when there is nothing to compare with. */
   compareWith(index: number): void;
   selectWorkingTree(on?: boolean): void;
-  /** Selects the row for `oid` (loading pages as needed) and asks the grid to scroll to it. */
-  revealOid(oid: string): Promise<void>;
+  /**
+   * Selects the row for `oid` (loading pages as needed) and asks the grid to scroll to it;
+   * `false` when the current walk has no such row (filtered out, or never fetched).
+   */
+  revealOid(oid: string): Promise<boolean>;
   onProgress(p: LogProgress): void;
 }
 
 const EMPTY_LOG: LogState = { generation: null, total: 0, complete: false, error: null, flat: false };
+
+const remoteTagsKey = (id: string) => `remoteTags:${id}`;
 
 // Page bookkeeping lives outside the reactive state: nothing renders from it.
 let loaded = new Set<number>();
@@ -204,6 +222,7 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
     repo: null,
     opening: null,
     refs: null,
+    remoteTags: {},
     spec: { kind: "all" },
     filter: {},
     log: EMPTY_LOG,
@@ -226,6 +245,7 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
         set({
           repo,
           refs: null,
+          remoteTags: {},
           spec: { kind: "all" },
           filter: {},
           log: EMPTY_LOG,
@@ -239,6 +259,11 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
         // one being left is closed (its events were filtered out by id anyway).
         if (prev && prev.id !== repo.id) ipc.closeRepo(prev.id).catch(() => undefined);
         await Promise.all([get().refreshRefs(), get().startLog({ kind: "all" }, {})]);
+        // Badges from open onward, without a network round trip. A remote op that finished
+        // meanwhile has the fresher answer, so it wins.
+        // An entry from the single-remote cache (it names its `remote`) is ignored, not migrated.
+        const cached = await kvGet<RepoStore["remoteTags"] | { remote: string }>(remoteTagsKey(repo.id));
+        if (cached && !("remote" in cached) && get().repo?.id === repo.id && Object.keys(get().remoteTags).length === 0) set({ remoteTags: cached });
       } finally {
         set({ opening: null });
       }
@@ -250,7 +275,7 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
       startSeq++;
       resetPages();
       pendingSelect = null;
-      set({ repo: null, refs: null, log: EMPTY_LOG, rows: [], selectedIndex: null, wtSelected: false, compare: null, reveal: null });
+      set({ repo: null, refs: null, remoteTags: {}, log: EMPTY_LOG, rows: [], selectedIndex: null, wtSelected: false, compare: null, reveal: null });
       await ipc.closeRepo(repo.id);
     },
 
@@ -259,6 +284,42 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
       if (!repo) return;
       const refs = await ipc.getRefs(repo.id);
       if (get().repo?.id === repo.id) set({ refs });
+    },
+
+    async refreshRemoteTags(opts) {
+      const { repo, refs } = get();
+      if (!repo || !refs) return;
+      const names = opts?.remotes ?? refs.remotes.map((r) => r.name);
+      const counts = new Map<string, number>();
+      await Promise.all(
+        names.map(async (remote) => {
+          let tags;
+          try {
+            tags = await ipc.remoteTags(repo.id, remote);
+          } catch (e) {
+            // Offline, auth, remote gone: that remote's cached answer stays, but say so — silently
+            // keeping a stale one looks like badges that disagree with git for no reason.
+            toastError(toAppError(e), `Couldn't check ${remote} for tags`);
+            return;
+          }
+          if (get().repo?.id !== repo.id) return;
+          counts.set(remote, tags.length);
+          // The answers land in any order: merge into whatever is current rather than a snapshot,
+          // dropping the entries of remotes that are gone (removed or renamed since).
+          set((s) => {
+            const live = new Set(s.refs?.remotes.map((r) => r.name));
+            const kept = Object.entries(s.remoteTags).filter(([name]) => name !== remote && live.has(name));
+            return { remoteTags: { ...Object.fromEntries(kept), [remote]: { tags, at: Date.now() } } };
+          });
+          kvSet(remoteTagsKey(repo.id), get().remoteTags).catch((e: unknown) => console.warn("kv: could not persist remote tags", e));
+        }),
+      );
+      if (!opts?.announce) return;
+      const checked = names.filter((r) => counts.has(r));
+      const title = checked.map((r) => `${r}: ${counts.get(r)} tag${counts.get(r) === 1 ? "" : "s"}`).join(", ");
+      // Every remote failing has toasted once per remote already; there is nothing to add.
+      if (names.length === 0) useToastStore.getState().push({ kind: "info", title: "No remote to check" });
+      else if (checked.length > 0) useToastStore.getState().push({ kind: "info", title: `Checked ${title}` });
     },
 
     async refreshLabels() {
@@ -334,13 +395,14 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
 
     async revealOid(oid) {
       const { repo, log } = get();
-      if (!repo || log.generation === null) return;
+      if (!repo || log.generation === null) return false;
       const index = await findIndex(oid, log.generation);
       const s = get();
-      if (index === null || s.repo?.id !== repo.id || s.log.generation !== log.generation) return;
+      if (index === null || s.repo?.id !== repo.id || s.log.generation !== log.generation) return false;
       await fetchPage(Math.floor(index / PAGE_SIZE));
       // Revealing a commit moves the selection off the working-tree row (and out of the commit panel).
       set((st) => ({ selectedIndex: index, wtSelected: false, compare: null, reveal: { index, seq: (st.reveal?.seq ?? 0) + 1 } }));
+      return true;
     },
 
     onProgress(p) {
@@ -369,6 +431,7 @@ export function __resetForTests() {
     repo: null,
     opening: null,
     refs: null,
+    remoteTags: {},
     spec: { kind: "all" },
     filter: {},
     log: EMPTY_LOG,

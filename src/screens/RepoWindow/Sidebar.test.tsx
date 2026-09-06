@@ -1,9 +1,10 @@
-import { cleanup, fireEvent, render, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RefsSnapshot } from "../../api/types";
 import { useDialogStore } from "../../store/dialogStore";
 import { useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
+import { useToastStore } from "../../store/toastStore";
 import { Sidebar } from "./Sidebar";
 
 vi.mock("../../api/ipc", async (importOriginal) => {
@@ -35,9 +36,13 @@ const REFS: RefsSnapshot = {
 
 afterEach(cleanup);
 beforeEach(() => {
-  useRepoStore.setState({ refs: REFS });
+  useRepoStore.setState({ refs: REFS, remoteTags: {} });
   useDialogStore.setState({ dialog: null });
+  useToastStore.setState({ toasts: [] });
 });
+
+/** The Tags section starts collapsed. */
+const openTags = (view: ReturnType<typeof render>) => fireEvent.click(view.getByRole("button", { name: /^Tags/ }));
 
 describe("Sidebar section counts", () => {
   it("counts refs in every section — Remotes counts branches, not remotes", () => {
@@ -182,5 +187,90 @@ describe("Sidebar remote menu", () => {
     const { getByRole } = render(<Sidebar />);
     expect(getByRole("button", { name: "Add remote…" }).hasAttribute("disabled")).toBe(true);
     useOpsStore.setState({ busy: null });
+  });
+});
+
+describe("Sidebar tags tree", () => {
+  const tag = (name: string) => ({ name, oid: name, message: null });
+  const remoteTags = (...names: string[]) => names.map((name) => ({ name, oid: name }));
+  const rows = (view: ReturnType<typeof render>) => view.getAllByRole("treeitem");
+
+  it("folds local tags by `/` like the branches, the folder collapsing on click", () => {
+    useRepoStore.setState({ refs: { ...REFS, tags: [tag("v0.1.0"), tag("releases/qas/v1.1.1")] } });
+    const view = render(<Sidebar />);
+    openTags(view);
+    expect(view.getByRole("treeitem", { name: "v1.1.1" }).getAttribute("aria-level")).toBe("3");
+    fireEvent.click(view.getByRole("treeitem", { name: "releases" }));
+    expect(view.queryByRole("treeitem", { name: "v1.1.1" })).toBeNull();
+  });
+
+  it("gives every remote that answered its own folder, and none to one that is gone", () => {
+    useRepoStore.setState({
+      remoteTags: { origin: { tags: remoteTags("v0.1.0", "v0.2.0"), at: Date.now() - 5 * 60_000 }, upstream: { tags: remoteTags("v9"), at: Date.now() } },
+    });
+    const view = render(<Sidebar />);
+    openTags(view);
+    // The folder row is dated; `upstream` is not a remote of this repository, so it has no folder.
+    expect(rows(view).find((r) => r.title === "Checked 5m ago")!.textContent).toBe("origin");
+    expect(rows(view).filter((r) => r.textContent === "upstream")).toHaveLength(0);
+    // `v0.1.0` is both the local tag and origin's copy; `v0.2.0` is origin's alone.
+    expect(rows(view).filter((r) => r.title === "v0.1.0")).toHaveLength(2);
+    expect(rows(view).filter((r) => r.title === "v0.2.0")).toHaveLength(1);
+  });
+
+  it("reveals a remote tag's commit, and says so when the walk has no such row", async () => {
+    const revealOid = vi.fn(() => Promise.resolve(true));
+    useRepoStore.setState({ remoteTags: { origin: { tags: remoteTags("v0.2.0"), at: Date.now() } }, revealOid });
+    const view = render(<Sidebar />);
+    openTags(view);
+    fireEvent.click(rows(view).find((r) => r.title === "v0.2.0")!);
+    expect(revealOid).toHaveBeenCalledWith("v0.2.0");
+    expect(useToastStore.getState().toasts).toHaveLength(0);
+
+    revealOid.mockResolvedValue(false);
+    fireEvent.click(rows(view).find((r) => r.title === "v0.2.0")!);
+    await waitFor(() => expect(useToastStore.getState().toasts).toMatchObject([{ kind: "info", title: "Not in the current history" }]));
+  });
+
+  it("badges a tag none of the remotes has, naming them all and dating the oldest answer", () => {
+    useRepoStore.setState({ remoteTags: { origin: { tags: remoteTags("v0.0.9"), at: Date.now() - 2 * 3600_000 }, fork: { tags: [], at: Date.now() } } });
+    const view = render(<Sidebar />);
+    openTags(view);
+    expect(view.getByText("local").title).toBe("Not on origin or fork (as of 2h ago)");
+  });
+
+  it("leaves a tag one of the remotes has plain, and badges nothing at all without an answer", () => {
+    useRepoStore.setState({ remoteTags: { fork: { tags: remoteTags("v0.1.0"), at: Date.now() } } });
+    const view = render(<Sidebar />);
+    openTags(view);
+    expect(view.queryByText("local")).toBeNull();
+    cleanup();
+
+    useRepoStore.setState({ remoteTags: {} });
+    const cold = render(<Sidebar />);
+    openTags(cold);
+    expect(cold.queryByText("local")).toBeNull();
+  });
+
+  it("re-asks the remotes from the tag row menu", () => {
+    const refreshRemoteTags = vi.fn(() => Promise.resolve());
+    useRepoStore.setState({ refreshRemoteTags });
+    const view = render(<Sidebar />);
+    openTags(view);
+    fireEvent.contextMenu(rows(view).find((r) => r.title === "v0.1.0")!);
+    fireEvent.click(within(view.getByRole("menu", { name: "Reference actions" })).getByRole("menuitem", { name: "Refresh remote tags" }));
+    expect(refreshRemoteTags).toHaveBeenCalledWith({ announce: true });
+  });
+
+  it("offers a remote tag row Copy name / Refresh / Delete on remote…, that remote preselected", () => {
+    useRepoStore.setState({ remoteTags: { origin: { tags: remoteTags("v0.2.0"), at: Date.now() } } });
+    const view = render(<Sidebar />);
+    openTags(view);
+    fireEvent.contextMenu(rows(view).find((r) => r.title === "v0.2.0")!);
+    const menu = within(view.getByRole("menu", { name: "Reference actions" }));
+    // No Checkout / Create branch here: the object may not exist locally.
+    expect(menu.queryAllByRole("menuitem").map((el) => el.textContent)).toEqual(["Copy name", "Refresh remote tags", "Delete on remote…"]);
+    fireEvent.click(menu.getByRole("menuitem", { name: "Delete on remote…" }));
+    expect(useDialogStore.getState().dialog).toEqual({ kind: "deleteRemoteTag", name: "v0.2.0", remote: "origin" });
   });
 });
