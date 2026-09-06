@@ -50,7 +50,7 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the first two perfo
 
 ## 1. Start screen (M5)
 
-- [x] Launch with no previous repo → start screen: header `t4 git ui 0.1.2`, `RECENT` column,
+- [x] Launch with no previous repo → start screen: header `T4 Git 0.1.2`, `RECENT` column,
       `START` column with three cards, statusbar shows `git <version>` and `N recent`
 - [x] `Ctrl+O` → folder picker → choose a **non**-repo folder → error toast, stays on start screen
 - [x] Open `C:\tmp\t4\work` → repo window opens; restart the app → it reopens automatically

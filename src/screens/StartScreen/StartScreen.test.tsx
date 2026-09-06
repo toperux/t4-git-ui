@@ -57,7 +57,8 @@ beforeEach(() => {
 
 describe("StartScreen", () => {
   it("lists recents pinned-first and Enter opens the selected one", () => {
-    const { getAllByRole, getByRole, container } = render(<StartScreen />);
+    const { getAllByRole, getByRole, getByText, container } = render(<StartScreen />);
+    expect(getByText("T4 Git")).toBeTruthy();
     const rows = getAllByRole("option");
     // Each row shows its name and full path (the path is also its tooltip).
     expect(rows.map((r) => r.getAttribute("title"))).toEqual(["F:\\src\\t4-git-ui", "F:\\src\\rust", "C:\\Users\\me\\dotfiles"]);

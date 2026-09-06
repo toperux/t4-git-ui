@@ -432,6 +432,16 @@ _Shipped 2026-09-06 (this commit); walked the same day over CDP (Locate… is th
       `diff.guitool beyondcompare4` — dump `git config --global --get-regexp 'tool|difftool|mergetool'`
       before starting)
 
+## S. App name and window title (main §1, §6)
+_Shipped 2026-09-06 (this commit); walked the same day over CDP on the installed build, the title bar read through `Get-Process t4-git-ui | Select MainWindowTitle` after each step; the Git-missing step by launching with git off `PATH`._
+
+- [x] **The name** (§1): launch with no repository open → the start screen header reads `T4 Git`
+      with the version beside it, and the window's title bar reads `T4 Git`
+- [x] **It follows the repository** (§1): open `work` → the title bar reads `T4 Git - work`;
+      **Repository › Close repository** → back to `T4 Git`; switch to another recent → its name
+- [x] **Git missing** (§6): launch with git off `PATH` (or point Settings › Git executable at a
+      file that is not git) → the Git-missing screen's hint starts `T4 Git needs git 2.20 or newer`
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the

@@ -6,6 +6,7 @@ import { BusyOverlay } from "./components/ui/BusyOverlay/BusyOverlay";
 import { Spinner } from "./components/ui/Spinner/Spinner";
 import { kvGet, kvSet } from "./lib/kv";
 import { keepsNativeMenu } from "./lib/nativeMenu";
+import { useWindowTitle } from "./lib/windowTitle";
 import { GitMissingScreen } from "./screens/GitMissingScreen/GitMissingScreen";
 import { closeRepo } from "./screens/RepoWindow/actions";
 import { RepoWindow } from "./screens/RepoWindow/RepoWindow";
@@ -20,6 +21,7 @@ import { useStatusStore } from "./store/statusStore";
 type Phase = { kind: "probing" } | { kind: "gitMissing"; message: string } | { kind: "ready" };
 
 export default function App() {
+  useWindowTitle();
   const [phase, setPhase] = useState<Phase>({ kind: "probing" });
   const hasRepo = useRepoStore((st) => st.repo !== null);
   const opening = useRepoStore((st) => st.opening);

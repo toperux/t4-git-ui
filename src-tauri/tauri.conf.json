@@ -11,7 +11,7 @@
   "app": {
     "windows": [
       {
-        "title": "t4 git ui",
+        "title": "T4 Git",
         "width": 1280,
         "height": 800,
         "minWidth": 900,

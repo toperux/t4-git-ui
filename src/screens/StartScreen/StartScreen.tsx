@@ -13,6 +13,7 @@ import { Input } from "../../components/ui/Input/Input";
 import { Spinner } from "../../components/ui/Spinner/Spinner";
 import { StatusBar, StatusItem } from "../../components/ui/StatusBar/StatusBar";
 import { ToastStack } from "../../components/ui/Toast/Toast";
+import { APP_NAME } from "../../lib/app";
 import { parentDir } from "../../lib/paths";
 import { cx } from "../../lib/cx";
 import { relativeDate } from "../../lib/relativeDate";
@@ -178,7 +179,7 @@ export function StartScreen() {
         <span className={s.headerIcon}>
           <GitBranch size={16} aria-hidden />
         </span>
-        <span className={s.title}>t4 git ui</span>
+        <span className={s.title}>{APP_NAME}</span>
         <span className={s.version}>{pkg.version}</span>
         <span className={s.grow} />
         <ThemeToggle />
