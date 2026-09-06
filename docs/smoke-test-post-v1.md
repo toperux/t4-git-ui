@@ -290,6 +290,21 @@ whole, so a real word pair comes from this repo's own history._
       the text stays readable. Back in `work`, open `crlf-hunks.txt` → the `crlf 05 edited` add tints
       ` edited` and the trailing `␍` glyph is never inside the tint
 
+## M. Folder stage / unstage in tree view (main §4)
+_Shipped 2026-09-06; walked the same day over CDP (this commit)._
+
+- [x] **A folder's own `+` / `−`** (§4): in the commit panel switch to tree view and hover `src` in
+      **Unstaged** → a `+` appears at the row's end, in the same column as a file row's → click it →
+      `a.txt` and `lib/b.txt` both move to **Staged** under `src`, and the focus is still in a list
+      (`↓` moves a row; nothing lands on `<body>`). Hover `src` in **Staged** → `−` → both back
+- [x] **A compacted chain, and the keys** (§4): the `deep / one / two` row's `+` stages exactly its
+      files (`z.txt` and nothing else); `Enter` / `Space` on a clicked folder row still only toggle
+      it, staging nothing
+- [x] **The folder's context menu** (§4): right-click `src` in **Unstaged** → its two files are
+      selected and the menu reads **Stage 2 files** / **Discard 2 files…** / **Copy path** (no Open
+      or Reveal, as for any multi-file selection); `Esc` closes it. (The conflict skip is
+      unit-tested: the fixture's conflicted file sits at the root, with no folder above it)
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the

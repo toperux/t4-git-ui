@@ -145,6 +145,29 @@
 .action:focus-visible {
   opacity: 1;
 }
+/* Folder row: TreeRow is a button, so its Stage / Unstage action sits beside it, not inside; the
+   wrapper carries the hover so the action shows when the pointer is on either. Net right inset
+   equals a file row's (padding − the action's negative margin). */
+.folderLine {
+  display: flex;
+  align-items: center;
+  padding-right: var(--space-4);
+}
+.folderLine:hover {
+  background-color: var(--bg-hover);
+}
+/* `--bg-hover` is translucent: the row must not paint it a second time over the wrapper's. */
+.folderLine:hover > .treeRow {
+  background-color: transparent;
+}
+.rows .folderLine > .treeRow {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+.folderLine:hover .action {
+  opacity: 1;
+}
 
 /* --- message column (Commit.mjs message()) --- */
 .msgBody {

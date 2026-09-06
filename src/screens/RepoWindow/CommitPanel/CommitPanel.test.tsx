@@ -64,7 +64,7 @@ vi.mock("@tanstack/react-virtual", async (importOriginal) => {
 
 import * as ipc from "../../../api/ipc";
 const mocked = ipc as unknown as Record<
-  "stagePaths" | "getFileDiff" | "getStatus" | "getAuthor" | "recreateConflict" | "resolveConflict" | "discardHunks" | "discardPaths" | "openPath",
+  "stagePaths" | "unstagePaths" | "getFileDiff" | "getStatus" | "getAuthor" | "recreateConflict" | "resolveConflict" | "discardHunks" | "discardPaths" | "openPath",
   ReturnType<typeof vi.fn>
 >;
 
@@ -658,6 +658,8 @@ describe("CommitPanel tree view", () => {
 
   /** Treeitems of the unstaged tree: `src`, `lib`, `b.rs`, `a.rs`, `top.rs` while everything is expanded. */
   const items = (root: HTMLElement) => Array.from(root.querySelectorAll('[role="treeitem"]'));
+  /** A folder row's own Stage / Unstage action, beside the row inside its wrapper. */
+  const folderAction = (root: HTMLElement, folder: string) => root.querySelector<HTMLButtonElement>(`[data-folder="${folder}"] button[aria-label$=" folder"]`)!;
 
   it("the toggle nests both lists by folder, remembers the choice, and a folder click collapses it", () => {
     const { getByRole, queryByRole } = renderPanel();
@@ -801,6 +803,61 @@ describe("CommitPanel tree view", () => {
     act(() => useStatusStore.setState({ status: { ...NESTED, entries: NESTED.entries.filter((e) => e.path !== "src/lib/b.rs") } }));
     expect(useCommitStore.getState()).toMatchObject({ list: "unstaged", anchor: "src/a.rs", selected: ["src/a.rs"] });
     expect(items(tree()).map((r) => r.getAttribute("aria-selected"))).toEqual([null, "true", "false"]);
+  });
+
+  it("a folder's + stages every file under it; the staged tree's − unstages them", async () => {
+    useStatusStore.setState({
+      status: { ...NESTED, entries: [...NESTED.entries, { path: "deep/one/two/z.rs", oldPath: null, index: null, workdir: "modified", conflicted: false, workdirStamp: "1:1" }] },
+      error: null,
+    });
+    useTreeModeStore.setState({ tree: true });
+    const { getByRole } = renderPanel();
+    const unstaged = () => getByRole("tree", { name: "Unstaged files" });
+
+    fireEvent.click(folderAction(unstaged(), "src"));
+    expect(mocked.stagePaths).toHaveBeenCalledWith("r", ["src/lib/b.rs", "src/a.rs"]);
+    await act(async () => {}); // the mutation settles (`busy` off); the status stays as mocked
+    // A compacted chain's row keeps the deepest folder's path, so its action takes just what is under it.
+    fireEvent.click(folderAction(unstaged(), "deep/one/two"));
+    expect(mocked.stagePaths).toHaveBeenLastCalledWith("r", ["deep/one/two/z.rs"]);
+    await act(async () => {});
+
+    fireEvent.click(folderAction(getByRole("tree", { name: "Staged files" }), "src"));
+    expect(mocked.unstagePaths).toHaveBeenCalledWith("r", ["src/a.rs"]);
+  });
+
+  it("a conflicted file under the folder is skipped, and the tooltip says so", () => {
+    useStatusStore.setState({
+      status: {
+        ...NESTED,
+        entries: [
+          ...NESTED.entries,
+          { path: "src/c.rs", oldPath: null, index: null, workdir: null, conflicted: true, workdirStamp: "1:1" },
+          { path: "only/x.rs", oldPath: null, index: null, workdir: null, conflicted: true, workdirStamp: "1:1" },
+        ],
+      },
+      error: null,
+    });
+    useTreeModeStore.setState({ tree: true });
+    const { getByRole } = renderPanel();
+    const unstaged = getByRole("tree", { name: "Unstaged files" });
+    // Nothing under it to stage whole: the action is there but refused.
+    expect(folderAction(unstaged, "only").disabled).toBe(true);
+    const src = folderAction(unstaged, "src");
+    expect(src.getAttribute("title")).toContain("(1 skipped)");
+    fireEvent.click(src);
+    expect(mocked.stagePaths).toHaveBeenCalledWith("r", ["src/lib/b.rs", "src/a.rs"]);
+  });
+
+  it("right-clicking a folder selects its files and opens the menu over them", () => {
+    useTreeModeStore.setState({ tree: true });
+    const { getByRole } = renderPanel();
+    const tree = () => getByRole("tree", { name: "Unstaged files" });
+    fireEvent.contextMenu(items(tree())[0]); // src
+    expect(useCommitStore.getState()).toMatchObject({ list: "unstaged", selected: ["src/lib/b.rs", "src/a.rs"], anchor: "src/lib/b.rs" });
+    expect(getByRole("menu", { name: "File actions" })).toBeTruthy();
+    fireEvent.click(getByRole("menuitem", { name: "Stage 2 files" }));
+    expect(mocked.stagePaths).toHaveBeenCalledWith("r", ["src/lib/b.rs", "src/a.rs"]);
   });
 });
 

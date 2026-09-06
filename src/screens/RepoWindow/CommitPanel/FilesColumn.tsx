@@ -191,7 +191,9 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
     void (list === "unstaged" ? stage(ps) : unstage(ps));
   }
 
-  const conflicted = (p: string) => !!entries.find((e) => e.path === p)?.conflicted;
+  // A set, not a `find`: every visible folder row asks for each file under it on every render.
+  const conflictedPaths = useMemo(() => new Set(entries.filter((e) => e.conflicted).map((e) => e.path)), [entries]);
+  const conflicted = (p: string) => conflictedPaths.has(p);
   /**
    * Staging a conflicted file whole is "mark resolved" with the markers still in it, one file at a
    * time on purpose: acting on a lone file — Enter, double-click, the menu — is the row's own Stage
@@ -200,6 +202,15 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
   const stageable = (ps: string[]) => (list === "unstaged" && ps.length > 1 ? ps.filter((p) => !conflicted(p)) : ps);
   /** A conflicted file has no single version to go back to: Discard skips them, the way Stage all does. */
   const discardable = (ps: string[]) => ps.filter((p) => !conflicted(p));
+  /** Every file under a folder row: a compacted chain keeps the deepest folder's path, a real prefix of them all. */
+  const under = (folder: string) => all.filter((p) => p.startsWith(folder + "/"));
+  /** What a folder row's own +/− acts on — one closure so the render and the click can't drift apart. */
+  const folderTarget = (folder: string) => {
+    const ps = under(folder);
+    // Like Stage all: one click must not resolve every conflict with the markers still in the files.
+    const target = list === "unstaged" ? ps.filter((p) => !conflicted(p)) : ps;
+    return { target, skipped: ps.length - target.length };
+  };
 
   // One delegated listener per list keeps every `FileRow` prop stable, so `memo` actually skips rows.
   function onClick(e: MouseEvent<HTMLDivElement>) {
@@ -207,6 +218,11 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
     const row = target.closest<HTMLElement>("[data-path], [data-folder]");
     if (!row) return;
     if (row.dataset.folder !== undefined) {
+      // The only button beside the folder row itself is its Stage / Unstage folder action.
+      if (target.closest("[data-act]")) {
+        if (!busy) act(folderTarget(row.dataset.folder).target);
+        return;
+      }
       const folder = folderRow(row.dataset.folder);
       toggleFolder(folder?.kind === "folder" ? folder.chain : [row.dataset.folder]);
       return;
@@ -232,10 +248,23 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
   }
 
   function onContextMenu(e: MouseEvent<HTMLDivElement>) {
-    const path = (e.target as HTMLElement).closest<HTMLElement>("[data-path]")?.dataset.path;
+    const row = (e.target as HTMLElement).closest<HTMLElement>("[data-path], [data-folder]");
+    if (!row) return;
+    const at = { x: e.clientX, y: e.clientY };
+    // A folder's menu is its files' menu, on the same contract as `openMenu`: the rows it names
+    // become the selection, and it acts on that snapshot.
+    if (row.dataset.folder !== undefined) {
+      const ps = under(row.dataset.folder);
+      if (ps.length === 0) return;
+      e.preventDefault();
+      select(list, { selected: ps, anchor: ps[0] });
+      setMenu({ at, paths: ps });
+      return;
+    }
+    const path = row.dataset.path;
     if (!path) return;
     e.preventDefault();
-    openMenu(path, { x: e.clientX, y: e.clientY });
+    openMenu(path, at);
   }
 
   function onDoubleClick(e: MouseEvent<HTMLDivElement>) {
@@ -345,30 +374,45 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
             const row = rows[item.index];
             const id = `${rowId}-${item.index}`;
             // Keyed by kind: a deleted file `a` and an untracked `a/b` put a file and a folder at the same path.
-            if (row.kind === "folder")
+            if (row.kind === "folder") {
+              const { target, skipped } = folderTarget(row.path);
               return (
-                <TreeRow
-                  key={`d:${row.path}`}
-                  id={id}
-                  role="treeitem"
-                  aria-level={row.depth + 1}
-                  tabIndex={-1}
-                  className={cx(s.vrow, s.treeRow)}
-                  style={{ transform: `translateY(${item.start}px)` }}
-                  data-folder={row.path}
-                  depth={row.depth}
-                  expanded={row.expanded}
-                  icon={<Folder size={14} aria-hidden />}
-                  /* A compacted chain reads as `a / b / c`, ellipsized at the start like a file row;
-                     the tooltip keeps the real path. */
-                  label={
-                    <span className={s.folder}>
-                      <bdi dir="ltr">{row.name.split("/").join(" / ")}</bdi>
-                    </span>
-                  }
-                  title={row.path}
-                />
+                /* `TreeRow` is a button, so its Stage / Unstage action sits beside it, not inside;
+                   `data-folder` is on the wrapper so `closest` resolves from the row and the action alike. */
+                <div key={`d:${row.path}`} className={cx(s.vrow, s.folderLine)} style={{ transform: `translateY(${item.start}px)` }} data-folder={row.path}>
+                  <TreeRow
+                    id={id}
+                    role="treeitem"
+                    aria-level={row.depth + 1}
+                    tabIndex={-1}
+                    className={s.treeRow}
+                    depth={row.depth}
+                    expanded={row.expanded}
+                    icon={<Folder size={14} aria-hidden />}
+                    /* A compacted chain reads as `a / b / c`, ellipsized at the start like a file row;
+                       the tooltip keeps the real path. */
+                    label={
+                      <span className={s.folder}>
+                        <bdi dir="ltr">{row.name.split("/").join(" / ")}</bdi>
+                      </span>
+                    }
+                    title={row.path}
+                  />
+                  <IconButton
+                    className={s.action}
+                    label={list === "unstaged" ? "Stage folder" : "Unstage folder"}
+                    disabled={busy || target.length === 0}
+                    title={skipped > 0 ? `Conflicted files are staged one by one, once resolved (${skipped} skipped)` : undefined}
+                    tabIndex={-1}
+                    data-act=""
+                    /* Mouse-only, like a file row's, but a child of the tree rather than of a treeitem: hidden from the tree's outline. */
+                    aria-hidden
+                  >
+                    {list === "unstaged" ? <Plus size={16} aria-hidden /> : <Minus size={16} aria-hidden />}
+                  </IconButton>
+                </div>
               );
+            }
             const e = row.file;
             return (
               <FileRow
