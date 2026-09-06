@@ -21,7 +21,7 @@ const OVERSCAN = 10;
 type Row = TreeLine<FileChange> | { kind: "file"; file: FileChange; label: string; depth: undefined };
 
 export function ChangedFileList() {
-  const oid = useDiffStore((st) => st.oid);
+  const target = useDiffStore((st) => st.target);
   const files = useDiffStore((st) => st.files);
   const loading = useDiffStore((st) => st.filesLoading);
   const error = useDiffStore((st) => st.filesError);
@@ -116,7 +116,7 @@ export function ChangedFileList() {
           <Progress thin label="Loading files" />
         </div>
       )}
-      {!oid ? (
+      {!target ? (
         <EmptyState icon={<File size={24} aria-hidden />} title="No commit selected" />
       ) : error ? (
         <EmptyState title="Couldn't load files" hint={error} />

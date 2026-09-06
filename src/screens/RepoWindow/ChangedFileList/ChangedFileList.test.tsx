@@ -5,7 +5,7 @@ import { useDiffStore } from "../../../store/diffStore";
 import { ChangedFileList } from "./ChangedFileList";
 
 vi.mock("../../../api/ipc", () => ({
-  getCommitFiles: vi.fn(() => new Promise(() => {})),
+  getChangedFiles: vi.fn(() => new Promise(() => {})),
   getFileDiff: vi.fn(() => new Promise(() => {})),
   toAppError: (e: unknown) => ({ kind: "unknown", message: String(e) }),
 }));
@@ -37,7 +37,7 @@ const FILES: FileChange[] = [
 
 describe("ChangedFileList", () => {
   it("renders glyph, path and +N −M per file; renames show old → new", () => {
-    useDiffStore.setState({ oid: "c", files: FILES, filesLoading: false, filesError: null, selectedPath: FILES[0].path, fileListMode: "flat" });
+    useDiffStore.setState({ target: { kind: "commit", oid: "c" }, files: FILES, filesLoading: false, filesError: null, selectedPath: FILES[0].path, fileListMode: "flat" });
     const { container, getByRole } = render(<ChangedFileList />);
     expect(getByRole("listbox", { name: "Changed files" })).toBeTruthy();
     const rows = container.querySelectorAll('[role="option"]');
@@ -52,7 +52,7 @@ describe("ChangedFileList", () => {
   });
 
   it("tree mode is a tree of treeitems (folders expandable), not a listbox of options", () => {
-    useDiffStore.setState({ oid: "c", files: FILES, filesLoading: false, filesError: null, selectedPath: null, fileListMode: "tree" });
+    useDiffStore.setState({ target: { kind: "commit", oid: "c" }, files: FILES, filesLoading: false, filesError: null, selectedPath: null, fileListMode: "tree" });
     const { container, getByRole, getAllByRole, queryByRole } = render(<ChangedFileList />);
     expect(getByRole("tree", { name: "Changed files" })).toBeTruthy();
     expect(queryByRole("listbox")).toBeNull();

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@tauri-apps/plugin-store", () => ({ load: vi.fn(() => Promise.reject(new Error("not in tauri"))) }));
 vi.mock("../api/ipc", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api/ipc")>();
-  return { ...actual, setGitPath: vi.fn(), getFileDiff: vi.fn(() => new Promise(() => {})), getCommitFiles: vi.fn(() => new Promise(() => {})) };
+  return { ...actual, setGitPath: vi.fn(), getFileDiff: vi.fn(() => new Promise(() => {})), getChangedFiles: vi.fn(() => new Promise(() => {})) };
 });
 
 import * as ipc from "../api/ipc";
@@ -19,7 +19,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
   useSettingsStore.setState({ diffContext: DEFAULT_CONTEXT, ignoreWhitespace: false, gitPath: "", gitVersion: null, gitError: null });
-  useDiffStore.setState({ repoId: null, oid: null, selectedPath: null, context: DEFAULT_CONTEXT, ignoreWhitespace: false });
+  useDiffStore.setState({ repoId: null, target: null, selectedPath: null, context: DEFAULT_CONTEXT, ignoreWhitespace: false });
 });
 
 describe("clampContext", () => {

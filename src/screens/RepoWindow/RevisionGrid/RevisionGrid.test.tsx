@@ -120,6 +120,30 @@ describe("RevisionGrid", () => {
     expect(rows[1].getAttribute("aria-selected")).toBe("false");
   });
 
+  it("Ctrl+click marks a second commit: both rows selected, the anchor keeps the focus", () => {
+    withRefs();
+    const { container, getByRole } = render(<RevisionGrid />);
+    const rows = container.querySelectorAll(ROWS);
+    const grid = getByRole("grid");
+    const selection = () => Array.from(rows).map((r) => r.getAttribute("aria-selected"));
+    expect(grid.getAttribute("aria-multiselectable")).toBe("true");
+
+    fireEvent.mouseDown(rows[1]);
+    fireEvent.mouseDown(rows[2], { ctrlKey: true });
+    expect(selection()).toEqual(["false", "true", "true"]);
+    // Two selected rows, one focused: the anchor keeps `aria-activedescendant`.
+    expect(grid.getAttribute("aria-activedescendant")).toBe(rows[1].id);
+
+    // ⌘ is the same gesture on macOS, and a third commit replaces the second.
+    fireEvent.mouseDown(rows[0], { metaKey: true });
+    expect(selection()).toEqual(["true", "true", "false"]);
+
+    // A plain click is single-select again.
+    fireEvent.mouseDown(rows[0]);
+    expect(selection()).toEqual(["true", "false", "false"]);
+    expect(useRepoStore.getState().compare).toBeNull();
+  });
+
   it("shows at most 3 chips; +N opens a popover listing the rest", () => {
     const labels: LogRow["labels"] = ["a", "b", "c", "d", "e"].map((name) => ({ name, kind: "local" as const, isCurrent: false, remote: null }));
     useRepoStore.setState({

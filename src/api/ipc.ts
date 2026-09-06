@@ -98,9 +98,6 @@ export const openPath = (id: RepoId, path: string, reveal: boolean) =>
 
 // --- src-tauri/src/commands/diff.rs ---
 
-/** Files changed by `oid` vs its first parent. */
-export const getCommitFiles = (id: RepoId, oid: string) => call<FileChange[]>("get_commit_files", { id, oid });
-
 export const getChangedFiles = (id: RepoId, target: DiffTarget) =>
   call<FileChange[]>("get_changed_files", { id, target });
 

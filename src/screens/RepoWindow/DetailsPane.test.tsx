@@ -1,6 +1,7 @@
 import { cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { CommitDetail, LogRow, RefsSnapshot } from "../../api/types";
+import * as ipc from "../../api/ipc";
+import type { CommitDetail, CommitInfo, LogRow, RefsSnapshot } from "../../api/types";
 import { __resetForTests as resetRepo, useRepoStore } from "../../store/repoStore";
 import { DetailsPane } from "./DetailsPane";
 
@@ -26,7 +27,7 @@ vi.mock("../../api/ipc", async (importOriginal) => {
   return {
     ...actual,
     getCommit: vi.fn(() => Promise.resolve(DETAIL)),
-    getCommitFiles: vi.fn(() => Promise.resolve([])),
+    getChangedFiles: vi.fn(() => Promise.resolve([])),
     getFileDiff: vi.fn(() => new Promise(() => {})),
   };
 });
@@ -90,5 +91,19 @@ describe("CommitDetails", () => {
     const { findByText, queryByText } = render(<DetailsPane />);
     await findByText("Ship it");
     await waitFor(() => expect(queryByText("lw")).toBeNull());
+  });
+});
+
+describe("CompareDetails", () => {
+  it("replaces the commit panel with the compared pair, and loads the range's files", async () => {
+    const from: CommitInfo = { ...DETAIL.info, oid: "b0b0b0b", short: "b0b0b0b", summary: "Earlier work" };
+    const to: CommitInfo = { ...DETAIL.info, oid: "a1a1a1a", short: "a1a1a1a" };
+    useRepoStore.setState({ compare: { from, to } });
+    const { container, findByText, queryByText } = render(<DetailsPane />);
+    expect(await findByText("Compare")).toBeTruthy();
+    expect(queryByText("Commit")).toBeNull();
+    // Both commits: short SHA and summary, oldest first.
+    for (const text of ["b0b0b0b", "Earlier work", "a1a1a1a", "Ship it"]) expect(container.textContent).toContain(text);
+    await waitFor(() => expect(ipc.getChangedFiles).toHaveBeenLastCalledWith("r", { kind: "commitRange", from: "b0b0b0b", to: "a1a1a1a" }));
   });
 });

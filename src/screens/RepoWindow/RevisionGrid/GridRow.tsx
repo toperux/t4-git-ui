@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { cx } from "../../../lib/cx";
+import { mods } from "../../../lib/keys";
 import { absoluteDate, relativeDate } from "../../../lib/relativeDate";
 import { useRepoStore } from "../../../store/repoStore";
 import { GraphCell } from "./GraphCell";
@@ -28,8 +29,18 @@ export interface GridRowProps {
 /** One grid row. Reads its own data + selection from the store so siblings never re-render. */
 export const GridRow = memo(function GridRow({ id, index, offset, top, rowH, lanes, graphW, flat, headOid, onMenu }: GridRowProps) {
   const row = useRepoStore((st) => st.rows[index]);
-  const selected = useRepoStore((st) => !st.wtSelected && st.selectedIndex === index);
+  // Both compared rows are tinted; the anchor among them keeps the focus ring. While a pair is set
+  // the tint goes by oid alone: between a walk restart's first page and `reselect`, `selectedIndex`
+  // can name a different commit for a moment, and the anchor is one of the pair anyway. One boolean
+  // selector, so a row outside the pair still skips its re-render.
+  const selected = useRepoStore((st) => {
+    if (st.wtSelected) return false;
+    if (!st.compare) return st.selectedIndex === index;
+    const oid = st.rows[index]?.row.commit.oid;
+    return !!oid && (st.compare.from.oid === oid || st.compare.to.oid === oid);
+  });
   const select = useRepoStore((st) => st.select);
+  const compareWith = useRepoStore((st) => st.compareWith);
   const commit = row?.row.commit;
 
   return (
@@ -41,7 +52,7 @@ export const GridRow = memo(function GridRow({ id, index, offset, top, rowH, lan
       aria-selected={selected}
       className={cx(s.row, selected && s.selected)}
       style={{ transform: `translateY(${top}px)`, height: rowH }}
-      onMouseDown={() => select(index)}
+      onMouseDown={(e) => (mods(e).ctrl ? compareWith(index) : select(index))}
       onContextMenu={(e) => {
         if (!commit) return;
         e.preventDefault();

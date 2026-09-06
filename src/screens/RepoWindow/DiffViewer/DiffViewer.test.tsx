@@ -5,7 +5,7 @@ import { bigDiff, fileDiff, hunk, line } from "./diffFixtures";
 import { DiffViewer, type DiffActions } from "./DiffViewer";
 
 vi.mock("../../../api/ipc", () => ({
-  getCommitFiles: vi.fn(() => new Promise(() => {})),
+  getChangedFiles: vi.fn(() => new Promise(() => {})),
   getFileDiff: vi.fn(() => new Promise(() => {})),
   toAppError: (e: unknown) => ({ kind: "unknown", message: String(e) }),
 }));

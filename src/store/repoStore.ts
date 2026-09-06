@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import * as ipc from "../api/ipc";
 import { toAppError } from "../api/ipc";
-import type { LogFilter, LogProgress, LogRow, RefsSnapshot, RepoSummary, RevSpec } from "../api/types";
+import type { CommitInfo, LogFilter, LogProgress, LogRow, RefsSnapshot, RepoSummary, RevSpec } from "../api/types";
 import { baseName } from "../lib/paths";
 import { toastError } from "./toastStore";
 
@@ -34,6 +34,11 @@ export interface RepoStore {
   selectedIndex: number | null;
   /** The working-tree pseudo-row is selected (takes precedence over `selectedIndex`). */
   wtSelected: boolean;
+  /**
+   * The two commits of a Ctrl+click compare, the selected one always among them. Snapshots, not
+   * indexes: a walk restart re-finds the anchor by oid and may move indexes, the oids stay valid.
+   */
+  compare: { from: CommitInfo; to: CommitInfo } | null;
   /** Scroll request for the grid; `seq` bumps so the same index can be revealed twice. */
   reveal: { index: number; seq: number } | null;
 
@@ -47,6 +52,8 @@ export interface RepoStore {
   /** Fetches every page overlapping `[start, end)` that isn't loaded or in flight. */
   ensureRows(start: number, end: number): void;
   select(index: number | null): void;
+  /** Ctrl+click on a row: the second commit of a compare, or off again; a plain select when there is nothing to compare with. */
+  compareWith(index: number): void;
   selectWorkingTree(on?: boolean): void;
   /** Selects the row for `oid` (loading pages as needed) and asks the grid to scroll to it. */
   revealOid(oid: string): Promise<void>;
@@ -117,7 +124,7 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
       if (!s.log.complete) return; // `onProgress` retries once the walk is complete
       pendingSelect = null;
       // Gone for good: back to the top rather than whatever now sits at the old index.
-      set({ selectedIndex: s.rows[0] ? 0 : null });
+      set({ selectedIndex: s.rows[0] ? 0 : null, compare: null });
       return;
     }
     pendingSelect = null;
@@ -203,6 +210,7 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
     rows: [],
     selectedIndex: null,
     wtSelected: false,
+    compare: null,
     reveal: null,
 
     setGitVersion: (gitVersion) => set({ gitVersion }),
@@ -224,6 +232,7 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
           rows: [],
           selectedIndex: null,
           wtSelected: false,
+          compare: null,
           reveal: null,
         });
         // One repository at a time: the backend keeps a handle and a watcher per open repo, so the
@@ -241,7 +250,7 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
       startSeq++;
       resetPages();
       pendingSelect = null;
-      set({ repo: null, refs: null, log: EMPTY_LOG, rows: [], selectedIndex: null, wtSelected: false, reveal: null });
+      set({ repo: null, refs: null, log: EMPTY_LOG, rows: [], selectedIndex: null, wtSelected: false, compare: null, reveal: null });
       await ipc.closeRepo(repo.id);
     },
 
@@ -306,9 +315,22 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
       }
     },
 
-    select: (selectedIndex) => set({ selectedIndex, wtSelected: false }),
+    // The anchor is always one of the compared commits, so every write that moves it drops the pair.
+    select: (selectedIndex) => set({ selectedIndex, wtSelected: false, compare: null }),
 
-    selectWorkingTree: (on = true) => set({ wtSelected: on }),
+    compareWith: (index) =>
+      set((s) => {
+        const ai = s.wtSelected ? null : s.selectedIndex;
+        const other = s.rows[index]?.row.commit;
+        const anchor = ai === null ? undefined : s.rows[ai]?.row.commit;
+        if (!other || !anchor || ai === null) return { selectedIndex: index, wtSelected: false, compare: null };
+        if (other.oid === anchor.oid || s.compare?.from.oid === other.oid || s.compare?.to.oid === other.oid) return { compare: null };
+        // A third commit replaces the pair. The selected commit is the base: the diff is what the
+        // Ctrl+clicked one changed relative to it, whichever of the two is older.
+        return { compare: { from: anchor, to: other } };
+      }),
+
+    selectWorkingTree: (on = true) => set({ wtSelected: on, compare: null }),
 
     async revealOid(oid) {
       const { repo, log } = get();
@@ -318,7 +340,7 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
       if (index === null || s.repo?.id !== repo.id || s.log.generation !== log.generation) return;
       await fetchPage(Math.floor(index / PAGE_SIZE));
       // Revealing a commit moves the selection off the working-tree row (and out of the commit panel).
-      set((st) => ({ selectedIndex: index, wtSelected: false, reveal: { index, seq: (st.reveal?.seq ?? 0) + 1 } }));
+      set((st) => ({ selectedIndex: index, wtSelected: false, compare: null, reveal: { index, seq: (st.reveal?.seq ?? 0) + 1 } }));
     },
 
     onProgress(p) {
@@ -353,6 +375,7 @@ export function __resetForTests() {
     rows: [],
     selectedIndex: null,
     wtSelected: false,
+    compare: null,
     reveal: null,
   });
 }
@@ -363,3 +386,6 @@ export const useMerging = () => useRepoStore((st) => st.refs?.state === "merge")
 /** Oid of the selected commit row, or `null` while its page is still loading (or the working tree is selected). */
 export const selectSelectedOid = (s: RepoStore) =>
   s.wtSelected || s.selectedIndex === null ? null : (s.rows[s.selectedIndex]?.row.commit.oid ?? null);
+
+/** The two commits being compared, or `null` when a single commit (or the working tree) is selected. */
+export const selectCompare = (s: RepoStore) => (s.wtSelected ? null : s.compare);

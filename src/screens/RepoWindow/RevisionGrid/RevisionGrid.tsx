@@ -192,6 +192,8 @@ export function RevisionGrid() {
           /* The sticky header is row 1 of the grid; the data rows follow it. */
           aria-rowcount={count + 1}
           aria-label="Commits"
+          /* Ctrl+click compares two commits: two rows can carry `aria-selected` at once. */
+          aria-multiselectable
           aria-activedescendant={activeRow}
           onKeyDown={onKeyDown}
         >

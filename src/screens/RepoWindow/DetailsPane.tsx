@@ -1,14 +1,14 @@
-import { Copy, GitCommitHorizontal, Tag as TagIcon } from "lucide-react";
+import { Copy, GitCommitHorizontal, GitCompare, Tag as TagIcon } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import { getCommit, toAppError } from "../../api/ipc";
-import type { CommitDetail } from "../../api/types";
+import type { CommitDetail, CommitInfo } from "../../api/types";
 import { EmptyState } from "../../components/ui/EmptyState/EmptyState";
 import { IconButton } from "../../components/ui/IconButton/IconButton";
 import { PanelHeader } from "../../components/ui/PanelHeader/PanelHeader";
 import { absoluteDate, relativeDate } from "../../lib/relativeDate";
 import { useDiffStore } from "../../store/diffStore";
-import { selectSelectedOid, useRepoStore } from "../../store/repoStore";
+import { selectCompare, selectSelectedOid, useRepoStore } from "../../store/repoStore";
 import { copyText } from "./actions";
 import { ChangedFileList } from "./ChangedFileList/ChangedFileList";
 import s from "./DetailsPane.module.css";
@@ -19,15 +19,21 @@ import { RefChips } from "./RevisionGrid/RefChips";
 export function DetailsPane() {
   const repoId = useRepoStore((st) => st.repo?.id ?? null);
   const oid = useRepoStore(selectSelectedOid);
-  const loadCommit = useDiffStore((st) => st.loadCommit);
+  const compare = useRepoStore(selectCompare);
+  const load = useDiffStore((st) => st.load);
+  // Memoised: a fresh object every render would re-run the effect (and re-fetch) on every store touch.
+  const target = useMemo(
+    () => (compare ? ({ kind: "commitRange", from: compare.from.oid, to: compare.to.oid } as const) : oid ? ({ kind: "commit", oid } as const) : null),
+    [oid, compare],
+  );
   useEffect(() => {
-    void loadCommit(repoId, oid);
-  }, [repoId, oid, loadCommit]);
+    void load(repoId, target);
+  }, [repoId, target, load]);
 
   return (
     <Group orientation="horizontal" className={s.pane}>
       <Panel defaultSize={340} minSize={240} maxSize={560} className={w.panel}>
-        <CommitDetails />
+        {compare ? <CompareDetails compare={compare} /> : <CommitDetails />}
       </Panel>
       <Separator className={w.splitH} aria-label="Resize commit details" />
       <Panel defaultSize={320} minSize={180} maxSize={640} className={w.panel}>
@@ -139,6 +145,32 @@ function CommitDetails() {
         )
       )}
     </div>
+  );
+}
+
+/** The gesture's own name for the hint: `mods()` counts ⌘ as Ctrl on macOS, so the text should too. */
+const CTRL = /Mac/.test(navigator.userAgent) ? "⌘" : "Ctrl";
+
+/** Ctrl+click compare: the two commits the file list and the diffs are the range between. */
+function CompareDetails({ compare }: { compare: { from: CommitInfo; to: CommitInfo } }) {
+  return (
+    <div className={s.commit}>
+      <PanelHeader icon={<GitCompare size={14} aria-hidden />} title="Compare" />
+      <div className={s.body}>
+        <Kv k="From" v={signature(compare.from)} />
+        <Kv k="To" v={signature(compare.to)} />
+        <div className={s.hint}>Files and diffs are what the {CTRL}+clicked commit changed relative to the selected one. {CTRL}+click either row to leave.</div>
+      </div>
+    </div>
+  );
+}
+
+/** One compared commit on a `Kv` line: its short SHA, summary and age — all of it already in the grid's row. */
+function signature(c: CommitInfo) {
+  return (
+    <>
+      <span className={s.mono}>{c.short}</span> {c.summary} · {relativeDate(c.authorTime)}
+    </>
   );
 }
 

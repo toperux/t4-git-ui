@@ -7,7 +7,7 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
 vi.mock("../../api/ipc", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/ipc")>();
   const pending = () => new Promise<never>(() => {});
-  return { ...actual, setGitPath: vi.fn(), getFileDiff: vi.fn(pending), getCommitFiles: vi.fn(pending) };
+  return { ...actual, setGitPath: vi.fn(), getFileDiff: vi.fn(pending), getChangedFiles: vi.fn(pending) };
 });
 vi.mock("../../theme/theme", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../theme/theme")>();

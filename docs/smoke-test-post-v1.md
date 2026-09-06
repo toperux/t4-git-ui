@@ -305,6 +305,30 @@ _Shipped 2026-09-06; walked the same day over CDP (this commit)._
       or Reveal, as for any multi-file selection); `Esc` closes it. (The conflict skip is
       unit-tested: the fixture's conflicted file sits at the root, with no folder above it)
 
+## N. Compare two commits (main §3)
+_Shipped 2026-09-06; walked the same day over CDP, re-walked after the direction change (this commit)._
+
+- [x] **The pair and what it shows** (§3): in `work` click `nested folders`, then Ctrl+click `main
+      side of the conflict` → both rows are tinted, the details column reads **Compare** with
+      **From** `nested folders` (the selected commit) and **To** `main side of the conflict` (the
+      Ctrl+clicked one), and the file list is the five files whose content differs between the two
+      trees — `crlf-hunks.txt`, `examples/exclude/schema/tables.txt`, `gone.txt`, `src/a.txt`,
+      `src/lib/b.txt` — not every file the commits in between touched (a file changed and changed
+      back would not be here). The diffs read backwards here (all five are deletions):
+      the direction is the clicks', not the log's. The first file's diff renders, and `↑` `↓` in
+      the list follow
+- [x] **Direction by click, and a third commit** (§3): Ctrl+click either row to leave, then click
+      `main side of the conflict` first and Ctrl+click `nested folders` → the pair flips: **From**
+      `main side of the conflict`, **To** `nested folders`, the same five files with their diffs
+      now reading forward. Ctrl+click `conflict base` → it replaces the second commit against the
+      same anchor: **From** `main side of the conflict`, **To** `conflict base`, and the list is
+      `conflict.txt` alone
+- [x] **Leaving the compare** (§3): Ctrl+click either tinted row → one row selected and the details
+      header reads **Commit** again; the same for `↓` (any keyboard move) and a plain click. The
+      working-tree row never compares — Ctrl+click it, or
+      Ctrl+click a commit while it is selected, and it is a plain select. A right-click selects the
+      row for its single-commit menu, so it drops the compare too (known limitation)
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the

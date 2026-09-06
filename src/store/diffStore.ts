@@ -1,16 +1,17 @@
-// Bottom-pane state for the selected commit: its changed files, the selected file and its diff.
-// Responses that arrive after the selection moved on are dropped (per-request sequence numbers).
+// Bottom-pane state for the selected commit (or the compared pair): its changed files, the selected
+// file and its diff. Responses that arrive after the selection moved on are dropped (per-request
+// sequence numbers).
 import { create } from "zustand";
 import * as ipc from "../api/ipc";
 import { toAppError } from "../api/ipc";
-import type { FileChange, FileDiff, RepoId } from "../api/types";
+import type { DiffTarget, FileChange, FileDiff, RepoId } from "../api/types";
 
 export type DiffView = "unified" | "split";
 export type FileListMode = "flat" | "tree";
 
 export interface DiffStore {
   repoId: RepoId | null;
-  oid: string | null;
+  target: DiffTarget | null;
   files: FileChange[];
   filesLoading: boolean;
   filesError: string | null;
@@ -26,8 +27,8 @@ export interface DiffStore {
   /** Persisted in `localStorage.fileListMode`. */
   fileListMode: FileListMode;
 
-  /** Loads the file list of `oid` (or clears everything for `null`) and selects its first file. */
-  loadCommit(repoId: RepoId | null, oid: string | null): Promise<void>;
+  /** Loads the file list of `target` (or clears everything for `null`) and selects its first file. */
+  load(repoId: RepoId | null, target: DiffTarget | null): Promise<void>;
   selectPath(path: string): void;
   setView(view: DiffView): void;
   toggleWhitespace(): void;
@@ -58,14 +59,14 @@ let diffSeq = 0;
 export const useDiffStore = create<DiffStore>()((set, get) => {
   async function loadDiff() {
     const seq = ++diffSeq;
-    const { repoId, oid, selectedPath, ignoreWhitespace, context } = get();
-    if (!repoId || !oid || !selectedPath) {
+    const { repoId, target, selectedPath, ignoreWhitespace, context } = get();
+    if (!repoId || !target || !selectedPath) {
       set({ diff: null, diffLoading: false, diffError: null });
       return;
     }
     set({ diffLoading: true, diffError: null });
     try {
-      const diff = await ipc.getFileDiff(repoId, { kind: "commit", oid }, selectedPath, {
+      const diff = await ipc.getFileDiff(repoId, target, selectedPath, {
         context,
         ignoreWhitespace,
       });
@@ -79,7 +80,7 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
 
   return {
     repoId: null,
-    oid: null,
+    target: null,
     files: [],
     filesLoading: false,
     filesError: null,
@@ -92,23 +93,23 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
     context: 3,
     fileListMode: readSetting<FileListMode>("fileListMode", ["flat", "tree"], "flat"),
 
-    async loadCommit(repoId, oid) {
+    async load(repoId, target) {
       const seq = ++filesSeq;
-      diffSeq++; // any diff in flight belongs to the previous commit
+      diffSeq++; // any diff in flight belongs to the previous target
       set({
         repoId,
-        oid,
+        target,
         files: [],
-        filesLoading: !!(repoId && oid),
+        filesLoading: !!(repoId && target),
         filesError: null,
         selectedPath: null,
         diff: null,
         diffLoading: false,
         diffError: null,
       });
-      if (!repoId || !oid) return;
+      if (!repoId || !target) return;
       try {
-        const files = await ipc.getCommitFiles(repoId, oid);
+        const files = await ipc.getChangedFiles(repoId, target);
         if (seq !== filesSeq) return; // stale
         set({ files, filesLoading: false, selectedPath: files[0]?.path ?? null });
         void loadDiff();

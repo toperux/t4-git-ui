@@ -100,3 +100,9 @@
   color: var(--danger-text);
   font-size: var(--text-sm);
 }
+/* What the compare panel's file list and diffs actually show, and how to leave it. */
+.hint {
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
+}

@@ -113,9 +113,13 @@ describe("repoStore walk restarts", () => {
     await useRepoStore.getState().startLog({ kind: "all" }, {});
     await flush();
     useRepoStore.getState().select(1);
+    useRepoStore.getState().compareWith(2);
+    expect(useRepoStore.getState().compare).not.toBeNull();
     await useRepoStore.getState().startLog({ kind: "all" }, { text: "nothing like it" });
     await flush();
     expect(useRepoStore.getState().selectedIndex).toBe(0);
+    // The anchor is gone, so the pair it belonged to goes with it.
+    expect(useRepoStore.getState().compare).toBeNull();
   });
 
   it("revealOid uses the backend index instead of paging through the log", async () => {
@@ -436,5 +440,68 @@ describe("repoStore paging", () => {
     expect(useRepoStore.getState().log.total).toBe(5);
     useRepoStore.getState().onProgress({ repoId: REPO.id, generation: 3, total: 50, complete: true, error: null });
     expect(useRepoStore.getState().log).toMatchObject({ total: 50, complete: true });
+  });
+});
+
+describe("repoStore compare", () => {
+  /** Three rows with the anchor in the middle, so a Ctrl+click can land above or below it. */
+  function withRows() {
+    useRepoStore.setState({ rows: [row(0), row(1), row(2)], selectedIndex: 1, wtSelected: false, compare: null });
+  }
+
+  it("the selected commit is `from`, the Ctrl+clicked one `to`, whichever is older", () => {
+    withRows();
+    useRepoStore.getState().compareWith(2);
+    expect(useRepoStore.getState().compare).toMatchObject({ from: { oid: "oid1" }, to: { oid: "oid2" } });
+
+    // The other way round: anchor on the lower row, click above it → the pair flips.
+    useRepoStore.setState({ selectedIndex: 2, compare: null });
+    useRepoStore.getState().compareWith(1);
+    expect(useRepoStore.getState().compare).toMatchObject({ from: { oid: "oid2" }, to: { oid: "oid1" } });
+
+    // A third commit replaces the second, never adds to it.
+    useRepoStore.getState().compareWith(0);
+    expect(useRepoStore.getState().compare).toMatchObject({ from: { oid: "oid2" }, to: { oid: "oid0" } });
+  });
+
+  it("drops the compare on a Ctrl+click of either row, and on any move of the anchor", () => {
+    withRows();
+    useRepoStore.getState().compareWith(2);
+    useRepoStore.getState().compareWith(2); // the compared row again
+    expect(useRepoStore.getState().compare).toBeNull();
+
+    useRepoStore.getState().compareWith(2);
+    useRepoStore.getState().compareWith(1); // the anchor itself
+    expect(useRepoStore.getState().compare).toBeNull();
+
+    useRepoStore.getState().compareWith(2);
+    useRepoStore.getState().select(0);
+    expect(useRepoStore.getState().compare).toBeNull();
+
+    useRepoStore.getState().compareWith(2);
+    useRepoStore.getState().selectWorkingTree();
+    expect(useRepoStore.getState().compare).toBeNull();
+  });
+
+  it("Ctrl+click with nothing to compare against is a plain select", () => {
+    useRepoStore.setState({ rows: [row(0), row(1)], selectedIndex: null, wtSelected: false, compare: null });
+    useRepoStore.getState().compareWith(1);
+    expect(useRepoStore.getState()).toMatchObject({ selectedIndex: 1, compare: null });
+
+    // The working-tree row is no commit either.
+    useRepoStore.getState().selectWorkingTree();
+    useRepoStore.getState().compareWith(0);
+    expect(useRepoStore.getState()).toMatchObject({ selectedIndex: 0, wtSelected: false, compare: null });
+  });
+
+  it("revealOid leaves the compare behind", async () => {
+    mocked.startLog.mockResolvedValue(1);
+    mocked.getLogPage.mockImplementation((_id: string, gen: number, offset: number) => Promise.resolve(page(gen, offset, 3, 3)));
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    useRepoStore.setState({ selectedIndex: 1 });
+    useRepoStore.getState().compareWith(2);
+    await useRepoStore.getState().revealOid("oid0");
+    expect(useRepoStore.getState()).toMatchObject({ selectedIndex: 0, compare: null });
   });
 });
