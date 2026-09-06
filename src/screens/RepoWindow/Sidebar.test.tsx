@@ -78,6 +78,13 @@ describe("Sidebar section counts", () => {
     expect(titles).toContain("main");
   });
 
+  it("says it is loading while the refs are still on their way", () => {
+    useRepoStore.setState({ refs: null });
+    const { getByText, queryAllByRole } = render(<Sidebar />);
+    expect(getByText("Loading branches…")).toBeTruthy();
+    expect(queryAllByRole("button")).toHaveLength(0);
+  });
+
   it("never marks the current branch as merged: it cannot be deleted", () => {
     useRepoStore.setState({ refs: { ...REFS, local: [{ ...branch("main", true), mergedInto: "feature" }, branch("feature")] } });
     const { queryByText, getAllByRole } = render(<Sidebar />);

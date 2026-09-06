@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { LogPage, LogRow, RepoSummary } from "../api/types";
+import type { LogPage, LogRow, RefsSnapshot, RepoSummary } from "../api/types";
 
 vi.mock("../api/ipc", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api/ipc")>();
@@ -21,6 +21,7 @@ import { __resetForTests, PAGE_SIZE, useRepoStore } from "./repoStore";
 import { useToastStore } from "./toastStore";
 
 const REPO: RepoSummary = { id: "c:\\repo", name: "repo", path: "c:\\repo", head: { oid: "a", branch: "main", detached: false } };
+const REFS: RefsSnapshot = { head: REPO.head, state: "clean", local: [], remotes: [], tags: [], stashes: [] };
 
 function row(i: number): LogRow {
   return {
@@ -156,10 +157,39 @@ describe("repoStore openRepo", () => {
     await useRepoStore.getState().openRepo("c:\\other");
     expect(mocked.closeRepo).toHaveBeenCalledTimes(1);
   });
+
+  it("resolves as soon as the log has started; the refs land afterwards", async () => {
+    let resolveRefs!: (r: RefsSnapshot | null) => void;
+    mocked.openRepo.mockResolvedValue(REPO);
+    mocked.startLog.mockResolvedValue(1);
+    mocked.getLogPage.mockResolvedValue(page(1, 0, 0, 0));
+    mocked.getRefs.mockReturnValue(new Promise((r) => (resolveRefs = r)));
+
+    await useRepoStore.getState().openRepo(REPO.path);
+    expect(useRepoStore.getState().opening).toBeNull();
+    expect(useRepoStore.getState().refs).toBeNull();
+
+    resolveRefs(REFS);
+    await flush();
+    expect(useRepoStore.getState().refs).toBe(REFS);
+  });
+
+  it("toasts a refs failure of its own and leaves the sidebar empty", async () => {
+    mocked.openRepo.mockResolvedValue(REPO);
+    mocked.startLog.mockResolvedValue(1);
+    mocked.getLogPage.mockResolvedValue(page(1, 0, 0, 0));
+    mocked.getRefs.mockRejectedValue({ kind: "git", message: "bad refs" });
+
+    await useRepoStore.getState().openRepo(REPO.path);
+    await flush();
+    expect(useRepoStore.getState().repo?.id).toBe(REPO.id);
+    expect(useRepoStore.getState().refs).toBeNull();
+    expect(useToastStore.getState().toasts[0]).toMatchObject({ kind: "error", title: "Couldn't load branches" });
+  });
 });
 
 describe("repoStore remote tags", () => {
-  /** `openRepo` needs the rest of the open path to resolve before it reads the cache. */
+  /** `openRepo` needs `startLog` to resolve before it reads the cache. */
   function openable() {
     mocked.openRepo.mockResolvedValue(REPO);
     mocked.getRefs.mockResolvedValue(null);

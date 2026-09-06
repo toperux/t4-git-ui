@@ -68,14 +68,18 @@ fn summary(handle: &RepoHandle, head: HeadInfo) -> RepoSummary {
     }
 }
 
-/// Ref labels per commit oid, computed under the shared `git2` mutex.
+/// Ref labels per commit oid. Its own `Repository` like the walk's, off the
+/// shared `git2` mutex: labels are the last thing the grid waits for on open,
+/// and the mutex has the status scan and `get_refs` queued on it.
 async fn compute_labels(
     handle: Arc<RepoHandle>,
 ) -> Result<Arc<HashMap<String, Vec<RefLabel>>>, AppError> {
     blocking(move || {
-        let mut repo = handle.git2.lock();
-        let snap = refs::snapshot_with(&mut repo, &mut handle.ahead_behind.lock())?;
-        Ok(Arc::new(refs::label_map(&snap)))
+        let t = Instant::now();
+        let mut repo = handle.open_private()?;
+        let labels = refs::label_map(&refs::label_snapshot(&mut repo)?);
+        tracing::info!(id = %handle.id, elapsed = ?t.elapsed(), "labels computed");
+        Ok(Arc::new(labels))
     })
     .await
 }
@@ -87,6 +91,7 @@ pub async fn open_repo(
     state: State<'_, AppState>,
     path: String,
 ) -> Result<RepoSummary, AppError> {
+    let t = Instant::now();
     let opened = blocking(move || Ok(RepoHandle::open(&path)?)).await?;
     let handle = {
         let mut repos = state
@@ -100,7 +105,7 @@ pub async fn open_repo(
     };
     let h = Arc::clone(&handle);
     let head = blocking(move || Ok(refs::head_info(&h.git2.lock())?)).await?;
-    tracing::info!(id = %handle.id, "opened repo");
+    tracing::info!(id = %handle.id, elapsed = ?t.elapsed(), "opened repo");
     start_watcher(&app, &state, &handle).await;
     Ok(summary(&handle, head))
 }
@@ -119,7 +124,7 @@ async fn start_watcher(app: &AppHandle, state: &AppState, handle: &Arc<RepoHandl
     let app = app.clone();
     let id = handle.id.clone();
     let h = Arc::clone(handle);
-    // `Watcher::start` walks the tree to seed the debouncer's file-id cache.
+    let t = Instant::now();
     let started = blocking(move || {
         let event_id = h.id.clone();
         Ok(Watcher::start(&h, move |change| {
@@ -133,7 +138,8 @@ async fn start_watcher(app: &AppHandle, state: &AppState, handle: &Arc<RepoHandl
                 .watchers
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
-                .insert(id, w);
+                .insert(id.clone(), w);
+            tracing::info!(id = %id, elapsed = ?t.elapsed(), "watcher started");
         }
         Err(e) => tracing::warn!(id = %id, error = %e, "watcher unavailable; manual refresh only"),
     }
@@ -167,11 +173,11 @@ pub async fn close_repo(state: State<'_, AppState>, id: RepoId) -> Result<(), Ap
 pub async fn get_refs(state: State<'_, AppState>, id: RepoId) -> Result<RefsSnapshot, AppError> {
     let handle = state.repo(&id)?;
     blocking(move || {
+        let t = Instant::now();
         let mut repo = handle.git2.lock();
-        Ok(refs::snapshot_with(
-            &mut repo,
-            &mut handle.ahead_behind.lock(),
-        )?)
+        let snap = refs::snapshot_with(&mut repo, &mut handle.ahead_behind.lock())?;
+        tracing::info!(id = %handle.id, elapsed = ?t.elapsed(), "refs read");
+        Ok(snap)
     })
     .await
 }

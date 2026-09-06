@@ -1,3 +1,5 @@
+use std::time::{Duration, Instant};
+
 use git_core::conflict;
 use git_core::diff::{self, DiffOptions, DiffTarget, FileChange, FileDiff};
 use git_core::status::{self, WorkdirStatus};
@@ -73,8 +75,20 @@ pub async fn open_merge_editor(
     .await
 }
 
+/// A status scan slower than this is worth a log line; anything quicker would
+/// fill the file, since status refreshes on every watcher event.
+const SLOW_STATUS: Duration = Duration::from_millis(250);
+
 #[tauri::command]
 pub async fn get_status(state: State<'_, AppState>, id: RepoId) -> Result<WorkdirStatus, AppError> {
     let handle = state.repo(&id)?;
-    blocking(move || Ok(status::status(&handle.git2.lock())?)).await
+    blocking(move || {
+        let t = Instant::now();
+        let status = status::status(&handle.git2.lock())?;
+        if t.elapsed() >= SLOW_STATUS {
+            tracing::info!(id = %handle.id, elapsed = ?t.elapsed(), "slow status");
+        }
+        Ok(status)
+    })
+    .await
 }

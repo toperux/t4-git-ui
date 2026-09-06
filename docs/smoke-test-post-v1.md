@@ -506,6 +506,26 @@ _Shipped 2026-09-07 (this commit); walked the same day over CDP on the installed
       `-n` pick), the status bar says `Revert in progress`, the Summary reads `Revert "main side of
       the conflict"` → **Abort** → toast `Revert aborted`, `Clean`, the Summary empty; `git reset
       --mixed 00d78d3` drops the throwaway commit
+
+## V. Open timing (main §1)
+_Shipped 2026-09-07 (this commit); walked the same day over CDP on the installed build (overlay gone at 46 ms on `t4-git-ui`, `watcher started` 1.3 ms, `Loading branches…` caught by a 10 ms poll, `work` renamed with `git mv` from a shell and put back). The watcher no longer seeds a file-id cache (that walk stat'd every file under the workdir, 2.7 s on a 61k-file tree), `start_log`'s labels come from a history-free ref snapshot on their own `Repository` instead of the shared mutex, and the spinner waits for the grid — the sidebar fills a moment later. Five INFO lines say where the time went; the log is at `%LOCALAPPDATA%\dev.topher.t4gitui\logs\`._
+
+- [x] **Open is quick**: from the start screen, open `t4-git-ui` itself (46k files under `target/`)
+      → the `Opening t4-git-ui…` overlay is gone as soon as the grid has rows; in the log the gap
+      from `opened repo` to `walk complete` is tens of ms, not seconds
+- [x] **The timing lines are there**: the same open writes `opened repo`, `watcher started`,
+      `labels computed`, `refs read` and `walk complete`, each with an `elapsed`; `watcher started`
+      is a millisecond or two now (was the seconds-long seed walk)
+- [x] **The sidebar says so**: on a slow open the sidebar shows a muted `Loading branches…` line
+      (no empty Local / Remotes / Tags / Stashes sections), then fills with the refs
+- [x] **Nothing else moved** (§2): in `work`, the labels on the graph rows, the `merged` badges and
+      the ahead/behind counts in the sidebar are what they were before — the light snapshot is for
+      labels only, `get_refs` still does the full one
+- [x] **A rename still refreshes**: with `work` open, `git mv a.txt b.txt` in a shell → the working
+      tree and the file list pick it up within a second (no file-id cache: git sees remove + create)
+- [x] **`slow status` only when it is slow**: edit a few files in `work` → no `slow status` line in
+      the log (the scan is well under 250 ms); the line appears only on a big tree
+
 ## W. Remote tag check (main §1)
 _Shipped 2026-09-07 (this commit); walked the same day over CDP on the installed build in `work` (origin re-pointed at a missing path from a shell for the failure step and restored) and a throwaway remote-less repository. The `local` badge was only as fresh as the last fetch / push / pull / delete-on-remote from this app, and an `ls-remote` that failed (offline, auth without a terminal to prompt in) was swallowed. Now the cached answer carries the time it was given, the badge's tooltip says how old it is, `Refresh remote tags` on any tag row re-asks and reports, and a failed check toasts instead of leaving badges that quietly disagree with git._
 

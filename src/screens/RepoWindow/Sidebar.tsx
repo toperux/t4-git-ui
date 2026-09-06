@@ -282,6 +282,14 @@ export function Sidebar() {
     });
   }
 
+  // Refs land after the grid on open: one line beats four sections that all say zero.
+  if (!refs)
+    return (
+      <nav className={cx(s.sidebar, TREE_PANE_CLASS)} aria-label="References">
+        <p className={s.loading}>Loading branches…</p>
+      </nav>
+    );
+
   return (
     <nav className={cx(s.sidebar, TREE_PANE_CLASS)} aria-label="References">
       <SectionHeader title="Local" count={local.length} open={open.local} onToggle={() => toggle("local")} />

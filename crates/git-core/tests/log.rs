@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use git2::Oid;
 use git_core::log::walker::CHUNK_SIZE;
 use git_core::log::{walk, GraphRow, LogFilter, RefKind, RefLabel, RevSpec};
-use git_core::refs::{label_map, snapshot};
+use git_core::refs::{label_map, label_snapshot, snapshot};
 use git_core::test_util::TempRepo;
 use git_core::GitError;
 
@@ -294,6 +294,26 @@ fn a_differently_named_upstream_is_spelled_out_in_the_synced_label() {
             label("master", RefKind::Local, true, Some("origin/trunk")),
             label("origin/master", RefKind::Remote, false, None),
         ]
+    );
+}
+
+#[test]
+fn the_light_snapshot_labels_exactly_like_the_full_one() {
+    // `start_log` labels off `label_snapshot`, which skips the ahead/behind
+    // and `merged_into` walks — neither of which `label_map` reads.
+    let mut t = TempRepo::new();
+    let a = t.commit(&[("a", "1")], "A");
+    t.remote("origin");
+    t.reference("refs/remotes/origin/master", a);
+    t.set_upstream("master", "origin/master");
+    t.reference("refs/remotes/origin/feature", a);
+    t.tag("v1", a);
+    let b = t.commit(&[("b", "1")], "B");
+    t.branch("done", b);
+
+    assert_eq!(
+        label_map(&label_snapshot(&mut t.repo).expect("label snapshot")),
+        label_map(&snapshot(&mut t.repo).expect("snapshot")),
     );
 }
 

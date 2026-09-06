@@ -258,7 +258,12 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
         // One repository at a time: the backend keeps a handle and a watcher per open repo, so the
         // one being left is closed (its events were filtered out by id anyway).
         if (prev && prev.id !== repo.id) ipc.closeRepo(prev.id).catch(() => undefined);
-        await Promise.all([get().refreshRefs(), get().startLog({ kind: "all" }, {})]);
+        // The spinner waits for the grid only: on a large repository the refs snapshot queues
+        // behind the status scan, and the sidebar tolerates `refs === null` (it says so).
+        await get().startLog({ kind: "all" }, {});
+        void get()
+          .refreshRefs()
+          .catch((e) => toastError(toAppError(e), "Couldn't load branches"));
         // Badges from open onward, without a network round trip. A remote op that finished
         // meanwhile has the fresher answer, so it wins.
         // An entry from the single-remote cache (it names its `remote`) is ignored, not migrated.

@@ -23,6 +23,12 @@
   padding: var(--space-7) var(--space-5);
   flex: none;
 }
+/* Placeholder while `refs` is null (they arrive after the grid on open). */
+.loading {
+  padding: var(--space-3) var(--space-5);
+  margin: 0;
+  color: var(--fg-muted);
+}
 .mono {
   font-family: var(--font-mono);
   font-size: var(--mono-size);

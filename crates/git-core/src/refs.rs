@@ -593,6 +593,21 @@ pub fn snapshot_with(
     repo: &mut Repository,
     cache: &mut AheadBehindCache,
 ) -> Result<RefsSnapshot, GitError> {
+    collect(repo, Some(cache))
+}
+
+/// Everything [`label_map`] needs and nothing that walks history: no
+/// ahead/behind counts and no `merged_into`, so it costs a ref enumeration
+/// instead of a merge-base walk per branch plus the `reachers` walk.
+pub fn label_snapshot(repo: &mut Repository) -> Result<RefsSnapshot, GitError> {
+    collect(repo, None)
+}
+
+/// The shared body: `cache` is `None` for the history-free [`label_snapshot`].
+fn collect(
+    repo: &mut Repository,
+    mut cache: Option<&mut AheadBehindCache>,
+) -> Result<RefsSnapshot, GitError> {
     let head = head_info(repo)?;
     let state = repo.state().into();
 
@@ -628,9 +643,11 @@ pub fn snapshot_with(
                 .and_then(|up| up.get().peel_to_commit().ok())
             {
                 Some(up_commit) => {
-                    let (a, b) = cache.get_or_compute(repo, oid, up_commit.id());
-                    ahead = u32::try_from(a).unwrap_or(u32::MAX);
-                    behind = u32::try_from(b).unwrap_or(u32::MAX);
+                    if let Some(cache) = cache.as_mut() {
+                        let (a, b) = cache.get_or_compute(repo, oid, up_commit.id());
+                        ahead = u32::try_from(a).unwrap_or(u32::MAX);
+                        behind = u32::try_from(b).unwrap_or(u32::MAX);
+                    }
                 }
                 None => gone = true,
             }
@@ -716,7 +733,9 @@ pub fn snapshot_with(
     for r in &mut remotes {
         r.branches.sort_by(|a, b| natural_cmp(&a.name, &b.name));
     }
-    fill_merged_into(repo, cache, &mut local, &mut remotes)?;
+    if let Some(cache) = cache.as_mut() {
+        fill_merged_into(repo, cache, &mut local, &mut remotes)?;
+    }
 
     let mut raw_tags: Vec<(git2::Oid, String)> = Vec::new();
     repo.tag_foreach(|oid, name| {

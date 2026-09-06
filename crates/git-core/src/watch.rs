@@ -6,6 +6,12 @@
 //! `is_path_ignored` at debounce time, so `node_modules`/`target` churn never
 //! triggers a refresh) are dropped. Watch-thread errors / overflow set
 //! `rescan`.
+//!
+//! No file-id cache ([`NoCache`], roadmap §A P4): seeding the recommended one
+//! stats every file under the workdir on `watch()` — ignored directories
+//! included — which is seconds on a large tree and held up the open path. Its
+//! only job is pairing a rename into one event; without it a rename arrives as
+//! remove + create, which classify to the same kinds.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -14,7 +20,7 @@ use std::time::Duration;
 
 use git2::Repository;
 use notify::{RecommendedWatcher, RecursiveMode};
-use notify_debouncer_full::{new_debouncer, DebounceEventResult, Debouncer, RecommendedCache};
+use notify_debouncer_full::{new_debouncer_opt, DebounceEventResult, Debouncer, NoCache};
 use serde::{Deserialize, Serialize};
 
 use crate::repo::normalize_workdir_string;
@@ -41,7 +47,7 @@ pub struct RepoChange {
 
 /// Stops watching when dropped.
 pub struct Watcher {
-    debouncer: Option<Debouncer<RecommendedWatcher, RecommendedCache>>,
+    debouncer: Option<Debouncer<RecommendedWatcher, NoCache>>,
     suppressed: Arc<AtomicBool>,
 }
 
@@ -140,7 +146,14 @@ impl Watcher {
             }
         };
 
-        let mut debouncer = new_debouncer(DEBOUNCE, None, handler).map_err(notify_err)?;
+        let mut debouncer = new_debouncer_opt::<_, RecommendedWatcher, NoCache>(
+            DEBOUNCE,
+            None,
+            handler,
+            NoCache::new(),
+            notify::Config::default(),
+        )
+        .map_err(notify_err)?;
         debouncer
             .watch(&workdir, RecursiveMode::Recursive)
             .map_err(notify_err)?;
@@ -237,6 +250,18 @@ mod tests {
             .expect("change within 1s");
         assert_eq!(c.kinds, vec![ChangeKind::Workdir]);
         assert!(!c.rescan);
+    }
+
+    #[test]
+    fn rename_is_reported() {
+        let t = TempRepo::new();
+        t.commit(&[("a.txt", "a")], "init");
+        let (_w, rx) = start(&t);
+        // Without a file-id cache the rename arrives as remove + create; both
+        // sides are workdir paths, so the refresh is the same one.
+        std::fs::rename(t.path().join("a.txt"), t.path().join("b.txt")).unwrap();
+        let kinds = kinds_within(&rx, Duration::from_millis(1200));
+        assert_eq!(kinds, vec![ChangeKind::Workdir]);
     }
 
     #[test]
