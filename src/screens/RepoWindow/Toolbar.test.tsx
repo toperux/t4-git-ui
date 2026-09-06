@@ -96,4 +96,11 @@ describe("Toolbar Repository menu", () => {
     fireEvent.click(getByRole("menuitem", { name: /Add remote/ }));
     expect(useDialogStore.getState().dialog).toEqual({ kind: "addRemote" });
   });
+  it("groups the items: act on the open repo, switch to another, close", () => {
+    const { getByRole } = render(<Toolbar />);
+    fireEvent.click(getByRole("button", { name: "r" }));
+    // The Kbd renders inside the item, so strip the shortcut off the text.
+    const items = Array.from(getByRole("menu", { name: "Repository" }).children).map((el) => (el.getAttribute("role") === "separator" ? "---" : el.textContent!.replace(/Ctrl.*$/, "")));
+    expect(items).toEqual(["Commit…", "Add remote…", "Run git command…", "---", "Open repository…", "No other recent repositories", "---", "Close repository"]);
+  });
 });

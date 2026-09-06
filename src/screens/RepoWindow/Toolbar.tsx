@@ -111,19 +111,19 @@ export function Toolbar() {
           </ToolbarButton>
         }
       >
-        <MenuItem icon={<FolderOpen size={16} aria-hidden />} disabled={running} title={running ? BUSY : undefined} onClick={pick(() => void pickAndOpenRepo(), () => setRepoMenu(false))}>
-          Open repository…
-        </MenuItem>
         <MenuItem icon={<GitCommitHorizontal size={16} aria-hidden />} onClick={pickDialog({ kind: "commit" }, () => setRepoMenu(false))}>
           Commit…
-        </MenuItem>
-        <MenuItem icon={<Terminal size={16} aria-hidden />} kbd="Ctrl+Shift+R" disabled={running} title={running ? BUSY : undefined} onClick={pickDialog({ kind: "runCommand" }, () => setRepoMenu(false))}>
-          Run git command…
         </MenuItem>
         <MenuItem icon={<Cloud size={16} aria-hidden />} disabled={running} title={running ? BUSY : undefined} onClick={pickDialog({ kind: "addRemote" }, () => setRepoMenu(false))}>
           Add remote…
         </MenuItem>
+        <MenuItem icon={<Terminal size={16} aria-hidden />} kbd="Ctrl+Shift+R" disabled={running} title={running ? BUSY : undefined} onClick={pickDialog({ kind: "runCommand" }, () => setRepoMenu(false))}>
+          Run git command…
+        </MenuItem>
         <MenuSeparator />
+        <MenuItem icon={<FolderOpen size={16} aria-hidden />} disabled={running} title={running ? BUSY : undefined} onClick={pick(() => void pickAndOpenRepo(), () => setRepoMenu(false))}>
+          Open repository…
+        </MenuItem>
         {others.length === 0 ? (
           <MenuItem disabled>No other recent repositories</MenuItem>
         ) : (

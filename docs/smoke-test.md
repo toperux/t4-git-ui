@@ -81,8 +81,9 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the first two perfo
 - [x] Grid fills progressively: thin progress line under the header, `Loading commits… N` in the
       statusbar, both stop when the walk completes
 - [x] Restart with a repository open → it reopens and the grid shows **commits**, not rows of `—`
-- [x] Toolbar repo button shows the open repository's name (full path as its tooltip); its menu opens
-      the folder picker, lists the other recents (switching reloads the whole window) and closes the repo
+- [x] Toolbar repo button shows the open repository's name (full path as its tooltip); its menu acts
+      on it first (Commit…, Add remote…, Run git command…), then opens the folder picker and lists the
+      other recents (switching reloads the whole window), then closes the repo
 - [x] Opening a repository that takes a moment (from the start screen or the repo menu) dims the
       window behind an `Opening <name>…` card until it is ready; a fast open shows no flash
 - [x] Drag the sidebar / grid / details / file-list splitters — each one moves, over a useful range
