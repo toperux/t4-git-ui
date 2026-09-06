@@ -1,5 +1,5 @@
 // Static render check: chips lead the row, HEAD chip before the branch chip, before the subject.
-import { cleanup, fireEvent, render } from "@testing-library/react";
+import { cleanup, fireEvent, render, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Branch, LogRow, RefsSnapshot } from "../../../api/types";
 import { useDialogStore } from "../../../store/dialogStore";
@@ -66,7 +66,7 @@ const REFS: RefsSnapshot = {
       ],
     },
   ],
-  tags: [],
+  tags: [{ name: "v1", oid: "oid2", message: null }],
   stashes: [],
 };
 
@@ -223,14 +223,18 @@ describe("RevisionGrid", () => {
     expect(items()).toEqual([
       "Checkout branch…",
       "Checkout (detached)",
+      "Reset main to here…",
       "Merge feature into main…",
       "Rebase main onto feature…",
-      "Create branch here…",
-      "Reset main to here…",
       "Reset main to origin/main…",
       "Reset stale to origin/renamed…",
+      "Create branch here…",
       "Create tag here…",
       "Copy SHA",
+      "Delete feature…",
+      "Delete hotfix…",
+      // No `Delete origin/main on remote…`: `main` is a protected name.
+      "Delete origin/renamed on remote…",
     ]);
     // Two locals at the row: the dialog picks; focus is handed back to the grid, not the (virtualized) row.
     const picker = pick("Checkout branch…");
@@ -244,37 +248,49 @@ describe("RevisionGrid", () => {
     expect(pick("Reset main to origin/main…").dialog).toEqual({ kind: "reset", target: "origin/main" });
     fireEvent.contextMenu(rows[1]);
     expect(pick("Reset stale to origin/renamed…").dialog).toEqual({ kind: "resetBranch", branch: "stale", target: "origin/renamed" });
+    fireEvent.contextMenu(rows[1]);
+    expect(pick("Delete feature…").dialog).toEqual({ kind: "deleteBranch", name: "feature" });
+    fireEvent.contextMenu(rows[1]);
+    // The remote-delete dialog pushes the short name, as the sidebar's item hands it over.
+    expect(pick("Delete origin/renamed on remote…").dialog).toEqual({ kind: "deleteRemoteBranch", remote: "origin", name: "renamed" });
 
     // A lone remote branch without a local: a direct checkout item, not the picker.
     fireEvent.contextMenu(rows[2]);
     expect(items()).toEqual([
       "Checkout origin/new",
       "Checkout (detached)",
+      "Reset main to here…",
       "Merge origin/new into main…",
       "Rebase main onto origin/new…",
       "Create branch here…",
-      "Reset main to here…",
       "Create tag here…",
       "Copy SHA",
+      "Delete origin/new on remote…",
+      "Delete tag v1…",
     ]);
     expect(pick("Create tag here…").dialog).toEqual({ kind: "createTag", target: "oid2" });
+    fireEvent.contextMenu(rows[2]);
+    expect(pick("Delete tag v1…").dialog).toEqual({ kind: "deleteTag", name: "v1" });
     useDialogStore.setState({ dialog: null, returnFocus: null });
   });
 
   it("merges and rebases against the branch at the row, the commit itself without one, and neither at HEAD", () => {
     withRefs();
     // One local branch per row: the merge item names it instead of handing the pick to the dialog.
-    useRepoStore.setState({ refs: { ...REFS, local: [branch("main", "oid0", { isHead: true }), branch("feature", "oid1")], remotes: [] } });
+    useRepoStore.setState({ refs: { ...REFS, local: [branch("main", "oid0", { isHead: true }), branch("feature", "oid1"), branch("stale", "oid0")], remotes: [] } });
     useDialogStore.setState({ dialog: null, returnFocus: null });
     const { container, getByRole, getAllByRole } = render(<RevisionGrid />);
     const rows = container.querySelectorAll(ROWS);
     const items = () => getAllByRole("menuitem").map((el) => el.textContent);
+    // Scoped to the menu: only its own group separators count.
+    const seps = () => within(getByRole("menu", { name: "Commit actions" })).getAllByRole("separator").length;
     const pick = (name: string) => {
       fireEvent.click(getByRole("menuitem", { name }));
       return useDialogStore.getState().dialog;
     };
 
     fireEvent.contextMenu(rows[1]);
+    expect(seps()).toBe(4);
     expect(pick("Merge feature into main…")).toEqual({ kind: "merge", branch: "feature" });
     fireEvent.contextMenu(rows[1]);
     expect(pick("Rebase main onto feature…")).toEqual({ kind: "rebase", onto: "feature" });
@@ -288,6 +304,11 @@ describe("RevisionGrid", () => {
     // HEAD's own commit: merging into it / rebasing onto it would be a no-op.
     fireEvent.contextMenu(rows[0]);
     expect(items().filter((t) => t?.startsWith("Merge") || t?.startsWith("Rebase"))).toEqual([]);
+    // The history group is empty here, and its separator goes with it; `stale` still sits at the
+    // commit, so the Delete group (never the current branch) keeps its own.
+    expect(seps()).toBe(3);
+    expect(items()).toContain("Delete stale…");
+    expect(items()).not.toContain("Delete main…");
     useDialogStore.setState({ dialog: null, returnFocus: null });
   });
 
@@ -352,6 +373,7 @@ describe("RevisionGrid", () => {
     expect(disabled).not.toContain("Copy SHA");
     expect(disabled).toContain("Merge feature into main…");
     expect(disabled).toContain("Rebase main onto feature…");
+    expect(disabled).toContain("Delete feature…");
     expect(items.filter((el) => el.disabled).every((el) => el.title === "Operation in progress")).toBe(true);
     useOpsStore.setState({ busy: null });
   });

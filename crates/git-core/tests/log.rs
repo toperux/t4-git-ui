@@ -219,6 +219,15 @@ fn synced_local_and_remote_collapse_to_one_label() {
     t.reference("refs/remotes/origin/feature", a);
     // A remote that is not configured (stale refs) still groups by prefix.
     t.reference("refs/remotes/upstream/master", a);
+    // The remote's HEAD is kept on the group, not listed as a branch.
+    t.repo
+        .reference_symbolic(
+            "refs/remotes/origin/HEAD",
+            "refs/remotes/origin/master",
+            true,
+            "test",
+        )
+        .expect("origin/HEAD");
     t.tag("v1", a);
 
     let snap = snapshot(&mut t.repo).expect("snapshot");
@@ -229,8 +238,10 @@ fn synced_local_and_remote_collapse_to_one_label() {
     assert_eq!(snap.remotes[0].name, "origin");
     assert!(snap.remotes[0].url.is_some());
     assert_eq!(snap.remotes[0].branches.len(), 2);
+    assert_eq!(snap.remotes[0].head.as_deref(), Some("origin/master"));
     assert_eq!(snap.remotes[1].name, "upstream");
     assert_eq!(snap.remotes[1].url, None);
+    assert_eq!(snap.remotes[1].head, None);
     assert_eq!(snap.tags.len(), 1);
 
     let lm = label_map(&snap);

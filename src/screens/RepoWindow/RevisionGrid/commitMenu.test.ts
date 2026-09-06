@@ -22,18 +22,20 @@ const REFS: RefsSnapshot = {
     branch("feature", "b"),
     branch("hotfix", "b"),
     branch("stale", "c", { upstream: "origin/renamed" }),
+    // Protected by the remote's HEAD, along with `origin/develop` and `fork/develop` at the same commit.
+    branch("develop", "e"),
   ],
   remotes: [
-    { name: "origin", url: null, branches: [{ name: "origin/main", oid: "b", mergedInto: null }, { name: "origin/feature", oid: "b", mergedInto: null }, { name: "origin/renamed", oid: "b", mergedInto: null }, { name: "origin/new", oid: "d", mergedInto: null }] },
-    { name: "fork", url: null, branches: [{ name: "fork/feature", oid: "d", mergedInto: null }] },
+    { name: "origin", url: null, head: "origin/develop", branches: [{ name: "origin/main", oid: "b", mergedInto: null }, { name: "origin/feature", oid: "b", mergedInto: null }, { name: "origin/renamed", oid: "b", mergedInto: null }, { name: "origin/new", oid: "d", mergedInto: null }, { name: "origin/develop", oid: "e", mergedInto: null }] },
+    { name: "fork", url: null, branches: [{ name: "fork/feature", oid: "d", mergedInto: null }, { name: "fork/develop", oid: "e", mergedInto: null }] },
   ],
-  tags: [],
+  tags: [{ name: "v1", oid: "d", message: null }],
   stashes: [],
 };
 
 describe("commitBranchActions", () => {
   it("offers local branches at the commit, minus the current one", () => {
-    expect(commitBranchActions(REFS, "a")).toEqual({ checkout: [], reset: [], merge: [], rebaseOnto: null, canRebase: false, headCommit: true, unborn: false });
+    expect(commitBranchActions(REFS, "a")).toEqual({ checkout: [], reset: [], merge: [], rebaseOnto: null, canRebase: false, headCommit: true, unborn: false, remove: [] });
     const { checkout } = commitBranchActions(REFS, "b");
     expect(checkout.filter((b) => !b.remote).map((b) => b.name)).toEqual(["feature", "hotfix"]);
   });
@@ -60,6 +62,11 @@ describe("commitBranchActions", () => {
       canRebase: true,
       headCommit: false,
       unborn: false,
+      remove: [
+        { kind: "remote", name: "origin/new", remote: "origin", short: "new" },
+        { kind: "remote", name: "fork/feature", remote: "fork", short: "feature" },
+        { kind: "tag", name: "v1" },
+      ],
     });
   });
 
@@ -102,7 +109,28 @@ describe("commitBranchActions", () => {
     expect(commitBranchActions(REFS, "a")).toMatchObject({ merge: [], rebaseOnto: null, headCommit: true });
   });
 
+  it("deletes every ref at the commit but the current branch", () => {
+    // A remote branch is a ref of its own: `origin/feature` is deletable although local `feature` is here.
+    // `origin/main` is not: `main` is a protected name on every remote.
+    expect(commitBranchActions(REFS, "b").remove).toEqual([
+      { kind: "local", name: "feature" },
+      { kind: "local", name: "hotfix" },
+      { kind: "remote", name: "origin/feature", remote: "origin", short: "feature" },
+      { kind: "remote", name: "origin/renamed", remote: "origin", short: "renamed" },
+    ]);
+    // `main` is checked out at `a`: nothing to delete there.
+    expect(commitBranchActions(REFS, "a").remove).toEqual([]);
+    // Detached, `main` is nobody's HEAD any more — but it is protected by name all the same.
+    const detached: RefsSnapshot = { ...REFS, head: { oid: "z", branch: null, detached: true }, local: REFS.local.map((b) => ({ ...b, isHead: false })) };
+    expect(commitBranchActions(detached, "a").remove).toEqual([]);
+  });
+
+  it("never deletes main, master or the branch the remote's HEAD points at", () => {
+    // `origin/HEAD → origin/develop` keeps `develop` locally and on every remote, `fork` included.
+    expect(commitBranchActions(REFS, "e").remove).toEqual([]);
+  });
+
   it("is empty without refs", () => {
-    expect(commitBranchActions(null, "a")).toEqual({ checkout: [], reset: [], merge: [], rebaseOnto: null, canRebase: false, headCommit: false, unborn: false });
+    expect(commitBranchActions(null, "a")).toEqual({ checkout: [], reset: [], merge: [], rebaseOnto: null, canRebase: false, headCommit: false, unborn: false, remove: [] });
   });
 });

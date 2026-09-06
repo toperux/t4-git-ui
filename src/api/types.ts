@@ -145,6 +145,11 @@ export interface Remote {
   name: string;
   url: string | null;
   branches: RemoteBranch[];
+  /**
+   * Short name of the branch the remote's HEAD points at (`origin/main`); `null` when the remote
+   * has no `HEAD` ref. Optional so the many test fixtures stay valid.
+   */
+  head?: string | null;
 }
 
 export interface Tag {

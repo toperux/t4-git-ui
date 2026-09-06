@@ -1,12 +1,15 @@
 // What the commit context menu offers for the branches sitting at a commit.
 import type { RefsSnapshot } from "../../../api/types";
-import { stripRemote } from "../actions";
+import { protectedNames, stripRemote } from "../actions";
 
 /** A branch at the commit; `remote` is set for a remote branch (`origin/x` on `origin`). */
 export interface BranchAt {
   name: string;
   remote: string | null;
 }
+
+/** A ref at the commit that its row can delete; `name` is what the menu shows (`feature`, `origin/feature`, `v1.0`). */
+export type DeleteAt = { kind: "local"; name: string } | { kind: "remote"; name: string; remote: string; short: string } | { kind: "tag"; name: string };
 
 /** A remote branch at the commit whose local counterpart sits somewhere else. */
 export interface ResetToRemote {
@@ -32,6 +35,8 @@ export interface CommitBranchActions {
   headCommit: boolean;
   /** Unborn HEAD: `git merge <oid>` would move the branch onto the commit, so no merge either. */
   unborn: boolean;
+  /** Local branches (never the current one, nor a protected name — `protectedNames`), remote branches and tags sitting at the commit, in that order. */
+  remove: DeleteAt[];
 }
 
 /**
@@ -39,15 +44,20 @@ export interface CommitBranchActions {
  * name. With one at the same commit there is nothing to do; elsewhere it can be reset to the remote.
  */
 export function commitBranchActions(refs: RefsSnapshot | null, oid: string): CommitBranchActions {
-  if (!refs) return { checkout: [], reset: [], merge: [], rebaseOnto: null, canRebase: false, headCommit: false, unborn: false };
+  if (!refs) return { checkout: [], reset: [], merge: [], rebaseOnto: null, canRebase: false, headCommit: false, unborn: false, remove: [] };
   const locals: BranchAt[] = refs.local.filter((b) => b.oid === oid && !b.isHead).map((b) => ({ name: b.name, remote: null }));
   const checkout: BranchAt[] = [...locals];
   const remotes: BranchAt[] = [];
   const reset: ResetToRemote[] = [];
+  const keep = protectedNames(refs.remotes);
+  const remove: DeleteAt[] = locals.filter((b) => !keep.has(b.name)).map((b) => ({ kind: "local", name: b.name }));
   for (const r of refs.remotes) {
     for (const rb of r.branches) {
       if (rb.oid !== oid) continue;
-      const local = refs.local.find((b) => b.upstream === rb.name) ?? refs.local.find((b) => b.name === stripRemote(rb, r.name));
+      const short = stripRemote(rb, r.name);
+      const local = refs.local.find((b) => b.upstream === rb.name) ?? refs.local.find((b) => b.name === short);
+      // Deletable whether or not a local counterpart sits here: it is a ref of its own.
+      if (!keep.has(short)) remove.push({ kind: "remote", name: rb.name, remote: r.name, short });
       // A local counterpart right here is the same commit under a shorter name: it is already offered.
       if (local?.oid === oid) continue;
       remotes.push({ name: rb.name, remote: r.name });
@@ -68,5 +78,7 @@ export function commitBranchActions(refs: RefsSnapshot | null, oid: string): Com
     canRebase,
     headCommit,
     unborn,
+    // `Tag.oid` is already peeled, so an annotated tag matches its commit like a lightweight one.
+    remove: [...remove, ...refs.tags.filter((t) => t.oid === oid).map((t): DeleteAt => ({ kind: "tag", name: t.name }))],
   };
 }

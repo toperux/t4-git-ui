@@ -25,7 +25,8 @@ _Shipped 2026-09-02: `bf7b29b`, `21289fb`, review fix `ae61c75`._
       tooltip names the container: `feature` (merged into `main`), `twin-a` / `twin-b` (each other);
       `main`, `reset-me`, `topic`-style tips and `origin/reset-me` (only inside its own local
       `reset-me`) carry none. Check out `feature` → `origin/twin-remote`'s badge (merged into
-      `twin-a`) stays, `feature`'s goes (the current branch never counts as merged into anything)
+      `twin-a`) stays, `feature`'s goes (the current branch never counts as merged into anything;
+      nor does a protected `main` / `master` / remote-default branch, which nothing offers to delete)
 - [x] Branches with `/` in the name nest in folders — under Local and under each remote alike:
       `topic/nested` sits in a `topic` folder under Local, `origin/topic/on-origin` in one under
       origin (`origin/feature-upstream` stays flat); collapsing one folder leaves the other open
@@ -328,6 +329,30 @@ _Shipped 2026-09-06; walked the same day over CDP, re-walked after the direction
       working-tree row never compares — Ctrl+click it, or
       Ctrl+click a commit while it is selected, and it is a plain select. A right-click selects the
       row for its single-commit menu, so it drops the compare too (known limitation)
+
+## O. Delete branches and tags from a commit row (main §2)
+_Shipped 2026-09-06; walked the same day over CDP; protected branches added and walked (this commit)._
+
+- [x] **The group and a local branch** (§2): in `work` right-click the `twins` row → a red group
+      last: **Delete twin-a…**, **Delete twin-b…**, **Delete origin/twin-remote on remote…**; pick
+      **Delete twin-b…** → the Delete branch dialog, preview `git branch -d twin-b` → Delete → git
+      refuses (`twin-b` is not merged into `main`) and the same dialog re-shows with **Force
+      delete** and `git branch -D twin-b` → Force delete → the chip is gone.
+      Restore: `git -C C:\tmp\t4\work branch twin-b twin-a`
+- [x] **The current branch, and a tag** (§2): the HEAD row (`odd files`) offers no **Delete main…**;
+      right-click the `v0.1.0` tag's row (`main edit`) → **Delete tag v0.1.0…** → the dialog with
+      "also on remote" unchecked, preview `git tag -d v0.1.0` → Delete → the tag chip is gone.
+      Restore: `git -C C:\tmp\t4\work tag v0.1.0 9f87c5f`
+- [x] **A remote branch, and while an op runs** (§2): right-click `solo (remote only)` → **Delete
+      origin/solo on remote…** → the dialog's preview reads `git push origin --delete solo` →
+      Cancel (the push path itself is walked from the sidebar in the main doc). While an op runs
+      (`fetch slow` from the Run git command dialog) every Delete item is greyed, Copy SHA is not
+- [x] **Protected branches** (§2): right-click `nested folders` (`origin/main`) → no **Delete
+      origin/main on remote…**; in the sidebar right-click `main` and `origin/main` → no Delete item
+      and no trailing separator, `feature` → **Delete…** is there. Then
+      `git -C C:\tmp\t4\work symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/feature-upstream`
+      and F5 → the `upstream branch commit` row (`origin/feature-upstream`) offers no Delete.
+      Restore: `git -C C:\tmp\t4\work symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main`
 
 ## Reporting
 

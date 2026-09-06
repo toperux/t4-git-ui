@@ -138,7 +138,7 @@ src/
                            (dialogStore kind `settings`);
                            every op button disabled while one runs),
                            Sidebar (one `role="tree"` per section with a roving tabIndex; branches with `/` nest in
-                           folder rows under Local and under each remote; a `mergedInto` branch (never the current one) is muted with a
+                           folder rows under Local and under each remote; a `mergedInto` branch (never the current one, nor a protected main / master / remote-default) is muted with a
                            `merged` badge; context menus per ref kind on right-click / Shift+F10, double-click = checkout),
                            actions.ts (fetchDefault / checkout* / stash* / copyText / refreshAll / switchRepo / pickAndOpenRepo /
                            closeRepo / runGit — the git ones through runOp; runGit with `quietFailure`: no toast on a

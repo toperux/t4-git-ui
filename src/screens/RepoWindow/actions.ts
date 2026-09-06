@@ -3,7 +3,7 @@ import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { open as openFolder } from "@tauri-apps/plugin-dialog";
 import * as ipc from "../../api/ipc";
 import { toAppError } from "../../api/ipc";
-import type { Branch, RemoteBranch } from "../../api/types";
+import type { Branch, Remote, RemoteBranch } from "../../api/types";
 import { splitArgs } from "../../lib/argv";
 import { useCmdHistoryStore } from "../../store/cmdHistoryStore";
 import { useDialogStore } from "../../store/dialogStore";
@@ -25,6 +25,16 @@ export async function defaultRemote(): Promise<string | null> {
 
 /** `remote/name` → `name` when the branch belongs to `remote`. */
 export const stripRemote = (rb: RemoteBranch, remote: string) => (rb.name.startsWith(`${remote}/`) ? rb.name.slice(remote.length + 1) : rb.name);
+
+/**
+ * Short names never offered for deletion: `main`, `master` and whatever a remote's HEAD points at
+ * (`origin/HEAD → origin/develop` keeps `develop` on every remote and locally).
+ */
+export function protectedNames(remotes: Remote[]): Set<string> {
+  const out = new Set(["main", "master"]);
+  for (const r of remotes) if (r.head?.startsWith(`${r.name}/`)) out.add(r.head.slice(r.name.length + 1));
+  return out;
+}
 
 /** Toolbar Fetch: prune, no tags, default remote (all remotes without one). */
 export async function fetchDefault() {

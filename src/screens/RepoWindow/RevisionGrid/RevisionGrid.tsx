@@ -1,9 +1,9 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, Copy, GitBranch, GitCommitHorizontal, GitMerge, ListRestart, Plus, RotateCcw, Search, Tag } from "lucide-react";
+import { ChevronDown, Copy, GitBranch, GitCommitHorizontal, GitMerge, ListRestart, Plus, RotateCcw, Search, Tag, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { Button } from "../../../components/ui/Button/Button";
 import { EmptyState } from "../../../components/ui/EmptyState/EmptyState";
-import { ContextMenu, MenuItem, MenuRef } from "../../../components/ui/Menu/Menu";
+import { ContextMenu, MenuItem, MenuRef, MenuSeparator } from "../../../components/ui/Menu/Menu";
 import { Progress } from "../../../components/ui/Progress/Progress";
 import { useDialogStore, type DialogSpec } from "../../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../../store/opsStore";
@@ -12,7 +12,7 @@ import { cx } from "../../../lib/cx";
 import { useMerging, useRepoStore } from "../../../store/repoStore";
 import { selectChangeCount, useShowWorkingTree, useStatusStore } from "../../../store/statusStore";
 import { useThemeTokens } from "../../../theme/useThemeTokens";
-import { commitBranchActions, type BranchAt } from "./commitMenu";
+import { commitBranchActions, type BranchAt, type DeleteAt } from "./commitMenu";
 import { graphWidth } from "./graphGeometry";
 import { GridRow } from "./GridRow";
 import s from "./RevisionGrid.module.css";
@@ -228,7 +228,12 @@ export function RevisionGrid() {
   );
 }
 
-/** Commit row actions: checkout a branch here / detached, merge / rebase, branch / tag here, reset a branch here, copy SHA. */
+/**
+ * Commit row actions, grouped by what each one moves: HEAD (checkout a branch here / detached, reset
+ * the current branch here), the current branch's history (merge / rebase, reset a branch to its
+ * remote), new refs (branch / tag here), the clipboard (copy SHA), and last the refs here that can
+ * go (delete a local / remote branch, a tag).
+ */
 function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number }; oid: string; el: HTMLElement | null } | null; onClose: () => void }) {
   const open = useDialogStore((st) => st.open);
   const running = useOpsStore(selectRunning);
@@ -253,6 +258,10 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
   const mergeTitle = m.length > 0 ? `Merge ${m[0].name} into ${current}…` : `Merge commit ${short} into ${current}…`;
   const onto = branches.rebaseOnto;
   const rebaseTitle = `Rebase ${current} onto ${onto ? onto.name : "here"}…`;
+  // The history group is the only one that can be empty (HEAD's own commit, no reset-to-remote item):
+  // its separator hangs off the same condition so two never end up side by side. `canRebase` implies
+  // the merge condition, so the merge one covers both items.
+  const integrate = (!branches.headCommit && !branches.unborn) || branches.reset.length > 0;
   return (
     <ContextMenu at={menu.at} onClose={onClose} label="Commit actions">
       {branches.checkout.length === 1 && (
@@ -268,6 +277,17 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
       <MenuItem icon={<GitBranch size={16} aria-hidden />} {...op} onClick={run(() => void checkoutDetached(oid, short))}>
         Checkout (detached)
       </MenuItem>
+      <MenuItem
+        icon={<RotateCcw size={16} aria-hidden />}
+        title={`Reset ${current} to here`}
+        {...op}
+        onClick={run(() => openDialog({ kind: "reset", target: oid }))}
+      >
+        <span className={s.menuLabel}>
+          Reset <MenuRef className={s.menuBranch}>{current}</MenuRef> to here…
+        </span>
+      </MenuItem>
+      {integrate && <MenuSeparator />}
       {/* On an unborn HEAD `git merge <oid>` moves the branch onto the commit and checks its tree out. */}
       {!branches.headCommit && !branches.unborn && (
         <MenuItem
@@ -312,19 +332,6 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
           </span>
         </MenuItem>
       )}
-      <MenuItem icon={<Plus size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "createBranch", startPoint: oid }))}>
-        Create branch here…
-      </MenuItem>
-      <MenuItem
-        icon={<RotateCcw size={16} aria-hidden />}
-        title={`Reset ${current} to here`}
-        {...op}
-        onClick={run(() => openDialog({ kind: "reset", target: oid }))}
-      >
-        <span className={s.menuLabel}>
-          Reset <MenuRef className={s.menuBranch}>{current}</MenuRef> to here…
-        </span>
-      </MenuItem>
       {branches.reset.map((r) => (
         <MenuItem
           key={r.remote}
@@ -342,12 +349,31 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
           </span>
         </MenuItem>
       ))}
+      <MenuSeparator />
+      <MenuItem icon={<Plus size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "createBranch", startPoint: oid }))}>
+        Create branch here…
+      </MenuItem>
       <MenuItem icon={<Tag size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "createTag", target: oid }))}>
         Create tag here…
       </MenuItem>
+      <MenuSeparator />
       <MenuItem icon={<Copy size={16} aria-hidden />} onClick={run(() => copyText(oid, "SHA"))}>
         Copy SHA
       </MenuItem>
+      {branches.remove.length > 0 && <MenuSeparator />}
+      {/* Plain text, like the sidebar's Delete… items: one red line reads as one action. The title
+          drops the ellipsis, so a long name still shows whole. */}
+      {branches.remove.map((d) => (
+        <MenuItem key={`${d.kind}:${d.name}`} icon={<Trash2 size={16} aria-hidden />} danger title={deleteLabel(d)} {...op} onClick={run(() => openDialog(deleteSpec(d)))}>
+          {deleteLabel(d)}…
+        </MenuItem>
+      ))}
     </ContextMenu>
   );
 }
+
+const deleteLabel = (d: DeleteAt) => (d.kind === "local" ? `Delete ${d.name}` : d.kind === "remote" ? `Delete ${d.name} on remote` : `Delete tag ${d.name}`);
+
+/** The same three dialogs the sidebar's reference menu opens; a remote branch is pushed by its short name. */
+const deleteSpec = (d: DeleteAt): DialogSpec =>
+  d.kind === "local" ? { kind: "deleteBranch", name: d.name } : d.kind === "remote" ? { kind: "deleteRemoteBranch", remote: d.remote, name: d.short } : { kind: "deleteTag", name: d.name };

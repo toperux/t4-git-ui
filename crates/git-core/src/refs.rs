@@ -59,6 +59,10 @@ pub struct Remote {
     pub name: String,
     pub url: Option<String>,
     pub branches: Vec<RemoteBranch>,
+    /// Short name of the branch the remote's HEAD points at (`origin/main`);
+    /// `None` when the remote has no `HEAD` ref (never fetched with one, or a
+    /// stale group).
+    pub head: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -564,6 +568,20 @@ fn conflict_sides(
     (sides.ours != sides.theirs).then_some(sides)
 }
 
+/// Which remote group a remote-tracking ref belongs to: the longest configured
+/// remote name `name` starts a path component with, else its first component.
+fn remote_of(known: &[String], name: &str) -> String {
+    known
+        .iter()
+        .filter(|r| {
+            name.len() > r.len() && name.starts_with(r.as_str()) && name.as_bytes()[r.len()] == b'/'
+        })
+        .max_by_key(|r| r.len())
+        .cloned()
+        .or_else(|| name.split('/').next().map(String::from))
+        .unwrap_or_default()
+}
+
 /// Reads branches, remotes, tags and stashes. Needs `&mut` for `stash_foreach`.
 pub fn snapshot(repo: &mut Repository) -> Result<RefsSnapshot, GitError> {
     snapshot_with(repo, &mut AheadBehindCache::default())
@@ -645,38 +663,47 @@ pub fn snapshot_with(
                 name: name.to_string(),
                 url,
                 branches: Vec::new(),
+                head: None,
             },
         );
     }
     let known: Vec<String> = groups.keys().cloned().collect();
     for entry in repo.branches(Some(BranchType::Remote)).map_err(map_git2)? {
         let (branch, _) = entry.map_err(map_git2)?;
-        if branch.get().kind() == Some(ReferenceType::Symbolic) {
-            continue; // e.g. origin/HEAD
-        }
         let Some(name) = branch.name().map_err(map_git2)?.map(String::from) else {
             continue;
         };
+        let remote = remote_of(&known, &name);
+        if branch.get().kind() == Some(ReferenceType::Symbolic) {
+            // `origin/HEAD` → the remote's default branch, kept on the group
+            // instead of listed as a branch.
+            if let Ok(Some(target)) = branch.get().symbolic_target() {
+                let short = target
+                    .strip_prefix("refs/remotes/")
+                    .unwrap_or(target)
+                    .to_string();
+                groups
+                    .entry(remote.clone())
+                    .or_insert_with(|| Remote {
+                        name: remote,
+                        url: None,
+                        branches: Vec::new(),
+                        head: None,
+                    })
+                    .head = Some(short);
+            }
+            continue;
+        }
         let Ok(commit) = branch.get().peel_to_commit() else {
             continue;
         };
-        let remote = known
-            .iter()
-            .filter(|r| {
-                name.len() > r.len()
-                    && name.starts_with(r.as_str())
-                    && name.as_bytes()[r.len()] == b'/'
-            })
-            .max_by_key(|r| r.len())
-            .cloned()
-            .or_else(|| name.split('/').next().map(String::from))
-            .unwrap_or_default();
         groups
             .entry(remote.clone())
             .or_insert_with(|| Remote {
                 name: remote,
                 url: None,
                 branches: Vec::new(),
+                head: None,
             })
             .branches
             .push(RemoteBranch {

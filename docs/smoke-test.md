@@ -100,10 +100,13 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the first two perfo
 - [x] Click a branch or tag → grid scrolls to and selects that commit
 - [x] Type in "Search commits" → after ~250 ms a flat list (no graph column); clear it → graph returns
 - [x] Branch scope select `All branches` → `HEAD` → re-walks
-- [x] Right-click a commit row (or `Shift+F10`) → context menu with Checkout (detached) / Create
-      branch here… / Reset `<current branch>` to here… / Create tag here… / Copy SHA; a row with a
-      branch on it adds Checkout `<branch>` (or Checkout branch… when several sit there), and one
-      with a remote branch whose local branch is elsewhere adds Reset `<local>` to `<remote>`…
+- [x] Right-click a commit row (or `Shift+F10`) → context menu with Checkout (detached) / Reset
+      `<current branch>` to here… | Create branch here… / Create tag here… | Copy SHA, in groups;
+      a row with a branch on it adds Checkout `<branch>` (or Checkout branch… when several sit
+      there) at the top and Merge / Rebase in a second group, and one with a remote branch whose
+      local branch is elsewhere adds Reset `<local>` to `<remote>`… to that second group, and, last,
+      a red Delete group with one item per branch / tag at the row (never the current branch,
+      nor main / master / the remote's default)
 - [x] Right-click the toolbar, a panel header or the statusbar → **nothing** (no browser menu with
       Reload / Save as / Print); right-click inside a text field still offers Cut / Copy / Paste, and
       so does selected diff / commit-message / output-dock text

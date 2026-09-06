@@ -10,7 +10,7 @@ import { cx } from "../../lib/cx";
 import { useDialogStore, type DialogSpec } from "../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
-import { checkoutBranch, checkoutRemoteBranch, checkoutTag, copyText, stashApply, stashDrop, stashPop, stripRemote } from "./actions";
+import { checkoutBranch, checkoutRemoteBranch, checkoutTag, copyText, protectedNames, stashApply, stashDrop, stashPop, stripRemote } from "./actions";
 import s from "./Sidebar.module.css";
 
 type Section = "local" | "remotes" | "tags" | "stashes";
@@ -140,6 +140,7 @@ export function Sidebar() {
   const remotes = refs?.remotes ?? [];
   const tags = refs?.tags ?? [];
   const stashes = refs?.stashes ?? [];
+  const keep = protectedNames(remotes);
 
   /** A branch inside another one is muted and says so: it adds nothing and can go. */
   const mergedLabel = (label: string, mergedInto: string | null) => (mergedInto ? <span className={s.merged}>{label}</span> : label);
@@ -147,8 +148,8 @@ export function Sidebar() {
   const mergedTitle = (name: string, mergedInto: string | null) => (mergedInto ? `${name} — merged into ${mergedInto}` : name);
 
   const branchRow = (b: Branch, label: string, depth: number) => {
-    // The checked-out branch cannot be deleted, so it is never "safe to delete" whatever the backend says.
-    const mergedInto = b.isHead ? null : b.mergedInto;
+    // The checked-out branch and a protected one cannot be deleted, so neither is ever "safe to delete" whatever the backend says.
+    const mergedInto = b.isHead || keep.has(b.name) ? null : b.mergedInto;
     return (
       <TreeRow
         key={b.name}
@@ -174,21 +175,24 @@ export function Sidebar() {
     );
   };
 
-  const remoteRow = (remote: string) => (rb: RemoteBranch, label: string, depth: number) => (
-    <TreeRow
-      key={rb.name}
-      role="treeitem"
-      aria-level={depth + 1}
-      depth={depth}
-      icon={<GitBranch size={14} aria-hidden />}
-      label={mergedLabel(label, rb.mergedInto)}
-      title={mergedTitle(rb.name, rb.mergedInto)}
-      meta={mergedBadge(rb.mergedInto)}
-      onClick={() => void revealOid(rb.oid)}
-      onDoubleClick={() => void checkoutRemoteBranch(rb, remote)}
-      {...rowMenu({ kind: "remote", remote, branch: rb })}
-    />
-  );
+  const remoteRow = (remote: string) => (rb: RemoteBranch, label: string, depth: number) => {
+    const mergedInto = keep.has(stripRemote(rb, remote)) ? null : rb.mergedInto;
+    return (
+      <TreeRow
+        key={rb.name}
+        role="treeitem"
+        aria-level={depth + 1}
+        depth={depth}
+        icon={<GitBranch size={14} aria-hidden />}
+        label={mergedLabel(label, mergedInto)}
+        title={mergedTitle(rb.name, mergedInto)}
+        meta={mergedBadge(mergedInto)}
+        onClick={() => void revealOid(rb.oid)}
+        onDoubleClick={() => void checkoutRemoteBranch(rb, remote)}
+        {...rowMenu({ kind: "remote", remote, branch: rb })}
+      />
+    );
+  };
 
   /** Leaves render through `row` with their last segment as the label; folders collapse under `folderKey(path)`. */
   function renderTree<T>(nodes: TreeNode<T>[], depth: number, row: (leaf: T, label: string, depth: number) => ReactNode, folderKey: (path: string) => string): ReactNode {
@@ -310,6 +314,7 @@ export function Sidebar() {
 function RefContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number }; target: Target; el: HTMLElement } | null; onClose: () => void }) {
   const open = useDialogStore((st) => st.open);
   const current = useRepoStore((st) => st.refs?.local.find((b) => b.isHead)?.name ?? null);
+  const remotes = useRepoStore((st) => st.refs?.remotes);
   const running = useOpsStore(selectRunning);
   if (!menu) return null;
   const { target } = menu;
@@ -322,6 +327,8 @@ function RefContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number 
     onClose();
     fn();
   };
+  // Branches never offered for deletion have no Delete item at all — nor the separator above it.
+  const keep = protectedNames(remotes ?? []);
 
   const items = () => {
     switch (target.kind) {
@@ -348,10 +355,14 @@ function RefContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number 
             <MenuItem icon={<Copy size={16} aria-hidden />} onClick={run(() => copyText(b.name, "branch name"))}>
               Copy name
             </MenuItem>
-            <MenuSeparator />
-            <MenuItem icon={<Trash2 size={16} aria-hidden />} danger disabled={b.isHead} {...op} onClick={run(() => openDialog({ kind: "deleteBranch", name: b.name }))}>
-              Delete…
-            </MenuItem>
+            {!keep.has(b.name) && (
+              <>
+                <MenuSeparator />
+                <MenuItem icon={<Trash2 size={16} aria-hidden />} danger disabled={b.isHead} {...op} onClick={run(() => openDialog({ kind: "deleteBranch", name: b.name }))}>
+                  Delete…
+                </MenuItem>
+              </>
+            )}
           </>
         );
       }
@@ -372,10 +383,14 @@ function RefContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number 
             <MenuItem icon={<Copy size={16} aria-hidden />} onClick={run(() => copyText(rb.name, "branch name"))}>
               Copy name
             </MenuItem>
-            <MenuSeparator />
-            <MenuItem icon={<Trash2 size={16} aria-hidden />} danger {...op} onClick={run(() => openDialog({ kind: "deleteRemoteBranch", remote: target.remote, name: short }))}>
-              Delete on remote…
-            </MenuItem>
+            {!keep.has(short) && (
+              <>
+                <MenuSeparator />
+                <MenuItem icon={<Trash2 size={16} aria-hidden />} danger {...op} onClick={run(() => openDialog({ kind: "deleteRemoteBranch", remote: target.remote, name: short }))}>
+                  Delete on remote…
+                </MenuItem>
+              </>
+            )}
           </>
         );
       }
