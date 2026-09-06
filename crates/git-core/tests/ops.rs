@@ -471,6 +471,34 @@ fn create_and_rename_branch() {
 }
 
 #[test]
+fn add_rename_reurl_and_remove_remote() {
+    let t = TempRepo::new();
+    let a = t.commit(&[("f.txt", "1\n")], "A");
+    refs::add_remote(&t.repo, "mirror", "https://example.invalid/x.git").unwrap();
+    assert_eq!(
+        t.repo.find_remote("mirror").unwrap().url().unwrap(),
+        "https://example.invalid/x.git"
+    );
+    assert!(refs::add_remote(&t.repo, "mirror", "https://example.invalid/y.git").is_err());
+    assert!(refs::add_remote(&t.repo, "bad name", "https://example.invalid/y.git").is_err());
+
+    t.reference("refs/remotes/mirror/master", a);
+    refs::rename_remote(&t.repo, "mirror", "mirror2").unwrap();
+    assert_eq!(ref_oid(&t, "refs/remotes/mirror2/master"), Some(a));
+    assert!(ref_oid(&t, "refs/remotes/mirror/master").is_none());
+
+    refs::set_remote_url(&t.repo, "mirror2", "https://example.invalid/z.git").unwrap();
+    assert_eq!(
+        t.repo.find_remote("mirror2").unwrap().url().unwrap(),
+        "https://example.invalid/z.git"
+    );
+
+    refs::remove_remote(&t.repo, "mirror2").unwrap();
+    assert!(t.repo.find_remote("mirror2").is_err());
+    assert!(ref_oid(&t, "refs/remotes/mirror2/master").is_none());
+}
+
+#[test]
 fn delete_branch_refuses_unmerged_and_current_unless_forced() {
     let t = TempRepo::new();
     let a = t.commit(&[("f.txt", "1\n")], "A");

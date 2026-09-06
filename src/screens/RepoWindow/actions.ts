@@ -36,10 +36,13 @@ export function protectedNames(remotes: Remote[]): Set<string> {
   return out;
 }
 
+/** Fetch one remote with prune and no tags; `null` = every remote. */
+export const fetchRemote = (remote: string | null) =>
+  runOp(`Fetching ${remote ?? "all remotes"}…`, (id) => ipc.fetch(id, remote, true, false), { success: `Fetched ${remote ?? "all remotes"}` });
+
 /** Toolbar Fetch: prune, no tags, default remote (all remotes without one). */
 export async function fetchDefault() {
-  const remote = await defaultRemote();
-  return runOp(`Fetching ${remote ?? "all remotes"}…`, (id) => ipc.fetch(id, remote, true, false), { success: `Fetched ${remote ?? "all remotes"}` });
+  return fetchRemote(await defaultRemote());
 }
 
 export const checkoutBranch = (name: string) => runOp(`Checking out ${name}…`, (id) => ipc.checkout(id, name, null, false), { success: `Checked out ${name}` });

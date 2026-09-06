@@ -31,6 +31,11 @@ export type DialogSpec =
   | { kind: "pushTag"; name: string }
   | { kind: "deleteRemoteTag"; name: string }
   | { kind: "deleteRemoteBranch"; remote: string; name: string }
+  | { kind: "addRemote" }
+  | { kind: "renameRemote"; name: string }
+  /** `url` is the remote's current fetch URL, `null` when it has none configured. */
+  | { kind: "setRemoteUrl"; name: string; url: string | null }
+  | { kind: "removeRemote"; name: string }
   | { kind: "stashPush" }
   /** Apply / Pop / Drop of one stash. */
   | { kind: "stash"; index: number; message: string };

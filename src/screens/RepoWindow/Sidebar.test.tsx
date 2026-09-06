@@ -1,6 +1,8 @@
 import { cleanup, fireEvent, render, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RefsSnapshot } from "../../api/types";
+import { useDialogStore } from "../../store/dialogStore";
+import { useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
 import { Sidebar } from "./Sidebar";
 
@@ -34,6 +36,7 @@ const REFS: RefsSnapshot = {
 afterEach(cleanup);
 beforeEach(() => {
   useRepoStore.setState({ refs: REFS });
+  useDialogStore.setState({ dialog: null });
 });
 
 describe("Sidebar section counts", () => {
@@ -134,5 +137,50 @@ describe("Sidebar section counts", () => {
     expect(menu("origin/main").queryAllByRole("separator")).toHaveLength(0);
     expect(items("fork/main")).not.toContain("Delete on remote…");
     expect(items("origin/feature/lanes")).toContain("Delete on remote…");
+  });
+});
+
+describe("Sidebar remote menu", () => {
+  const rowMenu = (title: string, view: ReturnType<typeof render>) => {
+    fireEvent.contextMenu(view.getAllByRole("treeitem").find((r) => r.title === title)!);
+    return within(view.getByRole("menu", { name: "Reference actions" }));
+  };
+
+  it("offers the remote's own actions on its folder row, with Copy URL disabled without a URL", () => {
+    const view = render(<Sidebar />);
+    const menu = rowMenu("origin", view);
+    expect(menu.queryAllByRole("menuitem").map((el) => el.textContent)).toEqual(["Fetch origin", "Rename…", "Change URL…", "Copy URL", "Remove…"]);
+    expect(menu.queryAllByRole("separator")).toHaveLength(1);
+    expect(menu.getByRole("menuitem", { name: "Copy URL" }).hasAttribute("disabled")).toBe(true);
+  });
+
+  it("opens each remote dialog with the remote it was invoked on", () => {
+    useRepoStore.setState({ refs: { ...REFS, remotes: [{ ...REFS.remotes[0], url: "git@x/y.git" }] } });
+    const view = render(<Sidebar />);
+    // The row's title is the URL once there is one.
+    expect(rowMenu("git@x/y.git", view).getByRole("menuitem", { name: "Copy URL" }).hasAttribute("disabled")).toBe(false);
+
+    fireEvent.click(rowMenu("git@x/y.git", view).getByRole("menuitem", { name: "Rename…" }));
+    expect(useDialogStore.getState().dialog).toEqual({ kind: "renameRemote", name: "origin" });
+    fireEvent.click(rowMenu("git@x/y.git", view).getByRole("menuitem", { name: "Change URL…" }));
+    expect(useDialogStore.getState().dialog).toEqual({ kind: "setRemoteUrl", name: "origin", url: "git@x/y.git" });
+    fireEvent.click(rowMenu("git@x/y.git", view).getByRole("menuitem", { name: "Remove…" }));
+    expect(useDialogStore.getState().dialog).toEqual({ kind: "removeRemote", name: "origin" });
+  });
+
+  it("offers Add remote… as the empty state of a repository without remotes", () => {
+    useRepoStore.setState({ refs: { ...REFS, remotes: [] } });
+    const { getByText, getByRole } = render(<Sidebar />);
+    expect(getByText("No remotes")).toBeTruthy();
+    fireEvent.click(getByRole("button", { name: "Add remote…" }));
+    expect(useDialogStore.getState().dialog).toEqual({ kind: "addRemote" });
+  });
+
+  it("greys the empty state's Add remote… while an op runs, like the toolbar item", () => {
+    useRepoStore.setState({ refs: { ...REFS, remotes: [] } });
+    useOpsStore.setState({ busy: "Fetching…" });
+    const { getByRole } = render(<Sidebar />);
+    expect(getByRole("button", { name: "Add remote…" }).hasAttribute("disabled")).toBe(true);
+    useOpsStore.setState({ busy: null });
   });
 });

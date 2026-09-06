@@ -1,7 +1,8 @@
-import { Archive, Cloud, Copy, Folder, GitBranch, GitMerge, Pencil, Plus, Tag, Trash2 } from "lucide-react";
+import { Archive, ArrowDown, Cloud, Copy, Folder, GitBranch, GitMerge, Link, Pencil, Plus, Tag, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
-import type { Branch, RemoteBranch, Stash } from "../../api/types";
+import type { Branch, Remote, RemoteBranch, Stash } from "../../api/types";
 import { Badge } from "../../components/ui/Badge/Badge";
+import { Button } from "../../components/ui/Button/Button";
 import { ContextMenu, MenuItem, MenuSeparator } from "../../components/ui/Menu/Menu";
 import { EmptyState } from "../../components/ui/EmptyState/EmptyState";
 import { SectionHeader } from "../../components/ui/SectionHeader/SectionHeader";
@@ -10,7 +11,7 @@ import { cx } from "../../lib/cx";
 import { useDialogStore, type DialogSpec } from "../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
-import { checkoutBranch, checkoutRemoteBranch, checkoutTag, copyText, protectedNames, stashApply, stashDrop, stashPop, stripRemote } from "./actions";
+import { checkoutBranch, checkoutRemoteBranch, checkoutTag, copyText, fetchRemote, protectedNames, stashApply, stashDrop, stashPop, stripRemote } from "./actions";
 import s from "./Sidebar.module.css";
 
 type Section = "local" | "remotes" | "tags" | "stashes";
@@ -19,6 +20,8 @@ type Section = "local" | "remotes" | "tags" | "stashes";
 type Target =
   | { kind: "local"; branch: Branch }
   | { kind: "remote"; remote: string; branch: RemoteBranch }
+  /** The remote's own folder row, not one of its branches. */
+  | { kind: "remoteGroup"; remote: Remote }
   | { kind: "tag"; name: string; oid: string }
   | { kind: "stash"; stash: Stash };
 
@@ -107,6 +110,9 @@ function Tree({ label, children }: { label: string; children: ReactNode }) {
 export function Sidebar() {
   const refs = useRepoStore((st) => st.refs);
   const revealOid = useRepoStore((st) => st.revealOid);
+  // `open` is the section state below, so the dialog opener keeps its own name here.
+  const openDialog = useDialogStore((st) => st.open);
+  const running = useOpsStore(selectRunning);
   const [open, setOpen] = useState<Record<Section, boolean>>({ local: true, remotes: true, tags: false, stashes: true });
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [menu, setMenu] = useState<{ at: { x: number; y: number }; target: Target; el: HTMLElement } | null>(null);
@@ -235,6 +241,18 @@ export function Sidebar() {
 
       {/* Branches, not remotes: every other section counts refs, and the remotes are right there to count by eye. */}
       <SectionHeader title="Remotes" count={remotes.reduce((n, r) => n + r.branches.length, 0)} open={open.remotes} onToggle={() => toggle("remotes")} />
+      {open.remotes && remotes.length === 0 && (
+        <EmptyState
+          className={s.empty}
+          icon={<Cloud size={20} aria-hidden />}
+          title="No remotes"
+          action={
+            <Button size="sm" disabled={running} title={running ? "Operation in progress" : undefined} onClick={() => openDialog({ kind: "addRemote" })}>
+              Add remote…
+            </Button>
+          }
+        />
+      )}
       {open.remotes && remotes.length > 0 && (
         <Tree label="Remote branches">
           {remotes.map((r) => {
@@ -250,6 +268,7 @@ export function Sidebar() {
                   label={r.name}
                   title={r.url ?? r.name}
                   onClick={() => toggleFolder(`remote:${r.name}`)}
+                  {...rowMenu({ kind: "remoteGroup", remote: r })}
                 />
                 {!isCollapsed && (
                   <div role="group" className={s.tree}>
@@ -391,6 +410,29 @@ function RefContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number 
                 </MenuItem>
               </>
             )}
+          </>
+        );
+      }
+      case "remoteGroup": {
+        const r = target.remote;
+        return (
+          <>
+            <MenuItem icon={<ArrowDown size={16} aria-hidden />} {...op} onClick={run(() => void fetchRemote(r.name))}>
+              Fetch {r.name}
+            </MenuItem>
+            <MenuItem icon={<Pencil size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "renameRemote", name: r.name }))}>
+              Rename…
+            </MenuItem>
+            <MenuItem icon={<Link size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "setRemoteUrl", name: r.name, url: r.url }))}>
+              Change URL…
+            </MenuItem>
+            <MenuItem icon={<Copy size={16} aria-hidden />} disabled={!r.url} title={r.url ? undefined : "No URL configured"} onClick={run(() => copyText(r.url ?? "", "URL"))}>
+              Copy URL
+            </MenuItem>
+            <MenuSeparator />
+            <MenuItem icon={<Trash2 size={16} aria-hidden />} danger {...op} onClick={run(() => openDialog({ kind: "removeRemote", name: r.name }))}>
+              Remove…
+            </MenuItem>
           </>
         );
       }

@@ -227,6 +227,18 @@ export const deleteBranch = (id: RepoId, name: string, force: boolean) => call<v
 export const renameBranch = (id: RepoId, old: string, next: string, force: boolean) =>
   call<void>("rename_branch", { id, old, new: next, force });
 
+/** `git remote add <name> <url>`; rejects when the name is taken or invalid. */
+export const addRemote = (id: RepoId, name: string, url: string) => call<void>("add_remote", { id, name, url });
+
+/** `git remote rename <old> <new>` — the remote-tracking refs and the branches tracking them follow. */
+export const renameRemote = (id: RepoId, old: string, next: string) => call<void>("rename_remote", { id, old, new: next });
+
+/** `git remote set-url <name> <url>` (fetch URL only). */
+export const setRemoteUrl = (id: RepoId, name: string, url: string) => call<void>("set_remote_url", { id, name, url });
+
+/** `git remote remove <name>` — its remote-tracking branches go with it. */
+export const removeRemote = (id: RepoId, name: string) => call<void>("remove_remote", { id, name });
+
 /** Annotated when `message` is given, lightweight otherwise. */
 export const createTag = (id: RepoId, name: string, target: string, message: string | null) =>
   call<void>("create_tag", { id, name, target, message });

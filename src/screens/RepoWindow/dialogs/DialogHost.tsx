@@ -15,6 +15,7 @@ import {
   DeleteTagDialog,
   RenameBranchDialog,
 } from "./RefDialogs";
+import { AddRemoteDialog, RemoveRemoteDialog, RenameRemoteDialog, SetRemoteUrlDialog } from "./RemoteDialogs";
 import { RunCommandDialog } from "./RunCommandDialog";
 import { StashDialog, StashPushDialog } from "./StashDialogs";
 
@@ -60,6 +61,14 @@ function renderDialog(dialog: DialogSpec, close: () => void): ReactNode {
       return <DeleteBranchDialog onClose={close} name={dialog.name} />;
     case "deleteRemoteBranch":
       return <DeleteRemoteBranchDialog onClose={close} remote={dialog.remote} name={dialog.name} />;
+    case "addRemote":
+      return <AddRemoteDialog onClose={close} />;
+    case "renameRemote":
+      return <RenameRemoteDialog onClose={close} name={dialog.name} />;
+    case "setRemoteUrl":
+      return <SetRemoteUrlDialog onClose={close} name={dialog.name} url={dialog.url} />;
+    case "removeRemote":
+      return <RemoveRemoteDialog onClose={close} name={dialog.name} />;
     case "createTag":
       return <CreateTagDialog onClose={close} target={dialog.target} />;
     case "deleteTag":

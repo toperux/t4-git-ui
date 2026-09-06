@@ -90,4 +90,10 @@ describe("Toolbar Repository menu", () => {
     fireEvent.click(getByRole("menuitem", { name: /Run git command/ }));
     expect(useDialogStore.getState().dialog).toEqual({ kind: "runCommand" });
   });
+  it("offers Add remote…, which opens the dialog", () => {
+    const { getByRole } = render(<Toolbar />);
+    fireEvent.click(getByRole("button", { name: "r" }));
+    fireEvent.click(getByRole("menuitem", { name: /Add remote/ }));
+    expect(useDialogStore.getState().dialog).toEqual({ kind: "addRemote" });
+  });
 });

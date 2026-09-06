@@ -7,6 +7,7 @@ import { useRepoStore } from "../../../store/repoStore";
 import { useToastStore } from "../../../store/toastStore";
 import { DeleteRemoteTagDialog, MergeDialog, PullDialog, PushDialog, PushTagDialog, RebaseDialog, ResetBranchDialog, ResetDialog } from "./OpsDialogs";
 import { CheckoutBranchDialog, CheckoutDialog, CreateBranchDialog, CreateTagDialog, DeleteTagDialog } from "./RefDialogs";
+import { AddRemoteDialog, RemoveRemoteDialog, RenameRemoteDialog, SetRemoteUrlDialog } from "./RemoteDialogs";
 import { RunCommandDialog } from "./RunCommandDialog";
 
 vi.mock("../../../api/ipc", async (importOriginal) => {
@@ -20,7 +21,12 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
     reset: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     resetBranch: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     checkout: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
+    fetch: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     createBranch: vi.fn(() => Promise.resolve()),
+    addRemote: vi.fn(() => Promise.resolve()),
+    renameRemote: vi.fn(() => Promise.resolve()),
+    setRemoteUrl: vi.fn(() => Promise.resolve()),
+    removeRemote: vi.fn(() => Promise.resolve()),
     createTag: vi.fn(() => Promise.resolve()),
     deleteTag: vi.fn(() => Promise.resolve()),
     deleteRemoteBranch: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
@@ -34,7 +40,23 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
 
 import * as ipc from "../../../api/ipc";
 const mocked = ipc as unknown as Record<
-  "push" | "merge" | "rebase" | "pull" | "reset" | "resetBranch" | "checkout" | "createBranch" | "createTag" | "deleteTag" | "deleteRemoteBranch" | "runGit",
+  | "push"
+  | "merge"
+  | "rebase"
+  | "pull"
+  | "reset"
+  | "resetBranch"
+  | "checkout"
+  | "createBranch"
+  | "createTag"
+  | "deleteTag"
+  | "deleteRemoteBranch"
+  | "runGit"
+  | "fetch"
+  | "addRemote"
+  | "renameRemote"
+  | "setRemoteUrl"
+  | "removeRemote",
   ReturnType<typeof vi.fn>
 >;
 
@@ -297,6 +319,86 @@ describe("CreateTagDialog", () => {
     useRepoStore.setState({ refs: { ...REFS, remotes: [] } });
     const { queryByRole } = render(<CreateTagDialog onClose={() => {}} />);
     expect(queryByRole("checkbox", { name: "Push to remote after creating" })).toBe(null);
+  });
+});
+
+describe("AddRemoteDialog", () => {
+  it("names the first remote origin, previews the fetch clause, and fetches once it is added", async () => {
+    useRepoStore.setState({ refs: { ...REFS, remotes: [] } });
+    const { getByRole } = render(<AddRemoteDialog onClose={() => {}} />);
+    const dialog = getByRole("dialog", { name: "Add remote" });
+    expect((getByRole("textbox", { name: "Name" }) as HTMLInputElement).value).toBe("origin");
+    // A remote without a URL is nothing to fetch from: the name alone doesn't enable Add.
+    expect(getByRole("button", { name: "Add" }).hasAttribute("disabled")).toBe(true);
+    fireEvent.change(getByRole("textbox", { name: "URL" }), { target: { value: "git@x/y.git" } });
+    expect(preview(dialog)).toBe("git remote add origin git@x/y.git && git fetch --progress --prune origin");
+    fireEvent.click(getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(mocked.addRemote).toHaveBeenCalledWith("r", "origin", "git@x/y.git"));
+    await waitFor(() => expect(mocked.fetch).toHaveBeenCalledWith("r", "origin", true, false));
+    // Nothing to fetch until the remote exists.
+    expect(mocked.addRemote.mock.invocationCallOrder[0]).toBeLessThan(mocked.fetch.mock.invocationCallOrder[0]);
+  });
+
+  it("leaves the name empty when the repo already has a remote, and skips the fetch when unticked", async () => {
+    const { getByRole } = render(<AddRemoteDialog onClose={() => {}} />);
+    expect((getByRole("textbox", { name: "Name" }) as HTMLInputElement).value).toBe("");
+    expect(getByRole("button", { name: "Add" }).hasAttribute("disabled")).toBe(true);
+    fireEvent.change(getByRole("textbox", { name: "Name" }), { target: { value: "mirror" } });
+    fireEvent.change(getByRole("textbox", { name: "URL" }), { target: { value: "git@x/y.git" } });
+    fireEvent.click(getByRole("checkbox", { name: "Fetch now" }));
+    expect(preview(getByRole("dialog"))).toBe("git remote add mirror git@x/y.git");
+    fireEvent.click(getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(mocked.addRemote).toHaveBeenCalledWith("r", "mirror", "git@x/y.git"));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(mocked.fetch).not.toHaveBeenCalled();
+  });
+
+  it("refuses a name another remote already has", () => {
+    const { getByRole, getByText } = render(<AddRemoteDialog onClose={() => {}} />);
+    fireEvent.change(getByRole("textbox", { name: "Name" }), { target: { value: "origin" } });
+    fireEvent.change(getByRole("textbox", { name: "URL" }), { target: { value: "git@x/y.git" } });
+    expect(getByText("origin already exists")).toBeTruthy();
+    expect(getByRole("button", { name: "Add" }).hasAttribute("disabled")).toBe(true);
+  });
+});
+
+describe("RenameRemoteDialog", () => {
+  it("refuses the unchanged name and another remote's, and renames otherwise", async () => {
+    useRepoStore.setState({ refs: { ...REFS, remotes: [...REFS.remotes, { name: "fork", url: null, branches: [] }] } });
+    const { getByRole, getByText } = render(<RenameRemoteDialog onClose={() => {}} name="fork" />);
+    const dialog = getByRole("dialog", { name: "Rename remote" });
+    expect(getByRole("button", { name: "Rename" }).hasAttribute("disabled")).toBe(true);
+    fireEvent.change(getByRole("textbox", { name: "New name" }), { target: { value: "origin" } });
+    expect(getByText("origin already exists")).toBeTruthy();
+    expect(getByRole("button", { name: "Rename" }).hasAttribute("disabled")).toBe(true);
+    fireEvent.change(getByRole("textbox", { name: "New name" }), { target: { value: "mirror" } });
+    expect(preview(dialog)).toBe("git remote rename fork mirror");
+    fireEvent.click(getByRole("button", { name: "Rename" }));
+    await waitFor(() => expect(mocked.renameRemote).toHaveBeenCalledWith("r", "fork", "mirror"));
+  });
+});
+
+describe("SetRemoteUrlDialog", () => {
+  it("starts from the current URL and only submits a different one", async () => {
+    const { getByRole } = render(<SetRemoteUrlDialog onClose={() => {}} name="origin" url="git@x/y.git" />);
+    const dialog = getByRole("dialog", { name: "Change remote URL" });
+    expect((getByRole("textbox", { name: "URL" }) as HTMLInputElement).value).toBe("git@x/y.git");
+    expect(getByRole("button", { name: "Change" }).hasAttribute("disabled")).toBe(true);
+    fireEvent.change(getByRole("textbox", { name: "URL" }), { target: { value: " git@x/y.git " } });
+    expect(getByRole("button", { name: "Change" }).hasAttribute("disabled")).toBe(true);
+    fireEvent.change(getByRole("textbox", { name: "URL" }), { target: { value: " git@x/z.git " } });
+    expect(preview(dialog)).toBe("git remote set-url origin git@x/z.git");
+    fireEvent.click(getByRole("button", { name: "Change" }));
+    await waitFor(() => expect(mocked.setRemoteUrl).toHaveBeenCalledWith("r", "origin", "git@x/z.git"));
+  });
+});
+
+describe("RemoveRemoteDialog", () => {
+  it("removes the remote", async () => {
+    const { getByRole } = render(<RemoveRemoteDialog onClose={() => {}} name="origin" />);
+    expect(preview(getByRole("dialog", { name: "Remove remote" }))).toBe("git remote remove origin");
+    fireEvent.click(getByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(mocked.removeRemote).toHaveBeenCalledWith("r", "origin"));
   });
 });
 

@@ -4,6 +4,7 @@ import {
   ArrowDownUp,
   ArrowUp,
   ChevronDown,
+  Cloud,
   FolderGit2,
   FolderOpen,
   GitBranch,
@@ -118,6 +119,9 @@ export function Toolbar() {
         </MenuItem>
         <MenuItem icon={<Terminal size={16} aria-hidden />} kbd="Ctrl+Shift+R" disabled={running} title={running ? BUSY : undefined} onClick={pickDialog({ kind: "runCommand" }, () => setRepoMenu(false))}>
           Run git command…
+        </MenuItem>
+        <MenuItem icon={<Cloud size={16} aria-hidden />} disabled={running} title={running ? BUSY : undefined} onClick={pickDialog({ kind: "addRemote" }, () => setRepoMenu(false))}>
+          Add remote…
         </MenuItem>
         <MenuSeparator />
         {others.length === 0 ? (

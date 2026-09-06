@@ -354,6 +354,26 @@ _Shipped 2026-09-06; walked the same day over CDP; protected branches added and 
       and F5 → the `upstream branch commit` row (`origin/feature-upstream`) offers no Delete.
       Restore: `git -C C:\tmp\t4\work symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main`
 
+## P. Remote management (main §2 and §5)
+_Shipped 2026-09-06 (this commit); walked the same day over CDP._
+
+- [x] **Add a remote** (§5): on `work`, Repository menu → **Add remote…** → name `mirror`, URL
+      `C:/tmp/t4/bare.git`, **Fetch now** checked, preview
+      `git remote add mirror C:/tmp/t4/bare.git && git fetch --progress --prune mirror` → Add → toast
+      `Added mirror`, the fetch runs in the dock, the sidebar gains a `mirror` folder with `main`
+      under it; the Remotes count grows by its branches
+- [x] **The remote's menu** (§2): right-click `mirror` → **Fetch mirror**, **Rename…**, **Change
+      URL…**, **Copy URL**, **Remove…**. Rename… → `mirror2` → the folder and its branches follow.
+      Change URL… → prefilled, set `C:/tmp/t4/does-not-exist` → the folder's tooltip shows it;
+      **Fetch mirror2** → fails at once (toast, dock exit line). Copy URL → clipboard has it
+- [x] **Remove it again** (§2): **Remove…** → the confirm names the remote, preview
+      `git remote remove mirror2` → Remove → folder and count gone; `git -C C:\tmp\t4\work remote`
+      no longer lists it
+- [x] **A repository without remotes** (§2): open one (`git init C:\tmp\t4\noremote`, or any recent
+      one whose `git remote` prints nothing) → Remotes shows **No remotes** with **Add remote…**;
+      the button opens the dialog with `origin` prefilled; Cancel. Remove the throwaway folder
+      afterwards
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the

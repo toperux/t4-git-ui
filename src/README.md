@@ -152,7 +152,8 @@ src/
                            remote picker, from the sidebar tag menu)/Pull/Fetch/Merge/Rebase — Merge and Rebase take a commit oid as
                            well as a branch, shown as an extra 7-char option; a commit merge defaults to git's
                            `Merge commit '<short>'` message —, RefDialogs Checkout picker /
-                           Create-Rename-Delete branch / remote branch / tags, StashDialogs, RunCommandDialog (one
+                           Create-Rename-Delete branch / remote branch / tags, RemoteDialogs Add / Rename / Change URL /
+                           Remove (a remote itself), StashDialogs, RunCommandDialog (one
                            CommandInput; Run → actions `runGit`); gitArgs.ts mirrors cli/ops.rs
                            for the footer's "Runs `git …`" preview — that file is the source of truth),
                            DetailsPane (bottom pane: CommitDetails 340 | ChangedFileList 320 | DiffViewer, resizable;

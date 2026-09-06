@@ -963,6 +963,27 @@ pub fn rename_branch(repo: &Repository, old: &str, new: &str, force: bool) -> Re
         .map_err(map_git2)
 }
 
+/// `git remote add`: git2 refuses an invalid name or an existing one.
+pub fn add_remote(repo: &Repository, name: &str, url: &str) -> Result<(), GitError> {
+    repo.remote(name, url).map(|_| ()).map_err(map_git2)
+}
+
+/// `git remote rename`: moves the remote-tracking refs and the branches' `remote =` config too.
+/// The refspecs git2 could not rewrite (non-default ones) are ignored — the snapshot regroups by prefix.
+pub fn rename_remote(repo: &Repository, old: &str, new: &str) -> Result<(), GitError> {
+    repo.remote_rename(old, new).map(|_| ()).map_err(map_git2)
+}
+
+/// `git remote set-url` (fetch URL; the push URL, if any, is left alone).
+pub fn set_remote_url(repo: &Repository, name: &str, url: &str) -> Result<(), GitError> {
+    repo.remote_set_url(name, url).map_err(map_git2)
+}
+
+/// `git remote remove`: the remote-tracking branches and the remote's config go with it.
+pub fn remove_remote(repo: &Repository, name: &str) -> Result<(), GitError> {
+    repo.remote_delete(name).map_err(map_git2)
+}
+
 /// Creates tag `name` at `target`: lightweight without `message`, annotated
 /// (signed with `user.name`/`user.email`) with one. Fails if the tag exists.
 pub fn create_tag(

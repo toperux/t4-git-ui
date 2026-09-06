@@ -449,6 +449,61 @@ pub async fn rename_branch(
 }
 
 #[tauri::command]
+pub async fn add_remote(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: RepoId,
+    name: String,
+    url: String,
+) -> Result<(), AppError> {
+    git2_op(&app, &state, &id, REFS, move |h| {
+        refs::add_remote(&h.git2.lock(), &name, &url)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn rename_remote(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: RepoId,
+    old: String,
+    new: String,
+) -> Result<(), AppError> {
+    git2_op(&app, &state, &id, REFS, move |h| {
+        refs::rename_remote(&h.git2.lock(), &old, &new)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn set_remote_url(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: RepoId,
+    name: String,
+    url: String,
+) -> Result<(), AppError> {
+    git2_op(&app, &state, &id, REFS, move |h| {
+        refs::set_remote_url(&h.git2.lock(), &name, &url)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn remove_remote(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: RepoId,
+    name: String,
+) -> Result<(), AppError> {
+    git2_op(&app, &state, &id, REFS, move |h| {
+        refs::remove_remote(&h.git2.lock(), &name)
+    })
+    .await
+}
+
+#[tauri::command]
 pub async fn create_tag(
     app: AppHandle,
     state: State<'_, AppState>,
