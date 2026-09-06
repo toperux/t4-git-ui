@@ -25,3 +25,8 @@
 .number {
   width: 96px;
 }
+/* The tool command line: it is a command, not prose. */
+.mono input {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}

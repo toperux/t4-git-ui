@@ -1,9 +1,11 @@
-// Preferences that survive a restart (kv store): the diff defaults and the git executable.
+// Preferences that survive a restart: the diff defaults and the git executable (kv store), plus the
+// external diff / merge tools (the global git config, where GitExtensions and `git difftool` read them).
 // The live state stays where it already lives — the diff defaults are pushed into `diffStore`, and
 // the theme is read/written through `theme/theme.ts`, so it is deliberately absent here.
 import { create } from "zustand";
 import * as ipc from "../api/ipc";
 import { toAppError } from "../api/ipc";
+import type { Tool, ToolKind, Tools } from "../api/types";
 import { kvGet, kvSet } from "../lib/kv";
 import { useDiffStore } from "./diffStore";
 import { useRepoStore } from "./repoStore";
@@ -22,12 +24,16 @@ export interface SettingsStore {
   /** `git --version` of the executable the last apply accepted (`null` = never applied here). */
   gitVersion: string | null;
   gitError: string | null;
+  /** The configured external tools; a missing one is `null`. */
+  tools: Tools;
 
   load(): Promise<void>;
   setDiffContext(n: number): void;
   setIgnoreWhitespace(b: boolean): void;
   /** Tries `path` before keeping it; `false` (with `gitError` set) when git refused to answer. */
   setGitPath(path: string): Promise<boolean>;
+  /** Writes the tool to the global git config, then keeps it here; `null` clears the selector. */
+  setTool(kind: ToolKind, tool: Tool | null): Promise<void>;
   /** Drops the last probe's message: it describes a path that is being edited away. */
   clearGitError(): void;
 }
@@ -40,12 +46,19 @@ export const useSettingsStore = create<SettingsStore>()((set) => ({
   gitPath: "",
   gitVersion: null,
   gitError: null,
+  tools: { diff: null, merge: null },
 
   async load() {
-    const [context, whitespace, gitPath] = await Promise.all([kvGet<number>("diffContext"), kvGet<boolean>("ignoreWhitespace"), kvGet<string>("gitPath")]);
+    const [context, whitespace, gitPath, tools] = await Promise.all([
+      kvGet<number>("diffContext"),
+      kvGet<boolean>("ignoreWhitespace"),
+      kvGet<string>("gitPath"),
+      // An unreadable git config leaves both tools unset rather than failing startup.
+      ipc.getTools().catch(() => null),
+    ]);
     const diffContext = clampContext(context ?? DEFAULT_CONTEXT);
     const ignoreWhitespace = whitespace ?? false;
-    set({ diffContext, ignoreWhitespace, gitPath: gitPath ?? "" });
+    set({ diffContext, ignoreWhitespace, gitPath: gitPath ?? "", tools: tools ?? { diff: null, merge: null } });
     // Nothing is loaded yet at startup, so seeding the diff store needs no reload.
     useDiffStore.getState().setContext(diffContext);
     useDiffStore.setState({ ignoreWhitespace });
@@ -81,6 +94,11 @@ export const useSettingsStore = create<SettingsStore>()((set) => ({
       set({ gitError: toAppError(e).message });
       return false;
     }
+  },
+
+  async setTool(kind, tool) {
+    await ipc.setTool(kind, tool);
+    set((st) => ({ tools: { ...st.tools, [kind]: tool } }));
   },
 
   clearGitError: () => set({ gitError: null }),

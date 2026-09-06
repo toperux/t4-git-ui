@@ -1,6 +1,7 @@
 use git_core::conflict;
 use git_core::diff::{self, DiffOptions, DiffTarget, FileChange, FileDiff};
 use git_core::status::{self, WorkdirStatus};
+use git_core::tools::{self, ToolKind};
 use git_core::RepoId;
 use tauri::State;
 
@@ -47,8 +48,9 @@ pub async fn get_file_diff(
     blocking(move || Ok(diff::file_diff(&handle.git2.lock(), &target, &path, &opts)?)).await
 }
 
-/// Opens a conflicted file's three sides in VS Code's merge editor. Returns the
-/// launcher it found (`code`, `codium`, …) so the toast can name it.
+/// Opens a conflicted file's three sides in the configured merge tool, or in
+/// VS Code's merge editor when none is set. Returns the launcher that was used
+/// so the toast can name it.
 #[tauri::command]
 pub async fn open_merge_editor(
     state: State<'_, AppState>,
@@ -56,7 +58,19 @@ pub async fn open_merge_editor(
     path: String,
 ) -> Result<String, AppError> {
     let handle = state.repo(&id)?;
-    blocking(move || Ok(conflict::open_merge_editor(&handle.git2.lock(), &path)?)).await
+    blocking(move || {
+        // An unreadable config is not worth failing the resolve over: the
+        // VS Code fallback still works.
+        let tool = tools::default_config()
+            .ok()
+            .and_then(|cfg| tools::get_tool(&cfg, ToolKind::Merge));
+        Ok(conflict::open_merge_editor(
+            &handle.git2.lock(),
+            &path,
+            tool.as_ref(),
+        )?)
+    })
+    .await
 }
 
 #[tauri::command]

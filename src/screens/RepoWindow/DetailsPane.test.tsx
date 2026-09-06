@@ -4,8 +4,9 @@ import * as ipc from "../../api/ipc";
 import type { CommitDetail, CommitInfo, FileChange, LogRow, RefsSnapshot } from "../../api/types";
 import { useDialogStore } from "../../store/dialogStore";
 import { useDiffStore } from "../../store/diffStore";
+import { useSettingsStore } from "../../store/settingsStore";
 import { __resetForTests as resetRepo, useRepoStore } from "../../store/repoStore";
-import { DetailsPane } from "./DetailsPane";
+import { CommitDiff, DetailsPane } from "./DetailsPane";
 import { DiffDialog } from "./dialogs/DiffDialog";
 import { fileDiff, hunk, line } from "./DiffViewer/diffFixtures";
 
@@ -33,6 +34,7 @@ vi.mock("../../api/ipc", async (importOriginal) => {
     getCommit: vi.fn(() => Promise.resolve(DETAIL)),
     getChangedFiles: vi.fn(() => Promise.resolve([])),
     getFileDiff: vi.fn(() => new Promise(() => {})),
+    openDiffTool: vi.fn(() => Promise.resolve("BComp")),
   };
 });
 // jsdom has no ResizeObserver: flatten the resizable layout.
@@ -110,6 +112,23 @@ describe("CompareDetails", () => {
     // Both commits: short SHA and summary, oldest first.
     for (const text of ["b0b0b0b", "Earlier work", "a1a1a1a", "Ship it"]) expect(container.textContent).toContain(text);
     await waitFor(() => expect(ipc.getChangedFiles).toHaveBeenLastCalledWith("r", { kind: "commitRange", from: "b0b0b0b", to: "a1a1a1a" }));
+  });
+});
+
+describe("CommitDiff", () => {
+  it("hands the selected commit's file to the external diff tool", async () => {
+    useSettingsStore.setState({ tools: { diff: { name: "bc", path: "C:/BC/BComp.exe", cmd: "x" }, merge: null } });
+    useDiffStore.setState({
+      target: { kind: "commit", oid: "a" },
+      files: [{ path: "src/a.ts", oldPath: null, status: "modified", additions: 1, deletions: 0, binary: false }],
+      selectedPath: "src/a.ts",
+      diff: fileDiff([hunk("@@ -1 +1 @@", [line("add", null, 1, "let a = 1;")])]),
+      diffLoading: false,
+      diffError: null,
+    });
+    const { getByRole } = render(<CommitDiff />);
+    fireEvent.click(getByRole("button", { name: "Open in diff tool" }));
+    await waitFor(() => expect(ipc.openDiffTool).toHaveBeenCalledWith("r", { kind: "commit", oid: "a" }, "src/a.ts", null));
   });
 });
 

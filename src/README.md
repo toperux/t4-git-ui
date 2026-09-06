@@ -68,6 +68,8 @@ src/
                            git probe seeds diffStore; setters persist and apply at once (setGitPath clears gitError, probes through
                            set_git_path and keeps only a working path; the version is mirrored into repoStore;
                            clearGitError on edit).
+                           tools {diff, merge} come from the global git config instead (get_tools in load(); setTool writes
+                           through set_tool and keeps the result, so the diff header follows a Settings change at once).
                            Theme stays in theme/theme.ts
     dialogStore.ts         zustand: one `DialogSpec` at a time — open(spec, {returnFocusTo}) / close(); DialogHost renders it
                            and feeds `returnFocusTo` to `Dialog` through `DialogReturnFocus`
@@ -97,6 +99,11 @@ src/
                            kv.ts (store plugin `recents.json` — the same file src-tauri/lib.rs reads at startup for `theme` —,
                            localStorage fallback; an unreadable value reads as absent),
                            paths.ts (baseName/parentDir/pathSep/joinPath/repoNameFromUrl/prettyUrl — the one path helper module),
+                           externalTools.ts (TOOLS: the ten premade diff / merge tools — git's name, PATH names, install paths
+                           (Windows first, then the macOS .app bundle), diff and merge argument lines; TEMPLATES = the ones
+                           this platform offers (`windowsOnly` hides WinMerge / TortoiseGitMerge off Windows), IS_WINDOWS /
+                           IS_MAC, CUSTOM, command(path, args), templateArgs, toolLabel; data only,
+                           the search and the `$LOCAL` substitution run in Rust),
                            branchName.ts (validateRefName: the check-ref-format subset — spaces, `..`, `//`, leading `-`,
                            leading/trailing `/`, trailing `.`, `.`-leading or `.lock`-trailing components, bare `@`, `@{`,
                            `~^:?*[\` + control chars, reserved, already taken)
@@ -127,6 +134,10 @@ src/
     SettingsDialog/        Settings (wide Dialog, Close only — fields apply on change; context lines on blur / Enter; the git path on
                            Apply, Enter or Locate…): Git executable (path, Locate…, Apply → version or error inline), Theme
                            (Light / Dark / Follow system → theme.setTheme), Diff (context lines 0–99, ignore whitespace by default) — backed by store/settingsStore
+                           ToolSection.tsx × 2 (Diff tool / Merge tool): template Select (None | ten TOOLS | Custom) → findTool
+                           fills Path (a stale lookup is dropped by a pick counter) and derives Command until the user edits it;
+                           Locate… = the same file picker, Suggest re-runs the lookup, Custom adds a free Name (validateRefName);
+                           Apply (or Enter in Path / Command) → settingsStore.setTool → git config, toast — None clears it
     GitMissingScreen/      probe_git failed → "Git not found" + Retry + "Locate git…" (file picker → set_git_path, kept in kv `gitPath`;
                            Settings edits the same key)
     RepoWindow/            RepoWindow (layout: toolbar 40 / sidebar 260 | StateBanners + grid ÷ (DetailsPane | CommitPanel when
@@ -199,7 +210,12 @@ src/
                            label column is capped at 12rem, full text in `title`); `onDiscardHunk` /
                            `onDiscardLines` add "Discard hunk" / "Discard N lines" (+ `Delete` on a selection), wired for the
                            unstaged side only; a mode change shows as a `100644 → 100755` chip beside the stats. The body
-                           scrolls back to the top only when the file path changes
+                           scrolls back to the top only when the file path changes;
+                           `onOpenExternal` adds an "Open in diff tool" IconButton beside the expand one — `open_diff_tool`
+                           (git-core tools.rs writes the two sides to a per-user temp dir and spawns the configured tool —
+                           split with no shell on Windows, `sh -c` with the variables in the environment on unix; an unstaged
+                           diff's right side is the working file itself), greyed while settingsStore has no `tools.diff`,
+                           and the same store makes "Resolve in editor" name the merge tool in its tooltip
                            diffRows.ts (pure: flattenUnified (rows carry hunk/index) / flattenSplit), lineSelection.ts (pure: clickLine, toPairs)
       CommitPanel/         CommitPanel (Files 320 | Diff | Message 340, resizable; `useCommitSync` — called once from RepoWindow
                            while the panel or the commit dialog is up — feeds statusStore.status →

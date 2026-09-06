@@ -3,7 +3,7 @@ import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { open as openFolder } from "@tauri-apps/plugin-dialog";
 import * as ipc from "../../api/ipc";
 import { toAppError } from "../../api/ipc";
-import type { Branch, Remote, RemoteBranch } from "../../api/types";
+import type { Branch, DiffTarget, Remote, RemoteBranch } from "../../api/types";
 import { splitArgs } from "../../lib/argv";
 import { useCmdHistoryStore } from "../../store/cmdHistoryStore";
 import { useDialogStore } from "../../store/dialogStore";
@@ -90,6 +90,22 @@ export function runGit(line: string) {
 export function busyLabel(cmd: string): string {
   const cps = [...cmd];
   return cps.length > 48 ? `${cps.slice(0, 45).join("")}[…]` : cmd;
+}
+
+/**
+ * Hands one file's two sides of `target` to the external diff tool (Settings > Diff tool). Nothing
+ * waits for it: the tool outlives the call, and an unstaged diff gets the working file itself, so
+ * saving in the tool lands in the working tree.
+ */
+export async function openInDiffTool(target: DiffTarget, path: string, oldPath: string | null) {
+  const repo = useRepoStore.getState().repo;
+  if (!repo) return;
+  try {
+    const tool = await ipc.openDiffTool(repo.id, target, path, oldPath);
+    useToastStore.getState().push({ kind: "info", title: `Opened ${path} in ${tool}` });
+  } catch (e) {
+    toastError(toAppError(e), "Couldn't open the diff tool");
+  }
 }
 
 export function copyText(text: string, what: string) {

@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useDiffStore } from "../../../store/diffStore";
+import { useSettingsStore } from "../../../store/settingsStore";
 import { bigDiff, fileDiff, hunk, line } from "./diffFixtures";
 import { DiffViewer, type DiffActions } from "./DiffViewer";
 
@@ -563,5 +564,43 @@ describe("DiffViewer", () => {
     fireEvent.click(expand);
     // The dialog names it as the opener: it is behind the scrim, not `document.activeElement`.
     expect(onExpand).toHaveBeenCalledWith(expand);
+  });
+
+  it("the diff-tool button exists only with `onOpenExternal`, and is greyed until a tool is set", () => {
+    useSettingsStore.setState({ tools: { diff: null, merge: null } });
+    const plain = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} />);
+    expect(plain.queryByRole("button", { name: "Open in diff tool" })).toBeNull();
+    cleanup();
+
+    const onOpenExternal = vi.fn();
+    const off = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} onOpenExternal={onOpenExternal} />);
+    const greyed = off.getByRole("button", { name: "Open in diff tool" });
+    expect((greyed as HTMLButtonElement).disabled).toBe(true);
+    expect(greyed.getAttribute("title")).toBe("No diff tool set — Settings › Diff tool");
+    fireEvent.click(greyed);
+    expect(onOpenExternal).not.toHaveBeenCalled();
+    cleanup();
+
+    useSettingsStore.setState({ tools: { diff: { name: "bc", path: "C:/BC/BComp.exe", cmd: "x" }, merge: null } });
+    const { getByRole } = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} onOpenExternal={onOpenExternal} />);
+    const button = getByRole("button", { name: "Open in diff tool" });
+    expect(button.getAttribute("title")).toBe("Open in Beyond Compare");
+    // In the header, right after the expand button's place and before the view toggles.
+    expect(button.nextElementSibling).toBe(getByRole("button", { name: "Unified view" }));
+    fireEvent.click(button);
+    expect(onOpenExternal).toHaveBeenCalledTimes(1);
+  });
+
+  it("the resolve button names the configured merge tool", () => {
+    const actions: DiffActions = { target: "unstaged", wholeFile: true, onResolve: vi.fn(), onStageHunk: vi.fn(), onStageLines: vi.fn() };
+    useSettingsStore.setState({ tools: { diff: null, merge: null } });
+    const plain = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} actions={actions} />);
+    expect(plain.getByRole("button", { name: "Resolve in editor" }).getAttribute("title")).toBe("Resolve in editor");
+    cleanup();
+
+    useSettingsStore.setState({ tools: { diff: null, merge: { name: "kdiff3", path: "", cmd: "x" } } });
+    const { getByRole } = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} actions={actions} />);
+    // The label is unchanged; only the tooltip names the tool.
+    expect(getByRole("button", { name: "Resolve in editor" }).getAttribute("title")).toBe("Resolve in KDiff3");
   });
 });

@@ -388,6 +388,50 @@ _Shipped 2026-09-06 (this commit); walked the same day over CDP._
       expand button, and the Commit dialog's diff has none either (only the details pane's diff
       opens a diff window; the no-target case is unit-tested, the grid always selects a row on load)
 
+## R. External diff and merge tools (main §5, §6)
+_Shipped 2026-09-06 (this commit); walked the same day over CDP (Locate… is the native picker — the path was typed instead; KDiff3 is not installed here, so its merge entry pointed at BComp.exe). The Linux sentence in the first step was walked on a WebKitGTK build under WSLg the same day (`docs/plans/2026-09-05-full-rewalk.md` has the setup): a Custom tool whose command is `cat "$LOCAL" "$REMOTE" > /tmp/out && echo done >> /tmp/out` ran through sh, the temp dir carried the uid, no zombie was left, and a missing program toasted `t4-nope not found`._
+
+- [x] **Pick a diff tool** (§6): Settings (toolbar gear) → **Diff tool** → the Select offers None,
+      the ten templates and Custom; pick **Beyond Compare** → the path fills with
+      `…/Beyond Compare 5/BComp.exe` (forward slashes, as GitExtensions writes them; "Found on
+      this machine.") and Command reads `"…/BComp.exe" "$LOCAL" "$REMOTE"` → **Apply** → toast `Diff tool: Beyond Compare`;
+      `git config --global diff.guitool` = `bc`, `diff.tool` = `bc` and `difftool.bc.cmd` is that line.
+      On Linux/macOS the Select omits WinMerge and TortoiseGitMerge (Windows-only), and the Command
+      help says the variables are in the environment — the line runs through `sh`, as `git difftool` runs it
+- [x] **A tool that isn't installed, and Locate…** (§6): **Merge tool** → **KDiff3** → the Path help
+      says "Not found — Locate it"; **Suggest** repeats the lookup; **Locate…** → pick any exe → the
+      path fills and Command re-derives with the merge arguments
+      (`"$BASE" "$LOCAL" "$REMOTE" -o "$MERGED"`) → **Apply** → `merge.guitool` = `kdiff3`
+- [x] **Custom, and None** (§6): **Diff tool → Custom** → Apply with an empty Name → "Enter a name";
+      `my tool` → "No spaces"; `my-tool` with an empty Command → "Enter a command"; with a
+      command → Apply writes `difftool.my-tool.cmd`. A command typed here does not stick to the
+      next pick: **Beyond Compare** again derives its own. Then
+      **None** → Apply → toast `Diff tool cleared`, `git config --global --get-regexp 'diff\.(gui)?tool'`
+      prints nothing while `difftool.bc.*` and `difftool.my-tool.*` are still there. Put Beyond
+      Compare back for the rest of the group
+- [x] **A commit's file** (§3): on `work` select `nested folders` → the diff header's **Open in diff
+      tool** (ExternalLink, right of **Open diff window**) → BC opens with the parent's version left
+      and the commit's right; toast `Opened <file> in BComp`. Ctrl+click a second row → the same
+      button on the compare shows the two commits' versions
+- [x] **The working tree** (§4): select the working-tree row, click an unstaged file → **Open in diff
+      tool** → the right pane is the **real working file**: edit and save it in BC → the app's diff
+      follows on its own. A staged file opens HEAD against the index; a deleted file (`gone.txt`)
+      opens against an empty right side, not a path that is gone. A conflicted row and an
+      untracked row have no such button
+- [x] **Resolve in editor with a merge tool** (§5): with the main doc's conflict fixture and KDiff3
+      (or any installed tool) set as the merge tool → the conflicted file's **Resolve in editor**
+      button now reads `Resolve in KDiff3` in its tooltip (the label is unchanged) → click → the tool
+      opens with the three sides; save → the file leaves conflict exactly as before
+- [x] **Without a tool** (§6): Settings → Diff tool → **None** → Apply → the diff header's button is
+      greyed with the tooltip `No diff tool set — Settings › Diff tool`; Merge tool → None → **Resolve
+      in editor** falls back to VS Code / VSCodium as it always did (and to the same error toast
+      naming `code` and `codium` with neither on PATH)
+- [x] **It survives a restart** (§6): quit and relaunch → Settings shows both tools as stored, since
+      they live in `~/.gitconfig`, not the app's kv store. Restore the machine's own values
+      afterwards (`merge.tool BeyondCompare4`, `merge.guitool BeyondCompare5`,
+      `diff.guitool beyondcompare4` — dump `git config --global --get-regexp 'tool|difftool|mergetool'`
+      before starting)
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the

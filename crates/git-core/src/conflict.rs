@@ -10,6 +10,7 @@ use std::process::Command;
 
 use git2::{Oid, Repository};
 
+use crate::tools::Tool;
 use crate::{map_git2, GitError};
 
 /// Blob ids of one unmerged path. Any side can be missing: a modify/delete
@@ -64,20 +65,25 @@ const EDITORS: &[&str] = &[
 
 /// Where [`open_merge_editor`] writes the three sides of a conflict.
 fn merge_temp_dir() -> PathBuf {
-    std::env::temp_dir().join("t4-git-ui-merge")
+    crate::tools::temp_dir_named("t4-git-ui-merge")
 }
 
-/// Removes every side [`open_merge_editor`] has ever written. Meant for app
-/// start: nothing of ours can still be open in an editor then, and the OS is
-/// not going to clean the temp dir for us.
+/// Removes every side [`open_merge_editor`] and [`crate::tools::open_diff_tool`]
+/// have ever written. Meant for app start: nothing of ours can still be open in
+/// an editor then, and the OS is not going to clean the temp dir for us.
 pub fn clean_merge_temp() -> std::io::Result<()> {
-    match std::fs::remove_dir_all(merge_temp_dir()) {
+    remove_temp(merge_temp_dir())?;
+    remove_temp(crate::tools::diff_temp_dir())
+}
+
+fn remove_temp(dir: PathBuf) -> std::io::Result<()> {
+    match std::fs::remove_dir_all(dir) {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
         r => r,
     }
 }
 
-fn stage_file(
+pub(crate) fn stage_file(
     repo: &Repository,
     dir: &Path,
     path: &str,
@@ -103,14 +109,19 @@ fn stage_file(
     Ok(file)
 }
 
-/// Opens `path`'s conflict in VS Code's three-way merge editor: its three sides
-/// are written beside each other in a temp directory and the file in the working
-/// tree is the merge result the editor writes back to.
+/// Opens `path`'s conflict in `tool` — VS Code's three-way merge editor when
+/// none is configured: its three sides are written beside each other in a temp
+/// directory and the file in the working tree is the merge result the tool
+/// writes back to.
 ///
 /// Returns the launcher that was used. `Refused` when the path is not unmerged,
 /// `Config` when no launcher is on `PATH` — nothing is installed on anyone's
 /// behalf.
-pub fn open_merge_editor(repo: &Repository, path: &str) -> Result<String, GitError> {
+pub fn open_merge_editor(
+    repo: &Repository,
+    path: &str,
+    tool: Option<&Tool>,
+) -> Result<String, GitError> {
     let Some(stages) = stages(repo, path)? else {
         return Err(GitError::Refused(format!("{path} is not conflicted")));
     };
@@ -125,6 +136,18 @@ pub fn open_merge_editor(repo: &Repository, path: &str) -> Result<String, GitErr
     let ours = stage_file(repo, &dir, path, "LOCAL", stages.ours)?;
     let theirs = stage_file(repo, &dir, path, "REMOTE", stages.theirs)?;
     let base = stage_file(repo, &dir, path, "BASE", stages.ancestor)?;
+
+    if let Some(tool) = tool {
+        return crate::tools::spawn_tool(
+            &tool.cmd,
+            &[
+                ("LOCAL", &ours),
+                ("REMOTE", &theirs),
+                ("BASE", &base),
+                ("MERGED", &merged),
+            ],
+        );
+    }
 
     let mut last: Option<std::io::Error> = None;
     for exe in EDITORS {
@@ -141,9 +164,12 @@ pub fn open_merge_editor(repo: &Repository, path: &str) -> Result<String, GitErr
             cmd.creation_flags(CREATE_NO_WINDOW);
         }
         match cmd.spawn() {
-            // Not awaited: the editor outlives this call, and the watcher picks
-            // up the resolved file whenever it is saved.
-            Ok(_) => return Ok((*exe).to_string()),
+            // Not waited for here: the editor outlives this call, and the
+            // watcher picks up the resolved file whenever it is saved.
+            Ok(child) => {
+                crate::tools::detach(child);
+                return Ok((*exe).to_string());
+            }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => last = Some(e),
             Err(e) => return Err(e.into()),
         }

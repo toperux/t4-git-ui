@@ -19,6 +19,9 @@ import type {
   RepoId,
   RepoSummary,
   RevSpec,
+  Tool,
+  ToolKind,
+  Tools,
   WorkdirStatus,
 } from "./types";
 
@@ -108,10 +111,25 @@ export const getFileDiff = (id: RepoId, target: DiffTarget, path: string, opts?:
 /** `git checkout --merge -- <paths>`: puts files staged without being resolved back in conflict. */
 export const recreateConflict = (id: RepoId, paths: string[]) => call<void>("recreate_conflict", { id, paths });
 
-/** Opens a conflicted file's three sides in VS Code's merge editor; resolves with the launcher used. */
+/** Opens a conflicted file's three sides in the configured merge tool (VS Code without one); resolves with the launcher used. */
 export const openMergeEditor = (id: RepoId, path: string) => call<string>("open_merge_editor", { id, path });
 
 export const getStatus = (id: RepoId) => call<WorkdirStatus>("get_status", { id });
+
+// --- src-tauri/src/commands/tools.rs ---
+// The external diff / merge tools, in the global git config (`diff.guitool`, `difftool.<name>.*`).
+
+export const getTools = () => call<Tools>("get_tools");
+
+/** Writes both selectors and the tool's entries; `null` clears the selectors and keeps the entries. */
+export const setTool = (kind: ToolKind, tool: Tool | null) => call<void>("set_tool", { kind, tool });
+
+/** Path of the first `rels` (under the install roots) or `names` (on PATH) that exists; `null` when nothing is installed. */
+export const findTool = (names: string[], rels: string[]) => call<string | null>("find_tool", { names, rels });
+
+/** Opens one file's two sides in the configured diff tool; resolves with the program that was spawned. */
+export const openDiffTool = (id: RepoId, target: DiffTarget, path: string, oldPath: string | null) =>
+  call<string>("open_diff_tool", { id, target, path, oldPath });
 
 // --- src-tauri/src/commands/stage.rs ---
 // Mutations emit one `repo://changed` afterwards (even on error).

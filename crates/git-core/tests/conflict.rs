@@ -9,6 +9,7 @@ use git_core::cli::GitCli;
 use git_core::conflict;
 use git_core::stage::{self, ConflictSide};
 use git_core::test_util::TempRepo;
+use git_core::tools::Tool;
 use git_core::GitError;
 use tokio_util::sync::CancellationToken;
 
@@ -94,6 +95,29 @@ fn stages_carry_every_side_that_exists() {
         conflict::stages(&t.repo, "nothing.txt").expect("stages"),
         None
     );
+}
+
+/// With a merge tool configured the three sides go to its command line; the
+/// program here does not exist, which is the one thing a test may spawn.
+#[test]
+fn a_configured_merge_tool_that_is_not_installed_is_a_config_error() {
+    let t = conflicted();
+    let tool = Tool {
+        name: "missing".into(),
+        path: String::new(),
+        cmd: r#""t4-no-such-tool" "$LOCAL" "$REMOTE" "$BASE" "$MERGED""#.into(),
+    };
+    let err = conflict::open_merge_editor(&t.repo, "f.txt", Some(&tool))
+        .expect_err("the tool does not exist");
+    assert!(
+        matches!(&err, GitError::Config(m) if m.contains("t4-no-such-tool")),
+        "{err}"
+    );
+    // A path that is not unmerged is still refused before anything is spawned.
+    assert!(matches!(
+        conflict::open_merge_editor(&t.repo, "nothing.txt", Some(&tool)),
+        Err(GitError::Refused(_))
+    ));
 }
 
 /// The panel's guard for "the file on screen changed": an editor writing the

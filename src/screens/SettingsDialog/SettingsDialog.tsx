@@ -1,6 +1,7 @@
 // App preferences, reachable from both screens (toolbar gear / start screen gear).
 // Theme and the whitespace default apply as they change; the two text fields apply on Enter (the git
-// path on Apply / Locate… too, since trying it starts a process). The footer only closes.
+// path on Apply / Locate… too, since trying it starts a process); the two tool sections have an
+// Apply of their own. The footer only closes.
 import { open as openFile } from "@tauri-apps/plugin-dialog";
 import { FolderSearch } from "lucide-react";
 import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
@@ -11,6 +12,7 @@ import { Input, Select } from "../../components/ui/Input/Input";
 import { getThemePref, setTheme, type ThemePref } from "../../theme/theme";
 import { MAX_CONTEXT, useSettingsStore } from "../../store/settingsStore";
 import s from "./SettingsDialog.module.css";
+import { ToolSection } from "./ToolSection";
 
 export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const diffContext = useSettingsStore((st) => st.diffContext);
@@ -141,6 +143,9 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
           </Checkbox>
         </Options>
       </section>
+
+      <ToolSection kind="diff" />
+      <ToolSection kind="merge" />
     </Dialog>
   );
 }

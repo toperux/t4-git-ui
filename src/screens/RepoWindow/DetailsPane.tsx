@@ -10,7 +10,7 @@ import { absoluteDate, relativeDate } from "../../lib/relativeDate";
 import { useDialogStore } from "../../store/dialogStore";
 import { useDiffStore } from "../../store/diffStore";
 import { selectCompare, selectSelectedOid, useRepoStore } from "../../store/repoStore";
-import { copyText } from "./actions";
+import { copyText, openInDiffTool } from "./actions";
 import { ChangedFileList } from "./ChangedFileList/ChangedFileList";
 import s from "./DetailsPane.module.css";
 import { DiffViewer } from "./DiffViewer/DiffViewer";
@@ -56,7 +56,19 @@ export function CommitDiff({ onExpand }: { onExpand?: (opener: HTMLElement) => v
   const diff = useDiffStore((st) => st.diff);
   const loading = useDiffStore((st) => st.diffLoading);
   const error = useDiffStore((st) => st.diffError);
-  return <DiffViewer path={path} oldPath={file?.oldPath ?? null} stats={file ?? null} diff={diff} loading={loading} error={error} onExpand={onExpand} />;
+  const target = useDiffStore((st) => st.target);
+  return (
+    <DiffViewer
+      path={path}
+      oldPath={file?.oldPath ?? null}
+      stats={file ?? null}
+      diff={diff}
+      loading={loading}
+      error={error}
+      onExpand={onExpand}
+      onOpenExternal={target && path ? () => void openInDiffTool(target, path, file?.oldPath ?? null) : undefined}
+    />
+  );
 }
 
 function CommitDetails() {

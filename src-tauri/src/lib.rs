@@ -124,8 +124,8 @@ pub fn run() {
         .setup(|app| {
             init_logging(app);
             init_window_background(app);
-            // The three sides of every conflict ever opened in a merge editor; no
-            // editor of ours can still have them open this early.
+            // The sides of every conflict and diff ever opened in an external
+            // tool; no tool of ours can still have them open this early.
             tauri::async_runtime::spawn_blocking(|| {
                 if let Err(e) = git_core::conflict::clean_merge_temp() {
                     tracing::warn!(error = %e, "could not clean the merge-editor temp dir");
@@ -151,6 +151,10 @@ pub fn run() {
             commands::diff::get_file_diff,
             commands::diff::open_merge_editor,
             commands::diff::get_status,
+            commands::tools::get_tools,
+            commands::tools::set_tool,
+            commands::tools::find_tool,
+            commands::tools::open_diff_tool,
             commands::stage::stage_paths,
             commands::stage::unstage_paths,
             commands::stage::discard_paths,

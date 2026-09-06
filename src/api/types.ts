@@ -1,6 +1,6 @@
 // Mirrors the Rust IPC contract (serde, all camelCase). Keep in sync with:
-//   crates/git-core/src/log/types.rs, refs.rs, commit.rs, diff.rs, status.rs, watch.rs, cli/runner.rs, cli/ops.rs, error.rs
-//   src-tauri/src/commands/{repo,stage,ops}.rs, src-tauri/src/error.rs
+//   crates/git-core/src/log/types.rs, refs.rs, commit.rs, diff.rs, status.rs, tools.rs, watch.rs, cli/runner.rs, cli/ops.rs, error.rs
+//   src-tauri/src/commands/{repo,stage,ops,tools}.rs, src-tauri/src/error.rs
 
 /** `git_core::RepoId` — serde(transparent) newtype over the canonical workdir path. */
 export type RepoId = string;
@@ -306,6 +306,25 @@ export interface DiffOptions {
   context?: number;
   maxLines?: number;
   ignoreWhitespace?: boolean;
+}
+
+// --- tools.rs ---
+
+/** Which pair of git-config entries a tool belongs to (`diff.guitool` / `merge.guitool`). */
+export type ToolKind = "diff" | "merge";
+
+/** A configured external tool: git's own name for it plus its two entries. */
+export interface Tool {
+  name: string;
+  /** `difftool.<name>.path`; `""` when unset. */
+  path: string;
+  /** `difftool.<name>.cmd`: `"<path>" <args>`, with `$LOCAL` / `$REMOTE` / `$BASE` / `$MERGED`. */
+  cmd: string;
+}
+
+export interface Tools {
+  diff: Tool | null;
+  merge: Tool | null;
 }
 
 // --- status.rs ---

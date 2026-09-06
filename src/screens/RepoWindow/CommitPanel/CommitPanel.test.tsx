@@ -4,6 +4,7 @@ import type { RefsSnapshot, WorkdirStatus } from "../../../api/types";
 import { useCommitStore } from "../../../store/commitStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { useDialogStore } from "../../../store/dialogStore";
+import { useSettingsStore } from "../../../store/settingsStore";
 import { useStatusStore } from "../../../store/statusStore";
 import { __resetForTests as resetTreeMode, useTreeModeStore } from "../../../store/treeModeStore";
 import { CommitDialog } from "../dialogs/CommitDialog";
@@ -32,6 +33,7 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
     discardHunks: vi.fn(() => Promise.resolve()),
     discardPaths: vi.fn(() => Promise.resolve()),
     openPath: vi.fn(() => Promise.resolve()),
+    openDiffTool: vi.fn(() => Promise.resolve("BComp")),
   };
 });
 const ask = vi.hoisted(() => vi.fn((_message: string, _options?: unknown) => Promise.resolve(true)));
@@ -90,6 +92,7 @@ beforeEach(() => {
   useStatusStore.setState({ status: STATUS, error: null });
   useDialogStore.setState({ dialog: null, returnFocus: null });
   useCommitStore.getState().reset();
+  useSettingsStore.setState({ tools: { diff: { name: "bc", path: "C:/BC/BComp.exe", cmd: "x" }, merge: null } });
 });
 afterEach(cleanup);
 
@@ -288,6 +291,29 @@ describe("CommitPanel", () => {
     expect(queryByText("Conflict — stage the file once resolved")).toBeNull();
     // Still a conflict: staging it is what marks it resolved.
     expect(getByRole("button", { name: "Resolve in editor" })).toBeTruthy();
+  });
+
+  it("hands a working-tree file to the diff tool, and offers none for a conflict", async () => {
+    const { getByRole, queryByRole } = renderPanel();
+    const rows = Array.from(getByRole("listbox", { name: "Unstaged files" }).querySelectorAll('[role="option"]'));
+    fireEvent.click(rows[0]);
+    await act(async () => {});
+    fireEvent.click(getByRole("button", { name: "Open in diff tool" }));
+    await waitFor(() => expect(ipc.openDiffTool).toHaveBeenCalledWith("r", { kind: "unstaged" }, "a.rs", null));
+
+    // A conflict's route is the merge tool, and an untracked file has nothing on the other side.
+    fireEvent.click(rows[2]);
+    await act(async () => {});
+    expect(queryByRole("button", { name: "Open in diff tool" })).toBeNull();
+    fireEvent.click(rows[3]);
+    await act(async () => {});
+    expect(queryByRole("button", { name: "Open in diff tool" })).toBeNull();
+
+    // The staged list diffs HEAD against the index.
+    fireEvent.click(Array.from(getByRole("listbox", { name: "Staged files" }).querySelectorAll('[role="option"]'))[0]);
+    await act(async () => {});
+    fireEvent.click(getByRole("button", { name: "Open in diff tool" }));
+    await waitFor(() => expect(ipc.openDiffTool).toHaveBeenLastCalledWith("r", { kind: "staged" }, "both.rs", null));
   });
 
   it("offers to restore a conflict staged with its markers still in the file", async () => {

@@ -10,6 +10,7 @@ import { useDialogStore } from "../../../store/dialogStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { useStatusStore } from "../../../store/statusStore";
 import { toastError, useToastStore } from "../../../store/toastStore";
+import { openInDiffTool } from "../actions";
 import { DiffViewer, type DiffActions } from "../DiffViewer/DiffViewer";
 import w from "../RepoWindow.module.css";
 import s from "./CommitPanel.module.css";
@@ -109,7 +110,21 @@ export function DiffColumn() {
       }
     : undefined;
 
-  return <DiffViewer path={path} oldPath={entry?.oldPath ?? null} stats={stats ?? null} diff={diff} loading={loading} error={error} actions={actions} />;
+  // The merge tool is a conflict's route, and an untracked file has nothing on the other side.
+  const external = path && !conflicted && !untracked ? () => void openInDiffTool({ kind: list }, path, entry?.oldPath ?? null) : undefined;
+
+  return (
+    <DiffViewer
+      path={path}
+      oldPath={entry?.oldPath ?? null}
+      stats={stats ?? null}
+      diff={diff}
+      loading={loading}
+      error={error}
+      actions={actions}
+      onOpenExternal={external}
+    />
+  );
 }
 
 /** A `<<<<<<<` at the start of a line the diff carries: git's own conflict marker, seven of them. */

@@ -1,5 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ArrowDownUp, Columns2, File, FileDiff, Maximize2, Rows2 } from "lucide-react";
+import { ArrowDownUp, Columns2, ExternalLink, File, FileDiff, Maximize2, Rows2 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import type { ConflictSide, ConflictSides, DiffLine, FileDiff as FileDiffModel } from "../../../api/types";
 import { Banner } from "../../../components/ui/Banner/Banner";
@@ -12,8 +12,10 @@ import { ToolbarSeparator } from "../../../components/ui/ToolbarButton/ToolbarBu
 import { sideLabel } from "../../../lib/conflictSides";
 import { cx } from "../../../lib/cx";
 import { highlightLine, isLoaded, langForPath, loadLang, type Lang, type SynClass } from "../../../lib/highlight";
+import { toolLabel } from "../../../lib/externalTools";
 import { mods } from "../../../lib/keys";
 import { useDiffStore, type DiffView } from "../../../store/diffStore";
+import { useSettingsStore } from "../../../store/settingsStore";
 import { Stats } from "../ChangedFileList/ChangedFileList";
 import { flattenSplit, flattenUnified, rowHeight, type SplitRow, type UnifiedRow } from "./diffRows";
 import s from "./DiffViewer.module.css";
@@ -72,12 +74,20 @@ export interface DiffViewerProps {
    * Takes the button, which the dialog names as its opener.
    */
   onExpand?: (opener: HTMLElement) => void;
+  /**
+   * Header button that hands this file's two sides to the external diff tool. Rendered when the
+   * prop is given, disabled without a file or a tool configured in Settings.
+   */
+  onOpenExternal?: () => void;
 }
 
 type Mods = { ctrl?: boolean; shift?: boolean };
 
-export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: listStats, diff, loading, error, actions, onExpand }: DiffViewerProps) {
+export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: listStats, diff, loading, error, actions, onExpand, onOpenExternal }: DiffViewerProps) {
   const storeView = useDiffStore((st) => st.view);
+  // Settings writes both back into the store, so a change here shows without a reload.
+  const diffTool = useSettingsStore((st) => st.tools.diff);
+  const mergeTool = useSettingsStore((st) => st.tools.merge);
   const ignoreWhitespace = useDiffStore((st) => st.ignoreWhitespace);
   const setView = useDiffStore((st) => st.setView);
   const toggleWhitespace = useDiffStore((st) => st.toggleWhitespace);
@@ -259,7 +269,13 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
           </>
         )}
         {actions?.onResolve && (
-          <Button size="sm" className={s.resolve} disabled={actions.busy} title="Resolve in editor" onClick={actions.onResolve}>
+          <Button
+            size="sm"
+            className={s.resolve}
+            disabled={actions.busy}
+            title={mergeTool ? `Resolve in ${toolLabel(mergeTool.name)}` : "Resolve in editor"}
+            onClick={actions.onResolve}
+          >
             Resolve in editor
           </Button>
         )}
@@ -278,6 +294,16 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
         {onExpand && (
           <IconButton label="Open diff window" onClick={(e) => onExpand(e.currentTarget)}>
             <Maximize2 size={16} aria-hidden />
+          </IconButton>
+        )}
+        {onOpenExternal && (
+          <IconButton
+            label="Open in diff tool"
+            disabled={!diffTool || !path}
+            title={diffTool ? `Open in ${toolLabel(diffTool.name)}` : "No diff tool set — Settings › Diff tool"}
+            onClick={onOpenExternal}
+          >
+            <ExternalLink size={16} aria-hidden />
           </IconButton>
         )}
         <IconButton label="Unified view" on={view === "unified"} onClick={() => setView("unified")}>
