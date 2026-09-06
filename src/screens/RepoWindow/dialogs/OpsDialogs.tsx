@@ -6,10 +6,11 @@ import { Button } from "../../../components/ui/Button/Button";
 import { Checkbox } from "../../../components/ui/Checkbox/Checkbox";
 import { Dialog, DialogText, Field, FieldRow, Mono, Options } from "../../../components/ui/Dialog/Dialog";
 import { Input, Select } from "../../../components/ui/Input/Input";
+import { useCommitStore } from "../../../store/commitStore";
 import { runOp } from "../../../store/opsStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { currentBranch, defaultRemote } from "../actions";
-import { fetchArgs, gitCmd, mergeArgs, pullArgs, pushArgs, rebaseArgs, resetArgs, resetBranchArgs } from "./gitArgs";
+import { cherryPickArgs, fetchArgs, gitCmd, mergeArgs, pullArgs, pushArgs, rebaseArgs, resetArgs, resetBranchArgs, revertArgs } from "./gitArgs";
 
 /** Remote names of the open repo. */
 export function useRemotes() {
@@ -360,6 +361,75 @@ export function MergeDialog({ onClose, branch: initial }: { onClose: () => void;
       <Field label="Commit message" help="Left empty git writes the default merge message">
         <Input aria-label="Commit message" placeholder={defaultMessage} value={message} onChange={(e) => setMessage(e.target.value)} spellCheck={false} />
       </Field>
+    </Dialog>
+  );
+}
+
+/**
+ * Cherry-pick / revert one commit picked in the grid. With "Commit right away" off git leaves the
+ * change staged and its message in `MERGE_MSG`, so the commit panel is prefilled from there; a merge
+ * commit has to name the parent the change is measured against.
+ */
+export function PickDialog({ onClose, mode, oid, short, summary, parents }: { onClose: () => void; mode: "cherryPick" | "revert"; oid: string; short: string; summary: string; parents: string[] }) {
+  const pick = mode === "cherryPick";
+  const [commitNow, setCommitNow] = useState(true);
+  const [recordOrigin, setRecordOrigin] = useState(false);
+  const [mainline, setMainline] = useState(1);
+  const noCommit = !commitNow;
+  // Only a merge commit takes `-m`; on a single-parent one git refuses the flag outright.
+  const m = parents.length > 1 ? mainline : null;
+  const preview = gitCmd(pick ? cherryPickArgs(oid, noCommit, recordOrigin, m) : revertArgs(oid, noCommit, m));
+
+  function submit() {
+    onClose();
+    const done = pick ? `Cherry-picked ${short}` : `Reverted ${short}`;
+    void runOp(pick ? `Cherry-picking ${short}…` : `Reverting ${short}…`, (id) => (pick ? ipc.cherryPick(id, oid, noCommit, recordOrigin, m) : ipc.revert(id, oid, noCommit, m)), {
+      success: noCommit ? `${done} — staged, commit to finish` : done,
+    }).then((r) => {
+      // git wrote `MERGE_MSG` and left the state clean — also when a pick stopped on conflicts, which
+      // with `-n` leaves no CHERRY_PICK_HEAD behind: nothing else would bring the message in. (A
+      // `-n` revert that stops does keep REVERT_HEAD; the state change prefills that one as well.)
+      if (noCommit && (r.ok || r.failure?.kind === "conflicts")) void useCommitStore.getState().prefillPending(true, { staged: true });
+    });
+  }
+
+  return (
+    <Dialog
+      title={`${pick ? "Cherry-pick" : "Revert"} ${short}`}
+      onClose={onClose}
+      onSubmit={submit}
+      preview={preview}
+      footer={
+        <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="primary" type="submit">
+            {pick ? "Cherry-pick" : "Revert"}
+          </Button>
+        </>
+      }
+    >
+      <DialogText>{summary}</DialogText>
+      {parents.length > 1 && (
+        <Field label="Mainline parent" help="A merge commit has no single diff: the change is measured against this parent">
+          <Select aria-label="Mainline parent" value={String(mainline)} onChange={(e) => setMainline(Number(e.target.value))} autoFocus>
+            {parents.map((p, i) => (
+              <option key={p} value={i + 1}>
+                {i + 1} — {p.slice(0, 7)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      )}
+      <Options>
+        <Checkbox checked={commitNow} onChange={setCommitNow} title="Off, the change lands staged and you write the commit yourself">
+          Commit right away
+        </Checkbox>
+        {pick && (
+          <Checkbox checked={recordOrigin} onChange={setRecordOrigin} title="Appends a “(cherry picked from commit …)” line to the message">
+            Record the source commit (-x)
+          </Checkbox>
+        )}
+      </Options>
     </Dialog>
   );
 }

@@ -13,7 +13,7 @@ import { useDialogStore } from "../../store/dialogStore";
 import { useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
 import { useShowWorkingTree, useStatusStore } from "../../store/statusStore";
-import { checkoutBranch, mergeAbort, openCommitPanel, rebaseAbort, rebaseContinue } from "./actions";
+import { checkoutBranch, cherryPickAbort, mergeAbort, openCommitPanel, rebaseAbort, rebaseContinue, revertAbort } from "./actions";
 import { computeBanners, defaultBranch, type BannerAction } from "./banners";
 import { CommitPanel, useCommitSync } from "./CommitPanel/CommitPanel";
 import { DetailsPane } from "./DetailsPane";
@@ -150,6 +150,12 @@ function StateBanners() {
         break;
       case "rebaseContinue":
         void rebaseContinue();
+        break;
+      case "cherryPickAbort":
+        void cherryPickAbort();
+        break;
+      case "revertAbort":
+        void revertAbort();
         break;
       case "commitMerge":
       case "openCommitPanel":

@@ -5,7 +5,7 @@ import { ask } from "@tauri-apps/plugin-dialog";
 import { create } from "zustand";
 import * as ipc from "../api/ipc";
 import { toAppError } from "../api/ipc";
-import type { AppError, Author, ConflictSide, FileChange, FileDiff, FileStatus, StatusEntry, WorkdirStatus } from "../api/types";
+import type { AppError, Author, ConflictSide, FileChange, FileDiff, FileStatus, RepoState, StatusEntry, WorkdirStatus } from "../api/types";
 import { joinMessage, pushHistory, splitMessage } from "../lib/msgHistory";
 import { EMPTY_SELECTION, pruneSelection, type Selection } from "../lib/multiSelect";
 import { useDiffStore } from "./diffStore";
@@ -105,12 +105,12 @@ export interface CommitStore {
   /** Turning amend on prefills the editor from HEAD unless the user already typed something. */
   setAmend(on: boolean): Promise<void>;
   /**
-   * A merge that stopped for conflicts (`on`) prefills the editor from `MERGE_MSG`, the way
+   * A merge / cherry-pick / revert that stopped (`on`) prefills the editor from `MERGE_MSG`, the way
    * `git commit` would; ending it without a commit (abort) takes that prefill back. Neither touches
-   * a message the user typed. Merge only: every other sequencer state is finished in a terminal, so
-   * its `MERGE_MSG` would fill an editor nothing can commit from.
+   * a message the user typed. `staged`: the caller is a `--no-commit` pick, which left the state
+   * clean with the change staged — the message is still git's to hand over.
    */
-  prefillPending(on: boolean): Promise<void>;
+  prefillPending(on: boolean, opts?: { staged?: boolean }): Promise<void>;
   /** Fills the editor from a history entry. */
   useMessage(message: string): void;
   /** Resolves the new oid, or `null` when nothing was committed (invalid state / failure). */
@@ -135,6 +135,9 @@ const EMPTY_STATS = { unstaged: {}, staged: {} };
 const NO_ORDER = { unstaged: null, staged: null };
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
+/** States that stop with a message prepared and are finished by a plain commit from the panel. */
+const PENDING = new Set<RepoState>(["merge", "cherryPick", "revert"]);
 
 /** Nothing the user typed is in the editor: it is empty, or holds exactly what the last prefill put there. */
 const untouched = ({ summary, body, prefill }: CommitStore) =>
@@ -408,9 +411,9 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       set({ summary: split.summary, body: split.body, prefill: { ...split, from: "amend" } });
     },
 
-    async prefillPending(on) {
+    async prefillPending(on, { staged = false } = {}) {
       if (!on) {
-        // Aborted: the editor holds a message for a merge that is no longer happening. An amend
+        // Aborted: the editor holds a message for an operation that is no longer happening. An amend
         // prefill (HEAD's message) or a history pick is still the user's, so those stay.
         if (get().prefill?.from === "pending" && untouched(get())) set({ summary: "", body: "", prefill: null });
         return;
@@ -419,8 +422,12 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       if (!id) return;
       const mySeq = ++prefillSeq;
       const message = await ipc.getMergeMessage(id).catch(() => null);
-      // The merge may have ended (or the repo changed) while the read was in flight.
-      if (mySeq !== prefillSeq || !message || repoId() !== id || useRepoStore.getState().refs?.state !== "merge" || !untouched(get())) return;
+      // The operation may have ended (or the repo changed) while the read was in flight: a message
+      // for an aborted pick must not land. A `--no-commit` pick usually never entered a pending
+      // state — but a conflicting `-n` revert does keep `REVERT_HEAD` (a `-n` cherry-pick does not).
+      const state = useRepoStore.getState().refs?.state;
+      const live = !!state && (PENDING.has(state) || (staged && state === "clean"));
+      if (mySeq !== prefillSeq || !message || repoId() !== id || !live || !untouched(get())) return;
       const split = splitMessage(message);
       set({ summary: split.summary, body: split.body, prefill: { ...split, from: "pending" } });
     },
@@ -492,13 +499,13 @@ useRepoStore.subscribe((st, prev) => {
   if (st.repo?.id !== prev.repo?.id) useCommitStore.getState().reset();
 });
 
-// A merge that stops for conflicts leaves the message it prepared behind; the editor opens with it,
-// as `git commit` would, and gives it back when the merge ends without a commit.
+// A merge / cherry-pick / revert that stops leaves the message it prepared behind; the editor opens
+// with it, as `git commit` would, and gives it back when the operation ends without a commit.
 useRepoStore.subscribe((st, prev) => {
   const state = st.refs?.state;
   // A switch between two repos both mid-operation is a change too (the reset above ran first).
   if (!state || (state === prev.refs?.state && st.repo?.id === prev.repo?.id)) return;
-  void useCommitStore.getState().prefillPending(state === "merge");
+  void useCommitStore.getState().prefillPending(PENDING.has(state));
 });
 
 // `setContext` reloads the details-pane diff only. The panel's is built with the same setting, so it

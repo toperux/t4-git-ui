@@ -1,6 +1,7 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, Copy, GitBranch, GitCommitHorizontal, GitMerge, ListRestart, Plus, RotateCcw, Search, Tag, Trash2 } from "lucide-react";
+import { Cherry, ChevronDown, Copy, GitBranch, GitCommitHorizontal, GitMerge, ListRestart, Plus, RotateCcw, Search, Tag, Trash2, Undo2 } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import type { CommitInfo } from "../../../api/types";
 import { Button } from "../../../components/ui/Button/Button";
 import { EmptyState } from "../../../components/ui/EmptyState/EmptyState";
 import { ContextMenu, MenuItem, MenuRef, MenuSeparator } from "../../../components/ui/Menu/Menu";
@@ -48,10 +49,10 @@ export function RevisionGrid() {
   const gridId = useId();
 
   const gridRef = useRef<HTMLDivElement>(null);
-  const [menu, setMenu] = useState<{ at: { x: number; y: number }; oid: string; el: HTMLElement | null } | null>(null);
+  const [menu, setMenu] = useState<{ at: { x: number; y: number }; commit: CommitInfo; el: HTMLElement | null } | null>(null);
   // Not the row: it is virtualized and the dialog's action refreshes the walk, so it is detached by the
   // time focus should come back. The grid container outlives both.
-  const onRowMenu = useCallback((at: { x: number; y: number }, oid: string) => setMenu({ at, oid, el: gridRef.current }), []);
+  const onRowMenu = useCallback((at: { x: number; y: number }, commit: CommitInfo) => setMenu({ at, commit, el: gridRef.current }), []);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
@@ -87,12 +88,12 @@ export function RevisionGrid() {
     // Shift+F10 / Menu key opens the context menu of the selected commit row.
     if (e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey)) {
       const i = st.wtSelected ? null : st.selectedIndex;
-      const oid = i === null ? null : (st.rows[i]?.row.commit.oid ?? null);
-      if (i === null || !oid) return;
+      const commit = i === null ? null : (st.rows[i]?.row.commit ?? null);
+      if (i === null || !commit) return;
       e.preventDefault();
       const r = scrollRef.current?.getBoundingClientRect();
       const y = (r?.top ?? 0) + (i + offset) * rowH - (scrollRef.current?.scrollTop ?? 0) + rowH;
-      setMenu({ at: { x: (r?.left ?? 0) + 24, y }, oid, el: e.currentTarget });
+      setMenu({ at: { x: (r?.left ?? 0) + 24, y }, commit, el: e.currentTarget });
       return;
     }
     let next: number | null = null;
@@ -230,16 +231,16 @@ export function RevisionGrid() {
 
 /**
  * Commit row actions, grouped by what each one moves: HEAD (checkout a branch here / detached, reset
- * the current branch here), the current branch's history (merge / rebase, reset a branch to its
- * remote), new refs (branch / tag here), the clipboard (copy SHA), and last the refs here that can
+ * the current branch here), the current branch's history (merge / rebase / cherry-pick / revert,
+ * reset a branch to its remote), new refs (branch / tag here), the clipboard (copy SHA), and last the refs here that can
  * go (delete a local / remote branch, a tag).
  */
-function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number }; oid: string; el: HTMLElement | null } | null; onClose: () => void }) {
+function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number }; commit: CommitInfo; el: HTMLElement | null } | null; onClose: () => void }) {
   const open = useDialogStore((st) => st.open);
   const running = useOpsStore(selectRunning);
   const refs = useRepoStore((st) => st.refs);
   if (!menu) return null;
-  const oid = menu.oid;
+  const { oid, summary, parents } = menu.commit;
   const short = oid.slice(0, 7);
   const current = refs?.local.find((b) => b.isHead)?.name ?? "HEAD";
   const branches = commitBranchActions(refs, oid);
@@ -258,10 +259,10 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
   const mergeTitle = m.length > 0 ? `Merge ${m[0].name} into ${current}…` : `Merge commit ${short} into ${current}…`;
   const onto = branches.rebaseOnto;
   const rebaseTitle = `Rebase ${current} onto ${onto ? onto.name : "here"}…`;
-  // The history group is the only one that can be empty (HEAD's own commit, no reset-to-remote item):
-  // its separator hangs off the same condition so two never end up side by side. `canRebase` implies
-  // the merge condition, so the merge one covers both items.
-  const integrate = (!branches.headCommit && !branches.unborn) || branches.reset.length > 0;
+  // The history group is the only one that can be empty (an unborn HEAD, no reset-to-remote item):
+  // its separator hangs off the same condition so two never end up side by side. Revert is the item
+  // with the widest condition, so it covers merge / rebase / cherry-pick too.
+  const integrate = !branches.unborn || branches.reset.length > 0;
   return (
     <ContextMenu at={menu.at} onClose={onClose} label="Commit actions">
       {branches.checkout.length === 1 && (
@@ -329,6 +330,32 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
             <span className={s.menuBranch}>
               onto {onto ? <MenuRef remote={onto.remote !== null}>{onto.name}</MenuRef> : "here"}…
             </span>
+          </span>
+        </MenuItem>
+      )}
+      {/* Picking HEAD onto itself records nothing; an unborn HEAD has no commit to apply onto. */}
+      {!branches.headCommit && !branches.unborn && (
+        <MenuItem
+          icon={<Cherry size={16} aria-hidden />}
+          title={`Cherry-pick ${short} onto ${current}`}
+          {...op}
+          onClick={run(() => openDialog({ kind: "cherryPick", oid, short, summary, parents }))}
+        >
+          <span className={s.menuLabel}>
+            Cherry-pick <MenuRef>{short}</MenuRef>…
+          </span>
+        </MenuItem>
+      )}
+      {/* HEAD's own commit reverts fine: the undo lands on top of it. */}
+      {!branches.unborn && (
+        <MenuItem
+          icon={<Undo2 size={16} aria-hidden />}
+          title={`Revert ${short} on ${current}`}
+          {...op}
+          onClick={run(() => openDialog({ kind: "revert", oid, short, summary, parents }))}
+        >
+          <span className={s.menuLabel}>
+            Revert <MenuRef>{short}</MenuRef>…
           </span>
         </MenuItem>
       )}

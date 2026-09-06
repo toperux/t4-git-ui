@@ -47,6 +47,15 @@ pub struct MergeOpts {
     pub message: Option<String>,
 }
 
+/// Options shared by `cherry-pick` and `revert` (`record_origin` is cherry-pick's `-x`).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct PickOpts {
+    pub no_commit: bool,
+    pub record_origin: bool,
+    /// Which parent of a merge commit the change is measured against (`-m N`).
+    pub mainline: Option<u32>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct CloneOpts {
@@ -73,7 +82,7 @@ pub enum OpFailure {
     Rejected {
         message: String,
     },
-    /// Last `fatal:` / `error:` line (or the last stderr line).
+    /// Last `fatal:` / `error:` line (or, for advice without one, the first stderr line).
     Other {
         message: String,
     },
@@ -183,6 +192,47 @@ pub fn rebase_abort() -> Vec<String> {
 
 pub fn merge_abort() -> Vec<String> {
     args(["merge", "--abort"])
+}
+
+/// `cherry-pick [-n] [-x] [-m N] <oid>`
+pub fn cherry_pick(oid: &str, opts: &PickOpts) -> Vec<String> {
+    let mut a = args(["cherry-pick"]);
+    if opts.no_commit {
+        a.push("-n".into());
+    }
+    if opts.record_origin {
+        a.push("-x".into());
+    }
+    if let Some(m) = opts.mainline {
+        a.push("-m".into());
+        a.push(m.to_string());
+    }
+    a.push(oid.into());
+    a
+}
+
+/// `revert --no-edit [-n] [-m N] <oid>` (`record_origin` has no revert
+/// equivalent). `--no-edit` takes git's own "Revert …" message instead of
+/// leaning on the runner's `GIT_EDITOR=true`.
+pub fn revert(oid: &str, opts: &PickOpts) -> Vec<String> {
+    let mut a = args(["revert", "--no-edit"]);
+    if opts.no_commit {
+        a.push("-n".into());
+    }
+    if let Some(m) = opts.mainline {
+        a.push("-m".into());
+        a.push(m.to_string());
+    }
+    a.push(oid.into());
+    a
+}
+
+pub fn cherry_pick_abort() -> Vec<String> {
+    args(["cherry-pick", "--abort"])
+}
+
+pub fn revert_abort() -> Vec<String> {
+    args(["revert", "--abort"])
 }
 
 /// `checkout [--track] [-b <name>] [--detach] <target>`; `track` only applies
@@ -419,11 +469,13 @@ pub fn classify_failure(code: i32, stdout: &str, stderr: &str) -> OpFailure {
             message: line.to_string(),
         };
     }
+    // Without a `fatal:` / `error:` line git is giving advice, and advice leads with the headline
+    // ("The previous cherry-pick is now empty…") and ends with a hint ("Otherwise, please use…").
     let message = stderr
         .lines()
         .map(str::trim)
         .rfind(|l| l.starts_with("fatal:") || l.starts_with("error:"))
-        .or_else(|| stderr.lines().map(str::trim).rfind(|l| !l.is_empty()))
+        .or_else(|| stderr.lines().map(str::trim).find(|l| !l.is_empty()))
         .map(String::from)
         .unwrap_or_else(|| format!("git exited with code {code}"));
     OpFailure::Other { message }
@@ -605,6 +657,43 @@ mod tests {
     }
 
     #[test]
+    fn cherry_pick_and_revert_args() {
+        assert_eq!(
+            cherry_pick("abc1234", &PickOpts::default()),
+            ["cherry-pick", "abc1234"]
+        );
+        assert_eq!(
+            cherry_pick(
+                "abc1234",
+                &PickOpts {
+                    no_commit: true,
+                    record_origin: true,
+                    mainline: Some(2),
+                }
+            ),
+            ["cherry-pick", "-n", "-x", "-m", "2", "abc1234"]
+        );
+        assert_eq!(
+            revert("abc1234", &PickOpts::default()),
+            ["revert", "--no-edit", "abc1234"]
+        );
+        // `-x` has no revert equivalent: it is ignored, `-n` and `-m` are not.
+        assert_eq!(
+            revert(
+                "abc1234",
+                &PickOpts {
+                    no_commit: true,
+                    record_origin: true,
+                    mainline: Some(1),
+                }
+            ),
+            ["revert", "--no-edit", "-n", "-m", "1", "abc1234"]
+        );
+        assert_eq!(cherry_pick_abort(), ["cherry-pick", "--abort"]);
+        assert_eq!(revert_abort(), ["revert", "--abort"]);
+    }
+
+    #[test]
     fn checkout_and_branch_args() {
         assert_eq!(checkout("main", None, true, false), ["checkout", "main"]);
         assert_eq!(
@@ -760,6 +849,16 @@ mod tests {
             classify_failure(3, "", ""),
             OpFailure::Other {
                 message: "git exited with code 3".into()
+            }
+        );
+        // Advice without an error line: the headline, not the closing hint.
+        let empty = "The previous cherry-pick is now empty, possibly due to conflict resolution.\nIf you wish to commit it anyway, use:\n\n    git commit --allow-empty\n\nOtherwise, please use 'git cherry-pick --skip'\n";
+        assert_eq!(
+            classify_failure(1, "", empty),
+            OpFailure::Other {
+                message:
+                    "The previous cherry-pick is now empty, possibly due to conflict resolution."
+                        .into()
             }
         );
     }

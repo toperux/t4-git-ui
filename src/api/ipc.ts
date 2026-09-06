@@ -209,6 +209,18 @@ export const rebaseAbort = (id: RepoId) => call<OpResult>("rebase_abort", { id }
 
 export const mergeAbort = (id: RepoId) => call<OpResult>("merge_abort", { id });
 
+/** `git cherry-pick [-n] [-x] [-m <mainline>] <oid>` */
+export const cherryPick = (id: RepoId, oid: string, noCommit: boolean, recordOrigin: boolean, mainline: number | null) =>
+  call<OpResult>("cherry_pick", { id, oid, noCommit, recordOrigin, mainline });
+
+/** `git revert --no-edit [-n] [-m <mainline>] <oid>` */
+export const revert = (id: RepoId, oid: string, noCommit: boolean, mainline: number | null) =>
+  call<OpResult>("revert", { id, oid, noCommit, mainline });
+
+export const cherryPickAbort = (id: RepoId) => call<OpResult>("cherry_pick_abort", { id });
+
+export const revertAbort = (id: RepoId) => call<OpResult>("revert_abort", { id });
+
 /** `git checkout [--track] [-b <createBranch>] [--detach] <target>`; `track` only applies with `createBranch`, `detach` only without it. */
 export const checkout = (id: RepoId, target: string, createBranch: string | null, track: boolean, detach = false) =>
   call<OpResult>("checkout", { id, target, createBranch, track, detach });

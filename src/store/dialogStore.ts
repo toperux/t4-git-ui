@@ -14,6 +14,8 @@ export type DialogSpec =
   | { kind: "diff" }
   | { kind: "merge"; branch?: string }
   | { kind: "rebase"; onto?: string }
+  /** Cherry-pick / revert one commit from its row; `parents` decides whether a mainline is asked for. */
+  | { kind: "cherryPick" | "revert"; oid: string; short: string; summary: string; parents: string[] }
   | { kind: "checkout" }
   /**
    * Pick one of several branches sitting at a commit. A remote one (`remote` set) is checked out

@@ -237,11 +237,13 @@ core.commentChar` is set and unset inside K10 alone._
       flat list with no working-tree row → toolbar **Commit** → the search field empties, the graph
       is back, the working-tree row is selected and the panel is open; mid-merge (after H1), the
       same via the banner's **Commit merge**
-- [x] **Only a merge prefills the message** (§5, mid-merge for the second half): Run git command…
-      `cherry-pick <sha>` with the `many files (300)` commit's SHA (Copy SHA on its row; it is
-      already in `main`, so the pick stops empty) → the banner reads "Cherry-pick in progress — finish
-      or abort it in a terminal" and the commit editor stays **empty**; `git cherry-pick --abort`.
-      Then in H1's merge, open the panel, pick an entry from **Message history** (the clock icon),
+- [x] **Only a stopped operation prefills the message** (§5, mid-merge for the second half): Run git
+      command… `cherry-pick <sha>` with the `many files (300)` commit's SHA (Copy SHA on its row; it
+      is already in `main`, so the pick stops empty) → the banner reads "Cherry-pick in progress —
+      resolve conflicts, then commit to finish" with **Abort** and **Commit**, and the editor holds
+      the picked commit's message (since group U a cherry-pick / revert prefills like a merge; before
+      that the editor stayed empty and the banner pointed at a terminal); **Abort** takes the
+      prefill back. Then in H1's merge, open the panel, pick an entry from **Message history** (the clock icon),
       **Abort** the merge → the picked message is still in the editor (only the merge's own prefill
       is taken back)
 - [x] **`core.commentChar`** (§5): `git config core.commentChar ";"` in `work`, start H1's merge →
@@ -457,6 +459,53 @@ _Shipped 2026-09-06 (this commit); walked the same day over CDP on the installed
       there at once, without a fetch (`recents.json` holds `remoteTags:<repo>`)
 - [x] **No remote, no badge**: a repository with a tag and no remote → the tag is plain, no toast
 
+## U. Cherry-pick and revert (main §2, §5)
+_Shipped 2026-09-07 (this commit); walked the same day over CDP on the installed build in `work` (`main` at `odd files`, its six unstaged edits left alone), `git log` / `git status` read from a shell after each step, the fixture put back afterwards (`reset --mixed` to `odd files`, `conflict.txt` checked out, the picked files removed). Git's own rules the UI leans on: a `-n` pick that applies cleanly leaves the change staged with `MERGE_MSG` written and no `CHERRY_PICK_HEAD`; a `-n` pick that conflicts leaves no `CHERRY_PICK_HEAD` either (so no in-progress banner — the conflicts banner and the prefilled editor are what you get, git 2.55), while a `-n` revert that conflicts does keep `REVERT_HEAD` (banner with Abort, editor prefilled); a plain commit from the panel clears `CHERRY_PICK_HEAD` / `REVERT_HEAD`._
+
+- [x] **The row menu** (§2): right-click `topic/nested (folder branch)` → after Rebase: `Cherry-pick
+      0aa57e5…`, `Revert 0aa57e5…`; on HEAD's own row only `Revert …` (picking HEAD onto itself
+      records nothing)
+- [x] **A clean pick** (§2): **Cherry-pick 0aa57e5…** → dialog `Cherry-pick 0aa57e5` with the
+      summary, **Commit right away** (on), **Record the source commit (-x)** (off), preview
+      `Runs git cherry-pick 0aa57e5…` → **Cherry-pick** → toast `Cherry-picked 0aa57e5`, the commit
+      sits on `main` under the working-tree row, no banner
+- [x] **Commit right away off** (§5): pick `twins (three branches here)` with the box unticked →
+      preview `git cherry-pick -n …` → toast `Cherry-picked e6cbe9a — staged, commit to finish`,
+      the working tree gains the staged file and the commit editor's Summary reads `twins (three
+      branches here)` (from `MERGE_MSG`; the state stays clean). Undo from a shell: `git restore
+      --staged twins.txt` and delete the file
+- [x] **A conflicting pick, aborted** (§5): pick `conflict branch side` → toast `1 conflict — resolve
+      in the commit panel`; banners `Cherry-pick in progress — resolve conflicts, then commit to
+      finish` (**Abort**, **Commit**) and `1 file has conflicts — resolve, then stage it`; the status
+      bar says `Cherry-pick in progress`; the editor's Summary reads `conflict branch side` →
+      **Abort** → toast `Cherry-pick aborted`, both banners gone, the Summary empty again (the
+      prefill was taken back)
+- [x] **A conflicting pick, finished** (§5): the same pick again → resolve `conflict.txt` and stage
+      it (from a shell or the panel) → the banner's **Commit** opens the panel with the message in
+      place → the panel's **Commit** → the commit lands as `conflict branch side` on `main`,
+      `CHERRY_PICK_HEAD` is gone, banners gone, status bar `Clean`
+- [x] **Revert HEAD** (§2): right-click the new HEAD row → `Revert 9217e5e…` → dialog `Revert
+      9217e5e` (summary, **Commit right away**, no `-x` box), preview `Runs git revert --no-edit
+      9217e5e…` → **Revert** → toast `Reverted 9217e5e`, HEAD is `Revert "conflict branch side"`
+- [x] **A merge commit asks for its mainline** (§2): right-click `merge feature` → **Revert
+      1574561…** → the dialog adds **Mainline parent** (`1 — 9f87c5f`, with the help line) and the
+      preview reads `git revert --no-edit -m 1 …`; **Cancel**
+- [x] **An empty pick** (§5): **Cherry-pick 9099161…** on `nested folders` (already in `main`) →
+      toast `Operation failed — The previous cherry-pick is now empty, possibly due to conflict
+      resolution.`, the in-progress banner with **Abort** / **Commit** and nothing staged →
+      **Abort** → clean, no banner
+- [x] **Commit right away off and a conflict** (§5): pick `conflict branch side` with the box
+      unticked → toast `1 conflict — resolve in the commit panel`, only the conflicts banner (no
+      `CHERRY_PICK_HEAD`, the status bar still says `Clean`), and the editor's Summary reads
+      `conflict branch side`; resolve, stage and commit from the panel, or from a shell `git reset
+      -- conflict.txt && git checkout -- conflict.txt` to drop it
+- [x] **Commit right away off and a conflicting revert** (§5): from a shell, commit a further edit to
+      `conflict.txt` on `main`, then **Revert 837a5a9…** (`main side of the conflict`) with the box
+      unticked → preview `git revert --no-edit -n …` → the `Revert in progress` banner (**Abort**,
+      **Commit**) and the conflicts banner both show (a `-n` revert keeps `REVERT_HEAD`, unlike a
+      `-n` pick), the status bar says `Revert in progress`, the Summary reads `Revert "main side of
+      the conflict"` → **Abort** → toast `Revert aborted`, `Clean`, the Summary empty; `git reset
+      --mixed 00d78d3` drops the throwaway commit
 ## W. Remote tag check (main §1)
 _Shipped 2026-09-07 (this commit); walked the same day over CDP on the installed build in `work` (origin re-pointed at a missing path from a shell for the failure step and restored) and a throwaway remote-less repository. The `local` badge was only as fresh as the last fetch / push / pull / delete-on-remote from this app, and an `ls-remote` that failed (offline, auth without a terminal to prompt in) was swallowed. Now the cached answer carries the time it was given, the badge's tooltip says how old it is, `Refresh remote tags` on any tag row re-asks and reports, and a failed check toasts instead of leaving badges that quietly disagree with git._
 

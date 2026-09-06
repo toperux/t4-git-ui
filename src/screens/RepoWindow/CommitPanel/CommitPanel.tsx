@@ -78,7 +78,7 @@ export function DiffColumn() {
   // Staging an unresolved file marks it resolved and drops its three index stages — git's own
   // behaviour, and no unstage brings them back. The markers are still in the file, so say so and
   // offer the one command that undoes it. Only mid-merge: a marker in a file is otherwise just text.
-  const merging = state === "merge" || state === "rebase";
+  const merging = state === "merge" || state === "rebase" || state === "cherryPick" || state === "revert";
   const stranded = merging && !conflicted && !!diff && hasMarkers(diff);
   // Discard rewrites the working file: only a plain unstaged diff has one to rewrite (the staged
   // list edits the index, and untracked / conflicted files are whole-file anyway).

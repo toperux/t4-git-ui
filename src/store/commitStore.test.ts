@@ -482,16 +482,48 @@ describe("commitStore.prefillPending", () => {
     expect(useCommitStore.getState()).toMatchObject({ summary: "", body: "", prefill: null });
   });
 
-  it("never reads MERGE_MSG for a state the panel cannot commit (a stopped rebase / cherry-pick)", async () => {
-    // Both write MERGE_MSG, but the banner sends the user to a terminal and the empty status drops
-    // the working-tree selection: the message would sit in an editor with a disabled Commit.
+  it("never reads MERGE_MSG for a stopped rebase: it is finished with Continue, not a commit", async () => {
+    // A rebase writes MERGE_MSG too, but its banner continues rather than commits: the message
+    // would sit in an editor with a disabled Commit.
     mocked.getMergeMessage.mockResolvedValue("Fix the parser");
     useRepoStore.setState({ refs: { ...REFS, state: "rebase" } });
     await flush();
-    useRepoStore.setState({ refs: { ...REFS, state: "cherryPick" } });
-    await flush();
     expect(mocked.getMergeMessage).not.toHaveBeenCalled();
     expect(useCommitStore.getState()).toMatchObject({ summary: "", body: "", prefill: null });
+  });
+
+  it("a stopped cherry-pick prefills like a merge, and aborting takes it back", async () => {
+    mocked.getMergeMessage.mockResolvedValue("Add the parser\n\nwhy\n");
+    useRepoStore.setState({ refs: { ...REFS, state: "cherryPick" } });
+    await flush();
+    expect(useCommitStore.getState()).toMatchObject({ summary: "Add the parser", body: "why", prefill: { from: "pending" } });
+
+    useRepoStore.setState({ refs: { ...REFS, state: "clean" } });
+    await flush();
+    expect(useCommitStore.getState()).toMatchObject({ summary: "", body: "", prefill: null });
+  });
+
+  it("a --no-commit pick prefills from the clean state it leaves, and an abort mid-read drops it", async () => {
+    // `-n` never enters a pending state: git wrote MERGE_MSG and left the state clean.
+    mocked.getMergeMessage.mockResolvedValue("Add the parser");
+    await useCommitStore.getState().prefillPending(true, { staged: true });
+    expect(useCommitStore.getState()).toMatchObject({ summary: "Add the parser", prefill: { from: "pending" } });
+
+    // A conflicting `-n` revert does stop in `revert`: the dialog's read lands there too.
+    useCommitStore.getState().reset();
+    useRepoStore.setState({ refs: { ...REFS, state: "revert" } });
+    await useCommitStore.getState().prefillPending(true, { staged: true });
+    expect(useCommitStore.getState()).toMatchObject({ summary: "Add the parser", prefill: { from: "pending" } });
+    useRepoStore.setState({ refs: { ...REFS, state: "clean" } });
+
+    useCommitStore.getState().reset();
+    let resolveMsg!: (m: string) => void;
+    mocked.getMergeMessage.mockImplementationOnce(() => new Promise<string>((r) => (resolveMsg = r)));
+    const pending = useCommitStore.getState().prefillPending(true);
+    useRepoStore.setState({ refs: { ...REFS, state: "clean" } });
+    resolveMsg("Add the parser");
+    await pending;
+    expect(useCommitStore.getState()).toMatchObject({ summary: "", prefill: null });
   });
 
   it("an abort keeps a Message-history pick: the user chose it, the merge did not", async () => {

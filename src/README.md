@@ -60,7 +60,8 @@ src/
                            resolveConflict(paths, side, label) (ask, then
                            `resolve_conflict` = `checkout --ours|--theirs` + add; a path whose chosen side the other branch
                            deleted is resolved as a removal instead), setAmend (get_head_message prefill), prefillPending
-                           (get_merge_message prefill when `refs.state` becomes `merge`, taken back on abort), useMessage, commit
+                           (get_merge_message prefill when `refs.state` becomes `merge` / `cherryPick` / `revert`, taken back on
+                           abort; `{staged: true}` for a `--no-commit` pick, which leaves the state clean), useMessage, commit
                            (→ oid | null, clears the editor incl. after an amend, msgHistory, toast, status + refs refresh),
                            reset on repo change
     recentsStore.ts        zustand: RecentRepo{path,name,lastOpened,pinned} persisted via lib/kv; load (migrates the M1
@@ -160,17 +161,21 @@ src/
                            folder rows under Local and under each remote; a `mergedInto` branch (never the current one, nor a protected main / master / remote-default) is muted with a
                            `merged` badge; context menus per ref kind on right-click / Shift+F10, double-click = checkout),
                            actions.ts (fetchDefault / checkout* / stash* / copyText / refreshAll / switchRepo / pickAndOpenRepo /
-                           closeRepo / runGit — the git ones through runOp; runGit with `quietFailure`: no toast on a
+                           closeRepo / runGit, plus the banner aborts merge/rebase/cherryPick/revertAbort — the git ones through runOp; runGit with `quietFailure`: no toast on a
                            non-zero exit unless conflicts / auth / non-fast-forward / diverged, the dock's exit line says it;
                            busyLabel cuts the label by code point with a marker runOp keeps),
-                           banners.ts (pure refs+status → detached | merge | rebase | sequencer (cherry-pick/revert/bisect,
+                           banners.ts (pure refs+status → detached | merge | rebase | cherryPick | revert (each Abort +
+                           the way forward: Commit for merge / pick / revert, Continue for rebase) | sequencer (bisect,
                            text only — no backend abort) | conflicts banners),
                            useShortcuts.ts (Ctrl+Shift+U push, Ctrl+Shift+L pull, Ctrl+Shift+R run git command, Ctrl+B branch,
                            Ctrl+F5 fetch, F5 refresh; Ctrl+` also inside text fields — it is the only way out of the dock prompt),
                            dialogs/ (DialogHost + OpsDialogs Push/Push tag + Delete remote tag (`refs/tags/<name>` with a
                            remote picker, from the sidebar tag menu)/Pull/Fetch/Merge/Rebase — Merge and Rebase take a commit oid as
                            well as a branch, shown as an extra 7-char option; a commit merge defaults to git's
-                           `Merge commit '<short>'` message —, RefDialogs Checkout picker /
+                           `Merge commit '<short>'` message — and PickDialog (kinds `cherryPick` / `revert`, one commit
+                           from its row: Commit right away (off → `-n`, the change lands staged and the panel is
+                           prefilled from `MERGE_MSG`), cherry-pick's Record the source commit (`-x`), and a Mainline
+                           parent Select on a merge commit only (`-m N`)), RefDialogs Checkout picker /
                            Create-Rename-Delete branch / remote branch / tags, RemoteDialogs Add / Rename / Change URL /
                            Remove (a remote itself), StashDialogs, DiffDialog (the selected commit's / compare's
                            changed files + diff as a full-window dialog, off the diff header's expand button),

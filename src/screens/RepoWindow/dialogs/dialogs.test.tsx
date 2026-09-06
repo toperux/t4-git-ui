@@ -5,7 +5,7 @@ import { useCmdHistoryStore } from "../../../store/cmdHistoryStore";
 import { useOpsStore } from "../../../store/opsStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { useToastStore } from "../../../store/toastStore";
-import { DeleteRemoteTagDialog, MergeDialog, PullDialog, PushDialog, PushTagDialog, RebaseDialog, ResetBranchDialog, ResetDialog } from "./OpsDialogs";
+import { DeleteRemoteTagDialog, MergeDialog, PickDialog, PullDialog, PushDialog, PushTagDialog, RebaseDialog, ResetBranchDialog, ResetDialog } from "./OpsDialogs";
 import { CheckoutBranchDialog, CheckoutDialog, CreateBranchDialog, CreateTagDialog, DeleteTagDialog } from "./RefDialogs";
 import { AddRemoteDialog, RemoveRemoteDialog, RenameRemoteDialog, SetRemoteUrlDialog } from "./RemoteDialogs";
 import { RunCommandDialog } from "./RunCommandDialog";
@@ -17,6 +17,8 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
     push: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     merge: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     rebase: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
+    cherryPick: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
+    revert: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     pull: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     reset: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     resetBranch: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
@@ -35,6 +37,7 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
     // Every remote op refreshes the remote's tags; a failure there toasts, which these tests would see.
     remoteTags: vi.fn(() => Promise.resolve([])),
     getConfig: vi.fn(() => Promise.resolve(null)),
+    getMergeMessage: vi.fn(() => Promise.resolve("Add the parser")),
     getStatus: vi.fn(() => new Promise(() => {})),
     getRefs: vi.fn(() => new Promise(() => {})),
   };
@@ -45,6 +48,8 @@ const mocked = ipc as unknown as Record<
   | "push"
   | "merge"
   | "rebase"
+  | "cherryPick"
+  | "revert"
   | "pull"
   | "reset"
   | "resetBranch"
@@ -55,6 +60,7 @@ const mocked = ipc as unknown as Record<
   | "deleteRemoteBranch"
   | "runGit"
   | "fetch"
+  | "getMergeMessage"
   | "addRemote"
   | "renameRemote"
   | "setRemoteUrl"
@@ -478,6 +484,53 @@ describe("RebaseDialog", () => {
     const second = render(<RebaseDialog onClose={() => {}} onto="feature/lane-graph" />);
     expect(second.getByRole("combobox", { name: "Onto" }).textContent).toBe("feature/lane-graph");
     expect(preview(second.getByRole("dialog"))).toBe("git rebase feature/lane-graph");
+  });
+});
+
+describe("PickDialog", () => {
+  const OID = "0123456789abcdef0123456789abcdef01234567";
+  const props = { oid: OID, short: "0123456", summary: "Add the parser", parents: ["p1p1p1p1p1p1p1p1p1p1p1p1p1p1p1p1p1p1p1p1"] };
+
+  it("previews each cherry-pick option and prefills the editor when the commit is left staged", async () => {
+    const onClose = vi.fn();
+    const { getByRole, queryByRole } = render(<PickDialog onClose={onClose} mode="cherryPick" {...props} />);
+    const dialog = getByRole("dialog", { name: "Cherry-pick 0123456" });
+    expect(preview(dialog)).toBe(`git cherry-pick ${OID}`);
+    // One parent: no mainline to choose.
+    expect(queryByRole("combobox", { name: "Mainline parent" })).toBeNull();
+    fireEvent.click(getByRole("checkbox", { name: "Record the source commit (-x)" }));
+    expect(preview(dialog)).toBe(`git cherry-pick -x ${OID}`);
+    fireEvent.click(getByRole("checkbox", { name: "Commit right away" }));
+    expect(preview(dialog)).toBe(`git cherry-pick -n -x ${OID}`);
+
+    fireEvent.click(getByRole("button", { name: "Cherry-pick" }));
+    expect(onClose).toHaveBeenCalled();
+    await waitFor(() => expect(mocked.cherryPick).toHaveBeenCalledWith("r", OID, true, true, null));
+    // `--no-commit` left the message in MERGE_MSG with the state clean: the panel takes it from there.
+    await waitFor(() => expect(mocked.getMergeMessage).toHaveBeenCalled());
+    expect(useToastStore.getState().toasts[0].title).toBe("Cherry-picked 0123456 — staged, commit to finish");
+  });
+
+  it("reverts with --no-edit and never offers -x", async () => {
+    const { getByRole, queryByRole } = render(<PickDialog onClose={() => {}} mode="revert" {...props} />);
+    const dialog = getByRole("dialog", { name: "Revert 0123456" });
+    expect(preview(dialog)).toBe(`git revert --no-edit ${OID}`);
+    expect(queryByRole("checkbox", { name: "Record the source commit (-x)" })).toBeNull();
+    fireEvent.click(getByRole("button", { name: "Revert" }));
+    await waitFor(() => expect(mocked.revert).toHaveBeenCalledWith("r", OID, false, null));
+    expect(useToastStore.getState().toasts[0].title).toBe("Reverted 0123456");
+  });
+
+  it("asks for a mainline parent on a merge commit only", async () => {
+    const parents = ["aaaaaaa000000000000000000000000000000000", "bbbbbbb000000000000000000000000000000000"];
+    const { getByRole } = render(<PickDialog onClose={() => {}} mode="revert" {...props} parents={parents} />);
+    const dialog = getByRole("dialog", { name: "Revert 0123456" });
+    expect(preview(dialog)).toBe(`git revert --no-edit -m 1 ${OID}`);
+    fireEvent.click(getByRole("combobox", { name: "Mainline parent" }));
+    fireEvent.click(getByRole("option", { name: "2 — bbbbbbb" }));
+    expect(preview(dialog)).toBe(`git revert --no-edit -m 2 ${OID}`);
+    fireEvent.click(getByRole("button", { name: "Revert" }));
+    await waitFor(() => expect(mocked.revert).toHaveBeenCalledWith("r", OID, false, 2));
   });
 });
 

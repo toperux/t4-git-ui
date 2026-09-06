@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use git_core::cli::ops::{
-    self as gitops, CloneOpts, FfMode, MergeOpts, OpFailure, PullMode, RemoteTag,
+    self as gitops, CloneOpts, FfMode, MergeOpts, OpFailure, PickOpts, PullMode, RemoteTag,
 };
 use git_core::cli::{CliEvent, CliOutput};
 use git_core::status::status;
@@ -266,6 +266,65 @@ pub async fn merge_abort(
     id: RepoId,
 ) -> Result<OpResult, AppError> {
     cli_op(&app, &state, &id, gitops::merge_abort(), false).await
+}
+
+#[tauri::command]
+pub async fn cherry_pick(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: RepoId,
+    oid: String,
+    no_commit: bool,
+    record_origin: bool,
+    mainline: Option<u32>,
+) -> Result<OpResult, AppError> {
+    let args = gitops::cherry_pick(
+        &oid,
+        &PickOpts {
+            no_commit,
+            record_origin,
+            mainline,
+        },
+    );
+    cli_op(&app, &state, &id, args, true).await
+}
+
+#[tauri::command]
+pub async fn revert(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: RepoId,
+    oid: String,
+    no_commit: bool,
+    mainline: Option<u32>,
+) -> Result<OpResult, AppError> {
+    let args = gitops::revert(
+        &oid,
+        &PickOpts {
+            no_commit,
+            record_origin: false,
+            mainline,
+        },
+    );
+    cli_op(&app, &state, &id, args, true).await
+}
+
+#[tauri::command]
+pub async fn cherry_pick_abort(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: RepoId,
+) -> Result<OpResult, AppError> {
+    cli_op(&app, &state, &id, gitops::cherry_pick_abort(), false).await
+}
+
+#[tauri::command]
+pub async fn revert_abort(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: RepoId,
+) -> Result<OpResult, AppError> {
+    cli_op(&app, &state, &id, gitops::revert_abort(), false).await
 }
 
 #[tauri::command]

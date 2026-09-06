@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use git2::{Repository, RepositoryInitOptions};
-use git_core::cli::ops::{self, FfMode, MergeOpts, OpFailure, PullMode};
+use git_core::cli::ops::{self, FfMode, MergeOpts, OpFailure, PickOpts, PullMode};
 use git_core::cli::{CliEvent, CliOutput, GitCli};
 use git_core::refs::{self, snapshot, RepoState};
 use git_core::status::status;
@@ -319,6 +319,143 @@ async fn rebase_conflict_then_abort_restores_head() {
     let h = t.repo.head().unwrap().peel_to_commit().unwrap();
     assert_eq!(h.summary().unwrap(), Some("feat"));
     assert_ne!(h.id(), feat);
+}
+
+#[tokio::test]
+async fn cherry_pick_lands_the_commit_stages_it_with_n_and_aborts_on_conflict() {
+    if !have_git() {
+        return;
+    }
+    let t = TempRepo::new();
+    let base = t.commit(&[("f.txt", "base\n")], "base");
+    t.branch("feat", base);
+    t.checkout("feat");
+    let feat = t.commit(&[("g.txt", "g\n")], "feat");
+    t.checkout("master");
+    let master = t.commit(&[("h.txt", "h\n")], "master");
+
+    // A clean pick lands a new commit carrying the source summary.
+    run_ok(
+        &t,
+        &ops::cherry_pick(&feat.to_string(), &PickOpts::default()),
+    )
+    .await;
+    let h = t.repo.head().unwrap().peel_to_commit().unwrap();
+    assert_eq!(h.summary().unwrap(), Some("feat"));
+    assert_ne!(h.id(), feat);
+    let picked = h.id();
+
+    // `-n`: staged, no commit, and git leaves no CHERRY_PICK_HEAD behind — the state stays clean.
+    t.branch("side", master);
+    t.checkout("side");
+    run_ok(
+        &t,
+        &ops::cherry_pick(
+            &picked.to_string(),
+            &PickOpts {
+                no_commit: true,
+                ..Default::default()
+            },
+        ),
+    )
+    .await;
+    let st = status(&t.repo).unwrap();
+    assert_eq!((st.staged, st.conflicted), (1, 0));
+    assert_eq!(RepoState::from(t.repo.state()), RepoState::Clean);
+    assert_eq!(head(&t), master);
+
+    // A conflicting pick (committing, as the dialog's default does) stops in `CherryPick`.
+    let t = TempRepo::new();
+    let (master, feat) = conflicting_branches(&t);
+    let (out, _) = run(
+        t.path(),
+        &ops::cherry_pick(&feat.to_string(), &PickOpts::default()),
+    )
+    .await;
+    match failure(&out) {
+        OpFailure::Conflicts { paths } => assert_eq!(paths, ["f.txt"]),
+        other => panic!("{other:?}\n{}\n{}", out.stdout, out.stderr),
+    }
+    reload(&t);
+    assert_eq!(ops::parse_conflicts(&status(&t.repo).unwrap()), ["f.txt"]);
+    assert_eq!(RepoState::from(t.repo.state()), RepoState::CherryPick);
+
+    run_ok(&t, &ops::cherry_pick_abort()).await;
+    let st = status(&t.repo).unwrap();
+    assert_eq!((st.conflicted, st.staged, st.unstaged), (0, 0, 0));
+    assert_eq!(RepoState::from(t.repo.state()), RepoState::Clean);
+    assert_eq!(head(&t), master);
+
+    // The panel finishes a stopped pick with a plain commit: git clears CHERRY_PICK_HEAD itself.
+    let (out, _) = run(
+        t.path(),
+        &ops::cherry_pick(&feat.to_string(), &PickOpts::default()),
+    )
+    .await;
+    assert_ne!(out.code, 0);
+    t.write("f.txt", "resolved\n");
+    t.stage(&["f.txt"]);
+    run_ok(
+        &t,
+        &["commit".to_string(), "-m".to_string(), "picked".to_string()],
+    )
+    .await;
+    assert_eq!(RepoState::from(t.repo.state()), RepoState::Clean);
+    let h = t.repo.head().unwrap().peel_to_commit().unwrap();
+    assert_eq!(h.summary().unwrap(), Some("picked"));
+}
+
+#[tokio::test]
+async fn revert_undoes_head_and_takes_a_mainline_on_a_merge() {
+    if !have_git() {
+        return;
+    }
+    let t = TempRepo::new();
+    let base = t.commit(&[("f.txt", "base\n")], "base");
+    let second = t.commit(&[("f.txt", "second\n")], "second");
+
+    run_ok(&t, &ops::revert(&second.to_string(), &PickOpts::default())).await;
+    let h = t.repo.head().unwrap().peel_to_commit().unwrap();
+    assert_eq!(h.summary().unwrap(), Some("Revert \"second\""));
+    assert_eq!(
+        std::fs::read_to_string(t.path().join("f.txt")).unwrap(),
+        "base\n"
+    );
+
+    // A merge commit has no single diff: `-m 1` measures it against the first parent.
+    t.branch("side", base);
+    t.checkout("side");
+    t.commit(&[("g.txt", "g\n")], "side");
+    t.checkout("master");
+    run_ok(
+        &t,
+        &ops::merge(
+            "side",
+            &MergeOpts {
+                ff: FfMode::No,
+                ..Default::default()
+            },
+        ),
+    )
+    .await;
+    let merge = head(&t);
+    assert_eq!(t.repo.find_commit(merge).unwrap().parent_count(), 2);
+    assert!(t.path().join("g.txt").exists());
+
+    run_ok(
+        &t,
+        &ops::revert(
+            &merge.to_string(),
+            &PickOpts {
+                mainline: Some(1),
+                ..Default::default()
+            },
+        ),
+    )
+    .await;
+    assert_eq!(RepoState::from(t.repo.state()), RepoState::Clean);
+    // `-m 1` drops what the second parent brought in.
+    assert!(!t.path().join("g.txt").exists());
 }
 
 #[tokio::test]

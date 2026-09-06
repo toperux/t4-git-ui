@@ -1,7 +1,7 @@
 // Which banners sit above the grid (States artboard): detached HEAD, merge / rebase in progress, conflicts.
 import type { Branch, RefsSnapshot, WorkdirStatus } from "../../api/types";
 
-export type BannerAction = "checkoutDefault" | "createBranch" | "mergeAbort" | "commitMerge" | "rebaseAbort" | "rebaseContinue" | "openCommitPanel";
+export type BannerAction = "checkoutDefault" | "createBranch" | "mergeAbort" | "commitMerge" | "rebaseAbort" | "rebaseContinue" | "cherryPickAbort" | "revertAbort" | "openCommitPanel";
 
 export interface BannerButton {
   label: string;
@@ -10,16 +10,14 @@ export interface BannerButton {
 }
 
 export interface BannerSpec {
-  id: "detached" | "merge" | "rebase" | "sequencer" | "conflicts";
+  id: "detached" | "merge" | "rebase" | "cherryPick" | "revert" | "sequencer" | "conflicts";
   kind: "warning" | "danger";
   text: string;
   buttons: BannerButton[];
 }
 
-/** States we can only report: the backend has no abort command for them, so these banners carry no action. */
+/** The one state we can only report: the backend has no abort command for it, so its banner carries no action. */
 const SEQUENCER_TEXT = {
-  cherryPick: "Cherry-pick in progress — finish or abort it in a terminal",
-  revert: "Revert in progress — finish or abort it in a terminal",
   bisect: "Bisect in progress — finish or reset it in a terminal",
 } as const;
 
@@ -63,7 +61,21 @@ export function computeBanners(refs: RefsSnapshot | null, status: WorkdirStatus 
       ],
     });
   }
-  if (state === "cherryPick" || state === "revert" || state === "bisect") {
+  // One text for every stop: an empty pick has already said why in its toast, and Abort is the way
+  // out of that one too. A plain commit finishes the single pick / revert, as it does for a merge.
+  if (state === "cherryPick" || state === "revert") {
+    const pick = state === "cherryPick";
+    out.push({
+      id: state,
+      kind: "warning",
+      text: `${pick ? "Cherry-pick" : "Revert"} in progress — resolve conflicts, then commit to finish`,
+      buttons: [
+        { label: "Abort", action: pick ? "cherryPickAbort" : "revertAbort" },
+        { label: "Commit", action: "commitMerge", primary: true },
+      ],
+    });
+  }
+  if (state === "bisect") {
     out.push({ id: "sequencer", kind: "warning", text: SEQUENCER_TEXT[state], buttons: [] });
   }
   const n = status?.conflicted ?? 0;

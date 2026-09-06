@@ -226,6 +226,8 @@ describe("RevisionGrid", () => {
       "Reset main to here…",
       "Merge feature into main…",
       "Rebase main onto feature…",
+      "Cherry-pick oid1…",
+      "Revert oid1…",
       "Reset main to origin/main…",
       "Reset stale to origin/renamed…",
       "Create branch here…",
@@ -262,6 +264,8 @@ describe("RevisionGrid", () => {
       "Reset main to here…",
       "Merge origin/new into main…",
       "Rebase main onto origin/new…",
+      "Cherry-pick oid2…",
+      "Revert oid2…",
       "Create branch here…",
       "Create tag here…",
       "Copy SHA",
@@ -295,6 +299,12 @@ describe("RevisionGrid", () => {
     fireEvent.contextMenu(rows[1]);
     expect(pick("Rebase main onto feature…")).toEqual({ kind: "rebase", onto: "feature" });
 
+    fireEvent.contextMenu(rows[1]);
+    // The row's own commit goes to the dialog: it needs the summary and parents, not just the oid.
+    expect(pick("Cherry-pick oid1…")).toEqual({ kind: "cherryPick", oid: "oid1", short: "oid1", summary: "Middle", parents: [] });
+    fireEvent.contextMenu(rows[1]);
+    expect(pick("Revert oid1…")).toEqual({ kind: "revert", oid: "oid1", short: "oid1", summary: "Middle", parents: [] });
+
     // No branch here: the commit is the merge source and the rebase target.
     fireEvent.contextMenu(rows[2]);
     expect(pick("Merge commit oid2 into main…")).toEqual({ kind: "merge", branch: "oid2" });
@@ -303,10 +313,10 @@ describe("RevisionGrid", () => {
 
     // HEAD's own commit: merging into it / rebasing onto it would be a no-op.
     fireEvent.contextMenu(rows[0]);
-    expect(items().filter((t) => t?.startsWith("Merge") || t?.startsWith("Rebase"))).toEqual([]);
-    // The history group is empty here, and its separator goes with it; `stale` still sits at the
-    // commit, so the Delete group (never the current branch) keeps its own.
-    expect(seps()).toBe(3);
+    // Merging into HEAD / rebasing onto it / picking it onto itself are all no-ops; the undo is not.
+    expect(items().filter((t) => t?.startsWith("Merge") || t?.startsWith("Rebase") || t?.startsWith("Cherry-pick"))).toEqual([]);
+    expect(items()).toContain("Revert oid0…");
+    expect(seps()).toBe(4);
     expect(items()).toContain("Delete stale…");
     expect(items()).not.toContain("Delete main…");
     useDialogStore.setState({ dialog: null, returnFocus: null });
@@ -346,6 +356,8 @@ describe("RevisionGrid", () => {
     const items = getAllByRole("menuitem").map((el) => el.textContent);
     expect(items.some((t) => t?.startsWith("Merge"))).toBe(false);
     expect(items.some((t) => t?.startsWith("Rebase"))).toBe(false);
+    // Nothing to apply onto, and nothing to undo.
+    expect(items.some((t) => t?.startsWith("Cherry-pick") || t?.startsWith("Revert"))).toBe(false);
     // Checking a branch out is what leaves the orphan branch behind, so that item stays.
     expect(items).toContain("Checkout branch…");
   });

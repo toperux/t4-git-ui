@@ -44,6 +44,24 @@ export const mergeArgs = (branch: string, ff: FfMode, squash: boolean, message: 
 
 export const rebaseArgs = (onto: string) => ["rebase", onto];
 
+const mainlineArgs = (mainline: number | null) => (mainline ? ["-m", String(mainline)] : []);
+
+export const cherryPickArgs = (oid: string, noCommit: boolean, recordOrigin: boolean, mainline: number | null) => [
+  "cherry-pick",
+  ...flag(noCommit, "-n"),
+  ...flag(recordOrigin, "-x"),
+  ...mainlineArgs(mainline),
+  oid,
+];
+
+export const revertArgs = (oid: string, noCommit: boolean, mainline: number | null) => [
+  "revert",
+  "--no-edit",
+  ...flag(noCommit, "-n"),
+  ...mainlineArgs(mainline),
+  oid,
+];
+
 export const resetArgs = (mode: ResetMode, target: string) => ["reset", `--${mode}`, target];
 
 export const resetBranchArgs = (branch: string, target: string) => ["branch", "-f", branch, target];

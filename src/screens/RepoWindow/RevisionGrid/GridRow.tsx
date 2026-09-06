@@ -1,4 +1,5 @@
 import { memo } from "react";
+import type { CommitInfo } from "../../../api/types";
 import { cx } from "../../../lib/cx";
 import { mods } from "../../../lib/keys";
 import { absoluteDate, relativeDate } from "../../../lib/relativeDate";
@@ -23,7 +24,7 @@ export interface GridRowProps {
   flat: boolean;
   headOid: string | null;
   /** Right-click / Shift+F10 on the row (viewport point, the row's oid, the element to give focus back to). */
-  onMenu: (at: { x: number; y: number }, oid: string, el: HTMLElement) => void;
+  onMenu: (at: { x: number; y: number }, commit: CommitInfo, el: HTMLElement) => void;
 }
 
 /** One grid row. Reads its own data + selection from the store so siblings never re-render. */
@@ -57,7 +58,7 @@ export const GridRow = memo(function GridRow({ id, index, offset, top, rowH, lan
         if (!commit) return;
         e.preventDefault();
         select(index);
-        onMenu({ x: e.clientX, y: e.clientY }, commit.oid, e.currentTarget);
+        onMenu({ x: e.clientX, y: e.clientY }, commit, e.currentTarget);
       }}
     >
       {!flat && (

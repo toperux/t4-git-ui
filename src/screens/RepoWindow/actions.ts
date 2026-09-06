@@ -64,6 +64,8 @@ export const checkoutTag = (name: string) => checkoutDetached(`refs/tags/${name}
 export const mergeAbort = () => runOp("Aborting merge…", (id) => ipc.mergeAbort(id), { success: "Merge aborted" });
 export const rebaseAbort = () => runOp("Aborting rebase…", (id) => ipc.rebaseAbort(id), { success: "Rebase aborted" });
 export const rebaseContinue = () => runOp("Continuing rebase…", (id) => ipc.rebaseContinue(id), { success: "Rebase continued" });
+export const cherryPickAbort = () => runOp("Aborting cherry-pick…", (id) => ipc.cherryPickAbort(id), { success: "Cherry-pick aborted" });
+export const revertAbort = () => runOp("Aborting revert…", (id) => ipc.revertAbort(id), { success: "Revert aborted" });
 
 export const stashApply = (index: number) => runOp(`Applying stash@{${index}}…`, (id) => ipc.stashApply(id, index), { success: `Applied stash@{${index}}` });
 export const stashPop = (index: number) => runOp(`Popping stash@{${index}}…`, (id) => ipc.stashPop(id, index), { success: `Popped stash@{${index}}` });
