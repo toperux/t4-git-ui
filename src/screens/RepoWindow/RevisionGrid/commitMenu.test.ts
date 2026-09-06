@@ -33,7 +33,7 @@ const REFS: RefsSnapshot = {
 
 describe("commitBranchActions", () => {
   it("offers local branches at the commit, minus the current one", () => {
-    expect(commitBranchActions(REFS, "a")).toEqual({ checkout: [], reset: [], merge: [], rebaseOnto: null, canRebase: false, headCommit: true });
+    expect(commitBranchActions(REFS, "a")).toEqual({ checkout: [], reset: [], merge: [], rebaseOnto: null, canRebase: false, headCommit: true, unborn: false });
     const { checkout } = commitBranchActions(REFS, "b");
     expect(checkout.filter((b) => !b.remote).map((b) => b.name)).toEqual(["feature", "hotfix"]);
   });
@@ -59,6 +59,7 @@ describe("commitBranchActions", () => {
       rebaseOnto: { name: "origin/new", remote: "origin" },
       canRebase: true,
       headCommit: false,
+      unborn: false,
     });
   });
 
@@ -86,7 +87,7 @@ describe("commitBranchActions", () => {
   it("an unborn HEAD offers neither — it sits at no commit at all", () => {
     const unborn: RefsSnapshot = { ...REFS, head: { oid: null, branch: "wip", detached: false }, local: REFS.local.map((b) => ({ ...b, isHead: false })) };
     const at = commitBranchActions(unborn, "b");
-    expect(at).toMatchObject({ merge: [], rebaseOnto: null, canRebase: false, headCommit: false });
+    expect(at).toMatchObject({ merge: [], rebaseOnto: null, canRebase: false, headCommit: false, unborn: true });
     // Checking one of them out is exactly what leaves the orphan branch, so those items stay.
     expect(at.checkout.map((b) => b.name)).toEqual(["feature", "hotfix"]);
   });
@@ -102,6 +103,6 @@ describe("commitBranchActions", () => {
   });
 
   it("is empty without refs", () => {
-    expect(commitBranchActions(null, "a")).toEqual({ checkout: [], reset: [], merge: [], rebaseOnto: null, canRebase: false, headCommit: false });
+    expect(commitBranchActions(null, "a")).toEqual({ checkout: [], reset: [], merge: [], rebaseOnto: null, canRebase: false, headCommit: false, unborn: false });
   });
 });

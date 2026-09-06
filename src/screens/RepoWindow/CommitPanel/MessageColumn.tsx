@@ -10,8 +10,8 @@ import { loadHistory, splitMessage } from "../../../lib/msgHistory";
 import { useCommitStore } from "../../../store/commitStore";
 import { useDialogStore } from "../../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../../store/opsStore";
-import { useRepoStore } from "../../../store/repoStore";
-import { useMerging, useStatusStore } from "../../../store/statusStore";
+import { useMerging, useRepoStore } from "../../../store/repoStore";
+import { useStatusStore } from "../../../store/statusStore";
 import s from "./CommitPanel.module.css";
 
 export const SUMMARY_LIMIT = 72;
@@ -171,7 +171,8 @@ export function MessageColumn({ onExpand, onCommitted, autoFocus }: MessageColum
         ) : (
           author && (
             <div className={s.author} title={`${author.name} <${author.email}>`}>
-              {author.name} &lt;{author.email}&gt; · will commit {stagedCount} staged file{stagedCount === 1 ? "" : "s"}
+              {author.name} &lt;{author.email}&gt;{" "}
+              {stagedCount === 0 && merging ? "· will record the merge" : `· will commit ${stagedCount} staged file${stagedCount === 1 ? "" : "s"}`}
             </div>
           )
         )}

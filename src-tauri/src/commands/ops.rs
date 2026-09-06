@@ -274,8 +274,9 @@ pub async fn checkout(
     target: String,
     create_branch: Option<String>,
     track: bool,
+    detach: bool,
 ) -> Result<OpResult, AppError> {
-    let args = gitops::checkout(&target, create_branch.as_deref(), track);
+    let args = gitops::checkout(&target, create_branch.as_deref(), track, detach);
     cli_op(&app, &state, &id, args, false).await
 }
 
@@ -390,7 +391,7 @@ pub async fn create_branch(
     checkout: bool,
 ) -> Result<(), AppError> {
     if checkout {
-        let args = gitops::checkout(&target, Some(&name), false);
+        let args = gitops::checkout(&target, Some(&name), false, false);
         let result = cli_op(&app, &state, &id, args, false).await?;
         return match result.failure {
             None => Ok(()),

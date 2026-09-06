@@ -357,6 +357,9 @@ export function __resetForTests() {
   });
 }
 
+/** Mid-merge: a merge whose resolution equals HEAD has nothing in the status but still needs committing. */
+export const useMerging = () => useRepoStore((st) => st.refs?.state === "merge");
+
 /** Oid of the selected commit row, or `null` while its page is still loading (or the working tree is selected). */
 export const selectSelectedOid = (s: RepoStore) =>
   s.wtSelected || s.selectedIndex === null ? null : (s.rows[s.selectedIndex]?.row.commit.oid ?? null);

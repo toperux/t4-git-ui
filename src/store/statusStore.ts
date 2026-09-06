@@ -4,7 +4,7 @@ import { create } from "zustand";
 import * as ipc from "../api/ipc";
 import { toAppError } from "../api/ipc";
 import type { RefsSnapshot, RepoChanged, RevSpec, WorkdirStatus } from "../api/types";
-import { useRepoStore } from "./repoStore";
+import { useMerging, useRepoStore } from "./repoStore";
 import { toastError } from "./toastStore";
 
 export const STATUS_DEBOUNCE_MS = 100;
@@ -31,9 +31,6 @@ export const selectChangeCount = (s: StatusStore) =>
   s.status ? s.status.staged + s.status.unstaged + s.status.untracked + s.status.conflicted : 0;
 
 export const selectHasChanges = (s: StatusStore) => (s.status?.entries.length ?? 0) > 0;
-
-/** Mid-merge: a merge whose resolution equals HEAD has nothing in the status but still needs committing. */
-export const useMerging = () => useRepoStore((st) => st.refs?.state === "merge");
 
 /**
  * The working-tree pseudo-row exists: the tree is dirty and no text filter flattened the walk.

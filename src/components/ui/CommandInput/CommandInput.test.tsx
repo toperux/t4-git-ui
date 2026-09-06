@@ -201,6 +201,19 @@ describe("CommandInput", () => {
     }
   });
 
+  it("placement up with no headroom opens down instead of covering the field", () => {
+    const rect = (o: Partial<DOMRect>) => ({ x: 0, y: 0, top: 0, left: 0, bottom: 0, right: 0, width: 0, height: 0, toJSON() {}, ...o }) as DOMRect;
+    // The field sits 40px down a 600px window, the list is 328 tall: nothing like it fits above.
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      return this.tagName === "LABEL" ? rect({ top: 40, bottom: 60, left: 10, width: 200 }) : rect({ height: 328 });
+    });
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(600);
+    const { getByRole } = render(<Harness placement="up" />);
+    fireEvent.change(getByRole("combobox"), { target: { value: "sta" } });
+    const { style } = getByRole("listbox") as HTMLElement;
+    expect([style.top, style.maxHeight]).toEqual(["64px", "328px"]);
+  });
+
   it("gives a local branch and a remote of the same name their own rows (no duplicate keys)", () => {
     const refs: RefsSnapshot = {
       ...REFS,

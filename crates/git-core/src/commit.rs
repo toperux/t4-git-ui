@@ -6,14 +6,9 @@ use serde::{Deserialize, Serialize};
 use crate::log::types::CommitInfo;
 use crate::{map_git2, GitError};
 
-/// `git commit -F <message_file> [--amend] [--signoff] [--allow-empty]`.
+/// `git commit -F <message_file> [--amend] [--signoff]`.
 /// Run through the CLI so hooks and GPG signing work (libgit2 runs no hooks).
-pub fn commit_args(
-    message_file: &Path,
-    amend: bool,
-    signoff: bool,
-    allow_empty: bool,
-) -> Vec<String> {
+pub fn commit_args(message_file: &Path, amend: bool, signoff: bool) -> Vec<String> {
     let mut args = vec![
         "commit".to_string(),
         "-F".to_string(),
@@ -24,9 +19,6 @@ pub fn commit_args(
     }
     if signoff {
         args.push("--signoff".to_string());
-    }
-    if allow_empty {
-        args.push("--allow-empty".to_string());
     }
     args
 }
@@ -45,15 +37,25 @@ pub fn head_message(repo: &Repository) -> Result<Option<String>, GitError> {
     }
 }
 
+/// The comment prefix git writes `MERGE_MSG`'s conflict block with:
+/// `core.commentChar`, `#` when unset (and for `auto`, which git resolves per
+/// message — `#` unless the message itself starts a line with it).
+fn comment_prefix(repo: &Repository) -> String {
+    crate::config::get(repo, "core.commentChar")
+        .filter(|v| !v.is_empty() && v != "auto")
+        .unwrap_or_else(|| "#".to_string())
+}
+
 /// The message git prepared for the commit in progress — `MERGE_MSG`, written
-/// by a merge / cherry-pick / revert that stopped for conflicts — cleaned up
-/// the way `git commit` would: comment lines dropped, surrounding blank lines
-/// trimmed. `None` when there is no file, or nothing left of it.
+/// by a merge / cherry-pick / revert / rebase that stopped for conflicts —
+/// cleaned up the way `git commit` would: comment lines dropped, surrounding
+/// blank lines trimmed. `None` when there is no file, or nothing left of it.
 pub fn pending_message(repo: &Repository) -> Option<String> {
     let raw = std::fs::read_to_string(repo.path().join("MERGE_MSG")).ok()?;
+    let prefix = comment_prefix(repo);
     let msg = raw
         .lines()
-        .filter(|l| !l.starts_with('#'))
+        .filter(|l| !l.starts_with(prefix.as_str()))
         .collect::<Vec<_>>()
         .join("\n");
     let msg = msg.trim();
@@ -114,20 +116,10 @@ mod tests {
     #[test]
     fn commit_args_shapes() {
         let f = Path::new("msg.txt");
+        assert_eq!(commit_args(f, false, false), ["commit", "-F", "msg.txt"]);
         assert_eq!(
-            commit_args(f, false, false, false),
-            ["commit", "-F", "msg.txt"]
-        );
-        assert_eq!(
-            commit_args(f, true, true, true),
-            [
-                "commit",
-                "-F",
-                "msg.txt",
-                "--amend",
-                "--signoff",
-                "--allow-empty"
-            ]
+            commit_args(f, true, true),
+            ["commit", "-F", "msg.txt", "--amend", "--signoff"]
         );
     }
 
@@ -168,5 +160,29 @@ mod tests {
         );
         std::fs::write(&path, "# nothing but comments\n").unwrap();
         assert_eq!(pending_message(&t.repo), None);
+    }
+
+    #[test]
+    fn pending_message_follows_core_comment_char() {
+        let t = TempRepo::new();
+        let path = t.repo.path().join("MERGE_MSG");
+        std::fs::write(&path, "Merge branch 'conflict'\n\n; Conflicts:\n;\tf.txt\n").unwrap();
+        // With the default the `;` lines are message text, not comments.
+        assert!(pending_message(&t.repo)
+            .expect("message")
+            .contains("; Conflicts:"));
+
+        t.set_config("core.commentChar", ";");
+        assert_eq!(
+            pending_message(&t.repo).as_deref(),
+            Some("Merge branch 'conflict'")
+        );
+        // `auto` is git's per-message pick; `#` is what it lands on here.
+        t.set_config("core.commentChar", "auto");
+        std::fs::write(&path, "Merge branch 'conflict'\n\n# Conflicts:\n#\tf.txt\n").unwrap();
+        assert_eq!(
+            pending_message(&t.repo).as_deref(),
+            Some("Merge branch 'conflict'")
+        );
     }
 }

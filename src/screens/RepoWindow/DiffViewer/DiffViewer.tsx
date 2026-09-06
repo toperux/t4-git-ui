@@ -17,7 +17,7 @@ import { useDiffStore, type DiffView } from "../../../store/diffStore";
 import { Stats } from "../ChangedFileList/ChangedFileList";
 import { flattenSplit, flattenUnified, rowHeight, type SplitRow, type UnifiedRow } from "./diffRows";
 import s from "./DiffViewer.module.css";
-import { carryRef, carrySelection, clickLine, EMPTY_LINES, lineKey, toPairs, type LineRef, type LineSelection } from "./lineSelection";
+import { carryRef, carrySelection, clickLine, EMPTY_LINES, hunkMap, lineKey, toPairs, type LineRef, type LineSelection } from "./lineSelection";
 
 const OVERSCAN = 30;
 /** `20000` → `20 000` (the style guide's thousands separator). */
@@ -85,14 +85,20 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
   // over, and so is the cursor — an index into `picks`, which a staged hunk above it would otherwise
   // leave pointing that many lines further down (and scroll to). Only another file starts over.
   const loaded = useRef<FileDiffModel | null>(null);
+  // The same path in the other list is a different diff: nothing carries over between them.
+  const loadedTarget = useRef<DiffActions["target"] | undefined>(undefined);
   const prevPicks = useRef<{ row: number; ref: LineRef }[]>([]);
   useEffect(() => {
     const prev = loaded.current;
+    const prevTarget = loadedTarget.current;
     loaded.current = diff;
-    if (diff && prev && prev.path === diff.path) {
-      setSel((s) => carrySelection(s, prev, diff));
+    loadedTarget.current = actions?.target;
+    if (diff && prev && prev.path === diff.path && prevTarget === actions?.target) {
+      // One hunk match for both carry-overs: `hunkMap` walks every hunk's text of both diffs.
+      const hunks = hunkMap(prev, diff);
+      setSel((s) => carrySelection(s, hunks));
       const was = prevPicks.current[Math.min(cursor, prevPicks.current.length - 1)]?.ref;
-      const moved = was && carryRef(was, prev, diff);
+      const moved = was && carryRef(was, hunks);
       // `pickAt` is rebuilt during render, so it already holds the reloaded picks.
       const i = moved ? pickAt.current.get(lineKey(moved.hunk, moved.line)) : undefined;
       // Nothing to move to — the cursor's own line was staged: leave it to `cursorRow`'s clamp.
@@ -145,7 +151,11 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
         // starting a new selection in the next one. Plain ↑ / ↓ still cross.
         if (e.shiftKey && picks[next].ref.hunk !== picks[i].ref.hunk) return;
         setCursor(next);
-        if (e.shiftKey) setSel((prev) => clickLine(diff, prev.anchor ? prev : clickLine(diff, prev, picks[i].ref), picks[next].ref, { shift: true }));
+        // The anchor is left behind when plain ↑ / ↓ cross a hunk. `clickLine` only ranges within the
+        // anchor's own hunk, so re-seed it at the cursor — otherwise the range falls through to a
+        // plain click and replaces the selection with one line.
+        if (e.shiftKey)
+          setSel((prev) => clickLine(diff, prev.anchor?.hunk === picks[i].ref.hunk ? prev : clickLine(diff, prev, picks[i].ref), picks[next].ref, { shift: true }));
         return;
       }
       if (e.key === " ") {
@@ -405,9 +415,18 @@ function DiffBody({ path, view, rows, maxCols, lang, actions, selected, cursorRo
         held.current = true;
         if (e.target === e.currentTarget) e.currentTarget.querySelector<HTMLElement>("[data-cursor]")?.focus({ preventScroll: true });
       }}
-      /* A removed row blurs with no `relatedTarget`; only a focus that actually moved away is a release. */
       onBlur={(e) => {
-        if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget)) held.current = false;
+        if (e.relatedTarget) {
+          if (!e.currentTarget.contains(e.relatedTarget)) held.current = false;
+          return;
+        }
+        // No `relatedTarget`: either a row was removed under the focus — the diff's loss to repair —
+        // or the click landed on something unfocusable (the header, the path) and the focus is idle
+        // from here on. A removed row is out of the document by the next microtask.
+        const target = e.target;
+        void Promise.resolve().then(() => {
+          if (target.isConnected) held.current = false;
+        });
       }}
     >
       <div

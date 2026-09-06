@@ -128,11 +128,12 @@ lists"; the commit window after "Amend a commit"._
 ## F. Discard hunks and lines (main §4, after "Hover a hunk header → Stage hunk")
 _Shipped 2026-09-02: `78f8f02`._
 
-- [x] Hover a hunk header → **Discard hunk** beside it → confirm → the hunk is gone from the working
+- [ ] Hover a hunk header → **Discard hunk** beside it → confirm → the hunk is gone from the working
       tree and the other hunks of `hunks.txt` are untouched; select two lines → **Discard 2 lines**
       (or `Delete`) → confirm → only those lines revert; `crlf-hunks.txt` (one CRLF hunk) discards
-      the same way and `git diff` is then empty — no CRs lost; the staged side, an untracked file
-      and a conflicted file offer no Discard
+      the same way and `git diff` is then empty — no CRs lost; the staged side and an untracked file
+      offer no Discard, and a conflicted file's row menu shows it **disabled** (K5 covers a mixed
+      selection)
 
 ## G. File-row context menu, mode changes (main §4, after the `Delete` check)
 _Shipped 2026-09-02: `2600ae6`, `a03c727`. The mode check needs a Unix box or WSL. §4's `Delete`
@@ -158,11 +159,12 @@ _Shipped 2026-09-02: `9c4bc35`._
       second → confirm → the file reads `the conflict branch's line`, has no markers, and is already
       staged — no **Restore conflict** here: it is only offered for a file staged *with* its markers,
       which main §5 covers. Abort the merge afterwards
-- [x] Merge `conflict` again and pick **Keep main's version** → `git status` is empty, yet the
-      **Working tree · 0 changes** row stays, toolbar Commit is enabled and the banner's **Commit
-      merge** opens the commit panel with the prefilled `Merge branch 'conflict'` message and Commit
-      enabled with nothing staged → commit → a merge commit with two parents, the banner is gone and
-      the row disappears. `git reset --hard HEAD~1` afterwards
+- [ ] Merge `conflict` again and pick **Keep main's version** → `git status` is empty, yet the
+      **Working tree · merge to commit** row stays, toolbar Commit is enabled ("Merge to commit") and
+      the banner's **Commit merge** opens the commit panel with the prefilled `Merge branch 'conflict'`
+      message, the author line reading "will record the merge" and Commit enabled with nothing
+      staged → commit → a merge commit with two parents, the banner is gone and the row disappears.
+      `git reset --hard HEAD~1` afterwards
 - [x] Check out `conflict`, Rebase… onto `main` → the same file conflicts, and the labels are
       **Keep main's version** (git's *ours* = the branch rebased onto) and **Keep conflict's version**;
       pick the first → the file reads `main's line`, pick the second → `the conflict branch's line`
@@ -189,6 +191,71 @@ _Shipped 2026-09-02: `8b8102a`._
       context (the commit panel's diff reloads too) and **Stage hunk** still stages the right hunk;
       **Ignore whitespace by default** → the details-pane diff opens with the toggle on; quit and
       relaunch → every value survives
+
+## K. Review fixes of 2026-09-06 (main §2, §4, §5, §6)
+_Shipped 2026-09-06: `a5a0a6b` (`docs/reviews/2026-09-06-codebase-review.md`). K5, K9 and K10 need
+a merge in progress: run them right after H1's merge, before its abort. K3 to K8 start from the
+dirty fixture tree. K13 last: it leaves the fixture needing a `-Force` rebuild. `git config
+core.commentChar` is set and unset inside K10 alone._
+
+- [ ] **Tag and branch with one name** (§2): `git branch same HEAD~1 && git tag same` in `work` →
+      Sidebar › Tags › `same` › **Checkout (detached)** → the statusbar shows a detached HEAD **at
+      `main`'s commit** (`git rev-parse HEAD` = `git rev-parse main`, and `git symbolic-ref HEAD`
+      fails); without `--detach` git would have checked out the *branch* `same` at `HEAD~1`. The
+      commit row's own **Checkout (detached)** takes the oid and never had the problem. `git checkout
+      main && git branch -D same && git tag -d same` afterwards
+- [ ] **Failed clone keeps its fields** (§1): Clone… with URL `C:\tmp\t4\nowhere` → Clone → the error
+      shows inline and the focus is back in the **URL** field (not on the title bar's ✕); `Enter`
+      retries the clone rather than closing the dialog, the URL, folder and name are still there;
+      `Esc` closes it
+- [ ] **A background save does not steal the focus** (§4): click a row in Unstaged, then click the
+      **Unstaged** header text so nothing has the focus → `echo x >> src\a.txt` from a terminal → the
+      list refreshes, **no focus ring** appears anywhere and `Delete` / `Enter` do nothing; the same
+      with the focus on a diff line, then a click on the diff's path header, then the save. Then the
+      case that must still work: click a row's own **+** button and press `Enter` → the row is staged
+      and the focus is back in the list (ring on the list, `↑`/`↓` move)
+- [ ] **Emptying a list hands the focus over** (§4): click into Unstaged, `Ctrl+A`, `Enter` → every
+      file is staged, the ring is on the **Staged** list and `↑`/`↓` move there; then `Tab` into the
+      empty Unstaged list ("No unstaged changes") and save a file from a terminal → the focus stays on
+      the empty list, it does not jump to Staged
+- [ ] **Discard skips conflicted files, like Stage** (§5, mid-merge): with `conflict.txt` conflicted
+      and `hunks.txt` modified, `Ctrl`-click both → right-click → **Discard 2 files…** is enabled and
+      its tooltip says "(1 skipped)" → confirm → `hunks.txt` reverts, `conflict.txt` still has its
+      markers; `Delete` on the same selection does the same; `conflict.txt` alone → **Discard…** is
+      present but disabled and `Delete` does nothing
+- [ ] **`Shift+↓` across a hunk edge** (§4): in `hunks.txt`, `Tab` into the diff, `Shift+↓` once
+      ("2 lines selected", both in the first hunk), plain `↓` until the ring is in the second hunk,
+      `Shift+↓` → "2 lines selected" again, both in the **second** hunk (the old selection is
+      replaced, not collapsed to one line); **Stage 2 lines** stages exactly those two
+- [ ] **Same file in both lists** (§4): stage one hunk of `hunks.txt` so it sits in both lists →
+      select it in Unstaged, `Tab` into the diff, `↓` to the last line → click `hunks.txt` in
+      **Staged**, `Tab` into its diff → the ring is on the **first** line, and nothing is selected
+      (the two diffs share a path but not their content)
+- [ ] **Commit with a search filter active** (§2): type `hunks` in **Search commits** → the grid is a
+      flat list with no working-tree row → toolbar **Commit** → the search field empties, the graph
+      is back, the working-tree row is selected and the panel is open; mid-merge (after H1), the
+      same via the banner's **Commit merge**
+- [ ] **Only a merge prefills the message** (§5, mid-merge for the second half): Run git command…
+      `cherry-pick <sha>` with the `many files (300)` commit's SHA (Copy SHA on its row; it is
+      already in `main`, so the pick stops empty) → the banner reads "Cherry-pick in progress — finish
+      or abort it in a terminal" and the commit editor stays **empty**; `git cherry-pick --abort`.
+      Then in H1's merge, open the panel, pick an entry from **Message history** (the clock icon),
+      **Abort** the merge → the picked message is still in the editor (only the merge's own prefill
+      is taken back)
+- [ ] **`core.commentChar`** (§5): `git config core.commentChar ";"` in `work`, start H1's merge →
+      the prefilled message is `Merge branch 'conflict'` with **no** `; Conflicts:` / `; conflict.txt`
+      lines below it; `git config --unset core.commentChar` afterwards
+- [ ] **Completions at the minimum window height** (§5): shrink the window to its minimum height,
+      `Ctrl+Shift+R`, type `che` → the completions list opens on the side that has room and never
+      covers the input; when capped it scrolls
+- [ ] **POSIX `file://` remote** (Linux / WSL only): clone from `file:///home/<you>/bare.git` → the
+      statusbar reads `origin · /home/<you>/bare` (leading slash kept; a Windows `file:///C:/…` clone
+      still reads `C:/…`)
+- [ ] **Unborn HEAD offers no merge** (§2, last): `git checkout --orphan wip` in `work` → the grid
+      still shows `main`'s history under All branches; right-click any commit → no **Merge commit …
+      into HEAD…** item and no Rebase item; **Checkout (detached)**, **Create branch here…**,
+      **Copy SHA** are still there. `git checkout -f main && git branch -D wip` afterwards, then
+      rebuild the fixture with `-Force` (the orphan staged everything and `-f` drops the edits)
 
 ## Reporting
 

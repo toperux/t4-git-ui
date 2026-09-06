@@ -18,6 +18,8 @@ jobs:
   # confusing to discover later.
   version:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       version: ${{ steps.read.outputs.version }}
     steps:
@@ -29,6 +31,14 @@ jobs:
           # [workspace.package] in the root Cargo.toml. src-tauri inherits it,
           # and tauri.conf.json carries no version of its own.
           crate=$(grep -m1 '^version = ' Cargo.toml | cut -d'"' -f2)
+          # package.json's version is what the start screen renders; it must
+          # agree with Cargo.toml or the shipped installer's UI lies about its
+          # own version.
+          pkg=$(node -p "require('./package.json').version")
+          if [[ "$pkg" != "$crate" ]]; then
+            echo "package.json version $pkg does not match Cargo.toml version $crate" >&2
+            exit 1
+          fi
           # workflow_dispatch has no tag, so there is nothing to compare against,
           # and it is allowed to build whatever version the tree has - packaging
           # can then be checked in the middle of a bump.
@@ -56,6 +66,7 @@ jobs:
   # three legs guarding nothing. Skipping it here also skips `publish`, which
   # is what the dispatch wanted anyway.
   checks:
+    needs: version
     if: startsWith(github.ref, 'refs/tags/')
     uses: ./.github/workflows/checks.yml
 
@@ -63,6 +74,8 @@ jobs:
     needs: version
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -116,8 +129,9 @@ jobs:
 
       - name: Install the Tauri CLI
         # `--no-confirm` only. `-y` is its short form, and binstall rejects
-        # being given the same argument twice.
-        run: cargo binstall --no-confirm 'tauri-cli@^2'
+        # being given the same argument twice. Pinned to match @tauri-apps/cli
+        # in package-lock.json (they share versions); bump both together.
+        run: cargo binstall --no-confirm 'tauri-cli@2.11.4'
 
       # Staging picks the first file matching each glob, and the cache restores
       # target/ from an earlier run. A leftover installer from a previous

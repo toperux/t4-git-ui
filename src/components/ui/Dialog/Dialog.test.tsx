@@ -81,8 +81,8 @@ describe("Dialog", () => {
     (document.activeElement as HTMLElement).blur();
     expect(document.activeElement).toBe(document.body);
     rerender(<Harness onClose={onClose} busy={false} />);
-    const dialog = getByRole("dialog", { name: "Create branch" });
-    expect(dialog.contains(document.activeElement)).toBe(true);
+    // Into the body, not onto the title bar's Close: Enter there would throw the fields away.
+    expect(document.activeElement).toBe(getByRole("textbox", { name: "Name" }));
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });
     expect(onClose).toHaveBeenCalledTimes(1);
   });

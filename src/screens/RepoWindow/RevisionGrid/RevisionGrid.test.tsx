@@ -31,6 +31,9 @@ vi.mock("@tanstack/react-virtual", async (importOriginal) => {
   };
 });
 
+/** The data rows: the sticky header is a `row` of the grid too, but it sits outside the rowgroup. */
+const ROWS = '[role="rowgroup"] [role="row"]';
+
 function row(i: number, summary: string, labels: LogRow["labels"]): LogRow {
   return {
     row: {
@@ -104,7 +107,7 @@ describe("RevisionGrid", () => {
     });
 
     const { container } = render(<RevisionGrid />);
-    const rows = container.querySelectorAll('[role="row"][aria-rowindex]');
+    const rows = container.querySelectorAll(ROWS);
     expect(rows).toHaveLength(3);
 
     const text = (el: Element) => el.textContent?.replace(/\s+/g, " ").trim();
@@ -153,12 +156,13 @@ describe("RevisionGrid", () => {
       status: { entries: [{ path: "a", oldPath: null, index: null, workdir: "modified", conflicted: false, workdirStamp: "1:1" }], staged: 0, unstaged: 1, untracked: 2, conflicted: 0 },
     });
     const { container, getByRole } = render(<RevisionGrid />);
-    const rows = container.querySelectorAll('[role="row"][aria-rowindex]');
+    const rows = container.querySelectorAll(ROWS);
     expect(rows).toHaveLength(3);
-    expect(getByRole("grid").getAttribute("aria-rowcount")).toBe("3");
+    // The header is row 1 and counts towards `aria-rowcount`: the pseudo-row is row 2.
+    expect(getByRole("grid").getAttribute("aria-rowcount")).toBe("4");
     expect(rows[0].textContent?.trim()).toBe("Working tree · 3 changes");
-    expect(rows[0].getAttribute("aria-rowindex")).toBe("1");
-    expect(rows[1].getAttribute("aria-rowindex")).toBe("2");
+    expect(rows[0].getAttribute("aria-rowindex")).toBe("2");
+    expect(rows[1].getAttribute("aria-rowindex")).toBe("3");
     expect(rows[1].textContent).toContain("Top");
     // HEAD stays the selected row until the pseudo-row is picked.
     expect(rows[0].getAttribute("aria-selected")).toBe("false");
@@ -182,7 +186,7 @@ describe("RevisionGrid", () => {
     withRefs();
     useDialogStore.setState({ dialog: null, returnFocus: null });
     const { container, getByRole, getAllByRole, queryByRole } = render(<RevisionGrid />);
-    const rows = container.querySelectorAll('[role="row"][aria-rowindex]');
+    const rows = container.querySelectorAll(ROWS);
     const items = () => getAllByRole("menuitem").map((el) => el.textContent);
     const pick = (name: string) => {
       fireEvent.click(getByRole("menuitem", { name }));
@@ -239,7 +243,7 @@ describe("RevisionGrid", () => {
     useRepoStore.setState({ refs: { ...REFS, local: [branch("main", "oid0", { isHead: true }), branch("feature", "oid1")], remotes: [] } });
     useDialogStore.setState({ dialog: null, returnFocus: null });
     const { container, getByRole, getAllByRole } = render(<RevisionGrid />);
-    const rows = container.querySelectorAll('[role="row"][aria-rowindex]');
+    const rows = container.querySelectorAll(ROWS);
     const items = () => getAllByRole("menuitem").map((el) => el.textContent);
     const pick = (name: string) => {
       fireEvent.click(getByRole("menuitem", { name }));
@@ -268,7 +272,7 @@ describe("RevisionGrid", () => {
     const long = "feature/".padEnd(75, "x");
     useRepoStore.setState({ refs: { ...REFS, local: REFS.local.map((b) => (b.isHead ? { ...b, name: long } : b)) } });
     const { container, getByRole } = render(<RevisionGrid />);
-    const rows = container.querySelectorAll('[role="row"][aria-rowindex]');
+    const rows = container.querySelectorAll(ROWS);
     const chips = (name: RegExp) => Array.from(getByRole("menuitem", { name }).querySelectorAll('[class*="menuBranch"]')).map((el) => el.textContent);
     fireEvent.contextMenu(rows[2]);
     expect(chips(/^Merge/)).toEqual(["origin/new", `into ${long}…`]);
@@ -283,17 +287,41 @@ describe("RevisionGrid", () => {
     // branch to move: offering it would replay the loose commits onto the row.
     useRepoStore.setState({ refs: { ...REFS, head: { oid: "oid9", branch: null, detached: true }, local: REFS.local.map((b) => ({ ...b, isHead: false })), remotes: [] } });
     const { container, getAllByRole } = render(<RevisionGrid />);
-    fireEvent.contextMenu(container.querySelectorAll('[role="row"][aria-rowindex]')[0]);
+    fireEvent.contextMenu(container.querySelectorAll(ROWS)[0]);
     const items = getAllByRole("menuitem").map((el) => el.textContent);
     expect(items).toContain("Merge main into HEAD…");
     expect(items.some((t) => t?.startsWith("Rebase"))).toBe(false);
+  });
+
+  it("an unborn HEAD offers no merge: git would move the orphan branch onto the commit", () => {
+    withRefs();
+    useRepoStore.setState({ refs: { ...REFS, head: { oid: null, branch: "wip", detached: false }, local: REFS.local.map((b) => ({ ...b, isHead: false })) } });
+    const { container, getAllByRole } = render(<RevisionGrid />);
+    fireEvent.contextMenu(container.querySelectorAll(ROWS)[1]);
+    const items = getAllByRole("menuitem").map((el) => el.textContent);
+    expect(items.some((t) => t?.startsWith("Merge"))).toBe(false);
+    expect(items.some((t) => t?.startsWith("Rebase"))).toBe(false);
+    // Checking a branch out is what leaves the orphan branch behind, so that item stays.
+    expect(items).toContain("Checkout branch…");
+  });
+
+  it("the pseudo-row of a merge with nothing in the status says what it is for", () => {
+    useRepoStore.setState({
+      repo: { id: "r", name: "r", path: "r", head: { oid: "oid0", branch: "main", detached: false } },
+      refs: { ...REFS, state: "merge" },
+      log: { generation: 1, total: 1, complete: true, error: null, flat: false },
+      rows: [row(0, "Top", [])],
+    });
+    useStatusStore.setState({ status: { entries: [], staged: 0, unstaged: 0, untracked: 0, conflicted: 0 } });
+    const { container } = render(<RevisionGrid />);
+    expect(container.querySelectorAll(ROWS)[0].textContent?.trim()).toBe("Working tree · merge to commit");
   });
 
   it("greys every item but Copy SHA while an operation runs", () => {
     withRefs();
     useOpsStore.setState({ busy: "Fetching…" });
     const { container, getAllByRole } = render(<RevisionGrid />);
-    fireEvent.contextMenu(container.querySelectorAll('[role="row"][aria-rowindex]')[1]);
+    fireEvent.contextMenu(container.querySelectorAll(ROWS)[1]);
     const items = getAllByRole("menuitem") as HTMLButtonElement[];
     const disabled = items.filter((el) => el.disabled).map((el) => el.textContent);
     expect(disabled).toHaveLength(items.length - 1);

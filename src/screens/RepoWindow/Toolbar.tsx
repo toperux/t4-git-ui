@@ -27,9 +27,9 @@ import tb from "../../components/ui/ToolbarButton/ToolbarButton.module.css";
 import { useDialogStore, type DialogSpec } from "../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../store/opsStore";
 import { useRecentsStore } from "../../store/recentsStore";
-import { useRepoStore } from "../../store/repoStore";
-import { selectChangeCount, useMerging, useStatusStore } from "../../store/statusStore";
-import { closeRepo, fetchDefault, pickAndOpenRepo, refreshAll, stashApply, stashPop, switchRepo } from "./actions";
+import { useMerging, useRepoStore } from "../../store/repoStore";
+import { selectChangeCount, useStatusStore } from "../../store/statusStore";
+import { closeRepo, fetchDefault, openCommitPanel, pickAndOpenRepo, refreshAll, stashApply, stashPop, switchRepo } from "./actions";
 import s from "./Toolbar.module.css";
 
 const SEARCH_DEBOUNCE_MS = 250;
@@ -39,7 +39,6 @@ const NO_STASHES: Stash[] = [];
 export function Toolbar() {
   const specKind = useRepoStore((st) => st.spec.kind);
   const startLog = useRepoStore((st) => st.startLog);
-  const selectWorkingTree = useRepoStore((st) => st.selectWorkingTree);
   const stashes = useRepoStore((st) => st.refs?.stashes ?? NO_STASHES);
   const head = useRepoStore((st) => st.refs?.local.find((b) => b.isHead) ?? null);
   const changes = useStatusStore(selectChangeCount);
@@ -55,10 +54,12 @@ export function Toolbar() {
   const others = recents.filter((r) => r.path !== repo?.path);
 
   // The toolbar outlives a repository switch; the store's filter does not (`openRepo` resets it).
+  // The field also follows a filter cleared from elsewhere (`openCommitPanel`).
   const repoId = repo?.id;
+  const filterText = useRepoStore((st) => st.filter.text ?? "");
   useEffect(() => {
     setText(useRepoStore.getState().filter.text ?? "");
-  }, [repoId]);
+  }, [repoId, filterText]);
 
   // Debounced text filter → new walk (only when the effective filter changed).
   useEffect(() => {
@@ -252,7 +253,7 @@ export function Toolbar() {
         count={changes}
         disabled={changes === 0 && !merging}
         title={changes === 0 ? (merging ? "Merge to commit" : "No changes") : `${changes} change${changes === 1 ? "" : "s"}`}
-        onClick={() => selectWorkingTree()}
+        onClick={openCommitPanel}
       >
         Commit
       </ToolbarButton>

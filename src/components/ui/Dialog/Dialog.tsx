@@ -37,6 +37,7 @@ const FOCUSABLE = 'button:not(:disabled), input:not(:disabled), select:not(:disa
  */
 export function Dialog({ title, wide, full, onClose, busy, onSubmit, preview, footer, children }: DialogProps) {
   const ref = useRef<HTMLFormElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const returnFocusTo = useContext(DialogReturnFocus);
   // Captured during the first render, before React's own `autoFocus` moves the focus into the dialog.
@@ -59,10 +60,12 @@ export function Dialog({ title, wide, full, onClose, busy, onSubmit, preview, fo
   }, []);
 
   // A control disabled while `busy` drops the focus to `<body>`: once the action fails and the
-  // dialog is live again, nothing inside it would take Esc or Tab.
+  // dialog is live again, nothing inside it would take Esc or Tab. The body comes first — the
+  // form's own first focusable is the title bar's Close, and Enter on it throws the fields away.
   useEffect(() => {
     const el = ref.current;
-    if (!busy && el && !el.contains(document.activeElement)) el.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+    if (busy || !el || el.contains(document.activeElement)) return;
+    (bodyRef.current?.querySelector<HTMLElement>(FOCUSABLE) ?? el.querySelector<HTMLElement>(FOCUSABLE))?.focus();
   }, [busy]);
 
   function onKeyDown(e: KeyboardEvent<HTMLFormElement>) {
@@ -111,7 +114,9 @@ export function Dialog({ title, wide, full, onClose, busy, onSubmit, preview, fo
             <X size={16} aria-hidden />
           </IconButton>
         </div>
-        <div className={cx(s.body, full && s.bodyFull)}>{children}</div>
+        <div ref={bodyRef} className={cx(s.body, full && s.bodyFull)}>
+          {children}
+        </div>
         {(footer || preview) && (
           <div className={s.foot}>
             {preview && (

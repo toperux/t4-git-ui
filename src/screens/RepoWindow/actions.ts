@@ -43,7 +43,7 @@ export function checkoutRemoteBranch(rb: RemoteBranch, remote: string) {
 
 /** Tag or commit → detached HEAD. */
 export const checkoutDetached = (target: string, label = target) =>
-  runOp(`Checking out ${label}…`, (id) => ipc.checkout(id, target, null, false), { success: `Checked out ${label} (detached)` });
+  runOp(`Checking out ${label}…`, (id) => ipc.checkout(id, target, null, false, true), { success: `Checked out ${label} (detached)` });
 
 export const mergeAbort = () => runOp("Aborting merge…", (id) => ipc.mergeAbort(id), { success: "Merge aborted" });
 export const rebaseAbort = () => runOp("Aborting rebase…", (id) => ipc.rebaseAbort(id), { success: "Rebase aborted" });
@@ -82,7 +82,16 @@ export function copyText(text: string, what: string) {
     .catch((e: unknown) => useToastStore.getState().push({ kind: "error", title: "Copy failed", detail: String(e) }));
 }
 
-export const openCommitPanel = () => useRepoStore.getState().selectWorkingTree();
+/**
+ * Toolbar Commit, "Commit merge", "Open commit panel". A text filter flattens the walk, and the
+ * pseudo-row (the only thing that mounts the panel) is suppressed while it does: clear it first, or
+ * the click does nothing at all.
+ */
+export function openCommitPanel() {
+  const st = useRepoStore.getState();
+  if (st.log.flat) void st.startLog(st.spec, { ...st.filter, text: null });
+  st.selectWorkingTree();
+}
 
 /** Switches to another repository (toolbar repo menu); failures stay on the current one. */
 /**

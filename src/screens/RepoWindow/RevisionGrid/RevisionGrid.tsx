@@ -9,7 +9,7 @@ import { useDialogStore, type DialogSpec } from "../../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../../store/opsStore";
 import { checkoutBranch, checkoutDetached, checkoutRemoteBranch, copyText } from "../actions";
 import { cx } from "../../../lib/cx";
-import { useRepoStore } from "../../../store/repoStore";
+import { useMerging, useRepoStore } from "../../../store/repoStore";
 import { selectChangeCount, useShowWorkingTree, useStatusStore } from "../../../store/statusStore";
 import { useThemeTokens } from "../../../theme/useThemeTokens";
 import { commitBranchActions, type BranchAt } from "./commitMenu";
@@ -42,6 +42,7 @@ export function RevisionGrid() {
   const wtSelected = useRepoStore((st) => st.wtSelected);
   const hasWt = useShowWorkingTree();
   const changes = useStatusStore(selectChangeCount);
+  const merging = useMerging();
   const offset = hasWt ? 1 : 0;
   const count = total + offset;
   const gridId = useId();
@@ -127,7 +128,7 @@ export function RevisionGrid() {
   // The header is a row of the grid, so it lives inside the `role="grid"` scroller (sticky at its top).
   // With no rows at all there is no grid to belong to and it renders as plain chrome.
   const header = (
-    <div className={s.th} role={empty ? undefined : "row"}>
+    <div className={s.th} role={empty ? undefined : "row"} aria-rowindex={empty ? undefined : 1}>
       {!flat && (
         <span className={s.col} style={{ width: graphW }} role={empty ? undefined : "columnheader"}>
           Graph
@@ -188,7 +189,8 @@ export function RevisionGrid() {
           className={s.gridEl}
           role="grid"
           tabIndex={0}
-          aria-rowcount={count}
+          /* The sticky header is row 1 of the grid; the data rows follow it. */
+          aria-rowcount={count + 1}
           aria-label="Commits"
           aria-activedescendant={activeRow}
           onKeyDown={onKeyDown}
@@ -198,7 +200,7 @@ export function RevisionGrid() {
           <div className={s.body} style={{ height: virtualizer.getTotalSize() }}>
             {items.map((item) =>
               hasWt && item.index === 0 ? (
-                <WorkingTreeRow key="wt" id={`${gridId}-wt`} top={item.start} rowH={rowH} lanes={lanes} graphW={graphW} changes={changes} />
+                <WorkingTreeRow key="wt" id={`${gridId}-wt`} top={item.start} rowH={rowH} lanes={lanes} graphW={graphW} changes={changes} merging={merging} />
               ) : (
                 <GridRow
                   key={item.index - offset}
@@ -264,7 +266,8 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
       <MenuItem icon={<GitBranch size={16} aria-hidden />} {...op} onClick={run(() => void checkoutDetached(oid, short))}>
         Checkout (detached)
       </MenuItem>
-      {!branches.headCommit && (
+      {/* On an unborn HEAD `git merge <oid>` moves the branch onto the commit and checks its tree out. */}
+      {!branches.headCommit && !branches.unborn && (
         <MenuItem
           icon={<GitMerge size={16} aria-hidden />}
           title={mergeTitle}

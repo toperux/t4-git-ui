@@ -30,6 +30,8 @@ export interface CommitBranchActions {
   canRebase: boolean;
   /** HEAD's own commit: merging into it / rebasing onto it is a no-op, so `merge` and `rebaseOnto` are empty. */
   headCommit: boolean;
+  /** Unborn HEAD: `git merge <oid>` would move the branch onto the commit, so no merge either. */
+  unborn: boolean;
 }
 
 /**
@@ -37,7 +39,7 @@ export interface CommitBranchActions {
  * name. With one at the same commit there is nothing to do; elsewhere it can be reset to the remote.
  */
 export function commitBranchActions(refs: RefsSnapshot | null, oid: string): CommitBranchActions {
-  if (!refs) return { checkout: [], reset: [], merge: [], rebaseOnto: null, canRebase: false, headCommit: false };
+  if (!refs) return { checkout: [], reset: [], merge: [], rebaseOnto: null, canRebase: false, headCommit: false, unborn: false };
   const locals: BranchAt[] = refs.local.filter((b) => b.oid === oid && !b.isHead).map((b) => ({ name: b.name, remote: null }));
   const checkout: BranchAt[] = [...locals];
   const remotes: BranchAt[] = [];
@@ -65,5 +67,6 @@ export function commitBranchActions(refs: RefsSnapshot | null, oid: string): Com
     rebaseOnto: canRebase ? (locals[0] ?? remotes[0] ?? null) : null,
     canRebase,
     headCommit,
+    unborn,
   };
 }

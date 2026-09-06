@@ -63,8 +63,8 @@ pub enum OpFailure {
     },
     /// Push rejected as non-fast-forward: the remote has commits we lack.
     NonFastForward,
-    /// `--ff-only` pull / merge that cannot fast-forward: the branches have
-    /// diverged (the fetch already happened).
+    /// `--ff-only` pull (the fetch already happened) / merge that cannot
+    /// fast-forward: the branches have diverged.
     Diverged,
     AuthFailed,
     /// Any other `! [rejected]` / `! [remote rejected]` line.
@@ -183,8 +183,15 @@ pub fn merge_abort() -> Vec<String> {
     args(["merge", "--abort"])
 }
 
-/// `checkout [--track] [-b <name>] <target>`; `track` only applies with `-b`.
-pub fn checkout(target: &str, create_branch: Option<&str>, track: bool) -> Vec<String> {
+/// `checkout [--track] [-b <name>] [--detach] <target>`; `track` only applies
+/// with `-b`, `detach` only without it. Without `--detach` a name that is both
+/// a tag and a branch resolves to the branch, leaving HEAD attached.
+pub fn checkout(
+    target: &str,
+    create_branch: Option<&str>,
+    track: bool,
+    detach: bool,
+) -> Vec<String> {
     let mut a = args(["checkout"]);
     if let Some(name) = create_branch {
         if track {
@@ -192,6 +199,8 @@ pub fn checkout(target: &str, create_branch: Option<&str>, track: bool) -> Vec<S
         }
         a.push("-b".into());
         a.push(name.into());
+    } else if detach {
+        a.push("--detach".into());
     }
     a.push(target.into());
     a
@@ -532,14 +541,23 @@ mod tests {
 
     #[test]
     fn checkout_and_branch_args() {
-        assert_eq!(checkout("main", None, true), ["checkout", "main"]);
+        assert_eq!(checkout("main", None, true, false), ["checkout", "main"]);
         assert_eq!(
-            checkout("origin/x", Some("x"), false),
+            checkout("v1.0", None, false, true),
+            ["checkout", "--detach", "v1.0"]
+        );
+        assert_eq!(
+            checkout("origin/x", Some("x"), false, false),
             ["checkout", "-b", "x", "origin/x"]
         );
         assert_eq!(
-            checkout("origin/x", Some("x"), true),
+            checkout("origin/x", Some("x"), true, false),
             ["checkout", "--track", "-b", "x", "origin/x"]
+        );
+        // `-b` wins: git refuses the two together.
+        assert_eq!(
+            checkout("origin/x", Some("x"), false, true),
+            ["checkout", "-b", "x", "origin/x"]
         );
         assert_eq!(
             delete_remote_branch("origin", "old"),

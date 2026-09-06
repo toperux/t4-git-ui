@@ -31,8 +31,9 @@ export function repoNameFromUrl(url: string): string {
 /** `https://github.com/x/y.git` → `github.com/x/y`, `file:///C:/tmp/bare.git` → `C:/tmp/bare` */
 export function prettyUrl(url: string): string {
   return url
-    // The optional third slash is `file:///…`'s: dropping only two would leave a leading `/C:/…`.
-    .replace(/^[a-z+]+:\/\/\/?/i, "")
+    // `file:///…`'s third slash goes only before a drive letter (it would leave a leading `/C:/…`);
+    // a POSIX path keeps it — `file:///home/u/bare` is not `home/u/bare`.
+    .replace(/^[a-z+]+:\/\/(\/(?=[a-z]:))?/i, "")
     .replace(/^git@/, "")
     .replace(/\.git$/, "");
 }

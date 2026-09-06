@@ -13,6 +13,8 @@ vi.mock("../../api/ipc", async (importOriginal) => {
     getDefaultRemote: vi.fn(() => Promise.resolve("origin")),
     getStatus: vi.fn(() => new Promise(() => {})),
     getRefs: vi.fn(() => new Promise(() => {})),
+    startLog: vi.fn(() => Promise.resolve(1)),
+    getLogPage: vi.fn(() => new Promise(() => {})),
   };
 });
 
@@ -55,6 +57,23 @@ describe("Toolbar Commit", () => {
     useRepoStore.setState({ refs: { head: { oid: "a", branch: "main", detached: false }, state: "merge", local: [], remotes: [], tags: [], stashes: [] } });
     rerender(<Toolbar />);
     expect(getByRole("button", { name: "Commit" }).hasAttribute("disabled")).toBe(false);
+  });
+
+  it("clears the search filter first — the pseudo-row that mounts the panel is hidden while it flattens the walk", () => {
+    useRepoStore.setState({
+      refs: { head: { oid: "a", branch: "main", detached: false }, state: "merge", local: [], remotes: [], tags: [], stashes: [] },
+      filter: { text: "lane" },
+      log: { generation: 1, total: 1, complete: true, error: null, flat: true },
+      wtSelected: false,
+    });
+    const { getByRole, getByLabelText } = render(<Toolbar />);
+    expect((getByLabelText("Search commits") as HTMLInputElement).value).toBe("lane");
+
+    fireEvent.click(getByRole("button", { name: "Commit" }));
+    expect(useRepoStore.getState().filter.text).toBeNull();
+    expect(useRepoStore.getState().wtSelected).toBe(true);
+    // The field follows the store, so it doesn't keep showing a filter that is no longer applied.
+    expect((getByLabelText("Search commits") as HTMLInputElement).value).toBe("");
   });
 });
 

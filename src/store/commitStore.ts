@@ -67,8 +67,11 @@ export interface CommitStore {
   body: string;
   amend: boolean;
   signoff: boolean;
-  /** Message last written by an amend prefill / history pick (an untouched editor may be overwritten). */
-  prefill: { summary: string; body: string } | null;
+  /**
+   * Message last written by a prefill (an untouched editor may be overwritten), and which entry
+   * point wrote it — an abort takes back only its own (`pending`).
+   */
+  prefill: { summary: string; body: string; from: "amend" | "pending" | "history" } | null;
   /** A mutation is in flight. */
   busy: boolean;
 
@@ -102,9 +105,10 @@ export interface CommitStore {
   /** Turning amend on prefills the editor from HEAD unless the user already typed something. */
   setAmend(on: boolean): Promise<void>;
   /**
-   * A merge / cherry-pick that stopped for conflicts (`on`) prefills the editor from `MERGE_MSG`,
-   * the way `git commit` would; ending it without a commit (abort) takes that prefill back. Neither
-   * touches a message the user typed.
+   * A merge that stopped for conflicts (`on`) prefills the editor from `MERGE_MSG`, the way
+   * `git commit` would; ending it without a commit (abort) takes that prefill back. Neither touches
+   * a message the user typed. Merge only: every other sequencer state is finished in a terminal, so
+   * its `MERGE_MSG` would fill an editor nothing can commit from.
    */
   prefillPending(on: boolean): Promise<void>;
   /** Fills the editor from a history entry. */
@@ -124,6 +128,8 @@ let statsInflight = false;
 let statsPending: string | null = null;
 /** Repository whose author fetch is in flight. */
 let authorFor: string | null = null;
+/** Both prefill entry points await an IPC and then write the editor: the later start wins. */
+let prefillSeq = 0;
 
 const EMPTY_STATS = { unstaged: {}, staged: {} };
 const NO_ORDER = { unstaged: null, staged: null };
@@ -211,7 +217,12 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
    */
   async function run(title: string, op: (id: string) => Promise<unknown>): Promise<boolean> {
     const id = repoId();
-    if (!id || get().busy) return false;
+    if (!id) return false;
+    if (get().busy) {
+      // A Retry action has already dismissed its own toast: without this the error just vanishes.
+      useToastStore.getState().push({ kind: "info", title: "Operation in progress", detail: "Another change is being applied" });
+      return false;
+    }
     set({ busy: true });
     try {
       await op(id);
@@ -389,32 +400,34 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       set({ amend: on });
       const id = repoId();
       if (!on || !id) return;
+      const mySeq = ++prefillSeq;
       const message = await ipc.getHeadMessage(id).catch(() => null);
-      if (!message || !get().amend || !untouched(get())) return;
+      // A prefill that started later has the say — it knows about this one, not the other way round.
+      if (mySeq !== prefillSeq || !message || !get().amend || !untouched(get())) return;
       const split = splitMessage(message);
-      set({ summary: split.summary, body: split.body, prefill: split });
+      set({ summary: split.summary, body: split.body, prefill: { ...split, from: "amend" } });
     },
 
     async prefillPending(on) {
       if (!on) {
         // Aborted: the editor holds a message for a merge that is no longer happening. An amend
-        // prefill (HEAD's message) is still right, so that one stays.
-        const { prefill, amend } = get();
-        if (prefill && !amend && untouched(get())) set({ summary: "", body: "", prefill: null });
+        // prefill (HEAD's message) or a history pick is still the user's, so those stay.
+        if (get().prefill?.from === "pending" && untouched(get())) set({ summary: "", body: "", prefill: null });
         return;
       }
       const id = repoId();
       if (!id) return;
+      const mySeq = ++prefillSeq;
       const message = await ipc.getMergeMessage(id).catch(() => null);
-      // The operation may have ended (or the repo changed) while the read was in flight.
-      if (!message || repoId() !== id || useRepoStore.getState().refs?.state === "clean" || !untouched(get())) return;
+      // The merge may have ended (or the repo changed) while the read was in flight.
+      if (mySeq !== prefillSeq || !message || repoId() !== id || useRepoStore.getState().refs?.state !== "merge" || !untouched(get())) return;
       const split = splitMessage(message);
-      set({ summary: split.summary, body: split.body, prefill: split });
+      set({ summary: split.summary, body: split.body, prefill: { ...split, from: "pending" } });
     },
 
     useMessage(message) {
       const split = splitMessage(message);
-      set({ summary: split.summary, body: split.body, prefill: split });
+      set({ summary: split.summary, body: split.body, prefill: { ...split, from: "history" } });
     },
 
     async commit() {
@@ -485,7 +498,7 @@ useRepoStore.subscribe((st, prev) => {
   const state = st.refs?.state;
   // A switch between two repos both mid-operation is a change too (the reset above ran first).
   if (!state || (state === prev.refs?.state && st.repo?.id === prev.repo?.id)) return;
-  void useCommitStore.getState().prefillPending(state !== "clean");
+  void useCommitStore.getState().prefillPending(state === "merge");
 });
 
 // `setContext` reloads the details-pane diff only. The panel's is built with the same setting, so it

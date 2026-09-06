@@ -132,7 +132,10 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
   useEffect(() => setOrder(list, all), [list, all, setOrder]);
   // The menu's paths are a snapshot of the selection: once the list itself changes (a background
   // refresh re-prunes the selection onto other files) they name rows the user never right-clicked.
-  useEffect(() => setMenu(null), [entries]);
+  // Keyed on what the menu reads, not on `entries`' identity: a refresh that changes nothing at all
+  // (a save by another tool) rebuilds the array and must not close the menu under the pointer.
+  const signature = entries.map((e) => `${e.path} ${entryStatus(list, e)}`).join("\n");
+  useEffect(() => setMenu(null), [signature]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
@@ -146,10 +149,23 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
   // when it sat on one (a row's own +/− button): Enter would leave it on `<body>`. `held` is what
   // says the loss is this list's to repair — a background refresh must not grab an idle focus.
   const held = useRef(false);
+  const hadRows = useRef(entries.length > 0);
   useEffect(() => {
     const root = scrollRef.current;
-    if (held.current && root && (!document.activeElement || document.activeElement === document.body)) root.focus();
-  }, [rows]);
+    const had = hadRows.current;
+    hadRows.current = entries.length > 0;
+    if (!held.current || !root) return;
+    // Nothing left to focus here, and an empty list answers no keys: `syncWithStatus` has handed the
+    // selection to the other list, so the focus goes there. Only when this list just emptied — a
+    // list the user focused while it was already empty keeps the focus where they put it.
+    if (entries.length === 0) {
+      if (!had) return;
+      held.current = false;
+      siblingList(root, list === "unstaged" ? "Staged files" : "Unstaged files")?.focus();
+      return;
+    }
+    if (!document.activeElement || document.activeElement === document.body) root.focus();
+  }, [rows, entries.length, list]);
 
   // Keep the focused row in view — only that one; the rest never scroll themselves.
   const scrollToIndex = virtualizer.scrollToIndex;
@@ -182,6 +198,8 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
    * action and stages it. More than one skips them, the way "Stage all" does.
    */
   const stageable = (ps: string[]) => (list === "unstaged" && ps.length > 1 ? ps.filter((p) => !conflicted(p)) : ps);
+  /** A conflicted file has no single version to go back to: Discard skips them, the way Stage all does. */
+  const discardable = (ps: string[]) => ps.filter((p) => !conflicted(p));
 
   // One delegated listener per list keeps every `FileRow` prop stable, so `memo` actually skips rows.
   function onClick(e: MouseEvent<HTMLDivElement>) {
@@ -260,11 +278,14 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
         if (busy) return;
         act(stageable(sel.selected));
         break;
-      case "Delete":
-        // Like the menu item: no Discard once a conflicted file is in the selection.
-        if (busy || list !== "unstaged" || sel.selected.length === 0 || sel.selected.some(conflicted)) return;
-        void discard(sel.selected);
+      case "Delete": {
+        // Like the menu item: the conflicted files in the selection are skipped, not the whole action.
+        if (busy || list !== "unstaged") return;
+        const ps = discardable(sel.selected);
+        if (ps.length === 0) return;
+        void discard(ps);
         break;
+      }
       case "F10":
       case "ContextMenu": {
         if (e.key === "F10" && !e.shiftKey) return;
@@ -296,9 +317,18 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
       aria-activedescendant={anchorRow >= 0 ? `${rowId}-${anchorRow}` : undefined}
       tabIndex={0}
       onFocus={() => (held.current = true)}
-      /* A removed row blurs with no `relatedTarget`; only a focus that actually moved away is a release. */
       onBlur={(e) => {
-        if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget)) held.current = false;
+        if (e.relatedTarget) {
+          if (!e.currentTarget.contains(e.relatedTarget)) held.current = false;
+          return;
+        }
+        // No `relatedTarget`: either a row was removed under the focus — this list's loss to repair —
+        // or the click landed on something unfocusable (a header, the panel background) and the focus
+        // is idle from here on. A removed row is out of the document by the next microtask.
+        const target = e.target;
+        void Promise.resolve().then(() => {
+          if (target.isConnected) held.current = false;
+        });
       }}
       onKeyDown={onKeyDown}
       onClick={onClick}
@@ -362,6 +392,15 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
 }
 
 const filePaths = (rows: Row[]) => rows.flatMap((r) => (r.kind === "file" ? [r.file.path] : []));
+
+/** The other list of the same mount — the panel and the commit dialog each have their own pair. */
+function siblingList(root: HTMLElement, label: string): HTMLElement | null {
+  for (let el = root.parentElement; el; el = el.parentElement) {
+    const other = el.querySelector<HTMLElement>(`[aria-label="${label}"]`);
+    if (other) return other;
+  }
+  return null;
+}
 
 /** Keys a focused folder row answers itself. */
 const folderKey = (key: string, isCollapsed: boolean) => key === "Enter" || key === " " || (key === "ArrowLeft" && !isCollapsed) || (key === "ArrowRight" && isCollapsed);

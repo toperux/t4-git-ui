@@ -189,6 +189,59 @@ describe("CommitPanel", () => {
     expect(document.activeElement).toBe(list());
   });
 
+  it("an idle focus is left alone: only a loss the list caused is repaired", async () => {
+    const { getByRole } = renderPanel();
+    const list = () => getByRole("listbox", { name: "Unstaged files" });
+    const refresh = () => act(() => useStatusStore.setState({ status: { ...STATUS, entries: STATUS.entries.map((e) => ({ ...e })) } }));
+
+    // Clicking a panel header or the background: the focus goes to `<body>` with no `relatedTarget`,
+    // and it is not the list's to take back — a background refresh must leave it there.
+    list().focus();
+    list().blur();
+    await act(async () => {});
+    refresh();
+    expect(document.activeElement).toBe(document.body);
+
+    // Same for a focus that moved to something outside the list.
+    const outside = document.createElement("button");
+    document.body.appendChild(outside);
+    list().focus();
+    outside.focus();
+    await act(async () => {});
+    refresh();
+    expect(document.activeElement).toBe(outside);
+    outside.remove();
+  });
+
+  it("staging the last unstaged file hands the focus to the list that took the selection", () => {
+    const { getByRole } = renderPanel();
+    const unstaged = getByRole("listbox", { name: "Unstaged files" });
+    unstaged.focus();
+    fireEvent.keyDown(unstaged, { key: "a", ctrlKey: true });
+    fireEvent.keyDown(unstaged, { key: "Enter" });
+    // Everything is staged: the empty list answers no keys, so the focus follows the selection over.
+    const allStaged: WorkdirStatus = {
+      entries: [
+        { path: "a.rs", oldPath: null, index: "modified", workdir: null, conflicted: false, workdirStamp: "1:1" },
+        { path: "both.rs", oldPath: null, index: "modified", workdir: null, conflicted: false, workdirStamp: "1:1" },
+        { path: "new.rs", oldPath: null, index: "added", workdir: null, conflicted: false, workdirStamp: null },
+      ],
+      staged: 3,
+      unstaged: 0,
+      untracked: 0,
+      conflicted: 0,
+    };
+    act(() => useStatusStore.setState({ status: allStaged }));
+    expect(useCommitStore.getState().list).toBe("staged");
+    expect(document.activeElement).toBe(getByRole("listbox", { name: "Staged files" }));
+
+    // A list focused while already empty is where the user put the focus: a refresh leaves it there.
+    const emptyUnstaged = getByRole("listbox", { name: "Unstaged files" });
+    emptyUnstaged.focus();
+    act(() => useStatusStore.setState({ status: { ...allStaged, entries: allStaged.entries.map((e) => ({ ...e })) } }));
+    expect(document.activeElement).toBe(emptyUnstaged);
+  });
+
   it("double-clicking a single selected conflicted row stages it, like the row's own action", () => {
     const { getByRole } = renderPanel();
     const list = getByRole("listbox", { name: "Unstaged files" });
@@ -374,13 +427,20 @@ describe("CommitPanel", () => {
     expect(getByText("Staged (amending)")).toBeTruthy();
   });
 
-  it("Commit is enabled with nothing staged while a merge is still to be committed", () => {
+  it("Commit is enabled with nothing staged while a merge is still to be committed", async () => {
     // "Keep main's version" on the only conflict: MERGE_HEAD is there, the status is empty.
     useStatusStore.setState({ status: { entries: [], staged: 0, unstaged: 0, untracked: 0, conflicted: 0 } });
     useRepoStore.setState({ refs: { ...REFS, state: "merge" } });
     useCommitStore.setState({ summary: "Merge branch 'feature'" });
-    const { getByRole } = renderPanel();
+    const { getByRole, getByText, findByText } = renderPanel();
     expect(getByRole("button", { name: "Commit" }).hasAttribute("disabled")).toBe(false);
+    expect(getByRole("button", { name: "Commit & Push" }).hasAttribute("disabled")).toBe(false);
+    // Nothing staged, but the commit records the merge: not "0 staged files" beside an enabled Commit.
+    await findByText(/Ada <ada@x> · will record the merge/);
+    expect(getByText("No unstaged changes")).toBeTruthy();
+    expect(getByText("Nothing staged")).toBeTruthy();
+    expect(getByRole("button", { name: "Stage all" }).hasAttribute("disabled")).toBe(true);
+    expect(getByRole("button", { name: "Unstage all" }).hasAttribute("disabled")).toBe(true);
   });
 
   it("the author is fetched once for the panel and the dialog together", async () => {
@@ -417,7 +477,9 @@ describe("CommitPanel file context menu", () => {
     const { getByRole, container } = renderPanel();
     fireEvent.contextMenu(rows(container, "Unstaged")[2]);
     const menu = getByRole("menu", { name: "File actions" });
-    expect(labels(menu)).toEqual(["Stage", "Keep main's version", "Keep feature's version", "Copy path", "Open", "Reveal in folder"]);
+    // Discard is there but refused: a conflict has no single version to go back to — the two sides are.
+    expect(labels(menu)).toEqual(["Stage", "Discard…", "Keep main's version", "Keep feature's version", "Copy path", "Open", "Reveal in folder"]);
+    expect(getByRole("menuitem", { name: "Discard…" }).hasAttribute("disabled")).toBe(true);
     fireEvent.click(getByRole("menuitem", { name: "Keep feature's version" }));
     await act(async () => {});
     expect(ask.mock.calls[0][0]).toContain("Replace conflict.rs with feature's version?");
@@ -430,7 +492,37 @@ describe("CommitPanel file context menu", () => {
     fireEvent.click(rows(container, "Unstaged")[0]); // a.rs
     fireEvent.click(rows(container, "Unstaged")[2], { ctrlKey: true }); // conflict.rs
     fireEvent.contextMenu(rows(container, "Unstaged")[2]);
-    expect(labels(getByRole("menu", { name: "File actions" }))).toEqual(["Stage 2 files", "Copy path"]);
+    expect(labels(getByRole("menu", { name: "File actions" }))).toEqual(["Stage 2 files", "Discard 2 files…", "Copy path"]);
+  });
+
+  it("Discard skips the conflicted files in a selection, the way Stage does", async () => {
+    const { getByRole, container } = renderPanel();
+    fireEvent.click(rows(container, "Unstaged")[0]); // a.rs
+    fireEvent.click(rows(container, "Unstaged")[2], { ctrlKey: true }); // conflict.rs
+    fireEvent.contextMenu(rows(container, "Unstaged")[2]);
+    const item = getByRole("menuitem", { name: "Discard 2 files…" });
+    expect(item.hasAttribute("disabled")).toBe(false);
+    expect(item.getAttribute("title")).toContain("1 skipped");
+    fireEvent.click(item);
+    await act(async () => {});
+    expect(mocked.discardPaths).toHaveBeenCalledWith("r", ["a.rs"]);
+  });
+
+  it("Delete follows the same rule: the conflicted rows are skipped, not the whole action", async () => {
+    const { container } = renderPanel();
+    const list = container.querySelector('[aria-label="Unstaged files"]') as HTMLElement;
+    fireEvent.click(rows(container, "Unstaged")[0]); // a.rs
+    fireEvent.click(rows(container, "Unstaged")[2], { ctrlKey: true }); // conflict.rs
+    fireEvent.keyDown(list, { key: "Delete" });
+    await act(async () => {});
+    expect(mocked.discardPaths).toHaveBeenCalledWith("r", ["a.rs"]);
+
+    // Nothing but conflicts left to discard: the key does nothing at all.
+    mocked.discardPaths.mockClear();
+    fireEvent.click(rows(container, "Unstaged")[2]);
+    fireEvent.keyDown(list, { key: "Delete" });
+    await act(async () => {});
+    expect(mocked.discardPaths).not.toHaveBeenCalled();
   });
 
   it("Stage on a lone conflicted row marks it resolved, like the row's own action", () => {
@@ -469,6 +561,14 @@ describe("CommitPanel file context menu", () => {
     expect(getByRole("menu", { name: "File actions" })).toBeTruthy();
     act(() => useStatusStore.setState({ status: { ...STATUS, entries: STATUS.entries.filter((e) => e.path !== "a.rs") } }));
     expect(queryByRole("menu", { name: "File actions" })).toBeNull();
+  });
+
+  it("a refresh that changes nothing leaves the menu up under the pointer", () => {
+    const { getByRole, container } = renderPanel();
+    fireEvent.contextMenu(rows(container, "Unstaged")[0]);
+    // A save by another tool: the debounced refresh hands over a fresh, byte-identical status.
+    act(() => useStatusStore.setState({ status: { ...STATUS, entries: STATUS.entries.map((e) => ({ ...e })) } }));
+    expect(getByRole("menu", { name: "File actions" })).toBeTruthy();
   });
 
   it("the git items are disabled while a commit-store mutation runs", () => {

@@ -34,9 +34,10 @@ while the app is closed.
 - Toolbar: `button` with text `Commit` (`disabled` + `title="No changes"` on a clean tree,
   `title="Merge to commit"` mid-merge), `Branch` › menu items `Create branch…` / `Checkout…` /
   `Merge…` / `Rebase…`; the Merge dialog's combobox is `button[aria-label="Branch to merge"]`.
-- Commit panel: `[role="tree"][aria-label="Unstaged files"]` / `"Staged files"` with
-  `[role="treeitem"]` (an item's text is glyph + name + stats, e.g. `Mhunks.txt+3−1`, so match the
-  name with `^M*hunks\.txt`, not a substring — `crlf-hunks.txt` also contains it). Right-click an
+- Commit panel: list mode (the default) is `[role="listbox"][aria-label="Unstaged files"]` /
+  `"Staged files"` with `[role="option"]`; tree mode is `[role="tree"]` with `[role="treeitem"]`
+  (an item's text is glyph + name + stats, e.g. `Mhunks.txt+3−1`, so match the name with
+  `^M*hunks\.txt`, not a substring — `crlf-hunks.txt` also contains it). Right-click an
   item for the file menu (`[role="menuitem"]`: Stage, Keep <branch>'s version, Copy path, Open,
   Reveal in folder). `[aria-label="Summary"]` is the message field; the panel's Commit is the
   primary `button` with text `Commit`.

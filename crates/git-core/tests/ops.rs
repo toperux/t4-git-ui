@@ -328,17 +328,16 @@ async fn checkout_creates_branch_and_detaches() {
     }
     let t = TempRepo::new();
     let a = t.commit(&[("f.txt", "1\n")], "A");
-    run_ok(&t, &ops::checkout("master", Some("topic"), false)).await;
+    run_ok(&t, &ops::checkout("master", Some("topic"), false, false)).await;
     let h = refs::head_info(&t.repo).unwrap();
     assert_eq!((h.branch.as_deref(), h.detached), (Some("topic"), false));
     assert_eq!(ref_oid(&t, "refs/heads/topic"), Some(a));
 
-    let detach = vec!["checkout".into(), "--detach".into(), a.to_string()];
-    run_ok(&t, &detach).await;
+    run_ok(&t, &ops::checkout(&a.to_string(), None, false, true)).await;
     let h = refs::head_info(&t.repo).unwrap();
     assert_eq!((h.branch, h.detached), (None, true));
 
-    run_ok(&t, &ops::checkout("master", None, false)).await;
+    run_ok(&t, &ops::checkout("master", None, false, false)).await;
     assert_eq!(
         refs::head_info(&t.repo).unwrap().branch.as_deref(),
         Some("master")

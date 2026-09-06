@@ -13,10 +13,12 @@ export interface WorkingTreeRowProps {
   lanes: number;
   graphW: number;
   changes: number;
+  /** Mid-merge: a merge resolved to HEAD has an empty status and still needs committing. */
+  merging: boolean;
 }
 
 /** Style guide §4: dashed ring in the graph, italic muted "Working tree · N changes", no chips. */
-export const WorkingTreeRow = memo(function WorkingTreeRow({ id, top, rowH, lanes, graphW, changes }: WorkingTreeRowProps) {
+export const WorkingTreeRow = memo(function WorkingTreeRow({ id, top, rowH, lanes, graphW, changes, merging }: WorkingTreeRowProps) {
   const selected = useRepoStore((st) => st.wtSelected);
   const selectWorkingTree = useRepoStore((st) => st.selectWorkingTree);
   const first = useRepoStore((st) => st.rows[0]?.row ?? null);
@@ -26,7 +28,8 @@ export const WorkingTreeRow = memo(function WorkingTreeRow({ id, top, rowH, lane
     <div
       id={id}
       role="row"
-      aria-rowindex={1}
+      /* Row 2: the sticky header is row 1. */
+      aria-rowindex={2}
       aria-selected={selected}
       className={cx(s.row, selected && s.selected)}
       style={{ transform: `translateY(${top}px)`, height: rowH }}
@@ -39,7 +42,7 @@ export const WorkingTreeRow = memo(function WorkingTreeRow({ id, top, rowH, lane
       </div>
       <div role="gridcell" className={s.subject}>
         <span className={cx(s.text, s.wt)}>
-          Working tree · {changes} change{changes === 1 ? "" : "s"}
+          {changes === 0 && merging ? "Working tree · merge to commit" : `Working tree · ${changes} change${changes === 1 ? "" : "s"}`}
         </span>
       </div>
       <div role="gridcell" className={cx(s.meta, s.author)} />

@@ -1,4 +1,4 @@
-import { renderHook } from "@testing-library/react";
+import { cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RefsSnapshot, RepoSummary, WorkdirStatus } from "../api/types";
 
@@ -58,6 +58,8 @@ beforeEach(() => {
   useStatusStore.setState({ status: null, error: null });
   mocked.getStatus.mockClear();
 });
+// Vitest runs without `globals`, so RTL never auto-cleans: `renderHook` would leak into the next file.
+afterEach(cleanup);
 afterEach(() => vi.useRealTimers());
 
 describe("statusStore", () => {
@@ -208,5 +210,20 @@ describe("statusStore", () => {
     // `commit()` refreshes the status before the refs: the merge ending afterwards drops the row.
     useRepoStore.setState({ refs: refs("h2") });
     expect(useRepoStore.getState().wtSelected).toBe(false);
+  });
+
+  it("a text filter flattens the walk: no pseudo-row, mid-merge included", async () => {
+    // The flat walk has no row to hang it on, so the grid's index math must not count one either.
+    useRepoStore.setState({ refs: { ...refs("h1"), state: "merge" }, log: { generation: 1, total: 0, complete: true, error: null, flat: true } });
+    mocked.getStatus.mockResolvedValue(status(2));
+    await useStatusStore.getState().refresh();
+    expect(renderHook(() => useShowWorkingTree()).result.current).toBe(false);
+  });
+
+  it("a stopped rebase with an empty status has no pseudo-row: only a merge is committed from the panel", async () => {
+    useRepoStore.setState({ refs: { ...refs("h1"), state: "rebase" } });
+    mocked.getStatus.mockResolvedValue(status(0));
+    await useStatusStore.getState().refresh();
+    expect(renderHook(() => useShowWorkingTree()).result.current).toBe(false);
   });
 });

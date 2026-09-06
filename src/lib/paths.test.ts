@@ -40,5 +40,7 @@ describe("baseName / prettyUrl", () => {
     expect(prettyUrl("ssh://host/x/y")).toBe("host/x/y");
     expect(prettyUrl("file:///C:/tmp/t4/bare.git")).toBe("C:/tmp/t4/bare");
     expect(prettyUrl("file://server/share/bare.git")).toBe("server/share/bare");
+    // Only a drive letter loses the third slash; a POSIX clone URL keeps its absolute path.
+    expect(prettyUrl("file:///home/u/bare.git")).toBe("/home/u/bare");
   });
 });

@@ -52,7 +52,7 @@ src/
                            resolveConflict(paths, side, label) (ask, then
                            `resolve_conflict` = `checkout --ours|--theirs` + add; a path whose chosen side the other branch
                            deleted is resolved as a removal instead), setAmend (get_head_message prefill), prefillPending
-                           (get_merge_message prefill when `refs.state` leaves `clean`, taken back on abort), useMessage, commit
+                           (get_merge_message prefill when `refs.state` becomes `merge`, taken back on abort), useMessage, commit
                            (→ oid | null, clears the editor incl. after an amend, msgHistory, toast, status + refs refresh),
                            reset on repo change
     recentsStore.ts        zustand: RecentRepo{path,name,lastOpened,pinned} persisted via lib/kv; load (migrates the M1
@@ -142,7 +142,7 @@ src/
                            `merged` badge; context menus per ref kind on right-click / Shift+F10, double-click = checkout),
                            actions.ts (fetchDefault / checkout* / stash* / copyText / refreshAll / switchRepo / pickAndOpenRepo /
                            closeRepo / runGit — the git ones through runOp; runGit with `quietFailure`: no toast on a
-                           non-zero exit unless conflicts / auth / non-fast-forward, the dock's exit line says it;
+                           non-zero exit unless conflicts / auth / non-fast-forward / diverged, the dock's exit line says it;
                            busyLabel cuts the label by code point with a marker runOp keeps),
                            banners.ts (pure refs+status → detached | merge | rebase | sequencer (cherry-pick/revert/bisect,
                            text only — no backend abort) | conflicts banners),

@@ -47,9 +47,12 @@ export function FileContextMenu({ list, paths, entries, menu, onClose, act, disc
   // Staging a conflicted file is "mark resolved" with the markers still in it — one file at a time,
   // on purpose: a lone file is the row's own Stage action, so it stages; more than one skips them,
   // like "Stage all".
-  const anyConflicted = paths.some((p) => entryOf(p)?.conflicted);
   const target = list === "unstaged" && n > 1 ? paths.filter((p) => !entryOf(p)?.conflicted) : paths;
   const skipped = n - target.length;
+  // A conflicted file has no single version to go back to — its two sides are the items below — so
+  // Discard skips them however few there are, and is refused only when every file is conflicted.
+  const discardTarget = paths.filter((p) => !entryOf(p)?.conflicted);
+  const discardSkipped = n - discardTarget.length;
 
   /** Every item closes the menu first. */
   const run = (fn: () => void) => () => {
@@ -77,9 +80,16 @@ export function FileContextMenu({ list, paths, entries, menu, onClose, act, disc
         {list === "unstaged" ? "Stage" : "Unstage"}
         {many}
       </MenuItem>
-      {/* A conflicted file has no single version to go back to: its two sides are the items below. */}
-      {list === "unstaged" && !anyConflicted && (
-        <MenuItem icon={<Trash2 size={16} aria-hidden />} danger kbd="Delete" {...op} onClick={run(() => discard(paths))}>
+      {list === "unstaged" && (
+        <MenuItem
+          icon={<Trash2 size={16} aria-hidden />}
+          danger
+          kbd="Delete"
+          {...op}
+          disabled={op.disabled || discardTarget.length === 0}
+          title={discardSkipped > 0 ? `A conflict is resolved by keeping a side, not discarded (${discardSkipped} skipped)` : op.title}
+          onClick={run(() => discard(discardTarget))}
+        >
           Discard{many}…
         </MenuItem>
       )}

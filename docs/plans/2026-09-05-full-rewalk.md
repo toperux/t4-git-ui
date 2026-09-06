@@ -115,7 +115,7 @@ window entry points, splitters, mirrored staging, `Esc`, focus return after a pl
 **G1** menu items, `Shift+F10`, right-click outside the selection, "4 files", Open / Reveal disabled
 for a deleted file, Copy path toast, Reveal → Explorer at `src/lib`, Open → Notepad.
 **H** Keep main's / Keep conflict's labels (header and row menu) in both merge and rebase.
-**I** `&& git push origin refs/tags/v-pushed` preview, "already exists" inline + Create disabled,
+**I** `&& git push --progress origin refs/tags/v-pushed` preview, "already exists" inline + Create disabled,
 `nowhere` → create toast then failure toast, tag stays local.
 **J** bogus git path → inline "git executable not found", old path kept, app keeps working; real
 path → `git version 2.55.0.windows.1`; Follow system; Context lines 1 → `@@ -4,3 +4,3 @@` hunks and

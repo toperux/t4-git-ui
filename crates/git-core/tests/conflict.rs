@@ -173,6 +173,27 @@ fn a_side_the_other_branch_deleted_is_resolved_as_a_removal() {
     assert!(!t.path().join("d.txt").exists());
 }
 
+/// A held `index.lock` must leave the conflict whole on both sides: the write
+/// is rolled back, so the working file the row still needs must survive too.
+#[test]
+fn a_locked_index_leaves_the_stages_and_the_file() {
+    let t = conflicted();
+    let lock = t.path().join(".git").join("index.lock");
+    std::fs::write(&lock, "").unwrap();
+
+    assert!(matches!(
+        stage::remove_paths(&t.repo, &["f.txt"]),
+        Err(GitError::IndexLocked)
+    ));
+    let stages = conflict::stages(&t.repo, "f.txt")
+        .expect("stages")
+        .expect("f.txt is still conflicted");
+    assert!(stages.ancestor.is_some());
+    assert!(stages.ours.is_some());
+    assert!(stages.theirs.is_some());
+    assert!(t.path().join("f.txt").exists());
+}
+
 /// The ignore guard used to look at stage 0 only, which an unmerged path never
 /// has — so a tracked, conflicted, ignored file was refused *after* the
 /// checkout had already overwritten it.

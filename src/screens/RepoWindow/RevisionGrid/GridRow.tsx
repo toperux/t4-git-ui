@@ -36,7 +36,8 @@ export const GridRow = memo(function GridRow({ id, index, offset, top, rowH, lan
     <div
       id={id}
       role="row"
-      aria-rowindex={index + 1 + offset}
+      /* +2: the header is row 1, and `offset` is the working-tree pseudo-row above the commits. */
+      aria-rowindex={index + 2 + offset}
       aria-selected={selected}
       className={cx(s.row, selected && s.selected)}
       style={{ transform: `translateY(${top}px)`, height: rowH }}

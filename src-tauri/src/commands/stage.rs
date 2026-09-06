@@ -464,7 +464,7 @@ pub async fn commit(
                 .tempfile()
                 .and_then(|f| std::fs::write(f.path(), message.as_bytes()).map(|_| f))
                 .map_err(GitError::from)?;
-            let args = commit::commit_args(file.path(), amend, signoff, false);
+            let args = commit::commit_args(file.path(), amend, signoff);
             let args: Vec<&str> = args.iter().map(String::as_str).collect();
             let run = run_git_op(
                 app,
@@ -499,8 +499,8 @@ pub async fn get_head_message(
     blocking(move || Ok(commit::head_message(&handle.git2.lock())?)).await
 }
 
-/// The message a stopped merge / cherry-pick left in `MERGE_MSG`, for the commit
-/// editor to start from (`None` when there is none).
+/// The message a stopped merge / cherry-pick / rebase left in `MERGE_MSG`, for
+/// the commit editor to start from (`None` when there is none).
 #[tauri::command]
 pub async fn get_merge_message(
     state: State<'_, AppState>,

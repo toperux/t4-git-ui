@@ -54,7 +54,7 @@ export function toPairs(sel: LineSelection): [number, number][] {
 const hunkId = (h: Hunk) => h.lines.map((l) => `${l.kind} ${l.text}`).join("\n");
 
 /** Old hunk index → new one across a reload of the same file, matched by content in order (each new hunk claimed once). */
-function hunkMap(oldDiff: FileDiff, newDiff: FileDiff): Map<number, number> {
+export function hunkMap(oldDiff: FileDiff, newDiff: FileDiff): Map<number, number> {
   const free = new Map<string, number[]>();
   newDiff.hunks.forEach((h, j) => {
     const id = hunkId(h);
@@ -70,18 +70,17 @@ function hunkMap(oldDiff: FileDiff, newDiff: FileDiff): Map<number, number> {
   return moved;
 }
 
-/** Where one ref lands after a reload; `null` if its hunk is gone — the one that was just staged. */
-export function carryRef(ref: LineRef, oldDiff: FileDiff, newDiff: FileDiff): LineRef | null {
-  const j = hunkMap(oldDiff, newDiff).get(ref.hunk);
+/** Where one ref lands after a reload (`moved` = `hunkMap`); `null` if its hunk is gone — the one that was just staged. */
+export function carryRef(ref: LineRef, moved: Map<number, number>): LineRef | null {
+  const j = moved.get(ref.hunk);
   return j === undefined ? null : { hunk: j, line: ref.line };
 }
 
 /**
- * Carries a selection across a reload of the same file: line indices inside a matched hunk are
- * unchanged, and refs whose hunk is gone — the one that was just staged — are dropped.
+ * Carries a selection across a reload of the same file (`moved` = `hunkMap`): line indices inside a
+ * matched hunk are unchanged, and refs whose hunk is gone — the one that was just staged — are dropped.
  */
-export function carrySelection(sel: LineSelection, oldDiff: FileDiff, newDiff: FileDiff): LineSelection {
-  const moved = hunkMap(oldDiff, newDiff);
+export function carrySelection(sel: LineSelection, moved: Map<number, number>): LineSelection {
   const keys = new Set<string>();
   for (const [h, l] of toPairs(sel)) {
     const j = moved.get(h);

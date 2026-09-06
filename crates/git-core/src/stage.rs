@@ -195,18 +195,26 @@ pub fn remove_paths(repo: &Repository, paths: &[&str]) -> Result<(), GitError> {
     let workdir = workdir(repo)?;
     let mut index = repo.index().map_err(map_git2)?;
     index.read(false).map_err(map_git2)?;
+    let mut files = Vec::new();
     with_index(&mut index, |index| {
         for p in paths {
             let rel = Path::new(p);
             index.remove_path(rel).map_err(map_git2)?;
             let file = workdir.join(rel);
             if file.symlink_metadata().is_ok() {
-                std::fs::remove_file(&file)?;
-                prune_empty_dirs(workdir, &file);
+                files.push(file);
             }
         }
         Ok(())
-    })
+    })?;
+    // Only after the index is on disk: a failed write (a held `index.lock`)
+    // rolls the stages back, and a file already deleted would leave that
+    // conflict with nothing behind it.
+    for file in files {
+        std::fs::remove_file(&file)?;
+        prune_empty_dirs(workdir, &file);
+    }
+    Ok(())
 }
 
 /// Arguments for `git checkout --ours|--theirs -- <paths>`: replaces each

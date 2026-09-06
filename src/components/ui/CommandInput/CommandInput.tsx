@@ -24,7 +24,7 @@ export interface CommandInputProps {
 
 /** Viewport rect for the list, above or below the field; re-measured when the row count changes. */
 function useListPosition(open: boolean, placement: "up" | "down", anchor: RefObject<HTMLElement | null>, list: RefObject<HTMLElement | null>, count: number) {
-  const [pos, setPos] = useState<{ left: number; top: number; width: number } | null>(null);
+  const [pos, setPos] = useState<{ left: number; top: number; width: number; maxHeight: number } | null>(null);
   useLayoutEffect(() => {
     if (!open) {
       setPos(null);
@@ -36,7 +36,15 @@ function useListPosition(open: boolean, placement: "up" | "down", anchor: RefObj
     const r = a.getBoundingClientRect();
     const h = l.getBoundingClientRect().height;
     const pad = 4;
-    setPos({ left: r.left, top: placement === "up" ? Math.max(pad, r.top - pad - h) : r.bottom + pad, width: r.width });
+    // Room on each side of the field, inside the viewport.
+    const above = r.top - pad * 2;
+    const below = window.innerHeight - r.bottom - pad * 2;
+    // The asked-for side, unless it cannot hold the list and the other one has more room: clamping
+    // to the top instead would let the list extend down over the field.
+    let up = placement === "up";
+    if (up ? above < h && below > above : below < h && above > below) up = !up;
+    const maxHeight = Math.max(0, Math.min(h, up ? above : below));
+    setPos({ left: r.left, top: up ? Math.max(pad, r.top - pad - maxHeight) : r.bottom + pad, width: r.width, maxHeight });
   }, [open, placement, anchor, list, count]);
   return pos;
 }
@@ -199,7 +207,7 @@ export function CommandInput({ value, onChange, onSubmit, history, refs, placeme
             role="listbox"
             aria-label="Completions"
             className={s.listbox}
-            style={{ left: pos?.left ?? -9999, top: pos?.top ?? -9999, width: pos?.width }}
+            style={{ left: pos?.left ?? -9999, top: pos?.top ?? -9999, width: pos?.width, maxHeight: pos?.maxHeight }}
             // Keeps focus in the field: a click in here must not blur (and so close) the list.
             onMouseDown={(e) => e.preventDefault()}
           >

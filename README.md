@@ -77,10 +77,13 @@ Ctrl is ⌘ on macOS.
 
 ## Status / roadmap
 
-v1 is feature-complete, covered by 158 Rust and 367 frontend tests, and **accepted on Windows**:
-the `docs/smoke-test.md` walkthrough was completed end to end on 2026-09-01 and everything it
-found is fixed. CI is green on Linux, Windows and macOS, but Linux and macOS are compiled there
-only (no rendering check, no signing / notarization yet), and the installer has not been tried on a
+v1 is feature-complete, covered by `cargo test --workspace`, `npm test` and
+`cargo clippy --workspace --all-targets -- -D warnings`, and **accepted on Windows**:
+the `docs/smoke-test.md` walkthrough was completed end to end on 2026-09-01 apart from the three
+steps this machine cannot reach (Resolve in editor ×2, DPI change), and everything it found is
+fixed. CI is green on Linux, Windows and macOS; macOS is compiled there only (no rendering check,
+no signing / notarization yet) — Linux rendering was walked under WSLg
+(`docs/plans/2026-09-05-full-rewalk.md`) — and the installer has not been tried on a
 clean Windows machine. Deliberate v1 omissions are listed in
 `docs/plans/2026-08-31-git-ui-v1-plan.md` › Known gaps.
 

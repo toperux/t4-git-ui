@@ -193,9 +193,9 @@ export const rebaseAbort = (id: RepoId) => call<OpResult>("rebase_abort", { id }
 
 export const mergeAbort = (id: RepoId) => call<OpResult>("merge_abort", { id });
 
-/** `git checkout [--track] [-b <createBranch>] <target>`; `track` only applies with `createBranch`. */
-export const checkout = (id: RepoId, target: string, createBranch: string | null, track: boolean) =>
-  call<OpResult>("checkout", { id, target, createBranch, track });
+/** `git checkout [--track] [-b <createBranch>] [--detach] <target>`; `track` only applies with `createBranch`, `detach` only without it. */
+export const checkout = (id: RepoId, target: string, createBranch: string | null, track: boolean, detach = false) =>
+  call<OpResult>("checkout", { id, target, createBranch, track, detach });
 
 /** `git reset (--soft | --mixed | --hard) <target>` — moves the current branch (or a detached HEAD). */
 export const reset = (id: RepoId, mode: ResetMode, target: string) => call<OpResult>("reset", { id, mode, target });

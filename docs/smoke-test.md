@@ -1,11 +1,7 @@
 # Smoke test — t4-git-ui v1
 
-Manual walkthrough of everything v1 ships. Nothing in this app has been exercised in a real
-window: every milestone was verified by unit tests, `tsc`, `vite build`, the `cargo` gates and
-headless screenshots of the design canvases. **This checklist is the acceptance gate.**
-
-Run it once end to end before calling v1 done. Tick as you go; note anything surprising with the
-step number.
+Regression checklist for everything v1 ships. Accepted on Windows 2026-09-01, walked end to end
+since. Tick as you go; note anything surprising with the step number.
 
 **The ticks are the record.** A ticked step was walked and passed in the last walk of it (the
 2026-09-01 hand walk, the 2026-09-05 CDP re-walks, the WSLg walk for the Linux-only steps). An
@@ -187,7 +183,8 @@ Use `C:\tmp\t4\work` and the bare remote.
       appear in the grid on their own, without pressing F5, and the `origin/main` chip moves with them
 - [x] Commit locally **and** remotely, then Push → "remote has new commits — Pull first" toast with a
       **Pull** action
-- [x] Pull with mode "Fast-forward only" on diverged history → non-fast-forward toast
+- [x] Pull with mode "Fast-forward only" on diverged history → "Cannot fast-forward — the branches
+      have diverged" toast, the `diverged` failure kind, no Pull action (the pull already fetched)
 - [x] Check out `feature` (it tracks `origin/feature-upstream`, and an unrelated `origin/feature`
       exists too) and Pull → it brings `upstream.txt`; `decoy.txt` means it followed the name
       instead of the upstream

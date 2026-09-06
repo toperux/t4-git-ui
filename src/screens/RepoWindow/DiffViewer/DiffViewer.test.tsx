@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useDiffStore } from "../../../store/diffStore";
 import { bigDiff, fileDiff, hunk, line } from "./diffFixtures";
@@ -241,6 +241,62 @@ describe("DiffViewer", () => {
     expect(options.map((o) => o.getAttribute("tabindex"))).toEqual(["-1", "0", "-1", "-1"]);
   });
 
+  it("Shift+↓ after the cursor crossed a hunk extends from it, instead of collapsing to one line", () => {
+    useDiffStore.setState({ view: "unified" });
+    const two = fileDiff(
+      [
+        hunk("@@ -1,2 +1,2 @@", [line("del", 1, null, "a"), line("add", null, 1, "A")]),
+        hunk("@@ -9,2 +9,2 @@", [line("del", 9, null, "b"), line("add", null, 9, "B")]),
+      ],
+      { path: "two.txt" },
+    );
+    const actions: DiffActions = { target: "unstaged", wholeFile: false, onStageHunk: vi.fn(), onStageLines: vi.fn() };
+    const { getByRole, getAllByRole } = render(<DiffViewer path={two.path} diff={two} {...idle} actions={actions} />);
+    const region = getByRole("region", { name: "Diff" });
+    const options = getAllByRole("option");
+
+    fireEvent.click(options[0]);
+    fireEvent.keyDown(region, { key: "ArrowDown", shiftKey: true });
+    expect(getByRole("toolbar", { name: "Selected lines" }).textContent).toContain("2 lines selected");
+    // Plain ↓ crosses into the second hunk and leaves the anchor behind in the first.
+    fireEvent.keyDown(region, { key: "ArrowDown" });
+    expect(options.map((o) => o.getAttribute("tabindex"))).toEqual(["-1", "-1", "0", "-1"]);
+    // The anchor is re-seeded at the cursor: a range in the new hunk, never a single line.
+    fireEvent.keyDown(region, { key: "ArrowDown", shiftKey: true });
+    expect(getByRole("toolbar", { name: "Selected lines" }).textContent).toContain("2 lines selected");
+    fireEvent.keyDown(region, { key: "Enter" });
+    expect(actions.onStageLines).toHaveBeenCalledWith([
+      [1, 0],
+      [1, 1],
+    ]);
+  });
+
+  it("an idle focus is left alone: only a loss the diff caused is repaired", async () => {
+    useDiffStore.setState({ view: "unified" });
+    const actions: DiffActions = { target: "unstaged", wholeFile: false, onStageHunk: vi.fn(), onStageLines: vi.fn() };
+    const { getByRole, getAllByRole, rerender } = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} actions={actions} />);
+    const region = getByRole("region", { name: "Diff" });
+
+    // Clicking the header or the path blurs to `<body>` with no `relatedTarget`; the row is still
+    // there, so the loss is not the diff's to repair and an unrelated reload must leave it alone.
+    region.focus();
+    (document.activeElement as HTMLElement).blur();
+    await act(async () => {});
+    rerender(<DiffViewer path={SMALL.path} diff={{ ...SMALL }} {...idle} actions={actions} />);
+    expect(document.activeElement).toBe(document.body);
+
+    // Same for a focus that moved to something outside the diff.
+    const outside = document.createElement("button");
+    document.body.appendChild(outside);
+    region.focus();
+    expect(document.activeElement).toBe(getAllByRole("option")[0]);
+    outside.focus();
+    await act(async () => {});
+    rerender(<DiffViewer path={SMALL.path} diff={{ ...SMALL }} {...idle} actions={actions} />);
+    expect(document.activeElement).toBe(outside);
+    outside.remove();
+  });
+
   it("the keyboard cursor takes the focus with it, so you can see which line you are on", () => {
     // The cursor is drawn by `.pick:focus-visible`: a cursor the focus does not follow is invisible,
     // and the next Space lands on a line the user has no way of identifying.
@@ -309,6 +365,42 @@ describe("DiffViewer", () => {
     expect(left).toHaveLength(2);
     expect(left.map((o) => o.getAttribute("aria-selected"))).toEqual(["false", "true"]);
     fireEvent.click(getByRole("button", { name: "Stage 1 line" }));
+    expect(actions.onStageLines).toHaveBeenCalledWith([[0, 1]]);
+  });
+
+  it("the same path in the other list is a different diff: nothing carries over into it", () => {
+    useDiffStore.setState({ view: "unified" });
+    const unstaged: DiffActions = { target: "unstaged", wholeFile: false, onStageHunk: vi.fn(), onStageLines: vi.fn() };
+    const { getByRole, getAllByRole, queryByRole, rerender } = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} actions={unstaged} />);
+    fireEvent.click(getAllByRole("option")[2]); // the last pick
+    expect(getByRole("toolbar", { name: "Selected lines" }).textContent).toContain("1 line selected");
+
+    // Clicking the same file in the Staged list: same path, another diff.
+    rerender(<DiffViewer path={SMALL.path} diff={{ ...SMALL }} {...idle} actions={{ ...unstaged, target: "staged" }} />);
+    expect(queryByRole("toolbar", { name: "Selected lines" })).toBeNull();
+    expect(getAllByRole("option").map((o) => o.getAttribute("tabindex"))).toEqual(["0", "-1", "-1"]);
+  });
+
+  it("a reload that ends shorter than the cursor leaves it on the last pick", () => {
+    useDiffStore.setState({ view: "unified" });
+    const two = fileDiff(
+      [
+        hunk("@@ -1,2 +1,2 @@", [line("del", 1, null, "a"), line("add", null, 1, "A")]),
+        hunk("@@ -9,3 +9,3 @@", [line("del", 9, null, "b"), line("add", null, 9, "B"), line("add", null, 10, "C")]),
+      ],
+      { path: "two.txt" },
+    );
+    const actions: DiffActions = { target: "unstaged", wholeFile: false, onStageHunk: vi.fn(), onStageLines: vi.fn() };
+    const { getByRole, getAllByRole, rerender } = render(<DiffViewer path={two.path} diff={two} {...idle} actions={actions} />);
+    fireEvent.click(getAllByRole("option")[4]); // the last pick of the second hunk
+
+    // That whole hunk is staged: `carryRef` has nowhere to put the cursor and `picks` is shorter than it.
+    const staged = fileDiff([two.hunks[0]], { path: "two.txt" });
+    rerender(<DiffViewer path={staged.path} diff={staged} {...idle} actions={actions} />);
+    const left = getAllByRole("option");
+    expect(left.map((o) => o.getAttribute("tabindex"))).toEqual(["-1", "0"]);
+    fireEvent.keyDown(getByRole("region", { name: "Diff" }), { key: " " });
+    fireEvent.keyDown(getByRole("region", { name: "Diff" }), { key: "Enter" });
     expect(actions.onStageLines).toHaveBeenCalledWith([[0, 1]]);
   });
 

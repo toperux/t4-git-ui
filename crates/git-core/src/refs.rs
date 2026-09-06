@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
 use git2::{
     BranchType, ErrorCode, ObjectType, Oid, ReferenceType, Repository, RepositoryState, Signature,
@@ -289,20 +289,42 @@ fn reachers(repo: &Repository, tips: &[Oid]) -> Result<Vec<Vec<u64>>, GitError> 
 }
 
 /// Commits with one timestamp, ordered so that no commit comes after one of
-/// its own children. Runs are a handful of commits, so the quadratic pick is
-/// fine.
-fn children_first(mut run: Vec<git2::Commit<'_>>) -> Vec<git2::Commit<'_>> {
-    let mut ordered = Vec::with_capacity(run.len());
-    while !run.is_empty() {
-        let i = run
-            .iter()
-            .position(|c| {
-                !run.iter()
-                    .any(|child| child.parent_ids().any(|p| p == c.id()))
-            })
-            .unwrap_or(0);
-        ordered.push(run.remove(i));
+/// its own children: Kahn's algorithm over the number of children each has
+/// *inside the run*, O(n + e). A run is usually a handful of commits, but a
+/// history with a pinned committer date makes it the whole walked range.
+fn children_first(run: Vec<git2::Commit<'_>>) -> Vec<git2::Commit<'_>> {
+    let mut children: HashMap<Oid, usize> = run.iter().map(|c| (c.id(), 0)).collect();
+    for c in &run {
+        for p in c.parent_ids() {
+            if let Some(n) = children.get_mut(&p) {
+                *n += 1;
+            }
+        }
     }
+    // Seeded in walk order so the result is stable for a given run.
+    let mut ready: VecDeque<Oid> = run
+        .iter()
+        .map(git2::Commit::id)
+        .filter(|id| children[id] == 0)
+        .collect();
+    let mut by_id: HashMap<Oid, git2::Commit<'_>> = run.into_iter().map(|c| (c.id(), c)).collect();
+    let mut ordered = Vec::with_capacity(by_id.len());
+    while let Some(id) = ready.pop_front() {
+        let Some(commit) = by_id.remove(&id) else {
+            continue;
+        };
+        for p in commit.parent_ids() {
+            if let Some(n) = children.get_mut(&p) {
+                *n -= 1;
+                if *n == 0 {
+                    ready.push_back(p);
+                }
+            }
+        }
+        ordered.push(commit);
+    }
+    // A commit graph has no cycles; keep anything left over rather than lose it.
+    ordered.extend(by_id.into_values());
     ordered
 }
 
@@ -953,7 +975,7 @@ pub fn delete_tag(repo: &Repository, name: &str) -> Result<(), GitError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{natural_cmp, snapshot, ConflictSides, RepoState};
+    use super::{children_first, natural_cmp, snapshot, ConflictSides, RepoState};
     use crate::test_util::TempRepo;
 
     #[test]
@@ -1122,6 +1144,31 @@ mod tests {
                 theirs: "feature".to_string(),
             })
         );
+    }
+
+    /// The walk hands a same-second run over parents-first; every commit must
+    /// come out before its own parents, a merge before both of its.
+    #[test]
+    fn children_first_puts_a_merge_before_both_of_its_parents() {
+        let (t, master, feature) = two_branches();
+        let base = t
+            .repo
+            .find_commit(master)
+            .expect("find_commit")
+            .parent_id(0)
+            .expect("base");
+        let merge = t.merge_commit("merge", &[master, feature]);
+
+        let run: Vec<git2::Commit<'_>> = [base, feature, master, merge]
+            .iter()
+            .map(|o| t.repo.find_commit(*o).expect("find_commit"))
+            .collect();
+        let out: Vec<git2::Oid> = children_first(run).iter().map(git2::Commit::id).collect();
+
+        assert_eq!(out.len(), 4);
+        assert_eq!(out[0], merge);
+        assert_eq!(out[3], base);
+        assert!(out[1..3].contains(&master) && out[1..3].contains(&feature));
     }
 
     #[test]

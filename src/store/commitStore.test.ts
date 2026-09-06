@@ -384,6 +384,13 @@ describe("commitStore mutations", () => {
     await flush();
     expect(mocked.unstagePaths).toHaveBeenCalledTimes(2);
   });
+
+  it("a mutation refused because another one is running says so — the Retry must not vanish silently", async () => {
+    useCommitStore.setState({ busy: true });
+    await useCommitStore.getState().stage(["a.rs"]);
+    expect(mocked.stagePaths).not.toHaveBeenCalled();
+    expect(useToastStore.getState().toasts).toMatchObject([{ kind: "info", title: "Operation in progress" }]);
+  });
 });
 
 describe("commitStore.loadAuthor", () => {
@@ -467,12 +474,48 @@ describe("commitStore.prefillPending", () => {
     expect(useCommitStore.getState().summary).toBe("Mine");
   });
 
-  it("leaves the editor alone when the operation prepared no message", async () => {
+  it("leaves the editor alone when the merge prepared no message", async () => {
     mocked.getMergeMessage.mockResolvedValue(null);
-    useRepoStore.setState({ refs: { ...REFS, state: "rebase" } });
+    useRepoStore.setState({ refs: { ...REFS, state: "merge" } });
     await flush();
     expect(mocked.getMergeMessage).toHaveBeenCalledTimes(1);
     expect(useCommitStore.getState()).toMatchObject({ summary: "", body: "", prefill: null });
+  });
+
+  it("never reads MERGE_MSG for a state the panel cannot commit (a stopped rebase / cherry-pick)", async () => {
+    // Both write MERGE_MSG, but the banner sends the user to a terminal and the empty status drops
+    // the working-tree selection: the message would sit in an editor with a disabled Commit.
+    mocked.getMergeMessage.mockResolvedValue("Fix the parser");
+    useRepoStore.setState({ refs: { ...REFS, state: "rebase" } });
+    await flush();
+    useRepoStore.setState({ refs: { ...REFS, state: "cherryPick" } });
+    await flush();
+    expect(mocked.getMergeMessage).not.toHaveBeenCalled();
+    expect(useCommitStore.getState()).toMatchObject({ summary: "", body: "", prefill: null });
+  });
+
+  it("an abort keeps a Message-history pick: the user chose it, the merge did not", async () => {
+    mocked.getMergeMessage.mockResolvedValue("Merge branch 'conflict'");
+    useRepoStore.setState({ refs: { ...REFS, state: "merge" } });
+    await flush();
+    useCommitStore.getState().useMessage("Fix the parser\n\nwhy\n");
+    useRepoStore.setState({ refs: { ...REFS, state: "clean" } });
+    await flush();
+    expect(useCommitStore.getState()).toMatchObject({ summary: "Fix the parser", body: "why", prefill: { from: "history" } });
+  });
+
+  it("a pending prefill resolving after an amend one was started does not overwrite it", async () => {
+    // Mid-merge with the refs sync in flight, the user ticks Amend: the later start owns the editor.
+    let resolveMerge!: (m: string) => void;
+    mocked.getMergeMessage.mockImplementationOnce(() => new Promise<string>((r) => (resolveMerge = r)));
+    mocked.getHeadMessage.mockResolvedValue("HEAD says");
+    useRepoStore.setState({ refs: { ...REFS, state: "merge" } });
+    await flush();
+    await useCommitStore.getState().setAmend(true);
+    expect(useCommitStore.getState().summary).toBe("HEAD says");
+    resolveMerge("Merge branch 'conflict'");
+    await flush();
+    expect(useCommitStore.getState()).toMatchObject({ amend: true, summary: "HEAD says", prefill: { from: "amend" } });
   });
 
   it("switching to another repository mid-merge prefills that repository's message", async () => {
@@ -500,7 +543,7 @@ describe("commitStore.prefillPending", () => {
 describe("commitStore.commit", () => {
   it("resolves the new oid and clears the editor, amend included", async () => {
     mocked.commit.mockResolvedValue("abcdef1234");
-    useCommitStore.setState({ summary: "Fix lanes", body: "why", amend: true, prefill: { summary: "Fix lanes", body: "why" } });
+    useCommitStore.setState({ summary: "Fix lanes", body: "why", amend: true, prefill: { summary: "Fix lanes", body: "why", from: "amend" } });
     await expect(useCommitStore.getState().commit()).resolves.toBe("abcdef1234");
     // Commit & Push keys off the oid; a stale message must not survive into the next commit.
     expect(useCommitStore.getState()).toMatchObject({ summary: "", body: "", amend: false, prefill: null });
