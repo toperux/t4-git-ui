@@ -10,7 +10,7 @@ import { cx } from "../../lib/cx";
 import { useDialogStore, type DialogSpec } from "../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
-import { checkoutBranch, checkoutDetached, checkoutRemoteBranch, copyText, stashApply, stashDrop, stashPop, stripRemote } from "./actions";
+import { checkoutBranch, checkoutRemoteBranch, checkoutTag, copyText, stashApply, stashDrop, stashPop, stripRemote } from "./actions";
 import s from "./Sidebar.module.css";
 
 type Section = "local" | "remotes" | "tags" | "stashes";
@@ -382,7 +382,7 @@ function RefContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number 
       case "tag":
         return (
           <>
-            <MenuItem icon={<GitBranch size={16} aria-hidden />} {...op} onClick={run(() => void checkoutDetached(target.name))}>
+            <MenuItem icon={<GitBranch size={16} aria-hidden />} {...op} onClick={run(() => void checkoutTag(target.name))}>
               Checkout (detached)
             </MenuItem>
             <MenuItem icon={<Plus size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "createBranch", startPoint: target.name }))}>

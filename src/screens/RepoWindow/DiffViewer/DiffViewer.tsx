@@ -293,7 +293,9 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
       {body}
       {diff?.truncated && <Banner kind="warning">Diff truncated at {groupThousands(diff.maxLines)} lines</Banner>}
       {lineActions && n > 0 && (
-        <div className={s.bar} role="toolbar" aria-label="Selected lines">
+        // The bar sits outside the diff body: a click here must not take the focus, or the rows it
+        // remounts have nobody to hand it back to (the body only repairs a loss it still held).
+        <div className={s.bar} role="toolbar" aria-label="Selected lines" onMouseDown={(e) => e.preventDefault()}>
           <span className={s.grow}>
             {n} line{n === 1 ? "" : "s"} selected
           </span>
@@ -425,7 +427,9 @@ function DiffBody({ path, view, rows, maxCols, lang, actions, selected, cursorRo
         // from here on. A removed row is out of the document by the next microtask.
         const target = e.target;
         void Promise.resolve().then(() => {
-          if (target.isConnected) held.current = false;
+          // A row button disabled while the operation runs blurs this way too, and its row goes a
+          // moment later: that loss is ours as well.
+          if (target.isConnected && !(target as HTMLElement & { disabled?: boolean }).disabled) held.current = false;
         });
       }}
     >

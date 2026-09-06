@@ -6,7 +6,7 @@ import { useOpsStore } from "../../../store/opsStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { useToastStore } from "../../../store/toastStore";
 import { DeleteRemoteTagDialog, MergeDialog, PullDialog, PushDialog, PushTagDialog, RebaseDialog, ResetBranchDialog, ResetDialog } from "./OpsDialogs";
-import { CheckoutBranchDialog, CreateBranchDialog, CreateTagDialog, DeleteTagDialog } from "./RefDialogs";
+import { CheckoutBranchDialog, CheckoutDialog, CreateBranchDialog, CreateTagDialog, DeleteTagDialog } from "./RefDialogs";
 import { RunCommandDialog } from "./RunCommandDialog";
 
 vi.mock("../../../api/ipc", async (importOriginal) => {
@@ -171,6 +171,27 @@ describe("CheckoutBranchDialog", () => {
     expect(preview(dialog)).toBe("git checkout --track -b topic origin/topic");
     fireEvent.click(getByRole("button", { name: "Checkout" }));
     await waitFor(() => expect(mocked.checkout).toHaveBeenCalledWith("r", "origin/topic", "topic", true));
+  });
+});
+
+describe("CheckoutDialog", () => {
+  it("previews what the pick will run: the existing local for a remote that has one, a tracking checkout otherwise, a tag by its full ref", () => {
+    useRepoStore.setState({
+      refs: {
+        ...REFS,
+        remotes: [{ ...REFS.remotes[0], branches: [...REFS.remotes[0].branches, { name: "origin/topic", oid: "c", mergedInto: null }] }],
+        tags: [{ name: "v1", oid: "a", message: null }],
+      },
+    });
+    const { getByRole } = render(<CheckoutDialog onClose={() => {}} />);
+    const dialog = getByRole("dialog", { name: "Checkout" });
+    const filter = getByRole("textbox", { name: "Branch or tag" });
+    fireEvent.change(filter, { target: { value: "origin/main" } });
+    expect(preview(dialog)).toBe("git checkout main");
+    fireEvent.change(filter, { target: { value: "origin/topic" } });
+    expect(preview(dialog)).toBe("git checkout --track -b topic origin/topic");
+    fireEvent.change(filter, { target: { value: "v1" } });
+    expect(preview(dialog)).toBe("git checkout --detach refs/tags/v1");
   });
 });
 

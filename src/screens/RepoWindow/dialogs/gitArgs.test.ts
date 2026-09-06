@@ -24,6 +24,7 @@ describe("gitArgs (preview line)", () => {
     );
     expect(checkoutArgs("origin/x", "x", true)).toEqual(["checkout", "--track", "-b", "x", "origin/x"]);
     expect(checkoutArgs("main", null, true)).toEqual(["checkout", "main"]);
+    expect(checkoutArgs("refs/tags/v1", null, false, true)).toEqual(["checkout", "--detach", "refs/tags/v1"]);
     expect(stashPushArgs("wip", true, true)).toEqual(["stash", "push", "-u", "-k", "-m", "wip"]);
   });
 

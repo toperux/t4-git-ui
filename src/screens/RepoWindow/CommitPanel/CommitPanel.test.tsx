@@ -174,7 +174,7 @@ describe("CommitPanel", () => {
     expect(mocked.stagePaths).toHaveBeenCalledWith("r", ["conflict.rs"]);
   });
 
-  it("staging a row the focus was on hands the focus back to the list, not to <body>", () => {
+  it("staging a row the focus was on hands the focus back to the list, not to <body>", async () => {
     // A click on the row's own + button leaves the focus there; Enter stages the selection and the
     // row unmounts, taking the focus with it — the list is what the next Enter has to reach.
     const { getByRole } = renderPanel();
@@ -182,8 +182,16 @@ describe("CommitPanel", () => {
     const row = Array.from(list().querySelectorAll('[role="option"]'))[0];
     fireEvent.click(row);
     (row.querySelector('button[aria-label="Stage"]') as HTMLElement).focus();
+    let finish!: () => void;
+    mocked.stagePaths.mockImplementationOnce(() => new Promise<void>((r) => (finish = r)));
     fireEvent.keyDown(list(), { key: "Enter" });
     expect(mocked.stagePaths).toHaveBeenCalledWith("r", ["a.rs"]);
+    // While the operation runs the button is disabled, which blurs it (no `relatedTarget`, still in
+    // the document) before its row goes — seen in WebView2; the list must still take the focus back.
+    const btn = row.querySelector('button[aria-label="Stage"]') as HTMLButtonElement;
+    await waitFor(() => expect(btn.disabled).toBe(true));
+    fireEvent.blur(btn);
+    await act(async () => finish());
     // The refresh lands: a.rs is staged, so its unstaged row goes.
     act(() => useStatusStore.setState({ status: { ...STATUS, entries: STATUS.entries.filter((e) => e.path !== "a.rs") } }));
     expect(document.activeElement).toBe(list());

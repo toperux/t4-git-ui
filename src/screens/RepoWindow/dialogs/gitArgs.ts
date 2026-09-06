@@ -48,9 +48,9 @@ export const resetArgs = (mode: ResetMode, target: string) => ["reset", `--${mod
 
 export const resetBranchArgs = (branch: string, target: string) => ["branch", "-f", branch, target];
 
-export const checkoutArgs = (target: string, createBranch: string | null, track: boolean) => [
+export const checkoutArgs = (target: string, createBranch: string | null, track: boolean, detach = false) => [
   "checkout",
-  ...(createBranch ? [...flag(track, "--track"), "-b", createBranch] : []),
+  ...(createBranch ? [...flag(track, "--track"), "-b", createBranch] : flag(detach, "--detach")),
   target,
 ];
 

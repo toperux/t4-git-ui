@@ -37,3 +37,10 @@ export function prettyUrl(url: string): string {
     .replace(/^git@/, "")
     .replace(/\.git$/, "");
 }
+
+/**
+ * `C:\…`, `C:/…`, `/…` or `\\server\…` — a relative folder would resolve against the app's own working
+ * directory. A drive letter passes on every platform: on Linux git would read it as relative, but nobody
+ * types one there.
+ */
+export const isAbsolutePath = (path: string) => /^(?:[A-Za-z]:[\\/]|[\\/])/.test(path);

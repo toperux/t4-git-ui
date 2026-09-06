@@ -4,7 +4,7 @@ import { useCmdHistoryStore } from "../../store/cmdHistoryStore";
 import { useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
 import { useToastStore } from "../../store/toastStore";
-import { busyLabel, closeRepo, pickAndOpenRepo, runGit, switchRepo } from "./actions";
+import { busyLabel, checkoutTag, closeRepo, pickAndOpenRepo, runGit, switchRepo } from "./actions";
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(() => Promise.resolve("/elsewhere")) }));
 vi.mock("@tauri-apps/plugin-clipboard-manager", () => ({ writeText: vi.fn() }));
@@ -13,6 +13,7 @@ vi.mock("../../api/ipc", async (importOriginal) => {
   return {
     ...actual,
     runGit: vi.fn(),
+    checkout: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     // `runOp`'s trailing refresh / syncRefs must never resolve, or they'd race the assertions.
     getStatus: vi.fn(() => new Promise(() => {})),
     getRefs: vi.fn(() => new Promise(() => {})),
@@ -22,7 +23,7 @@ vi.mock("../../api/ipc", async (importOriginal) => {
 import { open as openFolder } from "@tauri-apps/plugin-dialog";
 import * as ipc from "../../api/ipc";
 
-const mocked = ipc as unknown as Record<"runGit", ReturnType<typeof vi.fn>>;
+const mocked = ipc as unknown as Record<"runGit" | "checkout", ReturnType<typeof vi.fn>>;
 const openRepo = vi.fn(() => Promise.resolve());
 const closeRepoStore = vi.fn(() => Promise.resolve());
 const toasts = () => useToastStore.getState().toasts;
@@ -105,5 +106,13 @@ describe("busyLabel", () => {
     expect(label).toBe(`git commit -m '${"🎉".repeat(30)}[…]`);
     // What a failure would be titled: the cut stays visible.
     expect(`${label.replace(/…$/, "")} failed`).toMatch(/\[…\] failed$/);
+  });
+});
+
+describe("checkoutTag", () => {
+  it("checks the tag out by its full ref, detached: a branch of the same name must not win", async () => {
+    await checkoutTag("v1.0");
+    expect(mocked.checkout).toHaveBeenCalledWith("r", "refs/tags/v1.0", null, false, true);
+    expect(toasts().map((t) => t.title)).toContain("Checked out v1.0 (detached)");
   });
 });

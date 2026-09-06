@@ -87,7 +87,13 @@ export function FileContextMenu({ list, paths, entries, menu, onClose, act, disc
           kbd="Delete"
           {...op}
           disabled={op.disabled || discardTarget.length === 0}
-          title={discardSkipped > 0 ? `A conflict is resolved by keeping a side, not discarded (${discardSkipped} skipped)` : op.title}
+          title={
+            discardTarget.length === 0
+              ? "A conflict is resolved by keeping a side, not discarded"
+              : discardSkipped > 0
+                ? `A conflict is resolved by keeping a side, not discarded (${discardSkipped} skipped)`
+                : op.title
+          }
           onClick={run(() => discard(discardTarget))}
         >
           Discard{many}…

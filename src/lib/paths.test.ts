@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { baseName, joinPath, parentDir, prettyUrl, repoNameFromUrl } from "./paths";
+import { baseName, isAbsolutePath, joinPath, parentDir, prettyUrl, repoNameFromUrl } from "./paths";
 
 describe("repoNameFromUrl", () => {
   it("takes the last segment minus .git", () => {
@@ -42,5 +42,12 @@ describe("baseName / prettyUrl", () => {
     expect(prettyUrl("file://server/share/bare.git")).toBe("server/share/bare");
     // Only a drive letter loses the third slash; a POSIX clone URL keeps its absolute path.
     expect(prettyUrl("file:///home/u/bare.git")).toBe("/home/u/bare");
+  });
+});
+
+describe("isAbsolutePath", () => {
+  it("takes a drive root, a POSIX root or a UNC path, not a bare or dotted name", () => {
+    for (const p of ["C:\\src", "c:/src", "/home/x", "\\\\server\\share"]) expect(isAbsolutePath(p)).toBe(true);
+    for (const p of ["src", "./src", "../src", "C:src", "Program Files/Git/home", "~/clones", ""]) expect(isAbsolutePath(p)).toBe(false);
   });
 });

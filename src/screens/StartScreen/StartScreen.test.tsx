@@ -126,6 +126,19 @@ describe("StartScreen", () => {
     expect(queryByRole("dialog", { name: "Settings" })).toBeNull();
   });
 
+  it("clone dialog refuses a relative parent folder", async () => {
+    const { getByRole, findByRole } = render(<StartScreen />);
+    fireEvent.click(getByRole("button", { name: /^Clone…/ }));
+    const dialog = await findByRole("dialog", { name: "Clone repository" });
+    fireEvent.change(getByRole("textbox", { name: "URL" }), { target: { value: "https://github.com/x/repo.git" } });
+    fireEvent.change(getByRole("textbox", { name: "Parent folder" }), { target: { value: "Program Files/clones" } });
+    expect((getByRole("button", { name: "Clone" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(dialog.textContent).toContain("Use a full path");
+    fireEvent.change(getByRole("textbox", { name: "Parent folder" }), { target: { value: "/home/x/clones" } });
+    expect((getByRole("button", { name: "Clone" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(dialog.textContent).not.toContain("Use a full path");
+  });
+
   it("clone dialog derives the folder name, runs clone_repo and shows the latest progress line", async () => {
     const { getByRole, findByRole, getByText } = render(<StartScreen />);
     fireEvent.click(getByRole("button", { name: /^Clone…/ }));

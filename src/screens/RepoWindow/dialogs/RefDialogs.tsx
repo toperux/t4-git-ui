@@ -10,7 +10,7 @@ import { cx } from "../../../lib/cx";
 import { validateRefName } from "../../../lib/branchName";
 import { runOp } from "../../../store/opsStore";
 import { useRepoStore } from "../../../store/repoStore";
-import { checkoutBranch, checkoutDetached, checkoutRemoteBranch, stripRemote } from "../actions";
+import { checkoutBranch, checkoutRemoteBranch, checkoutTag, stripRemote } from "../actions";
 import { checkoutArgs, gitCmd, pushArgs } from "./gitArgs";
 import { RemoteField, shortRef, useDefaultRemote, useRemotes } from "./OpsDialogs";
 import s from "./RefDialogs.module.css";
@@ -389,7 +389,17 @@ export function CheckoutDialog({ onClose }: { onClose: () => void }) {
     onClose();
     if (pick.kind === "local") void checkoutBranch(pick.name);
     else if (pick.kind === "remote") void checkoutRemoteBranch({ name: pick.name, oid: "", mergedInto: null }, pick.remote);
-    else void checkoutDetached(pick.name);
+    else void checkoutTag(pick.name);
+  }
+
+  // What `submit` will run, per kind — `checkoutRemoteBranch` takes the existing local when there is one.
+  function previewArgs(p: NonNullable<typeof pick>) {
+    if (p.kind === "tag") return checkoutArgs(`refs/tags/${p.name}`, null, false, true);
+    if (p.kind === "remote") {
+      const local = stripRemote({ name: p.name, oid: "", mergedInto: null }, p.remote);
+      return all.some((r) => r.kind === "local" && r.name === local) ? checkoutArgs(local, null, false) : checkoutArgs(p.name, local, true);
+    }
+    return checkoutArgs(p.name, null, false);
   }
 
   function onKeyDown(e: ReactKeyboardEvent<HTMLInputElement>) {
@@ -408,7 +418,7 @@ export function CheckoutDialog({ onClose }: { onClose: () => void }) {
       title="Checkout"
       onClose={onClose}
       onSubmit={submit}
-      preview={pick ? gitCmd(checkoutArgs(pick.name, null, false)) : ""}
+      preview={pick ? gitCmd(previewArgs(pick)) : ""}
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>

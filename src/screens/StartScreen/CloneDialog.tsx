@@ -13,7 +13,7 @@ import { IconButton } from "../../components/ui/IconButton/IconButton";
 import { Input } from "../../components/ui/Input/Input";
 import { Progress } from "../../components/ui/Progress/Progress";
 import { Spinner } from "../../components/ui/Spinner/Spinner";
-import { joinPath, repoNameFromUrl } from "../../lib/paths";
+import { isAbsolutePath, joinPath, repoNameFromUrl } from "../../lib/paths";
 import { cliDetail } from "../../store/toastStore";
 import s from "./CloneDialog.module.css";
 
@@ -41,7 +41,9 @@ export function CloneDialog({ defaultParent, onClose, onCloned }: CloneDialogPro
 
   const running = phase.kind === "running";
   const dest = joinPath(parent.trim(), name.trim());
-  const valid = url.trim() !== "" && name.trim() !== "" && parent.trim() !== "";
+  // A relative parent would clone into the app's own working directory, wherever that is.
+  const parentRelative = parent.trim() !== "" && !isAbsolutePath(parent.trim());
+  const valid = url.trim() !== "" && name.trim() !== "" && parent.trim() !== "" && !parentRelative;
   const cmd = ["git clone --progress", recurse && "--recurse-submodules", shallow && "--depth 1", url.trim() || "<url>", dest || "<dest>"]
     .filter(Boolean)
     .join(" ");
@@ -125,10 +127,11 @@ export function CloneDialog({ defaultParent, onClose, onCloned }: CloneDialogPro
           spellCheck={false}
         />
       </Field>
-      <Field label="Parent folder">
+      <Field label="Parent folder" help={parentRelative ? "Use a full path — a relative one would clone next to the app" : undefined}>
         <div className={s.pathRow}>
           <Input
             aria-label="Parent folder"
+            invalid={parentRelative}
             value={parent}
             onChange={(e) => setParent(e.target.value)}
             placeholder="Folder to clone into"

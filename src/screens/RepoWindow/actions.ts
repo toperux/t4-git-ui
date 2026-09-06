@@ -45,6 +45,9 @@ export function checkoutRemoteBranch(rb: RemoteBranch, remote: string) {
 export const checkoutDetached = (target: string, label = target) =>
   runOp(`Checking out ${label}…`, (id) => ipc.checkout(id, target, null, false, true), { success: `Checked out ${label} (detached)` });
 
+/** Tag → detached HEAD, by its full ref: `git checkout` reads a bare name as a branch first, so a branch called the same would win. */
+export const checkoutTag = (name: string) => checkoutDetached(`refs/tags/${name}`, name);
+
 export const mergeAbort = () => runOp("Aborting merge…", (id) => ipc.mergeAbort(id), { success: "Merge aborted" });
 export const rebaseAbort = () => runOp("Aborting rebase…", (id) => ipc.rebaseAbort(id), { success: "Rebase aborted" });
 export const rebaseContinue = () => runOp("Continuing rebase…", (id) => ipc.rebaseContinue(id), { success: "Rebase continued" });

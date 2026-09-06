@@ -327,7 +327,9 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
         // is idle from here on. A removed row is out of the document by the next microtask.
         const target = e.target;
         void Promise.resolve().then(() => {
-          if (target.isConnected) held.current = false;
+          // A row button disabled while the operation runs blurs this way too, and its row goes a
+          // moment later: that loss is ours as well.
+          if (target.isConnected && !(target as HTMLElement & { disabled?: boolean }).disabled) held.current = false;
         });
       }}
       onKeyDown={onKeyDown}

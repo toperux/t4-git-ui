@@ -89,24 +89,21 @@ export function RepoWindow() {
 
 /**
  * The output dock as a resizable panel: 160–320px open (style guide §4), collapsed to the
- * 28px header bar otherwise. The height is per session: it opens at 200px every launch.
+ * 28px header bar otherwise. The height is per session: 200px on the first open, then whatever it
+ * was last dragged to — a bare `expand()` lands on `minSize`.
  */
 export function DockPanel({ open }: { open: boolean }) {
   const panel = usePanelRef();
+  const lastOpenH = useRef(DOCK_DEFAULT_H);
 
   // `defaultSize` already puts the panel in the right state at mount — and the imperative API is not
   // usable yet there (the Group registers itself after its children's effects run). Only react to changes.
   const wasOpen = useRef(open);
-  const neverOpened = useRef(!open);
   useEffect(() => {
     if (wasOpen.current === open) return;
     wasOpen.current = open;
     if (!open) panel.current?.collapse();
-    else if (neverOpened.current) {
-      // A panel that mounted collapsed has no remembered size, so a bare expand() lands on minSize.
-      neverOpened.current = false;
-      panel.current?.resize(DOCK_DEFAULT_H);
-    } else panel.current?.expand();
+    else panel.current?.resize(lastOpenH.current);
   }, [open, panel]);
 
   return (
@@ -117,6 +114,9 @@ export function DockPanel({ open }: { open: boolean }) {
       defaultSize={open ? DOCK_DEFAULT_H : DOCK_COLLAPSED_H}
       minSize={DOCK_MIN_H}
       maxSize={DOCK_MAX_H}
+      onResize={(size) => {
+        if (size.inPixels > DOCK_COLLAPSED_H) lastOpenH.current = size.inPixels;
+      }}
       className={s.panel}
     >
       <OutputDock />

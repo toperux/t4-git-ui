@@ -194,9 +194,9 @@ Use `C:\tmp\t4\work` and the bare remote.
 - [x] Click the conflicted file → the diff shows the file **with its `<<<<<<<` / `=======` / `>>>>>>>`
       markers** (libgit2 reports no content for an unmerged path, so this is built from the index
       stages), the header says "Conflict — stage the file once resolved"
-- [ ] **Resolve in editor** in the diff header → VS Code / VSCodium opens its three-way merge editor
+- [x] **Resolve in editor** in the diff header → VS Code / VSCodium opens its three-way merge editor
       on the file; with neither on `PATH` → an error toast naming `code` and `codium`
-- [ ] Save the resolved file from the editor **without touching the app** → the diff in the panel
+- [x] Save the resolved file from the editor **without touching the app** → the diff in the panel
       loses its markers on its own (the file's status letters don't change when it is resolved, so
       this only works because the entry carries the file's mtime/size)
 - [x] Stage the conflicted file **before** resolving it, then unstage it → it is no longer conflicted
