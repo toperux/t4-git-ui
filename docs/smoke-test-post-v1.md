@@ -671,6 +671,14 @@ _Shipped 2026-09-07 (this commit); walked the same day over CDP on the installed
       only — same commits — and left the seed column pointing at the old HEAD; a seeded walk now
       restarts when HEAD itself moves)
 
+## AB. Rename from the commit row (main §2)
+_Shipped 2026-09-07 (this commit); walked the same day over CDP on the installed build in `c:/tmp/t4/irebase`. The sidebar's Rename… reachable from a commit row: one `Rename <branch>…` per local branch at the row, in a group of its own between Copy SHA and the delete group; the checked-out branch and protected names included (only delete is guarded)._
+
+- [x] **Rename from the row**: right-click `main`'s tip → **Rename main…** in its own group after
+      Copy SHA, above the red delete items → the `Rename branch` dialog prefilled → `trunk` → `Renamed main → trunk`, the chip,
+      the sidebar and the title's branch follow; a row without a local branch has no rename item;
+      rename back
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the

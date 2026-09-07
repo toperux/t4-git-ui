@@ -36,7 +36,7 @@ const REFS: RefsSnapshot = {
 describe("commitBranchActions", () => {
   it("offers local branches at the commit, minus the current one", () => {
     // HEAD's own commit: no plain rebase (a no-op), but rebasing interactively *from* here is the point.
-    expect(commitBranchActions(REFS, "a")).toEqual({ checkout: [], reset: [], merge: [], rebaseOnto: null, canRebase: false, canRebaseInteractive: true, headCommit: true, unborn: false, remove: [] });
+    expect(commitBranchActions(REFS, "a")).toEqual({ checkout: [], reset: [], merge: [], rebaseOnto: null, canRebase: false, canRebaseInteractive: true, headCommit: true, unborn: false, remove: [], rename: ["main"] });
     const { checkout } = commitBranchActions(REFS, "b");
     expect(checkout.filter((b) => !b.remote).map((b) => b.name)).toEqual(["feature", "hotfix"]);
   });
@@ -69,6 +69,7 @@ describe("commitBranchActions", () => {
         { kind: "remote", name: "fork/feature", remote: "fork", short: "feature" },
         { kind: "tag", name: "v1" },
       ],
+      rename: [],
     });
   });
 
@@ -127,13 +128,22 @@ describe("commitBranchActions", () => {
     expect(commitBranchActions(detached, "a").remove).toEqual([]);
   });
 
+  it("renames every local branch at the commit — the current one and protected names included", () => {
+    expect(commitBranchActions(REFS, "b").rename).toEqual(["feature", "hotfix"]);
+    expect(commitBranchActions(REFS, "a").rename).toEqual(["main"]);
+    expect(commitBranchActions(REFS, "e").rename).toEqual(["develop"]);
+    const detached: RefsSnapshot = { ...REFS, head: { oid: "z", branch: null, detached: true }, local: REFS.local.map((b) => ({ ...b, isHead: false })) };
+    expect(commitBranchActions(detached, "a").rename).toEqual(["main"]);
+    expect(commitBranchActions(REFS, "d").rename).toEqual([]);
+  });
+
   it("never deletes main, master or the branch the remote's HEAD points at", () => {
     // `origin/HEAD → origin/develop` keeps `develop` locally and on every remote, `fork` included.
     expect(commitBranchActions(REFS, "e").remove).toEqual([]);
   });
 
   it("is empty without refs", () => {
-    expect(commitBranchActions(null, "a")).toEqual({ checkout: [], reset: [], merge: [], rebaseOnto: null, canRebase: false, canRebaseInteractive: false, headCommit: false, unborn: false, remove: [] });
+    expect(commitBranchActions(null, "a")).toEqual({ checkout: [], reset: [], merge: [], rebaseOnto: null, canRebase: false, canRebaseInteractive: false, headCommit: false, unborn: false, remove: [], rename: [] });
   });
 
   it("neither rebase is offered mid-merge, mid-rebase, on a detached or an unborn HEAD", () => {

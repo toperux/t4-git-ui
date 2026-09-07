@@ -42,6 +42,8 @@ export interface CommitBranchActions {
   unborn: boolean;
   /** Local branches (never the current one, nor a protected name — `protectedNames`), remote branches and tags sitting at the commit, in that order. */
   remove: DeleteAt[];
+  /** Local branches at the commit, the current one included: `git branch -m` handles it, only delete is guarded. */
+  rename: string[];
 }
 
 /**
@@ -49,7 +51,7 @@ export interface CommitBranchActions {
  * name. With one at the same commit there is nothing to do; elsewhere it can be reset to the remote.
  */
 export function commitBranchActions(refs: RefsSnapshot | null, oid: string): CommitBranchActions {
-  if (!refs) return { checkout: [], reset: [], merge: [], rebaseOnto: null, canRebase: false, canRebaseInteractive: false, headCommit: false, unborn: false, remove: [] };
+  if (!refs) return { checkout: [], reset: [], merge: [], rebaseOnto: null, canRebase: false, canRebaseInteractive: false, headCommit: false, unborn: false, remove: [], rename: [] };
   const locals: BranchAt[] = refs.local.filter((b) => b.oid === oid && !b.isHead).map((b) => ({ name: b.name, remote: null }));
   const checkout: BranchAt[] = [...locals];
   const remotes: BranchAt[] = [];
@@ -88,5 +90,6 @@ export function commitBranchActions(refs: RefsSnapshot | null, oid: string): Com
     unborn,
     // `Tag.oid` is already peeled, so an annotated tag matches its commit like a lightweight one.
     remove: [...remove, ...refs.tags.filter((t) => t.oid === oid).map((t): DeleteAt => ({ kind: "tag", name: t.name }))],
+    rename: refs.local.filter((b) => b.oid === oid).map((b) => b.name),
   };
 }

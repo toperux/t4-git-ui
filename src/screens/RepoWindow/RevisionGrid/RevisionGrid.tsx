@@ -1,5 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Cherry, ChevronDown, Copy, GitBranch, GitCommitHorizontal, GitMerge, ListRestart, Plus, RotateCcw, Search, Tag, Trash2, Undo2 } from "lucide-react";
+import { Cherry, ChevronDown, Copy, GitBranch, GitCommitHorizontal, GitMerge, ListRestart, Pencil, Plus, RotateCcw, Search, Tag, Trash2, Undo2 } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import type { CommitInfo } from "../../../api/types";
 import { Button } from "../../../components/ui/Button/Button";
@@ -400,6 +400,16 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
       <MenuItem icon={<Copy size={16} aria-hidden />} onClick={run(() => copyText(oid, "SHA"))}>
         Copy SHA
       </MenuItem>
+      {/* The refs here, editable: the sidebar's Rename… from the chip's row, the current branch too.
+          Their deletion is the red group below, so the two separators never meet. */}
+      {branches.rename.length > 0 && <MenuSeparator />}
+      {branches.rename.map((name) => (
+        <MenuItem key={name} icon={<Pencil size={16} aria-hidden />} title={`Rename ${name}`} {...op} onClick={run(() => openDialog({ kind: "renameBranch", name }))}>
+          <span className={s.menuLabel}>
+            Rename <MenuRef className={s.menuBranch}>{name}</MenuRef>…
+          </span>
+        </MenuItem>
+      ))}
       {branches.remove.length > 0 && <MenuSeparator />}
       {/* Plain text, like the sidebar's Delete… items: one red line reads as one action. The title
           drops the ellipsis, so a long name still shows whole. */}
