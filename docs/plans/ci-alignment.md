@@ -500,19 +500,20 @@ Do not tag a release as part of this work.
 > `workflow_dispatch` — so the branch checks below have to be started by hand from the Actions
 > tab, on the branch.
 
-- [ ] Push commits 1–3 to a branch and run CI on it via `workflow_dispatch`; all three legs green.
-- [ ] In the CI run, `Format` executed on `ubuntu-22.04` only and was skipped on the other
-      two; there is no `Versions` step.
-- [ ] Push a commit touching only `docs/plans/ci-alignment.md`. CI does **not** run.
-- [ ] Push commit 4 to the branch. Trigger `Release` via `workflow_dispatch` on it. `version`
-      green (prints `0.1.0`), three `build` legs green, `publish` skipped.
-- [ ] Download the three `packages-*` artifacts. Exactly these files, each with a `.sha256`:
-      `T4-Git-UI_0.1.0_x64-setup.exe`, `T4-Git-UI_0.1.0_universal.dmg`,
-      `T4-Git-UI_0.1.0_amd64.deb`, `T4-Git-UI_0.1.0_x86_64.rpm`,
-      `T4-Git-UI_0.1.0_x86_64.AppImage`. No `.msi`.
-- [ ] Install the Windows `.exe` on a machine or VM: lands under `%LOCALAPPDATA%`, no UAC
-      prompt, app launches. (Skip if no Windows box handy; note it here.)
-- [ ] Merge to `main`. CI green on `main`.
-- [ ] Next real release: bump root `Cargo.toml` to `0.1.1` (or whatever), `cargo check`,
-      commit, tag `v0.1.1`, push `main` then the tag. `publish` creates a **non-draft**
-      release with the five assets + sidecars and generated notes + the fixed body.
+The branch rehearsal never happened: the work merged and the releases ran for real instead.
+Ticked on 2026-09-08 off the v0.1.3 release run ([`34091601705`](https://github.com/toperux/t4-git-ui/actions/runs/34091601705), 2026-09-07) and its
+CI twin — see round 2's section 7 for the per-box evidence.
+
+- [x] ~~Push commits 1–3 to a branch and run CI on it.~~ Superseded: three legs green on the tag
+      and on `main`.
+- [x] `Format` executed on `ubuntu-22.04` only, skipped on the other two; no `Versions` step.
+- [ ] **Still open, free:** a push touching only docs must not start CI. Watch the Actions tab
+      after the next docs-only push.
+- [x] ~~Trigger `Release` via `workflow_dispatch`.~~ Superseded by the tag run: `version` green,
+      three `build` legs green, and `publish` ran (tags publish; a dispatch would skip it).
+- [x] The assets are exactly the five plus a `.sha256` each, no `.msi` — v0.1.3 carries ten.
+- [ ] Install the Windows `.exe` on a clean machine or VM: lands under `%LOCALAPPDATA%`, no UAC
+      prompt, app launches. **Still open** — needs a box without dev tools or WebView2.
+- [x] Merged to `main`. CI green on `main`.
+- [x] The release procedure ran twice as written: v0.1.2 (2026-09-05) and v0.1.3 (2026-09-07),
+      each a non-draft release with the five assets, their sidecars and the generated notes.

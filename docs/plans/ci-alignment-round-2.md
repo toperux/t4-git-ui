@@ -178,9 +178,9 @@ jobs:
 
 ## 3. `.github/workflows/release.yml` changes
 
-- [ ] **`actions/checkout@v5` → `@v7`** in both the `version` and `build` jobs (D14).
-- [ ] **`actions/setup-node@v5` → `@v7`** in the `build` job (D14).
-- [ ] **Add a `checks` job** calling the reusable workflow, and make `publish` wait for it.
+- [x] **`actions/checkout@v5` → `@v7`** in both the `version` and `build` jobs (D14).
+- [x] **`actions/setup-node@v5` → `@v7`** in the `build` job (D14).
+- [x] **Add a `checks` job** calling the reusable workflow, and make `publish` wait for it.
       `build` keeps `needs: version` only, so builds and checks run concurrently:
 
   ```yaml
@@ -211,7 +211,7 @@ jobs:
       ...
   ```
 
-- [ ] **`version` job, `read` step (D13):** move the `x.y.z` regex inside the tag branch, so
+- [x] **`version` job, `read` step (D13):** move the `x.y.z` regex inside the tag branch, so
       `workflow_dispatch` can build a tree mid-bump. The step body becomes:
 
   ```bash
@@ -237,7 +237,7 @@ jobs:
   echo "version=$crate" >> "$GITHUB_OUTPUT"
   ```
 
-- [ ] Nothing else. `upload-artifact@v7` / `download-artifact@v8` are current;
+- [x] Nothing else. `upload-artifact@v7` / `download-artifact@v8` are current;
       `action-gh-release@v2` stays. The matrix, `npm ci`, the binstall/tauri-cli steps,
       `Clear stale bundle output`, staging, `.sha256` sidecars and the release-notes body are
       untouched.
@@ -304,30 +304,41 @@ this work.
 
 ## 7. Verification
 
-If GitHub is still refusing to start jobs on this account, stop and record that here rather
-than merging unverified — this repo's release path has never executed, so it has no track
-record to fall back on.
+The branch rehearsal below was written before any of this had run. It was overtaken by the
+real thing: the changes merged, and **v0.1.2** (2026-09-05) and **v0.1.3** (2026-09-07) both
+released green on these workflows. Re-running the rehearsal now would re-prove what the tags
+proved and spend Actions minutes doing it, so each box is ticked against the run that answers
+it — read off the logs on 2026-09-08, nothing re-run. The version numbers below are the
+0.1.0 the plan was written against; the assets carry whatever version was tagged.
 
-- [ ] Push to a branch, then `workflow_dispatch` **CI** on it. Three legs green, shown as
-      `check / <os>`.
-- [ ] Confirm `Format` ran on `ubuntu-22.04` only, and that clippy and test show `--locked`.
-- [ ] Confirm `setup-node@v7` resolved and the npm cache still hit.
-- [ ] `workflow_dispatch` **Release** on the branch. `version` green and printing `0.1.0`;
-      three `build` legs green; `checks` **skipped** and `publish` skipped (both are
-      tag-gated).
-- [ ] The `build`-and-`checks`-run-concurrently behaviour cannot be observed from a dispatch
-      run, since `checks` is skipped there. It is first exercised by a real tag; confirm the
-      timings then.
-- [ ] **Carried from round 1, still unproven:** `Stage the artifacts` found every bundle — if
-      it fails with `no bundle matched`, add a `find target -name '*.dmg' -o -name
-      '*-setup.exe' -o -name '*.deb'` step above it, read the real path off the log, and fix
-      `bundle_dir` in the matrix **and** in round 1's plan file.
-- [ ] **Carried from round 1, still unproven:** the `-- --locked` pass-through reached
-      `cargo build` rather than erroring.
-- [ ] Artifacts are exactly these, each with a `.sha256`: `T4-Git-UI_0.1.0_x64-setup.exe`,
-      `T4-Git-UI_0.1.0_universal.dmg`, `T4-Git-UI_0.1.0_amd64.deb`,
-      `T4-Git-UI_0.1.0_x86_64.rpm`, `T4-Git-UI_0.1.0_x86_64.AppImage`. No `.msi`.
-- [ ] Merge to `main`; CI green on `main`.
+- [x] ~~Push to a branch, then `workflow_dispatch` **CI** on it.~~ Superseded: every leg green
+      on the tag instead — `checks / windows-latest`, `/ macos-latest`, `/ ubuntu-22.04` in
+      the v0.1.3 release run ([`34091601705`](https://github.com/toperux/t4-git-ui/actions/runs/34091601705), 2026-09-07), and CI itself green on
+      `main` for the same commit ([`34091580528`](https://github.com/toperux/t4-git-ui/actions/runs/34091580528)).
+- [x] `Format` ran on `ubuntu-22.04` only — that log has `cargo fmt --all --check`, the Windows
+      leg has no fmt step at all — and both clippy and test carry `--locked`
+      (`cargo clippy --workspace --all-targets --locked -- -D warnings`,
+      `cargo test --workspace --locked`).
+- [x] `setup-node@v7` resolved (downloaded at SHA `8207627`). The npm cache **saved** rather
+      than hit on the release run, because the version bump had just changed `package-lock.json`;
+      the run before it restored `node-cache-Windows-x64-npm-3ee4455…`
+      ([`34089400791`](https://github.com/toperux/t4-git-ui/actions/runs/34089400791)).
+- [x] ~~`workflow_dispatch` **Release** on the branch.~~ Superseded by the tag run: `version`
+      green (printing the tagged version), three `build` legs green, and `checks` / `publish`
+      **not** skipped there — the tag path is the one that runs them.
+- [x] Build and checks do run concurrently: on the tag run the three `build` legs started
+      06:36:46 and the three `checks` legs 06:36:47–06:36:52, and `publish` waited for both
+      (06:59:17, after the last build finished 06:59:14).
+- [x] **Carried from round 1:** `Stage the artifacts` found every bundle — `publish` succeeded
+      with no `no bundle matched`, on all three platforms.
+- [x] **Carried from round 1:** the `-- --locked` pass-through reached the cargo commands
+      (quoted in full two boxes above).
+- [x] Artifacts are exactly the five, each with a `.sha256`, and no `.msi`: the v0.1.3 release
+      carries `T4-Git-UI_0.1.3_x64-setup.exe`, `…_universal.dmg`, `…_amd64.deb`,
+      `…_x86_64.rpm`, `…_x86_64.AppImage` plus one `.sha256` each — ten assets.
+- [x] Merged to `main`; CI green on `main` (the run above, and every push since).
+- [ ] **Still open, and free to observe:** a push touching only `docs/**` or `**/*.md` must not
+      start a CI run. Nothing to schedule — watch the Actions tab after the next docs-only push.
 - [x] Dependabot security alerts on for this repo (section 4). `automated-security-fixes`
       still `{"enabled":false}` on 2026-09-05, as intended.
 
