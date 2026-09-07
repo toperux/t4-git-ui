@@ -1,4 +1,4 @@
-import { Archive, ArrowDown, Cloud, Copy, Folder, GitBranch, GitMerge, Link, Pencil, Plus, RefreshCw, Tag, Trash2 } from "lucide-react";
+import { Archive, ArrowDown, Check, Cloud, Copy, Folder, GitBranch, GitMerge, Link, Pencil, Plus, RefreshCw, Tag, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import type { Branch, Remote, RemoteBranch, RemoteTag, Stash, Tag as TagRef } from "../../api/types";
 import { Badge } from "../../components/ui/Badge/Badge";
@@ -178,10 +178,11 @@ export function Sidebar() {
         role="treeitem"
         aria-level={depth + 1}
         depth={depth}
-        icon={<GitBranch size={14} aria-hidden />}
+        icon={b.isHead ? <Check size={14} aria-hidden className={s.check} /> : <GitBranch size={14} aria-hidden />}
         label={mergedLabel(label, mergedInto)}
         title={mergedTitle(b.name, mergedInto)}
         current={b.isHead}
+        aria-current={b.isHead || undefined}
         selected={b.isHead}
         meta={
           <>

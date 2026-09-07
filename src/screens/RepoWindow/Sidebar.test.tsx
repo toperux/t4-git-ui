@@ -85,6 +85,18 @@ describe("Sidebar section counts", () => {
     expect(queryAllByRole("button")).toHaveLength(0);
   });
 
+  it("marks the checked-out branch with a check in place of the branch icon", () => {
+    useRepoStore.setState({ refs: { ...REFS, local: [branch("main", true), branch("feature")] } });
+    const { getAllByRole } = render(<Sidebar />);
+    const row = (title: string) => getAllByRole("treeitem").find((r) => r.title === title)!;
+    const main = row("main");
+    expect(main.getAttribute("aria-current")).toBe("true");
+    expect(main.querySelector("svg.lucide-check")).not.toBeNull();
+    const feature = row("feature");
+    expect(feature.getAttribute("aria-current")).toBeNull();
+    expect(feature.querySelector("svg.lucide-git-branch")).not.toBeNull();
+  });
+
   it("never marks the current branch as merged: it cannot be deleted", () => {
     useRepoStore.setState({ refs: { ...REFS, local: [{ ...branch("main", true), mergedInto: "feature" }, branch("feature")] } });
     const { queryByText, getAllByRole } = render(<Sidebar />);

@@ -37,3 +37,7 @@
 .merged {
   color: var(--fg-muted);
 }
+/* The checked-out branch: a check in the icon slot. On the svg itself, so the row's icon-colour rules don't reach it. */
+.check {
+  color: var(--accent);
+}
