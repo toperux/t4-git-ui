@@ -337,8 +337,12 @@ it — read off the logs on 2026-09-08, nothing re-run. The version numbers belo
       carries `T4-Git-UI_0.1.3_x64-setup.exe`, `…_universal.dmg`, `…_amd64.deb`,
       `…_x86_64.rpm`, `…_x86_64.AppImage` plus one `.sha256` each — ten assets.
 - [x] Merged to `main`; CI green on `main` (the run above, and every push since).
-- [ ] **Still open, and free to observe:** a push touching only `docs/**` or `**/*.md` must not
-      start a CI run. Nothing to schedule — watch the Actions tab after the next docs-only push.
+- [x] A push touching only `docs/**` or `**/*.md` starts no CI run. Observed 2026-09-07: the
+      session's work went out in two pushes, and only the first started one. `fcd9b0d` (five
+      feature commits plus a plans edit — code present, so the filter must not apply) ran CI
+      [`34157029525`](https://github.com/toperux/t4-git-ui/actions/runs/34157029525), green on
+      all three runners. `71a7dc4` (`.claude/skills/release/SKILL.md` and `ci-alignment.md`,
+      both markdown) produced **no run at all** — `gh run list` has nothing at that sha.
 - [x] Dependabot security alerts on for this repo (section 4). `automated-security-fixes`
       still `{"enabled":false}` on 2026-09-05, as intended.
 

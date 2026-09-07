@@ -509,8 +509,8 @@ CI twin — see round 2's section 7 for the per-box evidence.
 - [x] ~~Push commits 1–3 to a branch and run CI on it.~~ Superseded: three legs green on the tag
       and on `main`.
 - [x] `Format` executed on `ubuntu-22.04` only, skipped on the other two; no `Versions` step.
-- [ ] **Still open, free:** a push touching only docs must not start CI. Watch the Actions tab
-      after the next docs-only push.
+- [x] A docs-only push starts no CI. Observed 2026-09-07 — see round 2's section 7 for the
+      two pushes and their run ids.
 - [x] ~~Trigger `Release` via `workflow_dispatch`.~~ Superseded by the tag run: `version` green,
       three `build` legs green, and `publish` ran (tags publish; a dispatch would skip it).
 - [x] The assets are exactly the five plus a `.sha256` each, no `.msi` — v0.1.3 carries ten.
