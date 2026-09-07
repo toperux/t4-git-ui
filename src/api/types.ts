@@ -102,6 +102,8 @@ export interface LogFilter {
   text?: string | null;
   author?: string | null;
   path?: string | null;
+  /** Seed the layout with a column expecting HEAD so the working-tree row connects to it. */
+  workingTree?: boolean;
 }
 
 // --- refs.rs ---

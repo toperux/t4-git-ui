@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use git2::Oid;
 use git_core::log::walker::CHUNK_SIZE;
-use git_core::log::{walk, GraphRow, LogFilter, RefKind, RefLabel, RevSpec};
+use git_core::log::{walk, GraphLine, GraphRow, LineKind, LogFilter, RefKind, RefLabel, RevSpec};
 use git_core::refs::{label_map, label_snapshot, snapshot};
 use git_core::test_util::TempRepo;
 use git_core::GitError;
@@ -466,10 +466,61 @@ fn text_filter_matches_summary_and_author() {
 }
 
 #[test]
+fn working_tree_seeds_a_column_expecting_head() {
+    let t = TempRepo::new();
+    let a = t.commit(&[("a", "1")], "A");
+    let b = t.commit(&[("b", "1")], "B");
+    t.branch("topic", a);
+    t.checkout("topic");
+    // Committed last, so TOPOLOGICAL | TIME sorts C above HEAD.
+    let c = t.commit(&[("c", "1")], "C");
+    t.checkout("master");
+
+    let line = |kind, from, to, color| GraphLine {
+        from,
+        to,
+        color,
+        kind,
+    };
+    let filter = LogFilter {
+        working_tree: true,
+        ..Default::default()
+    };
+    let mut out = Vec::new();
+    walk(&t.repo, &RevSpec::All, &filter, &no_cancel(), |chunk| {
+        out.extend(chunk);
+        true
+    })
+    .expect("walk");
+    assert_eq!(oids(&out), vec![s(c), s(b), s(a)]);
+    // HEAD's column is already open, so C is pushed into lane 1 and the row
+    // above HEAD carries the pass-through the working-tree row joins.
+    assert_eq!(out[0].lane, 1);
+    assert!(out[0].lines.contains(&line(LineKind::Straight, 0, 0, 0)));
+    assert_eq!(out[1].lane, 0);
+    assert!(out[1].lines.contains(&line(LineKind::Merge, 0, 0, 0)));
+
+    // Without the flag nothing is open above C: it takes lane 0 and its only
+    // line is the branch down to its parent.
+    let r = rows(&t, &RevSpec::All);
+    assert_eq!(r[0].lane, 0);
+    assert_eq!(r[0].lines, vec![line(LineKind::Branch, 0, 0, 0)]);
+}
+
+#[test]
 fn empty_repo_walks_nothing() {
     let mut t = TempRepo::new();
     assert_eq!(rows(&t, &RevSpec::All).len(), 0);
     assert_eq!(rows(&t, &RevSpec::Head).len(), 0);
+    // Unborn HEAD: nothing to seed the layout with, and no error.
+    let filter = LogFilter {
+        working_tree: true,
+        ..Default::default()
+    };
+    assert_eq!(
+        walk(&t.repo, &RevSpec::All, &filter, &no_cancel(), |_| true).expect("walk"),
+        0
+    );
     let snap = snapshot(&mut t.repo).expect("snapshot");
     assert_eq!(snap.head.oid, None);
     assert_eq!(snap.head.branch.as_deref(), Some("master"));

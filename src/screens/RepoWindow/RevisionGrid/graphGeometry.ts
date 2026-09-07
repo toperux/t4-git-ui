@@ -1,7 +1,7 @@
 // Pure geometry for the lane graph — ported from `graph()` in docs/design/canvases/build/screens.mjs:
 //   x(lane) = 8 + lane * laneW;  width = 8 + lanes * laneW + 4;
 //   curves are cubic Béziers with vertical tangents, control points 45% into the segment.
-import type { GraphRow } from "../../../api/types";
+import type { GraphLine, GraphRow } from "../../../api/types";
 
 export const GRAPH_LEFT = 8;
 export const GRAPH_RIGHT = 4;
@@ -22,6 +22,9 @@ export const graphWidth = (lanes: number, laneW: number) => GRAPH_LEFT + lanes *
 
 /** Number of lanes to reserve for a graph whose highest column so far is `maxLane`. */
 export const graphLanes = (maxLane: number) => Math.min(MAX_LANES, Math.max(MIN_LANES, maxLane + 1));
+
+/** The seed column's line into the first row (`merge` when the top commit is HEAD, `straight` otherwise); `null` on an unseeded walk, whose first row has no incoming line at all. */
+export const wtLink = (first: GraphRow | null): GraphLine | null => first?.lines.find((l) => l.kind !== "branch" && l.from === 0) ?? null;
 
 /** Control points `[c1x, c1y, c2x, c2y]` for the curve from (x0,y0) to (x1,y1). */
 export function curveControls(x0: number, y0: number, x1: number, y1: number): [number, number, number, number] {

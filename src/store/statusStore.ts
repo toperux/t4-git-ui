@@ -58,12 +58,15 @@ const sameRefs = (a: RefsSnapshot | null, b: RefsSnapshot | null) => JSON.string
  * remote branch and tag as well for `all` (see `log::walker::walk`). Only a change here can add
  * or drop commits, and only a new walk shows them: a fetch moves `refs/remotes/*` without
  * touching HEAD, and relabelling would leave the grid on history that predates the fetch.
- * `headOid` covers the moment after `openRepo` when the snapshot has not arrived yet.
+ * `headOid` covers the moment after `openRepo` when the snapshot has not arrived yet. A seeded
+ * walk (`seeded`) also lays out around HEAD itself, so a checkout between two branches the walk
+ * already had — the same commits, a different HEAD — restarts it rather than relabelling.
  */
-function walkSeeds(spec: RevSpec, refs: RefsSnapshot | null, headOid: string | null): string {
+function walkSeeds(spec: RevSpec, refs: RefsSnapshot | null, headOid: string | null, seeded: boolean): string {
   const oids = new Set<string>();
   const head = refs ? refs.head.oid : headOid;
   if (head) oids.add(head);
+  if (head && seeded) oids.add(`HEAD=${head}`);
   if (refs && spec.kind !== "head") {
     for (const b of refs.local) oids.add(b.oid);
     for (const r of refs.remotes) for (const b of r.branches) oids.add(b.oid);
@@ -72,18 +75,68 @@ function walkSeeds(spec: RevSpec, refs: RefsSnapshot | null, headOid: string | n
   return [...oids].sort().join(" ");
 }
 
+/**
+ * The walk wants HEAD's column reserved: `useShowWorkingTree` minus `flat` — a flat walk ignores the
+ * seed, and keeping the flag true to the tree makes clearing the filter come back right.
+ */
+function walkSeedWanted() {
+  const rs = useRepoStore.getState();
+  return (useStatusStore.getState().status?.entries.length ?? 0) > 0 || rs.refs?.state === "merge";
+}
+
+/**
+ * Keeps `filter.workingTree` equal to "the pseudo-row is shown": the walk reserves HEAD's column
+ * only while the row exists. The restart stores the flag, so this cannot loop.
+ */
+function syncWalkSeed() {
+  const rs = useRepoStore.getState();
+  if (!rs.repo) return;
+  const show = walkSeedWanted();
+  if (show !== !!rs.filter.workingTree) void rs.startLog(rs.spec, { ...rs.filter, workingTree: show });
+}
+
+/** Everything `refresh` does bar the walk seed; false when there was nothing to seed from (stale / failed / no repo). */
+async function fetchStatus(): Promise<boolean> {
+  if (timer) {
+    clearTimeout(timer);
+    timer = null;
+  }
+  const repo = useRepoStore.getState().repo;
+  if (!repo) {
+    seq++;
+    useStatusStore.setState({ status: null, error: null });
+    return false;
+  }
+  const mySeq = ++seq;
+  try {
+    const status = await ipc.getStatus(repo.id);
+    if (mySeq !== seq || useRepoStore.getState().repo?.id !== repo.id) return false; // stale
+    useStatusStore.setState({ status, error: null });
+    dropWorkingTreeIfClean();
+    return true;
+  } catch (e) {
+    if (mySeq !== seq) return false;
+    useStatusStore.setState({ error: toAppError(e).message });
+    return false;
+  }
+}
+
 /** One pass: refresh refs, then restart the walk (its seeds moved) / relabel it (refs changed) / do nothing. */
 async function syncRefsOnce() {
   const rs = useRepoStore.getState();
   if (!rs.repo) return;
   const repoId = rs.repo.id;
-  const before = walkSeeds(rs.spec, rs.refs, rs.repo.head.oid);
+  const before = walkSeeds(rs.spec, rs.refs, rs.repo.head.oid, !!rs.filter.workingTree);
   const beforeRefs = rs.refs;
-  await rs.refreshRefs();
+  // The watcher schedules the status refresh and calls this at once, so a pending one means the status
+  // still describes the tree before the change: take it now, or the decision below seeds from a stale tree.
+  await Promise.all([rs.refreshRefs(), timer ? fetchStatus() : undefined]);
   const after = useRepoStore.getState();
   if (after.repo?.id !== repoId || !after.repo) return;
-  const now = walkSeeds(after.spec, after.refs, after.repo.head.oid);
-  if (now !== before) await after.startLog(after.spec, after.filter);
+  const now = walkSeeds(after.spec, after.refs, after.repo.head.oid, !!after.filter.workingTree);
+  // Folded in: a moved seed and a flipped working-tree column are one new walk, not two.
+  const show = walkSeedWanted();
+  if (now !== before || show !== !!after.filter.workingTree) await after.startLog(after.spec, { ...after.filter, workingTree: show });
   // The watcher reports `FETCH_HEAD` / `logs/*` / `config` writes as `refs`, and a new tag on a
   // commit the walk already reached moves no seed: relabel only on a real change.
   else if (!sameRefs(beforeRefs, after.refs)) await after.refreshLabels();
@@ -99,31 +152,12 @@ function dropWorkingTreeIfClean() {
   if (useStatusStore.getState().status?.entries.length === 0 && rs.wtSelected && rs.refs?.state !== "merge") rs.selectWorkingTree(false);
 }
 
-export const useStatusStore = create<StatusStore>()((set, get) => ({
+export const useStatusStore = create<StatusStore>()((_set, get) => ({
   status: null,
   error: null,
 
   async refresh() {
-    if (timer) {
-      clearTimeout(timer);
-      timer = null;
-    }
-    const repo = useRepoStore.getState().repo;
-    if (!repo) {
-      seq++;
-      set({ status: null, error: null });
-      return;
-    }
-    const mySeq = ++seq;
-    try {
-      const status = await ipc.getStatus(repo.id);
-      if (mySeq !== seq || useRepoStore.getState().repo?.id !== repo.id) return; // stale
-      set({ status, error: null });
-      dropWorkingTreeIfClean();
-    } catch (e) {
-      if (mySeq !== seq) return;
-      set({ error: toAppError(e).message });
-    }
+    if (await fetchStatus()) syncWalkSeed();
   },
 
   scheduleRefresh() {

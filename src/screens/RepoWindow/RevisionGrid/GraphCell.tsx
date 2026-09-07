@@ -1,7 +1,7 @@
 import { memo, useEffect, useRef, useState } from "react";
 import type { GraphRow } from "../../../api/types";
 import { useThemeTokens, type ThemeTokens } from "../../../theme/useThemeTokens";
-import { curveControls, graphWidth, HEAD_RING_R, HEAD_RING_STROKE, laneX, rowSegments } from "./graphGeometry";
+import { curveControls, graphWidth, HEAD_RING_R, HEAD_RING_STROKE, laneX, rowSegments, wtLink } from "./graphGeometry";
 import s from "./RevisionGrid.module.css";
 
 export interface GraphCellProps {
@@ -94,17 +94,19 @@ export const WT_RING_STROKE = 1.5;
 export const WT_RING_DASH = [2, 2];
 
 /**
- * Working-tree pseudo-row: dashed ring at lane 0 and, when the top commit sits in lane 0 too,
- * a line down to it in that lane's color.
+ * Working-tree pseudo-row: dashed ring at lane 0 and, when the walk was seeded with HEAD,
+ * a line down into the seed column in its color.
  */
 export const WorkingTreeNode = memo(function WorkingTreeNode({ lanes, first }: { lanes: number; first: GraphRow | null }) {
   return useGraphCanvas(
     lanes,
     (ctx, t) => {
-      const col = t.graph[(first?.color ?? 0) % 8] ?? "";
+      const link = wtLink(first);
+      // A ring stands alone for the one page fetch between a status change and the new walk's rows.
+      const col = t.graph[(link?.color ?? 0) % 8] ?? "";
       const cx = laneX(0, t.laneW);
       const cy = t.rowH / 2;
-      if (first && first.lane === 0) {
+      if (link) {
         ctx.lineWidth = t.laneStroke;
         ctx.lineCap = "round";
         ctx.strokeStyle = col;

@@ -655,6 +655,22 @@ _Shipped 2026-09-07 (this commit); walked the same day over CDP on the installed
       (was an exit-0 "failure" with no toast, since only conflict-checked ops could report a pause) →
       **Abort**
 
+## AA. Working tree linked to HEAD (main §2)
+_Shipped 2026-09-07 (this commit); walked the same day over CDP on the installed build in `c:/tmp/t4/irebase`. While the tree is dirty (or a merge waits to be committed) the walk opens a lane column expecting HEAD before the first commit (`LogFilter.workingTree`), so HEAD's lineage takes lane 0 and the working-tree row's line runs down into it; a clean tree walks without the seed and gets the old layout back._
+
+- [x] **HEAD on top**: dirty tree on `main` (its tip is the newest commit) → the dashed ring at lane 0
+      with a line straight into `main`'s node; the rest of the graph as before
+- [x] **HEAD below other tips**: checkout `other` (older than `main`'s tip) → after the re-walk the
+      ring's line runs past `main`'s row into `other`'s node, both in HEAD's colour; `main` moved
+      to lane 1; for the one page fetch in between, the old rows stay and the ring stands alone
+- [x] **Clean**: `git stash` from a shell → the row goes, the line goes, `main` is back in lane 0
+      (today's layout); `git stash pop` → row, line and lane 1 back
+- [x] **Text filter**: type a filter → flat list, no row; clear it → the row and its line are back
+- [x] **Back to `main`**: checkout `main` from its row → the line again ends at the top commit.
+      (Walk finding, fixed: a checkout between two branches the walk already had used to relabel
+      only — same commits — and left the seed column pointing at the old HEAD; a seeded walk now
+      restarts when HEAD itself moves)
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the

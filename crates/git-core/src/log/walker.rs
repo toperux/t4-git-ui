@@ -89,6 +89,13 @@ pub fn walk(
         .is_some_and(|t| t.len() >= 4 && t.bytes().all(|b| b.is_ascii_hexdigit()));
 
     let mut layout = LaneLayout::new();
+    // ponytail: a `Refs` spec that never reaches HEAD leaves this column open to
+    // the bottom; the UI only sends `all` / `head`.
+    if use_graph && filter.working_tree {
+        if let Ok(head) = repo.head().and_then(|r| r.peel_to_commit()) {
+            layout.open(head.id());
+        }
+    }
     let mut chunk: Vec<GraphRow> = Vec::with_capacity(CHUNK_SIZE);
     let mut total = 0usize;
     let mut parents: Vec<Oid> = Vec::with_capacity(4);

@@ -19,6 +19,9 @@
 //! 4. No parents → column removed.
 //! 5. Every untouched column emits a `Straight` line (`from` may differ from
 //!    `to` when columns left of it were removed).
+//!
+//! `open` seeds a column before the first commit is pushed, so a row above the
+//! walk (the working-tree pseudo-row) can join the lineage it expects.
 
 use git2::Oid;
 
@@ -81,6 +84,16 @@ impl LaneLayout {
             .enumerate()
             .find(|(i, c)| !removed[*i] && c.expecting == oid)
             .map(|(i, _)| i)
+    }
+
+    /// Opens a column expecting `oid` before any commit is pushed: the working-tree
+    /// pseudo-row's link to HEAD (it takes color 0, so HEAD's lineage sits in lane 0).
+    pub fn open(&mut self, oid: Oid) {
+        let color = self.alloc_color();
+        self.columns.push(Column {
+            expecting: oid,
+            color,
+        });
     }
 
     pub fn push(&mut self, oid: Oid, parents: &[Oid]) -> Placement {
@@ -452,6 +465,48 @@ mod tests {
         assert_eq!(c.lines, vec![line(Merge, 1, 1, 1), line(Straight, 0, 0, 0)]);
         assert_eq!(l.width(), 1);
         assert_eq!(c.max_lane, 1);
+    }
+
+    #[test]
+    fn seeded_column_keeps_lane_zero_for_the_expected_commit() {
+        // HEAD(1) is expected before the walk starts; C(2) is walked first and
+        // is pushed aside into lane 1, leaving a pass-through above HEAD.
+        let mut l = LaneLayout::new();
+        l.open(o(1));
+        let c = l.push(o(2), &[o(3)]);
+        assert_eq!((c.lane, c.color), (1, 1));
+        assert_eq!(
+            c.lines,
+            vec![line(Branch, 1, 1, 1), line(Straight, 0, 0, 0)]
+        );
+
+        // HEAD arrives in the seeded column; its first parent is already
+        // expected by C's column, so the seeded lane ends here.
+        let h = l.push(o(1), &[o(3)]);
+        assert_eq!((h.lane, h.color), (0, 0));
+        assert_eq!(
+            h.lines,
+            vec![
+                line(Merge, 0, 0, 0),
+                line(Branch, 0, 0, 1),
+                line(Straight, 1, 0, 1),
+            ]
+        );
+        assert_eq!(l.width(), 1);
+    }
+
+    #[test]
+    fn seeded_column_absorbs_a_child_of_the_expected_commit() {
+        // A commit whose first parent is HEAD dedupes into the seeded column.
+        let mut l = LaneLayout::new();
+        l.open(o(1));
+        let c = l.push(o(2), &[o(1)]);
+        assert_eq!((c.lane, c.color), (1, 1));
+        assert_eq!(
+            c.lines,
+            vec![line(Branch, 1, 0, 0), line(Straight, 0, 0, 0)]
+        );
+        assert_eq!(l.width(), 1);
     }
 
     #[test]

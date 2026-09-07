@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { GraphRow } from "../../../api/types";
-import { curveControls, graphLanes, graphWidth, laneX, rowSegments } from "./graphGeometry";
+import { curveControls, graphLanes, graphWidth, laneX, rowSegments, wtLink } from "./graphGeometry";
 
 describe("graph geometry", () => {
   it("places lanes like the design canvas (8 + lane * 13)", () => {
@@ -41,5 +41,37 @@ describe("graph geometry", () => {
       { x0: 34, y0: 0, x1: 21, y1: 13, color: 2 },
       { x0: 8, y0: 0, x1: 8, y1: 26, color: 0 },
     ]);
+  });
+
+  describe("wtLink", () => {
+    const rowWith = (lines: GraphRow["lines"]): GraphRow => ({
+      commit: { oid: "a", short: "a", summary: "", authorName: "", authorEmail: "", authorTime: 0, committerTime: 0, parents: [], isMerge: false },
+      lane: 0,
+      color: 0,
+      maxLane: 1,
+      lines,
+    });
+
+    it("has no line without a first row", () => {
+      expect(wtLink(null)).toBeNull();
+    });
+
+    it("ignores a `branch` line, which leaves the node instead of entering the row", () => {
+      expect(wtLink(rowWith([{ from: 0, to: 0, color: 3, kind: "branch" }]))).toBeNull();
+    });
+
+    it("takes the seed column's line down (top commit is not HEAD)", () => {
+      const line = { from: 0, to: 0, color: 2, kind: "straight" } as const;
+      expect(wtLink(rowWith([line]))).toEqual(line);
+    });
+
+    it("takes the seed column's line into HEAD's own row", () => {
+      const line = { from: 0, to: 0, color: 1, kind: "merge" } as const;
+      expect(wtLink(rowWith([line]))).toEqual(line);
+    });
+
+    it("has no line on an unseeded walk (nothing comes in at column 0)", () => {
+      expect(wtLink(rowWith([{ from: 1, to: 1, color: 4, kind: "straight" }]))).toBeNull();
+    });
   });
 });

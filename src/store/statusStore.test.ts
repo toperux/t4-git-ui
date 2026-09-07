@@ -42,7 +42,7 @@ const withRemote = (headOid: string, originOid: string): RefsSnapshot => ({
 });
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
-beforeEach(() => {
+beforeEach(async () => {
   // `resetAllMocks`: a `mockImplementation` from one test must not leak into another's `...Once` chain.
   vi.resetAllMocks();
   resetStatus();
@@ -53,9 +53,17 @@ beforeEach(() => {
   mocked.getRefs.mockResolvedValue(refs("h1"));
   mocked.refreshLabels.mockResolvedValue(1);
   mocked.startLog.mockResolvedValue(2);
-  // Opening a repo triggers one refresh via the store subscription; not what these tests count.
-  useRepoStore.setState({ repo: REPO, refs: refs("h1"), log: { generation: 1, total: 0, complete: true, error: null, flat: false }, wtSelected: false });
-  useStatusStore.setState({ status: null, error: null });
+  // Opening a repo triggers one refresh via the store subscription; not what these tests count, so it
+  // is awaited here. `workingTree: true` is what the dirty status it lands on wants, so it re-walks nothing.
+  useRepoStore.setState({
+    repo: REPO,
+    refs: refs("h1"),
+    filter: { workingTree: true },
+    log: { generation: 1, total: 0, complete: true, error: null, flat: false },
+    wtSelected: false,
+  });
+  await flush();
+  useStatusStore.setState({ error: null });
   mocked.getStatus.mockClear();
 });
 // Vitest runs without `globals`, so RTL never auto-cleans: `renderHook` would leak into the next file.
@@ -107,6 +115,37 @@ describe("statusStore", () => {
     useStatusStore.getState().onChanged({ repoId: "r1", kinds: ["refs"], rescan: false });
     await vi.runAllTimersAsync();
     expect(mocked.startLog).toHaveBeenCalledTimes(1);
+    expect(mocked.refreshLabels).toHaveBeenCalledTimes(1);
+  });
+
+  it("a checkout between two branches the walk already had restarts a seeded walk, relabels an unseeded one", async () => {
+    vi.useFakeTimers();
+    // `main` at h1 and `other` at h2 are both in the walk either way; only HEAD moves.
+    const two = (head: string): RefsSnapshot => ({
+      ...refs(head),
+      local: [
+        { name: "main", oid: "h1", upstream: null, gone: false, mergedInto: null, ahead: 0, behind: 0, isHead: head === "h1" },
+        { name: "other", oid: "h2", upstream: null, gone: false, mergedInto: null, ahead: 0, behind: 0, isHead: head === "h2" },
+      ],
+    });
+    useRepoStore.setState({ refs: two("h1"), filter: {} });
+    useStatusStore.setState({ status: status(0) });
+    mocked.getStatus.mockResolvedValue(status(0));
+    mocked.getRefs.mockResolvedValue(two("h2"));
+    useStatusStore.getState().onChanged({ repoId: "r1", kinds: ["refs"], rescan: false });
+    await vi.runAllTimersAsync();
+    expect(mocked.startLog).not.toHaveBeenCalled();
+    expect(mocked.refreshLabels).toHaveBeenCalledTimes(1);
+
+    // Seeded: the layout is built around HEAD, so the same commits with a new HEAD are a new walk.
+    useRepoStore.setState({ filter: { workingTree: true } });
+    useStatusStore.setState({ status: status(1) });
+    mocked.getStatus.mockResolvedValue(status(1));
+    mocked.getRefs.mockResolvedValue(two("h1"));
+    useStatusStore.getState().onChanged({ repoId: "r1", kinds: ["refs"], rescan: false });
+    await vi.runAllTimersAsync();
+    expect(mocked.startLog).toHaveBeenCalledTimes(1);
+    expect(mocked.startLog).toHaveBeenCalledWith("r1", { kind: "all" }, { workingTree: true });
     expect(mocked.refreshLabels).toHaveBeenCalledTimes(1);
   });
 
@@ -218,6 +257,43 @@ describe("statusStore", () => {
     mocked.getStatus.mockResolvedValue(status(2));
     await useStatusStore.getState().refresh();
     expect(renderHook(() => useShowWorkingTree()).result.current).toBe(false);
+  });
+
+  it("a tree turning dirty re-walks with HEAD's column seeded, and stays there", async () => {
+    useRepoStore.setState({ filter: {} });
+    useStatusStore.setState({ status: status(0) });
+    await useStatusStore.getState().refresh();
+    expect(mocked.startLog).toHaveBeenCalledWith("r1", { kind: "all" }, { workingTree: true });
+    // The restart stored the flag, so a second dirty status is not another walk.
+    await useStatusStore.getState().refresh();
+    expect(mocked.startLog).toHaveBeenCalledTimes(1);
+  });
+
+  it("a commit in a terminal on a dirty tree walks once, from the tree as it is now", async () => {
+    vi.useFakeTimers();
+    // The watcher schedules the status refresh and syncs the refs at once: taking the seed from the
+    // status the commit has already cleared would walk seeded, then unseeded 100 ms later.
+    useStatusStore.setState({ status: status(2) });
+    mocked.getStatus.mockResolvedValue(status(0));
+    mocked.getRefs.mockResolvedValue(refs("h2"));
+    useStatusStore.getState().onChanged({ repoId: "r1", kinds: ["refs"], rescan: false });
+    await vi.runAllTimersAsync();
+    expect(mocked.startLog).toHaveBeenCalledTimes(1);
+    expect(mocked.startLog).toHaveBeenCalledWith("r1", { kind: "all" }, { workingTree: false });
+  });
+
+  it("a merge still to commit seeds the column even with an empty status", async () => {
+    useRepoStore.setState({ filter: {}, refs: { ...refs("h1"), state: "merge" } });
+    mocked.getStatus.mockResolvedValue(status(0));
+    await useStatusStore.getState().refresh();
+    expect(mocked.startLog).toHaveBeenCalledWith("r1", { kind: "all" }, { workingTree: true });
+  });
+
+  it("a tree turning clean re-walks without the seed", async () => {
+    mocked.getStatus.mockResolvedValue(status(0));
+    await useStatusStore.getState().refresh();
+    expect(mocked.startLog).toHaveBeenCalledTimes(1);
+    expect(mocked.startLog).toHaveBeenCalledWith("r1", { kind: "all" }, { workingTree: false });
   });
 
   it("a stopped rebase with an empty status has no pseudo-row: only a merge is committed from the panel", async () => {

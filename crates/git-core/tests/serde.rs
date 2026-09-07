@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use git_core::log::{CommitInfo, GraphLine, GraphRow, LineKind, RevSpec};
+use git_core::log::{CommitInfo, GraphLine, GraphRow, LineKind, LogFilter, RevSpec};
 use git_core::GitError;
 use serde_json::{json, Value};
 
@@ -22,6 +22,20 @@ fn rev_spec_round_trips() {
     let refs: RevSpec = serde_json::from_value(v.clone()).expect("refs");
     assert_eq!(refs, RevSpec::Refs(vec!["refs/heads/main".into()]));
     assert_eq!(serde_json::to_value(&refs).expect("ser"), v);
+}
+
+#[test]
+fn log_filter_working_tree_is_optional() {
+    // The frontend omits the flag on a plain text filter.
+    let f: LogFilter = serde_json::from_value(json!({ "text": null })).expect("filter");
+    assert!(!f.working_tree);
+
+    let v = serde_json::to_value(LogFilter {
+        working_tree: true,
+        ..Default::default()
+    })
+    .expect("ser");
+    assert_eq!(v["workingTree"], true);
 }
 
 #[test]

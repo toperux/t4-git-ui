@@ -292,7 +292,9 @@ Selection colour follows the focused pane: rows use `--bg-selected-unfocused` by
 working-tree pseudo-row while `status.entries` is non-empty; selecting it (`repoStore.wtSelected`) swaps the bottom pane for
 `CommitPanel`. Every stage/unstage/discard/commit goes through `commitStore`, which refreshes the status itself after the IPC
 resolves (the event arrives too; the seq guard makes the second response a no-op). After a commit the panel stays on the
-working-tree row when changes remain, otherwise the row disappears and the fresh walk selects HEAD.
+working-tree row when changes remain, otherwise the row disappears and the fresh walk selects HEAD. The status refresh also
+keeps `filter.workingTree` equal to "the row is shown" and restarts the walk when it flips, which is what gives the row its line
+down to HEAD.
 
 ## Start screen (M5)
 
