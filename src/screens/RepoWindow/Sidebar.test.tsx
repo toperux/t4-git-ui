@@ -138,6 +138,27 @@ describe("Sidebar section counts", () => {
     expect(queryByRole("treeitem", { name: "panels" })).not.toBeNull();
   });
 
+  it("greys Merge and Rebase while no branch is checked out or an operation is in progress", () => {
+    const item = (title: string, name: RegExp) => {
+      const r = render(<Sidebar />);
+      fireEvent.contextMenu(r.getAllByRole("treeitem").find((row) => row.title === title)!);
+      const el = within(r.getByRole("menu", { name: "Reference actions" })).getByRole("menuitem", { name });
+      const out = { disabled: (el as HTMLButtonElement).disabled, title: el.getAttribute("title") };
+      r.unmount();
+      return out;
+    };
+    useRepoStore.setState({ refs: { ...REFS, head: { oid: "a", branch: null, detached: true }, local: REFS.local.map((b) => ({ ...b, isHead: false })) } });
+    expect(item("feature/panels", /^Merge into current/)).toEqual({ disabled: true, title: "No branch is checked out" });
+    expect(item("origin/main", /^Rebase current onto/)).toEqual({ disabled: true, title: "No branch is checked out" });
+
+    useRepoStore.setState({ refs: { ...REFS, state: "rebase" } });
+    expect(item("feature/panels", /^Rebase main onto/)).toEqual({ disabled: true, title: "An operation is in progress" });
+    expect(item("origin/main", /^Merge into main/)).toEqual({ disabled: true, title: "An operation is in progress" });
+
+    useRepoStore.setState({ refs: REFS });
+    expect(item("feature/panels", /^Merge into main/)).toEqual({ disabled: false, title: null });
+  });
+
   it("never offers to delete main, master or the branch a remote's HEAD points at", () => {
     // `fork/HEAD → fork/feature/panels` protects that short name locally and on every remote.
     useRepoStore.setState({
@@ -151,16 +172,19 @@ describe("Sidebar section counts", () => {
     };
     const items = (title: string) => menu(title).queryAllByRole("menuitem").map((el) => el.textContent);
 
-    // Hidden, not disabled — and the separator above it goes too.
-    expect(items("main")).not.toContain("Delete…");
-    expect(menu("main").queryAllByRole("separator")).toHaveLength(0);
+    // Hidden, not disabled — and the separator above it goes too: the same groups as the commit menu
+    // (switch · integrate · new refs · network · clipboard · edit · delete), minus the last one.
+    expect(items("main")).toEqual(["Checkout", "Merge into main…", "Rebase main onto…", "Create branch here…", "Push…", "Copy name", "Rename…"]);
+    expect(menu("main").queryAllByRole("separator")).toHaveLength(5);
     expect(items("feature/panels")).not.toContain("Delete…");
     expect(items("wip")).toContain("Delete…");
+    expect(menu("wip").queryAllByRole("separator")).toHaveLength(6);
 
-    expect(items("origin/main")).not.toContain("Delete on remote…");
-    expect(menu("origin/main").queryAllByRole("separator")).toHaveLength(0);
+    expect(items("origin/main")).toEqual(["Checkout", "Merge into main…", "Rebase main onto…", "Create branch here…", "Copy name"]);
+    expect(menu("origin/main").queryAllByRole("separator")).toHaveLength(3);
     expect(items("fork/main")).not.toContain("Delete on remote…");
     expect(items("origin/feature/lanes")).toContain("Delete on remote…");
+    expect(menu("origin/feature/lanes").queryAllByRole("separator")).toHaveLength(4);
   });
 });
 
@@ -173,8 +197,8 @@ describe("Sidebar remote menu", () => {
   it("offers the remote's own actions on its folder row, with Copy URL disabled without a URL", () => {
     const view = render(<Sidebar />);
     const menu = rowMenu("origin", view);
-    expect(menu.queryAllByRole("menuitem").map((el) => el.textContent)).toEqual(["Fetch origin", "Rename…", "Change URL…", "Copy URL", "Remove…"]);
-    expect(menu.queryAllByRole("separator")).toHaveLength(1);
+    expect(menu.queryAllByRole("menuitem").map((el) => el.textContent)).toEqual(["Fetch origin", "Copy URL", "Rename…", "Change URL…", "Remove…"]);
+    expect(menu.queryAllByRole("separator")).toHaveLength(3);
     expect(menu.getByRole("menuitem", { name: "Copy URL" }).hasAttribute("disabled")).toBe(true);
   });
 
@@ -288,7 +312,7 @@ describe("Sidebar tags tree", () => {
     fireEvent.contextMenu(rows(view).find((r) => r.title === "v0.2.0")!);
     const menu = within(view.getByRole("menu", { name: "Reference actions" }));
     // No Checkout / Create branch here: the object may not exist locally.
-    expect(menu.queryAllByRole("menuitem").map((el) => el.textContent)).toEqual(["Copy name", "Refresh remote tags", "Delete on remote…"]);
+    expect(menu.queryAllByRole("menuitem").map((el) => el.textContent)).toEqual(["Refresh remote tags", "Copy name", "Delete on remote…"]);
     fireEvent.click(menu.getByRole("menuitem", { name: "Delete on remote…" }));
     expect(useDialogStore.getState().dialog).toEqual({ kind: "deleteRemoteTag", name: "v0.2.0", remote: "origin" });
   });

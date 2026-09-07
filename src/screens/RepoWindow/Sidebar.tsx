@@ -408,10 +408,15 @@ export function Sidebar() {
 function RefContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number }; target: Target; el: HTMLElement } | null; onClose: () => void }) {
   const open = useDialogStore((st) => st.open);
   const current = useRepoStore((st) => st.refs?.local.find((b) => b.isHead)?.name ?? null);
+  const state = useRepoStore((st) => st.refs?.state);
   const remotes = useRepoStore((st) => st.refs?.remotes);
   const running = useOpsStore(selectRunning);
   if (!menu) return null;
   const { target } = menu;
+  // Merge / rebase act on the current branch: detached there is none (git would still run, onto no
+  // branch), and mid-merge / mid-rebase git refuses one — the commit menu hides them the same way.
+  const noIntegrate = !current ? "No branch is checked out" : state !== "clean" ? "An operation is in progress" : null;
+  const integrate = noIntegrate ? { disabled: true, title: noIntegrate } : {};
   // The clicked menu item is gone by the time the dialog mounts: hand it the row the menu came from.
   const openDialog = (spec: DialogSpec) => open(spec, { returnFocusTo: menu.el });
   // Everything but Copy touches the repository: greyed while an operation runs, like the toolbar.
@@ -430,24 +435,31 @@ function RefContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number 
         const b = target.branch;
         return (
           <>
+            {/* Every row menu reads the same way as the commit menu: switch · integrate into the current
+                branch · new refs · network · clipboard · edit the ref itself · delete (red, last). */}
             <MenuItem icon={<GitBranch size={16} aria-hidden />} disabled={b.isHead} {...op} onClick={run(() => void checkoutBranch(b.name))}>
               Checkout
             </MenuItem>
-            <MenuItem icon={<GitMerge size={16} aria-hidden />} disabled={b.isHead} {...op} onClick={run(() => openDialog({ kind: "merge", branch: b.name }))}>
+            <MenuSeparator />
+            <MenuItem icon={<GitMerge size={16} aria-hidden />} disabled={b.isHead} {...integrate} {...op} onClick={run(() => openDialog({ kind: "merge", branch: b.name }))}>
               Merge into {current ?? "current"}…
             </MenuItem>
-            <MenuItem icon={<GitMerge size={16} aria-hidden />} disabled={b.isHead} {...op} onClick={run(() => openDialog({ kind: "rebase", onto: b.name }))}>
+            <MenuItem icon={<GitMerge size={16} aria-hidden />} disabled={b.isHead} {...integrate} {...op} onClick={run(() => openDialog({ kind: "rebase", onto: b.name }))}>
               Rebase {current ?? "current"} onto…
             </MenuItem>
+            <MenuSeparator />
             <MenuItem icon={<Plus size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "createBranch", startPoint: b.name }))}>
               Create branch here…
             </MenuItem>
-            <MenuItem icon={<Pencil size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "renameBranch", name: b.name }))}>
-              Rename…
-            </MenuItem>
+            <MenuSeparator />
             <MenuItem {...op} onClick={run(() => openDialog({ kind: "push", branch: b.name }))}>Push…</MenuItem>
+            <MenuSeparator />
             <MenuItem icon={<Copy size={16} aria-hidden />} onClick={run(() => copyText(b.name, "branch name"))}>
               Copy name
+            </MenuItem>
+            <MenuSeparator />
+            <MenuItem icon={<Pencil size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "renameBranch", name: b.name }))}>
+              Rename…
             </MenuItem>
             {!keep.has(b.name) && (
               <>
@@ -468,12 +480,19 @@ function RefContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number 
             <MenuItem icon={<GitBranch size={16} aria-hidden />} {...op} onClick={run(() => void checkoutRemoteBranch(rb, target.remote))}>
               Checkout
             </MenuItem>
-            <MenuItem icon={<GitMerge size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "merge", branch: rb.name }))}>
+            <MenuSeparator />
+            <MenuItem icon={<GitMerge size={16} aria-hidden />} {...integrate} {...op} onClick={run(() => openDialog({ kind: "merge", branch: rb.name }))}>
               Merge into {current ?? "current"}…
             </MenuItem>
+            {/* The commit menu rebases onto a remote branch too; the row offers the same. */}
+            <MenuItem icon={<GitMerge size={16} aria-hidden />} {...integrate} {...op} onClick={run(() => openDialog({ kind: "rebase", onto: rb.name }))}>
+              Rebase {current ?? "current"} onto…
+            </MenuItem>
+            <MenuSeparator />
             <MenuItem icon={<Plus size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "createBranch", startPoint: rb.name }))}>
               Create branch here…
             </MenuItem>
+            <MenuSeparator />
             <MenuItem icon={<Copy size={16} aria-hidden />} onClick={run(() => copyText(rb.name, "branch name"))}>
               Copy name
             </MenuItem>
@@ -495,14 +514,16 @@ function RefContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number 
             <MenuItem icon={<ArrowDown size={16} aria-hidden />} {...op} onClick={run(() => void fetchRemote(r.name))}>
               Fetch {r.name}
             </MenuItem>
+            <MenuSeparator />
+            <MenuItem icon={<Copy size={16} aria-hidden />} disabled={!r.url} title={r.url ? undefined : "No URL configured"} onClick={run(() => copyText(r.url ?? "", "URL"))}>
+              Copy URL
+            </MenuItem>
+            <MenuSeparator />
             <MenuItem icon={<Pencil size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "renameRemote", name: r.name }))}>
               Rename…
             </MenuItem>
             <MenuItem icon={<Link size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "setRemoteUrl", name: r.name, url: r.url }))}>
               Change URL…
-            </MenuItem>
-            <MenuItem icon={<Copy size={16} aria-hidden />} disabled={!r.url} title={r.url ? undefined : "No URL configured"} onClick={run(() => copyText(r.url ?? "", "URL"))}>
-              Copy URL
             </MenuItem>
             <MenuSeparator />
             <MenuItem icon={<Trash2 size={16} aria-hidden />} danger {...op} onClick={run(() => openDialog({ kind: "removeRemote", name: r.name }))}>
@@ -517,14 +538,17 @@ function RefContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number 
             <MenuItem icon={<GitBranch size={16} aria-hidden />} {...op} onClick={run(() => void checkoutTag(target.name))}>
               Checkout (detached)
             </MenuItem>
+            <MenuSeparator />
             <MenuItem icon={<Plus size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "createBranch", startPoint: target.name }))}>
               Create branch here…
             </MenuItem>
+            <MenuSeparator />
             <MenuItem {...op} onClick={run(() => openDialog({ kind: "pushTag", name: target.name }))}>Push…</MenuItem>
             {/* The `local` badges are only as fresh as the last remote op: this re-asks, from any tag row. */}
             <MenuItem icon={<RefreshCw size={16} aria-hidden />} {...op} onClick={run(() => void useRepoStore.getState().refreshRemoteTags({ announce: true }))}>
               Refresh remote tags
             </MenuItem>
+            <MenuSeparator />
             <MenuItem icon={<Copy size={16} aria-hidden />} onClick={run(() => copyText(target.name, "tag name"))}>
               Copy name
             </MenuItem>
@@ -541,11 +565,12 @@ function RefContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number 
       case "remoteTag":
         return (
           <>
-            <MenuItem icon={<Copy size={16} aria-hidden />} onClick={run(() => copyText(target.name, "tag name"))}>
-              Copy name
-            </MenuItem>
             <MenuItem icon={<RefreshCw size={16} aria-hidden />} {...op} onClick={run(() => void useRepoStore.getState().refreshRemoteTags({ announce: true }))}>
               Refresh remote tags
+            </MenuItem>
+            <MenuSeparator />
+            <MenuItem icon={<Copy size={16} aria-hidden />} onClick={run(() => copyText(target.name, "tag name"))}>
+              Copy name
             </MenuItem>
             <MenuSeparator />
             <MenuItem icon={<Trash2 size={16} aria-hidden />} danger {...op} onClick={run(() => openDialog({ kind: "deleteRemoteTag", name: target.name, remote: target.remote }))}>
