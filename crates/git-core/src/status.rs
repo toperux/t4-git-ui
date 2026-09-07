@@ -92,6 +92,11 @@ fn file_path(f: &git2::DiffFile<'_>) -> Option<String> {
         .map(|b| String::from_utf8_lossy(b).into_owned())
 }
 
+/// Working-tree status. `update_index` writes the refreshed stat cache back
+/// like `git status` does: a tracked file whose mtime changed but not its
+/// content is rehashed once, not on every scan (a formatter or branch switch
+/// touching every file otherwise costs seconds per scan until someone runs
+/// `git status` in a terminal).
 pub fn status(repo: &Repository) -> Result<WorkdirStatus, GitError> {
     let mut opts = StatusOptions::new();
     opts.include_untracked(true)
@@ -99,7 +104,8 @@ pub fn status(repo: &Repository) -> Result<WorkdirStatus, GitError> {
         .renames_head_to_index(true)
         .renames_index_to_workdir(true)
         .include_ignored(false)
-        .exclude_submodules(true);
+        .exclude_submodules(true)
+        .update_index(true);
     let statuses = repo.statuses(Some(&mut opts)).map_err(map_git2)?;
 
     let mut entries = Vec::with_capacity(statuses.len());

@@ -84,6 +84,12 @@ pub async fn get_status(state: State<'_, AppState>, id: RepoId) -> Result<Workdi
     let handle = state.repo(&id)?;
     blocking(move || {
         let t = Instant::now();
+        // Under the shared lock on purpose: the scan writes the refreshed stat
+        // cache back at the end, and libgit2 does not check whether the index
+        // changed on disk in between — a stage that ran during the scan would
+        // be silently undone. The lock keeps the app's own mutations out of
+        // that window (a `git add` from a terminal during the one slow scan
+        // after a mass touch is still exposed, as with any libgit2 index write).
         let status = status::status(&handle.git2.lock())?;
         if t.elapsed() >= SLOW_STATUS {
             tracing::info!(id = %handle.id, elapsed = ?t.elapsed(), "slow status");

@@ -583,6 +583,23 @@ _Shipped 2026-09-07 (this commit); walked the same day over CDP on the installed
       this replaces) → the tags that live on the main remote are **not** badged `local`, and only
       the genuinely unpushed ones are
 
+## Y. Status scan off the lock, stat cache written back (main §1, §5)
+_Shipped 2026-09-07 (this commit); walked the same day over CDP on the installed build in `c:/tmp/t4/acme-clone` (all 3004 tracked files touched first: `refs read` 68 ms, `slow status` 2.5 s once, the sidebar filled at ~0.8 s, an untracked file added from a shell rescanned without a second slow line, `git status` 59 ms afterwards, Stage all / Unstage all round-tripped; re-walked after the review moved the scan back under the lock: `refs read` 68 ms on a private `Repository` while the first scan ran, Stage all the moment the list appeared at 2.7 s and it landed). A tracked file whose mtime moved but not its content was rehashed on every scan, because libgit2 only writes the refreshed stat cache back when asked — after a formatter or a branch switch in another tool touched every file, `acme-portal` paid 2.4 s (17 s cold) per watcher event until `git status` ran in a terminal, and refs, details and diffs all waited behind the scan on the shared repo lock. Now the scan writes the stat cache back like `git status` (still under the shared lock: libgit2 writes the index without checking whether it changed on disk meanwhile, so the app's own staging must not interleave), and the refs snapshot reads on its own `Repository` so the sidebar never waits for a scan._
+
+- [x] **One slow scan, not one per event**: in a clone of a big repository (`c:/tmp/t4/acme-clone`, 3000
+      files), touch every tracked file's mtime from a shell (Python `os.utime` over `git ls-files`),
+      open it → one `slow status` line in the log (seconds), then edit a file → no further
+      `slow status` line; `git status` in a shell afterwards is instant and reports nothing
+- [x] **Refs don't wait**: on that same open, `refs read` ends within ~100 ms of `opened repo`, not
+      together with `slow status`; the sidebar fills while the scan still runs
+- [x] **Staging cannot interleave with the scan**: libgit2 writes the index at the end of a scan without
+      checking whether it changed meanwhile, so the scan holds the shared lock and a stage queues
+      behind it (the Commit panel can only list a file once the first scan has landed anyway) —
+      right after opening the touched clone, **Stage all** the moment the list appears → staged,
+      `git status` shows `A`, and the index the scan wrote is the one the stage read
+- [x] **Staging still works after the scan wrote the index**: stage and unstage a file from the
+      Commit panel right after the slow scan → both land, `git status` from a shell agrees
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the

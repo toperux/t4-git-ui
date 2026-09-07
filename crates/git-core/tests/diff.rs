@@ -1,8 +1,10 @@
 //! Diff / status tests on real temp repos, cross-checked against the system
 //! `git diff --numstat` where available (skipped at runtime otherwise).
 
+use std::fs::File;
 use std::path::Path;
 use std::process::Command;
+use std::time::{Duration, SystemTime};
 
 use git_core::diff::{
     changed_files, file_diff, DiffLineKind, DiffOptions, DiffTarget, FileChange, FileStatus,
@@ -540,4 +542,43 @@ fn a_conflicted_file_shows_the_markers_git_left_on_disk() {
     assert!(text.iter().any(|l| l.starts_with("=======")), "{text:?}");
     assert!(text.iter().any(|l| l.starts_with(">>>>>>>")), "{text:?}");
     assert!(text.contains(&"feat"), "{text:?}");
+}
+
+/// A tracked file whose mtime moved but whose content did not is rehashed by the first scan and
+/// remembered: the scan writes the refreshed stat data back like `git status` does, so the next
+/// one (from a fresh `Repository`, as the app's status command opens one per scan) compares stat
+/// data only. Without `update_index` every scan rehashed every touched file — 2.4 s on a
+/// 3000-file tree, forever.
+#[test]
+fn status_persists_the_refreshed_stat_cache() {
+    let t = TempRepo::new();
+    t.commit(
+        &[(
+            "a.txt", "a
+",
+        )],
+        "A",
+    );
+    // Well in the past: an mtime at or after the index's own is "racy" and rehashed regardless.
+    let then = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000_000);
+    File::options()
+        .write(true)
+        .open(t.path().join("a.txt"))
+        .expect("open")
+        .set_modified(then)
+        .expect("set mtime");
+
+    let s = status(&t.repo).expect("status");
+    assert_eq!((s.unstaged, s.entries.len()), (0, 0));
+    let fresh = git2::Repository::open(t.path()).expect("open");
+    let entry = fresh
+        .index()
+        .expect("index")
+        .get_path(Path::new("a.txt"), 0)
+        .expect("entry");
+    assert_eq!(
+        entry.mtime.seconds() as u64,
+        1_000_000_000,
+        "stat cache written back"
+    );
 }

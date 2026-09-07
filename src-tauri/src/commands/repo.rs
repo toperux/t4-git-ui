@@ -174,7 +174,10 @@ pub async fn get_refs(state: State<'_, AppState>, id: RepoId) -> Result<RefsSnap
     let handle = state.repo(&id)?;
     blocking(move || {
         let t = Instant::now();
-        let mut repo = handle.git2.lock();
+        // Its own `Repository`, like the labels: the status scan can hold the
+        // shared lock for seconds on a big tree, and the sidebar must not wait
+        // for it. Costs a cold object cache (~100 ms instead of ~20 ms here).
+        let mut repo = handle.open_private()?;
         let snap = refs::snapshot_with(&mut repo, &mut handle.ahead_behind.lock())?;
         tracing::info!(id = %handle.id, elapsed = ?t.elapsed(), "refs read");
         Ok(snap)
