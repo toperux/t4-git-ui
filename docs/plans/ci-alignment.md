@@ -426,8 +426,10 @@ a build here):
   If a repo ever grows real PR review, revisit this together with a `pull_request` trigger; a
   gated one (`if: github.actor == 'dependabot[bot]'`) keeps other PRs free.
 
-- [ ] **Release skill** (follow-up, after the first successful release on the new workflow) —
-      this repo has no `.claude/skills/release/SKILL.md`. Outline for when it is written:
+- [x] **Release skill** — written 2026-09-08 as `.claude/skills/release/SKILL.md`, after
+      v0.1.2 and v0.1.3 both released green. It carries this outline plus what the two runs
+      taught: the eight-job shape, the asset check, the spending-limit re-run, and the
+      deleted `v0.1.1`. The outline it was written from:
       the version lives in the root `Cargo.toml` (`[workspace.package]`) and `Cargo.lock`
       (refresh with `cargo check`, never by hand); bump, commit the bump alone as
       `Release x.y.z`, `git tag vx.y.z`, push `main` **then** the tag; the `version` job
