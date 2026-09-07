@@ -7,10 +7,11 @@ import { Checkbox } from "../../../components/ui/Checkbox/Checkbox";
 import { Dialog, DialogText, Field, FieldRow, Mono, Options } from "../../../components/ui/Dialog/Dialog";
 import { Input, Select } from "../../../components/ui/Input/Input";
 import { useCommitStore } from "../../../store/commitStore";
+import { useDialogStore } from "../../../store/dialogStore";
 import { runOp } from "../../../store/opsStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { currentBranch, defaultRemote } from "../actions";
-import { cherryPickArgs, fetchArgs, gitCmd, mergeArgs, pullArgs, pushArgs, rebaseArgs, resetArgs, resetBranchArgs, revertArgs } from "./gitArgs";
+import { cherryPickArgs, fetchArgs, gitCmd, mergeArgs, pullArgs, pushArgs, rebaseArgs, rebaseInteractiveArgs, resetArgs, resetBranchArgs, revertArgs } from "./gitArgs";
 
 /** Remote names of the open repo. */
 export function useRemotes() {
@@ -543,13 +544,17 @@ export function RebaseDialog({ onClose, onto: initial }: { onClose: () => void; 
   // An oid from the grid is not in the list: keep it as an extra option, shown abbreviated.
   const options = known || !initial ? candidates : [{ value: initial, label: shortRef(initial) }, ...candidates];
   const [onto, setOnto] = useState(initial ?? candidates[0]?.value ?? "");
+  const [interactive, setInteractive] = useState(false);
+  const open = useDialogStore((st) => st.open);
   const label = options.find((o) => o.value === onto)?.label ?? onto;
   const pushed = !!head?.upstream && (head?.ahead ?? 0) === 0 && !head?.gone;
-  const preview = onto ? gitCmd(rebaseArgs(onto)) : "";
+  const preview = onto ? gitCmd(interactive ? rebaseInteractiveArgs(onto, false, true, false) : rebaseArgs(onto)) : "";
 
   function submit() {
     if (!onto) return;
     onClose();
+    // The todo dialog takes it from here: the flags and the run are its own.
+    if (interactive) return open({ kind: "rebaseInteractive", base: onto, ontoLabel: label });
     void runOp(`Rebasing onto ${label}…`, (id) => ipc.rebase(id, onto), { success: `Rebased ${current} onto ${label}` });
   }
 
@@ -586,6 +591,11 @@ export function RebaseDialog({ onClose, onto: initial }: { onClose: () => void; 
           ))}
         </Select>
       </Field>
+      <Options>
+        <Checkbox checked={interactive} onChange={setInteractive}>
+          Interactive — reorder, reword, squash or drop the commits first
+        </Checkbox>
+      </Options>
     </Dialog>
   );
 }

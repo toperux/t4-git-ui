@@ -322,6 +322,36 @@ describe("RevisionGrid", () => {
     useDialogStore.setState({ dialog: null, returnFocus: null });
   });
 
+  it("offers the interactive rebase wherever the commit has a parent — HEAD's own included, never on a root commit or mid-rebase", () => {
+    withRefs();
+    // The fixture's commits have no parents; the item needs one (the base it rebases from).
+    const rows2 = [row(0, "Top", []), row(1, "Middle", []), row(2, "Initial", [])];
+    rows2[0].row.commit.parents = ["oid1"];
+    rows2[1].row.commit.parents = ["oid2"];
+    useRepoStore.setState({ rows: rows2 });
+    useDialogStore.setState({ dialog: null, returnFocus: null });
+    const { container, getByRole, getAllByRole } = render(<RevisionGrid />);
+    const rows = container.querySelectorAll(ROWS);
+    const items = () => getAllByRole("menuitem").map((el) => el.textContent);
+
+    // HEAD's own commit: no plain rebase (a no-op), but rewording the last commit is the common case.
+    fireEvent.contextMenu(rows[0]);
+    expect(items()).toContain("Rebase main interactively from here…");
+    expect(items().some((t) => t?.startsWith("Rebase main onto"))).toBe(false);
+    fireEvent.click(getByRole("menuitem", { name: "Rebase main interactively from here…" }));
+    expect(useDialogStore.getState().dialog).toEqual({ kind: "rebaseInteractive", base: "oid1" });
+
+    // A root commit has no first parent to rebase from.
+    fireEvent.contextMenu(rows[2]);
+    expect(items().some((t) => t?.includes("interactively"))).toBe(false);
+
+    // Mid-rebase git refuses either one outright.
+    useRepoStore.setState({ refs: { ...REFS, state: "rebase" } });
+    fireEvent.contextMenu(rows[1]);
+    expect(items().some((t) => t?.startsWith("Rebase"))).toBe(false);
+    useDialogStore.setState({ dialog: null, returnFocus: null });
+  });
+
   it("both halves of the merge / rebase / reset items can ellipsize, so neither is squeezed out", () => {
     withRefs();
     const long = "feature/".padEnd(75, "x");

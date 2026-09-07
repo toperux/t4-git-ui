@@ -35,7 +35,8 @@ const REFS: RefsSnapshot = {
 
 describe("commitBranchActions", () => {
   it("offers local branches at the commit, minus the current one", () => {
-    expect(commitBranchActions(REFS, "a")).toEqual({ checkout: [], reset: [], merge: [], rebaseOnto: null, canRebase: false, headCommit: true, unborn: false, remove: [] });
+    // HEAD's own commit: no plain rebase (a no-op), but rebasing interactively *from* here is the point.
+    expect(commitBranchActions(REFS, "a")).toEqual({ checkout: [], reset: [], merge: [], rebaseOnto: null, canRebase: false, canRebaseInteractive: true, headCommit: true, unborn: false, remove: [] });
     const { checkout } = commitBranchActions(REFS, "b");
     expect(checkout.filter((b) => !b.remote).map((b) => b.name)).toEqual(["feature", "hotfix"]);
   });
@@ -60,6 +61,7 @@ describe("commitBranchActions", () => {
       merge: [{ name: "origin/new", remote: "origin" }, { name: "fork/feature", remote: "fork" }],
       rebaseOnto: { name: "origin/new", remote: "origin" },
       canRebase: true,
+      canRebaseInteractive: true,
       headCommit: false,
       unborn: false,
       remove: [
@@ -131,6 +133,16 @@ describe("commitBranchActions", () => {
   });
 
   it("is empty without refs", () => {
-    expect(commitBranchActions(null, "a")).toEqual({ checkout: [], reset: [], merge: [], rebaseOnto: null, canRebase: false, headCommit: false, unborn: false, remove: [] });
+    expect(commitBranchActions(null, "a")).toEqual({ checkout: [], reset: [], merge: [], rebaseOnto: null, canRebase: false, canRebaseInteractive: false, headCommit: false, unborn: false, remove: [] });
+  });
+
+  it("neither rebase is offered mid-merge, mid-rebase, on a detached or an unborn HEAD", () => {
+    for (const state of ["merge", "rebase", "cherryPick"] as const) {
+      expect(commitBranchActions({ ...REFS, state }, "b")).toMatchObject({ canRebase: false, canRebaseInteractive: false, rebaseOnto: null });
+    }
+    const detached: RefsSnapshot = { ...REFS, head: { oid: "z", branch: null, detached: true }, local: REFS.local.map((b) => ({ ...b, isHead: false })) };
+    expect(commitBranchActions(detached, "b")).toMatchObject({ canRebase: false, canRebaseInteractive: false });
+    const unborn: RefsSnapshot = { ...REFS, head: { oid: null, branch: "wip", detached: false }, local: REFS.local.map((b) => ({ ...b, isHead: false })) };
+    expect(commitBranchActions(unborn, "b")).toMatchObject({ canRebase: false, canRebaseInteractive: false });
   });
 });

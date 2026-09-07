@@ -130,6 +130,9 @@ export function failureToast(f: OpFailure): { title: string; detail?: string; ac
       return { title: "Cannot fast-forward — the branches have diverged" };
     case "authFailed":
       return { title: "Authentication failed — check your credential helper" };
+    case "paused":
+      // git's own "Stopped at …" / "execution failed: …" line: it names the commit that stopped.
+      return { title: f.message, detail: "Continue or abort from the banner" };
     case "rejected":
     case "other":
       return { title: "Operation failed", detail: f.message };
@@ -155,9 +158,11 @@ export async function runOp(busy: string, fn: (id: RepoId) => Promise<OpResult |
     const result = await fn(repo.id);
     const failure = result?.failure ?? null;
     if (failure) {
-      const loud = failure.kind === "conflicts" || failure.kind === "authFailed" || failure.kind === "nonFastForward" || failure.kind === "diverged";
-      if (!opts.quietFailure || loud) push({ kind: failure.kind === "conflicts" ? "info" : "error", ...failureToast(failure) });
-      if (failure.kind === "conflicts") useRepoStore.getState().selectWorkingTree();
+      // Conflicts and a paused rebase are stops, not errors: the working tree is where the user carries on.
+      const stopped = failure.kind === "conflicts" || failure.kind === "paused";
+      const loud = stopped || failure.kind === "authFailed" || failure.kind === "nonFastForward" || failure.kind === "diverged";
+      if (!opts.quietFailure || loud) push({ kind: stopped ? "info" : "error", ...failureToast(failure) });
+      if (stopped) useRepoStore.getState().selectWorkingTree();
       outcome = { ok: false, error: null, failure };
     } else {
       if (opts.success) push({ kind: "success", title: opts.success });

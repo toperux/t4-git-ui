@@ -13,6 +13,7 @@ use std::sync::Arc;
 use git_core::cli::ops::{
     self as gitops, CloneOpts, FfMode, MergeOpts, OpFailure, PickOpts, PullMode, RemoteTag,
 };
+use git_core::cli::rebase::{self, RebaseFlags, RebaseTodo, TodoStep};
 use git_core::cli::{CliEvent, CliOutput};
 use git_core::status::status;
 use git_core::watch::ChangeKind;
@@ -99,43 +100,112 @@ async fn cli_op(
     check_conflicts: bool,
 ) -> Result<OpResult, AppError> {
     mutate(app, state, id, ALL_KINDS, |handle| async move {
-        let argv: Vec<&str> = args.iter().map(String::as_str).collect();
-        let run = run_git_op(
-            app,
-            state,
-            Some(&handle.id),
-            &handle.path,
-            &argv,
-            None,
-            true,
-        )
-        .await?;
-        let mut result = OpResult {
-            op_id: run.op_id,
-            code: run.out.code,
-            conflicts: Vec::new(),
-            failure: None,
-        };
-        if run.out.code == 0 {
-            return Ok(result);
-        }
-        let mut failure = gitops::classify_failure(run.out.code, &run.out.stdout, &run.out.stderr);
-        if check_conflicts {
-            let found =
-                blocking(move || Ok(gitops::parse_conflicts(&status(&handle.git2.lock())?)))
-                    .await?;
-            if !found.is_empty() {
-                failure = OpFailure::Conflicts { paths: found };
-            }
-        }
-        if let OpFailure::Conflicts { paths } = &failure {
-            result.conflicts = paths.clone();
-        }
-        tracing::info!(op_id = %result.op_id, code = result.code, ?failure, "op failed");
-        result.failure = Some(failure);
-        Ok(result)
+        run_and_classify(app, state, handle, args, check_conflicts).await
     })
     .await
+}
+
+/// [`cli_op`]'s body, for callers that already hold the op lock.
+async fn run_and_classify(
+    app: &AppHandle,
+    state: &AppState,
+    handle: Arc<RepoHandle>,
+    args: Vec<String>,
+    check_conflicts: bool,
+) -> Result<OpResult, AppError> {
+    let argv: Vec<&str> = args.iter().map(String::as_str).collect();
+    let run = run_git_op(
+        app,
+        state,
+        Some(&handle.id),
+        &handle.path,
+        &argv,
+        None,
+        true,
+    )
+    .await?;
+    let mut result = OpResult {
+        op_id: run.op_id,
+        code: run.out.code,
+        conflicts: Vec::new(),
+        failure: None,
+    };
+    // An `edit` stop exits 0 and a failed `exec` exits 1, both leaving the
+    // rebase in progress: only the repository state tells them from success.
+    // Rebase commands only — the other conflict-checked ops (stash pop, cherry
+    // pick…) are what the user runs *while* stopped, and would all come back
+    // paused.
+    let paused = is_rebase(&args) && rebase_in_progress(&handle).await?;
+    if result.code == 0 && !paused {
+        return Ok(result);
+    }
+    let mut failure = gitops::classify_failure(run.out.code, &run.out.stdout, &run.out.stderr);
+    let found = if check_conflicts {
+        let h = Arc::clone(&handle);
+        blocking(move || Ok(gitops::parse_conflicts(&status(&h.git2.lock())?))).await?
+    } else {
+        Vec::new()
+    };
+    if !found.is_empty() {
+        failure = OpFailure::Conflicts { paths: found };
+    } else if paused {
+        // Also for a typed `rebase --continue` (no conflict check): a stop is
+        // not an error, and a "failure" with exit 0 would be reported as one.
+        failure = OpFailure::Paused {
+            message: pause_message(&run.out.stderr),
+        };
+    }
+    if let OpFailure::Conflicts { paths } = &failure {
+        result.conflicts = paths.clone();
+    }
+    tracing::info!(op_id = %result.op_id, code = result.code, ?failure, "op failed");
+    result.failure = Some(failure);
+    Ok(result)
+}
+
+/// Whether an argv rebases: the subcommand is the first token that is not a
+/// `-c <config>` pair (the interactive rebase leads with one), and a
+/// `pull --rebase` stops the same way a rebase does.
+fn is_rebase(args: &[String]) -> bool {
+    let mut rest = args.iter();
+    while let Some(a) = rest.next() {
+        if a != "-c" {
+            return a == "rebase" || (a == "pull" && args.iter().any(|x| x == "--rebase"));
+        }
+        rest.next();
+    }
+    false
+}
+
+async fn rebase_in_progress(handle: &Arc<RepoHandle>) -> Result<bool, AppError> {
+    let handle = Arc::clone(handle);
+    blocking(move || {
+        Ok(refs::RepoState::from(handle.git2.lock().state()) == refs::RepoState::Rebase)
+    })
+    .await
+}
+
+/// Git's own line for a pause: the `Stopped at` of an `edit` stop, the
+/// `execution failed` of a rejected `exec`, else its last error line.
+fn pause_message(stderr: &str) -> String {
+    // Git's progress ends in `\r`, not `\n`: "Rebasing (1/1)\rStopped at …" is one line to
+    // `lines()`, so split on both.
+    let lines: Vec<&str> = stderr
+        .split(['\n', '\r'])
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .collect();
+    lines
+        .iter()
+        .find(|l| l.starts_with("Stopped at"))
+        .or_else(|| lines.iter().find(|l| l.contains("execution failed")))
+        .or_else(|| {
+            lines
+                .iter()
+                .rfind(|l| l.starts_with("error:") || l.starts_with("fatal:"))
+        })
+        .or_else(|| lines.last())
+        .map_or_else(|| "The rebase is paused".to_string(), |l| l.to_string())
 }
 
 /// Runs a git2 mutation under the busy-checked op lock.
@@ -257,6 +327,164 @@ pub async fn rebase_abort(
     id: RepoId,
 ) -> Result<OpResult, AppError> {
     cli_op(&app, &state, &id, gitops::rebase_abort(), false).await
+}
+
+#[tauri::command]
+pub async fn rebase_skip(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: RepoId,
+) -> Result<OpResult, AppError> {
+    cli_op(&app, &state, &id, gitops::rebase_skip(), true).await
+}
+
+/// `<git dir>/t4-rebase`, where the todo and its message files live. The
+/// sequence editor and `exec` lines name it inside `sh -c`, so a path that
+/// cannot be quoted is refused here rather than mangled.
+fn rebase_dir(handle: &RepoHandle) -> Result<PathBuf, AppError> {
+    rebase::check_shell_path(&handle.git_dir).map_err(GitError::Refused)?;
+    Ok(handle.git_dir.join("t4-rebase"))
+}
+
+/// The todo list `git rebase -i <base>` would open, without replaying
+/// anything: the sequence editor copies git's list out and empties it, so git
+/// stops with `nothing to do`, HEAD stays put and the autostash is popped.
+/// `from_here` is the commit row's "rebase from here", which only makes sense
+/// for a base HEAD can actually reach.
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub async fn rebase_todo(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: RepoId,
+    base: String,
+    autostash: bool,
+    rebase_merges: bool,
+    update_refs: bool,
+    from_here: bool,
+) -> Result<RebaseTodo, AppError> {
+    let flags = RebaseFlags {
+        autostash,
+        rebase_merges,
+        update_refs,
+    };
+    // Borrowed up front so the closure captures references, not the bindings.
+    let (app, state) = (&app, &*state);
+    mutate(app, state, &id, ALL_KINDS, |handle| async move {
+        let dir = rebase_dir(&handle)?;
+        std::fs::create_dir_all(&dir).map_err(GitError::from)?;
+        let out = dir.join("read.todo");
+        let h = Arc::clone(&handle);
+        let rev = base.clone();
+        let (head, base_oid) = blocking(move || {
+            let repo = h.git2.lock();
+            let head = rebase::commit_oid(&repo, "HEAD")?;
+            let base_oid = rebase::commit_oid(&repo, &rev)?;
+            // The graph can show every branch, so the row "from here" names
+            // need not be on HEAD's: rebasing onto it would move the current
+            // branch to a foreign base instead.
+            if from_here && !rebase::is_ancestor(&repo, &head, &base_oid)? {
+                return Err(GitError::Refused(format!(
+                    "{} is not in HEAD's history",
+                    &base_oid[..7]
+                ))
+                .into());
+            }
+            Ok((head, base_oid))
+        })
+        .await?;
+
+        let args = rebase::read_args(&base, &flags, &out);
+        let argv: Vec<&str> = args.iter().map(String::as_str).collect();
+        let run = run_git_op(
+            app,
+            state,
+            Some(&handle.id),
+            &handle.path,
+            &argv,
+            None,
+            false,
+        )
+        .await?;
+        // The emptied todo is what makes git refuse; any other outcome is a
+        // real error (unstaged changes, an upstream that does not resolve).
+        if run.out.code == 0 || !run.out.stderr.contains("nothing to do") {
+            let f = gitops::classify_failure(run.out.code, &run.out.stdout, &run.out.stderr);
+            return Err(GitError::Cli {
+                cmd: "git rebase -i".into(),
+                code: run.out.code,
+                stderr: failure_message(&f),
+            }
+            .into());
+        }
+        let text = std::fs::read_to_string(&out).map_err(GitError::from)?;
+        let before = head.clone();
+        let lines = blocking(move || {
+            let repo = handle.git2.lock();
+            if rebase::commit_oid(&repo, "HEAD")? != before {
+                return Err(
+                    GitError::Refused("HEAD moved while the rebase list was read".into()).into(),
+                );
+            }
+            Ok(rebase::resolve_lines(&repo, rebase::parse_todo(&text))?)
+        })
+        .await?;
+        Ok(RebaseTodo {
+            head,
+            base_oid,
+            lines,
+        })
+    })
+    .await
+}
+
+/// Replays `steps` as `git rebase -i <base>`: the todo is written to
+/// `<git dir>/t4-rebase` and handed to git through the sequence editor.
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub async fn rebase_interactive(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: RepoId,
+    head: String,
+    base_oid: String,
+    base: String,
+    steps: Vec<TodoStep>,
+    autostash: bool,
+    rebase_merges: bool,
+    update_refs: bool,
+) -> Result<OpResult, AppError> {
+    let flags = RebaseFlags {
+        autostash,
+        rebase_merges,
+        update_refs,
+    };
+    // Borrowed up front so the closure captures references, not the bindings.
+    let (app, state) = (&app, &*state);
+    mutate(app, state, &id, ALL_KINDS, |handle| async move {
+        let dir = rebase_dir(&handle)?;
+        let h = Arc::clone(&handle);
+        let rev = base.clone();
+        blocking(move || {
+            let repo = h.git2.lock();
+            // A moved base would replay the approved list onto a different tip;
+            // a moved HEAD would replay different commits.
+            if rebase::commit_oid(&repo, "HEAD")? != head
+                || rebase::commit_oid(&repo, &rev)? != base_oid
+            {
+                return Err(GitError::Refused(
+                    "The branch moved since the list was read — reopen the dialog".into(),
+                )
+                .into());
+            }
+            Ok(())
+        })
+        .await?;
+        let todo = rebase::write_todo(&dir, &steps)?;
+        let args = rebase::run_args(&base, &flags, &todo);
+        run_and_classify(app, state, handle, args, true).await
+    })
+    .await
 }
 
 #[tauri::command]
@@ -476,7 +704,9 @@ fn failure_message(f: &OpFailure) -> String {
         OpFailure::NonFastForward => "non-fast-forward".into(),
         OpFailure::Diverged => "not possible to fast-forward".into(),
         OpFailure::AuthFailed => "authentication failed".into(),
-        OpFailure::Rejected { message } | OpFailure::Other { message } => message.clone(),
+        OpFailure::Paused { message }
+        | OpFailure::Rejected { message }
+        | OpFailure::Other { message } => message.clone(),
     }
 }
 
@@ -703,4 +933,39 @@ pub async fn init_repo(
     blocking(move || Ok(git_core::repo::init_repo(&p)?)).await?;
     tracing::info!(%path, "initialized repo");
     open_repo(app, state, path).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{is_rebase, pause_message};
+
+    fn argv(a: &[&str]) -> Vec<String> {
+        a.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn only_rebasing_argvs_are_checked_for_a_pause() {
+        assert!(is_rebase(&argv(&["rebase", "--continue"])));
+        assert!(is_rebase(&argv(&[
+            "-c",
+            "sequence.editor=x",
+            "rebase",
+            "-i",
+            "abc"
+        ])));
+        assert!(is_rebase(&argv(&["pull", "--progress", "--rebase"])));
+        assert!(!is_rebase(&argv(&["pull", "--progress", "--no-rebase"])));
+        assert!(!is_rebase(&argv(&["stash", "pop"])));
+        assert!(!is_rebase(&argv(&["-c", "x=y"])));
+        assert!(!is_rebase(&argv(&[])));
+    }
+
+    #[test]
+    fn pause_message_finds_the_stop_behind_a_progress_carriage_return() {
+        let edit = "Rebasing (1/1)\rStopped at bea0395...  add e\nYou can amend the commit now, with\n\n  git commit --amend \n\nOnce you are satisfied with your changes, run\n\n  git rebase --continue\n";
+        assert_eq!(pause_message(edit), "Stopped at bea0395...  add e");
+        let exec = "Rebasing (2/3)\rExecuting: false\nwarning: execution failed: false\nYou can fix the problem, and then run\n\n  git rebase --continue\n";
+        assert_eq!(pause_message(exec), "warning: execution failed: false");
+        assert_eq!(pause_message(""), "The rebase is paused");
+    }
 }

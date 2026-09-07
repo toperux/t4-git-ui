@@ -1,11 +1,14 @@
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { RefsSnapshot, RepoSummary } from "../../../api/types";
+import type { RebaseTodo, RefsSnapshot, RepoSummary, TodoLine } from "../../../api/types";
 import { useCmdHistoryStore } from "../../../store/cmdHistoryStore";
+import { useDialogStore } from "../../../store/dialogStore";
 import { useOpsStore } from "../../../store/opsStore";
 import { useRepoStore } from "../../../store/repoStore";
+import { useStatusStore } from "../../../store/statusStore";
 import { useToastStore } from "../../../store/toastStore";
 import { DeleteRemoteTagDialog, MergeDialog, PickDialog, PullDialog, PushDialog, PushTagDialog, RebaseDialog, ResetBranchDialog, ResetDialog } from "./OpsDialogs";
+import { RebaseInteractiveDialog } from "./RebaseInteractiveDialog";
 import { CheckoutBranchDialog, CheckoutDialog, CreateBranchDialog, CreateTagDialog, DeleteTagDialog } from "./RefDialogs";
 import { AddRemoteDialog, RemoveRemoteDialog, RenameRemoteDialog, SetRemoteUrlDialog } from "./RemoteDialogs";
 import { RunCommandDialog } from "./RunCommandDialog";
@@ -17,6 +20,8 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
     push: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     merge: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     rebase: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
+    rebaseTodo: vi.fn(() => new Promise(() => {})),
+    rebaseInteractive: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     cherryPick: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     revert: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     pull: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
@@ -48,6 +53,8 @@ const mocked = ipc as unknown as Record<
   | "push"
   | "merge"
   | "rebase"
+  | "rebaseTodo"
+  | "rebaseInteractive"
   | "cherryPick"
   | "revert"
   | "pull"
@@ -84,10 +91,12 @@ const REFS: RefsSnapshot = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  useRepoStore.setState({ repo: REPO, refs: REFS });
+  useRepoStore.setState({ repo: REPO, refs: REFS, gitVersion: null });
   useOpsStore.setState({ ops: [], open: false, busy: null });
   useToastStore.setState({ toasts: [] });
   useCmdHistoryStore.setState({ history: [] });
+  useStatusStore.setState({ status: null });
+  useDialogStore.setState({ dialog: null, returnFocus: null });
 });
 afterEach(cleanup);
 
@@ -484,6 +493,137 @@ describe("RebaseDialog", () => {
     const second = render(<RebaseDialog onClose={() => {}} onto="feature/lane-graph" />);
     expect(second.getByRole("combobox", { name: "Onto" }).textContent).toBe("feature/lane-graph");
     expect(preview(second.getByRole("dialog"))).toBe("git rebase feature/lane-graph");
+  });
+
+  it("Interactive hands the branch over to the todo dialog instead of running anything", () => {
+    const close = vi.fn();
+    const { getByRole } = render(<RebaseDialog onClose={close} onto="feature/lane-graph" />);
+    fireEvent.click(getByRole("checkbox", { name: "Interactive — reorder, reword, squash or drop the commits first" }));
+    expect(preview(getByRole("dialog"))).toBe("git rebase -i --rebase-merges feature/lane-graph");
+    fireEvent.click(getByRole("button", { name: "Rebase" }));
+    expect(mocked.rebase).not.toHaveBeenCalled();
+    expect(close).toHaveBeenCalled();
+    expect(useDialogStore.getState().dialog).toEqual({ kind: "rebaseInteractive", base: "feature/lane-graph", ontoLabel: "feature/lane-graph" });
+  });
+});
+
+const todoPick = (oid: string, summary: string, action: "pick" | "fixup" = "pick"): TodoLine => ({
+  kind: "pick",
+  action,
+  text: `${action} ${oid} ${summary}`,
+  commit: { oid, short: oid, summary, message: `${summary}\n\nbody of ${oid}` },
+  amend: false,
+});
+const TODO: RebaseTodo = { head: "head1", baseOid: "base9", lines: [todoPick("a1", "One"), todoPick("b2", "Two")] };
+const dirty = () => useStatusStore.setState({ status: { entries: [], staged: 1, unstaged: 0, untracked: 0, conflicted: 0 } });
+
+describe("RebaseInteractiveDialog", () => {
+  it("asks before stashing a dirty tree, then reads the todo with --autostash", async () => {
+    dirty();
+    mocked.rebaseTodo.mockImplementation(() => Promise.resolve(TODO));
+    const { getByRole } = render(<RebaseInteractiveDialog onClose={() => {}} base="origin/main" ontoLabel="origin/main" />);
+    const dialog = getByRole("dialog", { name: "Rebase main onto origin/main" });
+    expect(dialog.textContent).toContain("Uncommitted changes will be stashed before the rebase and restored after it.");
+    // Nothing runs until the user agrees: the read step is a real `git rebase -i`.
+    expect(mocked.rebaseTodo).not.toHaveBeenCalled();
+    expect(preview(dialog)).toBe("git rebase -i --autostash --rebase-merges origin/main");
+    fireEvent.click(getByRole("button", { name: "Stash and continue" }));
+    await waitFor(() => expect(mocked.rebaseTodo).toHaveBeenCalledWith("r", "origin/main", true, true, false, false));
+  });
+
+  it("reorders the rows and submits the todo git will replay", async () => {
+    mocked.rebaseTodo.mockImplementation(() => Promise.resolve(TODO));
+    const { getByRole, getAllByRole } = render(<RebaseInteractiveDialog onClose={() => {}} base="origin/main" />);
+    const dialog = getByRole("dialog", { name: "Rebase main" });
+    await waitFor(() => expect(getByRole("combobox", { name: "Action for a1" })).toBeTruthy());
+    expect(preview(dialog)).toBe("git rebase -i --rebase-merges origin/main");
+    // A clean tree never stashes; git ≥ 2.38 is unknown here, so no --update-refs checkbox.
+    // Opened from a commit row (no `ontoLabel`): the base is a from-here one.
+    expect(mocked.rebaseTodo).toHaveBeenCalledWith("r", "origin/main", false, true, false, true);
+    expect(dialog.querySelectorAll('[class*="rowActive"]')).toHaveLength(0);
+
+    // The first row has nothing above it: neither the move-up button nor squash is offered.
+    expect((getAllByRole("button", { name: "Move up" })[0] as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(getByRole("combobox", { name: "Action for a1" }));
+    expect(getByRole("option", { name: "squash" }).getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(getByRole("option", { name: "squash" }));
+    expect(getByRole("combobox", { name: "Action for a1" }).textContent).toBe("pick");
+
+    fireEvent.click(getAllByRole("button", { name: "Move up" })[1]);
+    fireEvent.click(getByRole("button", { name: "Rebase" }));
+    await waitFor(() =>
+      expect(mocked.rebaseInteractive).toHaveBeenCalledWith(
+        "r",
+        "head1",
+        "base9",
+        "origin/main",
+        [
+          { kind: "line", text: "pick b2 Two" },
+          { kind: "line", text: "pick a1 One" },
+        ],
+        false,
+        true,
+        false,
+      ),
+    );
+  });
+
+  it("a reword gets a message box prefilled with the commit's message, and the edit becomes an amend", async () => {
+    mocked.rebaseTodo.mockImplementation(() => Promise.resolve(TODO));
+    const { getByRole } = render(<RebaseInteractiveDialog onClose={() => {}} base="origin/main" />);
+    await waitFor(() => expect(getByRole("combobox", { name: "Action for a1" })).toBeTruthy());
+    fireEvent.click(getByRole("combobox", { name: "Action for a1" }));
+    fireEvent.click(getByRole("option", { name: "reword" }));
+    const box = getByRole("textbox", { name: "Message for a1" }) as HTMLTextAreaElement;
+    expect(box.value).toBe("One\n\nbody of a1");
+    fireEvent.change(box, { target: { value: "Reworded" } });
+    fireEvent.click(getByRole("button", { name: "Rebase" }));
+    await waitFor(() => expect(mocked.rebaseInteractive).toHaveBeenCalled());
+    expect(mocked.rebaseInteractive.mock.calls[0][4]).toEqual([
+      { kind: "line", text: "pick a1 One" },
+      { kind: "amend", message: "Reworded" },
+      { kind: "line", text: "pick b2 Two" },
+    ]);
+  });
+
+  it("Flatten re-reads the todo without --rebase-merges; the notice stays so Keep merges can come back", async () => {
+    const merges: RebaseTodo = { ...TODO, lines: [todoPick("a1", "One"), { kind: "merge", text: "merge -C m1 side", commit: null }] };
+    mocked.rebaseTodo.mockImplementationOnce(() => Promise.resolve(merges)).mockImplementation(() => Promise.resolve(TODO));
+    const { getByRole } = render(<RebaseInteractiveDialog onClose={() => {}} base="origin/main" />);
+    const dialog = getByRole("dialog", { name: "Rebase main" });
+    await waitFor(() => expect(dialog.textContent).toContain("1 merge commit in this range"));
+    // A merge row is read-only: no action Select and no move buttons.
+    expect(dialog.textContent).toContain("merge");
+    fireEvent.click(getByRole("radio", { name: "Flatten" }));
+    await waitFor(() => expect(mocked.rebaseTodo).toHaveBeenCalledWith("r", "origin/main", false, false, false, true));
+    expect(preview(dialog)).toBe("git rebase -i origin/main");
+    expect(getByRole("radio", { name: "Keep merges" })).toBeTruthy();
+  });
+
+  it("offers --update-refs on git 2.38 and up only, and shows a read failure with Rebase disabled", async () => {
+    useRepoStore.setState({ gitVersion: "git version 2.55.0.windows.1" });
+    mocked.rebaseTodo.mockImplementation(() => Promise.resolve(TODO));
+    const { getByRole, unmount } = render(<RebaseInteractiveDialog onClose={() => {}} base="origin/main" />);
+    const dialog = getByRole("dialog", { name: "Rebase main" });
+    await waitFor(() => expect(getByRole("checkbox", { name: /Update branches/ })).toBeTruthy());
+    // The read always asks for the update-ref lines; the box only decides whether they go back.
+    expect(mocked.rebaseTodo).toHaveBeenCalledWith("r", "origin/main", false, true, true, true);
+    fireEvent.click(getByRole("checkbox", { name: /Update branches/ }));
+    expect(preview(dialog)).toBe("git rebase -i --rebase-merges --update-refs origin/main");
+    unmount();
+
+    vi.clearAllMocks();
+    mocked.rebaseTodo.mockImplementation(() => Promise.reject({ kind: "cli", message: "cannot rebase: You have unstaged changes." }));
+    const failed = render(<RebaseInteractiveDialog onClose={() => {}} base="origin/main" />);
+    await waitFor(() => expect(failed.getByRole("dialog").textContent).toContain("cannot rebase: You have unstaged changes."));
+    expect((failed.getByRole("button", { name: "Rebase" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("nothing to rebase: the button says why", async () => {
+    mocked.rebaseTodo.mockImplementation(() => Promise.resolve({ head: "head1", baseOid: "base9", lines: [{ kind: "other", text: "noop" }] } as RebaseTodo));
+    const { getByRole } = render(<RebaseInteractiveDialog onClose={() => {}} base="origin/main" />);
+    await waitFor(() => expect(getByRole("dialog").textContent).toContain("Nothing to rebase"));
+    expect((getByRole("button", { name: "Rebase" }) as HTMLButtonElement).disabled).toBe(true);
   });
 });
 

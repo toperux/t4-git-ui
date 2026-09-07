@@ -14,12 +14,14 @@ import type {
   LogPage,
   OpResult,
   PullMode,
+  RebaseTodo,
   ResetMode,
   RefsSnapshot,
   RemoteTag,
   RepoId,
   RepoSummary,
   RevSpec,
+  TodoStep,
   Tool,
   ToolKind,
   Tools,
@@ -206,6 +208,27 @@ export const rebase = (id: RepoId, onto: string) => call<OpResult>("rebase", { i
 export const rebaseContinue = (id: RepoId) => call<OpResult>("rebase_continue", { id });
 
 export const rebaseAbort = (id: RepoId) => call<OpResult>("rebase_abort", { id });
+
+export const rebaseSkip = (id: RepoId) => call<OpResult>("rebase_skip", { id });
+
+/**
+ * The todo `git rebase -i <base>` would open an editor with, read out and thrown away: nothing in the
+ * repository changes, so it is safe to call again. A dirty tree needs `autostash`, or git refuses.
+ */
+export const rebaseTodo = (id: RepoId, base: string, autostash: boolean, rebaseMerges: boolean, updateRefs: boolean, fromHere: boolean) =>
+  call<RebaseTodo>("rebase_todo", { id, base, autostash, rebaseMerges, updateRefs, fromHere });
+
+/** Replays `base..head` with the edited todo; a `head` / `baseOid` that moved since the read is refused. */
+export const rebaseInteractive = (
+  id: RepoId,
+  head: string,
+  baseOid: string,
+  base: string,
+  steps: TodoStep[],
+  autostash: boolean,
+  rebaseMerges: boolean,
+  updateRefs: boolean,
+) => call<OpResult>("rebase_interactive", { id, head, baseOid, base, steps, autostash, rebaseMerges, updateRefs });
 
 export const mergeAbort = (id: RepoId) => call<OpResult>("merge_abort", { id });
 

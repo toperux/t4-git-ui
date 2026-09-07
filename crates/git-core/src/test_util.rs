@@ -23,7 +23,21 @@ impl Default for TempRepo {
 
 impl TempRepo {
     pub fn new() -> Self {
-        let dir = tempfile::tempdir().expect("tempdir");
+        Self::in_dir(tempfile::tempdir().expect("tempdir"))
+    }
+
+    /// A repository whose path contains a space, for code that has to quote it
+    /// (the app's own checkout has one).
+    pub fn with_space() -> Self {
+        Self::in_dir(
+            tempfile::Builder::new()
+                .prefix("t4 repo ")
+                .tempdir()
+                .expect("tempdir"),
+        )
+    }
+
+    fn in_dir(dir: TempDir) -> Self {
         // Fixed initial branch so tests don't depend on the user's `init.defaultBranch`.
         let repo = Repository::init_opts(
             dir.path(),

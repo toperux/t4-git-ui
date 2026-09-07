@@ -139,6 +139,19 @@ describe("runOp", () => {
     expect(useRepoStore.getState().wtSelected).toBe(true);
   });
 
+  it("a paused rebase → info toast with git's own line, and the working-tree row selected", async () => {
+    const paused = { ...ok, code: 0, failure: { kind: "paused" as const, message: "Stopped at 8bb7f34... Add the parser" } };
+    const out = await runOp("Rebasing main…", () => Promise.resolve(paused), { success: "Rebased main" });
+    expect(out).toMatchObject({ ok: false, failure: { kind: "paused" } });
+    // Not a success: the rebase is still running, and the banner is the way on.
+    expect(toasts()).toMatchObject([{ kind: "info", title: "Stopped at 8bb7f34... Add the parser", detail: "Continue or abort from the banner" }]);
+    expect(useRepoStore.getState().wtSelected).toBe(true);
+    // Loud even for a typed command: a half-finished rebase must not pass unmentioned.
+    useToastStore.setState({ toasts: [] });
+    await runOp("git rebase -i x", () => Promise.resolve(paused), { quietFailure: true });
+    expect(toasts()).toHaveLength(1);
+  });
+
   it("nonFastForward on a push → toast with a Pull action that opens the Pull dialog", async () => {
     await runOp("Pushing…", () => Promise.resolve({ ...ok, code: 1, failure: { kind: "nonFastForward" } }));
     const t = toasts()[0];

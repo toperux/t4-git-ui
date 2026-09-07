@@ -333,6 +333,19 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
           </span>
         </MenuItem>
       )}
+      {/* From here = the row's commit is the oldest one replayed, so its first parent is the base. */}
+      {branches.canRebaseInteractive && parents.length > 0 && (
+        <MenuItem
+          icon={<ListRestart size={16} aria-hidden />}
+          title={`Rebase ${current} interactively from ${short}`}
+          {...op}
+          onClick={run(() => openDialog({ kind: "rebaseInteractive", base: parents[0] }))}
+        >
+          <span className={s.menuLabel}>
+            Rebase <MenuRef className={s.menuBranch}>{current}</MenuRef> <span className={s.menuBranch}>interactively from here…</span>
+          </span>
+        </MenuItem>
+      )}
       {/* Picking HEAD onto itself records nothing; an unborn HEAD has no commit to apply onto. */}
       {!branches.headCommit && !branches.unborn && (
         <MenuItem

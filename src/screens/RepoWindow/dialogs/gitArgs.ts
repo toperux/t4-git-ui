@@ -44,6 +44,16 @@ export const mergeArgs = (branch: string, ff: FfMode, squash: boolean, message: 
 
 export const rebaseArgs = (onto: string) => ["rebase", onto];
 
+/** The flags of the run step; the sequence editor it also passes is an implementation detail. */
+export const rebaseInteractiveArgs = (base: string, autostash: boolean, rebaseMerges: boolean, updateRefs: boolean) => [
+  "rebase",
+  "-i",
+  ...flag(autostash, "--autostash"),
+  ...flag(rebaseMerges, "--rebase-merges"),
+  ...flag(updateRefs, "--update-refs"),
+  base,
+];
+
 const mainlineArgs = (mainline: number | null) => (mainline ? ["-m", String(mainline)] : []);
 
 export const cherryPickArgs = (oid: string, noCommit: boolean, recordOrigin: boolean, mainline: number | null) => [

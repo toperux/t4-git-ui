@@ -166,7 +166,9 @@ src/
                            closeRepo / runGit, plus the banner aborts merge/rebase/cherryPick/revertAbort — the git ones through runOp; runGit with `quietFailure`: no toast on a
                            non-zero exit unless conflicts / auth / non-fast-forward / diverged, the dock's exit line says it;
                            busyLabel cuts the label by code point with a marker runOp keeps),
-                           banners.ts (pure refs+status → detached | merge | rebase | cherryPick | revert (each Abort +
+                           banners.ts (pure refs+status → detached | merge | rebase (Abort · Skip · Continue; with
+                           nothing conflicted the text is the `edit` / exec pause, not "resolve conflicts") |
+                           cherryPick | revert (each Abort +
                            the way forward: Commit for merge / pick / revert, Continue for rebase) | sequencer (bisect,
                            text only — no backend abort) | conflicts banners),
                            useShortcuts.ts (Ctrl+Shift+U push, Ctrl+Shift+L pull, Ctrl+Shift+R run git command, Ctrl+B branch,
@@ -182,7 +184,15 @@ src/
                            Remove (a remote itself), StashDialogs, DiffDialog (the selected commit's / compare's
                            changed files + diff as a full-window dialog, off the diff header's expand button),
                            RunCommandDialog (one
-                           CommandInput; Run → actions `runGit`); gitArgs.ts mirrors cli/ops.rs
+                           CommandInput; Run → actions `runGit`),
+                           RebaseInteractiveDialog (kind `rebaseInteractive`, from a commit row or the Rebase
+                           dialog's Interactive box: `rebase_todo` reads git's own todo, the rows edit it —
+                           action Select, ↑/↓ or Alt+↑/↓, message textarea per reword / squash group, Keep
+                           merges vs Flatten, `--update-refs` on git ≥ 2.38 — and `rebase_interactive` replays it),
+                           rebaseTodo.ts (pure: TodoLine[] → rows + hidden lines, move / group / squash rules,
+                           default messages, `validate`, `toSteps` — the amend goes before the group's
+                           update-ref lines, which a pre-amend ref would otherwise orphan);
+                           gitArgs.ts mirrors cli/ops.rs
                            for the footer's "Runs `git …`" preview — that file is the source of truth),
                            DetailsPane (bottom pane: CommitDetails 340 | ChangedFileList 320 | DiffViewer, resizable;
                            an annotated tag pointing at the selected commit adds its own message block under the

@@ -29,8 +29,13 @@ export interface CommitBranchActions {
   merge: BranchAt[];
   /** What a rebase of the current branch lands on: a local branch here, else a remote one, else the caller's oid. */
   rebaseOnto: BranchAt | null;
-  /** A rebase has a branch to move: not at HEAD's own commit, and not on a detached or unborn HEAD. */
+  /** A rebase has a branch to move: not at HEAD's own commit, not on a detached or unborn HEAD, and no sequencer running. */
   canRebase: boolean;
+  /**
+   * Same, minus the HEAD-commit guard: rebasing interactively *from* HEAD's own commit is the common
+   * case (reword the last commit). The caller adds "the commit has a parent" — there is no `--root`.
+   */
+  canRebaseInteractive: boolean;
   /** HEAD's own commit: merging into it / rebasing onto it is a no-op, so `merge` and `rebaseOnto` are empty. */
   headCommit: boolean;
   /** Unborn HEAD: `git merge <oid>` would move the branch onto the commit, so no merge either. */
@@ -44,7 +49,7 @@ export interface CommitBranchActions {
  * name. With one at the same commit there is nothing to do; elsewhere it can be reset to the remote.
  */
 export function commitBranchActions(refs: RefsSnapshot | null, oid: string): CommitBranchActions {
-  if (!refs) return { checkout: [], reset: [], merge: [], rebaseOnto: null, canRebase: false, headCommit: false, unborn: false, remove: [] };
+  if (!refs) return { checkout: [], reset: [], merge: [], rebaseOnto: null, canRebase: false, canRebaseInteractive: false, headCommit: false, unborn: false, remove: [] };
   const locals: BranchAt[] = refs.local.filter((b) => b.oid === oid && !b.isHead).map((b) => ({ name: b.name, remote: null }));
   const checkout: BranchAt[] = [...locals];
   const remotes: BranchAt[] = [];
@@ -69,13 +74,16 @@ export function commitBranchActions(refs: RefsSnapshot | null, oid: string): Com
   // An unborn HEAD sits at no commit, so nothing is HEAD's own and neither operation can run.
   const unborn = refs.head.oid === null;
   // A rebase moves the current branch; detached there is none, and git would replay the loose commits.
-  const canRebase = !headCommit && !unborn && !refs.head.detached;
+  // Mid-merge / mid-rebase git refuses one outright, so the items go rather than fail.
+  const canRebaseInteractive = !unborn && !refs.head.detached && refs.state === "clean";
+  const canRebase = canRebaseInteractive && !headCommit;
   return {
     checkout,
     reset,
     merge: headCommit || unborn ? [] : [...locals, ...remotes],
     rebaseOnto: canRebase ? (locals[0] ?? remotes[0] ?? null) : null,
     canRebase,
+    canRebaseInteractive,
     headCommit,
     unborn,
     // `Tag.oid` is already peeled, so an annotated tag matches its commit like a lightweight one.

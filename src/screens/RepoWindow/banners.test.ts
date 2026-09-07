@@ -44,8 +44,20 @@ describe("banners", () => {
     expect(m[1]).toMatchObject({ kind: "danger", text: "2 files have conflicts — resolve, then stage them" });
     const r = computeBanners(refs({ state: "rebase", head: { oid: "abcdef0123", branch: null, detached: true } }), status(1));
     expect(r.map((x) => x.id)).toEqual(["rebase", "conflicts"]);
-    expect(r[0].buttons.map((x) => x.action)).toEqual(["rebaseAbort", "rebaseContinue"]);
+    expect(r[0].buttons.map((x) => x.action)).toEqual(["rebaseAbort", "rebaseSkip", "rebaseContinue"]);
+    expect(r[0].text).toBe("Rebase in progress — resolve conflicts and stage them, then continue");
     expect(r[1].text).toBe("1 file has conflicts — resolve, then stage it");
+  });
+
+  it("a rebase with nothing conflicted is a pause: amend in the commit panel, then Continue", () => {
+    // An `edit` line (or an `exec` a hook rejected) stops with a clean tree — there is nothing to resolve.
+    const b = computeBanners(refs({ state: "rebase" }), status(0));
+    expect(b.map((x) => x.id)).toEqual(["rebase"]);
+    expect(b[0].text).toBe("Rebase paused — amend or add commits in the commit panel, then Continue");
+    expect(b[0].buttons.map((x) => x.label)).toEqual(["Abort", "Skip", "Continue"]);
+    expect(b[0].buttons.filter((x) => x.primary).map((x) => x.action)).toEqual(["rebaseContinue"]);
+    // Before the status lands, "no conflicts" is unknown: don't claim the pause.
+    expect(computeBanners(refs({ state: "rebase" }), null)[0].text).toBe("Rebase in progress — resolve conflicts and stage them, then continue");
   });
 
   it("cherry-pick / revert offer Abort + Commit, like the merge banner", () => {

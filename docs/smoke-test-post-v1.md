@@ -600,6 +600,61 @@ _Shipped 2026-09-07 (this commit); walked the same day over CDP on the installed
 - [x] **Staging still works after the scan wrote the index**: stage and unstage a file from the
       Commit panel right after the slow scan → both land, `git status` from a shell agrees
 
+## Z. Interactive rebase (main §2, §5)
+_Shipped 2026-09-07 (this commit); walked the same day over CDP on the installed build in a fixture made for it (`c:/tmp/t4/irebase`: `base — add a — add b — [side: add s1] merged — fixup! add b — add d (branch `mid`) — add e`, a branch `other` off `add a` whose `other d` conflicts with `add d`, `a.txt` edited and `dirty.txt` staged). Git generates the todo (autosquash, `--rebase-merges`, `--update-refs`) and the dialog edits it; messages go through `exec git commit --amend -F`. Two findings fixed during the walk: git writes a blank line after every `update-ref` line and the dialog took it for a barrier between two adjacent picks; git's progress ends in `\r`, so the "Stopped at …" toast showed the last line instead._
+
+- [x] **Dirty tree, list, merge notice**: right-click `add a` → **Rebase main interactively from
+      here…** → "Uncommitted changes will be stashed…" with **Stash and continue** / Cancel; after
+      it the rows `add a`, `add b`, `fixup! add b` already marked `fixup`, `add s1`, a read-only
+      `merge` row, `add d`, `add e`; "1 merge commit in this range" with Keep merges / Flatten; the
+      `--update-refs` checkbox (git ≥ 2.38); preview `git rebase -i --autostash --rebase-merges <parent oid>`
+- [x] **Move barriers**: Move up / down greyed against the merge row and the section boundaries;
+      `add d` ↔ `add e` swap (Alt+↑ / ↓ too, the moved row keeps focus)
+- [x] **Reword + `--update-refs`**: `add e` → `reword`, the textarea prefilled with its message,
+      edit it, tick Update branches, **Rebase** → `Rebased main`; the fixup folded into `add b`
+      (`b.txt` has the fix, no `fixup!` commit), the merge kept, `mid` and `side` on their rewritten
+      commits, the reworded message with both lines, the dirty tree back, `git stash list` empty
+- [x] **Flatten + reorder + drop**: from `add a` again → **Flatten** re-reads without the merge
+      row; move `add e` above `add d` (Alt+↑, focus stays on the moved row), `add d` → `drop`,
+      **Rebase** → linear history without `add d` or the merge
+- [x] **Squash**: from `add a` once more: move `add e` above `add s1`, `add s1` → `squash` — the
+      textarea shows both messages joined by a blank line — edit it, `add b` → `drop`, **Rebase** →
+      one commit `e and s1 together` with the edited body on top of `add a`, `b.txt` gone
+- [x] **Edit stop**: right-click HEAD's own commit (the plain rebase item is gone there, the
+      interactive one stays) → one row → `edit` → **Rebase** → info toast "Stopped at <sha>… <subject>"
+      with "Continue or abort from the banner", the banner "Rebase paused — amend or add commits in
+      the commit panel, then Continue" with **Abort · Skip · Continue**, the status bar "Rebase in
+      progress"; **Continue** → `Rebase continued`, banner gone, dirty tree back
+- [x] **Abort**: the same edit stop → **Abort** → back where it was
+- [x] **Branch path with a conflict, Skip**: checkout `other`, right-click `main`'s tip → **Rebase
+      other onto main…** → tick **Interactive** (preview `git rebase -i main`) → **Rebase** → the
+      interactive dialog titled `Rebase other onto main` with the one pick → **Rebase** → `1 conflict`
+      toast, both banners (rebase + conflicts) with **Skip** → `Commit skipped`, `other` on `main`
+- [x] **Nothing to rebase**: Branch › Rebase… onto `main` with Interactive on → "Nothing to rebase",
+      Rebase disabled
+- [x] **No `--root`**: the root commit's menu has no interactive item; a non-clean state hides both
+      rebase items
+- [x] **Autostash decided at open** (re-walked after the review fix): dirty tree → **Stash and
+      continue** → reword → **Rebase** runs with `--autostash`, `Rebased main`, the dirty tree back,
+      no stash left; opened on a clean tree and dirtied from a shell while the dialog is up, the list
+      stays put and **Rebase** fails with git's own line (`Please commit or stash them.`), HEAD unmoved
+- [x] **From here on another branch** (review fix): All branches, right-click `add d` on `other` →
+      **Rebase main interactively from here…** → Stash and continue → the dialog reads `9ade8e9 is not in
+      HEAD's history`, Rebase disabled — the base would have moved `main` onto `other`'s history
+- [x] **Ops while paused** (review fix): the edit stop above, then `git stash push -u` from a shell →
+      Stashes › **Pop** → `Popped stash@{0}` (used to come back as a Paused failure, since every
+      conflict-checked op consulted the rebase state) → **Abort** → `Rebase aborted`, the dirty tree back
+- [x] **`amend!` keeps its message** (review fix): `git commit -am "amend! <HEAD's subject>" -m "<new message>"`
+      from a shell → from `add a` → the row arrives as `fixup` under its target → **Rebase** → HEAD's
+      message is the new one (the todo written back reads `fixup -C <oid>`), the dirty tree back
+- [x] **Sidebar Merge / Rebase off a branch** (review fix): Checkout (detached) from a row → the `main`
+      and `origin/main` rows' **Merge into current…** / **Rebase current onto…** greyed, title "No
+      branch is checked out"; double-click `main` → enabled again, "Merge into main…"
+- [x] **Typed `rebase --continue`** (review fix): two rows `edit` → **Rebase** → paused at the first;
+      Repository › Run git command… `rebase --continue` → info toast "Stopped at <second>…", still paused
+      (was an exit-0 "failure" with no toast, since only conflict-checked ops could report a pause) →
+      **Abort**
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the

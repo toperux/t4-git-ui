@@ -50,15 +50,18 @@ export interface SelectProps {
 interface Opt {
   value: string;
   label: ReactNode;
+  /** Shown greyed and not pickable; `title` says why. */
+  disabled?: boolean;
+  title?: string;
 }
 
-type OptionElement = ReactElement<{ value?: string | number; children?: ReactNode }>;
+type OptionElement = ReactElement<{ value?: string | number; children?: ReactNode; disabled?: boolean; title?: string }>;
 
 /** `<option>` children → the rows the list renders. */
 function options(children: ReactNode): Opt[] {
   return Children.toArray(children)
     .filter((c): c is OptionElement => isValidElement(c))
-    .map((c) => ({ value: String(c.props.value ?? ""), label: c.props.children }));
+    .map((c) => ({ value: String(c.props.value ?? ""), label: c.props.children, disabled: c.props.disabled, title: c.props.title }));
 }
 
 /** Viewport rect for the list: under the field, flipped above it when the bottom edge is close. */
@@ -124,8 +127,9 @@ export function Select({ value, onChange, children, disabled, autoFocus, classNa
   }
 
   function pick(i: number) {
-    setOpen(false);
     const o = opts[i];
+    if (o?.disabled) return;
+    setOpen(false);
     if (o && o.value !== value) onChange({ target: { value: o.value } });
   }
 
@@ -134,6 +138,8 @@ export function Select({ value, onChange, children, disabled, autoFocus, classNa
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
+    // Alt+↑/↓ belongs to whatever holds the list (the interactive rebase moves the focused row with it).
+    if (e.altKey) return;
     if (!open) {
       if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter" || e.key === " ") {
         e.preventDefault();
@@ -205,7 +211,9 @@ export function Select({ value, onChange, children, disabled, autoFocus, classNa
                 id={`${id}-${i}`}
                 role="option"
                 aria-selected={i === selected}
-                className={cx(s.opt, i === active && s.optActive, i === selected && s.optSelected)}
+                aria-disabled={o.disabled || undefined}
+                title={o.title}
+                className={cx(s.opt, o.disabled && s.optDisabled, i === active && s.optActive, i === selected && s.optSelected)}
                 onMouseMove={() => setActive(i)}
                 onClick={() => pick(i)}
               >

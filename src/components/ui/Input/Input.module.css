@@ -101,6 +101,9 @@
 .optSelected {
   font-weight: var(--weight-medium);
 }
+.optDisabled {
+  color: var(--fg-faint);
+}
 .optActive {
   background: var(--accent);
   color: var(--fg-on-accent);

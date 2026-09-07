@@ -409,8 +409,40 @@ export type OpFailure =
   | { kind: "nonFastForward" }
   | { kind: "diverged" }
   | { kind: "authFailed" }
+  /** A rebase stopped and is still in progress (an `edit` line, or an `exec` a hook rejected). */
+  | { kind: "paused"; message: string }
   | { kind: "rejected"; message: string }
   | { kind: "other"; message: string };
+
+/** One commit a todo line names; `message` is the full commit message, `summary` its first line. */
+export interface TodoCommit {
+  oid: string;
+  short: string;
+  summary: string;
+  message: string;
+}
+
+/**
+ * `#[serde(tag = "kind")]` — one line of the todo `git rebase -i` generated. `other` covers
+ * `label` / `reset` / `noop` / `exec` / blanks / comments: kept in order, never shown.
+ * `amend` is a `fixup -C` line (an `amend!` commit): the fixup replaces the message too.
+ */
+export type TodoLine =
+  | { kind: "pick"; action: "pick" | "reword" | "edit" | "squash" | "fixup" | "drop"; text: string; commit: TodoCommit; amend: boolean }
+  | { kind: "merge"; text: string; commit: TodoCommit | null }
+  | { kind: "updateRef"; text: string }
+  | { kind: "other"; text: string };
+
+/** What the app writes back: a verbatim todo line, or an amend of the commit the line before it made. */
+export type TodoStep = { kind: "line"; text: string } | { kind: "amend"; message: string };
+
+/** git's own todo, read without changing anything; `head` / `baseOid` are what the run is checked against. */
+export interface RebaseTodo {
+  head: string;
+  baseOid: string;
+  /** Oldest first, as git lists them. */
+  lines: TodoLine[];
+}
 
 /** Outcome of a streaming op after its process exited (a non-zero exit is a `failure`, not a rejection). */
 export interface OpResult {

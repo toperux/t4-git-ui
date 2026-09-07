@@ -72,6 +72,13 @@ pub enum OpFailure {
     Conflicts {
         paths: Vec<String>,
     },
+    /// A rebase stopped without conflicts — an `edit` line, or an `exec` that
+    /// failed — carrying git's own line ("Stopped at …" / "execution failed: …").
+    /// Decided from the repository state, not from the exit code (an `edit`
+    /// stop exits 0), so `classify_failure` never returns it.
+    Paused {
+        message: String,
+    },
     /// Push rejected as non-fast-forward: the remote has commits we lack.
     NonFastForward,
     /// `--ff-only` pull (the fetch already happened) / merge that cannot
@@ -188,6 +195,11 @@ pub fn rebase_continue() -> Vec<String> {
 
 pub fn rebase_abort() -> Vec<String> {
     args(["rebase", "--abort"])
+}
+
+/// `rebase --skip` — drops the commit the rebase stopped on.
+pub fn rebase_skip() -> Vec<String> {
+    args(["rebase", "--skip"])
 }
 
 pub fn merge_abort() -> Vec<String> {
@@ -653,6 +665,7 @@ mod tests {
         assert_eq!(rebase("main"), ["rebase", "main"]);
         assert_eq!(rebase_continue(), ["rebase", "--continue"]);
         assert_eq!(rebase_abort(), ["rebase", "--abort"]);
+        assert_eq!(rebase_skip(), ["rebase", "--skip"]);
         assert_eq!(merge_abort(), ["merge", "--abort"]);
     }
 
@@ -872,6 +885,13 @@ mod tests {
         assert_eq!(
             v,
             serde_json::json!({ "kind": "conflicts", "paths": ["a"] })
+        );
+        assert_eq!(
+            serde_json::to_value(OpFailure::Paused {
+                message: "Stopped at abc1234...  A".into()
+            })
+            .unwrap(),
+            serde_json::json!({ "kind": "paused", "message": "Stopped at abc1234...  A" })
         );
         assert_eq!(
             serde_json::to_value(OpFailure::NonFastForward).unwrap(),

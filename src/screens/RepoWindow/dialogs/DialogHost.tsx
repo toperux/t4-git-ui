@@ -6,6 +6,7 @@ import { SettingsDialog } from "../../SettingsDialog/SettingsDialog";
 import { CommitDialog } from "./CommitDialog";
 import { DiffDialog } from "./DiffDialog";
 import { DeleteRemoteTagDialog, FetchDialog, MergeDialog, PickDialog, PullDialog, PushDialog, PushTagDialog, RebaseDialog, ResetBranchDialog, ResetDialog } from "./OpsDialogs";
+import { RebaseInteractiveDialog } from "./RebaseInteractiveDialog";
 import {
   CheckoutBranchDialog,
   CheckoutDialog,
@@ -50,6 +51,8 @@ function renderDialog(dialog: DialogSpec, close: () => void): ReactNode {
       return <MergeDialog onClose={close} branch={dialog.branch} />;
     case "rebase":
       return <RebaseDialog onClose={close} onto={dialog.onto} />;
+    case "rebaseInteractive":
+      return <RebaseInteractiveDialog onClose={close} base={dialog.base} ontoLabel={dialog.ontoLabel} />;
     case "cherryPick":
     case "revert":
       return <PickDialog onClose={close} mode={dialog.kind} oid={dialog.oid} short={dialog.short} summary={dialog.summary} parents={dialog.parents} />;

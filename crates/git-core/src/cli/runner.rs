@@ -143,6 +143,9 @@ impl GitCli {
             // `tag -a`, `rebase --continue`) fails with "empty message"
             // instead of popping the user's editor or stalling until Cancel.
             .env("GIT_EDITOR", "true")
+            // The env var beats `-c sequence.editor`, which is how the
+            // interactive rebase hands git its todo list.
+            .env_remove("GIT_SEQUENCE_EDITOR")
             .env("LC_ALL", "C")
             .env("GIT_FLUSH", "1")
             .env("GIT_OPTIONAL_LOCKS", "0")

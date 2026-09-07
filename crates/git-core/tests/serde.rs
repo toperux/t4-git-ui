@@ -296,3 +296,64 @@ fn diff_shapes_are_camel_case() {
     let o: DiffOptions = serde_json::from_value(json!({})).expect("de");
     assert_eq!(o, DiffOptions::default());
 }
+
+#[test]
+fn rebase_todo_shapes_are_camel_case() {
+    use git_core::cli::rebase::{Action, RebaseTodo, TodoCommit, TodoLine, TodoStep};
+
+    let commit = TodoCommit {
+        oid: "a".repeat(40),
+        short: "aaaaaaa".into(),
+        summary: "s".into(),
+        message: "s\n\nbody\n".into(),
+    };
+    let v = serde_json::to_value(RebaseTodo {
+        head: "b".repeat(40),
+        base_oid: "c".repeat(40),
+        lines: vec![
+            TodoLine::Pick {
+                action: Action::Fixup,
+                text: "fixup -C aaaaaaa # s".into(),
+                commit: commit.clone(),
+                amend: true,
+            },
+            TodoLine::Merge {
+                text: "merge side".into(),
+                commit: None,
+            },
+            TodoLine::UpdateRef {
+                text: "update-ref refs/heads/x".into(),
+            },
+            TodoLine::Other {
+                text: "label onto".into(),
+            },
+        ],
+    })
+    .expect("ser");
+    assert_eq!(v["baseOid"], "c".repeat(40));
+    assert_eq!(v["lines"][0]["kind"], "pick");
+    assert_eq!(v["lines"][0]["action"], "fixup");
+    assert_eq!(v["lines"][0]["commit"]["short"], "aaaaaaa");
+    assert_eq!(v["lines"][0]["amend"], true);
+    assert_eq!(v["lines"][1]["kind"], "merge");
+    assert_eq!(v["lines"][1]["commit"], Value::Null);
+    assert_eq!(v["lines"][2]["kind"], "updateRef");
+    assert_eq!(v["lines"][3]["kind"], "other");
+
+    let steps: Vec<TodoStep> = serde_json::from_value(json!([
+        { "kind": "line", "text": "pick aaaaaaa s" },
+        { "kind": "amend", "message": "new\n" },
+    ]))
+    .expect("de");
+    assert_eq!(
+        steps,
+        [
+            TodoStep::Line {
+                text: "pick aaaaaaa s".into()
+            },
+            TodoStep::Amend {
+                message: "new\n".into()
+            },
+        ]
+    );
+}

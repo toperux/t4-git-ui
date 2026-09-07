@@ -1,7 +1,17 @@
 // Which banners sit above the grid (States artboard): detached HEAD, merge / rebase in progress, conflicts.
 import type { Branch, RefsSnapshot, WorkdirStatus } from "../../api/types";
 
-export type BannerAction = "checkoutDefault" | "createBranch" | "mergeAbort" | "commitMerge" | "rebaseAbort" | "rebaseContinue" | "cherryPickAbort" | "revertAbort" | "openCommitPanel";
+export type BannerAction =
+  | "checkoutDefault"
+  | "createBranch"
+  | "mergeAbort"
+  | "commitMerge"
+  | "rebaseAbort"
+  | "rebaseSkip"
+  | "rebaseContinue"
+  | "cherryPickAbort"
+  | "revertAbort"
+  | "openCommitPanel";
 
 export interface BannerButton {
   label: string;
@@ -54,9 +64,17 @@ export function computeBanners(refs: RefsSnapshot | null, status: WorkdirStatus 
     out.push({
       id: "rebase",
       kind: "warning",
-      text: "Rebase in progress — resolve conflicts and stage them, then continue",
+      // Without conflicts the stop is an `edit` line (or an `exec` a hook rejected): nothing to resolve,
+      // the user amends or adds commits and continues.
+      // A status that has not arrived yet is not a clean one: assume conflicts rather than flash the
+      // amend text over a conflicted rebase.
+      text:
+        status !== null && status.conflicted === 0
+          ? "Rebase paused — amend or add commits in the commit panel, then Continue"
+          : "Rebase in progress — resolve conflicts and stage them, then continue",
       buttons: [
         { label: "Abort", action: "rebaseAbort" },
+        { label: "Skip", action: "rebaseSkip" },
         { label: "Continue", action: "rebaseContinue", primary: true },
       ],
     });

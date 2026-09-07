@@ -14,6 +14,8 @@ export type DialogSpec =
   | { kind: "diff" }
   | { kind: "merge"; branch?: string }
   | { kind: "rebase"; onto?: string }
+  /** Edit git's own `rebase -i` todo before it runs; `ontoLabel` names the branch when it came from the Rebase dialog. */
+  | { kind: "rebaseInteractive"; base: string; ontoLabel?: string }
   /** Cherry-pick / revert one commit from its row; `parents` decides whether a mainline is asked for. */
   | { kind: "cherryPick" | "revert"; oid: string; short: string; summary: string; parents: string[] }
   | { kind: "checkout" }

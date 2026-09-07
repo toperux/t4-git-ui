@@ -1,0 +1,79 @@
+/* Interactive rebase: the todo as a scrolling list of rows (base.css .row inside a .list frame). */
+.list {
+  max-height: 50vh;
+  overflow: auto;
+  padding: var(--space-2);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+}
+.row:hover {
+  background: var(--bg-hover);
+}
+/* Selection colour follows the focused pane, like every other list (src/README.md "How tokens flow"). */
+.rowActive,
+.rowActive:hover {
+  background: var(--bg-selected-unfocused);
+}
+.list:focus-within .rowActive,
+.list:focus-within .rowActive:hover {
+  background: var(--bg-selected);
+}
+.action {
+  width: 104px;
+  flex: none;
+}
+/* Read-only merge row: the action column spelled out instead of a Select. */
+.fixed {
+  width: 104px;
+  flex: none;
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+.short {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+.subject {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.message {
+  min-height: 96px;
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--text-sm);
+  line-height: var(--lh-sm);
+  resize: vertical;
+}
+.radios {
+  display: flex;
+  gap: var(--space-7);
+}
+.radio {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+}
+/* Why Rebase is disabled, next to the button in the footer. */
+.problem {
+  font-size: var(--text-xs);
+  color: var(--danger-text);
+}

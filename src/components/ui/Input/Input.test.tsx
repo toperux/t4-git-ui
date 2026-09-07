@@ -63,6 +63,20 @@ describe("Select", () => {
     expect(onChange).toHaveBeenCalledWith("");
   });
 
+  it("leaves Alt+Arrow to the surrounding list", () => {
+    const { getByRole, queryByRole, getAllByRole } = render(<Harness />);
+    const combo = getByRole("combobox", { name: "Remote" });
+    fireEvent.keyDown(combo, { key: "ArrowDown", altKey: true });
+    expect(queryByRole("listbox")).toBeNull();
+
+    // Nor does it move the active option once the list is open.
+    fireEvent.click(combo);
+    const active = combo.getAttribute("aria-activedescendant");
+    fireEvent.keyDown(combo, { key: "ArrowDown", altKey: true });
+    expect(combo.getAttribute("aria-activedescendant")).toBe(active);
+    expect(getAllByRole("option")).toHaveLength(3);
+  });
+
   it("closes when the trigger loses focus", () => {
     const { getByRole, queryByRole } = render(<Harness />);
     fireEvent.click(getByRole("combobox", { name: "Remote" }));
