@@ -23,9 +23,14 @@ workarounds they built for it. Two consequences for this repo specifically:
 
 **git-ui-specific:** Tauri 2 with an npm/vite/TypeScript frontend, laid out as a cargo
 workspace (`crates/git-core`, `src-tauri`), version in the root `Cargo.toml` under
-`[workspace.package]`. No in-app updater. **Its release workflow has still never run** —
+`[workspace.package]`. ~~No in-app updater. **Its release workflow has still never run** —
 verification was blocked on 2026-09-03 by GitHub refusing to start jobs on the account — so
-section 8 carries round 1's unproven items forward.
+section 8 carries round 1's unproven items forward.~~
+
+**Superseded 2026-09-10.** Left above as the record of what was true on 2026-09-03. Since then the
+workflow has published five releases (v0.1.0 through v0.5.0) and section 7 carries the per-box
+evidence; 0.5.0 also added an in-app updater, so the `publish` job now writes a `latest.json`
+manifest from the per-platform `.sig` files.
 
 Principles:
 
@@ -280,14 +285,18 @@ jobs:
   artifacts; `publish` will not have run, so no release exists and nothing is public. Fix the
   commit, delete the tag locally and on the remote (`git tag -d vX.Y.Z && git push origin
   :refs/tags/vX.Y.Z`), then re-tag. Do not re-run only the failed job to force a publish.
-  **This repo has never published a release**, so this path is entirely untested here.
+  ~~**This repo has never published a release**, so this path is entirely untested here.~~
+  **Superseded 2026-09-10:** five are published. The retag path was walked once, on `v0.1.1` —
+  tagged, its run failed, tag deleted locally and on the remote, and the number never reused.
 - **`setup-node@v7`.** This is a two-major jump (v5 → v7) and this repo is the only one of the
   three that uses the action, so nothing else exercises it. If `cache: npm` or `node-version:
   24` behaves differently, the CI run in section 7 shows it before any release depends on it.
-- **The release workflow has never run.** Round 1's unproven assumptions are still unproven and
+- ~~**The release workflow has never run.** Round 1's unproven assumptions are still unproven and
   are re-listed in section 7: the workspace-root bundle path, and the `-- --locked`
-  pass-through. Round 1 *did* verify locally (tauri-cli 2.11.4) that a workspace-inherited
+  pass-through.~~ Round 1 *did* verify locally (tauri-cli 2.11.4) that a workspace-inherited
   version reaches the bundle name — `t4-git-ui_0.1.0_x64-setup.exe` — so D9 itself is settled.
+  **Superseded 2026-09-10:** both assumptions are proven — five releases staged their bundles from
+  the workspace root and the `-- --locked` pass-through reached `cargo build`. Section 7 ticks them.
 - **`ubuntu-22.04` retirement — still open, cross-repo.** Deprecated from 2026-09-17,
   brownouts 2027-03-23 / -03-30 / -04-06 / -04-13 (14:00–00:00 UTC), unsupported 2027-04-17
   (`actions/runner-images#14254`). Deliberate here for the glibc floor. **Not in scope for

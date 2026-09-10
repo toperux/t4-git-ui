@@ -18,7 +18,7 @@ Rust core (`git2` for reads and the index, the system `git` for everything that 
 - Light and dark themes following the OS, or a toggle in the toolbar; no flash on launch; every colour pair audited for WCAG contrast.
 - **Settings** — git executable, theme (light / dark / follow the OS), diff context lines and whitespace default; applied on change, the git path on Apply.
 
-Not in v1: interactive rebase, blame, file history, submodules, worktrees, bisect, cherry-pick / revert UI, multi-repo tabs.
+Shipped since v1: cherry-pick / revert from a commit row, interactive rebase, and in-app updates. Still not here: blame, file history, submodules, worktrees, bisect, multi-repo tabs.
 
 ## Install
 
@@ -112,6 +112,10 @@ no signing / notarization yet) — Linux rendering was walked under WSLg
 clean Windows machine. Deliberate v1 omissions are listed in
 `docs/plans/2026-08-31-git-ui-v1-plan.md` › Known gaps.
 
-What is still open — deferred features, verification that needs other machines, and the longer
-roadmap (interactive rebase, blame, submodules, multi-repo tabs, …) — is listed in one place:
-`docs/plans/2026-09-02-next-plan.md`.
+Since then: five releases (v0.1.0 through **v0.5.0**), cherry-pick / revert and interactive rebase
+from a commit row, and in-app updates — the app checks GitHub for a newer release and installs it on
+Windows, macOS and the AppImage, pointing `.deb` and `.rpm` users at their package manager instead.
+
+What is still open — deferred features, verification that needs other machines, the three
+suggestions filed as issues, and the longer roadmap (blame, submodules, multi-repo tabs, …) — is
+listed in one place: `docs/plans/2026-09-02-next-plan.md`.
