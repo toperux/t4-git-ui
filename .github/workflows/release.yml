@@ -280,10 +280,14 @@ jobs:
           PY
           cat latest.json
 
+      # `name` is set here because the default is the bare tag, and every
+      # release before this one is titled `T4 Git v<x.y.z>` — one unnamed
+      # release and the list stops reading as one product.
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*
           draft: false
+          name: T4 Git v${{ needs.version.outputs.version }}
           generate_release_notes: true
           body: |
             ### Windows
