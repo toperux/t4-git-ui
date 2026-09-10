@@ -1,0 +1,15 @@
+# Dependabot's action bumps are real commits, but they are not release news.
+# The publish job sets `generate_release_notes: true`, and GitHub builds that
+# list from merged pull requests — so without this file every release lists the
+# bumps alongside the actual changes.
+#
+# Excluded by label, not by author: `dependencies` is applied automatically and
+# is present on every bump PR in this repo, whereas the bot's author handle
+# renders differently depending on which API you ask (`app/dependabot` from the
+# gh CLI, `dependabot[bot]` in the web UI), and a wrong handle here fails
+# silently. Note that a commit-message prefix does *not* do this job: the notes
+# are keyed on pull requests, and GitHub does not filter them by subject.
+changelog:
+  exclude:
+    labels:
+      - dependencies

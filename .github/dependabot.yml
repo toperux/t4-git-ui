@@ -5,3 +5,14 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # These bumps change `.github/workflows/*.yml` and nothing else, so `ci` is the
+    # accurate type; `chore` is the catch-all, and every other subject in this repo
+    # is `ci:` / `docs:` / `fix:` with no scope. The `deps` scope is kept so bot
+    # bumps stay separable from hand-written CI commits. Dependabot supplies the
+    # colon, giving `ci(deps): Bump …`.
+    #
+    # Add a cargo or npm ecosystem later and it needs its own entry: those bumps
+    # are not CI changes, and `build(deps):` is the type for them.
+    commit-message:
+      prefix: ci
+      include: scope
