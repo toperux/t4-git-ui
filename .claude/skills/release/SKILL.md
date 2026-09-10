@@ -7,7 +7,7 @@ description: Cut a T4 Git release — bump the version, tag it, let the Release 
 
 Tagging is the whole trigger. `release.yml` reads the version out of the repository,
 runs the checks at that exact commit, builds Windows, macOS and Linux packages, and
-publishes them. Nothing is code-signed.
+publishes them. The macOS app is code-signed; Windows and Linux are not.
 
 The user must ask for the release. Pushing `main` and pushing a tag are both outward
 actions, and a published release cannot be quietly withdrawn. A request naming a version
@@ -32,6 +32,21 @@ rejected: the rpm tooling will not take it.
 config carries a `pubkey`, so a build without them does not quietly ship unsigned: the bundler
 aborts with *"A public key has been found, but no private key"*. A missing secret therefore
 fails **Build the packages**, not staging.
+
+`APPLE_CERTIFICATE` and `APPLE_CERTIFICATE_PASSWORD` are the macOS pair — a self-signed
+certificate shared with t4-markdown-viewer; the identity name sits in the workflow, not in a
+secret. **Import the macOS signing certificate** consumes them, and a missing or wrong one fails
+there, before anything is built. They are deliberately *not* passed to **Build the packages**:
+Tauri's own importer only resolves Apple-issued certificate names, so handing it
+`APPLE_CERTIFICATE` makes the build die with `ResolveSigningIdentity`. It gets the identity name
+alone. The certificate is what keeps the app's identity stable across versions, and macOS keys
+Documents / Desktop / Downloads access to that identity: replacing it makes every Mac user
+re-grant once. Self-signed is not notarized, so Gatekeeper still stops the first launch.
+
+The signing path has never been proven on a real run. **Before the first tag after any change to
+the import, build or verify steps, run Release from `workflow_dispatch` and confirm the macOS leg
+is green** — it builds all three platforms without publishing, so a broken signing step costs a
+run instead of a version number.
 
 ## Steps
 
@@ -79,7 +94,7 @@ fails **Build the packages**, not staging.
    ```
 
 7. **Read the notes.** `publish` generates them from the commits and prepends a fixed body
-   that carries the install instructions and the unsigned-binary warnings. Edit the release
+   that carries the install instructions and the SmartScreen / Gatekeeper warnings. Edit the release
    afterwards if the generated part reads badly.
 
 ## When it goes wrong
@@ -99,6 +114,12 @@ fails **Build the packages**, not staging.
   # delete or move the tag
   gh api -X PUT repos/toperux/t4-git-ui/rulesets/$id -f enforcement=active
   ```
+- **`Import the macOS signing certificate` failed.** A secret is missing, or the password does not
+  match the `.p12`. Nothing was built yet; fix the secret and re-run the macOS job.
+- **`Verify the macOS signature` failed.** The step prints the designated requirement it read —
+  compare it against the fingerprint in the grep. The bundle is unsigned or signed by something
+  else; never get past it by dropping the step, because a release that quietly loses the identity
+  resets every Mac user's folder grants. Fix and re-run the macOS job; the tag stays.
 - **`Stage the artifacts` says `no bundle matched`.** The bundle path moved. Add a `find`
   step above it, read the real path off the log, and fix `bundle_dir` in the matrix and in
   `docs/plans/ci-alignment.md`.
@@ -111,8 +132,9 @@ question is whether the bundles build, not whether the release is ready.
 
 ## What a release does not do
 
-- No code signing or notarization. Windows shows a SmartScreen warning; macOS needs the
-  quarantine attribute cleared. Both are spelled out in the release body. This is separate from
-  update signing (see Signing, above), which does now happen — do not confuse the two.
+- No Windows signing, and no notarization anywhere. Windows shows a SmartScreen warning; the
+  macOS app is signed, but self-signed, so the quarantine attribute still has to be cleared.
+  Both are spelled out in the release body. Distinct from update signing and from macOS signing
+  (see Signing, above), both of which do happen — do not confuse the three.
 - No draft. `publish` creates the release live.
 - No changelog file. The notes are generated per release and live on GitHub.

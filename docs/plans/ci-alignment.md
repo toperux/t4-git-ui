@@ -9,7 +9,8 @@ this plan. Everything below is self-contained; the shared shape is authoritative
 
 git-ui is a Tauri 2 app with an npm/vite/TypeScript frontend, laid out as a cargo workspace
 (`crates/git-core`, `src-tauri`; version in the root `Cargo.toml` under `[workspace.package]`,
-inherited by `src-tauri` via `version.workspace = true`). It has no in-app updater.
+inherited by `src-tauri` via `version.workspace = true`). It has no in-app updater. **(One shipped
+in v0.5.0 on 2026-09-10; this document predates it.)**
 
 Of the three repos this one needs the most work: the CI file is close, but the release
 workflow currently hands everything to `tauri-apps/tauri-action`, publishes a **draft**, has no
@@ -157,6 +158,11 @@ Tauri 2 uses the crate's `Cargo.toml` version when `tauri.conf.json` has no `ver
 Replace the file with this. It is adapted from the other Tauri repo's release workflow; the
 differences are noted inline: workspace-root `target/` paths, npm install before the build,
 no signing / `.sig` / `latest.json`, and this repo's asset names.
+
+**This copy is the 2026-09-02 rewrite as executed, and is no longer current.** The updater
+(`.sig` files and `latest.json`) landed in v0.5.0, and macOS code signing after that. Where the
+two disagree the live `.github/workflows/release.yml` wins — do not re-derive the workflow from
+the listing below.
 
 ```yaml
 name: Release
@@ -368,8 +374,10 @@ jobs:
             xattr -dr com.apple.quarantine "/Applications/t4-git-ui.app"
             ```
 
-            Not signed or notarized, so without that Gatekeeper reports the app as
-            damaged. Right-click → **Open** works too.
+            Signed with a self-signed certificate but not notarized, so without that
+            Gatekeeper still refuses it. If you would rather not run the command:
+            **System Settings → Privacy & Security → Open Anyway** (on macOS 14 and
+            earlier, right-click → **Open** does the same).
 
             ### Linux
 
@@ -436,7 +444,8 @@ a build here):
       rejects a tag that disagrees with `Cargo.toml` or is not plain `x.y.z`;
       `workflow_dispatch` on Release builds everything and skips `publish`, for checking
       packaging without burning a version; the fixed release body lives in `release.yml`;
-      nothing is code-signed. Run `cargo test --workspace` and `npm test -- --run` locally
+      the macOS app is code-signed (self-signed, not notarized), Windows and Linux are not.
+      Run `cargo test --workspace` and `npm test -- --run` locally
       before tagging — the release build no longer tests (D7).
 
 ## 5. Risks to verify

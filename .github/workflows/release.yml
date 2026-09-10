@@ -153,14 +153,115 @@ jobs:
       # files. With a `pubkey` in the config and no private key the bundler does
       # not carry on unsigned: it aborts with "A public key has been found, but
       # no private key" — so a missing secret reddens this step, not staging.
+      # Tauri's own APPLE_CERTIFICATE importer resolves the identity by scanning
+      # for Apple's own certificate names ("Developer ID Application: …" and six
+      # siblings). A self-signed one matches none of them, so `identity::list`
+      # comes back empty and the build dies with ResolveSigningIdentity. The
+      # certificate is therefore imported here and Tauri is handed the identity
+      # name alone, which sends it down `with_signing_identity` instead. The
+      # secrets stay in this macOS-only step: no other leg needs them, and
+      # whoever holds them can sign as either T4 app.
+      - name: Import the macOS signing certificate
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          kc="$RUNNER_TEMP/signing.keychain-db"
+          pass=$(openssl rand -base64 24)
+          base64 --decode <<<"$APPLE_CERTIFICATE" > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$pass" "$kc"
+          security set-keychain-settings -lut 21600 "$kc"
+          security unlock-keychain -p "$pass" "$kc"
+          security import "$RUNNER_TEMP/cert.p12" -k "$kc" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$pass" "$kc" >/dev/null
+          security list-keychains -d user -s "$kc" $(security list-keychains -d user | tr -d '"')
+          # Self-signed: nothing vouches for it until it is trusted here.
+          security find-certificate -p -c "T4 Apps Self-Signed Code Signing" "$kc" > "$RUNNER_TEMP/cert.pem"
+          sudo security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain "$RUNNER_TEMP/cert.pem"
+          rm "$RUNNER_TEMP/cert.p12" "$RUNNER_TEMP/cert.pem"
+
+      # macOS keys a folder-access grant (Documents / Desktop / Downloads) to the
+      # app's code signature, so an unsigned build asks again on every launch —
+      # worse here than in most apps, because the recursive watcher, the git2
+      # reads and every spawned `git` are charged to the parent. Shared with
+      # t4-markdown-viewer; the app identifier keeps the two distinct. Self-signed
+      # and *not* notarized, so Gatekeeper still stops the first launch.
+      # APPLE_CERTIFICATE must NOT be set here: it would send Tauri back down the
+      # importer that cannot resolve this certificate.
       - name: Build the packages
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: T4 Apps Self-Signed Code Signing
         run: >
           cargo tauri build --bundles ${{ matrix.bundles }}
           ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
           -- --locked
+
+      # A missing or rejected certificate has to redden the run rather than ship
+      # an unsigned .app quietly: the whole point is a signature that stays the
+      # same across versions, so a release that silently lost it would reset
+      # every Mac user's folder grants without anyone noticing.
+      #
+      # All three macOS artifacts are checked, not just the .app sitting in the
+      # bundle directory: the .dmg is what people download, and the .app.tar.gz is
+      # what an installed copy downloads when it updates itself. Both are repacked
+      # copies, so checking only the .app would rest on the assumption that the
+      # bundler packs them after signing — and that assumption failing is exactly
+      # the silent identity regression this step exists to catch. At tauri-cli
+      # 2.11.4 the bundler does sign first: both repacked copies were confirmed to
+      # carry the certificate. So this guards against a version bump reordering
+      # that, rather than doubting the current order.
+      #
+      # Matched on the certificate's SHA-1 in the designated requirement, not on
+      # its name: macOS keys the grant to the certificate itself, so a regenerated
+      # certificate with the same Common Name is a different identity and must not
+      # pass. Rotating the certificate means updating this hash.
+      - name: Verify the macOS signature
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle='${{ matrix.bundle_dir }}'
+          fp='H"53effb03083bba9accd9b16f4e5db6c6ae5acc39"'
+          mnt=""
+          trap '[ -n "$mnt" ] && hdiutil detach "$mnt" >/dev/null 2>&1 || true' EXIT
+
+          # Captured rather than piped straight into grep: on a mismatch the log
+          # has to show what it was actually signed with, or the operator cannot
+          # tell a missing secret from the wrong certificate. Called plainly, never
+          # as `check ... || ...`, so errexit stays live inside it — under `||` a
+          # failed codesign would be swallowed and only the grep would decide.
+          check() {
+            echo "== $1"
+            codesign --verify --deep --strict --verbose=2 "$2"
+            req=$(codesign -d -r- "$2" 2>&1)
+            echo "$req"
+            grep -qiF "$fp" <<<"$req"
+          }
+
+          app=$(find "$bundle/macos" -maxdepth 1 -name '*.app' -print -quit || true)
+          [ -n "$app" ] || { echo "no .app under $bundle/macos" >&2; exit 1; }
+          check "bundle: $app" "$app"
+
+          tgz=$(find "$bundle/macos" -maxdepth 1 -name '*.app.tar.gz' -print -quit || true)
+          [ -n "$tgz" ] || { echo "no .app.tar.gz under $bundle/macos" >&2; exit 1; }
+          tmp=$(mktemp -d)
+          tar -xzf "$tgz" -C "$tmp"
+          tapp=$(find "$tmp" -maxdepth 1 -name '*.app' -print -quit || true)
+          [ -n "$tapp" ] || { echo "no .app inside $tgz" >&2; exit 1; }
+          check "updater tarball: $tgz" "$tapp"
+
+          dmg=$(find "$bundle/dmg" -maxdepth 1 -name '*.dmg' -print -quit || true)
+          [ -n "$dmg" ] || { echo "no .dmg under $bundle/dmg" >&2; exit 1; }
+          mnt=$(mktemp -d)
+          hdiutil attach "$dmg" -nobrowse -readonly -mountpoint "$mnt" >/dev/null
+          dapp=$(find "$mnt" -maxdepth 1 -name '*.app' -print -quit || true)
+          [ -n "$dapp" ] || { echo "no .app inside $dmg" >&2; exit 1; }
+          check "dmg: $dmg" "$dapp"
 
       # Tauri names bundles with the product name, and GitHub rewrites spaces
       # in asset names anyway. Pick the final names here instead of letting the
@@ -313,8 +414,12 @@ jobs:
             xattr -dr com.apple.quarantine "/Applications/t4-git-ui.app"
             ```
 
-            Not signed or notarized, so without that Gatekeeper reports the app as
-            damaged. Right-click → **Open** works too.
+            Signed with a self-signed certificate but not notarized, so without that
+            Gatekeeper still refuses it. If you would rather not run the command:
+            **System Settings → Privacy & Security → Open Anyway** (on macOS 14 and
+            earlier, right-click → **Open** does the same). Signing is what gives the
+            app a stable identity, which is what macOS keys Documents / Desktop /
+            Downloads access to; the first signed release resets those grants once.
 
             The `.app.tar.gz` beside it is what an installed copy downloads when it
             updates itself; there is no reason to fetch it by hand.

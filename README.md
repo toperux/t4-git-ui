@@ -25,8 +25,13 @@ Shipped since v1: cherry-pick / revert from a commit row, interactive rebase, an
 Grab the installer for your platform from the [Releases](../../releases) page:
 
 - Windows: `T4-Git-UI_<version>_x64-setup.exe` (NSIS, per-user, no admin prompt)
-- macOS: `T4-Git-UI_<version>_universal.dmg` (Apple Silicon and Intel; unsigned for now —
-  right-click → Open on first launch)
+- macOS: `T4-Git-UI_<version>_universal.dmg` (Apple Silicon and Intel). Gatekeeper stops the first
+  launch either way: v0.5.0 and earlier are unsigned, and releases after v0.5.0 are signed with a
+  self-signed certificate but **not notarized**. Open it from **System Settings → Privacy &
+  Security → Open Anyway**; on macOS 14 and earlier, right-click → Open does the same. What
+  signing buys is a stable identity, which is what macOS keys Documents / Desktop / Downloads
+  access to — an unsigned build re-asks every launch. The first signed release resets those
+  grants once.
 - Linux: `.deb`, `.rpm` or `.AppImage`
 
 Every package has a `.sha256` sidecar next to it.
@@ -107,7 +112,7 @@ v1 is feature-complete, covered by `cargo test --workspace`, `npm test` and
 the `docs/smoke-test.md` walkthrough was completed end to end on 2026-09-01 apart from the three
 steps this machine cannot reach (Resolve in editor ×2, DPI change), and everything it found is
 fixed. CI is green on Linux, Windows and macOS; macOS is compiled there only (no rendering check,
-no signing / notarization yet) — Linux rendering was walked under WSLg
+signed after v0.5.0 but never notarized) — Linux rendering was walked under WSLg
 (`docs/plans/2026-09-05-full-rewalk.md`) — and the installer has not been tried on a
 clean Windows machine. Deliberate v1 omissions are listed in
 `docs/plans/2026-08-31-git-ui-v1-plan.md` › Known gaps.
