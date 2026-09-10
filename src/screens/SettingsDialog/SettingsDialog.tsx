@@ -3,14 +3,21 @@
 // path on Apply / Locate… too, since trying it starts a process); the two tool sections have an
 // Apply of their own. The footer only closes.
 import { open as openFile } from "@tauri-apps/plugin-dialog";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { FolderSearch } from "lucide-react";
 import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { toAppError } from "../../api/ipc";
 import { Button } from "../../components/ui/Button/Button";
 import { Checkbox } from "../../components/ui/Checkbox/Checkbox";
 import { Dialog, Field, Options } from "../../components/ui/Dialog/Dialog";
 import { Input, Select } from "../../components/ui/Input/Input";
+import { Progress } from "../../components/ui/Progress/Progress";
+import { APP_NAME } from "../../lib/app";
 import { getThemePref, setTheme, type ThemePref } from "../../theme/theme";
 import { MAX_CONTEXT, useSettingsStore } from "../../store/settingsStore";
+import { toastError } from "../../store/toastStore";
+import { useUpdateStore } from "../../store/updateStore";
+import pkg from "../../../package.json";
 import s from "./SettingsDialog.module.css";
 import { ToolSection } from "./ToolSection";
 
@@ -20,7 +27,17 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const gitPath = useSettingsStore((st) => st.gitPath);
   const gitVersion = useSettingsStore((st) => st.gitVersion);
   const gitError = useSettingsStore((st) => st.gitError);
-  const { setDiffContext, setIgnoreWhitespace, setGitPath, clearGitError } = useSettingsStore.getState();
+  const autoUpdateCheck = useSettingsStore((st) => st.autoUpdateCheck);
+  const { setDiffContext, setIgnoreWhitespace, setAutoUpdateCheck, setGitPath, clearGitError } = useSettingsStore.getState();
+  // Field by field, not `useUpdateStore()`: the whole-store subscription re-rendered the dialog on
+  // every `set` the store makes, and a download makes one per chunk.
+  const info = useUpdateStore((st) => st.info);
+  const checked = useUpdateStore((st) => st.checked);
+  const checking = useUpdateStore((st) => st.checking);
+  const installing = useUpdateStore((st) => st.installing);
+  const progress = useUpdateStore((st) => st.progress);
+  const updateError = useUpdateStore((st) => st.error);
+  const { check, install } = useUpdateStore.getState();
 
   // The path is edited freely and only tried on Apply / Enter — trying it runs `git --version`.
   const [path, setPath] = useState(gitPath);
@@ -65,6 +82,33 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
     setBusy(false);
   }
 
+  function openReleasePage(url: string) {
+    void openUrl(url).catch((e: unknown) => toastError(toAppError(e), "Couldn't open the release page"));
+  }
+
+  /** Install it, or — on a .deb / .rpm, where the package manager owns the files — hand it to the browser. */
+  function getUpdate() {
+    if (!info) return;
+    if (info.installable) void install();
+    else openReleasePage(info.releaseUrl);
+  }
+
+  // The one line that answers "am I current?" — so it names this build whenever nothing else is going
+  // on. Before any check has come back it says only which build this is: "up to date" is a claim about
+  // GitHub, and with the launch check off nothing has asked yet.
+  const updateStatus = installing
+    ? progress === null
+      ? "Downloading…"
+      : `Downloading… ${progress}%`
+    : checking
+      ? "Checking…"
+      : (updateError ??
+        (info
+          ? `Version ${info.version} is available`
+          : checked
+            ? `${APP_NAME} ${pkg.version} is up to date`
+            : `${APP_NAME} ${pkg.version}`));
+
   function pickTheme(v: string) {
     const next = v as ThemePref;
     setPref(next);
@@ -75,9 +119,10 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
     <Dialog
       title="Settings"
       wide
+      busy={installing}
       onClose={onClose}
       footer={
-        <Button variant="primary" onClick={onClose}>
+        <Button variant="primary" disabled={installing} onClick={onClose}>
           Close
         </Button>
       }
@@ -146,6 +191,43 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
 
       <ToolSection kind="diff" />
       <ToolSection kind="merge" />
+
+      <section className={s.section}>
+        <h3 className={s.head}>Updates</h3>
+        <Options>
+          <Checkbox checked={autoUpdateCheck} onChange={setAutoUpdateCheck} disabled={installing}>
+            Check for updates on launch
+          </Checkbox>
+        </Options>
+        {/* Check now works whatever the toggle says: the setting is about launch, not about asking. */}
+        <Field label="Version" invalid={!!updateError} help={updateStatus}>
+          <div className={s.buttons}>
+            <Button disabled={checking || installing} onClick={() => void check()}>
+              Check now
+            </Button>
+            {/* Nobody should have to accept a version sight unseen: on every install kind but .deb /
+                .rpm the button below installs it, so this is the only way to the release notes. */}
+            {info && (
+              <Button variant="ghost" disabled={installing} onClick={() => openReleasePage(info.releaseUrl)}>
+                What's new
+              </Button>
+            )}
+            {/* Always rendered, so the section keeps its shape whether or not a check found anything.
+                Disabled it still labels itself, and "Up to date" is only true once a check came back —
+                after one that failed it would be the wrong answer, stated confidently. */}
+            <Button variant="primary" disabled={!info || installing} onClick={getUpdate}>
+              {info
+                ? info.installable
+                  ? `Update to ${info.version}…`
+                  : "Download…"
+                : checked
+                  ? "Up to date"
+                  : "Update"}
+            </Button>
+          </div>
+        </Field>
+        {installing && <Progress thin label="Downloading update" value={progress ?? undefined} />}
+      </section>
     </Dialog>
   );
 }

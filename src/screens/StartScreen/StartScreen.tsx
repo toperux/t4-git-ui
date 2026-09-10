@@ -13,6 +13,7 @@ import { Input } from "../../components/ui/Input/Input";
 import { Spinner } from "../../components/ui/Spinner/Spinner";
 import { StatusBar, StatusItem } from "../../components/ui/StatusBar/StatusBar";
 import { ToastStack } from "../../components/ui/Toast/Toast";
+import { UpdateBadge } from "../../components/ui/UpdateBadge/UpdateBadge";
 import { APP_NAME } from "../../lib/app";
 import { parentDir } from "../../lib/paths";
 import { cx } from "../../lib/cx";
@@ -183,6 +184,8 @@ export function StartScreen() {
         <span className={s.version}>{pkg.version}</span>
         <span className={s.grow} />
         <ThemeToggle />
+        {/* Beside the gear it points at, as in the repo toolbar — not out by the version number. */}
+        <UpdateBadge onClick={() => setSettings(true)} />
         <IconButton label="Settings" onClick={() => setSettings(true)}>
           <Settings size={16} aria-hidden />
         </IconButton>

@@ -22,6 +22,12 @@
   flex: 1;
   min-width: 0;
 }
+/* Check now beside the install button. Unlike .row nothing stretches — both are just buttons. */
+.buttons {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
 .number {
   width: 96px;
 }

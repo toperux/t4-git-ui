@@ -30,7 +30,7 @@ Principles for every edit:
 | D1 | `paths-ignore` docs/md on CI | **Adopt in all three.** No `.md` test fixtures; no required-status-check rules to hang. | yes — already present; keep |
 | D2 | Which leg runs `cargo fmt --check` | **Linux leg only.** Same code on every leg, so run it once on the cheapest runner. | yes — currently runs on all three |
 | D3 | git-ui asset naming | **`T4-Git-UI_<ver>_<suffix>`**: `_x64-setup.exe`, `_universal.dmg`, `_amd64.deb`, `_x86_64.rpm`, `_x86_64.AppImage`. | yes |
-| D4 | git-ui updater | **No.** No signing, no `latest.json`. Revisit when it has users. | yes |
+| D4 | git-ui updater | **Shipped, v0.5.0.** Signed via the `TAURI_SIGNING_PRIVATE_KEY` / `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` repo secrets; `publish` generates `latest.json` from the per-platform `.sig` files and ships it as a release asset; the endpoint is GitHub's "latest release" download URL. deb/rpm excluded — those update through the package manager, not the plugin. | yes |
 | D5 | Action pinning | **Majors, bumped by hand.** Verify current majors first (see Risks). Dependabot was the original answer and was **reversed on 2026-09-03** — see the note under section 4. | yes |
 | D6 | Universal macOS | **Universal** — one `.dmg` for Apple Silicon + Intel. Replaces today's two per-arch legs; accept ~2× mac wall-clock and bundle size. | yes |
 | D7 | Tests inside release builds | **None.** CI already tests the commit. | yes — release build has no test step and therefore no git-identity step |

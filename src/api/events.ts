@@ -29,14 +29,25 @@ export const onRepoChanged = (cb: (p: RepoChanged) => void) => subscribe<RepoCha
 export const onOpEvent = (cb: (p: OpEvent) => void) => subscribe<OpEvent>("op://event", cb);
 
 /**
- * `onOpEvent` that resolves only once the listener is attached — use it before invoking a command
- * whose very first event (`started`, which carries the `opId`) must not be missed.
+ * `subscribe` for callers that must already be listening when they invoke: it resolves only once the
+ * listener is attached, so an event the very command being invoked emits cannot be missed.
  */
-export async function onOpEventReady(cb: (p: OpEvent) => void): Promise<() => void> {
+async function subscribeReady<T>(name: string, cb: (payload: T) => void): Promise<() => void> {
   try {
-    return await listen<OpEvent>("op://event", (e) => cb(e.payload));
+    return await listen<T>(name, (e) => cb(e.payload));
   } catch {
     // Outside Tauri (tests, a plain browser) there is no event bus.
     return () => {};
   }
 }
+
+/** `onOpEvent` awaited: the first event (`started`, which carries the `opId`) must not be missed. */
+export const onOpEventReady = (cb: (p: OpEvent) => void) => subscribeReady<OpEvent>("op://event", cb);
+
+/**
+ * Download percentage of the update being installed (`update://progress`): 0..=100, or `null` while
+ * the total size is unknown. Awaited too — the download starts inside `install_update`, so a later
+ * subscription loses the first percentages.
+ */
+export const onUpdateProgressReady = (cb: (percent: number | null) => void) =>
+  subscribeReady<number | null>("update://progress", cb);

@@ -36,3 +36,9 @@
     opacity: 0.5;
   }
 }
+/* Determinate: the inline width is the value, so the sweep would only lie about it. Last in the file
+   so it also undoes the reduced-motion parking above, which is the indeterminate stand-in. */
+.filled {
+  animation: none;
+  opacity: 1;
+}

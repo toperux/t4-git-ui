@@ -17,6 +17,7 @@ import { useRecentsStore } from "./store/recentsStore";
 import { useRepoStore } from "./store/repoStore";
 import { useSettingsStore } from "./store/settingsStore";
 import { useStatusStore } from "./store/statusStore";
+import { useUpdateStore } from "./store/updateStore";
 
 type Phase = { kind: "probing" } | { kind: "gitMissing"; message: string } | { kind: "ready" };
 
@@ -41,6 +42,9 @@ export default function App() {
     // Preferences seed the diff store: awaited, so a reopened repository cannot fetch its first diff
     // (panel or details pane) at the default context and leave the stored one to land afterwards.
     await useSettingsStore.getState().load();
+    // Never awaited: an offline or slow GitHub must cost nothing at launch, and the store keeps its
+    // own failures — a launch check that fails says so in Settings › Updates or nowhere at all.
+    if (useSettingsStore.getState().autoUpdateCheck) void useUpdateStore.getState().check();
     // Reopen the repository that was open at last exit; any failure just lands on the start screen.
     const recents = useRecentsStore.getState();
     try {

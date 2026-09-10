@@ -26,10 +26,13 @@ export interface SettingsStore {
   gitError: string | null;
   /** The configured external tools; a missing one is `null`. */
   tools: Tools;
+  /** Ask GitHub for a newer release at launch. On by default: nothing is stored until it is turned off. */
+  autoUpdateCheck: boolean;
 
   load(): Promise<void>;
   setDiffContext(n: number): void;
   setIgnoreWhitespace(b: boolean): void;
+  setAutoUpdateCheck(b: boolean): void;
   /** Tries `path` before keeping it; `false` (with `gitError` set) when git refused to answer. */
   setGitPath(path: string): Promise<boolean>;
   /** Writes the tool to the global git config, then keeps it here; `null` clears the selector. */
@@ -47,18 +50,23 @@ export const useSettingsStore = create<SettingsStore>()((set) => ({
   gitVersion: null,
   gitError: null,
   tools: { diff: null, merge: null },
+  autoUpdateCheck: true,
 
   async load() {
-    const [context, whitespace, gitPath, tools] = await Promise.all([
+    const [context, whitespace, gitPath, autoUpdate, tools] = await Promise.all([
       kvGet<number>("diffContext"),
       kvGet<boolean>("ignoreWhitespace"),
       kvGet<string>("gitPath"),
+      kvGet<boolean>("autoUpdateCheck"),
       // An unreadable git config leaves both tools unset rather than failing startup.
       ipc.getTools().catch(() => null),
     ]);
     const diffContext = clampContext(context ?? DEFAULT_CONTEXT);
     const ignoreWhitespace = whitespace ?? false;
-    set({ diffContext, ignoreWhitespace, gitPath: gitPath ?? "", tools: tools ?? { diff: null, merge: null } });
+    // Nothing stored means nobody has opted out yet — an app that never looks for its own updates is
+    // the worse default, so an absent value reads as on.
+    const autoUpdateCheck = autoUpdate ?? true;
+    set({ diffContext, ignoreWhitespace, gitPath: gitPath ?? "", autoUpdateCheck, tools: tools ?? { diff: null, merge: null } });
     // Nothing is loaded yet at startup, so seeding the diff store needs no reload.
     useDiffStore.getState().setContext(diffContext);
     useDiffStore.setState({ ignoreWhitespace });
@@ -77,6 +85,11 @@ export const useSettingsStore = create<SettingsStore>()((set) => ({
     // The open diff may have been toggled for this session only; move it (and reload) just when it differs.
     const diff = useDiffStore.getState();
     if (diff.ignoreWhitespace !== ignoreWhitespace) diff.toggleWhitespace();
+  },
+
+  setAutoUpdateCheck(autoUpdateCheck) {
+    set({ autoUpdateCheck });
+    void persist("autoUpdateCheck", autoUpdateCheck);
   },
 
   async setGitPath(path) {

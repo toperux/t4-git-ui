@@ -13,7 +13,9 @@ src/
                            cloneRepo {url,dest,recurseSubmodules,depth?} / initRepo {path} → RepoSummary; every
                            rejection is an AppError {kind, message}; isAppError/toAppError
     events.ts              onLogProgress / onRepoChanged / onOpEvent (cb) → unlisten  (`log://progress`, `repo://changed`, `op://event`);
-                           onOpEventReady (cb) → Promise<unlisten> for callers that must be listening before they invoke
+                           onOpEventReady / onUpdateProgressReady (cb) → Promise<unlisten> for callers that must be listening
+                           before they invoke (`op://event`, `update://progress` — the update download's percent, `null` until
+                           the total size is known)
   store/
     repoStore.ts           zustand: repo, refs, log {generation,total,complete,error,flat} (a page response never lowers `total`
                            nor clears `complete` — a late page must not undo a newer `log://progress`), sparse rows[], selection (commit index +
@@ -75,13 +77,22 @@ src/
                            cancel(opId), dock open (a non-zero exit opens it, unless that op was cancelled),
                            `busy` (statusbar text of the running op) + selectRunning;
                            runOp(busy, fn, {success, onRefused}) — the single entry point for every branch/remote/stash op
-    settingsStore.ts       zustand: diffContext / ignoreWhitespace / gitPath (+ gitVersion, gitError) from lib/kv; load() after the
+    settingsStore.ts       zustand: diffContext / ignoreWhitespace / gitPath (+ gitVersion, gitError) / autoUpdateCheck (ask GitHub
+                           at launch; nothing stored means on, so only opting out is persisted) from lib/kv; load() after the
                            git probe seeds diffStore; setters persist and apply at once (setGitPath clears gitError, probes through
                            set_git_path and keeps only a working path; the version is mirrored into repoStore;
                            clearGitError on edit).
                            tools {diff, merge} come from the global git config instead (get_tools in load(); setTool writes
                            through set_tool and keeps the result, so the diff header follows a Settings change at once).
                            Theme stays in theme/theme.ts
+    updateStore.ts         zustand: info (UpdateInfo{version, installable, releaseUrl} — the release newer than this build, `null`
+                           when there is none), checked (a check *came back*: `info === null` alone can't tell "nothing newer"
+                           from "nobody asked", and a failed check answers neither), checking, installing,
+                           progress (download percent, `null` while the total size is unknown), error;
+                           check() (check_for_update — run at launch when settingsStore.autoUpdateCheck, and by Settings' Check now)
+                           and install() (subscribes to `update://progress` *before* invoking install_update, then never comes
+                           back: the app restarts into the new version — so only its failures land in `error`).
+                           Settings › Updates and the UpdateBadge on both screens read the same answer
     dialogStore.ts         zustand: one `DialogSpec` at a time — open(spec, {returnFocusTo}) / close(); DialogHost renders it
                            and feeds `returnFocusTo` to `Dialog` through `DialogReturnFocus`
     toastStore.ts          zustand: toasts (info|success auto-dismiss after 6 s, errors persist until dismissed);
@@ -134,6 +145,9 @@ src/
                            Dialog stays open, outside click, ↑/↓, `kbd` hint, `align`, focus back on the trigger)
                            + ContextMenu (portal at a viewport point, clamped) + MenuRef (a branch name inside an item:
                            mono, chip colours for local / remote), ThemeToggle (Sun/Moon, theme/theme.ts `toggleTheme`),
+                           UpdateBadge (sm primary Button beside the Settings gear on both screens, hidden until a check found
+                           a version — a shortcut into Settings › Updates, where the check and the install live),
+                           Progress (4px pill; indeterminate sweep, or `value` 0–100 = a filled bar + aria-valuenow),
                            Toast + ToastStack,
                            Dialog (440 / `.wide` 560 / `full` = the window minus a margin, unpadded body, footer optional —
                            over `--scrim`, portal, Esc closes, Enter submits, Tab trapped, focus

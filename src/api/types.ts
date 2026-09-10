@@ -459,3 +459,13 @@ export interface Author {
   name: string;
   email: string;
 }
+
+/**
+ * A release newer than this build. `installable` is false on a `.deb` / `.rpm` install, where the
+ * package manager owns the files and the app can only send the user to `releaseUrl` instead.
+ */
+export interface UpdateInfo {
+  version: string;
+  installable: boolean;
+  releaseUrl: string;
+}

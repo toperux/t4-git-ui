@@ -26,6 +26,13 @@ Three files must agree, or the `version` job fails the run before anything build
 The tag must be `v<version>` and the version plain `x.y.z`. A suffix like `-rc.1` is
 rejected: the rpm tooling will not take it.
 
+## Signing
+
+`TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` are repo secrets. The
+config carries a `pubkey`, so a build without them does not quietly ship unsigned: the bundler
+aborts with *"A public key has been found, but no private key"*. A missing secret therefore
+fails **Build the packages**, not staging.
+
 ## Steps
 
 1. **Gates, locally.** The release build does not run tests — that is what the `checks`
@@ -63,7 +70,9 @@ rejected: the rpm tooling will not take it.
    gh run watch <run-id> --repo toperux/t4-git-ui
    ```
 
-6. **Check the assets.** Ten of them, five packages each with a `.sha256`, and no `.msi`:
+6. **Check the assets.** Sixteen of them: six packages (`.exe`, `.dmg`, `.app.tar.gz`, `.deb`,
+   `.rpm`, `.AppImage`), six `.sha256`, three `.sig` (exe, app.tar.gz, AppImage), and
+   `latest.json`:
 
    ```sh
    gh release view v<x.y.z> --repo toperux/t4-git-ui --json assets -q '.assets[].name'
@@ -94,6 +103,7 @@ question is whether the bundles build, not whether the release is ready.
 ## What a release does not do
 
 - No code signing or notarization. Windows shows a SmartScreen warning; macOS needs the
-  quarantine attribute cleared. Both are spelled out in the release body.
+  quarantine attribute cleared. Both are spelled out in the release body. This is separate from
+  update signing (see Signing, above), which does now happen — do not confuse the two.
 - No draft. `publish` creates the release live.
 - No changelog file. The notes are generated per release and live on GitHub.

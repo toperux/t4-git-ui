@@ -3,6 +3,8 @@ name = "t4-git-ui"
 version.workspace = true
 edition.workspace = true
 description = "GitExtensions-style git GUI"
+# `commands::update` builds the releases-page link from this.
+repository = "https://github.com/toperux/t4-git-ui"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -23,14 +25,15 @@ tauri-plugin-dialog = "2"
 tauri-plugin-store = "2"
 tauri-plugin-window-state = "2"
 tauri-plugin-clipboard-manager = "2"
+tauri-plugin-updater = "2"
 git-core = { path = "../crates/git-core" }
 serde.workspace = true
+# `generate_context!` parses the `plugins` config through it, so it has to be a
+# normal dependency, not just a dev one.
+serde_json = "1"
 thiserror.workspace = true
 tracing.workspace = true
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
 tempfile = "3.27.0"
 tokio-util = "0.7.19"
-
-[dev-dependencies]
-serde_json = "1"

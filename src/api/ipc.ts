@@ -25,6 +25,7 @@ import type {
   Tool,
   ToolKind,
   Tools,
+  UpdateInfo,
   WorkdirStatus,
 } from "./types";
 
@@ -101,6 +102,14 @@ export const refreshLabels = (id: RepoId) => call<number>("refresh_labels", { id
 /** Opens a repository-relative working-tree file with the OS handler, or reveals it in the file manager. */
 export const openPath = (id: RepoId, path: string, reveal: boolean) =>
   call<void>("open_path", { id, path, reveal });
+
+// --- src-tauri/src/commands/update.rs ---
+
+/** The published release newer than this build, `null` when there is none. */
+export const checkForUpdate = () => call<UpdateInfo | null>("check_for_update");
+
+/** Downloads and installs it. Success never resolves — the app restarts into the new version. */
+export const installUpdate = () => call<void>("install_update");
 
 // --- src-tauri/src/commands/diff.rs ---
 

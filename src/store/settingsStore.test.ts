@@ -18,7 +18,7 @@ const stored = (key: string) => JSON.parse(localStorage.getItem(`kv:${key}`) ?? 
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
-  useSettingsStore.setState({ diffContext: DEFAULT_CONTEXT, ignoreWhitespace: false, gitPath: "", gitVersion: null, gitError: null });
+  useSettingsStore.setState({ diffContext: DEFAULT_CONTEXT, ignoreWhitespace: false, gitPath: "", gitVersion: null, gitError: null, autoUpdateCheck: true });
   useDiffStore.setState({ repoId: null, target: null, selectedPath: null, context: DEFAULT_CONTEXT, ignoreWhitespace: false });
 });
 
@@ -46,6 +46,17 @@ describe("settingsStore.load", () => {
     await useSettingsStore.getState().load();
     expect(useSettingsStore.getState()).toMatchObject({ diffContext: DEFAULT_CONTEXT, ignoreWhitespace: false, gitPath: "" });
   });
+
+  it("arrives opted in to the launch update check, and reads back an opt-out", async () => {
+    useSettingsStore.setState({ autoUpdateCheck: false });
+    // Nothing stored: a missing value is "nobody has opted out", not "off".
+    await useSettingsStore.getState().load();
+    expect(useSettingsStore.getState().autoUpdateCheck).toBe(true);
+
+    localStorage.setItem("kv:autoUpdateCheck", "false");
+    await useSettingsStore.getState().load();
+    expect(useSettingsStore.getState().autoUpdateCheck).toBe(false);
+  });
 });
 
 describe("settingsStore setters", () => {
@@ -67,6 +78,13 @@ describe("settingsStore setters", () => {
     expect(toggle).toHaveBeenCalledTimes(1);
     await flush();
     expect(stored("ignoreWhitespace")).toBe(true);
+  });
+
+  it("setAutoUpdateCheck persists the opt-out", async () => {
+    useSettingsStore.getState().setAutoUpdateCheck(false);
+    expect(useSettingsStore.getState().autoUpdateCheck).toBe(false);
+    await flush();
+    expect(stored("autoUpdateCheck")).toBe(false);
   });
 
   it("setGitPath keeps a working executable and its version", async () => {

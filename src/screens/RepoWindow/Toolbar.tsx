@@ -24,6 +24,7 @@ import { ThemeToggle } from "../../components/ui/ThemeToggle/ThemeToggle";
 import { Input, Select } from "../../components/ui/Input/Input";
 import { Menu, MenuItem, MenuSeparator } from "../../components/ui/Menu/Menu";
 import { ToolbarButton, ToolbarSeparator } from "../../components/ui/ToolbarButton/ToolbarButton";
+import { UpdateBadge } from "../../components/ui/UpdateBadge/UpdateBadge";
 import tb from "../../components/ui/ToolbarButton/ToolbarButton.module.css";
 import { useDialogStore, type DialogSpec } from "../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../store/opsStore";
@@ -281,6 +282,7 @@ export function Toolbar() {
         <RefreshCw size={16} aria-hidden />
       </IconButton>
       <ThemeToggle />
+      <UpdateBadge onClick={() => openDialog({ kind: "settings" })} />
       <IconButton label="Settings" onClick={() => openDialog({ kind: "settings" })}>
         <Settings size={16} aria-hidden />
       </IconButton>

@@ -29,9 +29,29 @@ Grab the installer for your platform from the [Releases](../../releases) page:
   right-click → Open on first launch)
 - Linux: `.deb`, `.rpm` or `.AppImage`
 
-Every asset has a `.sha256` sidecar next to it.
+Every package has a `.sha256` sidecar next to it.
 
 Requirements: `git` ≥ 2.20 on `PATH`. Windows installs the WebView2 runtime automatically if it is missing.
+
+## Updating
+
+On launch the app asks GitHub once whether there is a newer release; if there is, a badge
+appears next to the Settings gear, on the start screen and in the repo toolbar. Clicking it
+opens **Settings → Updates**.
+
+That page has a *Check for updates on launch* toggle, a status line naming the version you
+are on, a **Check now** button that works with the toggle off, and an **Update to X…** button
+beside it — greyed out and reading *Up to date* until a check finds something. Clicking it
+downloads with a progress bar, installs, and restarts. Nothing installs without that click.
+
+`.deb` and `.rpm` installs are not updated in place — those belong to the package manager, so
+the button reads **Download…** and opens the releases page instead. An AppImage updates in
+place, like Windows and macOS.
+
+Downloads are verified against a signing key held outside this repository. A release built
+without that key ships no signatures, and the app refuses it.
+
+Anything installed before v0.5.0 predates all of this and has to be replaced by hand once.
 
 ## Build from source
 
@@ -47,6 +67,11 @@ cargo test --workspace   # core tests (temp repos; some need the git CLI) + the 
 npm test                 # frontend tests (vitest)
 cargo clippy --workspace --all-targets -- -D warnings
 ```
+
+`npm run tauri build` needs `TAURI_SIGNING_PRIVATE_KEY` and
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD` set — the bundler now generates updater signatures, and a
+public key with no private key is an error, not a warning. `npm run dev` and plain `cargo
+build` are unaffected.
 
 Layout: `crates/git-core` (pure Rust, no Tauri) · `src-tauri` (IPC glue) · `src` (React; see [`src/README.md`](src/README.md)).
 Design: [`docs/design/style-guide.md`](docs/design/style-guide.md) is the token source of truth; `node docs/design/canvases/build/build.mjs` regenerates `src/theme/tokens.css` and the canvases, `node docs/design/canvases/build/contrast.mjs` audits contrast.

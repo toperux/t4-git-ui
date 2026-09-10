@@ -81,7 +81,7 @@ One file per row. States are CSS classes on the reference sheet (`is-hover` etc.
 | `StatusBar` | 24px `--bg-app`, xs muted; branch + ahead/behind left, running op (spinner + text) and tree state right |
 | `Toast` | 360px, `--bg-elevated` + shadow-1, radius lg, icon 16 semantic color (`--danger-text` / `--success` / `--accent-text`), title 500 + sm muted detail, close IconButton. Top-center stack below the toolbar, 5s (errors persist) |
 | `Banner` | 32px full-width at top of content, `*-soft` bg, icon 14 semantic, sm text, `sm` buttons right. Used for merge / rebase / cherry-pick / revert in progress, conflicts, detached HEAD. A stopped op offers **Abort** plus the way forward (Commit for merge / cherry-pick / revert, Continue for rebase); bisect is report-only |
-| `Progress` | 4px pill; indeterminate = 30% sweeping. 3px when attached to a dock |
+| `Progress` | 4px pill; indeterminate = 30% sweeping, determinate (`value` 0–100) fills from the left. 3px when attached to a dock |
 | `Spinner` | 14px, 2px, accent top arc |
 | `BusyOverlay` | Full-window `--scrim` + centered `--bg-elevated` card (Spinner + text), shown for a blocking wait (opening a repository); appears after 150ms so fast opens never flash it |
 | `EmptyState` | icon 24 muted, title 500, one-line sm hint, optional single secondary button |

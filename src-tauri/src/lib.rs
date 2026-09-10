@@ -120,6 +120,7 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState::default())
         .setup(|app| {
             init_logging(app);
@@ -137,6 +138,8 @@ pub fn run() {
             commands::app::ping,
             commands::app::probe_git,
             commands::app::set_git_path,
+            commands::update::check_for_update,
+            commands::update::install_update,
             commands::repo::open_repo,
             commands::repo::close_repo,
             commands::repo::get_refs,

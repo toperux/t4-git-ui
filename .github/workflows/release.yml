@@ -142,7 +142,15 @@ jobs:
 
       # Run from the repo root: the Tauri CLI finds src-tauri/ on its own.
       # Arguments after `--` go to `cargo build`.
+      #
+      # The signing key is what turns `createUpdaterArtifacts` into actual `.sig`
+      # files. With a `pubkey` in the config and no private key the bundler does
+      # not carry on unsigned: it aborts with "A public key has been found, but
+      # no private key" — so a missing secret reddens this step, not staging.
       - name: Build the packages
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: >
           cargo tauri build --bundles ${{ matrix.bundles }}
           ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
@@ -171,23 +179,35 @@ jobs:
             cp "$src" "$out/$2"
           }
 
+          # The .sig files are what latest.json is built from, and what an
+          # installed copy verifies its download against. The updater fetches the
+          # same file a human downloads — except on macOS, where it updates from
+          # a tarball of the .app rather than from the .dmg. A .deb or .rpm gets
+          # no signature: those belong to the package manager and the app sends
+          # people to the releases page instead.
           case '${{ runner.os }}' in
             Windows)
-              stage 'nsis/*-setup.exe'    "T4-Git-UI_${ver}_x64-setup.exe"
+              stage 'nsis/*-setup.exe'         "T4-Git-UI_${ver}_x64-setup.exe"
+              stage 'nsis/*-setup.exe.sig'     "T4-Git-UI_${ver}_x64-setup.exe.sig"
               ;;
             macOS)
-              stage 'dmg/*.dmg'           "T4-Git-UI_${ver}_universal.dmg"
+              stage 'dmg/*.dmg'                "T4-Git-UI_${ver}_universal.dmg"
+              stage 'macos/*.app.tar.gz'       "T4-Git-UI_${ver}_universal.app.tar.gz"
+              stage 'macos/*.app.tar.gz.sig'   "T4-Git-UI_${ver}_universal.app.tar.gz.sig"
               ;;
             Linux)
-              stage 'deb/*.deb'           "T4-Git-UI_${ver}_amd64.deb"
-              stage 'rpm/*.rpm'           "T4-Git-UI_${ver}_x86_64.rpm"
-              stage 'appimage/*.AppImage' "T4-Git-UI_${ver}_x86_64.AppImage"
+              stage 'deb/*.deb'                "T4-Git-UI_${ver}_amd64.deb"
+              stage 'rpm/*.rpm'                "T4-Git-UI_${ver}_x86_64.rpm"
+              stage 'appimage/*.AppImage'      "T4-Git-UI_${ver}_x86_64.AppImage"
+              stage 'appimage/*.AppImage.sig'  "T4-Git-UI_${ver}_x86_64.AppImage.sig"
               ;;
           esac
 
           cd "$out"
           for f in *; do
-            case "$f" in *.sha256) continue ;; esac
+            # A signature is not a download anyone verifies by hand, so it gets
+            # no sidecar of its own.
+            case "$f" in *.sha256 | *.sig) continue ;; esac
             if command -v sha256sum >/dev/null 2>&1; then
               hash=$(sha256sum "$f" | cut -d' ' -f1)
             else
@@ -215,6 +235,51 @@ jobs:
           path: dist
           merge-multiple: true
 
+      # The updater's manifest, and the file the endpoint in tauri.conf.json
+      # points at. Written here rather than during the build because this is the
+      # only job that holds all three platforms' signatures at once.
+      #
+      # It cannot carry the release notes: this runs before the release exists,
+      # so it links to the tag and the app opens that.
+      - name: Write the update manifest
+        working-directory: dist
+        env:
+          VER: ${{ needs.version.outputs.version }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # ASCII only below: python3 reads this from stdin and decodes it with
+          # the runner's locale, so a stray em dash is a syntax error on any box
+          # that is not UTF-8.
+          python3 - <<'PY' > latest.json
+          import json, os, pathlib
+
+          ver, repo = os.environ["VER"], os.environ["REPO"]
+          base = f"https://github.com/{repo}/releases/download/v{ver}"
+
+          def entry(suffix):
+              asset = f"T4-Git-UI_{ver}_{suffix}"
+              sig = pathlib.Path(asset + ".sig")
+              if not sig.is_file():
+                  raise SystemExit(f"missing signature: {sig}")
+              return {"signature": sig.read_text().strip(), "url": f"{base}/{asset}"}
+
+          # One universal build serves both Macs, so both keys name the same file.
+          mac = entry("universal.app.tar.gz")
+
+          print(json.dumps({
+              "version": ver,
+              "notes": f"T4 Git {ver}. Release notes: https://github.com/{repo}/releases/tag/v{ver}",
+              "platforms": {
+                  "windows-x86_64": entry("x64-setup.exe"),
+                  "darwin-x86_64": mac,
+                  "darwin-aarch64": mac,
+                  "linux-x86_64": entry("x86_64.AppImage"),
+              },
+          }, indent=2))
+          PY
+          cat latest.json
+
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*
@@ -241,6 +306,9 @@ jobs:
             Not signed or notarized, so without that Gatekeeper reports the app as
             damaged. Right-click → **Open** works too.
 
+            The `.app.tar.gz` beside it is what an installed copy downloads when it
+            updates itself; there is no reason to fetch it by hand.
+
             ### Linux
 
             `.deb`, `.rpm`, and `.AppImage`.
@@ -251,7 +319,8 @@ jobs:
 
             ### Verifying a download
 
-            Every asset ships a `.sha256` sidecar. Check one with `sha256sum -c`
+            Every package ships a `.sha256` sidecar (the `.sig` files and
+            `latest.json` do not). Check one with `sha256sum -c`
             on Linux, `shasum -a 256 -c` on macOS, or on Windows:
 
             ```powershell
