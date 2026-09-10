@@ -1452,7 +1452,7 @@ dependencies = [
 
 [[package]]
 name = "git-core"
-version = "0.1.4"
+version = "0.5.0"
 dependencies = [
  "git-core",
  "git2",
@@ -4016,7 +4016,7 @@ dependencies = [
 
 [[package]]
 name = "t4-git-ui"
-version = "0.1.4"
+version = "0.5.0"
 dependencies = [
  "git-core",
  "serde",
