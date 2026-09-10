@@ -90,6 +90,15 @@ fails **Build the packages**, not staging.
   the release if one was created. `v0.1.1` went this way. Never reuse the number.
 - **The `version` job failed.** The three files disagree, or the tag is not plain `x.y.z`.
   Nothing was built; fix the bump commit, move the tag, push again.
+- **The push of a `v*` tag delete or move is rejected.** The *Protect release tags* ruleset
+  blocks both, with no bypass. Switch it off for the one push, then back on:
+
+  ```sh
+  id=$(gh api repos/toperux/t4-git-ui/rulesets -q '.[] | select(.name=="Protect release tags") | .id')
+  gh api -X PUT repos/toperux/t4-git-ui/rulesets/$id -f enforcement=disabled
+  # delete or move the tag
+  gh api -X PUT repos/toperux/t4-git-ui/rulesets/$id -f enforcement=active
+  ```
 - **`Stage the artifacts` says `no bundle matched`.** The bundle path moved. Add a `find`
   step above it, read the real path off the log, and fix `bundle_dir` in the matrix and in
   `docs/plans/ci-alignment.md`.

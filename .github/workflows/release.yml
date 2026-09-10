@@ -111,21 +111,25 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file \
             libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
 
-      - uses: dtolnay/rust-toolchain@stable
+      # Third-party actions are pinned to a commit, not a tag: this job ends up
+      # holding the signing key, and a tag or branch can be moved to code
+      # nobody reviewed. Dependabot bumps the pins.
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: stable
 
       - name: Add the Apple targets
         if: runner.os == 'macOS'
         run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 
       # `cargo tauri build` runs `npm run build` first (beforeBuildCommand in
       # tauri.conf.json), so the frontend dependencies have to be in place.
       - name: Install npm dependencies
         run: npm ci
 
-      # No moving major tag on this action; pinned to the release current on 2026-09-05.
-      - uses: cargo-bins/cargo-binstall@v1.22.0
+      - uses: cargo-bins/cargo-binstall@75b4bfae1b2c753a6806bbce6e6cb89b602de33c # v1.22.0
 
       - name: Install the Tauri CLI
         # `--no-confirm` only. `-y` is its short form, and binstall rejects
@@ -283,7 +287,7 @@ jobs:
       # `name` is set here because the default is the bare tag, and every
       # release before this one is titled `T4 Git v<x.y.z>` — one unnamed
       # release and the list stops reading as one product.
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           files: dist/*
           draft: false
