@@ -680,27 +680,28 @@ _Shipped 2026-09-07 (this commit); walked the same day over CDP on the installed
       rename back
 
 ## AC. In-app updates (main §1, §6)
-_Shipped 2026-09-10 (this commit). `tauri-plugin-updater` behind two app commands, so
+_Shipped 2026-09-10: `954830a`. `tauri-plugin-updater` behind two app commands, so
 `capabilities/default.json` is untouched and every window can ask. The manifest is `latest.json`,
 written by the `publish` job from the per-platform `.sig` files and read from GitHub's "latest
-release" URL. Not walkable until v0.5.0 is published: the endpoint 404s until a release carries the
-manifest, so every box below stays clear until then._
+release" URL. Walked 2026-09-10 against the published v0.5.0, from a throwaway 0.4.9 NSIS build
+upgrading itself twice. The last three boxes need a network that can be pulled and a Linux package;
+they stay clear._
 
-- [ ] **Offered on launch**: with a build older than the published release installed (bump down, build
+- [x] **Offered on launch**: with a build older than the published release installed (bump down, build
       NSIS locally with the signing env vars set, install), launch → an **Update** badge appears
       beside the Settings gear on the start screen and, after opening a repository, in the toolbar →
       clicking either opens **Settings → Updates**
-- [ ] **What's new**: with an update found, **What's new** appears beside the two buttons and opens
+- [x] **What's new**: with an update found, **What's new** appears beside the two buttons and opens
       that release's page in the browser — on Windows and macOS too, not just where the install is
       handed off
-- [ ] **The install**: status reads `Version <v> is available` → **Update to <v>…** is enabled →
+- [x] **The install**: status reads `Version <v> is available` → **Update to <v>…** is enabled →
       press it → `Downloading… N%` climbs and the bar **fills to match it** (it sweeps only while the
       total size is unknown), Esc does not close the dialog and Close is disabled → the app installs
       and restarts on the new version → the badge is gone
-- [ ] **Up to date**: on the current build, open Settings → the status line names this build **without**
+- [x] **Up to date**: on the current build, open Settings → the status line names this build **without**
       claiming anything (`T4 Git <v>`, no verdict) → **Check now** → `Checking…` → `T4 Git <v> is up
       to date`, and **Update to…** stays disabled reading `Up to date`
-- [ ] **The toggle governs the launch check only**: switch *Check for updates on launch* off, close
+- [x] **The toggle governs the launch check only**: switch *Check for updates on launch* off, close
       and reopen the app → no badge, nothing asked → open Settings → **Check now** still answers;
       the setting survives a restart
 - [ ] **A failed check is honest**: pull the network → **Check now** → the failure shows in the
