@@ -12,14 +12,18 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+# Read-only by default. Only `publish` gets write access, and it runs no build
+# tooling, so nothing that compiles or packages holds a token able to change
+# the repository.
+permissions:
+  contents: read
+
 jobs:
   # Resolved once and shared. The tag and Cargo.toml must agree, or the release
   # is called v0.2.0 and ships an installer named 0.1.0. Cheap to check,
   # confusing to discover later.
   version:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     outputs:
       version: ${{ steps.read.outputs.version }}
     steps:
@@ -74,8 +78,6 @@ jobs:
     needs: version
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    permissions:
-      contents: read
     strategy:
       fail-fast: false
       matrix:
