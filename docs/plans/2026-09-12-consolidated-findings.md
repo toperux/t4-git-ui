@@ -28,28 +28,28 @@ every row are in the sections below, keyed by the same id.
 
 | # | Id | Sev | Verdict | Area | One line | Decision |
 |---|---|---|---|---|---|---|
-| P0-1 | B1 | high | CONFIRMED | git-core cli | Ref names starting `--` reach git as options; `rebase --exec=` runs a command | fix — both: refuse leading `-` at the boundary AND `--end-of-options` in every builder; typed commands out of scope; bump git floor 2.20→2.24 |
-| P0-2 | C1=A3 | high | CONFIRMED mech | tauri/git-core | Status scan under `git2` only; CLI stage/commit under `op_lock` only → stale index written back | fix — new `scan_lock` on RepoHandle: scan holds it only when it will write (op_lock free), `mutate` waits on it before `op_lock.try_lock()`; test the lock protocol, no clobber repro; fix the `diff.rs:87` comment |
-| P0-3 | E1 | high | CONFIRMED | commit panel | During a diff load the body shows file A, buttons act on file B | fix — store: `loadDiff` clears `diff` when path or list changes (same-path reloads keep it); fold E5 in (add `diffList` to the `unchanged` check + viewer effect key); accept a blank body during the round trip |
-| P0-4 | A1 | med | CONFIRMED | git-core | Discard on a workdir rename deletes the new file, never restores the old | fix — discard = undo the rename; frontend sends both halves (`oldPath` added to the payload for `workdir === "renamed"` entries), Rust unchanged; pin with one Rust test (two-path call restores) + one frontend payload test; leave the dead `WT_RENAMED` arm with a comment |
-| P0-5 | A4 | med | CONFIRMED | git-core | Partial discard of a renamed file renames it back | fix — rename header only for forward Stage (target lacks the file); plain `a/path b/path` for Discard AND Unstage; two tests (discard hunk keeps new path + other edit; unstage hunk of a staged rename keeps the rename in the index) |
-| P0-6 | A2 | med | CONFIRMED | git-core | `unstage_paths` has no rollback on a locked index | fix — on `reset_default` error, `index.read(true)` (two lines, same guarantee as `with_index`); automated test mirrors `a_locked_index_leaves_the_path_unstaged` |
-| P0-7 | E3 | med | CONFIRMED | sidebar | Stash Drop has no confirmation | fix — native `ask()` in `actions.stashDrop` naming `stash@{n}` + message, "cannot be undone"; Pop untouched; Sidebar test: not called until accepted |
-| P0-8 | R1 | high | CONFIRMED | stores | Opening a dirty repo leaves the walk unseeded (regression, unpushed) | fix — `syncWalkSeed()` in the subscription's refs branch; test opens with `refs: null`; restores the known second walk |
-| P1-1 | F2 | med | CONFIRMED | dialogs | Merge/Rebase/Create-branch keep a ref the refresh removed; button still armed | fix — vanished ref = no selection: `valid = options.some(...)`, button disabled, Select shows placeholder; inline at all three sites, no hook; test: refs replaced without the ref → disabled |
+| P0-1 | B1 | high | CONFIRMED | git-core cli | Ref names starting `--` reach git as options; `rebase --exec=` runs a command | done `1da3113` — both: refuse leading `-` at the boundary AND `--end-of-options` in every builder; typed commands out of scope; bump git floor 2.20→2.24 |
+| P0-2 | C1=A3 | high | CONFIRMED mech | tauri/git-core | Status scan under `git2` only; CLI stage/commit under `op_lock` only → stale index written back | done `c953e91` — new `scan_lock` (tokio) on RepoHandle. **Order matters:** `mutate` takes `op_lock.try_lock()` FIRST (still `Busy` during another op), THEN `scan_lock.lock().await` (waits ≤ one scan), holds both for the op. `get_status`: `scan_lock.try_lock()` → Ok = writing scan holding it; Err = scan with `update_index(false)`. Scans never take `op_lock`; no deadlock. Test the protocol, no clobber repro; fix the `diff.rs:87` comment |
+| P0-3 | E1 | high | CONFIRMED | commit panel | During a diff load the body shows file A, buttons act on file B | done `ff46e63` — store: `loadDiff` clears `diff` when path or list changes (same-path reloads keep it); fold E5 in (add `diffList` to the `unchanged` check + viewer effect key); accept a blank body during the round trip |
+| P0-4 | A1 | med | CONFIRMED | git-core | Discard on a workdir rename deletes the new file, never restores the old | done `4bd209d` — discard = undo the rename; frontend sends both halves (`oldPath` added to the IPC payload for `workdir === "renamed"` entries, **after** the confirm — `discard()` counts `paths.length` for its prompt), Rust unchanged; pin with one Rust test (two-path call restores) + one frontend payload test; leave the dead `WT_RENAMED` arm with a comment |
+| P0-5 | A4 | med | CONFIRMED | git-core | Partial discard of a renamed file renames it back | done `ff0ed6b` — header guarded on `!reverse`. **Discard half turned out unreachable**: `file_diff(Unstaged)` (diff.rs:234, `find.renames` without `for_untracked`) reports a workdir rename as `Untracked`, never `Renamed`, so the rename arm can't fire on discard. Unstage half real, tested. New low finding **N1**: status row says Renamed (status.rs:105) while the diff for the same path says Untracked — the UI enables hunk discard on that row and `git apply -R` of a partial new-file patch fails with a git error (safe, but a dead action) |
+| P0-6 | A2 | med | CONFIRMED | git-core | `unstage_paths` has no rollback on a locked index | done `deba502` — on `reset_default` error, `index.read(true)` (two lines, same guarantee as `with_index`); automated test mirrors `a_locked_index_leaves_the_path_unstaged` |
+| P0-7 | E3 | med | CONFIRMED | sidebar | Stash Drop has no confirmation | done `9b02c28` — native `ask()` in `actions.stashDrop` naming `stash@{n}` + message, "cannot be undone"; Pop untouched; Sidebar test: not called until accepted |
+| P0-8 | R1 | high | CONFIRMED | stores | Opening a dirty repo leaves the walk unseeded (regression, unpushed) | done `20f0a50` — `syncWalkSeed()` in the subscription's refs branch; test opens with `refs: null`; restores the known second walk |
+| P1-1 | F2 | med | CONFIRMED | dialogs | Merge/Rebase/Create-branch keep a ref the refresh removed; button still armed | fix — vanished ref = no selection: `valid = options.some(...)`, button disabled; `Select` has no placeholder prop today — render the stale name greyed with "(no longer exists)" rather than adding one; inline at all three sites, no hook; test: refs replaced without the ref → disabled |
 | P1-2 | D2 | med | CONFIRMED | stores | `revealOid` applies an index from a superseded walk | fix — re-check repo+generation after `fetchPage`; on change retry once against the new generation, then `false`; test with a walk restart mid-fetch |
 | P1-3 | D1 | med | CONFIRMED | theme | Theme token cache stale after the grid unmounts | fix — `cache = null` beside `observer.disconnect()`; mount/unmount/flip/remount test |
 | P1-4 | E2 | med | CONFIRMED | details pane | `CommitDetails` never clears error/detail on a new oid | fix — clear both at the top of the effect (blank during the round trip); reject-then-resolve test |
 | P1-5 | F1 | med | CONFIRMED | ui/Select | Select closes when its own listbox scrolls | fix — copy CommandInput's `list.contains(e.target)` guard; 40-option scroll test |
 | P1-6 | X3+X4+F6+R8 | med | CONFIRMED | ui/Select + rebase dialog | Select keyboard cluster: disabled options, Alt+↑ commits hover, chord stolen from open list | fix — `move()` + `onMouseMove` skip disabled; Alt+↑ keeps commit-active semantics; dialog capture guard yields when `e.target.closest('[role=combobox]')` is `aria-expanded=true`; 3 new tests |
-| P1-7 | X7+X6+R11 | low | CONFIRMED | commit panel | DisabledHint surfaces titles written for the enabled state (~9 sites) + "(N skipped)" on a full refusal | fix — rule: disabled title = why it is dead or absent; sites: MessageColumn:183, DiffViewer:276/283/369, FilesColumn:103, FileContextMenu:80 + FilesColumn:445; IconButton hint only from explicit `title`; fold X10: one `stageTarget(entries, paths) → {target, skipped, note}` helper |
+| P1-7 | X7+X6+R11 | low | CONFIRMED | commit panel | DisabledHint surfaces titles written for the enabled state (~9 sites) + "(N skipped)" on a full refusal | fix — rule: disabled title = why it is dead or absent; sites: MessageColumn:183, DiffViewer:276/283/369, FilesColumn:103, FileContextMenu:80 + FilesColumn:445; IconButton: `DisabledHint` gets only the explicit `title` (the enabled `title={tip}` fallback stays); fold X10: one `stageTarget(entries, paths) → {target, skipped, note}` helper |
 | P1-8 | X8+R10 | low | CONFIRMED | commit panel | Selected-mode rules: dead header after partial stage / silent promotion to whole list | fix X8 — a header "… selected" action resets the selection to a single seed on completion; R10 = wont (recorded); correct smoke-test-post-v1.md:772 |
 | P1-9 | R3 (+R2) | med | CONFIRMED mech | ui/DisabledHint | Wrapper cancels the control's flex sizing; R2 header floor needs a 220px measurement | fix — drop `min-width: 0` from `.wrap` (item min-width auto = control's own box); audit wrapped growers, per-caller class only if one exists. R2: measure title rect at 220px with/without the floor on a real build; rule: floor truncates the title and no-floor doesn't → drop the floor, accept the jog; else keep |
 | P1-10 | C2 | med | CONFIRMED | tauri | Every mutation triggers a second full status scan (suppression lifted before the debounce flushes) | fix — time-stamped: record `last_unsuppress` at op end, handler drops events with `time < last_unsuppress + ~50ms` (or while suppressed); no timer; two watch tests (own write dropped, external write 200ms later kept) |
 | P1-11 | D4 (+D8) | med | CONFIRMED | stores | `same()` / `sameRefs` / `entriesKey` JSON-stringify whole payloads per event | fix — one generic `eqDeep` in src/lib (exact, recursive, early exit, no allocation) at all three sites; `entriesKey` built from the four entry fields; unit test + stringify spy |
 | P1-12 | B2 (+D9) | med | CONFIRMED | cli runner + opsStore | Streamed CLI output retained and emitted per line without bound; O(n²) on the frontend | fix — cap retained buffer to a ~4 MB tail + `truncated` flag; Rust batches lines (~50 ms / 200 lines) into one `op://event` with `lines: string[]`, frontend one `set` per batch; stop streaming after MAX_LINES with a truncation marker; runner + opsStore tests |
 | P1-13 | D3 | med | PLAUSIBLE | stores | Walk error emitted before `start_log` returns is dropped | fix — `get_log_page` returns `error` from the cache; `fetchPage` applies it beside total/complete; store test with progress-before-resolve |
-| P1-14 | E5 | low | PLAUSIBLE | diff viewer | Unstaged→staged selection-carry guard can never fire | fix — folded into P0-3 |
+| P1-14 | E5 | low | PLAUSIBLE | diff viewer | Unstaged→staged selection-carry guard can never fire | done `ff46e63` — folded into P0-3 |
 | P1-15 | F9 | low | CONFIRMED | dialogs | Delete remote branch sends the bare short name (tag dialogs send a full ref) | fix — `refs/heads/${name}` + preview; payload test |
 | P1-16 | C7 | low | CONFIRMED | tauri/stores | "repo not open" is `internal`; frontend uses `internal` as "stay quiet" | fix — new `AppError::NotOpen` → `"notOpen"`; the two frontend sites suppress on it, `internal` toasts again; state test + statusStore toast test |
 | P1-17 | C6 | low | CONFIRMED | tauri | `close_repo` never cancels the repo's in-flight ops | wont — unreachable: `refusedWhileRunning()` blocks close/switch in the UI (actions.ts:140-175); add a comment on `close_repo` naming that invariant |
@@ -73,6 +73,7 @@ every row are in the sections below, keyed by the same id.
 | P2 | E8 | low | CONFIRMED | changed files | ↓ from a collapsed folder restarts at the top |fix — reuse hiddenSlot + moveSelect as FilesColumn |
 | P2 | E9 | low | CONFIRMED | changed files/a11y | `role="tree"` with no key to expand/collapse |fix — ←/→/Enter/Space as FilesColumn.folderKey |
 | P2 | E10 | low | PLAUSIBLE | grid | Ctrl+right-click toggles compare pair before the menu wipes it |fix — `if (e.button !== 0) return` |
+| P2 | N1 | low | CONFIRMED | diff/commit panel | Status says Renamed, unstaged diff says Untracked for a workdir rename; hunk discard on that row is a dead action (git apply error) | ? — found during P0-5; decide: `for_untracked` in diff.rs so the diff pairs the rename, or disable hunk actions on a workdir-renamed row |
 | P2 | E11 | low | CONFIRMED | context menu | "Copied path" singular for N paths |fix — pluralise toast title |
 | P2 | D7 | low | CONFIRMED | opsStore | `cancelled` Set leaks on cancel-after-exit |fix — skip the add when the op is not running |
 | P2 | D10 | low | PLAUSIBLE | theme | `localStorage` unguarded at module eval |fix — try/catch like readSetting/writeSetting |
@@ -420,6 +421,41 @@ every row are in the sections below, keyed by the same id.
 
 - **R12** — two stale status/refs pairings (`MessageColumn.tsx:46,63`, `CommitPanel.tsx:67-82`);
   guarding would flicker. **R13** — `canSquash` O(n) per row; not a defect.
+
+## Pre-execution audit (2026-09-12)
+
+Every decision re-checked against the code before implementation. Corrections applied above:
+P0-2's lock order (op_lock first, then scan_lock — the reverse turns every mid-op click into a
+silent wait, the exact UX `mutate`'s comment exists to avoid); P0-4's payload must gain `oldPath`
+after the confirm, not before; P1-7 keeps `IconButton`'s enabled tooltip; P1-1 needs no new
+`Select` prop.
+
+Verified live on git 2.55.0.windows.1, scratch repo, hostile ref created via `update-ref`
+(`git branch` refuses the name; `check-ref-format` also rejects spaces, so the reviewer's `$IFS`
+form is the one to use in the test):
+- **Exploit reproduces**: `git rebase '--exec=touch$IFS'"'"'pwned.txt'"'"'` with an upstream
+  configured and one commit ahead prints `Executing: touch$IFS'pwned.txt'` and creates the file.
+- **`--end-of-options` blocks it** and is honoured by every builder subcommand: checkout, merge,
+  rebase, rebase -i (read pass), reset --hard, branch -f, push, push --delete, pull, ls-remote,
+  clone. Placement: after every option, before the first user arg (`push origin
+  --end-of-options <refspec>`, `clone --progress … --end-of-options <url> <dest>`).
+- **Boundary refusal** goes in the Tauri command layer (one `ref_arg()` check), so the `gitops`
+  builders stay infallible; `remote_tags` (ls-remote, outside `mutate`) is included.
+
+Implementation notes that fell out:
+- P0-2: `run_and_classify`'s post-op `status()` runs inside the op (holds `scan_lock` already) —
+  call `status::status` directly there, not `get_status`. The `tokio::MutexGuard` moves into the
+  `blocking()` closure.
+- P0-3: with `diff: null` + `loading`, `DiffViewer`'s body chain (`:228-231`) renders nothing —
+  blank, not "Select a file". Correct.
+- P1-10: `notify_debouncer_full::DebouncedEvent.time` is the *last* time the merged event was
+  seen — a path written during the op and again after it is delivered (right), one written only
+  during the op is dropped (right). The `AtomicBool` becomes `Mutex<Option<Instant>>`.
+- P1-13: `LogCache` already stores `error`; only `LogPage` needs the field.
+- P1-9's R2 measurement needs a real build: do it last in the batch, once `DisabledHint` is fixed.
+
+Execution order: P0-1 → P0-8 (R1, one line) → P0-6 → P0-2 → P0-4 → P0-5 → P0-3 → P0-7, then P1 in
+table order with P1-7 before P1-9, then P2 grouped by file. One commit per row, failing test first.
 
 ## Duplicates folded
 

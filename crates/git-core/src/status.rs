@@ -103,6 +103,13 @@ fn file_path(f: &git2::DiffFile<'_>) -> Option<String> {
 /// touching every file otherwise costs seconds per scan until someone runs
 /// `git status` in a terminal).
 pub fn status(repo: &Repository) -> Result<WorkdirStatus, GitError> {
+    status_with(repo, true)
+}
+
+/// [`status`] with the write-back made optional: `refresh = false` scans without
+/// touching the index, for a scan that may overlap a mutation whose index it
+/// must not write over (see [`crate::RepoHandle::scan_lock`]).
+pub fn status_with(repo: &Repository, refresh: bool) -> Result<WorkdirStatus, GitError> {
     let mut opts = StatusOptions::new();
     opts.include_untracked(true)
         .recurse_untracked_dirs(true)
@@ -110,7 +117,7 @@ pub fn status(repo: &Repository) -> Result<WorkdirStatus, GitError> {
         .renames_index_to_workdir(true)
         .include_ignored(false)
         .exclude_submodules(true)
-        .update_index(true);
+        .update_index(refresh);
     // Read before the scan, not after it: the stamp has to describe the tree this scan saw, so a
     // state change while it runs (up to 1.5 s) reads as a mismatch rather than as a match.
     let state: RepoState = repo.state().into();

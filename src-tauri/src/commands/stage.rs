@@ -51,6 +51,11 @@ pub(crate) fn emit_changed(app: &AppHandle, id: &RepoId, change: &RepoChange) {
 /// may have landed). Fails with [`AppError::Busy`] instead of waiting when
 /// another operation holds the lock: a stage or commit issued during a fetch
 /// would otherwise sit there, with nothing on screen, until the fetch ended.
+///
+/// `op_lock` first, `scan_lock` second, both held for the whole op: reversed,
+/// a click during a long push would wait on the scan lock instead of coming
+/// back `Busy`. Waiting on `scan_lock` costs at most one status scan, and a
+/// scan never takes `op_lock`, so the pair cannot deadlock.
 pub(crate) async fn mutate<T, F, Fut>(
     app: &AppHandle,
     state: &AppState,
@@ -64,6 +69,7 @@ where
 {
     let handle = state.repo(id)?;
     let _guard = handle.op_lock.try_lock().map_err(|_| AppError::Busy)?;
+    let _scan_guard = handle.scan_lock.lock().await;
     suppressed(app, state, &handle, kinds, f).await
 }
 

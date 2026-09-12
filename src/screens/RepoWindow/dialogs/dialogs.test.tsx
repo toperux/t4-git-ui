@@ -106,13 +106,13 @@ describe("PushDialog", () => {
   it("previews the command for the option combinations and pushes the current branch", async () => {
     const { getByRole } = render(<PushDialog onClose={() => {}} />);
     const dialog = getByRole("dialog", { name: "Push" });
-    await waitFor(() => expect(preview(dialog)).toBe("git push --progress origin main"));
+    await waitFor(() => expect(preview(dialog)).toBe("git push --progress origin --end-of-options main"));
     // `main` already has an upstream → Set upstream starts off.
     fireEvent.click(getByRole("checkbox", { name: "Set upstream" }));
-    expect(preview(dialog)).toBe("git push --progress -u origin main");
+    expect(preview(dialog)).toBe("git push --progress -u origin --end-of-options main");
     fireEvent.click(getByRole("checkbox", { name: "Force (with lease)" }));
     fireEvent.click(getByRole("checkbox", { name: "Push tags" }));
-    expect(preview(dialog)).toBe("git push --progress -u --force-with-lease --tags origin main");
+    expect(preview(dialog)).toBe("git push --progress -u --force-with-lease --tags origin --end-of-options main");
     fireEvent.click(getByRole("button", { name: "Push" }));
     await waitFor(() => expect(mocked.push).toHaveBeenCalledWith("r", "origin", "main", true, true, true));
   });
@@ -120,7 +120,7 @@ describe("PushDialog", () => {
   it("checks Set upstream when the branch has none", async () => {
     const { getByRole } = render(<PushDialog onClose={() => {}} branch="feature/lane-graph" />);
     await waitFor(() => expect((getByRole("checkbox", { name: "Set upstream" }) as HTMLInputElement).checked).toBe(true));
-    expect(preview(getByRole("dialog"))).toBe("git push --progress -u origin feature/lane-graph");
+    expect(preview(getByRole("dialog"))).toBe("git push --progress -u origin --end-of-options feature/lane-graph");
   });
 });
 
@@ -129,7 +129,7 @@ describe("PushTagDialog", () => {
     const { getByRole } = render(<PushTagDialog onClose={() => {}} name="v1.2.0" />);
     const dialog = getByRole("dialog", { name: "Push tag" });
     // `refs/tags/…`, not the bare name: a branch called v1.2.0 must not be what goes out.
-    await waitFor(() => expect(preview(dialog)).toBe("git push --progress origin refs/tags/v1.2.0"));
+    await waitFor(() => expect(preview(dialog)).toBe("git push --progress origin --end-of-options refs/tags/v1.2.0"));
     fireEvent.click(getByRole("button", { name: "Push" }));
     await waitFor(() => expect(mocked.push).toHaveBeenCalledWith("r", "origin", "refs/tags/v1.2.0", false, false, false));
   });
@@ -148,7 +148,7 @@ describe("DeleteTagDialog", () => {
     vi.clearAllMocks();
     const second = render(<DeleteTagDialog onClose={() => {}} name="v1.2.0" />);
     fireEvent.click(second.getByRole("checkbox", { name: "Also delete on the remote" }));
-    await waitFor(() => expect(preview(second.getByRole("dialog"))).toBe("git push origin --delete refs/tags/v1.2.0 && git tag -d v1.2.0"));
+    await waitFor(() => expect(preview(second.getByRole("dialog"))).toBe("git push origin --delete --end-of-options refs/tags/v1.2.0 && git tag -d v1.2.0"));
     fireEvent.click(second.getByRole("button", { name: "Delete" }));
     await waitFor(() => expect(mocked.deleteTag).toHaveBeenCalledWith("r", "v1.2.0"));
     expect(mocked.deleteRemoteBranch).toHaveBeenCalledWith("r", "origin", "refs/tags/v1.2.0");
@@ -172,25 +172,25 @@ describe("ResetDialog", () => {
     const oid = "deadbeefcafe0123456789abcdef0123456789ab";
     const { getByRole } = render(<ResetDialog onClose={() => {}} target={oid} />);
     const dialog = getByRole("dialog", { name: "Reset main" });
-    expect(preview(dialog)).toBe(`git reset --mixed ${oid}`);
+    expect(preview(dialog)).toBe(`git reset --mixed --end-of-options ${oid}`);
 
     fireEvent.click(getByRole("combobox", { name: "Mode" }));
     fireEvent.click(getByRole("option", { name: "Hard — discard all uncommitted changes" }));
-    expect(preview(dialog)).toBe(`git reset --hard ${oid}`);
+    expect(preview(dialog)).toBe(`git reset --hard --end-of-options ${oid}`);
     fireEvent.click(getByRole("button", { name: "Reset" }));
     await waitFor(() => expect(mocked.reset).toHaveBeenCalledWith("r", "hard", oid));
   });
 
   it("shows a ref target as is", () => {
     const { getByRole } = render(<ResetDialog onClose={() => {}} target="origin/main" />);
-    expect(preview(getByRole("dialog", { name: "Reset main" }))).toBe("git reset --mixed origin/main");
+    expect(preview(getByRole("dialog", { name: "Reset main" }))).toBe("git reset --mixed --end-of-options origin/main");
   });
 });
 
 describe("ResetBranchDialog", () => {
   it("force-moves the branch with `git branch -f`", async () => {
     const { getByRole } = render(<ResetBranchDialog onClose={() => {}} branch="feature/lane-graph" target="origin/main" />);
-    expect(preview(getByRole("dialog", { name: "Reset feature/lane-graph" }))).toBe("git branch -f feature/lane-graph origin/main");
+    expect(preview(getByRole("dialog", { name: "Reset feature/lane-graph" }))).toBe("git branch -f --end-of-options feature/lane-graph origin/main");
     fireEvent.click(getByRole("button", { name: "Reset" }));
     await waitFor(() => expect(mocked.resetBranch).toHaveBeenCalledWith("r", "feature/lane-graph", "origin/main"));
   });
@@ -204,11 +204,11 @@ describe("CheckoutBranchDialog", () => {
     ];
     const { getByRole } = render(<CheckoutBranchDialog onClose={() => {}} branches={branches} />);
     const dialog = getByRole("dialog", { name: "Checkout" });
-    expect(preview(dialog)).toBe("git checkout feature/lane-graph");
+    expect(preview(dialog)).toBe("git checkout --end-of-options feature/lane-graph");
 
     fireEvent.click(getByRole("combobox", { name: "Branch" }));
     fireEvent.click(getByRole("option", { name: "origin/topic" }));
-    expect(preview(dialog)).toBe("git checkout --track -b topic origin/topic");
+    expect(preview(dialog)).toBe("git checkout --track -b topic --end-of-options origin/topic");
     fireEvent.click(getByRole("button", { name: "Checkout" }));
     await waitFor(() => expect(mocked.checkout).toHaveBeenCalledWith("r", "origin/topic", "topic", true));
   });
@@ -227,11 +227,11 @@ describe("CheckoutDialog", () => {
     const dialog = getByRole("dialog", { name: "Checkout" });
     const filter = getByRole("textbox", { name: "Branch or tag" });
     fireEvent.change(filter, { target: { value: "origin/main" } });
-    expect(preview(dialog)).toBe("git checkout main");
+    expect(preview(dialog)).toBe("git checkout --end-of-options main");
     fireEvent.change(filter, { target: { value: "origin/topic" } });
-    expect(preview(dialog)).toBe("git checkout --track -b topic origin/topic");
+    expect(preview(dialog)).toBe("git checkout --track -b topic --end-of-options origin/topic");
     fireEvent.change(filter, { target: { value: "v1" } });
-    expect(preview(dialog)).toBe("git checkout --detach refs/tags/v1");
+    expect(preview(dialog)).toBe("git checkout --detach --end-of-options refs/tags/v1");
   });
 });
 
@@ -240,10 +240,10 @@ describe("DeleteRemoteTagDialog", () => {
     useRepoStore.setState({ refs: { ...REFS, remotes: [...REFS.remotes, { name: "fork", url: null, branches: [] }] } });
     const { getByRole } = render(<DeleteRemoteTagDialog onClose={() => {}} name="v1.2.0" />);
     const dialog = getByRole("dialog", { name: "Delete remote tag" });
-    await waitFor(() => expect(preview(dialog)).toBe("git push origin --delete refs/tags/v1.2.0"));
+    await waitFor(() => expect(preview(dialog)).toBe("git push origin --delete --end-of-options refs/tags/v1.2.0"));
     fireEvent.click(getByRole("combobox", { name: "Remote" }));
     fireEvent.click(getByRole("option", { name: "fork" }));
-    expect(preview(dialog)).toBe("git push fork --delete refs/tags/v1.2.0");
+    expect(preview(dialog)).toBe("git push fork --delete --end-of-options refs/tags/v1.2.0");
     fireEvent.click(getByRole("button", { name: "Delete on remote" }));
     await waitFor(() => expect(mocked.deleteRemoteBranch).toHaveBeenCalledWith("r", "fork", "refs/tags/v1.2.0"));
   });
@@ -252,7 +252,7 @@ describe("DeleteRemoteTagDialog", () => {
     useRepoStore.setState({ refs: { ...REFS, remotes: [...REFS.remotes, { name: "fork", url: null, branches: [] }] } });
     const { getByRole } = render(<DeleteRemoteTagDialog onClose={() => {}} name="v1.2.0" remote="fork" />);
     const dialog = getByRole("dialog", { name: "Delete remote tag" });
-    expect(preview(dialog)).toBe("git push fork --delete refs/tags/v1.2.0");
+    expect(preview(dialog)).toBe("git push fork --delete --end-of-options refs/tags/v1.2.0");
     await waitFor(() => expect(mocked.getDefaultRemote).not.toHaveBeenCalled());
   });
 });
@@ -262,7 +262,7 @@ describe("PullDialog", () => {
     // `main` tracks `origin/main` here; the refspec must be the remote-side name.
     const { getByRole } = render(<PullDialog onClose={() => {}} />);
     const dialog = getByRole("dialog", { name: "Pull" });
-    await waitFor(() => expect(preview(dialog)).toBe("git pull --progress --no-rebase origin main"));
+    await waitFor(() => expect(preview(dialog)).toBe("git pull --progress --no-rebase --end-of-options origin main"));
     fireEvent.click(getByRole("button", { name: "Pull" }));
     await waitFor(() => expect(mocked.pull).toHaveBeenCalledWith("r", "origin", "main", "merge"));
   });
@@ -270,7 +270,7 @@ describe("PullDialog", () => {
   it("names no branch when the current one does not track the chosen remote", async () => {
     useRepoStore.setState({ refs: { ...REFS, local: [{ ...REFS.local[0], upstream: "upstream/develop" }] } });
     const { getByRole } = render(<PullDialog onClose={() => {}} />);
-    await waitFor(() => expect(preview(getByRole("dialog"))).toBe("git pull --progress --no-rebase origin"));
+    await waitFor(() => expect(preview(getByRole("dialog"))).toBe("git pull --progress --no-rebase --end-of-options origin"));
     fireEvent.click(getByRole("button", { name: "Pull" }));
     await waitFor(() => expect(mocked.pull).toHaveBeenCalledWith("r", "origin", null, "merge"));
   });
@@ -283,7 +283,7 @@ describe("CreateBranchDialog", () => {
     expect(getByRole("combobox", { name: "Start point" }).textContent).toBe("0123456");
     fireEvent.change(getByRole("textbox", { name: "Name" }), { target: { value: "fix" } });
     // Not "HEAD": the branch must land on the commit the context menu was opened on.
-    expect(preview(getByRole("dialog"))).toBe(`git checkout -b fix ${oid}`);
+    expect(preview(getByRole("dialog"))).toBe(`git checkout -b fix --end-of-options ${oid}`);
     fireEvent.click(getByRole("checkbox", { name: "Check out after create" }));
     fireEvent.click(getByRole("button", { name: "Create" }));
     await waitFor(() => expect(mocked.createBranch).toHaveBeenCalledWith("r", "fix", oid, false));
@@ -307,7 +307,7 @@ describe("CreateTagDialog", () => {
     fireEvent.change(getByRole("textbox", { name: "Name" }), { target: { value: "v1" } });
     fireEvent.click(getByRole("checkbox", { name: "Push to remote after creating" }));
     // The push half is built from the real argv, `--progress` included.
-    await waitFor(() => expect(preview(getByRole("dialog"))).toBe("git tag v1 HEAD && git push --progress origin refs/tags/v1"));
+    await waitFor(() => expect(preview(getByRole("dialog"))).toBe("git tag v1 HEAD && git push --progress origin --end-of-options refs/tags/v1"));
     fireEvent.click(getByRole("button", { name: "Create" }));
     await waitFor(() => expect(mocked.push).toHaveBeenCalledWith("r", "origin", "refs/tags/v1", false, false, false));
     // The push only makes sense once the tag exists.
@@ -357,7 +357,7 @@ describe("AddRemoteDialog", () => {
     // A remote without a URL is nothing to fetch from: the name alone doesn't enable Add.
     expect(getByRole("button", { name: "Add" }).hasAttribute("disabled")).toBe(true);
     fireEvent.change(getByRole("textbox", { name: "URL" }), { target: { value: "git@x/y.git" } });
-    expect(preview(dialog)).toBe("git remote add origin git@x/y.git && git fetch --progress --prune origin");
+    expect(preview(dialog)).toBe("git remote add origin git@x/y.git && git fetch --progress --prune --end-of-options origin");
     fireEvent.click(getByRole("button", { name: "Add" }));
     await waitFor(() => expect(mocked.addRemote).toHaveBeenCalledWith("r", "origin", "git@x/y.git"));
     await waitFor(() => expect(mocked.fetch).toHaveBeenCalledWith("r", "origin", true, false));
@@ -433,12 +433,12 @@ describe("MergeDialog", () => {
     const onClose = vi.fn();
     const { getByRole } = render(<MergeDialog onClose={onClose} />);
     const dialog = getByRole("dialog", { name: "Merge into main" });
-    expect(preview(dialog)).toBe("git merge --ff feature/lane-graph");
+    expect(preview(dialog)).toBe("git merge --ff --end-of-options feature/lane-graph");
     fireEvent.click(getByRole("combobox", { name: "Strategy" }));
     fireEvent.click(getByRole("option", { name: "Always create a merge commit" }));
     fireEvent.click(getByRole("checkbox", { name: "Squash into one commit" }));
     fireEvent.change(getByRole("textbox", { name: "Commit message" }), { target: { value: "custom msg" } });
-    expect(preview(dialog)).toBe("git merge --no-ff --squash -m 'custom msg' feature/lane-graph");
+    expect(preview(dialog)).toBe("git merge --no-ff --squash -m 'custom msg' --end-of-options feature/lane-graph");
     fireEvent.click(getByRole("button", { name: "Merge" }));
     expect(onClose).toHaveBeenCalled();
     await waitFor(() => expect(mocked.merge).toHaveBeenCalledWith("r", "feature/lane-graph", "no", true, "custom msg"));
@@ -447,7 +447,7 @@ describe("MergeDialog", () => {
   it("preselects the branch it was opened on", () => {
     const { getByRole } = render(<MergeDialog onClose={() => {}} branch="feature/lane-graph" />);
     expect(getByRole("combobox", { name: "Branch to merge" }).textContent).toBe("feature/lane-graph");
-    expect(preview(getByRole("dialog"))).toBe("git merge --ff feature/lane-graph");
+    expect(preview(getByRole("dialog"))).toBe("git merge --ff --end-of-options feature/lane-graph");
     expect(getByRole("textbox", { name: "Commit message" }).getAttribute("placeholder")).toBe("Merge branch 'feature/lane-graph' into main");
   });
 
@@ -456,7 +456,7 @@ describe("MergeDialog", () => {
     const onClose = vi.fn();
     const { getByRole } = render(<MergeDialog onClose={onClose} branch={oid} />);
     expect(getByRole("combobox", { name: "Branch to merge" }).textContent).toBe("0123456");
-    expect(preview(getByRole("dialog"))).toBe(`git merge --ff ${oid}`);
+    expect(preview(getByRole("dialog"))).toBe(`git merge --ff --end-of-options ${oid}`);
     // The option is abbreviated, the message git would write is not.
     expect(getByRole("textbox", { name: "Commit message" }).getAttribute("placeholder")).toBe(`Merge commit '${oid}'`);
     fireEvent.click(getByRole("button", { name: "Merge" }));
@@ -485,21 +485,21 @@ describe("RebaseDialog", () => {
     const { getByRole, unmount } = render(<RebaseDialog onClose={() => {}} onto={oid} />);
     const dialog = getByRole("dialog", { name: "Rebase main" });
     expect(getByRole("combobox", { name: "Onto" }).textContent).toBe("0123456");
-    expect(preview(dialog)).toBe(`git rebase ${oid}`);
+    expect(preview(dialog)).toBe(`git rebase --end-of-options ${oid}`);
     fireEvent.click(getByRole("button", { name: "Rebase" }));
     await waitFor(() => expect(mocked.rebase).toHaveBeenCalledWith("r", oid));
     unmount();
 
     const second = render(<RebaseDialog onClose={() => {}} onto="feature/lane-graph" />);
     expect(second.getByRole("combobox", { name: "Onto" }).textContent).toBe("feature/lane-graph");
-    expect(preview(second.getByRole("dialog"))).toBe("git rebase feature/lane-graph");
+    expect(preview(second.getByRole("dialog"))).toBe("git rebase --end-of-options feature/lane-graph");
   });
 
   it("Interactive hands the branch over to the todo dialog instead of running anything", () => {
     const close = vi.fn();
     const { getByRole } = render(<RebaseDialog onClose={close} onto="feature/lane-graph" />);
     fireEvent.click(getByRole("checkbox", { name: "Interactive — reorder, reword, squash or drop the commits first" }));
-    expect(preview(getByRole("dialog"))).toBe("git rebase -i --rebase-merges feature/lane-graph");
+    expect(preview(getByRole("dialog"))).toBe("git rebase -i --rebase-merges --end-of-options feature/lane-graph");
     fireEvent.click(getByRole("button", { name: "Rebase" }));
     expect(mocked.rebase).not.toHaveBeenCalled();
     expect(close).toHaveBeenCalled();
@@ -531,7 +531,7 @@ describe("RebaseInteractiveDialog", () => {
     expect(dialog.textContent).toContain("Uncommitted changes will be stashed before the rebase and restored after it.");
     // Nothing runs until the user agrees: the read step is a real `git rebase -i`.
     expect(mocked.rebaseTodo).not.toHaveBeenCalled();
-    expect(preview(dialog)).toBe("git rebase -i --autostash --rebase-merges origin/main");
+    expect(preview(dialog)).toBe("git rebase -i --autostash --rebase-merges --end-of-options origin/main");
     fireEvent.click(getByRole("button", { name: "Stash and continue" }));
     await waitFor(() => expect(mocked.rebaseTodo).toHaveBeenCalledWith("r", "origin/main", true, true, false, false));
   });
@@ -543,7 +543,7 @@ describe("RebaseInteractiveDialog", () => {
     mocked.rebaseTodo.mockImplementation(() => Promise.resolve(TODO));
     const { getByRole } = render(<RebaseInteractiveDialog onClose={() => {}} base="origin/main" ontoLabel="origin/main" />);
     const dialog = getByRole("dialog", { name: "Rebase main onto origin/main" });
-    expect(preview(dialog)).toBe("git rebase -i --autostash --rebase-merges origin/main");
+    expect(preview(dialog)).toBe("git rebase -i --autostash --rebase-merges --end-of-options origin/main");
     expect(mocked.rebaseTodo).not.toHaveBeenCalled();
   });
 
@@ -552,7 +552,7 @@ describe("RebaseInteractiveDialog", () => {
     const { getByRole, getAllByRole } = render(<RebaseInteractiveDialog onClose={() => {}} base="origin/main" />);
     const dialog = getByRole("dialog", { name: "Rebase main" });
     await waitFor(() => expect(getByRole("combobox", { name: "Action for a1" })).toBeTruthy());
-    expect(preview(dialog)).toBe("git rebase -i --rebase-merges origin/main");
+    expect(preview(dialog)).toBe("git rebase -i --rebase-merges --end-of-options origin/main");
     // A clean tree never stashes; git ≥ 2.38 is unknown here, so no --update-refs checkbox.
     // Opened from a commit row (no `ontoLabel`): the base is a from-here one.
     expect(mocked.rebaseTodo).toHaveBeenCalledWith("r", "origin/main", false, true, false, true);
@@ -647,7 +647,7 @@ describe("RebaseInteractiveDialog", () => {
     expect(dialog.textContent).toContain("merge");
     fireEvent.click(getByRole("radio", { name: "Flatten" }));
     await waitFor(() => expect(mocked.rebaseTodo).toHaveBeenCalledWith("r", "origin/main", false, false, false, true));
-    expect(preview(dialog)).toBe("git rebase -i origin/main");
+    expect(preview(dialog)).toBe("git rebase -i --end-of-options origin/main");
     expect(getByRole("radio", { name: "Keep merges" })).toBeTruthy();
   });
 
@@ -660,7 +660,7 @@ describe("RebaseInteractiveDialog", () => {
     // The read always asks for the update-ref lines; the box only decides whether they go back.
     expect(mocked.rebaseTodo).toHaveBeenCalledWith("r", "origin/main", false, true, true, true);
     fireEvent.click(getByRole("checkbox", { name: /Update branches/ }));
-    expect(preview(dialog)).toBe("git rebase -i --rebase-merges --update-refs origin/main");
+    expect(preview(dialog)).toBe("git rebase -i --rebase-merges --update-refs --end-of-options origin/main");
     unmount();
 
     vi.clearAllMocks();
@@ -686,13 +686,13 @@ describe("PickDialog", () => {
     const onClose = vi.fn();
     const { getByRole, queryByRole } = render(<PickDialog onClose={onClose} mode="cherryPick" {...props} />);
     const dialog = getByRole("dialog", { name: "Cherry-pick 0123456" });
-    expect(preview(dialog)).toBe(`git cherry-pick ${OID}`);
+    expect(preview(dialog)).toBe(`git cherry-pick --end-of-options ${OID}`);
     // One parent: no mainline to choose.
     expect(queryByRole("combobox", { name: "Mainline parent" })).toBeNull();
     fireEvent.click(getByRole("checkbox", { name: "Record the source commit (-x)" }));
-    expect(preview(dialog)).toBe(`git cherry-pick -x ${OID}`);
+    expect(preview(dialog)).toBe(`git cherry-pick -x --end-of-options ${OID}`);
     fireEvent.click(getByRole("checkbox", { name: "Commit right away" }));
-    expect(preview(dialog)).toBe(`git cherry-pick -n -x ${OID}`);
+    expect(preview(dialog)).toBe(`git cherry-pick -n -x --end-of-options ${OID}`);
 
     fireEvent.click(getByRole("button", { name: "Cherry-pick" }));
     expect(onClose).toHaveBeenCalled();
@@ -705,7 +705,7 @@ describe("PickDialog", () => {
   it("reverts with --no-edit and never offers -x", async () => {
     const { getByRole, queryByRole } = render(<PickDialog onClose={() => {}} mode="revert" {...props} />);
     const dialog = getByRole("dialog", { name: "Revert 0123456" });
-    expect(preview(dialog)).toBe(`git revert --no-edit ${OID}`);
+    expect(preview(dialog)).toBe(`git revert --no-edit --end-of-options ${OID}`);
     expect(queryByRole("checkbox", { name: "Record the source commit (-x)" })).toBeNull();
     fireEvent.click(getByRole("button", { name: "Revert" }));
     await waitFor(() => expect(mocked.revert).toHaveBeenCalledWith("r", OID, false, null));
@@ -716,10 +716,10 @@ describe("PickDialog", () => {
     const parents = ["aaaaaaa000000000000000000000000000000000", "bbbbbbb000000000000000000000000000000000"];
     const { getByRole } = render(<PickDialog onClose={() => {}} mode="revert" {...props} parents={parents} />);
     const dialog = getByRole("dialog", { name: "Revert 0123456" });
-    expect(preview(dialog)).toBe(`git revert --no-edit -m 1 ${OID}`);
+    expect(preview(dialog)).toBe(`git revert --no-edit -m 1 --end-of-options ${OID}`);
     fireEvent.click(getByRole("combobox", { name: "Mainline parent" }));
     fireEvent.click(getByRole("option", { name: "2 — bbbbbbb" }));
-    expect(preview(dialog)).toBe(`git revert --no-edit -m 2 ${OID}`);
+    expect(preview(dialog)).toBe(`git revert --no-edit -m 2 --end-of-options ${OID}`);
     fireEvent.click(getByRole("button", { name: "Revert" }));
     await waitFor(() => expect(mocked.revert).toHaveBeenCalledWith("r", OID, false, 2));
   });

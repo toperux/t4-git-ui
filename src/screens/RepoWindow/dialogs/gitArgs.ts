@@ -5,12 +5,15 @@ import type { FfMode, PullMode, ResetMode } from "../../../api/types";
 
 const flag = (on: boolean, f: string) => (on ? [f] : []);
 
+/** Ends option parsing, so a ref named `--exec=<cmd>` stays a ref (see `END` in `cli/ops.rs`). */
+const END = "--end-of-options";
+
 export const fetchArgs = (remote: string | null, prune: boolean, tags: boolean) => [
   "fetch",
   "--progress",
   ...flag(prune, "--prune"),
   ...flag(tags, "--tags"),
-  remote ?? "--all",
+  ...(remote ? [END, remote] : ["--all"]),
 ];
 
 const PULL_MODE: Record<PullMode, string> = { merge: "--no-rebase", rebase: "--rebase", ffOnly: "--ff-only" };
@@ -19,7 +22,7 @@ export const pullArgs = (remote: string | null, branch: string | null, mode: Pul
   "pull",
   "--progress",
   PULL_MODE[mode],
-  ...(remote ? [remote, ...(branch ? [branch] : [])] : []),
+  ...(remote ? [END, remote, ...(branch ? [branch] : [])] : []),
 ];
 
 export const pushArgs = (remote: string, refspec: string | null, setUpstream: boolean, forceWithLease: boolean, tags: boolean) => [
@@ -29,7 +32,7 @@ export const pushArgs = (remote: string, refspec: string | null, setUpstream: bo
   ...flag(forceWithLease, "--force-with-lease"),
   ...flag(tags, "--tags"),
   remote,
-  ...(refspec ? [refspec] : []),
+  ...(refspec ? [END, refspec] : []),
 ];
 
 const FF: Record<FfMode, string> = { auto: "--ff", only: "--ff-only", no: "--no-ff" };
@@ -39,10 +42,11 @@ export const mergeArgs = (branch: string, ff: FfMode, squash: boolean, message: 
   FF[ff],
   ...flag(squash, "--squash"),
   ...(message ? ["-m", message] : []),
+  END,
   branch,
 ];
 
-export const rebaseArgs = (onto: string) => ["rebase", onto];
+export const rebaseArgs = (onto: string) => ["rebase", END, onto];
 
 /** The flags of the run step; the sequence editor it also passes is an implementation detail. */
 export const rebaseInteractiveArgs = (base: string, autostash: boolean, rebaseMerges: boolean, updateRefs: boolean) => [
@@ -51,6 +55,7 @@ export const rebaseInteractiveArgs = (base: string, autostash: boolean, rebaseMe
   ...flag(autostash, "--autostash"),
   ...flag(rebaseMerges, "--rebase-merges"),
   ...flag(updateRefs, "--update-refs"),
+  END,
   base,
 ];
 
@@ -61,6 +66,7 @@ export const cherryPickArgs = (oid: string, noCommit: boolean, recordOrigin: boo
   ...flag(noCommit, "-n"),
   ...flag(recordOrigin, "-x"),
   ...mainlineArgs(mainline),
+  END,
   oid,
 ];
 
@@ -69,16 +75,18 @@ export const revertArgs = (oid: string, noCommit: boolean, mainline: number | nu
   "--no-edit",
   ...flag(noCommit, "-n"),
   ...mainlineArgs(mainline),
+  END,
   oid,
 ];
 
-export const resetArgs = (mode: ResetMode, target: string) => ["reset", `--${mode}`, target];
+export const resetArgs = (mode: ResetMode, target: string) => ["reset", `--${mode}`, END, target];
 
-export const resetBranchArgs = (branch: string, target: string) => ["branch", "-f", branch, target];
+export const resetBranchArgs = (branch: string, target: string) => ["branch", "-f", END, branch, target];
 
 export const checkoutArgs = (target: string, createBranch: string | null, track: boolean, detach = false) => [
   "checkout",
   ...(createBranch ? [...flag(track, "--track"), "-b", createBranch] : flag(detach, "--detach")),
+  END,
   target,
 ];
 

@@ -400,6 +400,19 @@ describe("CommitPanel", () => {
     expect(queryByRole("button", { name: "Discard hunk" })).toBeNull();
   });
 
+  it("the body goes blank while the next file's diff loads: no stale hunk to click", async () => {
+    mocked.getFileDiff.mockImplementation((_id: string, _t: unknown, path: string) => Promise.resolve(ONE_HUNK(path)));
+    const { getByRole, queryByRole } = renderPanel();
+    await act(async () => {});
+    expect(getByRole("button", { name: "Stage hunk" })).toBeTruthy();
+
+    // both.rs is still loading, and Stage hunk already means both.rs: a.rs's hunk must be gone.
+    mocked.getFileDiff.mockImplementation(() => new Promise(() => {}));
+    fireEvent.click(Array.from(getByRole("listbox", { name: "Unstaged files" }).querySelectorAll('[role="option"]'))[1]);
+    await act(async () => {});
+    expect(queryByRole("button", { name: "Stage hunk" })).toBeNull();
+  });
+
   it("a truncated or typechanged diff offers no hunk / line actions at all", async () => {
     // The backend rebuilds the file's diff untruncated to apply a patch, so the indices of a cut
     // diff name other hunks; a blob ↔ symlink patch git refuses outright.

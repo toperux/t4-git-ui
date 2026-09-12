@@ -129,8 +129,10 @@ describe("statusStore", () => {
         { name: "other", oid: "h2", upstream: null, gone: false, mergedInto: null, ahead: 0, behind: 0, isHead: head === "h2" },
       ],
     });
-    useRepoStore.setState({ refs: two("h1"), filter: {} });
+    // The clean status first: the refs are what decides the seed, so arriving at an unseeded walk
+    // with a dirty status still in the store would (correctly) re-seed it.
     useStatusStore.setState({ status: status(0) });
+    useRepoStore.setState({ refs: two("h1"), filter: {} });
     mocked.getStatus.mockResolvedValue(status(0));
     mocked.getRefs.mockResolvedValue(two("h2"));
     useStatusStore.getState().onChanged({ repoId: "r1", kinds: ["refs"], rescan: false });
@@ -268,6 +270,18 @@ describe("statusStore", () => {
     // The restart stored the flag, so a second dirty status is not another walk.
     await useStatusStore.getState().refresh();
     expect(mocked.startLog).toHaveBeenCalledTimes(1);
+  });
+
+  it("opening a dirty repository seeds the walk once the refs land", async () => {
+    // `openRepo` leaves `refs: null` and `filter: {}`, and the status lands first: nothing is fresh
+    // yet, so the seed is only decidable once the refs snapshot arrives.
+    useRepoStore.setState({ refs: null, filter: {} });
+    await useStatusStore.getState().refresh();
+    expect(mocked.startLog).not.toHaveBeenCalled();
+
+    useRepoStore.setState({ refs: refs("h1") });
+    await flush();
+    expect(mocked.startLog).toHaveBeenCalledWith("r1", { kind: "all" }, { workingTree: true });
   });
 
   it("a commit in a terminal on a dirty tree walks once, from the tree as it is now", async () => {

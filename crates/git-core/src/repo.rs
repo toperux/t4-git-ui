@@ -70,6 +70,14 @@ pub struct RepoHandle {
     pub ahead_behind: Mutex<AheadBehindCache>,
     /// Serializes mutating operations (stage / commit / branch ops) per repo.
     pub op_lock: tokio::sync::Mutex<()>,
+    /// Held by a status scan that writes the refreshed stat cache back, and by
+    /// a mutating operation for its whole run — CLI-backed ops touch the index
+    /// as a subprocess, so `git2` alone does not stop a scan from writing a
+    /// pre-mutation index over one. An operation takes `op_lock` *first* (so a
+    /// mutation issued during another op still fails fast with `Busy` instead
+    /// of waiting), then this one; scans never take `op_lock`, so the two can
+    /// never deadlock.
+    pub scan_lock: tokio::sync::Mutex<()>,
 }
 
 impl RepoHandle {
@@ -96,6 +104,7 @@ impl RepoHandle {
             log: RwLock::new(LogCache::default()),
             ahead_behind: Mutex::new(AheadBehindCache::default()),
             op_lock: tokio::sync::Mutex::new(()),
+            scan_lock: tokio::sync::Mutex::new(()),
         }))
     }
 
@@ -227,6 +236,44 @@ mod tests {
         };
         assert_eq!(heads(&main), vec![b.to_string(), a.to_string()]);
         assert_eq!(heads(&wt), vec![a.to_string()]);
+    }
+
+    /// The order `mutate` (src-tauri) takes the two locks in, and what a status
+    /// scan sees while an op holds them.
+    #[tokio::test]
+    async fn an_op_takes_the_op_lock_first_then_waits_out_one_scan() {
+        let t = TempRepo::new();
+        t.commit(&[("a.txt", "a")], "init");
+        let h = RepoHandle::open(t.path()).expect("open");
+
+        // A scan that will write the refreshed index back holds `scan_lock`
+        // and never takes `op_lock`.
+        let scan = h.scan_lock.lock().await;
+
+        // `op_lock` first: a mutation issued during *another op* still fails
+        // fast with `Busy` rather than waiting silently.
+        let op = h.op_lock.try_lock().expect("no other op is running");
+        // Then `scan_lock`: the op waits for the scan instead of racing its
+        // index write-back.
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(50), h.scan_lock.lock())
+                .await
+                .is_err(),
+            "the op took scan_lock while a scan held it"
+        );
+
+        drop(scan);
+        let scan_guard =
+            tokio::time::timeout(std::time::Duration::from_secs(5), h.scan_lock.lock())
+                .await
+                .expect("the op proceeds once the scan finishes");
+
+        // Op in flight, holding both: a scan starting now finds `scan_lock`
+        // taken and runs without the write-back, and a second mutation is busy.
+        assert!(h.scan_lock.try_lock().is_err());
+        assert!(h.op_lock.try_lock().is_err());
+        drop(scan_guard);
+        drop(op);
     }
 
     #[test]

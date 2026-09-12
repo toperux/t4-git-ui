@@ -813,3 +813,41 @@ async fn staging_an_unresolved_file_is_undone_by_checkout_merge() {
     let body = std::fs::read_to_string(t.path().join("f.txt")).expect("read");
     assert!(body.contains("<<<<<<<"), "{body}");
 }
+
+/// A ref whose name starts with `--` must not reach git as an option: git would
+/// read `--exec=<cmd>` as a rebase flag and run the command. `git branch`
+/// refuses the name, but `update-ref` (and a fetch from a hostile remote) does
+/// not, so the branch lists can offer it.
+#[tokio::test]
+async fn a_ref_named_like_an_option_does_not_run_a_command() {
+    if !have_git() {
+        return;
+    }
+    let t = TempRepo::new();
+    let a = t.commit(&[("f.txt", "1\n")], "A");
+    // An upstream one commit behind HEAD: with nothing to replay the `exec`
+    // never fires, so this is what makes the exploit reproduce.
+    t.remote("origin");
+    t.reference("refs/remotes/origin/master", a);
+    t.set_upstream("master", "origin/master");
+    t.commit(&[("f.txt", "2\n")], "B");
+
+    let hostile = "--exec=touch$IFS'pwned.txt'";
+    run_ok(
+        &t,
+        &[
+            "update-ref".into(),
+            format!("refs/heads/{hostile}"),
+            a.to_string(),
+        ],
+    )
+    .await;
+
+    let (out, _) = run(t.path(), &ops::rebase(hostile)).await;
+    assert!(
+        !t.path().join("pwned.txt").exists(),
+        "the ref name reached git as an option\n{}\n{}",
+        out.stdout,
+        out.stderr
+    );
+}

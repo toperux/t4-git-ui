@@ -99,7 +99,15 @@ fn args<const N: usize>(fixed: [&str; N]) -> Vec<String> {
     fixed.iter().map(|s| s.to_string()).collect()
 }
 
-/// `fetch --progress [--prune] [--tags] (<remote> | --all)`
+/// Ends git's option parsing (git ≥ 2.24): everything after it is a ref, path
+/// or url even when it starts with `-`. Every builder puts it after its last
+/// flag and before its first user-supplied argument, so a branch named
+/// `--exec=<cmd>` — which `git branch` refuses but a fetch happily creates —
+/// cannot arrive as an option. The few user arguments that have to sit *before*
+/// it (a remote name) are refused at the command boundary instead.
+const END: &str = "--end-of-options";
+
+/// `fetch --progress [--prune] [--tags] (--end-of-options <remote> | --all)`
 pub fn fetch(remote: Option<&str>, prune: bool, tags: bool) -> Vec<String> {
     let mut a = args(["fetch", "--progress"]);
     if prune {
@@ -108,11 +116,18 @@ pub fn fetch(remote: Option<&str>, prune: bool, tags: bool) -> Vec<String> {
     if tags {
         a.push("--tags".into());
     }
-    a.push(remote.unwrap_or("--all").into());
+    match remote {
+        Some(r) => {
+            a.push(END.into());
+            a.push(r.into());
+        }
+        // `--all` is a flag, so it has to stay on git's side of the separator.
+        None => a.push("--all".into()),
+    }
     a
 }
 
-/// `pull --progress (--no-rebase | --rebase | --ff-only) [<remote> [<branch>]]`.
+/// `pull --progress (--no-rebase | --rebase | --ff-only) [--end-of-options <remote> [<branch>]]`.
 /// `branch` is ignored without `remote` (git would read it as the remote).
 pub fn pull(remote: Option<&str>, branch: Option<&str>, mode: PullMode) -> Vec<String> {
     let mut a = args(["pull", "--progress"]);
@@ -125,6 +140,7 @@ pub fn pull(remote: Option<&str>, branch: Option<&str>, mode: PullMode) -> Vec<S
         .into(),
     );
     if let Some(r) = remote {
+        a.push(END.into());
         a.push(r.into());
         if let Some(b) = branch {
             a.push(b.into());
@@ -133,7 +149,7 @@ pub fn pull(remote: Option<&str>, branch: Option<&str>, mode: PullMode) -> Vec<S
     a
 }
 
-/// `push --progress [-u] [--force-with-lease] [--tags] <remote> [<refspec>]`
+/// `push --progress [-u] [--force-with-lease] [--tags] <remote> [--end-of-options <refspec>]`
 pub fn push(
     remote: &str,
     refspec: Option<&str>,
@@ -153,12 +169,13 @@ pub fn push(
     }
     a.push(remote.into());
     if let Some(r) = refspec {
+        a.push(END.into());
         a.push(r.into());
     }
     a
 }
 
-/// `merge (--ff | --ff-only | --no-ff) [--squash] [-m <msg>] <branch>`
+/// `merge (--ff | --ff-only | --no-ff) [--squash] [-m <msg>] --end-of-options <branch>`
 pub fn merge(branch: &str, opts: &MergeOpts) -> Vec<String> {
     let mut a = args(["merge"]);
     a.push(
@@ -176,13 +193,14 @@ pub fn merge(branch: &str, opts: &MergeOpts) -> Vec<String> {
         a.push("-m".into());
         a.push(m.clone());
     }
+    a.push(END.into());
     a.push(branch.into());
     a
 }
 
-/// `rebase <onto>` (non-interactive only).
+/// `rebase --end-of-options <onto>` (non-interactive only).
 pub fn rebase(onto: &str) -> Vec<String> {
-    let mut a = args(["rebase"]);
+    let mut a = args(["rebase", END]);
     a.push(onto.into());
     a
 }
@@ -206,7 +224,7 @@ pub fn merge_abort() -> Vec<String> {
     args(["merge", "--abort"])
 }
 
-/// `cherry-pick [-n] [-x] [-m N] <oid>`
+/// `cherry-pick [-n] [-x] [-m N] --end-of-options <oid>`
 pub fn cherry_pick(oid: &str, opts: &PickOpts) -> Vec<String> {
     let mut a = args(["cherry-pick"]);
     if opts.no_commit {
@@ -219,11 +237,12 @@ pub fn cherry_pick(oid: &str, opts: &PickOpts) -> Vec<String> {
         a.push("-m".into());
         a.push(m.to_string());
     }
+    a.push(END.into());
     a.push(oid.into());
     a
 }
 
-/// `revert --no-edit [-n] [-m N] <oid>` (`record_origin` has no revert
+/// `revert --no-edit [-n] [-m N] --end-of-options <oid>` (`record_origin` has no revert
 /// equivalent). `--no-edit` takes git's own "Revert …" message instead of
 /// leaning on the runner's `GIT_EDITOR=true`.
 pub fn revert(oid: &str, opts: &PickOpts) -> Vec<String> {
@@ -235,6 +254,7 @@ pub fn revert(oid: &str, opts: &PickOpts) -> Vec<String> {
         a.push("-m".into());
         a.push(m.to_string());
     }
+    a.push(END.into());
     a.push(oid.into());
     a
 }
@@ -247,7 +267,7 @@ pub fn revert_abort() -> Vec<String> {
     args(["revert", "--abort"])
 }
 
-/// `checkout [--track] [-b <name>] [--detach] <target>`; `track` only applies
+/// `checkout [--track] [-b <name>] [--detach] --end-of-options <target>`; `track` only applies
 /// with `-b`, `detach` only without it. Without `--detach` a name that is both
 /// a tag and a branch resolves to the branch, leaving HEAD attached.
 pub fn checkout(
@@ -266,11 +286,12 @@ pub fn checkout(
     } else if detach {
         a.push("--detach".into());
     }
+    a.push(END.into());
     a.push(target.into());
     a
 }
 
-/// `reset (--soft | --mixed | --hard) <target>` — moves the current branch
+/// `reset (--soft | --mixed | --hard) --end-of-options <target>` — moves the current branch
 /// (or a detached HEAD) to `target`.
 pub fn reset(mode: ResetMode, target: &str) -> Vec<String> {
     let mut a = args(["reset"]);
@@ -282,31 +303,33 @@ pub fn reset(mode: ResetMode, target: &str) -> Vec<String> {
         }
         .into(),
     );
+    a.push(END.into());
     a.push(target.into());
     a
 }
 
-/// `branch -f <name> <target>` — moves a branch that is not checked out (git
+/// `branch -f --end-of-options <name> <target>` — moves a branch that is not checked out (git
 /// refuses to force-update the current branch; that is what `reset` is for).
 pub fn branch_force(name: &str, target: &str) -> Vec<String> {
-    let mut a = args(["branch", "-f"]);
+    let mut a = args(["branch", "-f", END]);
     a.push(name.into());
     a.push(target.into());
     a
 }
 
-/// `push <remote> --delete <name>`
+/// `push <remote> --delete --end-of-options <name>`
 pub fn delete_remote_branch(remote: &str, name: &str) -> Vec<String> {
     let mut a = args(["push"]);
     a.push(remote.into());
     a.push("--delete".into());
+    a.push(END.into());
     a.push(name.into());
     a
 }
 
-/// `ls-remote --tags <remote>` (no `--refs`: the `^{}` peeled lines carry the commit)
+/// `ls-remote --tags --end-of-options <remote>` (no `--refs`: the `^{}` peeled lines carry the commit)
 pub fn ls_remote_tags(remote: &str) -> Vec<String> {
-    let mut a = args(["ls-remote", "--tags"]);
+    let mut a = args(["ls-remote", "--tags", END]);
     a.push(remote.into());
     a
 }
@@ -382,7 +405,7 @@ pub fn stash_drop(index: usize) -> Vec<String> {
     vec!["stash".into(), "drop".into(), stash_ref(index)]
 }
 
-/// `clone --progress [--recurse-submodules] [--depth <n>] <url> <dest>`
+/// `clone --progress [--recurse-submodules] [--depth <n>] --end-of-options <url> <dest>`
 /// (run with cwd = the parent of `dest`).
 pub fn clone(url: &str, dest: &str, opts: &CloneOpts) -> Vec<String> {
     let mut a = args(["clone", "--progress"]);
@@ -393,6 +416,7 @@ pub fn clone(url: &str, dest: &str, opts: &CloneOpts) -> Vec<String> {
         a.push("--depth".into());
         a.push(d.to_string());
     }
+    a.push(END.into());
     a.push(url.into());
     a.push(dest.into());
     a
@@ -558,7 +582,14 @@ mod tests {
         assert_eq!(fetch(None, false, false), ["fetch", "--progress", "--all"]);
         assert_eq!(
             fetch(Some("origin"), true, true),
-            ["fetch", "--progress", "--prune", "--tags", "origin"]
+            [
+                "fetch",
+                "--progress",
+                "--prune",
+                "--tags",
+                "--end-of-options",
+                "origin"
+            ]
         );
     }
 
@@ -570,11 +601,24 @@ mod tests {
         );
         assert_eq!(
             pull(Some("origin"), None, PullMode::Rebase),
-            ["pull", "--progress", "--rebase", "origin"]
+            [
+                "pull",
+                "--progress",
+                "--rebase",
+                "--end-of-options",
+                "origin"
+            ]
         );
         assert_eq!(
             pull(Some("origin"), Some("main"), PullMode::FfOnly),
-            ["pull", "--progress", "--ff-only", "origin", "main"]
+            [
+                "pull",
+                "--progress",
+                "--ff-only",
+                "--end-of-options",
+                "origin",
+                "main"
+            ]
         );
     }
 
@@ -593,6 +637,7 @@ mod tests {
                 "--force-with-lease",
                 "--tags",
                 "origin",
+                "--end-of-options",
                 "main:main"
             ]
         );
@@ -600,7 +645,10 @@ mod tests {
 
     #[test]
     fn ls_remote_tags_args_and_parse() {
-        assert_eq!(ls_remote_tags("origin"), ["ls-remote", "--tags", "origin"]);
+        assert_eq!(
+            ls_remote_tags("origin"),
+            ["ls-remote", "--tags", "--end-of-options", "origin"]
+        );
         let tag = |name: &str, oid: &str| RemoteTag {
             name: name.into(),
             oid: oid.into(),
@@ -619,19 +667,25 @@ mod tests {
     fn reset_args() {
         assert_eq!(
             reset(ResetMode::Soft, "abc1234"),
-            ["reset", "--soft", "abc1234"]
+            ["reset", "--soft", "--end-of-options", "abc1234"]
         );
         assert_eq!(
             reset(ResetMode::Mixed, "abc1234"),
-            ["reset", "--mixed", "abc1234"]
+            ["reset", "--mixed", "--end-of-options", "abc1234"]
         );
         assert_eq!(
             reset(ResetMode::Hard, "abc1234"),
-            ["reset", "--hard", "abc1234"]
+            ["reset", "--hard", "--end-of-options", "abc1234"]
         );
         assert_eq!(
             branch_force("feature", "origin/feature"),
-            ["branch", "-f", "feature", "origin/feature"]
+            [
+                "branch",
+                "-f",
+                "--end-of-options",
+                "feature",
+                "origin/feature"
+            ]
         );
     }
 
@@ -639,7 +693,7 @@ mod tests {
     fn merge_and_rebase_args() {
         assert_eq!(
             merge("feat", &MergeOpts::default()),
-            ["merge", "--ff", "feat"]
+            ["merge", "--ff", "--end-of-options", "feat"]
         );
         assert_eq!(
             merge(
@@ -650,7 +704,15 @@ mod tests {
                     message: Some("msg here".into()),
                 }
             ),
-            ["merge", "--no-ff", "--squash", "-m", "msg here", "feat"]
+            [
+                "merge",
+                "--no-ff",
+                "--squash",
+                "-m",
+                "msg here",
+                "--end-of-options",
+                "feat"
+            ]
         );
         assert_eq!(
             merge(
@@ -660,9 +722,9 @@ mod tests {
                     ..Default::default()
                 }
             ),
-            ["merge", "--ff-only", "feat"]
+            ["merge", "--ff-only", "--end-of-options", "feat"]
         );
-        assert_eq!(rebase("main"), ["rebase", "main"]);
+        assert_eq!(rebase("main"), ["rebase", "--end-of-options", "main"]);
         assert_eq!(rebase_continue(), ["rebase", "--continue"]);
         assert_eq!(rebase_abort(), ["rebase", "--abort"]);
         assert_eq!(rebase_skip(), ["rebase", "--skip"]);
@@ -673,7 +735,7 @@ mod tests {
     fn cherry_pick_and_revert_args() {
         assert_eq!(
             cherry_pick("abc1234", &PickOpts::default()),
-            ["cherry-pick", "abc1234"]
+            ["cherry-pick", "--end-of-options", "abc1234"]
         );
         assert_eq!(
             cherry_pick(
@@ -684,11 +746,19 @@ mod tests {
                     mainline: Some(2),
                 }
             ),
-            ["cherry-pick", "-n", "-x", "-m", "2", "abc1234"]
+            [
+                "cherry-pick",
+                "-n",
+                "-x",
+                "-m",
+                "2",
+                "--end-of-options",
+                "abc1234"
+            ]
         );
         assert_eq!(
             revert("abc1234", &PickOpts::default()),
-            ["revert", "--no-edit", "abc1234"]
+            ["revert", "--no-edit", "--end-of-options", "abc1234"]
         );
         // `-x` has no revert equivalent: it is ignored, `-n` and `-m` are not.
         assert_eq!(
@@ -700,7 +770,15 @@ mod tests {
                     mainline: Some(1),
                 }
             ),
-            ["revert", "--no-edit", "-n", "-m", "1", "abc1234"]
+            [
+                "revert",
+                "--no-edit",
+                "-n",
+                "-m",
+                "1",
+                "--end-of-options",
+                "abc1234"
+            ]
         );
         assert_eq!(cherry_pick_abort(), ["cherry-pick", "--abort"]);
         assert_eq!(revert_abort(), ["revert", "--abort"]);
@@ -708,27 +786,37 @@ mod tests {
 
     #[test]
     fn checkout_and_branch_args() {
-        assert_eq!(checkout("main", None, true, false), ["checkout", "main"]);
+        assert_eq!(
+            checkout("main", None, true, false),
+            ["checkout", "--end-of-options", "main"]
+        );
         assert_eq!(
             checkout("v1.0", None, false, true),
-            ["checkout", "--detach", "v1.0"]
+            ["checkout", "--detach", "--end-of-options", "v1.0"]
         );
         assert_eq!(
             checkout("origin/x", Some("x"), false, false),
-            ["checkout", "-b", "x", "origin/x"]
+            ["checkout", "-b", "x", "--end-of-options", "origin/x"]
         );
         assert_eq!(
             checkout("origin/x", Some("x"), true, false),
-            ["checkout", "--track", "-b", "x", "origin/x"]
+            [
+                "checkout",
+                "--track",
+                "-b",
+                "x",
+                "--end-of-options",
+                "origin/x"
+            ]
         );
         // `-b` wins: git refuses the two together.
         assert_eq!(
             checkout("origin/x", Some("x"), false, true),
-            ["checkout", "-b", "x", "origin/x"]
+            ["checkout", "-b", "x", "--end-of-options", "origin/x"]
         );
         assert_eq!(
             delete_remote_branch("origin", "old"),
-            ["push", "origin", "--delete", "old"]
+            ["push", "origin", "--delete", "--end-of-options", "old"]
         );
     }
 
@@ -744,7 +832,7 @@ mod tests {
         assert_eq!(stash_drop(1), ["stash", "drop", "stash@{1}"]);
         assert_eq!(
             clone("u", "d", &CloneOpts::default()),
-            ["clone", "--progress", "u", "d"]
+            ["clone", "--progress", "--end-of-options", "u", "d"]
         );
         assert_eq!(
             clone(
@@ -761,6 +849,7 @@ mod tests {
                 "--recurse-submodules",
                 "--depth",
                 "1",
+                "--end-of-options",
                 "u",
                 "d"
             ]

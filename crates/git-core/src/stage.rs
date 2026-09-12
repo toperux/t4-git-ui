@@ -89,7 +89,13 @@ pub fn unstage_paths(repo: &Repository, paths: &[&str]) -> Result<(), GitError> 
         Err(e) if e.code() == ErrorCode::UnbornBranch => None,
         Err(e) => return Err(map_git2(e)),
     };
-    repo.reset_default(head.as_ref(), paths).map_err(map_git2)
+    // `reset_default` does its own write, so it cannot go through `with_index`;
+    // the rollback it gives has to be done by hand.
+    repo.reset_default(head.as_ref(), paths)
+        .map_err(map_git2)
+        .inspect_err(|_| {
+            let _ = repo.index().and_then(|mut i| i.read(true));
+        })
 }
 
 /// Discards UNSTAGED changes of `paths`: tracked files are restored from the
@@ -99,6 +105,8 @@ pub fn discard_paths(repo: &Repository, paths: &[&str]) -> Result<Vec<String>, G
     let workdir = workdir(repo)?;
     let mut restore: Vec<&str> = Vec::new();
     let mut discarded = Vec::new();
+    // A working-tree rename arrives as both halves from the caller: `status_file` runs single-path
+    // with no rename detection, so it reports `WT_NEW` / `WT_DELETED` and can never pair them.
     for p in paths {
         let s = match repo.status_file(Path::new(p)) {
             Ok(s) => s,
@@ -340,6 +348,30 @@ mod tests {
         assert_eq!((e.index, e.workdir), (Some(FileStatus::Modified), None));
     }
 
+    /// The mirror for unstage: `reset_default` writes the index itself, so a
+    /// failed write has to be rolled back too — git still has the path staged.
+    #[test]
+    fn a_locked_index_leaves_the_path_staged() {
+        let t = TempRepo::new();
+        t.commit(&[("f.txt", "v0\n")], "base");
+        t.write("f.txt", "v1\n");
+        stage_paths(&t.repo, &["f.txt"]).unwrap();
+
+        let lock = t.path().join(".git").join("index.lock");
+        std::fs::write(&lock, "").unwrap();
+        assert!(matches!(
+            unstage_paths(&t.repo, &["f.txt"]),
+            Err(GitError::IndexLocked)
+        ));
+        let e = entry(&t, "f.txt").unwrap();
+        assert_eq!((e.index, e.workdir), (Some(FileStatus::Modified), None));
+
+        std::fs::remove_file(&lock).unwrap();
+        unstage_paths(&t.repo, &["f.txt"]).unwrap();
+        let e = entry(&t, "f.txt").unwrap();
+        assert_eq!((e.index, e.workdir), (None, Some(FileStatus::Modified)));
+    }
+
     /// The refusal comes mid-loop, after the earlier path was already added to
     /// libgit2's cached index — nothing was written, so nothing may look staged.
     #[test]
@@ -468,6 +500,47 @@ mod tests {
         assert_eq!(got, vec!["scratch.txt"]);
         assert!(!t.path().join("scratch.txt").exists());
         assert!(t.path().join("debug.log").exists());
+    }
+
+    #[test]
+    fn discard_of_a_workdir_rename_restores_the_old_name() {
+        let t = TempRepo::new();
+        // Don't let a global `core.autocrlf` rewrite what the checkout puts on disk.
+        t.set_config("core.autocrlf", "false");
+        t.commit(&[("old.txt", "same content\nfor rename\n")], "base");
+        std::fs::rename(t.path().join("old.txt"), t.path().join("new.txt")).unwrap();
+        t.write("new.txt", "same content\nfor rename\nand an edit\n");
+
+        let mut got = discard_paths(&t.repo, &["new.txt", "old.txt"]).unwrap();
+        got.sort();
+        assert_eq!(got, vec!["new.txt", "old.txt"]);
+        assert_eq!(
+            std::fs::read_to_string(t.path().join("old.txt")).unwrap(),
+            "same content\nfor rename\n"
+        );
+        assert!(!t.path().join("new.txt").exists());
+        assert!(entry(&t, "old.txt").is_none());
+        assert!(entry(&t, "new.txt").is_none());
+    }
+
+    /// Why the caller sends both halves: `status_file` sees only `WT_NEW` for the
+    /// new name, so a one-path discard deletes it and leaves the old one missing.
+    #[test]
+    fn discard_of_only_the_new_name_leaves_the_old_one_missing() {
+        let t = TempRepo::new();
+        t.commit(&[("old.txt", "same content\nfor rename\n")], "base");
+        std::fs::rename(t.path().join("old.txt"), t.path().join("new.txt")).unwrap();
+
+        assert_eq!(
+            discard_paths(&t.repo, &["new.txt"]).unwrap(),
+            vec!["new.txt"]
+        );
+        assert!(!t.path().join("new.txt").exists());
+        assert!(!t.path().join("old.txt").exists());
+        assert_eq!(
+            entry(&t, "old.txt").unwrap().workdir,
+            Some(FileStatus::Deleted)
+        );
     }
 
     #[test]

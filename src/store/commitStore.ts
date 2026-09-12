@@ -152,13 +152,17 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
   async function loadDiff() {
     const mySeq = ++diffSeq;
     const id = repoId();
-    const { anchor, list } = get();
+    const { anchor, list, diffPath, diffList } = get();
     diffEntry = anchor ? (useStatusStore.getState().status?.entries.find((e) => e.path === anchor) ?? null) : null;
     if (!id || !anchor) {
       set({ diff: null, diffPath: null, diffLoading: false, diffError: null });
       return;
     }
-    set({ diffLoading: true, diffError: null, diffPath: anchor, diffList: list });
+    // Another file — or the same one in the other list — is another diff: the body goes blank for the
+    // round trip, because `diffPath` / `diffList` move now and every hunk / line action reads them.
+    // A reload of the same target (watcher, post-mutation, context change) keeps what is on screen.
+    const changed = anchor !== diffPath || list !== diffList;
+    set({ ...(changed && { diff: null }), diffLoading: true, diffError: null, diffPath: anchor, diffList: list });
     // The context the shown diff is built with is what every hunk / line action has to send back:
     // the backend rebuilds the diff to resolve the indices, and another context merges / splits hunks.
     const context = useDiffStore.getState().context;
@@ -166,8 +170,10 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       const diff = await ipc.getFileDiff(id, { kind: list }, anchor, { context });
       if (mySeq !== diffSeq) return;
       // Identical content → keep the old object: `DiffViewer` keys its scroll / line selection off it.
+      // Only for the same target, though — a selection made against the unstaged diff means something
+      // else in the staged one, however alike the two patches are.
       const prev = get().diff;
-      const unchanged = prev && prev.path === diff.path && same(prev.hunks, diff.hunks);
+      const unchanged = !changed && prev && prev.path === diff.path && same(prev.hunks, diff.hunks);
       set({ diff: unchanged ? prev : diff, diffContext: context, diffLoading: false });
     } catch (e) {
       if (mySeq !== diffSeq) return;
@@ -349,8 +355,19 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       // No confirmation available (no Tauri dialog plugin) → treat it as declined; nothing is lost.
       const ok = await ask(message, { title: untracked === n ? "Delete files" : "Discard changes", kind: "warning", cancelLabel: "Cancel", okLabel: untracked === n ? "Delete" : "Discard" }).catch(() => false);
       if (!ok) return false;
+      // A working-tree rename is one row here but two halves on disk, and `status_file` cannot pair
+      // them back up — so the old name rides along or it is never restored. After the prompt: the
+      // user picked one file and the wording above must keep saying so.
+      const targets = [
+        ...new Set(
+          paths.flatMap((p) => {
+            const e = entries.find((x) => x.path === p);
+            return e?.workdir === "renamed" && e.oldPath ? [p, e.oldPath] : [p];
+          }),
+        ),
+      ];
       // `false` too when another mutation was already running: nothing was discarded.
-      return await run("Discard failed", (id) => ipc.discardPaths(id, paths));
+      return await run("Discard failed", (id) => ipc.discardPaths(id, targets));
     },
 
     async resolveConflict(paths, side, label) {

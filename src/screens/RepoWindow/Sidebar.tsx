@@ -585,7 +585,7 @@ function RefContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number 
             <MenuItem {...op} onClick={run(() => void stashApply(i))}>Apply</MenuItem>
             <MenuItem {...op} onClick={run(() => void stashPop(i))}>Pop</MenuItem>
             <MenuSeparator />
-            <MenuItem icon={<Trash2 size={16} aria-hidden />} danger {...op} onClick={run(() => void stashDrop(i))}>
+            <MenuItem icon={<Trash2 size={16} aria-hidden />} danger {...op} onClick={run(() => void stashDrop(i, target.stash.message))}>
               Drop
             </MenuItem>
           </>

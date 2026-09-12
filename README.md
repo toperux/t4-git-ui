@@ -36,7 +36,7 @@ Grab the installer for your platform from the [Releases](../../releases) page:
 
 Every package has a `.sha256` sidecar next to it.
 
-Requirements: `git` ≥ 2.20 on `PATH`. Windows installs the WebView2 runtime automatically if it is missing.
+Requirements: `git` ≥ 2.24 on `PATH`. Windows installs the WebView2 runtime automatically if it is missing.
 
 ## Updating
 

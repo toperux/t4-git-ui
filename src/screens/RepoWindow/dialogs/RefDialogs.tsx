@@ -189,7 +189,7 @@ export function DeleteRemoteBranchDialog({ onClose, remote, name }: { onClose: (
       title="Delete remote branch"
       onClose={onClose}
       onSubmit={submit}
-      preview={`git push ${remote} --delete ${name}`}
+      preview={`git push ${remote} --delete --end-of-options ${name}`}
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
@@ -287,7 +287,7 @@ export function DeleteTagDialog({ onClose, name }: { onClose: () => void; name: 
   const [remote, setRemote] = useDefaultRemote(remotes);
   const [onRemote, setOnRemote] = useState(false);
   const refspec = `refs/tags/${name}`;
-  const preview = onRemote ? `git push ${remote || "origin"} --delete ${refspec} && git tag -d ${name}` : `git tag -d ${name}`;
+  const preview = onRemote ? `git push ${remote || "origin"} --delete --end-of-options ${refspec} && git tag -d ${name}` : `git tag -d ${name}`;
 
   async function submit() {
     onClose();

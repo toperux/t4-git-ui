@@ -203,6 +203,36 @@ describe("commitStore.syncWithStatus", () => {
   });
 });
 
+describe("commitStore.select", () => {
+  it("blanks the shown diff while the newly selected file's is in flight", async () => {
+    await sync([entry("a.ts"), entry("b.ts")]);
+    expect(useCommitStore.getState().diff).toMatchObject({ path: "a.ts" });
+
+    let land!: (d: FileDiff) => void;
+    mocked.getFileDiff.mockImplementation(() => new Promise<FileDiff>((r) => (land = r)));
+    useCommitStore.getState().select("unstaged", { selected: ["b.ts"], anchor: "b.ts" });
+    await flush();
+    // Every hunk / line action already addresses b.ts, so a.ts's hunks must not still be on screen.
+    expect(useCommitStore.getState()).toMatchObject({ diff: null, diffPath: "b.ts", diffLoading: true });
+
+    land(diff("b.ts", "a"));
+    await flush();
+    expect(useCommitStore.getState().diff).toMatchObject({ path: "b.ts" });
+  });
+
+  it("the same path in the other list is another diff, identical patch or not", async () => {
+    await sync([entry("x.txt")]);
+    const unstaged = useCommitStore.getState().diff;
+
+    useCommitStore.getState().select("staged", { selected: ["x.txt"], anchor: "x.txt" });
+    await flush();
+    // Same path, same hunks on the wire — but keeping the object would carry the unstaged diff's
+    // scroll and line selection into a staged diff the user never selected them in.
+    expect(useCommitStore.getState().diff).not.toBe(unstaged);
+    expect(useCommitStore.getState()).toMatchObject({ diffList: "staged", diffPath: "x.txt" });
+  });
+});
+
 describe("commitStore mutations", () => {
   it("hunk / line staging reverses only when the staged diff is shown", async () => {
     await sync([entry("a.rs")]);
@@ -346,6 +376,18 @@ describe("commitStore mutations", () => {
     mocked.discardPaths.mockClear();
     await expect(useCommitStore.getState().discard(["a.rs"])).resolves.toBe(false);
     expect(mocked.discardPaths).not.toHaveBeenCalled();
+  });
+
+  it("discarding a working-tree rename sends both halves, and still names one file in the prompt", async () => {
+    // `status_file` can't pair the two halves, so the old name has to travel with the new one or
+    // the rename target is deleted and the source never restored.
+    const renamed = { ...entry("new.txt", "renamed"), oldPath: "old.txt" };
+    useStatusStore.setState({ status: status([renamed]), error: null });
+
+    await expect(useCommitStore.getState().discard(["new.txt"])).resolves.toBe(true);
+    expect(mocked.discardPaths).toHaveBeenCalledWith(REPO.id, ["new.txt", "old.txt"]);
+    // The prompt counts what the user picked, not what the payload grew to.
+    expect(ask.mock.calls[0][0]).toContain("Discard changes in new.txt?");
   });
 
   it("keeping one side of a conflict names the branch in the confirmation before overwriting the file", async () => {

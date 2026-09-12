@@ -442,7 +442,7 @@ _Shipped 2026-09-06 (this commit); walked the same day over CDP on the installed
 - [x] **It follows the repository** (§1): open `work` → the title bar reads `T4 Git - work`;
       **Repository › Close repository** → back to `T4 Git`; switch to another recent → its name
 - [x] **Git missing** (§6): launch with git off `PATH` (or point Settings › Git executable at a
-      file that is not git) → the Git-missing screen's hint starts `T4 Git needs git 2.20 or newer`
+      file that is not git) → the Git-missing screen's hint starts `T4 Git needs git 2.24 or newer`
 
 ## T. Local-only tag badge (main §2)
 _Shipped 2026-09-06 (this commit); walked the same day over CDP on the installed build in `work` (origin = `bare.git`) and a throwaway repository with no remote. Git keeps no local record of a remote's tags, so the badge comes from `git ls-remote --tags` run quietly after a fetch / push / pull / delete on remote, and the answer is cached per repository in the kv store — nothing hits the network on open._

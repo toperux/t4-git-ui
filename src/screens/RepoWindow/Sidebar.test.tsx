@@ -9,8 +9,18 @@ import { Sidebar } from "./Sidebar";
 
 vi.mock("../../api/ipc", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/ipc")>();
-  return { ...actual, getRefs: vi.fn(() => new Promise(() => {})), getStatus: vi.fn(() => new Promise(() => {})) };
+  return {
+    ...actual,
+    getRefs: vi.fn(() => new Promise(() => {})),
+    getStatus: vi.fn(() => new Promise(() => {})),
+    stashDrop: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
+  };
 });
+const ask = vi.hoisted(() => vi.fn((_message: string, _options?: unknown) => Promise.resolve(true)));
+// `open` is the folder picker `actions.ts` imports; the row menus pull that module in.
+vi.mock("@tauri-apps/plugin-dialog", () => ({ ask, open: vi.fn() }));
+
+import * as ipc from "../../api/ipc";
 
 const branch = (name: string, isHead = false) => ({ name, oid: name, upstream: null, gone: false, mergedInto: null, ahead: 0, behind: 0, isHead });
 
@@ -315,5 +325,45 @@ describe("Sidebar tags tree", () => {
     expect(menu.queryAllByRole("menuitem").map((el) => el.textContent)).toEqual(["Refresh remote tags", "Copy name", "Delete on remote…"]);
     fireEvent.click(menu.getByRole("menuitem", { name: "Delete on remote…" }));
     expect(useDialogStore.getState().dialog).toEqual({ kind: "deleteRemoteTag", name: "v0.2.0", remote: "origin" });
+  });
+});
+
+describe("Sidebar stash menu", () => {
+  const STASH = { index: 2, oid: "s2", message: "WIP on main: fix tests" };
+  const dropped = ipc.stashDrop as unknown as ReturnType<typeof vi.fn>;
+
+  const clickDrop = () => {
+    const view = render(<Sidebar />);
+    fireEvent.contextMenu(view.getAllByRole("treeitem").find((r) => r.title === `stash@{2}: ${STASH.message}`)!);
+    fireEvent.click(within(view.getByRole("menu", { name: "Reference actions" })).getByRole("menuitem", { name: "Drop" }));
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useRepoStore.setState({ refs: { ...REFS, stashes: [STASH] }, repo: { id: "r", name: "r", path: "/r", head: { oid: "a", branch: "main", detached: false } } });
+    useOpsStore.setState({ busy: null });
+  });
+
+  it("drops nothing until the confirmation is accepted, naming the entry and its message", async () => {
+    let accept!: (ok: boolean) => void;
+    ask.mockReturnValueOnce(new Promise<boolean>((resolve) => (accept = resolve)));
+    clickDrop();
+    expect(dropped).not.toHaveBeenCalled();
+    expect(ask).toHaveBeenCalledWith(`Drop stash@{2} "${STASH.message}"? This cannot be undone.`, expect.objectContaining({ title: "Drop stash", kind: "warning", okLabel: "Drop", cancelLabel: "Cancel" }));
+
+    accept(true);
+    await waitFor(() => expect(dropped).toHaveBeenCalledWith("r", 2));
+  });
+
+  it("drops nothing when the confirmation is declined — a failed dialog counts as declined too", async () => {
+    ask.mockResolvedValueOnce(false);
+    clickDrop();
+    await waitFor(() => expect(ask).toHaveBeenCalled());
+    expect(dropped).not.toHaveBeenCalled();
+
+    ask.mockRejectedValueOnce(new Error("no dialog plugin"));
+    clickDrop();
+    await waitFor(() => expect(ask).toHaveBeenCalledTimes(2));
+    expect(dropped).not.toHaveBeenCalled();
   });
 });

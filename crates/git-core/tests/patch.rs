@@ -5,7 +5,9 @@
 use std::path::Path;
 
 use git_core::cli::GitCli;
-use git_core::diff::{changed_files, file_diff, DiffLineKind, DiffOptions, DiffTarget, FileDiff};
+use git_core::diff::{
+    changed_files, file_diff, DiffLineKind, DiffOptions, DiffTarget, FileDiff, FileStatus,
+};
 use git_core::patch::{build_patch, PatchSelection};
 use git_core::stage::{discard_patch_args, stage_patch_args};
 use git_core::test_util::TempRepo;
@@ -498,4 +500,38 @@ async fn discard_hunk_in_a_crlf_file() {
     let mut expected = base.clone();
     expected[26] = "LINE 27".into();
     assert_eq!(read(&t, "f.txt"), crlf(&expected));
+}
+
+/// `git apply -R` reverses a `rename from` / `rename to` header along with the
+/// hunks, putting the file back under its old name with the edits that were
+/// not selected: unstaging one hunk of a staged rename must keep the rename.
+#[tokio::test]
+async fn a_partial_unstage_of_a_staged_rename_keeps_the_rename() {
+    if !have_git() {
+        return;
+    }
+    let t = TempRepo::new();
+    t.commit(&[("old.txt", &numbered(30))], "base");
+    t.rename_file("old.txt", "new.txt");
+    let mut lines: Vec<String> = numbered(30).lines().map(String::from).collect();
+    lines[2] = "LINE 3".into();
+    lines[26] = "LINE 27".into();
+    t.write("new.txt", lines.join("\n") + "\n");
+    t.stage(&["new.txt"]);
+
+    let s = diff(&t, DiffTarget::Staged, "new.txt");
+    assert_eq!(s.status, FileStatus::Renamed, "{:?}", s.status);
+    assert_eq!(s.old_path.as_deref(), Some("old.txt"));
+    assert_eq!(s.hunks.len(), 2);
+
+    let p = build_patch(&s, &PatchSelection::Hunks(vec![0]), true, true).unwrap();
+    apply(&t, &p, true).await;
+
+    let mut expected: Vec<String> = numbered(30).lines().map(String::from).collect();
+    expected[26] = "LINE 27".into();
+    assert_eq!(
+        index_content(&t, "new.txt").unwrap(),
+        expected.join("\n") + "\n"
+    );
+    assert!(index_content(&t, "old.txt").is_none(), "{p}");
 }

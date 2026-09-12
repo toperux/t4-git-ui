@@ -141,6 +141,9 @@ async fn run_and_classify(
     }
     let mut failure = gitops::classify_failure(run.out.code, &run.out.stdout, &run.out.stderr);
     let found = if check_conflicts {
+        // `status`, not `get_status`: this runs inside the op, which already
+        // holds `scan_lock` — going through the command would see it taken and
+        // skip the write-back this scan is entitled to.
         let h = Arc::clone(&handle);
         blocking(move || Ok(gitops::parse_conflicts(&status(&h.git2.lock())?))).await?
     } else {
@@ -230,6 +233,26 @@ where
     .await
 }
 
+/// A user-supplied ref / remote / refspec / url, refused when git would read it
+/// as an option. The builders end option parsing with `--end-of-options` before
+/// their first positional; this covers the arguments that have to sit *before*
+/// it (a remote name) and keeps the builders themselves infallible. A typed
+/// command (`run_git`) is the user's own argv and is not checked here.
+fn ref_arg(s: &str) -> Result<&str, AppError> {
+    if s.starts_with('-') {
+        return Err(GitError::Refused(format!(
+            "{s:?} starts with -, which git would read as an option"
+        ))
+        .into());
+    }
+    Ok(s)
+}
+
+/// [`ref_arg`] for an argument that may be absent.
+fn opt_ref(s: Option<&str>) -> Result<Option<&str>, AppError> {
+    s.map(ref_arg).transpose()
+}
+
 // ---- streaming ops ----
 
 #[tauri::command]
@@ -241,7 +264,7 @@ pub async fn fetch(
     prune: bool,
     tags: bool,
 ) -> Result<OpResult, AppError> {
-    let args = gitops::fetch(remote.as_deref(), prune, tags);
+    let args = gitops::fetch(opt_ref(remote.as_deref())?, prune, tags);
     cli_op(&app, &state, &id, args, false).await
 }
 
@@ -254,7 +277,11 @@ pub async fn pull(
     branch: Option<String>,
     mode: PullMode,
 ) -> Result<OpResult, AppError> {
-    let args = gitops::pull(remote.as_deref(), branch.as_deref(), mode);
+    let args = gitops::pull(
+        opt_ref(remote.as_deref())?,
+        opt_ref(branch.as_deref())?,
+        mode,
+    );
     cli_op(&app, &state, &id, args, true).await
 }
 
@@ -271,8 +298,8 @@ pub async fn push(
     tags: bool,
 ) -> Result<OpResult, AppError> {
     let args = gitops::push(
-        &remote,
-        refspec.as_deref(),
+        ref_arg(&remote)?,
+        opt_ref(refspec.as_deref())?,
         set_upstream,
         force_with_lease,
         tags,
@@ -291,7 +318,7 @@ pub async fn merge(
     message: Option<String>,
 ) -> Result<OpResult, AppError> {
     let args = gitops::merge(
-        &branch,
+        ref_arg(&branch)?,
         &MergeOpts {
             ff,
             squash,
@@ -308,7 +335,7 @@ pub async fn rebase(
     id: RepoId,
     onto: String,
 ) -> Result<OpResult, AppError> {
-    cli_op(&app, &state, &id, gitops::rebase(&onto), true).await
+    cli_op(&app, &state, &id, gitops::rebase(ref_arg(&onto)?), true).await
 }
 
 #[tauri::command]
@@ -363,6 +390,7 @@ pub async fn rebase_todo(
     update_refs: bool,
     from_here: bool,
 ) -> Result<RebaseTodo, AppError> {
+    ref_arg(&base)?;
     let flags = RebaseFlags {
         autostash,
         rebase_merges,
@@ -454,6 +482,7 @@ pub async fn rebase_interactive(
     rebase_merges: bool,
     update_refs: bool,
 ) -> Result<OpResult, AppError> {
+    ref_arg(&base)?;
     let flags = RebaseFlags {
         autostash,
         rebase_merges,
@@ -507,7 +536,7 @@ pub async fn cherry_pick(
     mainline: Option<u32>,
 ) -> Result<OpResult, AppError> {
     let args = gitops::cherry_pick(
-        &oid,
+        ref_arg(&oid)?,
         &PickOpts {
             no_commit,
             record_origin,
@@ -527,7 +556,7 @@ pub async fn revert(
     mainline: Option<u32>,
 ) -> Result<OpResult, AppError> {
     let args = gitops::revert(
-        &oid,
+        ref_arg(&oid)?,
         &PickOpts {
             no_commit,
             record_origin: false,
@@ -565,7 +594,12 @@ pub async fn checkout(
     track: bool,
     detach: bool,
 ) -> Result<OpResult, AppError> {
-    let args = gitops::checkout(&target, create_branch.as_deref(), track, detach);
+    let args = gitops::checkout(
+        ref_arg(&target)?,
+        opt_ref(create_branch.as_deref())?,
+        track,
+        detach,
+    );
     cli_op(&app, &state, &id, args, false).await
 }
 
@@ -579,7 +613,7 @@ pub async fn reset(
     mode: gitops::ResetMode,
     target: String,
 ) -> Result<OpResult, AppError> {
-    let args = gitops::reset(mode, &target);
+    let args = gitops::reset(mode, ref_arg(&target)?);
     cli_op(&app, &state, &id, args, false).await
 }
 
@@ -593,7 +627,7 @@ pub async fn reset_branch(
     branch: String,
     target: String,
 ) -> Result<OpResult, AppError> {
-    let args = gitops::branch_force(&branch, &target);
+    let args = gitops::branch_force(ref_arg(&branch)?, ref_arg(&target)?);
     cli_op(&app, &state, &id, args, false).await
 }
 
@@ -648,7 +682,7 @@ pub async fn delete_remote_branch(
     remote: String,
     name: String,
 ) -> Result<OpResult, AppError> {
-    let args = gitops::delete_remote_branch(&remote, &name);
+    let args = gitops::delete_remote_branch(ref_arg(&remote)?, ref_arg(&name)?);
     cli_op(&app, &state, &id, args, false).await
 }
 
@@ -680,7 +714,7 @@ pub async fn create_branch(
     checkout: bool,
 ) -> Result<(), AppError> {
     if checkout {
-        let args = gitops::checkout(&target, Some(&name), false, false);
+        let args = gitops::checkout(ref_arg(&target)?, Some(ref_arg(&name)?), false, false);
         let result = cli_op(&app, &state, &id, args, false).await?;
         return match result.failure {
             None => Ok(()),
@@ -866,7 +900,7 @@ pub async fn remote_tags(
     remote: String,
 ) -> Result<Vec<RemoteTag>, AppError> {
     let handle = state.repo(&id)?;
-    let args = gitops::ls_remote_tags(&remote);
+    let args = gitops::ls_remote_tags(ref_arg(&remote)?);
     let argv: Vec<&str> = args.iter().map(String::as_str).collect();
     let run = run_git_op(&app, &state, Some(&id), &handle.path, &argv, None, false).await?;
     run.out.check("git ls-remote --tags")?;
@@ -886,6 +920,7 @@ pub async fn clone_repo(
     recurse_submodules: bool,
     depth: Option<u32>,
 ) -> Result<RepoSummary, AppError> {
+    ref_arg(&url)?;
     let dest_path = PathBuf::from(&dest);
     let parent = match dest_path.parent().filter(|p| !p.as_os_str().is_empty()) {
         Some(p) => p.to_path_buf(),
@@ -937,7 +972,9 @@ pub async fn init_repo(
 
 #[cfg(test)]
 mod tests {
-    use super::{is_rebase, pause_message};
+    use super::{is_rebase, opt_ref, pause_message, ref_arg};
+    use crate::AppError;
+    use git_core::GitError;
 
     fn argv(a: &[&str]) -> Vec<String> {
         a.iter().map(|s| s.to_string()).collect()
@@ -967,5 +1004,27 @@ mod tests {
         let exec = "Rebasing (2/3)\rExecuting: false\nwarning: execution failed: false\nYou can fix the problem, and then run\n\n  git rebase --continue\n";
         assert_eq!(pause_message(exec), "warning: execution failed: false");
         assert_eq!(pause_message(""), "The rebase is paused");
+    }
+
+    #[test]
+    fn a_ref_that_starts_with_a_dash_is_refused_at_the_boundary() {
+        for bad in ["--exec=touch$IFS'pwned.txt'", "--upload-pack=sh", "-x", "-"] {
+            assert!(
+                matches!(ref_arg(bad), Err(AppError::Git(GitError::Refused(_)))),
+                "{bad}"
+            );
+            assert!(opt_ref(Some(bad)).is_err(), "{bad}");
+        }
+        for ok in [
+            "main",
+            "origin/x",
+            "0123456789abcdef0123456789abcdef01234567",
+            "refs/heads/x",
+            "origin",
+            "HEAD~2",
+        ] {
+            assert_eq!(ref_arg(ok).unwrap(), ok, "{ok}");
+        }
+        assert_eq!(opt_ref(None).unwrap(), None);
     }
 }

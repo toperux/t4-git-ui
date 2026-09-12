@@ -242,5 +242,10 @@ export function __resetForTests() {
 // Follow the open repository: load on open, clear on close.
 useRepoStore.subscribe((st, prev) => {
   if (st.repo !== prev.repo) void useStatusStore.getState().refresh();
-  else if (st.refs !== prev.refs) dropWorkingTreeIfClean();
+  else if (st.refs !== prev.refs) {
+    dropWorkingTreeIfClean();
+    // The refs are what makes a status fresh: a seed decided without them (`openRepo` opens with
+    // `refs: null`, and `refreshRefs()` callers never reach `syncRefsOnce`) was only a fallback.
+    syncWalkSeed();
+  }
 });

@@ -202,7 +202,12 @@ pub fn build_patch(
                 "diff --git a/{path} b/{path}\ndeleted file mode {mode}\n--- a/{path}\n+++ /dev/null\n"
             ));
         }
-        FileStatus::Renamed | FileStatus::Copied if old_path != path => {
+        // Only the forward direction needs the old path: the index has no file
+        // at `path` yet, so git takes the preimage from `old_path`. Reversed
+        // (`-R`, a discard or an unstage) the header would reverse the rename
+        // along with the hunks, moving the file back under its old name with
+        // the untouched edits in tow.
+        FileStatus::Renamed | FileStatus::Copied if !reverse && old_path != path => {
             s.push_str(&format!(
                 "diff --git a/{old_path} b/{path}\nrename from {old_path}\nrename to {path}\n{mode_lines}--- a/{old_path}\n+++ b/{path}\n"
             ));
@@ -456,6 +461,31 @@ mod tests {
         assert!(!p.contains("new mode"), "{p}");
         assert!(
             p.starts_with("diff --git a/f.txt b/f.txt\n--- a/f.txt\n"),
+            "{p}"
+        );
+    }
+
+    #[test]
+    fn rename_header_only_for_the_forward_direction() {
+        let t = TempRepo::new();
+        t.commit(&[("old.txt", "a\nb\n")], "base");
+        t.rename_file("old.txt", "new.txt");
+        t.write("new.txt", "a\nB\n");
+        t.stage(&["new.txt"]);
+        let d = staged(&t, "new.txt");
+        assert_eq!(d.status, FileStatus::Renamed);
+        assert_eq!(d.old_path.as_deref(), Some("old.txt"));
+
+        // Forward: the index has no `new.txt`, so git needs the old preimage.
+        let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), false, true).unwrap();
+        assert!(
+            p.starts_with("diff --git a/old.txt b/new.txt\nrename from old.txt\nrename to new.txt\n--- a/old.txt\n+++ b/new.txt\n"),
+            "{p}"
+        );
+        // Reverse (`-R`): the header would reverse the rename along with the hunk.
+        let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), true, true).unwrap();
+        assert!(
+            p.starts_with("diff --git a/new.txt b/new.txt\n--- a/new.txt\n+++ b/new.txt\n"),
             "{p}"
         );
     }

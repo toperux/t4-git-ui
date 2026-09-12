@@ -64,7 +64,7 @@ export function StashDialog({ onClose, index, message }: { onClose: () => void; 
       preview={`git stash pop stash@{${index}}`}
       footer={
         <>
-          <Button variant="danger" onClick={() => act(stashDrop)}>
+          <Button variant="danger" onClick={() => act((i) => stashDrop(i, message))}>
             Drop
           </Button>
           <Button onClick={() => act(stashApply)}>Apply</Button>

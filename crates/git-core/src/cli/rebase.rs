@@ -278,6 +278,8 @@ pub fn read_args(base: &str, flags: &RebaseFlags, out: &Path) -> Vec<String> {
         true,
         flags,
     );
+    // Ends option parsing, so a base named `--exec=<cmd>` stays a ref.
+    a.push("--end-of-options".into());
     a.push(base.into());
     a
 }
@@ -293,6 +295,7 @@ pub fn run_args(base: &str, flags: &RebaseFlags, todo: &Path) -> Vec<String> {
         false,
         flags,
     );
+    a.push("--end-of-options".into());
     a.push(base.into());
     a
 }
@@ -473,6 +476,7 @@ mod tests {
                 "rebase",
                 "-i",
                 "--autosquash",
+                "--end-of-options",
                 "main",
             ]
         );
@@ -488,6 +492,7 @@ mod tests {
                 "--rebase-merges",
                 "--update-refs",
                 "--autostash",
+                "--end-of-options",
                 "abc123"
             ]
         );
@@ -499,12 +504,19 @@ mod tests {
                 "sequence.editor=sh -c 'cp \"/tmp/t4 repo/.git/t4-rebase/todo\" \"$1.t4\" && mv \"$1.t4\" \"$1\"' _",
                 "rebase",
                 "-i",
+                "--end-of-options",
                 "main",
             ]
         );
         assert_eq!(
             run_args("main", &flags, todo)[4..],
-            ["--rebase-merges", "--update-refs", "--autostash", "main"]
+            [
+                "--rebase-merges",
+                "--update-refs",
+                "--autostash",
+                "--end-of-options",
+                "main"
+            ]
         );
     }
 

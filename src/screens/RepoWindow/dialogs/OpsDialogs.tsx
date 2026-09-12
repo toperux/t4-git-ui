@@ -105,7 +105,7 @@ export function DeleteRemoteTagDialog({ onClose, name, remote: initial }: { onCl
       title="Delete remote tag"
       onClose={onClose}
       onSubmit={submit}
-      preview={`git push ${remote || "origin"} --delete ${refspec}`}
+      preview={`git push ${remote || "origin"} --delete --end-of-options ${refspec}`}
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>

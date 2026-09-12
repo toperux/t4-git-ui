@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use git_core::conflict;
@@ -82,17 +83,25 @@ const SLOW_STATUS: Duration = Duration::from_millis(250);
 #[tauri::command]
 pub async fn get_status(state: State<'_, AppState>, id: RepoId) -> Result<WorkdirStatus, AppError> {
     let handle = state.repo(&id)?;
+    // The scan writes the refreshed stat cache back at the end, and libgit2
+    // does not check whether the index changed on disk in between: a mutation
+    // that ran during the scan would be silently undone. Holding `git2` covers
+    // only the libgit2-side mutations (stage / unstage / discard); the
+    // CLI-backed ones (`git apply --cached`, `git commit`, merge, rebase…)
+    // touch the index as a subprocess, and `scan_lock` is what serialises the
+    // scan against those. Taken (an op is in flight, or about to be): scan
+    // without the write-back, so status stays live during a long push. A
+    // `git add` typed in a terminal during the scan is still exposed, as with
+    // any libgit2 index write. Free: hold the guard for the whole scan — that
+    // is what makes an op starting now wait for the write-back.
+    let scan_guard = handle.scan_lock.try_lock();
+    let refresh = scan_guard.is_ok();
+    let h = Arc::clone(&handle);
     blocking(move || {
         let t = Instant::now();
-        // Under the shared lock on purpose: the scan writes the refreshed stat
-        // cache back at the end, and libgit2 does not check whether the index
-        // changed on disk in between — a stage that ran during the scan would
-        // be silently undone. The lock keeps the app's own mutations out of
-        // that window (a `git add` from a terminal during the one slow scan
-        // after a mass touch is still exposed, as with any libgit2 index write).
-        let status = status::status(&handle.git2.lock())?;
+        let status = status::status_with(&h.git2.lock(), refresh)?;
         if t.elapsed() >= SLOW_STATUS {
-            tracing::info!(id = %handle.id, elapsed = ?t.elapsed(), "slow status");
+            tracing::info!(id = %h.id, elapsed = ?t.elapsed(), "slow status");
         }
         Ok(status)
     })

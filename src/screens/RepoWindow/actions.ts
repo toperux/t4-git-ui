@@ -1,6 +1,6 @@
 // Operations shared by the toolbar, menus, banners and shortcuts. Everything goes through `runOp`.
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { open as openFolder } from "@tauri-apps/plugin-dialog";
+import { ask, open as openFolder } from "@tauri-apps/plugin-dialog";
 import * as ipc from "../../api/ipc";
 import { toAppError } from "../../api/ipc";
 import type { Branch, DiffTarget, Remote, RemoteBranch } from "../../api/types";
@@ -70,7 +70,13 @@ export const revertAbort = () => runOp("Aborting revert…", (id) => ipc.revertA
 
 export const stashApply = (index: number) => runOp(`Applying stash@{${index}}…`, (id) => ipc.stashApply(id, index), { success: `Applied stash@{${index}}` });
 export const stashPop = (index: number) => runOp(`Popping stash@{${index}}…`, (id) => ipc.stashPop(id, index), { success: `Popped stash@{${index}}` });
-export const stashDrop = (index: number) => runOp(`Dropping stash@{${index}}…`, (id) => ipc.stashDrop(id, index), { success: `Dropped stash@{${index}}` });
+/** Confirmed: a dropped stash has no undo. Named by both index and message — the index shifts with every drop, the message is what the user recognises. */
+export async function stashDrop(index: number, message: string) {
+  // No confirmation available (no Tauri dialog plugin) → treat it as declined; nothing is lost.
+  const ok = await ask(`Drop stash@{${index}} "${message}"? This cannot be undone.`, { title: "Drop stash", kind: "warning", cancelLabel: "Cancel", okLabel: "Drop" }).catch(() => false);
+  if (!ok) return;
+  return runOp(`Dropping stash@{${index}}…`, (id) => ipc.stashDrop(id, index), { success: `Dropped stash@{${index}}` });
+}
 
 /**
  * `git <line>` typed by the user. The line goes into the history as it runs (a failing command is
