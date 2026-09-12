@@ -50,6 +50,26 @@ describe("toastStore", () => {
     expect(useToastStore.getState().toasts.map((t) => t.title)).toEqual(["e0", "e1", "e2", "e3", "e4", "e5", "e6", "e7"]);
   });
 
+  it("dismissing by hand puts the focus back on the origin, expiring on its own never moves it", () => {
+    const origin = document.createElement("button");
+    const elsewhere = document.createElement("input");
+    document.body.append(origin, elsewhere);
+    elsewhere.focus();
+
+    // Nothing was clicked, so the info toast leaves the focus alone.
+    useToastStore.getState().push({ kind: "info", title: "Copied SHA", origin });
+    vi.advanceTimersByTime(TOAST_MS + 100);
+    expect(useToastStore.getState().toasts).toHaveLength(0);
+    expect(document.activeElement).toBe(elsewhere);
+
+    const id = useToastStore.getState().push({ kind: "error", title: "Stage failed", origin });
+    useToastStore.getState().dismiss(id);
+    expect(document.activeElement).toBe(origin);
+
+    origin.remove();
+    elsewhere.remove();
+  });
+
   it("cliDetail keeps the first stderr line of a `cli` message", () => {
     expect(cliDetail("`git push` exited with code 1: \n error: failed to push\nhint: try pull")).toBe("error: failed to push");
     // A negative exit code (a signal) is still a prefix.
@@ -77,6 +97,14 @@ describe("toastError", () => {
   it("a `cli` error shows only git's first stderr line", () => {
     toastError({ kind: "cli", message: "`git push` exited with code 1: \nerror: rejected\nhint: pull first" }, "Push failed");
     expect(toasts()[0].detail).toBe("error: rejected");
+  });
+
+  it("carries the origin through, whatever the kind", () => {
+    const origin = document.createElement("button");
+    toastError({ kind: "indexLocked", message: "index.lock exists" }, "Stage failed", vi.fn(), origin);
+    toastError({ kind: "cli", message: "`git push` exited with code 1: rejected" }, "Push failed", undefined, origin);
+    toastError({ kind: "git", message: "boom" }, "Open failed", undefined, origin);
+    expect(toasts().map((t) => t.origin)).toEqual([origin, origin, origin]);
   });
 
   it("any other kind shows the message as is, and persists", () => {

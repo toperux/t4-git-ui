@@ -1,7 +1,15 @@
 /*
+ * Nothing to say: no box at all, so the control sits in its parent's flex/grid row exactly as if
+ * the wrapper were not there. The element stays in the DOM so the control never remounts when the
+ * hint switches on (see DisabledHint.tsx).
+ */
+.idle {
+  display: contents;
+}
+/*
  * Hugs the control so it takes the control's place in a flex/grid row without adding space of its
- * own. `display: contents` looks like the tidier answer but is the wrong one: it removes the
- * element's box, and with the box goes the hover target this whole component exists to provide.
+ * own. `display: contents` is wrong here: it removes the element's box, and with the box goes the
+ * hover target this whole component exists to provide.
  */
 .wrap {
   display: inline-flex;

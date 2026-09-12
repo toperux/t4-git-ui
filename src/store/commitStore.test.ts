@@ -487,6 +487,16 @@ describe("commitStore mutations", () => {
     expect(mocked.unstagePaths).toHaveBeenCalledTimes(2);
   });
 
+  it("a failed mutation remembers what had the focus when it started, for Retry / Dismiss", async () => {
+    const button = document.createElement("button");
+    document.body.append(button);
+    button.focus();
+    mocked.stagePaths.mockRejectedValueOnce({ kind: "git", message: "boom" });
+    await useCommitStore.getState().stage(["a.rs"]);
+    expect(useToastStore.getState().toasts[0].origin).toBe(button);
+    button.remove();
+  });
+
   it("a mutation refused because another one is running says so — the Retry must not vanish silently", async () => {
     useCommitStore.setState({ busy: true });
     await useCommitStore.getState().stage(["a.rs"]);

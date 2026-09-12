@@ -232,8 +232,13 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
   /**
    * Runs one mutation (errors → toast with Retry), then refreshes the status.
    * `false` when it never ran because no repo is open or another mutation holds `busy`.
+   *
+   * The focus is read here, on entry: by the time the op fails, `busy` has disabled the control that
+   * was clicked and dropped the focus to `<body>`. `origin` is how a Retry carries the same control
+   * through a whole retry loop.
    */
-  async function run(title: string, op: (id: string) => Promise<unknown>): Promise<boolean> {
+  async function run(title: string, op: (id: string) => Promise<unknown>, origin?: HTMLElement | null): Promise<boolean> {
+    const from = origin ?? (document.activeElement as HTMLElement | null);
     const id = repoId();
     if (!id) return false;
     if (get().busy) {
@@ -245,7 +250,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
     try {
       await op(id);
     } catch (e) {
-      toastError(toAppError(e), title, () => void run(title, op));
+      toastError(toAppError(e), title, () => void run(title, op, from), from);
     } finally {
       set({ busy: false });
     }

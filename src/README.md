@@ -142,7 +142,9 @@ src/
                            own tooltip never fires, and that title is usually the reason it is dead. Button, IconButton,
                            MenuItem and ToolbarButton route through it — Select, TreeRow and SectionHeader render their own
                            buttons unwrapped. IconButton only passes a `title` through (its `label` alone no longer hints).
-                           It wraps only when both are true, so an enabled control renders exactly the DOM it always did; a
+                           The span is always there, `display: contents` (boxless, no title) until both are true, so the control
+                           never remounts when an operation disables it and a node someone captured — a toast's focus return,
+                           a dialog's return-focus target — stays live; a
                            caller whose wrapper must be a block box passes `className`, which *replaces* the default one
                            rather than joining it, since two classes both setting `display` would be settled by stylesheet
                            order),

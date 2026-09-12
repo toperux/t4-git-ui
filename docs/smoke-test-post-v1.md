@@ -1188,6 +1188,57 @@ Coming out: at abort log entry 4 the refs were already on `other`/`Clean` while 
 `1 conflicted`; both banners stayed empty and the working-tree row **held** through entries 4–5,
 removed once at entry 6. Neither direction flashed a wrong answer.
 
+## AH. Recents: five inline, the rest in a submenu (main §1)
+_Shipped 2026-09-13 (`a4856f0`). The Repository menu lists the first five recent repos inline (store
+order: pinned first, then most recently opened) and puts the rest under **More recent ▸**, a real
+submenu — the kit's first. Walked 2026-09-13 over CDP on a release build with 14 recents._
+
+- [x] **Five plus the chevron** (§1): open the Repository menu → exactly five recent rows, then
+      **More recent** with a right chevron, `aria-haspopup="menu"`; the row is absent altogether
+      with five or fewer recents
+- [x] **Keyboard** (§1): focus **More recent**, `→` opens the panel with its first row focused
+      (`aria-expanded="true"`), `↓` moves inside it, `←` closes it and puts the focus back on **More
+      recent**, `Enter` opens it again, `Escape` closes only the panel, a second `Escape` the menu
+- [x] **Where it sits** (§1): the panel opens beside the parent menu, level with the row (parent's
+      right edge = panel's left, same top as the row), as a DOM sibling of the parent menu — never
+      inside it, or its rows would join the parent's ↑/↓ cycle
+- [x] **Mouse** (§1): hover **More recent** → the panel opens after a beat; move onto another row →
+      it closes; click a repo in the panel → it opens and both menus close
+
+## AI. Sidebar folders: always expanded / always collapsed / past N refs (main §2)
+_Shipped 2026-09-13 (`d112ab6`, issue #2). Settings → **Sidebar folders** seeds every branch and
+tag folder's collapse state on repo open and whenever the setting changes; a manual toggle then wins
+for the session. Top-level groups and the per-remote roots are not folders and never collapse.
+Walked 2026-09-13 over CDP in `c:/tmp/t4/work` (two `topic/` folders holding one ref each)._
+
+- [x] **Always collapsed** (§2): pick it → both `topic` folders read `aria-expanded="false"`; the
+      remote roots (`origin`, `mirror`, `nowhere`) and the tag group stay open
+- [x] **Collapsed when more than N** (§2): pick it, N = 1 → `topic` (1 ref) re-expands; N = 0 is
+      refused (1..999) and the field is disabled under the other two modes
+- [x] **Always expanded** (§2): pick it → everything open again; the app store keeps the choice
+      (`sidebarFolders`, `sidebarFoldersMax` in `recents.json`) across a restart
+- [ ] **A manual toggle survives a refresh** (§2, manual): under *Always collapsed* expand `topic`,
+      then Fetch → it stays open; a folder that first appears mid-session (create `x/y`) arrives
+      collapsed
+
+## AJ. Toast Retry / Dismiss return the focus (main §3)
+_Shipped 2026-09-13 (`2eb883b`). A failed action's toast remembers the control it started from;
+Retry re-runs from it and Dismiss puts the focus back on it (or on the open dialog's first field
+when that control is gone). Auto-dismiss never moves the focus. Walked 2026-09-13 over CDP in
+`c:/tmp/t4/work` with `.git/index.lock` planted. The first walk found the origin detached: every
+`DisabledHint`-wrapped button was remounted when an operation disabled it, so nothing was left to
+focus — fixed in this commit by keeping the wrapper in the DOM (`display: contents` while idle)._
+
+- [x] **Dismiss** (§3): plant `index.lock`, click **Unstage all** → *Unstage failed · Index is
+      locked* with **Retry**; click × → the focus is on **Unstage all** again, not `<body>`
+- [x] **Retry, still locked** (§3): click **Retry** → the toast reappears (one toast, not two), the
+      same origin still held
+- [x] **Retry, unlocked** (§3): remove the lock, click **Retry** → the files unstage, the toast goes,
+      and the focus lands on **Unstage all** — now disabled (nothing left to unstage), so the browser
+      drops it to `<body>`; that is the control's own state, not a lost origin
+- [x] **In the commit dialog** (§3): repeat Dismiss with the full-window commit dialog open → the
+      focus returns inside the dialog, never to the panel behind the scrim
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the

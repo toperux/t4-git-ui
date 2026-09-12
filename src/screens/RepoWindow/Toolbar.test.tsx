@@ -106,12 +106,13 @@ describe("Toolbar Branch menu", () => {
     fireEvent.click(getByRole("menuitem", { name: /Create branch/ }));
     expect(document.activeElement).toBe(getByRole("textbox", { name: "Name" }));
 
-    // An op runs under the open dialog: the disabled trigger is wrapped in a `DisabledHint` span and
-    // unwrapped again when it finishes, so the button the dialog opened from is gone twice over.
+    // An op runs under the open dialog: the disabled trigger's `DisabledHint` wrapper takes the
+    // title, and the button itself stays the same node throughout (it used to be remounted, which
+    // is why the dialog is handed the ref rather than the node).
     act(() => useOpsStore.setState({ busy: "Pushing to origin…" }));
-    expect(getByRole("button", { name: "Branch" }).parentElement?.getAttribute("role")).toBe("none");
+    expect(getByRole("button", { name: "Branch" }).parentElement?.getAttribute("title")).toBe("Operation in progress");
     act(() => useOpsStore.setState({ busy: null }));
-    expect(stale.isConnected).toBe(false);
+    expect(stale.isConnected).toBe(true);
 
     act(() => useDialogStore.getState().close());
     expect(document.activeElement).toBe(getByRole("button", { name: "Branch" }));

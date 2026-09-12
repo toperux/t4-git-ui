@@ -7,8 +7,14 @@ import { ToolbarButton } from "../ToolbarButton/ToolbarButton";
 
 afterEach(cleanup);
 
-/** The wrapper is the whole point: a disabled control cannot take a hover, so this has to. */
-const wrapperOf = (el: HTMLElement) => el.closest('[role="none"]');
+/**
+ * The wrapper is the whole point: a disabled control cannot take a hover, so this has to. It is
+ * always there (so the control never remounts); "wrapped" means it carries the title.
+ */
+const wrapperOf = (el: HTMLElement) => {
+  const w = el.closest('[role="none"]');
+  return w?.hasAttribute("title") ? w : null;
+};
 
 describe("DisabledHint", () => {
   it("wraps a disabled control so its title has something to hover", () => {
@@ -28,8 +34,27 @@ describe("DisabledHint", () => {
 
   it("leaves an enabled control alone", () => {
     const { getByRole } = render(<Button title="Commit, then push">Commit</Button>);
-    // An enabled control fires its own tooltip, so wrapping it would add a DOM node for nothing.
-    expect(wrapperOf(getByRole("button", { name: "Commit" }))).toBeNull();
+    // An enabled control fires its own tooltip; the wrapper stays boxless and says nothing.
+    const btn = getByRole("button", { name: "Commit" });
+    expect(wrapperOf(btn)).toBeNull();
+    expect(btn.parentElement?.className).toMatch(/idle/);
+  });
+
+  it("keeps the same control node when the hint switches on and off", () => {
+    // An operation disables every button with an "Operation in progress" title, then re-enables it.
+    // Whoever captured the button before (a toast's focus return, a dialog's return-focus target)
+    // must still hold a live node afterwards, so the hint may not remount it.
+    const { getByRole, rerender } = render(<Button>Commit</Button>);
+    const before = getByRole("button", { name: "Commit" });
+    rerender(
+      <Button disabled title="Operation in progress">
+        Commit
+      </Button>,
+    );
+    expect(wrapperOf(before)?.getAttribute("title")).toBe("Operation in progress");
+    rerender(<Button>Commit</Button>);
+    expect(getByRole("button", { name: "Commit" })).toBe(before);
+    expect(before.isConnected).toBe(true);
   });
 
   it("leaves a disabled control with nothing to say alone", () => {

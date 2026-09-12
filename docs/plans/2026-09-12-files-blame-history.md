@@ -353,6 +353,12 @@ Each lands with its tests, the usual gates (fmt, clippy, cargo test, tsc, vitest
 `c:/tmp/t4/work` in both the pane and the Diff dialog, and a smoke group appended to
 `smoke-test-post-v1.md`. Commits stay local until the user asks for a push.
 
+**Status 2026-09-13.** 4, 5a, 5b, 5c landed (`a4856f0`, `d112ab6`, `65598b1`, `2eb883b`) and
+walked over CDP (smoke groups AH, AI, AJ). The 5c walk found the origin detached: `DisabledHint`
+remounted every button an operation disabled, so there was never a live node to focus. Fixed by
+keeping its wrapper in the DOM (`display: contents` while idle), which also retires the reason
+`Dialog`/`Toolbar` pass return-focus targets as refs (left as they are). 1–3 next, in that order.
+
 ## 7. Open for the refine pass
 
 - Tab strip placement: in `ChangedFileList`'s header (left of the tree toggle), or a header row

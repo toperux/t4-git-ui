@@ -41,6 +41,17 @@ export interface DialogProps {
 const FOCUSABLE = 'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])';
 
 /**
+ * First focusable control of the open dialog, for focus that has nowhere else to go (a toast whose
+ * origin has left the document). The body comes first for the same reason the `busy` effect below
+ * prefers it: the form's own first focusable is the title bar's Close.
+ */
+export function firstDialogField(): HTMLElement | null {
+  const form = document.querySelector<HTMLElement>('form[role="dialog"]');
+  if (!form) return null;
+  return (form.querySelector<HTMLElement>(`.${s.body}`) ?? form).querySelector<HTMLElement>(FOCUSABLE);
+}
+
+/**
  * Modal dialog (style guide `Dialog`): scrim, title + close, body, footer. Esc closes, Enter submits,
  * Tab is trapped inside, focus returns to the opener on unmount. Rendered into `document.body`.
  */

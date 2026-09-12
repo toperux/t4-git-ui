@@ -1,7 +1,9 @@
-import { cleanup, fireEvent, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Toast as ToastModel } from "../../../store/toastStore";
-import { Toast } from "./Toast";
+import { useDialogStore } from "../../../store/dialogStore";
+import { useToastStore, type Toast as ToastModel } from "../../../store/toastStore";
+import { Dialog } from "../Dialog/Dialog";
+import { Toast, ToastStack } from "./Toast";
 
 afterEach(cleanup);
 
@@ -36,5 +38,59 @@ describe("Toast", () => {
     fireEvent.click(getByRole("button", { name: "Dismiss" }));
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(onClick).not.toHaveBeenCalled();
+  });
+});
+
+// Both buttons close through the store's `dismiss`, which is what hands the focus back.
+describe("ToastStack focus", () => {
+  afterEach(() => {
+    useToastStore.setState({ toasts: [] });
+    useDialogStore.setState({ dialog: null, returnFocus: null });
+  });
+
+  const push = (t: Omit<ToastModel, "id">) => act(() => void useToastStore.getState().push(t));
+
+  function stackWithButton() {
+    const r = render(
+      <>
+        <button type="button">Stage</button>
+        <ToastStack />
+      </>,
+    );
+    return { ...r, stage: r.getByRole("button", { name: "Stage" }) };
+  }
+
+  it("Retry gives the focus back to the control that failed", () => {
+    const { getByRole, stage } = stackWithButton();
+    const onClick = vi.fn();
+    push({ kind: "error", title: "Stage failed", detail: "Index is locked", action: { label: "Retry", onClick }, origin: stage });
+    fireEvent.click(getByRole("button", { name: "Retry" }));
+    expect(onClick).toHaveBeenCalledOnce();
+    expect(document.activeElement).toBe(stage);
+  });
+
+  it("Dismiss does the same", () => {
+    const { getByRole, stage } = stackWithButton();
+    push({ kind: "error", title: "Stage failed", origin: stage });
+    fireEvent.click(getByRole("button", { name: "Dismiss" }));
+    expect(document.activeElement).toBe(stage);
+  });
+
+  it("an origin that has left the document falls back to the open dialog's first field", () => {
+    useDialogStore.setState({ dialog: { kind: "createTag" } });
+    // The row the action came from was unmounted while the op ran.
+    const gone = document.createElement("button");
+    const { getByRole, getByLabelText } = render(
+      <>
+        <Dialog title="Create tag" onClose={() => {}}>
+          <input aria-label="Name" />
+        </Dialog>
+        <ToastStack />
+      </>,
+    );
+    push({ kind: "error", title: "Create tag failed", origin: gone });
+    fireEvent.click(getByRole("button", { name: "Dismiss" }));
+    // The body's field, not the title bar's Close.
+    expect(document.activeElement).toBe(getByLabelText("Name"));
   });
 });

@@ -557,10 +557,11 @@ describe("DiffViewer", () => {
     const onExpand = vi.fn();
     const { getByRole } = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} onExpand={onExpand} />);
     const expand = getByRole("button", { name: "Open diff window" });
-    // In the header, first of the trailing buttons.
+    // In the header, first of the trailing buttons. Each sits in its own `DisabledHint` span, so the
+    // order is read off the spans.
     const unified = getByRole("button", { name: "Unified view" });
-    expect(expand.parentElement).toBe(unified.parentElement);
-    expect(expand.nextElementSibling).toBe(unified);
+    expect(expand.parentElement?.parentElement).toBe(unified.parentElement?.parentElement);
+    expect(expand.parentElement?.nextElementSibling).toBe(unified.parentElement);
     fireEvent.click(expand);
     // The dialog names it as the opener: it is behind the scrim, not `document.activeElement`.
     expect(onExpand).toHaveBeenCalledWith(expand);
@@ -586,7 +587,7 @@ describe("DiffViewer", () => {
     const button = getByRole("button", { name: "Open in diff tool" });
     expect(button.getAttribute("title")).toBe("Open in Beyond Compare");
     // In the header, right after the expand button's place and before the view toggles.
-    expect(button.nextElementSibling).toBe(getByRole("button", { name: "Unified view" }));
+    expect(button.parentElement?.nextElementSibling).toBe(getByRole("button", { name: "Unified view" }).parentElement);
     fireEvent.click(button);
     expect(onOpenExternal).toHaveBeenCalledTimes(1);
   });
