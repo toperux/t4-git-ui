@@ -17,7 +17,7 @@ confirmed, a step still needs an experiment (named).
 
 **Numbers.** 65 fresh findings (A6 B8 C8 D13 E11 F9 X10) plus the 13 existing R-items → **61
 checklist items** below (four cluster entries bundle 16 of the inputs; 6 were exact duplicates):
-**8 P0, 19 P1, 34 P2**. R12/R13 stay recorded-only.
+**8 P0, 19 P1, 34 P2**. R12/R13 stay recorded-only. Six findings are marked **to revisit** (E6, B3, C6 ×2, R10, R12, R13): not fixed, not closed; `grep "to revisit"` lists them.
 
 **Caveat on the diff pass (X).** That reviewer inherited this session's context, which already
 summarised R1–R7, so its re-finding R1/R3/R8 is not independent confirmation. The six area
@@ -48,7 +48,7 @@ every row are in the sections below, keyed by the same id.
 | P1-5 | F1 | med | CONFIRMED | ui/Select | Select closes when its own listbox scrolls | done `e1f69f9` — copy CommandInput's `list.contains(e.target)` guard; 40-option scroll test |
 | P1-6 | X3+X4+F6+R8 | med | CONFIRMED | ui/Select + rebase dialog | Select keyboard cluster: disabled options, Alt+↑ commits hover, chord stolen from open list | done `909a22f` — `move()` + `onMouseMove` skip disabled; Alt+↑ keeps commit-active semantics; dialog capture guard yields when `e.target.closest('[role=combobox]')` is `aria-expanded=true`; 3 new tests |
 | P1-7 | X7+X6+R11 | low | CONFIRMED | commit panel | DisabledHint surfaces titles written for the enabled state (~9 sites) + "(N skipped)" on a full refusal | done `79431aa` — rule: disabled title = why it is dead or absent; sites: MessageColumn:183, DiffViewer:276/283/369, FilesColumn:103, FileContextMenu:80 + FilesColumn:445; IconButton: `DisabledHint` gets only the explicit `title` (the enabled `title={tip}` fallback stays); fold X10: one `stageTarget(entries, paths) → {target, skipped, note}` helper |
-| P1-8 | X8+R10 | low | CONFIRMED | commit panel | Selected-mode rules: dead header after partial stage / silent promotion to whole list | done `84fdc82` — X8: a header "… selected" action resets the selection to a single seed on completion; R10 = wont (recorded); correct smoke-test-post-v1.md:772 |
+| P1-8 | X8+R10 | low | CONFIRMED | commit panel | Selected-mode rules: dead header after partial stage / silent promotion to whole list | done `84fdc82` — X8: a header "… selected" action resets the selection to a single seed on completion; R10 = to revisit (wont for now, recorded); correct smoke-test-post-v1.md:772 |
 | P1-9 | R3 (+R2) | med | CONFIRMED mech | ui/DisabledHint | Wrapper cancels the control's flex sizing; R2 header floor needs a 220px measurement | done `d64e3fa` + R2 `3834aed` (floor dropped: 220px measurement 15/56 vs 56/56) — drop `min-width: 0` from `.wrap` (item min-width auto = control's own box); audit wrapped growers, per-caller class only if one exists. R2: measure title rect at 220px with/without the floor on a real build; rule: floor truncates the title and no-floor doesn't → drop the floor, accept the jog; else keep |
 | P1-10 | C2 | med | CONFIRMED | tauri | Every mutation triggers a second full status scan (suppression lifted before the debounce flushes) | done `4190d9d` — time-stamped: record `last_unsuppress` at op end, handler drops events with `time < last_unsuppress + ~50ms` (or while suppressed); no timer; two watch tests (own write dropped, external write 200ms later kept) |
 | P1-11 | D4 (+D8) | med | CONFIRMED | stores | `same()` / `sameRefs` / `entriesKey` JSON-stringify whole payloads per event | done `31d7e62` — one generic `eqDeep` in src/lib (exact, recursive, early exit, no allocation) at all three sites; `entriesKey` built from the four entry fields; unit test + stringify spy |
@@ -57,14 +57,14 @@ every row are in the sections below, keyed by the same id.
 | P1-14 | E5 | low | PLAUSIBLE | diff viewer | Unstaged→staged selection-carry guard can never fire | done `ff46e63` — folded into P0-3 |
 | P1-15 | F9 | low | CONFIRMED | dialogs | Delete remote branch sends the bare short name (tag dialogs send a full ref) | done `98f337d` — `refs/heads/${name}` + preview; payload test |
 | P1-16 | C7 | low | CONFIRMED | tauri/stores | "repo not open" is `internal`; frontend uses `internal` as "stay quiet" | done `b00a15c` — new `AppError::NotOpen` → `"notOpen"`; the two frontend sites suppress on it, `internal` toasts again; state test + statusStore toast test |
-| P1-17 | C6 | low | CONFIRMED | tauri | `close_repo` never cancels the repo's in-flight ops | done `44f9e38` (wont, comment) — unreachable: `refusedWhileRunning()` blocks close/switch in the UI (actions.ts:140-175); add a comment on `close_repo` naming that invariant |
+| P1-17 | C6 | low | CONFIRMED | tauri | `close_repo` never cancels the repo's in-flight ops | done `44f9e38` (to revisit; wont for now, comment) — unreachable: `refusedWhileRunning()` blocks close/switch in the UI (actions.ts:140-175); add a comment on `close_repo` naming that invariant |
 | P1-18 | F4 | low | CONFIRMED | ui/Menu | ContextMenu never closes on scroll/resize | done `f6eb328` — same resize + capture-scroll → onClose effect as Select (with the inside guard); scroll test |
 | P1-19 | F8 | low | CONFIRMED | start screen | Ctrl+O etc. ignore `busy`; picked folder dropped silently | done `889c39c` — `|| busy` in the key handler; Ctrl+O-while-busy test |
 | P2 | C3=A5 | low | CONFIRMED | tools | `open_diff_tool` joins the caller path unchecked |done `26801af` — `repo_relative` check like `open_path`; refusal test |
 | P2 | C4 | low | CONFIRMED | capabilities | `opener:default` grants unscoped reveal-item-in-dir |done `c2bf5d1` — capability: only `allow-open-url` + `allow-default-urls` |
 | P2 | C5 | low | PLAUSIBLE | tauri | Clone URL positional, no `--`, no scheme check |done `1da3113` — folded into P0-1 (separator only; no scheme allowlist) |
 | P2 | A6 | low | PLAUSIBLE | tools | Unix temp dirs 0755 + predictable; symlink survives cleanup |done `74dcde2` — 0700 on unix, refuse non-dir/symlink at the path |
-| P2 | B3 | low | PLAUSIBLE | cli rebase | Read pass runs `--autostash`; a kill strands work |wont — git's clean-tree check precedes the editor, so the read pass needs it; Rebase banner offers --abort |
+| P2 | B3 | low | PLAUSIBLE | cli rebase | Read pass runs `--autostash`; a kill strands work |to revisit — wont for now: git's clean-tree check precedes the editor, so the read pass needs it; Rebase banner offers --abort |
 | P2 | B4 | low | CONFIRMED | cli ops | `conflict_path` truncates at first space / strips trailing dots |done `235f21f` — parse before ` deleted in `/` added in `, trim one period; test row |
 | P2 | B5 | low | PLAUSIBLE | cli rebase | `exec git commit --amend` ignores configured `git_path` |done `0967497` — emit the configured git_path, quoted via check_shell_path |
 | P2 | B6 | low | CONFIRMED | cli runner | `drain` at EOF leaves the tail in `pending` (latent) |done `55d375c` — clear pending on eof; extend existing test |
@@ -87,7 +87,7 @@ every row are in the sections below, keyed by the same id.
 | P2 | D5 | low | CONFIRMED | repoStore | Stale page task deletes the new `inflight` entry → duplicate fetch |done `7dff5c6` — capture the map in the closure |
 | P2 | D12 | low | CONFIRMED | recentsStore | `loaded` is dead state |done `bfaa244` — delete field + two test assertions |
 | P2 | E4 | low | CONFIRMED | commit panel | Inline `actions` object defeats row memo |done `73c4d80` — useMemo |
-| P2 | E6 | low | CONFIRMED | file tree | O(n²) tree build for a flat directory |fix-later — measure first (standing perf rule); rare shape |
+| P2 | E6 | low | CONFIRMED | file tree | O(n²) tree build for a flat directory |to revisit — fix-later, measure first (standing perf rule); rare shape |
 | P2 | R6 | low | CONFIRMED mech | toolbar | Menu trigger found by DOM position; wrapper breaks it |done `a4cfec8` — hold a ref to the anchor |
 | P2 | X9 | low | CONFIRMED | docs | Two false README claims |done `830d291` — scope both claims (four wrapped components; Stage only) |
 | P2 | X10 | low | CONFIRMED | commit panel | Conflict filter + skip count in four copies | done `79431aa` — folded into P1-7 |
@@ -95,8 +95,8 @@ every row are in the sections below, keyed by the same id.
 | P2 | R5 | low | CONFIRMED | tests | Intersection guard and `"here"` branch untested |done `79431aa` — two tests, alongside P1-7's helper |
 | P2 | R9 | low | CONFIRMED | tests | Banner fixtures exercise the stale path only |done `5205abc` — matching `state` on the fixtures + three fresh cases |
 | P2 | R7 | low | SETTLED | commit panel | Comment premise false; hazard unreachable — fix the comment |done `7fa85e6` — rewrite the comment only |
-| — | R12 | — | recorded | commit panel | Two stale status/refs pairings; guarding would flicker | wont |
-| — | R13 | — | recorded | rebase dialog | `canSquash` O(n) per row | wont |
+| — | R12 | — | recorded | commit panel | Two stale status/refs pairings; guarding would flicker | to revisit — wont for now |
+| — | R13 | — | recorded | rebase dialog | `canSquash` O(n) per row | to revisit — wont for now |
 
 ---
 
@@ -400,7 +400,7 @@ every row are in the sections below, keyed by the same id.
 - [x] **D12** `recentsStore.ts:27` — `loaded` is dead state.
 - [x] **E4** `CommitPanel.tsx:86` — `actions` built inline defeats `UnifiedRowView`'s memo; every
       row re-renders on every parent render. `useMemo`.
-- [ ] **E6** `fileTree.ts:24` (+ `Sidebar.buildTree`) — `children.find` per segment → O(n²) for a
+- [ ] **E6** (to revisit) `fileTree.ts:24` (+ `Sidebar.buildTree`) — `children.find` per segment → O(n²) for a
       flat directory. `Map` per node.
 - [x] **R6** `Toolbar.tsx:90` — menu trigger found by `previousElementSibling`; a `DisabledHint`
       wrapper breaks it while an op runs. Hold a ref.
@@ -517,7 +517,7 @@ won't-fix at the R1 decision — recorded, not reopened.
 | Q20 | B9 | low | PLAUSIBLE | theme | `getThemeTokens()` can re-fill the cache with no observer attached | fix — the getter does not cache when there is no subscriber | fix — done `10d695b` |
 | Q21 | B10 | low | PLAUSIBLE | commitStore | Discard's rename pairing reads an `entries` snapshot taken before the native confirm | fix — read `entries` after the confirm | fix — done `8de466a` |
 | Q22 | C5 | low | CONFIRMED | changed files | ArrowUp with nothing selected now goes to the *last* row (was first) | wont — matches the commit panel; pin with a test | wont (+test) — done `08e20e9 (test)` |
-| Q23 | C6 | low | PLAUSIBLE | details pane | Clearing `detail` too leaves the pane fully blank during the round trip | wont — decided at P1-4 (blank during the round trip); reconsider only if it flickers on the smoke walk | wont |
+| Q23 | C6 | low | PLAUSIBLE | details pane | Clearing `detail` too leaves the pane fully blank during the round trip | to revisit — wont for now, decided at P1-4 (blank during the round trip); reconsider only if it flickers on the smoke walk | wont |
 | Q24 | C7 | low | PLAUSIBLE | toolbar | `returnFocusTo` is a node snapshot; when DisabledHint unwraps mid-dialog the node detaches | fix — pass the ref object (or a getter) and resolve on close | fix — done `0f779fe` |
 | Q25 | C8 | low | CONFIRMED | DisabledHint css | Comment cites the `.headerBtn` floor that R2 deleted | fix — reword | fix — done `2b27828` |
 | Q26 | C9 | low | PLAUSIBLE | commit panel | Commit & Push dead for want of a summary/staged file now has no title at all | fix — name the reason ("Nothing staged" / "Summary is empty") | fix — done `7c0fc6b` |
