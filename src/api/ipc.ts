@@ -9,6 +9,7 @@ import type {
   DiffTarget,
   FfMode,
   FileChange,
+  FileContent,
   FileDiff,
   GitProbe,
   LogFilter,
@@ -26,6 +27,8 @@ import type {
   Tool,
   ToolKind,
   Tools,
+  TreeListing,
+  TreeTarget,
   UpdateInfo,
   WorkdirStatus,
 } from "./types";
@@ -100,9 +103,13 @@ export const findLogRow = (id: RepoId, generation: number, oid: string) =>
 /** Recomputes ref labels for the current walk; resolves with the current generation. */
 export const refreshLabels = (id: RepoId) => call<number>("refresh_labels", { id });
 
-/** Opens a repository-relative working-tree file with the OS handler, or reveals it in the file manager. */
-export const openPath = (id: RepoId, path: string, reveal: boolean) =>
-  call<void>("open_path", { id, path, reveal });
+/**
+ * Opens a repository-relative working-tree file with the OS handler, or reveals it in the file manager.
+ * `target` names a commit instead: that revision has no working-tree path, so its blob is opened as a
+ * temp copy (Reveal is working-tree only and ignores it).
+ */
+export const openPath = (id: RepoId, path: string, reveal: boolean, target?: TreeTarget) =>
+  call<void>("open_path", { id, path, reveal, target });
 
 // --- src-tauri/src/commands/update.rs ---
 
@@ -131,6 +138,19 @@ export const recreateConflict = (id: RepoId, paths: string[]) => call<void>("rec
 export const openMergeEditor = (id: RepoId, path: string) => call<string>("open_merge_editor", { id, path });
 
 export const getStatus = (id: RepoId) => call<WorkdirStatus>("get_status", { id });
+
+// --- src-tauri/src/commands/tree.rs ---
+// The Files tab: a revision's whole file list and one file's content at it.
+
+/** Every file of a commit (or of the index, minus what is gone from disk), sorted by path; `oid` is the cache key. */
+export const listTree = (id: RepoId, target: TreeTarget) => call<TreeListing>("list_tree", { id, target });
+
+/** One file's content at `target` — binary files come back without text, long ones truncated at `maxLines`. */
+export const readFile = (id: RepoId, target: TreeTarget, path: string) => call<FileContent>("read_file", { id, target, path });
+
+/** Writes the whole file at `target` to `dest` (the native save dialog's answer); a `dest` inside `.git` is refused. */
+export const saveFileAs = (id: RepoId, target: TreeTarget, path: string, dest: string) =>
+  call<void>("save_file_as", { id, target, path, dest });
 
 // --- src-tauri/src/commands/tools.rs ---
 // The external diff / merge tools, in the global git config (`diff.guitool`, `difftool.<name>.*`).

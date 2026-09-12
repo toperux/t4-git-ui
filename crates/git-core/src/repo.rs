@@ -154,9 +154,23 @@ pub fn init_repo(path: impl AsRef<Path>) -> Result<(), GitError> {
     Ok(())
 }
 
+/// A `.git` path component, case-insensitively (the admin directory is spelled
+/// `.GIT` on a case-insensitive filesystem just as well) and ignoring trailing
+/// dots and spaces, which Win32 strips when it resolves a name (`.git.` opens
+/// `.git`).
+pub(crate) fn has_git_component(path: &Path) -> bool {
+    path.components().any(|c| {
+        c.as_os_str()
+            .to_string_lossy()
+            .trim_end_matches(['.', ' '])
+            .eq_ignore_ascii_case(".git")
+    })
+}
+
 /// Checks that `path` is a plain repository-relative name before it is joined
-/// onto the working directory: no absolute path, no `..`, and (on Windows) no
-/// drive prefix, UNC prefix or leading separator.
+/// onto the working directory: no absolute path, no `..`, no `.git` component
+/// (git tracks no path inside one) and, on Windows, no drive prefix, UNC prefix
+/// or leading separator.
 ///
 /// The test is **lexical**. A symlink or junction stored inside the repository
 /// still resolves wherever it points, so this bounds what the frontend can
@@ -165,7 +179,8 @@ pub fn repo_relative(path: &str) -> Result<&Path, GitError> {
     let p = Path::new(path);
     let inside = p
         .components()
-        .all(|c| matches!(c, Component::Normal(_) | Component::CurDir));
+        .all(|c| matches!(c, Component::Normal(_) | Component::CurDir))
+        && !has_git_component(p);
     if path.is_empty() || !inside {
         return Err(GitError::Refused(format!(
             "{path} is not a path inside the repository"
@@ -196,11 +211,29 @@ mod tests {
     fn repo_relative_takes_plain_names_only() {
         assert_eq!(repo_relative("a/b.txt").unwrap(), Path::new("a/b.txt"));
         assert_eq!(repo_relative("./x").unwrap(), Path::new("./x"));
+        // Only the directory itself is out; a name that merely starts with it
+        // is an ordinary tracked file.
+        assert_eq!(
+            repo_relative(".gitignore").unwrap(),
+            Path::new(".gitignore")
+        );
 
-        // Everything that could leave the working directory. The drive- and
+        // Everything that could leave the working directory, plus the `.git`
+        // directory, which git never tracks a path inside of. The drive- and
         // UNC-prefixed ones are plain file names off Windows, so they are only
         // components there.
-        let mut bad = vec!["", "..", "../x", "a/../../x", "/abs"];
+        let mut bad = vec![
+            "",
+            "..",
+            "../x",
+            "a/../../x",
+            "/abs",
+            ".git/config",
+            ".GIT/x",
+            "a/.git/b",
+            ".git./config",
+            ".git /x",
+        ];
         if cfg!(windows) {
             bad.extend(["C:foo", r"C:\abs", r"\\srv\share\x", r"a\..\..\x"]);
         }

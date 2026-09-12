@@ -13,6 +13,7 @@ pub mod status;
 #[cfg(any(test, feature = "test-util"))]
 pub mod test_util;
 pub mod tools;
+pub mod tree;
 pub mod watch;
 
 pub use error::GitError;

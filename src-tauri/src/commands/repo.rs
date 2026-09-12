@@ -7,6 +7,7 @@ use git_core::commit::CommitDetail;
 use git_core::log::{walk, LogFilter, LogRow, RefLabel, RevSpec};
 use git_core::refs::{self, HeadInfo, RefsSnapshot};
 use git_core::repo::repo_relative;
+use git_core::tree::{self, TreeTarget};
 use git_core::watch::Watcher;
 use git_core::{GitError, RepoHandle, RepoId};
 use serde::Serialize;
@@ -344,6 +345,11 @@ pub async fn get_log_page(
 /// Opens a working-tree file with the OS handler, or reveals it in the file
 /// manager (`reveal`). `path` is repository-relative and validated by
 /// [`repo_relative`]: the opener itself is not scope-restricted.
+///
+/// `target` names a commit instead: that revision of the file has no path in
+/// the working tree, so its blob is written to a temp copy (the same per-user
+/// directory the diff tool's sides go to) and the OS opens that. Reveal is
+/// offered on the working-tree row only, so it always reveals the real file.
 #[tauri::command]
 pub async fn open_path(
     app: AppHandle,
@@ -351,10 +357,17 @@ pub async fn open_path(
     id: RepoId,
     path: String,
     reveal: bool,
+    target: Option<TreeTarget>,
 ) -> Result<(), AppError> {
     let handle = state.repo(&id)?;
-    let abs = handle.path.join(repo_relative(&path)?);
+    let workdir_path = handle.path.join(repo_relative(&path)?);
     blocking(move || {
+        let abs = match &target {
+            Some(TreeTarget::Commit { oid }) if !reveal => {
+                tree::temp_copy(&handle.git2.lock(), oid, &path)?
+            }
+            _ => workdir_path,
+        };
         let opener = app.opener();
         if reveal {
             opener.reveal_item_in_dir(&abs)

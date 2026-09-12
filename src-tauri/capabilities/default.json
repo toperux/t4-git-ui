@@ -1,12 +1,14 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window",
+  "description": "Capability for the main window. The dialog permissions are listed one by one rather than as `dialog:default` so each one names the call it is there for (JSON takes no comments): `allow-message` is the plugin command behind `ask()` (the native discard / stage / resolve confirmations), `allow-open` the file and folder pickers (open a repository, Locate git…, Locate a tool…), and `allow-save` the Files tab's Save as…, which writes a file at a revision wherever the native save dialog points.",
   "windows": ["main"],
   "permissions": [
     "core:default",
     "core:window:allow-set-title",
-    "dialog:default",
+    "dialog:allow-message",
+    "dialog:allow-open",
+    "dialog:allow-save",
     "store:default",
     "window-state:default",
     "opener:allow-open-url",

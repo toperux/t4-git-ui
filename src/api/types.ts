@@ -320,6 +320,49 @@ export interface DiffOptions {
   ignoreWhitespace?: boolean;
 }
 
+// --- tree.rs ---
+// A revision's whole file list and one file's content at it (the Files tab), as opposed to what changed.
+
+/** What a listed path is; a directory is never listed (the frontend nests the paths itself). */
+export type TreeEntryKind = "blob" | "symlink" | "submodule";
+
+/** One file of a revision. */
+export interface TreeEntry {
+  /** `/`-separated, repo-relative. */
+  path: string;
+  /** Blob size (a symlink: its target's length; a submodule: 0). */
+  size: number;
+  /** Octal mode. */
+  mode: string;
+  kind: TreeEntryKind;
+}
+
+/**
+ * `#[serde(tag = "kind")]` — which revision to list / read. Compare mode picks the *to* commit,
+ * so there is no range here; `workingTree` is the index (tracked files) read from disk.
+ */
+export type TreeTarget = { kind: "commit"; oid: string } | { kind: "workingTree" };
+
+export interface TreeListing {
+  entries: TreeEntry[];
+  /** The tree the list came from — the cache key; `null` for the working tree. */
+  oid: string | null;
+}
+
+/** One file's content at a revision. */
+export interface FileContent {
+  path: string;
+  /** `null` for a binary file. */
+  text: string | null;
+  binary: boolean;
+  /** Size of the whole file, whatever `text` was cut to. */
+  size: number;
+  /** The text was cut: at `maxLines` lines, or at the backend's byte cap (whole lines either way). */
+  truncated: boolean;
+  maxLines: number;
+  kind: TreeEntryKind;
+}
+
 // --- tools.rs ---
 
 /** Which pair of git-config entries a tool belongs to (`diff.guitool` / `merge.guitool`). */
