@@ -38,7 +38,14 @@ src/
     diffStore.ts           zustand: selected commit → files (get_changed_files), selectedPath (default first), diff (get_file_diff with `context` — 3 unless Settings says otherwise;
                            setContext reloads),
                            stale responses dropped via seq counters; view unified|split (localStorage.diffView), ignoreWhitespace,
-                           fileListMode flat|tree (localStorage.fileListMode)
+                           fileListMode flat|tree (localStorage.fileListMode).
+                           Files tab (§1): tab changes|files, tree (list_tree = every file of the target revision — the *to* commit of
+                           a compare, the index for any working-tree target, via `treeTargetOf`), treeFilter, treeSelectedPath +
+                           content (read_file), all four seq-guarded like the diff. `loadTree` runs only for the tab on screen and
+                           caches listings by target (20 kept, evicted oldest-first; two targets whose reply carried the same tree oid
+                           share one array — the oid cannot spare a commit's *first* call, since only the reply names its tree); the
+                           working tree is never cached. `treeSelection` remembers the file per target so switching back resumes there;
+                           `__resetTreeCacheForTests()` clears both maps
     statusStore.ts         zustand: WorkdirStatus; refresh (seq-guarded) / scheduleRefresh (100 ms debounce); onChanged(`repo://changed`):
                            any kind → status; refs|rescan → syncRefs (refreshRefs → walkSeeds moved ? startLog : refs changed ?
                            refreshLabels : nothing) — coalesced into one in-flight run, never rejects;
@@ -246,7 +253,16 @@ src/
                            RefChips (max 3 chips, `+N` opens a portalled popover of the rest)
       ChangedFileList/     ChangedFileList (virtualized 26px rows + aria-activedescendant; flat = role=listbox of options,
                            tree = role=tree of treeitems with aria-expanded/aria-level; ↑/↓, StatusGlyph + start-ellipsis
-                           mono path + `+N −M`), fileTree.ts (pure: nest by `/`, folders first; a chain of single-child folders folds into one
+                           mono path + `+N −M`).
+                           A `role="tablist"` **Changes | Files** strip sits in the header left of the tree toggle (←/→ switch,
+                           the selected tab is the only tab stop): Files lists the whole revision through the same virtualized
+                           body, `buildFileTree` / `flattenTree` and keyboard handler — rows show name + size, no status letter,
+                           and its folders start **collapsed**, so its session set holds what was *opened* and `flattenTree` is
+                           asked the negation (hence its `{has}` parameter rather than a `Set`). The filter `Input` is a second
+                           header row of its own, rendered only on that tab (case-insensitive substring, flattens to matches,
+                           2000 rows then a "N more matches" Banner) — the Diff dialog's list panel goes down to 180px, where
+                           tabs, toggles and a field do not fit on one row.
+                           fileTree.ts (pure: nest by `/`, folders first; a chain of single-child folders folds into one
                            node named `a/b/c`, keyed by its deepest path, rendered `a / b / c`); tree rows draw a guide line
                            under each ancestor's chevron (`.rows .treeRow` background-image, so hover / selected rules use
                            `background-color`)

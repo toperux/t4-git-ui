@@ -63,8 +63,13 @@ export type TreeLine<T> =
   | { kind: "folder"; path: string; name: string; /** The folder paths this row stands for; any of them collapsed collapses it. */ chain: string[]; depth: number; expanded: boolean }
   | { kind: "file"; file: T; label: string; depth: number };
 
-/** Tree → the visible lines in display order (collapsed folders contribute only their own row). */
-export function flattenTree<T>(nodes: FileNode<T>[], collapsed: ReadonlySet<string>, depth = 0, out: TreeLine<T>[] = []): TreeLine<T>[] {
+/**
+ * Tree → the visible lines in display order (collapsed folders contribute only their own row).
+ * `collapsed` is asked about one path at a time rather than taken as a `Set`, so the Files tab —
+ * whose folders start collapsed and whose session state is therefore what was *opened* — can answer
+ * with the negation instead of keeping the complement of its own tree.
+ */
+export function flattenTree<T>(nodes: FileNode<T>[], collapsed: { has(path: string): boolean }, depth = 0, out: TreeLine<T>[] = []): TreeLine<T>[] {
   for (const n of nodes) {
     if (n.file) out.push({ kind: "file", file: n.file, label: n.name, depth });
     else {

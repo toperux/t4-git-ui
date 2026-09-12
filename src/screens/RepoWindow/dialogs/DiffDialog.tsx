@@ -23,7 +23,8 @@ export function DiffDialog({ onClose }: { onClose: () => void }) {
   return (
     <Dialog title={title} full onClose={onClose}>
       <Group orientation="horizontal" className={s.pane}>
-        <Panel defaultSize={320} minSize={180} maxSize={640} className={w.panel}>
+        {/* 200, as in the pane: the list header needs 199px before the title gets any. */}
+        <Panel defaultSize={320} minSize={200} maxSize={640} className={w.panel}>
           <ChangedFileList autoFocus />
         </Panel>
         <Separator className={w.splitH} aria-label="Resize file list" />

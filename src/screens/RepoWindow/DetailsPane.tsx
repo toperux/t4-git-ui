@@ -38,7 +38,8 @@ export function DetailsPane() {
         {compare ? <CompareDetails compare={compare} /> : <CommitDetails />}
       </Panel>
       <Separator className={w.splitH} aria-label="Resize commit details" />
-      <Panel defaultSize={320} minSize={180} maxSize={640} className={w.panel}>
+      {/* 200: the list header (icon, Changes | Files, two toggles) needs 199px before the title gets any. */}
+      <Panel defaultSize={320} minSize={200} maxSize={640} className={w.panel}>
         <ChangedFileList />
       </Panel>
       <Separator className={w.splitH} aria-label="Resize file list" />

@@ -1,12 +1,14 @@
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import type { FileChange } from "../../../api/types";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { FileChange, TreeEntry } from "../../../api/types";
 import { useDiffStore } from "../../../store/diffStore";
 import { ChangedFileList } from "./ChangedFileList";
 
 vi.mock("../../../api/ipc", () => ({
   getChangedFiles: vi.fn(() => new Promise(() => {})),
   getFileDiff: vi.fn(() => new Promise(() => {})),
+  listTree: vi.fn(() => new Promise(() => {})),
+  readFile: vi.fn(() => new Promise(() => {})),
   toAppError: (e: unknown) => ({ kind: "unknown", message: String(e) }),
 }));
 
@@ -33,10 +35,20 @@ vi.mock("@tanstack/react-virtual", async (importOriginal) => {
 
 afterEach(cleanup);
 
+// Every test states the tab it is about; the store is shared across them.
+beforeEach(() => useDiffStore.setState({ tab: "changes", tree: null, treeFilter: "", treeSelectedPath: null, treeLoading: false, treeError: null }));
+
 const FILES: FileChange[] = [
   { path: "crates/git-core/src/log/graph.rs", oldPath: null, status: "modified", additions: 42, deletions: 7, binary: false },
   { path: "crates/git-core/src/log/cache.rs", oldPath: null, status: "added", additions: 88, deletions: 0, binary: false },
   { path: "src/log/mod.rs", oldPath: "src/log.rs", status: "renamed", additions: 0, deletions: 0, binary: false },
+];
+
+const TREE: TreeEntry[] = [
+  { path: "readme.md", size: 12, mode: "100644", kind: "blob" },
+  { path: "src/lib.rs", size: 20, mode: "100644", kind: "blob" },
+  { path: "src/main.rs", size: 30, mode: "100644", kind: "blob" },
+  { path: "vendor/dep", size: 0, mode: "160000", kind: "submodule" },
 ];
 
 describe("ChangedFileList", () => {
@@ -105,6 +117,88 @@ describe("ChangedFileList", () => {
     const { getByRole } = render(<ChangedFileList />);
     fireEvent.keyDown(getByRole("listbox", { name: "Changed files" }), { key: "ArrowUp" });
     expect(useDiffStore.getState().selectedPath).toBe("src/log/mod.rs");
+  });
+
+  it("keeps a selection per tab: the Changes file and the Files file are remembered separately", () => {
+    useDiffStore.setState({ target: { kind: "commit", oid: "c" }, files: FILES, filesLoading: false, filesError: null, selectedPath: FILES[0].path, fileListMode: "flat", tree: TREE });
+    const { getByRole } = render(<ChangedFileList />);
+    const tab = (name: string) => getByRole("tab", { name });
+    expect(tab("Changes").getAttribute("aria-selected")).toBe("true");
+
+    fireEvent.click(tab("Files"));
+    expect(tab("Files").getAttribute("aria-selected")).toBe("true");
+    fireEvent.click(getByRole("option", { name: /src\/main\.rs/ }));
+    expect(useDiffStore.getState().treeSelectedPath).toBe("src/main.rs");
+    // The Changes tab's own selection is untouched by the Files one.
+    expect(useDiffStore.getState().selectedPath).toBe(FILES[0].path);
+
+    fireEvent.click(tab("Changes"));
+    expect(getByRole("listbox", { name: "Changed files" })).toBeTruthy();
+    fireEvent.click(tab("Files"));
+    expect(getByRole("option", { name: /src\/main\.rs/ }).getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("the Files tab shows name and size, no status letter", () => {
+    useDiffStore.setState({ target: { kind: "commit", oid: "c" }, files: FILES, filesLoading: false, filesError: null, fileListMode: "flat", tab: "files", tree: TREE });
+    const { container, getByRole } = render(<ChangedFileList />);
+    expect(getByRole("listbox", { name: "Files" })).toBeTruthy();
+    const rows = container.querySelectorAll('[role="option"]');
+    const text = (el: Element) => el.textContent?.replace(/\s+/g, " ").trim();
+    expect(text(rows[0])).toBe("readme.md12 B");
+    expect(text(rows[3])).toBe("vendor/depsubmodule");
+    expect(container.textContent).toContain("4 files");
+    // The status glyph belongs to the Changes tab: nothing here changed.
+    expect(container.querySelectorAll('[role="option"] [aria-hidden]').length).toBe(0);
+  });
+
+  it("Files folders start collapsed; opening one shows what is under it", () => {
+    useDiffStore.setState({ target: { kind: "commit", oid: "c" }, files: [], filesLoading: false, filesError: null, fileListMode: "tree", tab: "files", tree: TREE });
+    const { getAllByRole, getByTitle } = render(<ChangedFileList />);
+    const leaves = () => getAllByRole("treeitem").filter((r) => !r.hasAttribute("aria-expanded"));
+    expect(getAllByRole("treeitem", { expanded: false }).map((r) => r.getAttribute("title"))).toEqual(["src", "vendor"]);
+    expect(leaves().map((r) => r.textContent?.trim())).toEqual(["readme.md12 B"]);
+
+    fireEvent.click(getByTitle("src"));
+    expect(getByTitle("src").getAttribute("aria-expanded")).toBe("true");
+    expect(leaves().map((r) => r.textContent?.replace(/\s+/g, ""))).toEqual(["lib.rs20B", "main.rs30B", "readme.md12B"]);
+  });
+
+  it("the filter flattens the Files tab to matches and clearing it restores the tree", () => {
+    useDiffStore.setState({ target: { kind: "commit", oid: "c" }, files: [], filesLoading: false, filesError: null, fileListMode: "tree", tab: "files", tree: TREE });
+    const { container, getByRole, queryByRole } = render(<ChangedFileList />);
+    const filter = getByRole("textbox", { name: "Filter files" });
+
+    fireEvent.change(filter, { target: { value: "MAIN" } });
+    // Case-insensitive, and flat: no folder rows while it is set.
+    expect(queryByRole("tree")).toBeNull();
+    const rows = () => Array.from(container.querySelectorAll('[role="option"]')).map((r) => r.getAttribute("data-path"));
+    expect(rows()).toEqual(["src/main.rs"]);
+
+    fireEvent.change(filter, { target: { value: "nothing-matches" } });
+    expect(container.textContent).toContain("No matching files");
+
+    fireEvent.change(filter, { target: { value: "" } });
+    expect(getByRole("tree", { name: "Files" })).toBeTruthy();
+  });
+
+  it("caps the filter at 2000 rows and banners how many more matched", () => {
+    // 2 005 entries, every one of them a match: past the cap the list would be thousands of rows
+    // nobody scrolls through.
+    const many: TreeEntry[] = Array.from({ length: 2005 }, (_, i) => ({ path: `src/f${String(i).padStart(4, "0")}.rs`, size: 1, mode: "100644", kind: "blob" }));
+    useDiffStore.setState({ target: { kind: "commit", oid: "c" }, files: [], filesLoading: false, filesError: null, fileListMode: "tree", tab: "files", tree: many });
+    const { container, getByRole } = render(<ChangedFileList />);
+    const filter = getByRole("textbox", { name: "Filter files" });
+
+    fireEvent.change(filter, { target: { value: ".rs" } });
+    // Virtualized, so most rows are never mounted: End walks the selection ring the list derives
+    // from its rows, and that ring ends at the 2000th match, not the 2005th.
+    fireEvent.keyDown(getByRole("listbox", { name: "Files" }), { key: "End" });
+    expect(useDiffStore.getState().treeSelectedPath).toBe("src/f1999.rs");
+    expect(container.textContent).toContain("5 more matches — narrow the filter");
+
+    // Narrowed under the cap: nothing is being held back, so the banner goes.
+    fireEvent.change(filter, { target: { value: "f000" } });
+    expect(container.textContent).not.toContain("more matches");
   });
 
   it("another target starts the list back at the top", () => {

@@ -15,6 +15,54 @@
   right: 0;
   z-index: 1;
 }
+/* The Files tab's filter row sits between the header and the list. */
+.progressLow {
+  top: calc(var(--section-h) * 2);
+}
+
+/* Changes | Files — two buttons in the panel header, the .icon-btn palette with a text label. */
+.tabs {
+  display: inline-flex;
+  gap: var(--space-1);
+  flex: none;
+}
+.tab {
+  height: var(--control-h-sm);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-muted);
+  font: inherit;
+  cursor: default;
+  transition:
+    background-color var(--dur) var(--ease),
+    color var(--dur) var(--ease);
+}
+.tab:hover {
+  background-color: var(--bg-hover);
+  color: var(--fg);
+}
+.tabOn {
+  background-color: var(--bg-active);
+  color: var(--fg);
+}
+
+/* Second header row: the field alone, so it survives the dialog's 200px list panel. */
+.filterRow {
+  display: flex;
+  align-items: center;
+  height: var(--section-h);
+  padding: 0 var(--space-4);
+  background: var(--bg-app);
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+.filter {
+  flex: 1;
+  min-width: 0;
+  height: var(--control-h-sm);
+}
 .list {
   flex: 1;
   min-height: 0;
