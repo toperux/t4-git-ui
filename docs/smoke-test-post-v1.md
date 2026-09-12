@@ -787,12 +787,24 @@ header jog, last bullet) and one check that this fixture cannot reach (second-to
       are *all* conflicted. `git merge conflict` yields exactly one (`conflict.txt`) — confirm with
       `git merge-tree --write-tree HEAD conflict` before trying — so the stock fixture cannot reach
       it. Rather than reshape the fixture's history, build two throwaway branches off `main` that
-      change the **same two files** differently and merge them: `scripts/ad7-setup.sh` in the
-      scratchpad does it (`tc-a`, `tc-b` → `hunks.txt` + `nonl.txt` both `UU`), and its teardown puts
-      `work` back to `A decoy.txt` on `reset-me`. Walked 2026-09-11: selecting only the two
-      conflicted rows flipped the header to **Stage selected**, `disabled: true`, titled "Every file
-      here is conflicted — a conflict is staged on its own, once resolved" — its own message, **not**
-      a "(2 skipped)" partial. Then adding `crlf.txt` to the selection re-enabled it with the
+      change the **same two files** differently and merge them: **`docs/ad7-setup.sh`** does it
+      (`tc-a`, `tc-b` → `hunks.txt` + `nonl.txt` both `UU`), and **`docs/ad7-teardown.sh`** puts
+      `work` back to `A decoy.txt` on `reset-me`. Both guard before they act — the setup refuses
+      unless `work` is at its resting state, the teardown is safe to run twice and from a
+      half-finished setup. (They were written in a session scratchpad on 2026-09-11 and committed on
+      2026-09-12, for the reason `docs/irebase-fixture.sh` exists: a fixture recipe that lives only
+      in a scratchpad is gone by the next walk.) Walked 2026-09-11:
+      selecting only the two conflicted rows flipped the header to **Stage selected**,
+      `disabled: true`, titled "Every file here is conflicted — a conflict is staged on its own, once
+      resolved" — its own message, **not** a "(2 skipped)" partial.
+      **The quoted tooltip is the pre-`e57945d` wording and this tick is stale in that one respect.**
+      `e57945d` (2026-09-12) split the message by mode, because "here" was false of exactly this
+      case: the selection is refused while the list around it still holds stageable files. This
+      scenario now reads "Every file **you selected** is conflicted — …", and "here" survives only
+      for a whole list with nothing stageable in it — which has no cover at all, unit or smoke (see
+      R5 in `docs/plans/2026-09-12-review-findings.md`). Everything else this box asserts — the
+      refusal, the `(2 skipped)` re-enable, the untracked control — is unaffected by that commit and
+      still stands. Re-walk the tooltip half on the next build that reaches this fixture. Then adding `crlf.txt` to the selection re-enabled it with the
       "(2 skipped)" title, and clicking it staged `crlf.txt` **only**: `git diff --cached --stat`
       showed `crlf.txt | 1 +`, `ls-files -u` still showed 3 stages each for the two conflicts, and
       the unselected `decoy.txt` stayed `??`. That untracked control is the whole point — the
@@ -811,7 +823,16 @@ header jog, last bullet) and one check that this fixture cannot reach (second-to
       `left 442` in both states. Movement is **0px** either side, against 33px before. `Unstage all`
       measures `left 465, w 112` too, so the shared floor lines both headers up rather than just
       padding one. No test can stand in for this: jsdom has no layout, so the suite cannot see a
-      `min-width` — it has to be measured in a real build
+      `min-width` — it has to be measured in a real build.
+      **The floor has since been found to have two costs this measurement could not see** (2026-09-12
+      review, R2 and R3 in `docs/plans/2026-09-12-review-findings.md`). It is paid entirely by the
+      panel title, which is the only flexible item in the header, and it is paid *most* in the resting
+      `Stage all` state — 112px against a 63px label — so the title ellipsizes first at a narrow
+      panel. And while the button is disabled-and-titled it is wrapped by `DisabledHint`, whose
+      `.wrap` carries `min-width: 0` and none of the control's own sizing, so the floor stops
+      governing the slot in precisely the conflicted case this feature is about. Both were measured
+      with the panel unconstrained, which is why neither showed up here; settling them needs
+      `getBoundingClientRect()` at a 220px panel
 
 ## AE. Tooltips on disabled controls (main §2, §4, §5, §6)
 _Shipped 2026-09-11 (this commit). Chromium gives a disabled control no pointer events, so its
