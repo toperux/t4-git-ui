@@ -231,7 +231,8 @@ src/
                            update-ref lines, which a pre-amend ref would otherwise orphan);
                            gitArgs.ts mirrors cli/ops.rs
                            for the footer's "Runs `git …`" preview — that file is the source of truth),
-                           DetailsPane (bottom pane: CommitDetails 340 | ChangedFileList 320 | DiffViewer, resizable;
+                           DetailsPane (bottom pane: CommitDetails 340 | ChangedFileList 320 | CommitDiff = DiffViewer, or
+                           DiffViewer/FileContent on the Files tab, resizable;
                            an annotated tag pointing at the selected commit adds its own message block under the
                            commit message — `refs.tags[].message` is `null` on a lightweight tag, which is all that
                            tells the two apart once the tag is peeled),
@@ -262,6 +263,12 @@ src/
                            header row of its own, rendered only on that tab (case-insensitive substring, flattens to matches,
                            2000 rows then a "N more matches" Banner) — the Diff dialog's list panel goes down to 180px, where
                            tabs, toggles and a field do not fit on one row.
+                           FileRowMenu.tsx (right-click / Shift+F10 on a row of either tab — the row becomes the selection
+                           first: Copy path, Open (a commit's file as a temp copy of its blob, the working tree's in place),
+                           Reveal in folder (working-tree target only), Save as… (`@tauri-apps/plugin-dialog` `save` →
+                           `save_file_as`, the whole blob) and Show in Changes, which only appears on the Files tab for a
+                           path the commit actually changed and switches tab + selection. All reads, so nothing here is
+                           disabled while an operation runs).
                            fileTree.ts (pure: nest by `/`, folders first; a chain of single-child folders folds into one
                            node named `a/b/c`, keyed by its deepest path, rendered `a / b / c`); tree rows draw a guide line
                            under each ancestor's chevron (`.rows .treeRow` background-image, so hover / selected rules use
@@ -287,7 +294,12 @@ src/
                            split with no shell on Windows, `sh -c` with the variables in the environment on unix; an unstaged
                            diff's right side is the working file itself), greyed while settingsStore has no `tools.diff`,
                            and the same store makes "Resolve in editor" name the merge tool in its tooltip
-                           diffRows.ts (pure: flattenUnified (rows carry hunk/index) / flattenSplit), lineSelection.ts (pure: clickLine, toPairs)
+                           diffRows.ts (pure: flattenUnified (rows carry hunk/index) / flattenSplit), lineSelection.ts (pure: clickLine, toPairs),
+                           FileContent.tsx — the Files tab's right-hand side and a **sibling** of DiffViewer, not a mode of it:
+                           none of the viewer's hunks, staging actions, line selection or cursor model mean anything with one
+                           side. It shares the row CSS (`.body.content` = one gutter, no sign column), the exported `LineText`
+                           and `groupThousands`, the virtualizer and the truncation / binary notices, and renders `{n, text}`
+                           rows with one line-number column; `CommitDiff` picks it while `diffStore.tab === "files"`
       CommitPanel/         CommitPanel (Files 320 | Diff | Message 340, resizable; `useCommitSync` — called once from RepoWindow
                            while the panel or the commit dialog is up — feeds statusStore.status →
                            commitStore.syncWithStatus; the message header's "Open commit window" opens dialogs/CommitDialog:

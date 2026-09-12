@@ -15,6 +15,7 @@ import { folderKey } from "../../../lib/keys";
 import { moveSelect, type Selection } from "../../../lib/multiSelect";
 import { useDiffStore } from "../../../store/diffStore";
 import { buildFileTree, flattenTree, hiddenSlot, type TreeLine } from "./fileTree";
+import { FileRowMenu, type RowMenuState } from "./FileRowMenu";
 import s from "./ChangedFileList.module.css";
 
 /** `--row-h`; the virtualizer needs the number. */
@@ -67,6 +68,7 @@ export function ChangedFileList({ autoFocus }: { autoFocus?: boolean }) {
   // opened (a commit's whole tree expanded is thousands of rows).
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [opened, setOpened] = useState<Set<string>>(() => new Set());
+  const [menu, setMenu] = useState<RowMenuState | null>(null);
   const rowId = useId();
 
   const items: Item[] = (filesTab ? tree : files) ?? NO_ITEMS;
@@ -117,6 +119,8 @@ export function ChangedFileList({ autoFocus }: { autoFocus?: boolean }) {
   useEffect(() => {
     if (autoFocus) scrollRef.current?.focus();
   }, [autoFocus]);
+  // The menu names one row of one list: another commit or the other tab is not it.
+  useEffect(() => setMenu(null), [target, tab]);
 
   /** The folder row at `path` — a compacted one stands for its whole `chain`. */
   const folderRow = (path: string) => rows.find((r) => r.kind === "folder" && r.path === path);
@@ -153,6 +157,20 @@ export function ChangedFileList({ autoFocus }: { autoFocus?: boolean }) {
     else if (el.dataset.path !== undefined) select(el.dataset.path);
   }
 
+  /** The menu acts on the row it was opened over, so that row becomes the selection first. */
+  function openMenu(path: string, at: { x: number; y: number }) {
+    if (path !== selected) select(path);
+    setMenu({ at, path });
+  }
+
+  function onContextMenu(e: MouseEvent<HTMLDivElement>) {
+    // Folder rows have no menu: there is no single file behind them.
+    const path = (e.target as HTMLElement).closest<HTMLElement>("[data-path]")?.dataset.path;
+    if (path === undefined) return;
+    e.preventDefault();
+    openMenu(path, { x: e.clientX, y: e.clientY });
+  }
+
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     // A clicked folder row holds focus (it is a button): Enter / Space toggle it, ← collapses, → expands.
     // Ahead of the empty-list guard — with every file inside one collapsed folder, → is the way back out.
@@ -171,6 +189,19 @@ export function ChangedFileList({ autoFocus }: { autoFocus?: boolean }) {
         toggleFolder(parent.path);
         e.preventDefault();
       }
+      return;
+    }
+    if (e.key === "F10" || e.key === "ContextMenu") {
+      if (e.key === "F10" && !e.shiftKey) return;
+      // The selected row, or the first one in a list nothing has been picked in yet.
+      const path = selected ?? visible[0];
+      if (path === undefined) return;
+      e.preventDefault();
+      // Below that row, found by walking the mounted rows — a path is not a safe selector. Inside a
+      // collapsed folder it is not mounted at all: the list's own top-left corner stands in.
+      const el = Array.from(e.currentTarget.querySelectorAll<HTMLElement>("[data-path]")).find((r) => r.dataset.path === path);
+      const r = (el ?? e.currentTarget).getBoundingClientRect();
+      openMenu(path, el ? { x: r.left + 8, y: r.bottom } : { x: r.left + 8, y: r.top + 8 });
       return;
     }
     if (visible.length === 0) return;
@@ -248,6 +279,7 @@ export function ChangedFileList({ autoFocus }: { autoFocus?: boolean }) {
           tabIndex={0}
           onKeyDown={onKeyDown}
           onClick={onClick}
+          onContextMenu={onContextMenu}
         >
           <div className={s.rows} style={{ height: virtualizer.getTotalSize() }}>
             {virtualizer.getVirtualItems().map((item) => {
@@ -289,6 +321,7 @@ export function ChangedFileList({ autoFocus }: { autoFocus?: boolean }) {
         </div>
       )}
       {matches && matches.length > FILTER_CAP && <Banner kind="warning">{matches.length - FILTER_CAP} more matches — narrow the filter</Banner>}
+      <FileRowMenu menu={menu} onClose={() => setMenu(null)} />
     </div>
   );
 }

@@ -77,6 +77,10 @@
 .body.split {
   min-width: calc(2 * (40px + 14px + 6px + var(--cols, 0) * 1ch));
 }
+/* Content view: one gutter, no sign column. */
+.body.content {
+  min-width: calc(40px + 6px + var(--cols, 0) * 1ch);
+}
 
 /* base.css .dl / .no / .sg / .tx */
 .dl {

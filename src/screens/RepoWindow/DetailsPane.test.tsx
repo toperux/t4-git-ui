@@ -67,6 +67,8 @@ const refs = (tags: RefsSnapshot["tags"]): RefsSnapshot => ({
 beforeEach(() => {
   resetRepo();
   useDialogStore.setState({ dialog: null, returnFocus: null });
+  // The file panel's tab is store state shared by the pane and the dialog: every test says which.
+  useDiffStore.setState({ tab: "changes", tree: null, treeSelectedPath: null, content: null, contentLoading: false, contentError: null, treeFilter: "" });
   useRepoStore.setState({
     repo: { id: "r", name: "r", path: "/r", head: { oid: "a", branch: "main", detached: false } },
     rows: [ROW],
@@ -144,6 +146,22 @@ describe("CommitDiff", () => {
     fireEvent.click(getByRole("button", { name: "Open in diff tool" }));
     await waitFor(() => expect(ipc.openDiffTool).toHaveBeenCalledWith("r", { kind: "commit", oid: "a" }, "src/a.ts", null));
   });
+
+  it("shows the file's content instead of the diff while the Files tab is up", () => {
+    useDiffStore.setState({
+      target: { kind: "commit", oid: "a" },
+      tab: "files",
+      treeSelectedPath: "src/a.ts",
+      content: { path: "src/a.ts", text: "let a = 1;\n", binary: false, size: 11, truncated: false, maxLines: 20_000, kind: "blob" },
+      contentLoading: false,
+      contentError: null,
+    });
+    const { getByRole, queryByRole } = render(<CommitDiff />);
+    expect(getByRole("region", { name: "File content" })).toBeTruthy();
+    // Not the diff viewer: one side only, so none of its two-side controls are there either.
+    expect(queryByRole("region", { name: "Diff" })).toBeNull();
+    expect(queryByRole("button", { name: "Split view" })).toBeNull();
+  });
 });
 
 describe("DiffDialog", () => {
@@ -195,6 +213,24 @@ describe("DiffDialog", () => {
     expect(queryByRole("button", { name: "Open diff window" })).toBeNull();
     fireEvent.click(getByRole("button", { name: "Close" }));
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("shows the Files tab — the tab strip, the filter row and the content view all come with the shared components", () => {
+    seedDiff();
+    useDiffStore.setState({
+      tab: "files",
+      tree: [{ path: "src/a.ts", size: 10, mode: "100644", kind: "blob" }],
+      treeSelectedPath: "src/a.ts",
+      content: { path: "src/a.ts", text: "let a = 1;\n", binary: false, size: 11, truncated: false, maxLines: 20_000, kind: "blob" },
+      contentLoading: false,
+      contentError: null,
+    });
+    const { getByRole } = render(<DiffDialog onClose={vi.fn()} />);
+    const dialog = getByRole("dialog", { name: /^Diff — / });
+    expect(dialog.contains(getByRole("tab", { name: "Files", selected: true }))).toBe(true);
+    expect(dialog.contains(getByRole("textbox", { name: "Filter files" }))).toBe(true);
+    expect(dialog.contains(getByRole("listbox", { name: "Files" }))).toBe(true);
+    expect(dialog.contains(getByRole("region", { name: "File content" }))).toBe(true);
   });
 
   it("titles a compare with both short SHAs", () => {

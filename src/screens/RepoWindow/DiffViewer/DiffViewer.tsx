@@ -25,8 +25,8 @@ import { carryRef, carrySelection, clickLine, EMPTY_LINES, hunkMap, lineKey, toP
 const OVERSCAN = 30;
 /** Why the header's conflict buttons are dead while a mutation runs, like the toolbar's. */
 const BUSY = "Operation in progress";
-/** `20000` → `20 000` (the style guide's thousands separator). */
-const groupThousands = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+/** `20000` → `20 000` (the style guide's thousands separator); shared with the content view. */
+export const groupThousands = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 const SIGN: Record<DiffLine["kind"], string> = { context: " ", add: "+", del: "−" };
 const SYN: Record<SynClass, string> = {
   keyword: s.synKeyword,
@@ -502,8 +502,11 @@ function DiffBody({ path, view, rows, maxCols, lang, actions, selected, cursorRo
   );
 }
 
-/** Line text, syntax-highlighted per line (lib/highlight, cached); a trailing `\r` becomes a faint `␍` so CRLF content is visible. */
-function LineText({ text, lang, emph }: { text: string; lang: Lang | null; emph?: EmphRange[] }) {
+/**
+ * Line text, syntax-highlighted per line (lib/highlight, cached); a trailing `\r` becomes a faint
+ * `␍` so CRLF content is visible. Shared with the content view, which passes no `emph`.
+ */
+export function LineText({ text, lang, emph }: { text: string; lang: Lang | null; emph?: EmphRange[] }) {
   const cr = text.endsWith("\r");
   const body = cr ? text.slice(0, -1) : text;
   const spans = useMemo(() => highlightLine(lang, body), [lang, body]);

@@ -14,6 +14,7 @@ import { copyText, openInDiffTool } from "./actions";
 import { ChangedFileList } from "./ChangedFileList/ChangedFileList";
 import s from "./DetailsPane.module.css";
 import { DiffViewer } from "./DiffViewer/DiffViewer";
+import { FileContent } from "./DiffViewer/FileContent";
 import w from "./RepoWindow.module.css";
 import { RefChips } from "./RevisionGrid/RefChips";
 
@@ -50,7 +51,7 @@ export function DetailsPane() {
   );
 }
 
-/** `DiffViewer` bound to `diffStore` (the selected commit's file). */
+/** `DiffViewer` bound to `diffStore` — or `FileContent` while the Files tab is up (the selected commit's file either way). */
 export function CommitDiff({ onExpand }: { onExpand?: (opener: HTMLElement) => void }) {
   const path = useDiffStore((st) => st.selectedPath);
   const file = useDiffStore((st) => st.files.find((f) => f.path === st.selectedPath));
@@ -58,6 +59,12 @@ export function CommitDiff({ onExpand }: { onExpand?: (opener: HTMLElement) => v
   const loading = useDiffStore((st) => st.diffLoading);
   const error = useDiffStore((st) => st.diffError);
   const target = useDiffStore((st) => st.target);
+  const tab = useDiffStore((st) => st.tab);
+  const treePath = useDiffStore((st) => st.treeSelectedPath);
+  const content = useDiffStore((st) => st.content);
+  const contentLoading = useDiffStore((st) => st.contentLoading);
+  const contentError = useDiffStore((st) => st.contentError);
+  if (tab === "files") return <FileContent path={treePath} content={content} loading={contentLoading} error={contentError} onExpand={onExpand} />;
   return (
     <DiffViewer
       path={path}

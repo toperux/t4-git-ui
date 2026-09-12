@@ -1,5 +1,6 @@
-import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as ipc from "../../../api/ipc";
 import type { FileChange, TreeEntry } from "../../../api/types";
 import { useDiffStore } from "../../../store/diffStore";
 import { ChangedFileList } from "./ChangedFileList";
@@ -9,8 +10,13 @@ vi.mock("../../../api/ipc", () => ({
   getFileDiff: vi.fn(() => new Promise(() => {})),
   listTree: vi.fn(() => new Promise(() => {})),
   readFile: vi.fn(() => new Promise(() => {})),
+  saveFileAs: vi.fn(() => Promise.resolve()),
+  openPath: vi.fn(() => Promise.resolve()),
   toAppError: (e: unknown) => ({ kind: "unknown", message: String(e) }),
 }));
+// The row menu's native save dialog; `ask` / `open` are what `actions.ts` imports from the plugin.
+vi.mock("@tauri-apps/plugin-dialog", () => ({ save: vi.fn(() => Promise.resolve("C:/out/main.rs")), ask: vi.fn(), open: vi.fn() }));
+vi.mock("@tauri-apps/plugin-clipboard-manager", () => ({ writeText: vi.fn(() => Promise.resolve()) }));
 
 // jsdom has no layout: give the virtualizer a viewport so it renders rows.
 const scrolls = vi.hoisted(() => ({ offsets: [] as number[] }));
@@ -199,6 +205,56 @@ describe("ChangedFileList", () => {
     // Narrowed under the cap: nothing is being held back, so the banner goes.
     fireEvent.change(filter, { target: { value: "f000" } });
     expect(container.textContent).not.toContain("more matches");
+  });
+
+  it("the row menu reveals only on the working-tree row, and saves where the dialog points", async () => {
+    useDiffStore.setState({ repoId: "r", target: { kind: "commit", oid: "c" }, files: [], filesLoading: false, filesError: null, fileListMode: "flat", tab: "files", tree: TREE });
+    const { getByRole, queryByRole, rerender } = render(<ChangedFileList />);
+    const row = () => getByRole("option", { name: /src\/main\.rs/ });
+
+    fireEvent.contextMenu(row(), { clientX: 10, clientY: 20 });
+    expect(getByRole("menu", { name: "File actions" })).toBeTruthy();
+    // A commit's file is not on disk: there is nothing for the file manager to point at.
+    expect(queryByRole("menuitem", { name: "Reveal in folder" })).toBeNull();
+    fireEvent.click(getByRole("menuitem", { name: "Save as…" }));
+    await waitFor(() => expect(ipc.saveFileAs).toHaveBeenCalledWith("r", { kind: "commit", oid: "c" }, "src/main.rs", "C:/out/main.rs"));
+
+    // Open hands the commit's target along, so the backend opens a temp copy of the blob.
+    fireEvent.contextMenu(row(), { clientX: 10, clientY: 20 });
+    fireEvent.click(getByRole("menuitem", { name: "Open" }));
+    await waitFor(() => expect(ipc.openPath).toHaveBeenCalledWith("r", "src/main.rs", false, { kind: "commit", oid: "c" }));
+
+    act(() => useDiffStore.setState({ target: { kind: "workdir" } }));
+    rerender(<ChangedFileList />);
+    fireEvent.contextMenu(row(), { clientX: 10, clientY: 20 });
+    expect(getByRole("menuitem", { name: "Reveal in folder" })).toBeTruthy();
+    fireEvent.click(getByRole("menuitem", { name: "Open" }));
+    // The working tree's own file, so no target: `open_path` joins the repository itself.
+    await waitFor(() => expect(ipc.openPath).toHaveBeenLastCalledWith("r", "src/main.rs", false, undefined));
+  });
+
+  it("Show in Changes appears for a file the commit changed and switches tab + selection", () => {
+    useDiffStore.setState({
+      repoId: "r",
+      target: { kind: "commit", oid: "c" },
+      files: [{ path: "src/main.rs", oldPath: null, status: "modified", additions: 1, deletions: 0, binary: false }],
+      filesLoading: false,
+      filesError: null,
+      fileListMode: "flat",
+      tab: "files",
+      tree: TREE,
+    });
+    const { getByRole, queryByRole } = render(<ChangedFileList />);
+
+    // A file this commit left alone has nowhere to go in the Changes list.
+    fireEvent.contextMenu(getByRole("option", { name: /readme\.md/ }), { clientX: 1, clientY: 1 });
+    expect(queryByRole("menuitem", { name: "Show in Changes" })).toBeNull();
+    fireEvent.keyDown(getByRole("menu", { name: "File actions" }), { key: "Escape" });
+
+    fireEvent.contextMenu(getByRole("option", { name: /src\/main\.rs/ }), { clientX: 1, clientY: 1 });
+    fireEvent.click(getByRole("menuitem", { name: "Show in Changes" }));
+    expect(useDiffStore.getState().tab).toBe("changes");
+    expect(useDiffStore.getState().selectedPath).toBe("src/main.rs");
   });
 
   it("another target starts the list back at the top", () => {
