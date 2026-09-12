@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RefsSnapshot, WorkdirStatus } from "../../../api/types";
 import { useCommitStore } from "../../../store/commitStore";
+import { useDiffStore } from "../../../store/diffStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { useDialogStore } from "../../../store/dialogStore";
 import { useSettingsStore } from "../../../store/settingsStore";
@@ -35,6 +36,9 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
     discardPaths: vi.fn(() => Promise.resolve()),
     openPath: vi.fn(() => Promise.resolve()),
     openDiffTool: vi.fn(() => Promise.resolve("BComp")),
+    listTree: vi.fn(() => new Promise(() => {})),
+    readFile: vi.fn(() => new Promise(() => {})),
+    getBlame: vi.fn(() => new Promise(() => {})),
   };
 });
 const ask = vi.hoisted(() => vi.fn((_message: string, _options?: unknown) => Promise.resolve(true)));
@@ -651,13 +655,13 @@ describe("CommitPanel file context menu", () => {
   it("an unstaged file offers Stage, Discard, Copy path and the openers", () => {
     const { getByRole, container } = renderPanel();
     fireEvent.contextMenu(rows(container, "Unstaged")[0]);
-    expect(labels(getByRole("menu", { name: "File actions" }))).toEqual(["Stage", "Discard…", "Copy path", "Open", "Reveal in folder"]);
+    expect(labels(getByRole("menu", { name: "File actions" }))).toEqual(["Stage", "Discard…", "Copy path", "Open", "Reveal in folder", "Blame"]);
   });
 
   it("a staged file offers Unstage, with no Discard", () => {
     const { getByRole, container } = renderPanel();
     fireEvent.contextMenu(rows(container, "Staged")[1]);
-    expect(labels(getByRole("menu", { name: "File actions" }))).toEqual(["Unstage", "Copy path", "Open", "Reveal in folder"]);
+    expect(labels(getByRole("menu", { name: "File actions" }))).toEqual(["Unstage", "Copy path", "Open", "Reveal in folder", "Blame"]);
   });
 
   it("a conflicted file offers either side by the branch name the backend put on it", async () => {
@@ -666,12 +670,31 @@ describe("CommitPanel file context menu", () => {
     fireEvent.contextMenu(rows(container, "Unstaged")[2]);
     const menu = getByRole("menu", { name: "File actions" });
     // Discard is there but refused: a conflict has no single version to go back to — the two sides are.
-    expect(labels(menu)).toEqual(["Stage", "Discard…", "Keep main's version", "Keep feature's version", "Copy path", "Open", "Reveal in folder"]);
+    expect(labels(menu)).toEqual(["Stage", "Discard…", "Keep main's version", "Keep feature's version", "Copy path", "Open", "Reveal in folder", "Blame"]);
     expect(getByRole("menuitem", { name: "Discard…" }).hasAttribute("disabled")).toBe(true);
     fireEvent.click(getByRole("menuitem", { name: "Keep feature's version" }));
     await act(async () => {});
     expect(ask.mock.calls[0][0]).toContain("Replace conflict.rs with feature's version?");
     expect(mocked.resolveConflict).toHaveBeenCalledWith("r", ["conflict.rs"], "theirs");
+  });
+
+  it("Blame resolves the working-tree file to HEAD and lands on the Files tab", async () => {
+    const revealOid = vi.fn(() => Promise.resolve(true));
+    useRepoStore.setState({ refs: REFS, revealOid });
+    useDiffStore.setState({ tab: "changes", blameOn: false });
+    const { getByRole, container } = renderPanel();
+    fireEvent.contextMenu(rows(container, "Unstaged")[0]); // a.rs, modified
+    fireEvent.click(getByRole("menuitem", { name: "Blame" }));
+    // The working-tree row renders this panel, not `ChangedFileList`, so it has no Files tab of its
+    // own: blame goes to HEAD's version of the file.
+    await waitFor(() => expect(revealOid).toHaveBeenCalledWith("h"));
+    expect(useDiffStore.getState()).toMatchObject({ tab: "files", blameOn: true });
+
+    // A file HEAD has never seen has nothing to blame against.
+    fireEvent.contextMenu(rows(container, "Unstaged")[3]); // untracked.txt
+    const item = getByRole("menuitem", { name: "Blame" });
+    expect(item.hasAttribute("disabled")).toBe(true);
+    expect(item.getAttribute("title")).toBe("The file has never been committed");
   });
 
   it("a selection that is not conflicted through and through offers neither side", () => {

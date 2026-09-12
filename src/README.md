@@ -45,7 +45,13 @@ src/
                            caches listings by target (20 kept, evicted oldest-first; two targets whose reply carried the same tree oid
                            share one array — the oid cannot spare a commit's *first* call, since only the reply names its tree); the
                            working tree is never cached. `treeSelection` remembers the file per target so switching back resumes there;
-                           `__resetTreeCacheForTests()` clears both maps
+                           `__resetTreeCacheForTests()` clears both maps.
+                           Blame (§2): blame (get_blame), blameOn (a view mode: it stays on for the session as the selection moves),
+                           blameLoading / blameError, seq-guarded too. `setBlameOn(true)` loads; `loadContent` asks for the gutter
+                           alongside the text whenever it is on, so another file or another commit re-blames, and
+                           `toggleWhitespace` does the same (the option *is* blame's `-w`). `selectTreePathAt(oid, path)` writes
+                           `treeSelection` for a commit that is not the target yet — what makes the drill-down land on the same
+                           file, since revealing a commit reloads this store from the grid selection
     statusStore.ts         zustand: WorkdirStatus; refresh (seq-guarded) / scheduleRefresh (100 ms debounce); onChanged(`repo://changed`):
                            any kind → status; refs|rescan → syncRefs (refreshRefs → walkSeeds moved ? startLog : refs changed ?
                            refreshLabels : nothing) — coalesced into one in-flight run, never rejects;
@@ -198,10 +204,12 @@ src/
                            Sidebar (one `role="tree"` per section with a roving tabIndex; branches with `/` nest in
                            folder rows under Local and under each remote; a `mergedInto` branch (never the current one, nor a protected main / master / remote-default) is muted with a
                            `merged` badge; context menus per ref kind on right-click / Shift+F10, double-click = checkout),
-                           actions.ts (fetchDefault / checkout* / stash* / copyText / refreshAll / switchRepo / pickAndOpenRepo /
+                           actions.ts (fetchDefault / checkout* / stash* / copyText / blameAt / refreshAll / switchRepo / pickAndOpenRepo /
                            closeRepo / runGit, plus the banner aborts merge/rebase/cherryPick/revertAbort — the git ones through runOp; runGit with `quietFailure`: no toast on a
                            non-zero exit unless conflicts / auth / non-fast-forward / diverged, the dock's exit line says it;
-                           busyLabel cuts the label by code point with a marker runOp keeps),
+                           busyLabel cuts the label by code point with a marker runOp keeps;
+                           blameAt(oid, path) is every way into blame — Files tab + `selectTreePathAt` + the gutter on, then
+                           `revealOid`, which misses under a filter or a `Head`-only spec and toasts "Not in the current view"),
                            banners.ts (pure refs+status → detached | merge | rebase (Abort · Skip · Continue; with
                            nothing conflicted and the status agreeing with refs about which state it was scanned in,
                            the text is the `edit` / exec pause, not "resolve conflicts") |
@@ -266,7 +274,8 @@ src/
                            FileRowMenu.tsx (right-click / Shift+F10 on a row of either tab — the row becomes the selection
                            first: Copy path, Open (a commit's file as a temp copy of its blob, the working tree's in place),
                            Reveal in folder (working-tree target only), Save as… (`@tauri-apps/plugin-dialog` `save` →
-                           `save_file_as`, the whole blob) and Show in Changes, which only appears on the Files tab for a
+                           `save_file_as`, the whole blob), Blame (§2 — `blameAt` the target's commit, so the Changes tab hands
+                           over to the Files tab) and Show in Changes, which only appears on the Files tab for a
                            path the commit actually changed and switches tab + selection. All reads, so nothing here is
                            disabled while an operation runs).
                            fileTree.ts (pure: nest by `/`, folders first; a chain of single-child folders folds into one
@@ -299,7 +308,16 @@ src/
                            none of the viewer's hunks, staging actions, line selection or cursor model mean anything with one
                            side. It shares the row CSS (`.body.content` = one gutter, no sign column), the exported `LineText`
                            and `groupThousands`, the virtualizer and the truncation / binary notices, and renders `{n, text}`
-                           rows with one line-number column; `CommitDiff` picks it while `diffStore.tab === "files"`
+                           rows with one line-number column; `CommitDiff` picks it while `diffStore.tab === "files"`.
+                           The blame gutter (§2) is this component's alone: a "Blame" IconButton in the header (dead with
+                           "Blame needs the whole file" on a binary or truncated one), then a left cell per row — the label
+                           (`<short> <author> <age>`) on a hunk's first row, the age tint alone on the rest, `role="img"` +
+                           `aria-label` so a continuation row still names its commit, and `title` = summary · date · pre-rename
+                           path. No tab stop per hunk (virtualized rows would leave the tab order): one roving cursor for the
+                           list, ↑/↓ to move it, Enter or a gutter click → `blameAt`, ContextMenu / Shift+F10 or right-click →
+                           the hunk menu (Select in graph, Blame parent = porcelain's `previous` commit *and* path, Copy SHA),
+                           blameRows.ts (pure: line → {hunk, first, step}; the tint is 5 steps on a **log** scale over this
+                           file's own hunk ages, since commit times cluster; blameLabel / blameTitle)
       CommitPanel/         CommitPanel (Files 320 | Diff | Message 340, resizable; `useCommitSync` — called once from RepoWindow
                            while the panel or the commit dialog is up — feeds statusStore.status →
                            commitStore.syncWithStatus; the message header's "Open commit window" opens dialogs/CommitDialog:
@@ -313,7 +331,9 @@ src/
                            a "(N skipped)" title — Discard… (unstaged, none conflicted), Keep <side>'s version when every
                            selected file is conflicted, Copy path, Open (OS default app) and Reveal in folder — single file,
                            still on disk — through `open_path`, a Rust command that joins the repo-relative path itself so the
-                           webview never gets an arbitrary-path opener scope),
+                           webview never gets an arbitrary-path opener scope — and Blame (§2), which resolves the working-tree
+                           file to **HEAD**: this panel is what the working-tree row renders, so there is no Files tab on it;
+                           dead for a path HEAD has never seen and for an unborn HEAD),
                            FilesColumn (Unstaged + Stage all / Staged + Unstage all — each header button reads "Stage selected" /
                            "Unstage selected" and acts on the selection alone once its own list owns two or more rows,
                            "Stage selected" skipping conflicted ones like Stage all — Unstage never filters, since

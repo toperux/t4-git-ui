@@ -7,6 +7,7 @@ import type { Branch, DiffTarget, Remote, RemoteBranch } from "../../api/types";
 import { splitArgs } from "../../lib/argv";
 import { useCmdHistoryStore } from "../../store/cmdHistoryStore";
 import { useDialogStore } from "../../store/dialogStore";
+import { useDiffStore } from "../../store/diffStore";
 import { runOp, selectRunning, useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
 import { useStatusStore } from "../../store/statusStore";
@@ -126,6 +127,24 @@ export async function openInDiffTool(target: DiffTarget, path: string, oldPath: 
   } catch (e) {
     toastError(toAppError(e), "Couldn't open the diff tool");
   }
+}
+
+/**
+ * Selects commit `oid` in the grid and shows `path` at it on the Files tab with the blame gutter on.
+ * Every way into blame goes through this: the row menus, and a hunk's own "Select in graph" / "Blame
+ * parent" — which is the drill-down, since the Files tab follows the grid selection.
+ *
+ * The tree selection is seeded *before* the reveal: the details pane reloads `diffStore` from the
+ * grid selection in an effect, and `load` would otherwise reset the file to whatever that commit was
+ * last left on. `revealOid` misses when the grid is under a text filter or a `Head`-only spec;
+ * nothing but the toast happens then.
+ */
+export async function blameAt(oid: string, path: string) {
+  const diff = useDiffStore.getState();
+  diff.setTab("files");
+  diff.selectTreePathAt(oid, path);
+  diff.setBlameOn(true);
+  if (!(await useRepoStore.getState().revealOid(oid))) useToastStore.getState().push({ kind: "info", title: "Not in the current view — clear the filter" });
 }
 
 export function copyText(text: string, what: string) {

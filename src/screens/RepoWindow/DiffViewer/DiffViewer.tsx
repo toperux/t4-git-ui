@@ -453,10 +453,13 @@ function DiffBody({ path, view, rows, maxCols, lang, actions, selected, cursorRo
       onKeyDown={onKeyDown}
       // Tabbing into the diff hands the focus straight to the cursor line, so the first arrow key
       // moves off a line the user can see. Nothing to hand it to outside staging mode: no picks, no
-      // `[data-cursor]`, and the region keeps the focus for scrolling.
+      // `[data-cursor]`, and the region keeps the focus for scrolling. Focus arriving from inside is
+      // Shift+Tab on its way out — the region precedes its rows in tab order — and handing it back
+      // would trap it here.
       onFocus={(e) => {
         held.current = true;
-        if (e.target === e.currentTarget) e.currentTarget.querySelector<HTMLElement>("[data-cursor]")?.focus({ preventScroll: true });
+        if (e.target !== e.currentTarget || (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget))) return;
+        e.currentTarget.querySelector<HTMLElement>("[data-cursor]")?.focus({ preventScroll: true });
       }}
       onBlur={(e) => {
         if (e.relatedTarget) {

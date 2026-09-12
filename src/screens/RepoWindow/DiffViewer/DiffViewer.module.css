@@ -81,6 +81,35 @@
 .body.content {
   min-width: calc(40px + 6px + var(--cols, 0) * 1ch);
 }
+/* … plus the blame gutter when it is on. */
+.body.content.blamed {
+  min-width: calc(180px + 40px + 6px + var(--cols, 0) * 1ch);
+}
+
+/* Blame gutter (§2): one cell per row — the label on a hunk's first row, the tint alone on the rest.
+   The tint is `--accent` mixed down in five steps (`--age` 1 = the file's oldest hunk, 5 = its
+   newest), so it follows the theme rather than a colour of its own; 20% is the strongest it gets,
+   which keeps `--fg-muted` over 4.5:1 in both themes. */
+.bl {
+  width: 180px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-3);
+  overflow: hidden;
+  border-right: 1px solid var(--border);
+  background: color-mix(in srgb, var(--accent) calc(var(--age, 1) * 4%), transparent);
+  color: var(--fg-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  user-select: none;
+  cursor: pointer;
+}
+.blLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* base.css .dl / .no / .sg / .tx */
 .dl {

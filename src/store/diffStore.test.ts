@@ -1,16 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { DiffTarget, FileChange, FileContent, FileDiff, TreeEntry, TreeListing } from "../api/types";
+import type { Blame, DiffTarget, FileChange, FileContent, FileDiff, TreeEntry, TreeListing } from "../api/types";
 
 vi.mock("../api/ipc", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api/ipc")>();
-  return { ...actual, getChangedFiles: vi.fn(), getFileDiff: vi.fn(), listTree: vi.fn(), readFile: vi.fn() };
+  return { ...actual, getChangedFiles: vi.fn(), getFileDiff: vi.fn(), listTree: vi.fn(), readFile: vi.fn(), getBlame: vi.fn() };
 });
 
 import * as ipc from "../api/ipc";
 import { __resetTreeCacheForTests, treeTargetOf, useDiffStore } from "./diffStore";
 
 type Mock = ReturnType<typeof vi.fn>;
-const mocked = ipc as unknown as { getChangedFiles: Mock; getFileDiff: Mock; listTree: Mock; readFile: Mock };
+const mocked = ipc as unknown as { getChangedFiles: Mock; getFileDiff: Mock; listTree: Mock; readFile: Mock; getBlame: Mock };
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
 const commit = (oid: string): DiffTarget => ({ kind: "commit", oid });
@@ -19,6 +19,7 @@ const diffFor = (path: string): FileDiff => ({ path, oldPath: null, status: "mod
 const entry = (path: string): TreeEntry => ({ path, size: 10, mode: "100644", kind: "blob" });
 const listing = (oid: string | null, ...paths: string[]): TreeListing => ({ oid, entries: paths.map(entry) });
 const contentFor = (path: string): FileContent => ({ path, text: "x\n", binary: false, size: 2, truncated: false, maxLines: 20_000, kind: "blob" });
+const blameFor = (path: string): Blame => ({ path, hunks: [] });
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -35,6 +36,8 @@ beforeEach(() => {
     treeFilter: "",
     treeSelectedPath: null,
     content: null,
+    blame: null,
+    blameOn: false,
   });
 });
 
@@ -201,6 +204,98 @@ describe("diffStore — Files tab", () => {
     resolveContent(contentFor("fast.ts"));
     await flush();
     expect(useDiffStore.getState().content?.path).toBe("other.ts");
+  });
+
+  it("blame loads with the toggle, follows the file, and reloads on the whitespace option", async () => {
+    mocked.listTree.mockImplementation((_id: string, t: { oid: string }) => Promise.resolve(listing(`tree-${t.oid}`, "a.ts", "b.ts")));
+    mocked.readFile.mockImplementation((_i: string, _t: unknown, p: string) => Promise.resolve(contentFor(p)));
+    mocked.getBlame.mockImplementation((_i: string, _t: unknown, p: string) => Promise.resolve(blameFor(p)));
+    useDiffStore.setState({ tab: "files" });
+
+    await useDiffStore.getState().load("r", commit("c1"));
+    await flush();
+    useDiffStore.getState().selectTreePath("a.ts");
+    await flush();
+    expect(mocked.getBlame).not.toHaveBeenCalled(); // off by default: the gutter is asked for
+
+    useDiffStore.getState().setBlameOn(true);
+    await flush();
+    expect(mocked.getBlame).toHaveBeenLastCalledWith("r", { kind: "commit", oid: "c1" }, "a.ts", false);
+    expect(useDiffStore.getState().blame?.path).toBe("a.ts");
+
+    // Another file re-blames …
+    useDiffStore.getState().selectTreePath("b.ts");
+    await flush();
+    expect(useDiffStore.getState().blame?.path).toBe("b.ts");
+
+    // … and so does `-w`, which is the diff's own option.
+    useDiffStore.getState().toggleWhitespace();
+    await flush();
+    expect(mocked.getBlame).toHaveBeenLastCalledWith("r", { kind: "commit", oid: "c1" }, "b.ts", true);
+
+    // The mode is a view mode and survives another commit; that commit's hunks are not these.
+    await useDiffStore.getState().load("r", commit("c2"));
+    expect(useDiffStore.getState()).toMatchObject({ blameOn: true, blame: null });
+
+    useDiffStore.getState().setBlameOn(false);
+    expect(useDiffStore.getState().blame).toBeNull();
+  });
+
+  it("drops a blame reply that a newer selection has superseded", async () => {
+    mocked.listTree.mockResolvedValue(listing("t", "a.ts", "b.ts"));
+    mocked.readFile.mockImplementation((_i: string, _t: unknown, p: string) => Promise.resolve(contentFor(p)));
+    let resolveBlame!: (b: Blame) => void;
+    mocked.getBlame.mockImplementationOnce(() => new Promise<Blame>((r) => (resolveBlame = r))).mockImplementation((_i: string, _t: unknown, p: string) => Promise.resolve(blameFor(p)));
+    useDiffStore.setState({ tab: "files", blameOn: true });
+
+    await useDiffStore.getState().load("r", commit("c1"));
+    await flush();
+    useDiffStore.getState().selectTreePath("a.ts");
+    useDiffStore.getState().selectTreePath("b.ts");
+    await flush();
+    resolveBlame(blameFor("a.ts"));
+    await flush();
+    expect(useDiffStore.getState().blame?.path).toBe("b.ts");
+  });
+
+  it("selectTreePathAt seeds another commit's file, so a blame drill-down lands on it", async () => {
+    mocked.listTree.mockImplementation((_id: string, t: { oid: string }) => Promise.resolve(listing(`tree-${t.oid}`, "a.ts")));
+    mocked.readFile.mockImplementation((_i: string, _t: unknown, p: string) => Promise.resolve(contentFor(p)));
+    useDiffStore.setState({ tab: "files" });
+    await useDiffStore.getState().load("r", commit("c1"));
+    await flush();
+
+    // Not the current target: only the memory is written, and `load` picks it up.
+    useDiffStore.getState().selectTreePathAt("c2", "a.ts");
+    expect(useDiffStore.getState().treeSelectedPath).toBeNull();
+    await useDiffStore.getState().load("r", commit("c2"));
+    await flush();
+    expect(useDiffStore.getState().treeSelectedPath).toBe("a.ts");
+    expect(useDiffStore.getState().content?.path).toBe("a.ts");
+
+    // The current target: selected at once, since no reload is coming to read the seed.
+    useDiffStore.getState().selectTreePathAt("c2", "other.ts");
+    expect(useDiffStore.getState().treeSelectedPath).toBe("other.ts");
+  });
+
+  it("drops a blame reply that arrives after the gutter was switched off", async () => {
+    mocked.listTree.mockResolvedValue(listing("t", "a.ts"));
+    mocked.readFile.mockImplementation((_i: string, _t: unknown, p: string) => Promise.resolve(contentFor(p)));
+    let resolveBlame!: (b: Blame) => void;
+    mocked.getBlame.mockImplementation(() => new Promise<Blame>((r) => (resolveBlame = r)));
+    useDiffStore.setState({ tab: "files" });
+
+    await useDiffStore.getState().load("r", commit("c1"));
+    await flush();
+    useDiffStore.getState().selectTreePath("a.ts");
+    await flush();
+    useDiffStore.getState().setBlameOn(true);
+    await flush();
+
+    useDiffStore.getState().setBlameOn(false);
+    resolveBlame(blameFor("a.ts"));
+    await flush();
+    expect(useDiffStore.getState().blame).toBeNull();
   });
 
   it("never caches the working tree — it changes under us", async () => {

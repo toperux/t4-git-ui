@@ -1,4 +1,4 @@
-import { Copy, ExternalLink, FolderOpen, GitMerge, Minus, Plus, Trash2 } from "lucide-react";
+import { Copy, ExternalLink, FolderOpen, GitMerge, Minus, Plus, Trash2, UserSearch } from "lucide-react";
 import * as ipc from "../../../api/ipc";
 import { toAppError } from "../../../api/ipc";
 import type { StatusEntry } from "../../../api/types";
@@ -8,7 +8,7 @@ import { useCommitStore, type ListId } from "../../../store/commitStore";
 import { selectRunning, useOpsStore } from "../../../store/opsStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { toastError } from "../../../store/toastStore";
-import { copyText } from "../actions";
+import { blameAt, copyText } from "../actions";
 import { stageTarget } from "./stageTarget";
 
 /** Where to put the menu, and the paths it was opened over — a snapshot: the list moves under it. */
@@ -35,6 +35,7 @@ export function FileContextMenu({ list, paths, entries, menu, onClose, act, disc
   const running = useOpsStore(selectRunning);
   const busy = useCommitStore((st) => st.busy);
   const repoId = useRepoStore((st) => st.repo?.id ?? null);
+  const head = useRepoStore((st) => st.refs?.head.oid ?? null);
   const sides = useRepoStore((st) => st.refs?.conflictSides);
   const resolveConflict = useCommitStore((st) => st.resolveConflict);
   if (!menu || paths.length === 0) return null;
@@ -47,6 +48,12 @@ export function FileContextMenu({ list, paths, entries, menu, onClose, act, disc
   const single = n === 1 ? entryOf(paths[0]) : undefined;
   // Nothing on disk to hand the OS: a deletion staged or not.
   const gone = !single || single.workdir === "deleted" || single.index === "deleted";
+  // Blame from here resolves the working-tree file to HEAD: the working-tree row renders this panel,
+  // not `ChangedFileList`, so it has no Files tab of its own. A file that HEAD has never seen (or an
+  // unborn HEAD) has nothing to blame against; a rename is blamed under the name HEAD knows.
+  const newFile = !single || single.workdir === "untracked" || single.index === "added";
+  const blameOid = newFile ? null : head;
+  const blamePath = single?.oldPath ?? paths[0];
   // A lone file is the row's own Stage action, so it stages; more than one skips the conflicts. Over
   // a folder it is that row's action, word for word — a folder is a group whatever is under it.
   const { target, note } = stageTarget(list, entries, paths, menu.folder ? { bulk: true, where: "in this folder" } : { where: "you selected" });
@@ -123,6 +130,16 @@ export function FileContextMenu({ list, paths, entries, menu, onClose, act, disc
       {n === 1 && (
         <MenuItem icon={<FolderOpen size={16} aria-hidden />} disabled={gone} title={gone ? "The file is not in the working tree" : undefined} onClick={run(() => open(true))}>
           Reveal in folder
+        </MenuItem>
+      )}
+      {n === 1 && (
+        <MenuItem
+          icon={<UserSearch size={16} aria-hidden />}
+          disabled={!blameOid}
+          title={newFile ? "The file has never been committed" : head ? undefined : "Nothing is committed yet"}
+          onClick={run(() => blameOid && void blameAt(blameOid, blamePath))}
+        >
+          Blame
         </MenuItem>
       )}
     </ContextMenu>

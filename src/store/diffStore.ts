@@ -4,7 +4,7 @@
 import { create } from "zustand";
 import * as ipc from "../api/ipc";
 import { toAppError } from "../api/ipc";
-import type { DiffTarget, FileChange, FileContent, FileDiff, RepoId, TreeEntry, TreeTarget } from "../api/types";
+import type { Blame, DiffTarget, FileChange, FileContent, FileDiff, RepoId, TreeEntry, TreeTarget } from "../api/types";
 
 export type DiffView = "unified" | "split";
 export type FileListMode = "flat" | "tree";
@@ -41,6 +41,13 @@ export interface DiffStore {
   contentLoading: boolean;
   contentError: string | null;
 
+  /** Who last touched each line of the selected file; `null` until the gutter is switched on. */
+  blame: Blame | null;
+  /** A view mode, like split / unified: it stays on for the session as the selection moves. */
+  blameOn: boolean;
+  blameLoading: boolean;
+  blameError: string | null;
+
   /** Loads the file list of `target` (or clears everything for `null`) and selects its first file. */
   load(repoId: RepoId | null, target: DiffTarget | null): Promise<void>;
   selectPath(path: string): void;
@@ -54,6 +61,16 @@ export interface DiffStore {
   loadTree(): Promise<void>;
   selectTreePath(path: string): void;
   setTreeFilter(text: string): void;
+  /**
+   * Remembers `path` as commit `oid`'s file on the Files tab, and selects it right away when that
+   * commit is already the target. Blame's drill-down needs the seed: revealing a commit reloads this
+   * store from the grid selection in an effect, and `load` would reset the file to whatever the new
+   * target was last left on.
+   */
+  selectTreePathAt(oid: string, path: string): void;
+  setBlameOn(on: boolean): void;
+  /** Blame of the selected file at the current target (the diff's `ignoreWhitespace` is `-w`). */
+  loadBlame(): Promise<void>;
 }
 
 function readSetting<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
@@ -91,6 +108,7 @@ let filesSeq = 0;
 let diffSeq = 0;
 let treeSeq = 0;
 let contentSeq = 0;
+let blameSeq = 0;
 /**
  * Listings by target, so walking back to a commit is no refetch. Two targets whose reply carried
  * the same tree oid share one array — that is what the oid is for; it cannot spare the *first* call
@@ -146,6 +164,9 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
       return;
     }
     set({ contentLoading: true, contentError: null });
+    // Alongside the content, not after it: the gutter is the slower of the two and neither needs the
+    // other's answer.
+    if (get().blameOn) void loadBlame();
     try {
       const content = await ipc.readFile(repoId, tree, treeSelectedPath);
       if (seq !== contentSeq) return; // stale
@@ -153,6 +174,25 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
     } catch (e) {
       if (seq !== contentSeq) return;
       set({ content: null, contentLoading: false, contentError: toAppError(e).message });
+    }
+  }
+
+  async function loadBlame() {
+    const seq = ++blameSeq;
+    const { repoId, treeSelectedPath, ignoreWhitespace } = get();
+    const tree = treeTargetOf(get().target);
+    if (!repoId || !tree || !treeSelectedPath) {
+      set({ blame: null, blameLoading: false, blameError: null });
+      return;
+    }
+    set({ blame: null, blameLoading: true, blameError: null });
+    try {
+      const blame = await ipc.getBlame(repoId, tree, treeSelectedPath, ignoreWhitespace);
+      if (seq !== blameSeq) return; // stale
+      set({ blame, blameLoading: false });
+    } catch (e) {
+      if (seq !== blameSeq) return;
+      set({ blame: null, blameLoading: false, blameError: toAppError(e).message });
     }
   }
 
@@ -181,11 +221,17 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
     contentLoading: false,
     contentError: null,
 
+    blame: null,
+    blameOn: false,
+    blameLoading: false,
+    blameError: null,
+
     async load(repoId, target) {
       const seq = ++filesSeq;
       diffSeq++; // any diff in flight belongs to the previous target
       treeSeq++;
       contentSeq++;
+      blameSeq++;
       set({
         repoId,
         target,
@@ -204,6 +250,10 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
         content: null,
         contentLoading: false,
         contentError: null,
+        // `blameOn` is the mode and survives; the hunks belong to the previous file.
+        blame: null,
+        blameLoading: false,
+        blameError: null,
       });
       if (!repoId || !target) return;
       // Only the tab on screen fetches: a 47k-path tree is not worth loading for a commit whose
@@ -234,6 +284,8 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
     toggleWhitespace() {
       set((s) => ({ ignoreWhitespace: !s.ignoreWhitespace }));
       void loadDiff();
+      // The same option is blame's `-w`, so the gutter is re-blamed with it.
+      if (get().blameOn) void loadBlame();
     },
 
     setContext(context) {
@@ -294,6 +346,23 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
     setTreeFilter(treeFilter) {
       set({ treeFilter });
     },
+
+    selectTreePathAt(oid, path) {
+      treeSelection.set(oid, path);
+      if (targetKey(treeTargetOf(get().target)) === oid) get().selectTreePath(path);
+    },
+
+    setBlameOn(blameOn) {
+      if (get().blameOn === blameOn) return;
+      set({ blameOn });
+      if (blameOn) void loadBlame();
+      else {
+        blameSeq++; // a reply still in flight belongs to the gutter that was just switched off
+        set({ blame: null, blameLoading: false, blameError: null });
+      }
+    },
+
+    loadBlame,
   };
 });
 

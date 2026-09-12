@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as ipc from "../../../api/ipc";
 import type { FileChange, TreeEntry } from "../../../api/types";
 import { useDiffStore } from "../../../store/diffStore";
+import { useRepoStore } from "../../../store/repoStore";
 import { ChangedFileList } from "./ChangedFileList";
 
 vi.mock("../../../api/ipc", () => ({
@@ -10,6 +11,7 @@ vi.mock("../../../api/ipc", () => ({
   getFileDiff: vi.fn(() => new Promise(() => {})),
   listTree: vi.fn(() => new Promise(() => {})),
   readFile: vi.fn(() => new Promise(() => {})),
+  getBlame: vi.fn(() => new Promise(() => {})),
   saveFileAs: vi.fn(() => Promise.resolve()),
   openPath: vi.fn(() => Promise.resolve()),
   toAppError: (e: unknown) => ({ kind: "unknown", message: String(e) }),
@@ -231,6 +233,19 @@ describe("ChangedFileList", () => {
     fireEvent.click(getByRole("menuitem", { name: "Open" }));
     // The working tree's own file, so no target: `open_path` joins the repository itself.
     await waitFor(() => expect(ipc.openPath).toHaveBeenLastCalledWith("r", "src/main.rs", false, undefined));
+  });
+
+  it("Blame switches the gutter on for the row's file at this commit, from either tab", async () => {
+    const revealOid = vi.fn(() => Promise.resolve(true));
+    useRepoStore.setState({ revealOid });
+    useDiffStore.setState({ repoId: "r", target: { kind: "commit", oid: "c" }, files: FILES, filesLoading: false, filesError: null, fileListMode: "flat", tab: "changes", blameOn: false });
+    const { getByRole } = render(<ChangedFileList />);
+
+    fireEvent.contextMenu(getByRole("option", { name: /graph\.rs/ }), { clientX: 1, clientY: 1 });
+    fireEvent.click(getByRole("menuitem", { name: "Blame" }));
+    // The Changes tab hands over to the Files tab: that is where the gutter lives.
+    expect(useDiffStore.getState()).toMatchObject({ tab: "files", blameOn: true, treeSelectedPath: "crates/git-core/src/log/graph.rs" });
+    await waitFor(() => expect(revealOid).toHaveBeenCalledWith("c"));
   });
 
   it("Show in Changes appears for a file the commit changed and switches tab + selection", () => {

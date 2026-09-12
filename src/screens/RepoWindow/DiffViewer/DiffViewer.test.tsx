@@ -338,6 +338,12 @@ describe("DiffViewer", () => {
     region.focus();
     expect(document.activeElement).toBe(options[0]);
 
+    // Shift+Tab off the line lands on the region — an ancestor comes first in tab order — and
+    // handing it back in would trap the focus in the diff.
+    region.focus();
+    expect(document.activeElement).toBe(region);
+    options[0].focus();
+
     fireEvent.keyDown(region, { key: "ArrowDown" });
 
     expect(document.activeElement).toBe(options[1]);

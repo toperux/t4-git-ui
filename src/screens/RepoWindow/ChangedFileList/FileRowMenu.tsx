@@ -1,12 +1,12 @@
 import { save } from "@tauri-apps/plugin-dialog";
-import { Copy, Download, ExternalLink, FolderOpen, ListTree } from "lucide-react";
+import { Copy, Download, ExternalLink, FolderOpen, ListTree, UserSearch } from "lucide-react";
 import * as ipc from "../../../api/ipc";
 import { toAppError } from "../../../api/ipc";
 import { ContextMenu, MenuItem, MenuSeparator } from "../../../components/ui/Menu/Menu";
 import { baseName } from "../../../lib/paths";
 import { treeTargetOf, useDiffStore } from "../../../store/diffStore";
 import { toastError, useToastStore } from "../../../store/toastStore";
-import { copyText } from "../actions";
+import { blameAt, copyText } from "../actions";
 
 /** Where to put the menu and the path it was opened over — a snapshot: the list can move under it. */
 export interface RowMenuState {
@@ -79,20 +79,25 @@ export function FileRowMenu({ menu, onClose }: { menu: RowMenuState | null; onCl
       <MenuItem icon={<Download size={16} aria-hidden />} disabled={gone} title={gone ? gonePath : undefined} onClick={run(() => void saveAs())}>
         Save as…
       </MenuItem>
+      {(commit || (tab === "files" && changed)) && <MenuSeparator />}
+      {/* Blame is about a commit's version of the file, so there is nothing to blame a compare's
+          working-tree side against; `treeTargetOf` has already picked the *to* commit of a range. */}
+      {commit && (
+        <MenuItem icon={<UserSearch size={16} aria-hidden />} disabled={gone} title={gone ? gonePath : undefined} onClick={run(() => void blameAt(commit.oid, path))}>
+          Blame
+        </MenuItem>
+      )}
       {/* Only worth an item from the Files tab, and only for a file this commit actually changed. */}
       {tab === "files" && changed && (
-        <>
-          <MenuSeparator />
-          <MenuItem
-            icon={<ListTree size={16} aria-hidden />}
-            onClick={run(() => {
-              setTab("changes");
-              selectPath(path);
-            })}
-          >
-            Show in Changes
-          </MenuItem>
-        </>
+        <MenuItem
+          icon={<ListTree size={16} aria-hidden />}
+          onClick={run(() => {
+            setTab("changes");
+            selectPath(path);
+          })}
+        >
+          Show in Changes
+        </MenuItem>
       )}
     </ContextMenu>
   );
