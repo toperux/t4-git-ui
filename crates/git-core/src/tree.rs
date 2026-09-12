@@ -438,14 +438,12 @@ mod tests {
         let sub = t.commit(&[("sub-marker", "x")], "sub tip");
 
         let mut index = t.repo.index().expect("index");
-        #[allow(unused_mut)]
-        let mut linked = false;
         #[cfg(unix)]
         {
             std::os::unix::fs::symlink("src/lib.rs", t.path().join("link")).expect("symlink");
             index.add_path(Path::new("link")).expect("add link");
-            linked = true;
         }
+        let linked = cfg!(unix);
         index
             .add(&entry(sub, 0o160_000, 0, b"vendor/dep"))
             .expect("add gitlink");
