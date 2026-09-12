@@ -108,7 +108,7 @@ async fn write_and_run(
     flags: &RebaseFlags,
     steps: &[TodoStep],
 ) -> CliOutput {
-    let todo = rebase::write_todo(&t4_dir(t), steps).expect("write_todo");
+    let todo = rebase::write_todo(&t4_dir(t), steps, "git").expect("write_todo");
     run(t, &rebase::run_args(base, flags, &todo)).await
 }
 

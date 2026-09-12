@@ -439,9 +439,19 @@ fn conflict_path(line: &str) -> Option<String> {
     let rest = &rest[rest.find("): ")? + 3..];
     let path = match rest.find("conflict in ") {
         Some(i) => &rest[i + "conflict in ".len()..],
-        None => rest.split(' ').next().unwrap_or(rest),
+        // `<path> deleted in <ref> and modified in <ref>. Version ...`: the
+        // path can contain spaces, so it ends at the marker, not at a space.
+        None => match [" deleted in ", " added in "]
+            .iter()
+            .filter_map(|m| rest.find(m))
+            .min()
+        {
+            Some(i) => &rest[..i],
+            None => rest.split(' ').next().unwrap_or(rest),
+        },
     };
-    let path = path.trim().trim_end_matches('.');
+    let path = path.trim();
+    let path = path.strip_suffix('.').unwrap_or(path);
     (!path.is_empty()).then(|| path.to_string())
 }
 
@@ -901,6 +911,20 @@ mod tests {
         assert_eq!(
             classify_failure(1, "", stderr),
             OpFailure::Conflicts { paths: vec![] }
+        );
+    }
+
+    #[test]
+    fn modify_delete_paths_keep_spaces_and_extensions() {
+        let stdout =
+            "CONFLICT (modify/delete): my notes.txt deleted in HEAD and modified in feat. \
+                      Version feat of my notes.txt left in tree.\n\
+                      CONFLICT (modify/delete): src/mod.d deleted in HEAD and added in feat.\n";
+        assert_eq!(
+            classify_failure(1, stdout, ""),
+            OpFailure::Conflicts {
+                paths: vec!["my notes.txt".into(), "src/mod.d".into()]
+            }
         );
     }
 

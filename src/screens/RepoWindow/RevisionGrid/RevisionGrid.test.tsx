@@ -144,6 +144,17 @@ describe("RevisionGrid", () => {
     expect(useRepoStore.getState().compare).toBeNull();
   });
 
+  it("leaves the compare pair alone on a Ctrl+right-click: that is macOS's secondary click, and the menu follows", () => {
+    withRefs();
+    const { container } = render(<RevisionGrid />);
+    const rows = container.querySelectorAll(ROWS);
+
+    fireEvent.mouseDown(rows[1]);
+    fireEvent.mouseDown(rows[2], { ctrlKey: true, button: 2 });
+    expect(useRepoStore.getState().compare).toBeNull();
+    expect(useRepoStore.getState().selectedIndex).toBe(1);
+  });
+
   it("shows at most 3 chips; +N opens a popover listing the rest", () => {
     const labels: LogRow["labels"] = ["a", "b", "c", "d", "e"].map((name) => ({ name, kind: "local" as const, isCurrent: false, remote: null }));
     useRepoStore.setState({

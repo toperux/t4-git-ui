@@ -35,7 +35,7 @@ src/
                            ensureRows (500-row pages, dedupe, stale drop), select, selectWorkingTree, revealOid;
                            a page rejected with `staleGeneration` restarts the walk, any other kind toasts once (never loops);
                            `__resetForTests()` clears the module-level page bookkeeping
-    diffStore.ts           zustand: selected commit → files (get_commit_files), selectedPath (default first), diff (get_file_diff with `context` — 3 unless Settings says otherwise;
+    diffStore.ts           zustand: selected commit → files (get_changed_files), selectedPath (default first), diff (get_file_diff with `context` — 3 unless Settings says otherwise;
                            setContext reloads),
                            stale responses dropped via seq counters; view unified|split (localStorage.diffView), ignoreWhitespace,
                            fileListMode flat|tree (localStorage.fileListMode)

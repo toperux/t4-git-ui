@@ -109,7 +109,7 @@ export function FileContextMenu({ list, paths, entries, menu, onClose, act, disc
         </MenuItem>
       )}
       <MenuSeparator />
-      <MenuItem icon={<Copy size={16} aria-hidden />} onClick={run(() => copyText(paths.join("\n"), "path"))}>
+      <MenuItem icon={<Copy size={16} aria-hidden />} onClick={run(() => copyText(paths.join("\n"), n === 1 ? "path" : `${n} paths`))}>
         Copy path
       </MenuItem>
       {n === 1 && (

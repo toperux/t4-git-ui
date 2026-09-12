@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDialogStore } from "../../store/dialogStore";
 import { useOpsStore } from "../../store/opsStore";
@@ -74,6 +74,20 @@ describe("Toolbar Commit", () => {
     expect(useRepoStore.getState().wtSelected).toBe(true);
     // The field follows the store, so it doesn't keep showing a filter that is no longer applied.
     expect((getByLabelText("Search commits") as HTMLInputElement).value).toBe("");
+  });
+});
+
+describe("Toolbar Branch menu", () => {
+  it("names its own button as the dialog's focus target, even once an op wraps it in a hint", () => {
+    const { getByRole } = render(<Toolbar />);
+    fireEvent.click(getByRole("button", { name: "Branch" }));
+    // An op starting under the open menu wraps the disabled trigger in a `DisabledHint` span.
+    act(() => useOpsStore.setState({ busy: "Pushing to origin…" }));
+    const branch = getByRole("button", { name: "Branch" });
+    expect(branch.parentElement?.getAttribute("role")).toBe("none");
+
+    fireEvent.click(getByRole("menuitem", { name: /Create branch/ }));
+    expect(useDialogStore.getState().returnFocus).toBe(branch);
   });
 });
 

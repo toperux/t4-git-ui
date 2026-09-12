@@ -10,8 +10,9 @@ function subscribe<T>(name: string, cb: (payload: T) => void): () => void {
       if (cancelled) fn();
       else unlisten = fn;
     },
-    // Outside Tauri (tests, a plain browser) there is no event bus: the app runs without live updates.
-    () => {},
+    // Outside Tauri (tests, a plain browser) there is no event bus: the app runs without live
+    // updates. Inside it, this is why the UI stopped refreshing itself — say which event was lost.
+    (e: unknown) => console.warn(`events: could not listen to "${name}"`, e),
   );
   return () => {
     cancelled = true;

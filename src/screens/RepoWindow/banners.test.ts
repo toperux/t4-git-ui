@@ -75,20 +75,20 @@ describe("banners", () => {
       ["cherryPick", "Cherry-pick"],
       ["revert", "Revert"],
     ] as const) {
-      const b = computeBanners(refs({ state }), status(0));
+      const b = computeBanners(refs({ state }), status(0, state));
       expect(b).toHaveLength(1);
       expect(b[0]).toMatchObject({ id: state, kind: "warning" });
       expect(b[0].text).toBe(`${word} in progress — resolve conflicts, then commit to finish`);
       expect(b[0].buttons.map((x) => x.label)).toEqual(["Abort", "Commit"]);
     }
-    expect(computeBanners(refs({ state: "cherryPick" }), status(0))[0].buttons.map((x) => x.action)).toEqual(["cherryPickAbort", "commitMerge"]);
-    expect(computeBanners(refs({ state: "revert" }), status(0))[0].buttons.map((x) => x.action)).toEqual(["revertAbort", "commitMerge"]);
+    expect(computeBanners(refs({ state: "cherryPick" }), status(0, "cherryPick"))[0].buttons.map((x) => x.action)).toEqual(["cherryPickAbort", "commitMerge"]);
+    expect(computeBanners(refs({ state: "revert" }), status(0, "revert"))[0].buttons.map((x) => x.action)).toEqual(["revertAbort", "commitMerge"]);
     // A stopped pick stacks with the conflicts banner, as a merge does.
     expect(computeBanners(refs({ state: "revert" }), status(1, "revert")).map((x) => x.id)).toEqual(["revert", "conflicts"]);
   });
 
   it("bisect is the one state left with no action (no backend command for it)", () => {
-    const b = computeBanners(refs({ state: "bisect" }), status(0));
+    const b = computeBanners(refs({ state: "bisect" }), status(0, "bisect"));
     expect(b).toHaveLength(1);
     expect(b[0]).toMatchObject({ id: "sequencer", kind: "warning", buttons: [] });
     expect(b[0].text).toContain("Bisect");
@@ -97,7 +97,19 @@ describe("banners", () => {
 
   it("a detached HEAD banner is suppressed while a sequencer state is running", () => {
     // `state !== "clean"`, so the detached notice would only add noise on top of the real cause.
-    const b = computeBanners(refs({ state: "cherryPick", head: { oid: "abcdef0123", branch: null, detached: true } }), status(0));
+    const b = computeBanners(refs({ state: "cherryPick", head: { oid: "abcdef0123", branch: null, detached: true } }), status(0, "cherryPick"));
     expect(b.map((x) => x.id)).toEqual(["cherryPick"]);
+  });
+
+  it("a status scanned in the state it describes counts its conflicts: pick, revert and bisect all stack", () => {
+    for (const [state, id] of [
+      ["cherryPick", "cherryPick"],
+      ["revert", "revert"],
+      ["bisect", "sequencer"],
+    ] as const) {
+      const b = computeBanners(refs({ state }), status(2, state));
+      expect(b.map((x) => x.id)).toEqual([id, "conflicts"]);
+      expect(b[1]).toMatchObject({ kind: "danger", text: "2 files have conflicts — resolve, then stage them" });
+    }
   });
 });

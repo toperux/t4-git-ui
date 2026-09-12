@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::conflict;
 use crate::diff::DiffTarget;
+use crate::repo::repo_relative;
 use crate::{map_git2, GitError};
 
 /// Which pair of config entries a tool belongs to.
@@ -351,6 +352,35 @@ pub fn diff_temp_dir() -> PathBuf {
     temp_dir_named("t4-git-ui-diff")
 }
 
+/// Creates `<base>/<sub>` for one set of sides. The name of `base` is
+/// predictable and on unix it sits in a world-writable `/tmp`, so it is created
+/// for this user only (0700) and refused when something that is not a real
+/// directory — a planted symlink or file — is there already: `create_dir_all`
+/// would follow the symlink and write the sides wherever it points.
+pub(crate) fn temp_subdir(base: PathBuf, sub: &str) -> Result<PathBuf, GitError> {
+    let mut builder = std::fs::DirBuilder::new();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        builder.mode(0o700);
+    }
+    // `symlink_metadata`, so a link to a directory is seen as the link it is.
+    match std::fs::symlink_metadata(&base) {
+        Ok(m) if !m.is_dir() => {
+            return Err(GitError::Refused(format!(
+                "{} is not a directory",
+                base.display()
+            )))
+        }
+        Ok(_) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => builder.create(&base)?,
+        Err(e) => return Err(e.into()),
+    }
+    let dir = base.join(sub);
+    builder.recursive(true).create(&dir)?;
+    Ok(dir)
+}
+
 /// Blob id of `path` in `tree`, `None` when the side does not have the file.
 fn blob_in(tree: Option<&Tree<'_>>, path: &str) -> Option<Oid> {
     tree?.get_path(Path::new(path)).ok().map(|e| e.id())
@@ -402,7 +432,9 @@ enum RightSide {
 /// except the working-tree side, which is the real file — so an edit saved
 /// there lands in the working tree, as `git difftool` does it.
 ///
-/// Returns the program that was spawned, for the toast.
+/// Returns the program that was spawned, for the toast. Both names are
+/// repository-relative: an absolute one would discard the working directory it
+/// is joined onto, so [`repo_relative`] refuses it.
 pub fn open_diff_tool(
     repo: &Repository,
     target: &DiffTarget,
@@ -412,6 +444,8 @@ pub fn open_diff_tool(
 ) -> Result<String, GitError> {
     // A rename's left side is the file under its old name.
     let old_name = old_path.unwrap_or(path);
+    repo_relative(path)?;
+    repo_relative(old_name)?;
     let workdir = || {
         repo.workdir()
             .map(|w| w.join(path))
@@ -456,8 +490,7 @@ pub fn open_diff_tool(
         RightSide::Blob(id) => *id,
         RightSide::Workdir(_) => None,
     };
-    let dir = diff_temp_dir().join(format!("{:x}", dir_key(old, right, path)));
-    std::fs::create_dir_all(&dir)?;
+    let dir = temp_subdir(diff_temp_dir(), &format!("{:x}", dir_key(old, right, path)))?;
     let local = conflict::stage_file(repo, &dir, old_name, "LOCAL", old)?;
     let remote = match new {
         RightSide::Blob(id) => conflict::stage_file(repo, &dir, path, "REMOTE", id)?,
@@ -497,6 +530,37 @@ mod tests {
         assert_eq!(substitute("$REMOTE", vars), "$REMOTE");
         assert_eq!(substitute("${NOPE}", vars), "${NOPE}");
         assert_eq!(substitute("100$", vars), "100$");
+    }
+
+    #[test]
+    fn a_temp_base_that_is_not_a_directory_is_refused() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+
+        // Someone got to the predictable name first with a plain file.
+        let file = tmp.path().join("planted-file");
+        std::fs::write(&file, "").expect("write");
+        assert!(matches!(temp_subdir(file, "ab"), Err(GitError::Refused(_))));
+
+        // The dangerous one: a symlink `create_dir_all` would have followed.
+        #[cfg(unix)]
+        {
+            let link = tmp.path().join("planted-link");
+            std::os::unix::fs::symlink(tmp.path(), &link).expect("symlink");
+            assert!(matches!(temp_subdir(link, "ab"), Err(GitError::Refused(_))));
+        }
+
+        // A base of ours is this user's alone.
+        let base = tmp.path().join("base");
+        let dir = temp_subdir(base.clone(), "ab").expect("created");
+        assert!(dir.is_dir());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&base).expect("base").permissions().mode();
+            assert_eq!(mode & 0o777, 0o700, "{mode:o}");
+        }
+        // Opening the same diff again reuses the directory.
+        assert_eq!(temp_subdir(base, "ab").expect("again"), dir);
     }
 
     #[test]

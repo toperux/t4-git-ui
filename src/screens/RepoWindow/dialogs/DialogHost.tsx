@@ -27,11 +27,16 @@ export function DialogHost() {
   const close = useDialogStore((st) => st.close);
   if (!dialog) return null;
   // The opener is kept in the store: a dialog opened from a menu item can't read it off the document.
-  return <DialogReturnFocus.Provider value={returnFocus}>{renderDialog(dialog, close)}</DialogReturnFocus.Provider>;
+  // Keyed by kind so every dialog starts from fresh state: `cherryPick` and `revert` share one
+  // component, and without this the switch would keep whatever the other one was left holding.
+  return (
+    <DialogReturnFocus.Provider key={dialog.kind} value={returnFocus}>
+      {renderDialog(dialog, close)}
+    </DialogReturnFocus.Provider>
+  );
 }
 
 function renderDialog(dialog: DialogSpec, close: () => void): ReactNode {
-  // Remount on kind change so every dialog starts from fresh state.
   switch (dialog.kind) {
     case "push":
       return <PushDialog onClose={close} branch={dialog.branch} />;

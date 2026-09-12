@@ -98,7 +98,8 @@ export const useOpsStore = create<OpsStore>()((set, get) => ({
   },
 
   async cancel(opId) {
-    cancelled.add(opId);
+    // Only while it is running: remembering an op that already exited leaves the id in the set forever.
+    if (get().ops.some((o) => o.opId === opId && o.running)) cancelled.add(opId);
     // The op may already have exited — that is not worth a toast.
     await ipc.cancelOp(opId).catch(() => false);
   },

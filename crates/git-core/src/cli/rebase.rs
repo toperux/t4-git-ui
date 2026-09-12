@@ -315,7 +315,16 @@ fn oid(s: &str) -> Result<git2::Oid, GitError> {
 /// Writes the edited list into `dir` (cleared first, so a previous run's
 /// message files cannot be picked up). Each [`TodoStep::Amend`] becomes a
 /// `msg-N.txt` file plus the `exec` line that applies it. Returns the todo file.
-pub fn write_todo(dir: &Path, steps: &[TodoStep]) -> Result<PathBuf, GitError> {
+///
+/// The `exec` lines run under `sh`, so a configured `git_path` is checked and
+/// quoted; the default bare `git` is left as it is.
+pub fn write_todo(dir: &Path, steps: &[TodoStep], git_path: &str) -> Result<PathBuf, GitError> {
+    let git = check_shell_path(Path::new(git_path)).map_err(GitError::Refused)?;
+    let git = if git == "git" {
+        git
+    } else {
+        format!("\"{git}\"")
+    };
     if let Err(e) = std::fs::remove_dir_all(dir) {
         if e.kind() != std::io::ErrorKind::NotFound {
             return Err(e.into());
@@ -331,7 +340,7 @@ pub fn write_todo(dir: &Path, steps: &[TodoStep]) -> Result<PathBuf, GitError> {
             TodoStep::Amend { message } => {
                 let name = format!("msg-{msgs}.txt");
                 std::fs::write(dir.join(&name), message)?;
-                lines.push(format!("exec git commit --amend -F \"{base}/{name}\""));
+                lines.push(format!("exec {git} commit --amend -F \"{base}/{name}\""));
                 msgs += 1;
             }
         }
@@ -444,7 +453,7 @@ mod tests {
                 message: "new second\n".into(),
             },
         ];
-        let todo = write_todo(&dir, &steps).expect("write_todo");
+        let todo = write_todo(&dir, &steps, "git").expect("write_todo");
         assert_eq!(todo, dir.join("todo"));
         let base = shell_path(&dir);
         assert_eq!(
@@ -463,6 +472,25 @@ mod tests {
             "new second\n"
         );
         assert!(!dir.join("stale.txt").exists(), "dir was not cleared");
+    }
+
+    #[test]
+    fn exec_lines_name_the_configured_git() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let dir = dir.path().join("t4-rebase");
+        let steps = vec![TodoStep::Amend {
+            message: "msg\n".into(),
+        }];
+        let todo =
+            write_todo(&dir, &steps, "C:/Program Files/Git/bin/git.exe").expect("write_todo");
+        let base = shell_path(&dir);
+        assert_eq!(
+            std::fs::read_to_string(&todo).unwrap(),
+            format!(
+                "exec \"C:/Program Files/Git/bin/git.exe\" commit --amend -F \"{base}/msg-0.txt\"\n"
+            )
+        );
+        assert!(write_todo(&dir, &steps, "/opt/g$t/git").is_err());
     }
 
     #[test]

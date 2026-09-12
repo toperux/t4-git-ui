@@ -131,8 +131,7 @@ pub fn open_merge_editor(
     let merged = workdir.join(path);
 
     // One directory per path so a second file's sides cannot overwrite the first's.
-    let dir = merge_temp_dir().join(format!("{:x}", oid_key(&stages)));
-    std::fs::create_dir_all(&dir)?;
+    let dir = crate::tools::temp_subdir(merge_temp_dir(), &format!("{:x}", oid_key(&stages)))?;
     let ours = stage_file(repo, &dir, path, "LOCAL", stages.ours)?;
     let theirs = stage_file(repo, &dir, path, "REMOTE", stages.theirs)?;
     let base = stage_file(repo, &dir, path, "BASE", stages.ancestor)?;

@@ -366,6 +366,7 @@ fn drain(pending: &mut Vec<u8>, eof: bool, kind: Kind, tx: &mpsc::UnboundedSende
     }
     if eof && start < pending.len() {
         let _ = tx.send(line(&pending[start..]));
+        start = pending.len();
     }
     pending.drain(..start);
 }
@@ -528,13 +529,16 @@ mod tests {
         assert_eq!(pending2, b"x\r", "trailing CR waits for the next byte");
         drain(&mut pending2, true, Kind::Stderr, &tx);
         assert!(pending2.is_empty());
+        let mut pending3 = b"tail".to_vec();
+        drain(&mut pending3, true, Kind::Stderr, &tx);
+        assert!(pending3.is_empty(), "the emitted tail is consumed");
         let mut got = Vec::new();
         while let Ok(e) = rx.try_recv() {
             got.push(e);
         }
         let l = |s: &str| (Kind::Stderr, s.to_string());
         let p = |s: &str| (Kind::Progress, s.to_string());
-        assert_eq!(got, vec![l("a"), l("b"), p("c"), p("d"), p("x")]);
+        assert_eq!(got, vec![l("a"), l("b"), p("c"), p("d"), p("x"), l("tail")]);
     }
 
     #[test]

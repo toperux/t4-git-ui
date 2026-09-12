@@ -12,9 +12,15 @@ const KEY = "theme";
 const osDark = typeof window.matchMedia === "function" ? window.matchMedia("(prefers-color-scheme: dark)") : null;
 const listeners = new Set<() => void>();
 
+// Storage can be unavailable (a locked-down WebView, blocked site data) and every accessor throws
+// there. This one runs at module evaluation, so an unguarded read would take the whole app down.
 function stored(): Theme | null {
-  const v = localStorage.getItem(KEY);
-  return v === "light" || v === "dark" ? v : null;
+  try {
+    const v = localStorage.getItem(KEY);
+    return v === "light" || v === "dark" ? v : null;
+  } catch {
+    return null;
+  }
 }
 
 function resolve(): Theme {
@@ -30,8 +36,12 @@ function apply() {
 }
 
 export function setTheme(pref: ThemePref) {
-  if (pref === "system") localStorage.removeItem(KEY);
-  else localStorage.setItem(KEY, pref);
+  try {
+    if (pref === "system") localStorage.removeItem(KEY);
+    else localStorage.setItem(KEY, pref);
+  } catch {
+    // Storage unavailable: the theme applies now but doesn't survive a restart.
+  }
   // Fire-and-forget: the window colour at the next launch is a nicety, not state the UI waits on.
   kvSet(KEY, pref === "system" ? null : pref).catch(() => {});
   apply();

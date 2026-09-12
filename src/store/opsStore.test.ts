@@ -99,6 +99,21 @@ describe("opsStore", () => {
     expect(mocked.cancelOp).toHaveBeenCalledWith("7");
   });
 
+  it("a cancel that lands after the op exited is not remembered", async () => {
+    mocked.cancelOp.mockResolvedValue(false);
+    const st = useOpsStore.getState();
+    st.onEvent({ repoId: "r", opId: "9", event: { kind: "started", opId: "9", cmd: "git fetch" } });
+    st.onEvent({ repoId: "r", opId: "9", event: { kind: "exit", code: 1, elapsedMs: 12 } });
+    await useOpsStore.getState().cancel("9");
+
+    // The dock's records are gone (another repo, a restart), but the id would still be remembered:
+    // the next op carrying it must not have its failure swallowed.
+    useOpsStore.setState({ ops: [], open: false });
+    st.onEvent({ repoId: "r", opId: "9", event: { kind: "started", opId: "9", cmd: "git fetch" } });
+    st.onEvent({ repoId: "r", opId: "9", event: { kind: "exit", code: 1, elapsedMs: 12 } });
+    expect(useOpsStore.getState().open).toBe(true);
+  });
+
   it("opens the dock when a command fails, so its output is on screen with the toast", () => {
     const st = useOpsStore.getState();
     st.onEvent({ repoId: "r", opId: "1", event: { kind: "started", opId: "1", cmd: "git commit -F msg" } });

@@ -4,6 +4,8 @@ import { create } from "zustand";
 import type { AppError } from "../api/types";
 
 export const TOAST_MS = 6000;
+/** Errors never expire on their own, so the stack is capped: the oldest falls off. */
+export const MAX_TOASTS = 8;
 
 export interface ToastAction {
   label: string;
@@ -31,7 +33,7 @@ export const useToastStore = create<ToastStore>()((set, get) => ({
 
   push(toast) {
     const id = nextId++;
-    set((s) => ({ toasts: [...s.toasts, { ...toast, id }] }));
+    set((s) => ({ toasts: [...s.toasts, { ...toast, id }].slice(-MAX_TOASTS) }));
     if (toast.kind !== "error") setTimeout(() => get().dismiss(id), TOAST_MS);
     return id;
   },

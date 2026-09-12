@@ -135,7 +135,6 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            commands::app::ping,
             commands::app::probe_git,
             commands::app::set_git_path,
             commands::update::check_for_update,
@@ -149,7 +148,6 @@ pub fn run() {
             commands::repo::find_log_row,
             commands::repo::refresh_labels,
             commands::repo::open_path,
-            commands::diff::get_commit_files,
             commands::diff::get_changed_files,
             commands::diff::get_file_diff,
             commands::diff::open_merge_editor,

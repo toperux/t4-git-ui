@@ -11,23 +11,6 @@ use tauri::State;
 use super::repo::blocking;
 use crate::{AppError, AppState};
 
-/// Files changed by commit `oid` vs its first parent.
-#[tauri::command]
-pub async fn get_commit_files(
-    state: State<'_, AppState>,
-    id: RepoId,
-    oid: String,
-) -> Result<Vec<FileChange>, AppError> {
-    let handle = state.repo(&id)?;
-    blocking(move || {
-        Ok(diff::changed_files(
-            &handle.git2.lock(),
-            &DiffTarget::Commit { oid },
-        )?)
-    })
-    .await
-}
-
 #[tauri::command]
 pub async fn get_changed_files(
     state: State<'_, AppState>,

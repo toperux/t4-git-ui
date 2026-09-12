@@ -2,11 +2,6 @@ use tauri::State;
 
 use crate::{AppError, AppState};
 
-#[tauri::command]
-pub fn ping() -> String {
-    "pong".to_string()
-}
-
 async fn probe(git_path: String) -> Result<String, AppError> {
     let version = tauri::async_runtime::spawn_blocking(move || git_core::git_version(&git_path))
         .await

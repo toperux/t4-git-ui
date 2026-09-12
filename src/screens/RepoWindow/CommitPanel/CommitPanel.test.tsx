@@ -6,6 +6,7 @@ import { useRepoStore } from "../../../store/repoStore";
 import { useDialogStore } from "../../../store/dialogStore";
 import { useSettingsStore } from "../../../store/settingsStore";
 import { useStatusStore } from "../../../store/statusStore";
+import { useToastStore } from "../../../store/toastStore";
 import { __resetForTests as resetTreeMode, useTreeModeStore } from "../../../store/treeModeStore";
 import { CommitDialog } from "../dialogs/CommitDialog";
 import { CommitPanel, useCommitSync } from "./CommitPanel";
@@ -527,8 +528,13 @@ describe("CommitPanel", () => {
   });
 
   it("Unstage selected acts on the staged selection alone", () => {
+    // A third staged file, so the two selected rows are a strict subset: with only the fixture's two
+    // the selection *is* the whole list and unstaging either one would pass.
+    const third = { path: "third.rs", oldPath: null, index: "modified", workdir: null, conflicted: false, workdirStamp: "1:1" } as const;
+    useStatusStore.setState({ status: { ...STATUS, entries: [...STATUS.entries, third], staged: 3 }, error: null });
     const { getByRole } = renderPanel();
     const staged = () => Array.from(getByRole("listbox", { name: "Staged files" }).querySelectorAll('[role="option"]'));
+    expect(staged()).toHaveLength(3);
     fireEvent.click(staged()[0]);
     fireEvent.click(staged()[1], { ctrlKey: true });
     // The unstaged list no longer owns the selection, so its own button is back to "all".
@@ -744,13 +750,16 @@ describe("CommitPanel file context menu", () => {
     expect(useCommitStore.getState()).toMatchObject({ list: "unstaged", selected: ["untracked.txt"], anchor: "untracked.txt" });
   });
 
-  it("Copy path copies the selected paths, one per line", () => {
+  it("Copy path copies the selected paths, one per line, and counts them in the toast", async () => {
     const { getByRole, container } = renderPanel();
     fireEvent.click(rows(container, "Unstaged")[0]);
     fireEvent.click(rows(container, "Unstaged")[1], { shiftKey: true });
     fireEvent.contextMenu(rows(container, "Unstaged")[0]);
     fireEvent.click(getByRole("menuitem", { name: "Copy path" }));
     expect(writeText).toHaveBeenCalledWith("a.rs\nboth.rs");
+    await act(async () => {}); // the clipboard write settles, then the toast goes up
+    const toasts = useToastStore.getState().toasts;
+    expect(toasts[toasts.length - 1].title).toBe("Copied 2 paths");
   });
 
   it("Reveal in folder hands the path to the backend; a deleted file has nothing to open", () => {

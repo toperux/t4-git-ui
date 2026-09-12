@@ -7,6 +7,7 @@ import { useOpsStore } from "../../../store/opsStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { useStatusStore } from "../../../store/statusStore";
 import { useToastStore } from "../../../store/toastStore";
+import { DialogHost } from "./DialogHost";
 import { DeleteRemoteTagDialog, MergeDialog, PickDialog, PullDialog, PushDialog, PushTagDialog, RebaseDialog, ResetBranchDialog, ResetDialog } from "./OpsDialogs";
 import { RebaseInteractiveDialog } from "./RebaseInteractiveDialog";
 import { CheckoutBranchDialog, CheckoutDialog, CreateBranchDialog, CreateTagDialog, DeleteRemoteBranchDialog, DeleteTagDialog } from "./RefDialogs";
@@ -225,13 +226,40 @@ describe("CheckoutDialog", () => {
     });
     const { getByRole } = render(<CheckoutDialog onClose={() => {}} />);
     const dialog = getByRole("dialog", { name: "Checkout" });
-    const filter = getByRole("textbox", { name: "Branch or tag" });
+    const filter = getByRole("combobox", { name: "Branch or tag" });
     fireEvent.change(filter, { target: { value: "origin/main" } });
     expect(preview(dialog)).toBe("git checkout --end-of-options main");
     fireEvent.change(filter, { target: { value: "origin/topic" } });
     expect(preview(dialog)).toBe("git checkout --track -b topic --end-of-options origin/topic");
     fireEvent.change(filter, { target: { value: "v1" } });
     expect(preview(dialog)).toBe("git checkout --detach --end-of-options refs/tags/v1");
+  });
+
+  it("is a combobox over the list: ↓ moves `aria-activedescendant` onto the next option", () => {
+    const { getByRole } = render(<CheckoutDialog onClose={() => {}} />);
+    const filter = getByRole("combobox", { name: "Branch or tag" });
+    const list = getByRole("listbox", { name: "Branches and tags" });
+    expect(filter.getAttribute("aria-controls")).toBe(list.id);
+    expect(filter.getAttribute("aria-expanded")).toBe("true");
+    expect(filter.getAttribute("aria-activedescendant")).toBe(list.children[0].id);
+
+    fireEvent.keyDown(filter, { key: "ArrowDown" });
+    expect(filter.getAttribute("aria-activedescendant")).toBe(list.children[1].id);
+  });
+});
+
+describe("DialogHost", () => {
+  it("remounts on a kind change: cherry-pick and revert share a component, so its state must not carry over", () => {
+    const spec = { oid: "a", short: "aaaaaaa", summary: "Add the parser", parents: ["p"] };
+    useDialogStore.setState({ dialog: { kind: "cherryPick", ...spec } });
+    const { getByRole } = render(<DialogHost />);
+    const box = () => getByRole("checkbox", { name: "Commit right away" }) as HTMLInputElement;
+    fireEvent.click(box());
+    expect(box().checked).toBe(false);
+
+    act(() => useDialogStore.setState({ dialog: { kind: "revert", ...spec } }));
+    expect(getByRole("dialog", { name: "Revert aaaaaaa" })).toBeTruthy();
+    expect(box().checked).toBe(true);
   });
 });
 

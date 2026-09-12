@@ -139,6 +139,22 @@ fn open_missing(t: &TempRepo, target: &DiffTarget, path: &str, old_path: Option<
         .expect_err("the tool does not exist")
 }
 
+#[test]
+fn a_path_outside_the_repository_is_refused() {
+    let t = TempRepo::new();
+    t.commit(&[("live.txt", "one")], "first");
+
+    // An absolute path would discard the working directory it is joined onto,
+    // and `..` would climb out of it.
+    for path in ["/etc/passwd", "../outside.txt"] {
+        let err = open_missing(&t, &DiffTarget::Workdir, path, None);
+        assert!(matches!(&err, GitError::Refused(_)), "{path}: {err}");
+        // A rename's old side is caller-supplied all the same.
+        let err = open_missing(&t, &DiffTarget::Workdir, "live.txt", Some(path));
+        assert!(matches!(&err, GitError::Refused(_)), "old {path}: {err}");
+    }
+}
+
 fn stem_of(path: &str) -> String {
     std::path::Path::new(path)
         .file_stem()

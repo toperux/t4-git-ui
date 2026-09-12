@@ -24,3 +24,20 @@ describe("setTheme", () => {
     expect(localStorage.getItem("kv:theme")).toBe("null");
   });
 });
+
+describe("a localStorage that throws", () => {
+  it("leaves the module importable, on the default preference", async () => {
+    const denied = () => {
+      throw new Error("access denied");
+    };
+    const spies = (["getItem", "setItem", "removeItem"] as const).map((m) => vi.spyOn(Storage.prototype, m).mockImplementation(denied));
+    try {
+      vi.resetModules();
+      const mod = await import("./theme");
+      expect(mod.getThemePref()).toBe("system");
+      expect(() => mod.setTheme("dark")).not.toThrow();
+    } finally {
+      spies.forEach((s) => s.mockRestore());
+    }
+  });
+});

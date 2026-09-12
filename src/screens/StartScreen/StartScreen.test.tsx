@@ -52,7 +52,6 @@ beforeEach(() => {
       { path: "C:\\Users\\me\\dotfiles", name: "dotfiles", lastOpened: NOW - 26 * 3600_000, pinned: false },
     ]),
     lastCloneDir: null,
-    loaded: true,
   });
 });
 

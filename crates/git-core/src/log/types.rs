@@ -126,18 +126,15 @@ pub enum RevSpec {
     Refs(Vec<String>),
 }
 
-/// Log filter. Only `text` is implemented (case-insensitive substring match
-/// on summary / author name / author email); `author` and `path` are accepted
-/// but currently ignored. When any filter is active the graph is not laid out
-/// (rows get `lane` 0 and no lines) since filtered rows have no contiguous topology.
+/// Log filter. `text` is a case-insensitive substring match on summary /
+/// author name / author email. When any filter is active the graph is not laid
+/// out (rows get `lane` 0 and no lines) since filtered rows have no contiguous topology.
 /// `working_tree` seeds the layout with a column expecting HEAD so the
 /// working-tree pseudo-row connects to it (the graph re-lays out when it flips).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LogFilter {
     pub text: Option<String>,
-    pub author: Option<String>,
-    pub path: Option<String>,
     #[serde(default)]
     pub working_tree: bool,
 }

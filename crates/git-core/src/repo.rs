@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
 use git2::{ErrorCode, Repository, RepositoryInitOptions};
@@ -154,6 +154,26 @@ pub fn init_repo(path: impl AsRef<Path>) -> Result<(), GitError> {
     Ok(())
 }
 
+/// Checks that `path` is a plain repository-relative name before it is joined
+/// onto the working directory: no absolute path, no `..`, and (on Windows) no
+/// drive prefix, UNC prefix or leading separator.
+///
+/// The test is **lexical**. A symlink or junction stored inside the repository
+/// still resolves wherever it points, so this bounds what the frontend can
+/// name, not what the OS ends up opening.
+pub fn repo_relative(path: &str) -> Result<&Path, GitError> {
+    let p = Path::new(path);
+    let inside = p
+        .components()
+        .all(|c| matches!(c, Component::Normal(_) | Component::CurDir));
+    if path.is_empty() || !inside {
+        return Err(GitError::Refused(format!(
+            "{path} is not a path inside the repository"
+        )));
+    }
+    Ok(p)
+}
+
 /// Converts a libgit2 error, recognizing lock contention (`index.lock` etc.)
 /// as [`GitError::IndexLocked`].
 pub fn map_git2(e: git2::Error) -> GitError {
@@ -171,6 +191,24 @@ mod tests {
     use super::*;
     use crate::log::{walk, LogFilter, RevSpec};
     use crate::test_util::TempRepo;
+
+    #[test]
+    fn repo_relative_takes_plain_names_only() {
+        assert_eq!(repo_relative("a/b.txt").unwrap(), Path::new("a/b.txt"));
+        assert_eq!(repo_relative("./x").unwrap(), Path::new("./x"));
+
+        // Everything that could leave the working directory. The drive- and
+        // UNC-prefixed ones are plain file names off Windows, so they are only
+        // components there.
+        let mut bad = vec!["", "..", "../x", "a/../../x", "/abs"];
+        if cfg!(windows) {
+            bad.extend(["C:foo", r"C:\abs", r"\\srv\share\x", r"a\..\..\x"]);
+        }
+        for path in bad {
+            let e = repo_relative(path);
+            assert!(matches!(&e, Err(GitError::Refused(_))), "{path:?} → {e:?}");
+        }
+    }
 
     #[test]
     fn open_from_subdir_yields_same_id() {

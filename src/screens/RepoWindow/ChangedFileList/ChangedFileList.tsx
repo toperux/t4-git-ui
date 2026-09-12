@@ -9,8 +9,10 @@ import { Progress } from "../../../components/ui/Progress/Progress";
 import { StatusGlyph } from "../../../components/ui/StatusGlyph/StatusGlyph";
 import { TreeRow } from "../../../components/ui/TreeRow/TreeRow";
 import { cx } from "../../../lib/cx";
+import { folderKey } from "../../../lib/keys";
+import { moveSelect, type Selection } from "../../../lib/multiSelect";
 import { useDiffStore } from "../../../store/diffStore";
-import { buildFileTree, flattenTree, type TreeLine } from "./fileTree";
+import { buildFileTree, flattenTree, hiddenSlot, type TreeLine } from "./fileTree";
 import s from "./ChangedFileList.module.css";
 
 /** `--row-h`; the virtualizer needs the number. */
@@ -37,9 +39,11 @@ export function ChangedFileList({ autoFocus }: { autoFocus?: boolean }) {
     () => (mode === "flat" ? files.map((f) => ({ kind: "file", file: f, label: f.path, depth: undefined })) : flattenTree(buildFileTree(files), collapsed)),
     [mode, files, collapsed],
   );
-  // Files in display order — the ↑/↓ ring.
-  const visible = useMemo(() => rows.flatMap((r) => (r.kind === "file" ? [r.file] : [])), [rows]);
+  // The files on screen — the ↑/↓ ring (a collapsed folder's are skipped).
+  const visible = useMemo(() => rows.flatMap((r) => (r.kind === "file" ? [r.file.path] : [])), [rows]);
   const selectedRow = rows.findIndex((r) => r.kind === "file" && r.file.path === selectedPath);
+  // A selection inside a collapsed folder: ↑/↓ resume from that folder's row.
+  const hiddenAt = selectedRow < 0 && selectedPath ? hiddenSlot(rows, selectedPath) : -1;
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
@@ -53,16 +57,24 @@ export function ChangedFileList({ autoFocus }: { autoFocus?: boolean }) {
   useEffect(() => {
     if (selectedRow >= 0) scrollToIndex(selectedRow, { align: "auto" });
   }, [selectedRow, scrollToIndex]);
+  // Another commit (or compare pair) is another list: it starts at the top, or row 0 is off-screen.
+  useEffect(() => {
+    virtualizer.scrollToOffset(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target]);
   // Runs before the dialog's own fallback (a child's effect goes first), so it keeps the focus.
   useEffect(() => {
     if (autoFocus) scrollRef.current?.focus();
   }, [autoFocus]);
 
+  /** The folder row at `path` — a compacted one stands for its whole `chain`. */
+  const folderRow = (path: string) => rows.find((r) => r.kind === "folder" && r.path === path);
+
   // Keyed by the path that was clicked, and cleared along the whole chain: a compacted row may be
   // collapsed by an ancestor's key, and only removing that one reopens it.
   const toggleFolder = (path: string) =>
     setCollapsed((c) => {
-      const row = rows.find((r) => r.kind === "folder" && r.path === path);
+      const row = folderRow(path);
       const chain = row?.kind === "folder" ? row.chain : [path];
       const next = new Set(c);
       if (chain.some((p) => next.has(p))) chain.forEach((p) => next.delete(p));
@@ -79,27 +91,36 @@ export function ChangedFileList({ autoFocus }: { autoFocus?: boolean }) {
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    // A clicked folder row holds focus (it is a button): Enter / Space toggle it, ← collapses, → expands.
+    // Ahead of the empty-list guard — with every file inside one collapsed folder, → is the way back out.
+    const folder = (e.target as HTMLElement).closest<HTMLElement>("[data-folder]")?.dataset.folder;
+    const row = folder === undefined ? undefined : folderRow(folder);
+    if (folder !== undefined && row?.kind === "folder" && folderKey(e.key, !row.expanded)) {
+      toggleFolder(folder);
+      e.preventDefault();
+      return;
+    }
     if (visible.length === 0) return;
-    const cur = visible.findIndex((f) => f.path === selectedPath);
-    let next: number;
+    const sel: Selection = { selected: selectedPath ? [selectedPath] : [], anchor: selectedPath };
+    let next: Selection;
     switch (e.key) {
       case "ArrowDown":
-        next = Math.min(cur + 1, visible.length - 1);
+        next = moveSelect(visible, sel, 1, hiddenAt);
         break;
       case "ArrowUp":
-        next = Math.max(cur - 1, 0);
+        next = moveSelect(visible, sel, -1, hiddenAt);
         break;
       case "Home":
-        next = 0;
+        next = moveSelect(visible, sel, -Infinity);
         break;
       case "End":
-        next = visible.length - 1;
+        next = moveSelect(visible, sel, Infinity);
         break;
       default:
         return;
     }
     e.preventDefault();
-    selectPath(visible[next].path);
+    if (next.anchor) selectPath(next.anchor);
   }
 
   const n = files.length;

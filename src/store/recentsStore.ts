@@ -24,7 +24,6 @@ export interface RecentsStore {
   lastOpen: string | null;
   /** Parent folder of the last clone. */
   lastCloneDir: string | null;
-  loaded: boolean;
 
   load(): Promise<void>;
   /** Records a successful open (moves `path` to the top, capping unpinned entries). */
@@ -69,7 +68,6 @@ export const useRecentsStore = create<RecentsStore>()((set, get) => {
     recents: [],
     lastOpen: null,
     lastCloneDir: null,
-    loaded: false,
 
     async load() {
       const [stored, lastOpen, lastCloneDir] = await Promise.all([
@@ -87,7 +85,7 @@ export const useRecentsStore = create<RecentsStore>()((set, get) => {
         }
         open ??= legacy;
       }
-      set({ recents: capRecents(recents), lastOpen: open, lastCloneDir: lastCloneDir ?? null, loaded: true });
+      set({ recents: capRecents(recents), lastOpen: open, lastCloneDir: lastCloneDir ?? null });
       if (legacy) {
         persist("recents", get().recents);
         persist("lastOpen", open);

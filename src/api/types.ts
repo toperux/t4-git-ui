@@ -99,11 +99,9 @@ export interface LogRow {
 /** `#[serde(tag = "kind", content = "refs")]` */
 export type RevSpec = { kind: "all" } | { kind: "head" } | { kind: "refs"; refs: string[] };
 
-/** Only `text` is implemented; `author` / `path` are accepted but ignored. */
 export interface LogFilter {
+  /** Case-insensitive substring match on summary / author name / author email. */
   text?: string | null;
-  author?: string | null;
-  path?: string | null;
   /** Seed the layout with a column expecting HEAD so the working-tree row connects to it. */
   workingTree?: boolean;
 }

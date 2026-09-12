@@ -55,41 +55,41 @@ every row are in the sections below, keyed by the same id.
 | P1-17 | C6 | low | CONFIRMED | tauri | `close_repo` never cancels the repo's in-flight ops | done `44f9e38` (wont, comment) — unreachable: `refusedWhileRunning()` blocks close/switch in the UI (actions.ts:140-175); add a comment on `close_repo` naming that invariant |
 | P1-18 | F4 | low | CONFIRMED | ui/Menu | ContextMenu never closes on scroll/resize | done `f6eb328` — same resize + capture-scroll → onClose effect as Select (with the inside guard); scroll test |
 | P1-19 | F8 | low | CONFIRMED | start screen | Ctrl+O etc. ignore `busy`; picked folder dropped silently | done `889c39c` — `|| busy` in the key handler; Ctrl+O-while-busy test |
-| P2 | C3=A5 | low | CONFIRMED | tools | `open_diff_tool` joins the caller path unchecked |fix — `repo_relative` check like `open_path`; refusal test |
-| P2 | C4 | low | CONFIRMED | capabilities | `opener:default` grants unscoped reveal-item-in-dir |fix — capability: only `allow-open-url` + `allow-default-urls` |
-| P2 | C5 | low | PLAUSIBLE | tauri | Clone URL positional, no `--`, no scheme check |fix — folded into P0-1 (separator only; no scheme allowlist) |
-| P2 | A6 | low | PLAUSIBLE | tools | Unix temp dirs 0755 + predictable; symlink survives cleanup |fix — 0700 on unix, refuse non-dir/symlink at the path |
+| P2 | C3=A5 | low | CONFIRMED | tools | `open_diff_tool` joins the caller path unchecked |done `26801af` — `repo_relative` check like `open_path`; refusal test |
+| P2 | C4 | low | CONFIRMED | capabilities | `opener:default` grants unscoped reveal-item-in-dir |done `c2bf5d1` — capability: only `allow-open-url` + `allow-default-urls` |
+| P2 | C5 | low | PLAUSIBLE | tauri | Clone URL positional, no `--`, no scheme check |done `1da3113` — folded into P0-1 (separator only; no scheme allowlist) |
+| P2 | A6 | low | PLAUSIBLE | tools | Unix temp dirs 0755 + predictable; symlink survives cleanup |done `74dcde2` — 0700 on unix, refuse non-dir/symlink at the path |
 | P2 | B3 | low | PLAUSIBLE | cli rebase | Read pass runs `--autostash`; a kill strands work |wont — git's clean-tree check precedes the editor, so the read pass needs it; Rebase banner offers --abort |
-| P2 | B4 | low | CONFIRMED | cli ops | `conflict_path` truncates at first space / strips trailing dots |fix — parse before ` deleted in `/` added in `, trim one period; test row |
-| P2 | B5 | low | PLAUSIBLE | cli rebase | `exec git commit --amend` ignores configured `git_path` |fix — emit the configured git_path, quoted via check_shell_path |
-| P2 | B6 | low | CONFIRMED | cli runner | `drain` at EOF leaves the tail in `pending` (latent) |fix — clear pending on eof; extend existing test |
-| P2 | B7 | low | CONFIRMED | log graph | Repeated parent oid → duplicate Branch line |fix — skip a parent already in `out`; unit test |
-| P2 | B8 | low | CONFIRMED | log types | `LogFilter.author/path` deserialized and ignored |fix — delete both fields (Rust + types.ts) |
-| P2 | C8=D13 | low | CONFIRMED | tauri | `get_commit_files` (and `ping`) have no caller; README stale |fix — delete both commands + registrations; fix README line |
-| P2 | F3 | med | CONFIRMED | dialogs/a11y | Checkout filter field not combobox-associated with its listbox |fix — combobox roles/aria as Select + CommandInput; activedescendant test |
-| P2 | F5 | low | CONFIRMED | ui/Menu | Tab walks out of an open menu; no Home/End |fix — onClose on Tab, Home/End in onMenuKeyDown |
-| P2 | F7 | low | PLAUSIBLE | dialogs | "Remount on kind change" not enforced (unreachable today) |fix — `key={dialog.kind}` |
-| P2 | E7 | low | CONFIRMED | changed files | Scroll not reset on target change |fix — reset offset on target change like DiffBody |
-| P2 | E8 | low | CONFIRMED | changed files | ↓ from a collapsed folder restarts at the top |fix — reuse hiddenSlot + moveSelect as FilesColumn |
-| P2 | E9 | low | CONFIRMED | changed files/a11y | `role="tree"` with no key to expand/collapse |fix — ←/→/Enter/Space as FilesColumn.folderKey |
-| P2 | E10 | low | PLAUSIBLE | grid | Ctrl+right-click toggles compare pair before the menu wipes it |fix — `if (e.button !== 0) return` |
+| P2 | B4 | low | CONFIRMED | cli ops | `conflict_path` truncates at first space / strips trailing dots |done `235f21f` — parse before ` deleted in `/` added in `, trim one period; test row |
+| P2 | B5 | low | PLAUSIBLE | cli rebase | `exec git commit --amend` ignores configured `git_path` |done `0967497` — emit the configured git_path, quoted via check_shell_path |
+| P2 | B6 | low | CONFIRMED | cli runner | `drain` at EOF leaves the tail in `pending` (latent) |done `55d375c` — clear pending on eof; extend existing test |
+| P2 | B7 | low | CONFIRMED | log graph | Repeated parent oid → duplicate Branch line |done `659f51c` — skip a parent already in `out`; unit test |
+| P2 | B8 | low | CONFIRMED | log types | `LogFilter.author/path` deserialized and ignored |done `1a596db` — delete both fields (Rust + types.ts) |
+| P2 | C8=D13 | low | CONFIRMED | tauri | `get_commit_files` (and `ping`) have no caller; README stale |done `d820b93` — delete both commands + registrations; fix README line |
+| P2 | F3 | med | CONFIRMED | dialogs/a11y | Checkout filter field not combobox-associated with its listbox |done `dbb06e6` — combobox roles/aria as Select + CommandInput; activedescendant test |
+| P2 | F5 | low | CONFIRMED | ui/Menu | Tab walks out of an open menu; no Home/End |done `6d852bd` — onClose on Tab, Home/End in onMenuKeyDown |
+| P2 | F7 | low | PLAUSIBLE | dialogs | "Remount on kind change" not enforced (unreachable today) |done `fd0e6b8` — `key={dialog.kind}` |
+| P2 | E7 | low | CONFIRMED | changed files | Scroll not reset on target change |done `e0ab5c5` — reset offset on target change like DiffBody |
+| P2 | E8 | low | CONFIRMED | changed files | ↓ from a collapsed folder restarts at the top |done `5c42315` — reuse hiddenSlot + moveSelect as FilesColumn |
+| P2 | E9 | low | CONFIRMED | changed files/a11y | `role="tree"` with no key to expand/collapse |done `790b1b1` — ←/→/Enter/Space as FilesColumn.folderKey |
+| P2 | E10 | low | PLAUSIBLE | grid | Ctrl+right-click toggles compare pair before the menu wipes it |done `b8aff4c` — `if (e.button !== 0) return` |
 | P2 | N1 | low | CONFIRMED | diff/commit panel | Status says Renamed, unstaged diff says Untracked for a workdir rename; hunk discard on that row is a dead action (git apply error) | ? — found during P0-5; decide: `for_untracked` in diff.rs so the diff pairs the rename, or disable hunk actions on a workdir-renamed row |
-| P2 | E11 | low | CONFIRMED | context menu | "Copied path" singular for N paths |fix — pluralise toast title |
-| P2 | D7 | low | CONFIRMED | opsStore | `cancelled` Set leaks on cancel-after-exit |fix — skip the add when the op is not running |
-| P2 | D10 | low | PLAUSIBLE | theme | `localStorage` unguarded at module eval |fix — try/catch like readSetting/writeSetting |
-| P2 | D11 | low | CONFIRMED | events | `listen` rejection swallowed silently |fix — console.warn |
-| P2 | D6 | low | CONFIRMED | toasts | No cap; error toasts never expire |fix — cap in push (~8, drop oldest); no dedupe |
-| P2 | D5 | low | CONFIRMED | repoStore | Stale page task deletes the new `inflight` entry → duplicate fetch |fix — capture the map in the closure |
-| P2 | D12 | low | CONFIRMED | recentsStore | `loaded` is dead state |fix — delete field + two test assertions |
-| P2 | E4 | low | CONFIRMED | commit panel | Inline `actions` object defeats row memo |fix — useMemo |
+| P2 | E11 | low | CONFIRMED | context menu | "Copied path" singular for N paths |done `52e410e` — pluralise toast title |
+| P2 | D7 | low | CONFIRMED | opsStore | `cancelled` Set leaks on cancel-after-exit |done `a25f5f3` — skip the add when the op is not running |
+| P2 | D10 | low | PLAUSIBLE | theme | `localStorage` unguarded at module eval |done `8ce075e` — try/catch like readSetting/writeSetting |
+| P2 | D11 | low | CONFIRMED | events | `listen` rejection swallowed silently |done `ddbd650` — console.warn |
+| P2 | D6 | low | CONFIRMED | toasts | No cap; error toasts never expire |done `16552da` — cap in push (~8, drop oldest); no dedupe |
+| P2 | D5 | low | CONFIRMED | repoStore | Stale page task deletes the new `inflight` entry → duplicate fetch |done `7dff5c6` — capture the map in the closure |
+| P2 | D12 | low | CONFIRMED | recentsStore | `loaded` is dead state |done `bfaa244` — delete field + two test assertions |
+| P2 | E4 | low | CONFIRMED | commit panel | Inline `actions` object defeats row memo |done `73c4d80` — useMemo |
 | P2 | E6 | low | CONFIRMED | file tree | O(n²) tree build for a flat directory |fix-later — measure first (standing perf rule); rare shape |
-| P2 | R6 | low | CONFIRMED mech | toolbar | Menu trigger found by DOM position; wrapper breaks it |fix — hold a ref to the anchor |
-| P2 | X9 | low | CONFIRMED | docs | Two false README claims |fix — scope both claims (four wrapped components; Stage only) |
-| P2 | X10 | low | CONFIRMED | commit panel | Conflict filter + skip count in four copies | fix — folded into P1-7 |
-| P2 | R4 | low | CONFIRMED | tests | "Unstage selected" test is vacuous |fix — third staged fixture entry |
-| P2 | R5 | low | CONFIRMED | tests | Intersection guard and `"here"` branch untested |fix — two tests, alongside P1-7's helper |
-| P2 | R9 | low | CONFIRMED | tests | Banner fixtures exercise the stale path only |fix — matching `state` on the fixtures + three fresh cases |
-| P2 | R7 | low | SETTLED | commit panel | Comment premise false; hazard unreachable — fix the comment |fix — rewrite the comment only |
+| P2 | R6 | low | CONFIRMED mech | toolbar | Menu trigger found by DOM position; wrapper breaks it |done `a4cfec8` — hold a ref to the anchor |
+| P2 | X9 | low | CONFIRMED | docs | Two false README claims |done `830d291` — scope both claims (four wrapped components; Stage only) |
+| P2 | X10 | low | CONFIRMED | commit panel | Conflict filter + skip count in four copies | done `79431aa` — folded into P1-7 |
+| P2 | R4 | low | CONFIRMED | tests | "Unstage selected" test is vacuous |done `0e4c436` — third staged fixture entry |
+| P2 | R5 | low | CONFIRMED | tests | Intersection guard and `"here"` branch untested |done `79431aa` — two tests, alongside P1-7's helper |
+| P2 | R9 | low | CONFIRMED | tests | Banner fixtures exercise the stale path only |done `5205abc` — matching `state` on the fixtures + three fresh cases |
+| P2 | R7 | low | SETTLED | commit panel | Comment premise false; hazard unreachable — fix the comment |done `7fa85e6` — rewrite the comment only |
 | — | R12 | — | recorded | commit panel | Two stale status/refs pairings; guarding would flicker | wont |
 | — | R13 | — | recorded | rebase dialog | `canSquash` O(n) per row | wont |
 
@@ -349,71 +349,71 @@ every row are in the sections below, keyed by the same id.
 ## P2 — low. Batch when touching the file.
 
 *Security hardening (defence in depth; not reachable from the shipped UI):*
-- [ ] **C3 = A5** `tools.rs:417` / `commands/tools.rs:70` — `open_diff_tool` joins the caller path
+- [x] **C3 = A5** `tools.rs:417` / `commands/tools.rs:70` — `open_diff_tool` joins the caller path
       unchecked (absolute paths discard the base). Run it through `repo_relative` like `open_path`.
-- [ ] **C4** `capabilities/default.json:12` — `opener:default` grants unscoped `reveal-item-in-dir`.
+- [x] **C4** `capabilities/default.json:12` — `opener:default` grants unscoped `reveal-item-in-dir`.
       Keep only `allow-open-url` + `allow-default-urls`.
-- [ ] **C5** `commands/ops.rs:899` — clone URL positional with no `--` and no scheme check
+- [x] **C5** `commands/ops.rs:899` — clone URL positional with no `--` and no scheme check
       (`ext::` transport). PLAUSIBLE. `--` + scheme allowlist.
-- [ ] **A6** `tools.rs:342` — unix temp dirs `/tmp/t4-git-ui-{merge,diff}-<uid>` at 0755,
+- [x] **A6** `tools.rs:342` — unix temp dirs `/tmp/t4-git-ui-{merge,diff}-<uid>` at 0755,
       predictable; a planted symlink survives `remove_dir_all`. PLAUSIBLE. 0700, refuse non-dir.
 
 *Rust correctness:*
 - [ ] **B3** `cli/rebase.rs:274` — read pass runs a real `rebase -i --autostash`; a kill mid-run
       strands work in `rebase-merge/autostash`. PLAUSIBLE. Drop `--autostash` from `read_args`.
-- [ ] **B4** `cli/ops.rs:418` — `conflict_path` truncates modify/delete lines at the first space and
+- [x] **B4** `cli/ops.rs:418` — `conflict_path` truncates modify/delete lines at the first space and
       strips every trailing dot. Only reached via typed commands (`check_conflicts=false`).
-- [ ] **B5** `cli/rebase.rs:331` — `exec git commit --amend` uses bare `git`, ignoring the
+- [x] **B5** `cli/rebase.rs:331` — `exec git commit --amend` uses bare `git`, ignoring the
       configured `git_path`. PLAUSIBLE (needs git off PATH).
-- [ ] **B6** `cli/runner.rs:277` — `drain` at EOF leaves the emitted tail in `pending`; latent.
-- [ ] **B7** `log/graph.rs:156` — repeated parent oid → two identical Branch lines. Cosmetic.
-- [ ] **B8** `log/types.rs:139` — `LogFilter.author`/`path` deserialized and ignored. Delete.
-- [ ] **C8 = D13** `lib.rs:152` / `commands/diff.rs:15` — `get_commit_files` has no caller
+- [x] **B6** `cli/runner.rs:277` — `drain` at EOF leaves the emitted tail in `pending`; latent.
+- [x] **B7** `log/graph.rs:156` — repeated parent oid → two identical Branch lines. Cosmetic.
+- [x] **B8** `log/types.rs:139` — `LogFilter.author`/`path` deserialized and ignored. Delete.
+- [x] **C8 = D13** `lib.rs:152` / `commands/diff.rs:15` — `get_commit_files` has no caller
       (`app::ping` likewise); `src/README.md:38` still names it. Delete.
 
 *Frontend correctness / a11y:*
-- [ ] **F3** `RefDialogs.tsx:435` — Checkout filter field is not a combobox (no
+- [x] **F3** `RefDialogs.tsx:435` — Checkout filter field is not a combobox (no
       `aria-activedescendant`); ↑/↓ moves are silent to AT. `Select`/`CommandInput` show the pattern.
-- [ ] **F5** `Menu.tsx:81` — Tab walks out of an open menu that stays open; no Home/End.
-- [ ] **F7** `DialogHost.tsx:34` — "remount on kind change" not enforced (`cherryPick`/`revert`
+- [x] **F5** `Menu.tsx:81` — Tab walks out of an open menu that stays open; no Home/End.
+- [x] **F7** `DialogHost.tsx:34` — "remount on kind change" not enforced (`cherryPick`/`revert`
       share `PickDialog`). Unreachable today. `key={dialog.kind}`.
-- [ ] **E7** `ChangedFileList.tsx:53` — scroll not reset on target change (row 0 → row 0).
-- [ ] **E8** `ChangedFileList.tsx:83` — tree mode, selection inside a collapsed folder, ↓ restarts
+- [x] **E7** `ChangedFileList.tsx:53` — scroll not reset on target change (row 0 → row 0).
+- [x] **E8** `ChangedFileList.tsx:83` — tree mode, selection inside a collapsed folder, ↓ restarts
       at the top; `hiddenSlot` exists and is only used by `FilesColumn`.
-- [ ] **E9** `ChangedFileList.tsx:135` — `role="tree"` with no key to expand/collapse folders.
-- [ ] **E10** `GridRow.tsx:56` — Ctrl+right-click toggles the compare pair before the context menu
+- [x] **E9** `ChangedFileList.tsx:135` — `role="tree"` with no key to expand/collapse folders.
+- [x] **E10** `GridRow.tsx:56` — Ctrl+right-click toggles the compare pair before the context menu
       wipes it (macOS secondary click). PLAUSIBLE. `if (e.button !== 0) return`.
-- [ ] **E11** `FileContextMenu.tsx:116` — "Copied path" (singular) for N paths.
-- [ ] **D7** `opsStore.ts:88` — `cancelled` Set leaks an id when cancel lands after exit.
-- [ ] **D10** `theme.ts:16` — `localStorage` unguarded at module eval; a throwing accessor kills
+- [x] **E11** `FileContextMenu.tsx:116` — "Copied path" (singular) for N paths.
+- [x] **D7** `opsStore.ts:88` — `cancelled` Set leaks an id when cancel lands after exit.
+- [x] **D10** `theme.ts:16` — `localStorage` unguarded at module eval; a throwing accessor kills
       the app at import. PLAUSIBLE. try/catch like `readSetting`.
-- [ ] **D11** `events.ts:14` — `subscribe` rejection swallowed; a failed `listen` silently kills
+- [x] **D11** `events.ts:14` — `subscribe` rejection swallowed; a failed `listen` silently kills
       live updates. `console.warn`.
-- [ ] **D6** `toastStore.ts:34` — no cap; error toasts never expire (dead mirror × N ops).
-- [ ] **D5** `repoStore.ts:212` — `finally { inflight.delete(p) }` reads the *new* map after a
+- [x] **D6** `toastStore.ts:34` — no cap; error toasts never expire (dead mirror × N ops).
+- [x] **D5** `repoStore.ts:212` — `finally { inflight.delete(p) }` reads the *new* map after a
       walk restart → duplicate page fetch. Capture the map.
-- [ ] **D12** `recentsStore.ts:27` — `loaded` is dead state.
-- [ ] **E4** `CommitPanel.tsx:86` — `actions` built inline defeats `UnifiedRowView`'s memo; every
+- [x] **D12** `recentsStore.ts:27` — `loaded` is dead state.
+- [x] **E4** `CommitPanel.tsx:86` — `actions` built inline defeats `UnifiedRowView`'s memo; every
       row re-renders on every parent render. `useMemo`.
 - [ ] **E6** `fileTree.ts:24` (+ `Sidebar.buildTree`) — `children.find` per segment → O(n²) for a
       flat directory. `Map` per node.
-- [ ] **R6** `Toolbar.tsx:90` — menu trigger found by `previousElementSibling`; a `DisabledHint`
+- [x] **R6** `Toolbar.tsx:90` — menu trigger found by `previousElementSibling`; a `DisabledHint`
       wrapper breaks it while an op runs. Hold a ref.
 
 *Docs and tests:*
-- [ ] **X9** `src/README.md:143` — two false claims: `DisabledHint` covers "every raw `<button>`"
+- [x] **X9** `src/README.md:143` — two false claims: `DisabledHint` covers "every raw `<button>`"
       (`Select`, `TreeRow`, `SectionHeader` do not), and "Unstage selected skips conflicted like
       Stage all" (`StagedFiles` has no filter).
-- [ ] **X10** `FilesColumn.tsx:75` — conflict filter + skip count in four copies (`:75-78`,
+- [x] **X10** `FilesColumn.tsx:75` — conflict filter + skip count in four copies (`:75-78`,
       `:235-242`, `:248-253`, `FileContextMenu.tsx:53-54`); `useSelectedTarget` re-implements
       `pruneSelection`. Hoist once; X6/X7's wording gap is a direct consequence.
-- [ ] **R4** `CommitPanel.test.tsx:482-491` — "Unstage selected" test is vacuous (selection =
+- [x] **R4** `CommitPanel.test.tsx:482-491` — "Unstage selected" test is vacuous (selection =
       whole list). Add a third staged fixture entry.
-- [ ] **R5** `FilesColumn.tsx:56-57` — the `entries ∩ selected` guard and the `"here"` refusal
+- [x] **R5** `FilesColumn.tsx:56-57` — the `entries ∩ selected` guard and the `"here"` refusal
       branch have no test.
-- [ ] **R9** `banners.test.ts:78-100` — five fixtures silently exercise the stale path; no fresh
+- [x] **R9** `banners.test.ts:78-100` — five fixtures silently exercise the stale path; no fresh
       cherry-pick/revert/bisect status is tested.
-- [ ] **R7** `FilesColumn.tsx:122-125` — the comment's premise is false (settled: reviewer A
+- [x] **R7** `FilesColumn.tsx:122-125` — the comment's premise is false (settled: reviewer A
       independently confirmed a conflicted path never carries `index: Some`, so it never enters the
       staged list). The hazard is unreachable; fix the comment, not the code.
 

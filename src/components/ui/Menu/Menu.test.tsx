@@ -34,6 +34,18 @@ describe("Menu", () => {
     expect(outer).toHaveBeenCalledWith("Escape");
   });
 
+  it("Tab closes it rather than walking focus out of a menu that stays open, and End jumps to the last item", () => {
+    const { getByRole, queryByRole } = render(<Harness />);
+    fireEvent.click(getByRole("button", { name: "Open" }));
+    fireEvent.keyDown(getByRole("menuitem", { name: "First" }), { key: "End" });
+    expect(document.activeElement).toBe(getByRole("menuitem", { name: "Second" }));
+    fireEvent.keyDown(getByRole("menuitem", { name: "Second" }), { key: "Home" });
+    expect(document.activeElement).toBe(getByRole("menuitem", { name: "First" }));
+
+    fireEvent.keyDown(getByRole("menuitem", { name: "First" }), { key: "Tab" });
+    expect(queryByRole("menu")).toBeNull();
+  });
+
   it("a shortcut chip is a picture, not part of the item's name", () => {
     const { getByRole } = render(
       <Menu open onClose={() => {}} label="History" anchor={null}>

@@ -9,7 +9,7 @@ import { PanelHeader } from "../../../components/ui/PanelHeader/PanelHeader";
 import { StatusGlyph } from "../../../components/ui/StatusGlyph/StatusGlyph";
 import { TreeRow } from "../../../components/ui/TreeRow/TreeRow";
 import { cx } from "../../../lib/cx";
-import { mods } from "../../../lib/keys";
+import { folderKey, mods } from "../../../lib/keys";
 import { clickSelect, EMPTY_SELECTION, moveSelect, selectAll, type Selection } from "../../../lib/multiSelect";
 import { entryStatus, splitStatus, useCommitStore, type ListId } from "../../../store/commitStore";
 import { useStatusStore } from "../../../store/statusStore";
@@ -128,9 +128,9 @@ export function StagedFiles({ tree, headerClassName }: { tree: boolean; headerCl
   const busy = useCommitStore((st) => st.busy);
   const unstage = useCommitStore((st) => st.unstage);
   const selectedTarget = useSelectedTarget("staged", entries);
-  // No conflict filter, unlike Stage all: unstaging every staged entry is what this has always done.
-  // `splitStatus` puts a file in both lists when it has an index change and a conflict, so "the
-  // staged list holds no conflicts" is not a safe assumption to lean on.
+  // No conflict filter, unlike Stage all: an unmerged path reports CONFLICTED and no INDEX_* bit, so
+  // it never carries an `index` status and `splitStatus` never puts it in this list. There is
+  // nothing here for a filter to skip.
   const target = selectedTarget ?? entries.map((e) => e.path);
   return (
     <div className={s.col}>
@@ -496,9 +496,6 @@ function siblingList(root: HTMLElement, label: string): HTMLElement | null {
   }
   return null;
 }
-
-/** Keys a focused folder row answers itself. */
-const folderKey = (key: string, isCollapsed: boolean) => key === "Enter" || key === " " || (key === "ArrowLeft" && !isCollapsed) || (key === "ArrowRight" && isCollapsed);
 
 interface FileRowProps {
   id: string;

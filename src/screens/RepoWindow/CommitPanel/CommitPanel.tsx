@@ -1,5 +1,5 @@
 import { ask } from "@tauri-apps/plugin-dialog";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import * as ipc from "../../../api/ipc";
 import { toAppError } from "../../../api/ipc";
@@ -83,32 +83,37 @@ export function DiffColumn() {
   // Discard rewrites the working file: only a plain unstaged diff has one to rewrite (the staged
   // list edits the index, and untracked / conflicted files are whole-file anyway).
   const canDiscard = list === "unstaged" && !conflicted && !untracked;
-  const actions: DiffActions | undefined = path
-    ? {
-        target: list,
-        wholeFile: conflicted || untracked || wholeOnly,
-        note: conflicted
-          ? // The diff is "ours" against the file on disk: no hunks means the working copy is back to
-            // ours — resolved outside the app (an editor, rerere) — and the body has nothing to show.
-            diff?.path === path && diff.hunks.length === 0
-            ? "No conflict markers left — stage the file to mark it resolved"
-            : "Conflict — stage the file once resolved"
-          : stranded
-            ? "Marked resolved, but the conflict markers are still here"
-            : untracked
-              ? "Untracked — stage whole file"
-              : undefined,
-        busy,
-        onResolve: conflicted ? () => void resolveInEditor(path) : undefined,
-        sides: conflicted ? sides : undefined,
-        onKeepSide: conflicted ? (side) => void resolveConflict([path], side, sideName(sides, side)) : undefined,
-        onRestoreConflict: stranded && path ? () => void restoreConflict(path) : undefined,
-        onStageHunk: (h) => void stageHunk(h),
-        onStageLines: (l) => void stageLines(l),
-        onDiscardHunk: canDiscard ? (h) => void discardHunk(h) : undefined,
-        onDiscardLines: canDiscard ? (l) => void discardLines(l) : undefined,
-      }
-    : undefined;
+  // Memoised: a fresh object every render re-renders every memoised row in the diff below it.
+  const actions = useMemo<DiffActions | undefined>(
+    () =>
+      path
+        ? {
+            target: list,
+            wholeFile: conflicted || untracked || wholeOnly,
+            note: conflicted
+              ? // The diff is "ours" against the file on disk: no hunks means the working copy is back to
+                // ours — resolved outside the app (an editor, rerere) — and the body has nothing to show.
+                diff?.path === path && diff.hunks.length === 0
+                ? "No conflict markers left — stage the file to mark it resolved"
+                : "Conflict — stage the file once resolved"
+              : stranded
+                ? "Marked resolved, but the conflict markers are still here"
+                : untracked
+                  ? "Untracked — stage whole file"
+                  : undefined,
+            busy,
+            onResolve: conflicted ? () => void resolveInEditor(path) : undefined,
+            sides: conflicted ? sides : undefined,
+            onKeepSide: conflicted ? (side) => void resolveConflict([path], side, sideName(sides, side)) : undefined,
+            onRestoreConflict: stranded && path ? () => void restoreConflict(path) : undefined,
+            onStageHunk: (h) => void stageHunk(h),
+            onStageLines: (l) => void stageLines(l),
+            onDiscardHunk: canDiscard ? (h) => void discardHunk(h) : undefined,
+            onDiscardLines: canDiscard ? (l) => void discardLines(l) : undefined,
+          }
+        : undefined,
+    [path, list, conflicted, untracked, wholeOnly, stranded, canDiscard, busy, diff, sides, resolveConflict, stageHunk, stageLines, discardHunk, discardLines],
+  );
 
   // The merge tool is a conflict's route, and an untracked file has nothing on the other side.
   const external = path && !conflicted && !untracked ? () => void openInDiffTool({ kind: list }, path, entry?.oldPath ?? null) : undefined;

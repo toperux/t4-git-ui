@@ -1,6 +1,6 @@
 // Branch / tag dialogs: create, rename, delete (local + remote), create / delete tag.
 import { Cloud, GitBranch, Search, Tag } from "lucide-react";
-import { useMemo, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useId, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import * as ipc from "../../../api/ipc";
 import { Button } from "../../../components/ui/Button/Button";
 import { Checkbox } from "../../../components/ui/Checkbox/Checkbox";
@@ -396,7 +396,9 @@ export function CheckoutDialog({ onClose }: { onClose: () => void }) {
   }, [refs]);
   const q = query.trim().toLowerCase();
   const items = q ? all.filter((r) => r.name.toLowerCase().includes(q)) : all;
-  const pick = items[Math.min(index, items.length - 1)];
+  const active = Math.min(index, items.length - 1);
+  const pick = items[active];
+  const listId = useId();
 
   function submit() {
     if (!pick || pick.current) return;
@@ -446,6 +448,13 @@ export function CheckoutDialog({ onClose }: { onClose: () => void }) {
         <Input
           aria-label="Branch or tag"
           autoFocus
+          // The list below is always shown, so the field drives it like `Select` / `CommandInput` do:
+          // focus stays here and `aria-activedescendant` says which row ↑/↓ landed on.
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={items.length > 0}
+          aria-controls={listId}
+          aria-activedescendant={pick ? `${listId}-${active}` : undefined}
           icon={<Search size={14} aria-hidden />}
           value={query}
           onChange={(e) => {
@@ -457,10 +466,11 @@ export function CheckoutDialog({ onClose }: { onClose: () => void }) {
           placeholder="Filter"
         />
       </Field>
-      <div className={s.list} role="listbox" aria-label="Branches and tags">
+      <div className={s.list} id={listId} role="listbox" aria-label="Branches and tags">
         {items.map((r, i) => (
           <div
             key={`${r.kind}:${r.name}`}
+            id={`${listId}-${i}`}
             role="option"
             aria-selected={r === pick}
             className={cx(s.option, r === pick && s.optionActive)}

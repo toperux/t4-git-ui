@@ -151,7 +151,10 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
   }
 
   function fetchPage(p: number): Promise<void> {
-    const existing = inflight.get(p);
+    // The map this request belongs to: a walk restart replaces it, and clearing the entry from the
+    // one that is current by then would drop the new walk's own request for the page.
+    const pages = inflight;
+    const existing = pages.get(p);
     if (existing) return existing;
     if (loaded.has(p)) return Promise.resolve();
     const { repo, log } = get();
@@ -211,11 +214,11 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
           toastError(err, "Couldn't load history");
         }
       } finally {
-        inflight.delete(p);
+        pages.delete(p);
         if (refetch) void fetchPage(p);
       }
     })();
-    inflight.set(p, task);
+    pages.set(p, task);
     return task;
   }
 

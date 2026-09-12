@@ -138,6 +138,24 @@ describe("repoStore walk restarts", () => {
     expect(useRepoStore.getState().reveal?.index).toBe(4321);
   });
 
+  it("a page settling after a restart leaves the new walk's request in flight", async () => {
+    let resolveFirst!: (p: LogPage) => void;
+    mocked.startLog.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
+    mocked.getLogPage.mockImplementationOnce(() => new Promise<LogPage>((r) => (resolveFirst = r))).mockImplementation(() => new Promise<LogPage>(() => {}));
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    expect(mocked.getLogPage).toHaveBeenCalledTimes(2);
+
+    // The superseded walk's page comes back late; its bookkeeping belongs to a map that is gone.
+    resolveFirst(page(1, 0, PAGE_SIZE, 5000));
+    await flush();
+    useRepoStore.getState().onProgress({ repoId: REPO.id, generation: 2, total: 5000, complete: false, error: null });
+    await flush();
+    expect(mocked.getLogPage).toHaveBeenCalledTimes(2); // page 0 is still in flight: no second request
+  });
+
   it("does not reveal an index from a walk superseded while its page loaded", async () => {
     let resolveReveal!: (p: LogPage) => void;
     mocked.startLog.mockResolvedValueOnce(1).mockResolvedValueOnce(2);

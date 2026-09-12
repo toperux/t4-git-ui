@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cliDetail, TOAST_MS, toastError, useToastStore } from "./toastStore";
+import { cliDetail, MAX_TOASTS, TOAST_MS, toastError, useToastStore } from "./toastStore";
 
 // Every test drives the auto-dismiss timer, so fake timers are the default here.
 beforeEach(() => {
@@ -30,6 +30,14 @@ describe("toastStore", () => {
     expect(useToastStore.getState().toasts).toHaveLength(0);
     useToastStore.getState().dismiss(id);
     expect(useToastStore.getState().toasts).toHaveLength(0);
+  });
+
+  it("keeps at most MAX_TOASTS, dropping the oldest", () => {
+    const st = useToastStore.getState();
+    for (let i = 0; i < MAX_TOASTS + 1; i++) st.push({ kind: "error", title: `e${i}` });
+    const toasts = useToastStore.getState().toasts;
+    expect(toasts).toHaveLength(MAX_TOASTS);
+    expect(toasts[0].title).toBe("e1");
   });
 
   it("cliDetail keeps the first stderr line of a `cli` message", () => {

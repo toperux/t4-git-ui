@@ -509,7 +509,8 @@ pub async fn rebase_interactive(
             Ok(())
         })
         .await?;
-        let todo = rebase::write_todo(&dir, &steps)?;
+        let cli = state.git_cli();
+        let todo = rebase::write_todo(&dir, &steps, cli.git_path())?;
         let args = rebase::run_args(&base, &flags, &todo);
         run_and_classify(app, state, handle, args, true).await
     })

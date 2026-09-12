@@ -88,15 +88,27 @@ function closeOnEscape(open: boolean, onClose: () => void) {
   };
 }
 
-/** ↑/↓ move focus between enabled items (wrapping). */
-function onMenuKeyDown(e: KeyboardEvent<HTMLDivElement>) {
-  if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
-  e.preventDefault();
-  const items = Array.from(e.currentTarget.querySelectorAll<HTMLElement>(ITEMS));
-  if (items.length === 0) return;
-  const cur = items.indexOf(document.activeElement as HTMLElement);
-  const next = e.key === "ArrowDown" ? (cur + 1) % items.length : (cur - 1 + items.length) % items.length;
-  items[next].focus();
+/** ↑/↓ move focus between enabled items (wrapping), Home/End jump to the ends; Tab closes the menu. */
+function onMenuKeyDown(onClose: () => void) {
+  return (e: KeyboardEvent<HTMLDivElement>) => {
+    // Tab must not walk focus out of a menu that stays open behind it — `Select` closes its list the
+    // same way and lets the focus move on naturally.
+    if (e.key === "Tab") {
+      onClose();
+      return;
+    }
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp" && e.key !== "Home" && e.key !== "End") return;
+    e.preventDefault();
+    const items = Array.from(e.currentTarget.querySelectorAll<HTMLElement>(ITEMS));
+    if (items.length === 0) return;
+    if (e.key === "Home" || e.key === "End") {
+      items[e.key === "Home" ? 0 : items.length - 1].focus();
+      return;
+    }
+    const cur = items.indexOf(document.activeElement as HTMLElement);
+    const next = e.key === "ArrowDown" ? (cur + 1) % items.length : (cur - 1 + items.length) % items.length;
+    items[next].focus();
+  };
 }
 
 /** Dropdown menu (style guide `Menu`): closes on outside click / Escape; ↑/↓ move focus; focus returns to the trigger. */
@@ -110,7 +122,7 @@ export function Menu({ open, onClose, anchor, label, children, align = "right", 
     <div ref={wrap} className={cx(s.wrap, className)} onKeyDown={closeOnEscape(open, onClose)}>
       {anchor}
       {open && (
-        <div ref={menu} role="menu" aria-label={label} className={cx(s.menu, align === "left" && s.left)} onKeyDown={onMenuKeyDown}>
+        <div ref={menu} role="menu" aria-label={label} className={cx(s.menu, align === "left" && s.left)} onKeyDown={onMenuKeyDown(onClose)}>
           {children}
         </div>
       )}
@@ -150,7 +162,7 @@ export function ContextMenu({ at, onClose, label, children }: ContextMenuProps) 
   if (!at) return null;
   const p = pos ?? at;
   return createPortal(
-    <div ref={menu} role="menu" aria-label={label} className={cx(s.menu, s.fixed)} style={{ left: p.x, top: p.y }} onKeyDown={onMenuKeyDown}>
+    <div ref={menu} role="menu" aria-label={label} className={cx(s.menu, s.fixed)} style={{ left: p.x, top: p.y }} onKeyDown={onMenuKeyDown(onClose)}>
       {children}
     </div>,
     document.body,

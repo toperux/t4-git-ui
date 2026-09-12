@@ -17,7 +17,7 @@ import {
   Terminal,
   X,
 } from "lucide-react";
-import { useEffect, useState, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import type { RevSpec, Stash } from "../../api/types";
 import { IconButton } from "../../components/ui/IconButton/IconButton";
 import { ThemeToggle } from "../../components/ui/ThemeToggle/ThemeToggle";
@@ -53,6 +53,9 @@ export function Toolbar() {
   const [repoMenu, setRepoMenu] = useState(false);
   const [branchMenu, setBranchMenu] = useState(false);
   const [stashMenu, setStashMenu] = useState(false);
+  const repoBtn = useRef<HTMLButtonElement>(null);
+  const branchBtn = useRef<HTMLButtonElement>(null);
+  const stashBtn = useRef<HTMLButtonElement>(null);
   const others = recents.filter((r) => r.path !== repo?.path);
 
   // The toolbar outlives a repository switch; the store's filter does not (`openRepo` resets it).
@@ -86,10 +89,9 @@ export function Toolbar() {
     open();
   };
   /** A dialog opened from a menu item: the item unmounts in the same commit, so name the menu's trigger. */
-  const pickDialog = (spec: DialogSpec, close: () => void) => (e: MouseEvent<HTMLButtonElement>) => {
-    const trigger = (e.currentTarget.closest('[role="menu"]')?.previousElementSibling as HTMLElement | null) ?? null;
+  const pickDialog = (spec: DialogSpec, close: () => void, trigger: RefObject<HTMLButtonElement | null>) => () => {
     close();
-    openDialog(spec, { returnFocusTo: trigger });
+    openDialog(spec, { returnFocusTo: trigger.current });
   };
 
   return (
@@ -101,6 +103,7 @@ export function Toolbar() {
         align="left"
         anchor={
           <ToolbarButton
+            ref={repoBtn}
             icon={<FolderGit2 size={18} aria-hidden />}
             className={s.repo}
             title={repo?.path ?? "Repository"}
@@ -112,13 +115,13 @@ export function Toolbar() {
           </ToolbarButton>
         }
       >
-        <MenuItem icon={<GitCommitHorizontal size={16} aria-hidden />} onClick={pickDialog({ kind: "commit" }, () => setRepoMenu(false))}>
+        <MenuItem icon={<GitCommitHorizontal size={16} aria-hidden />} onClick={pickDialog({ kind: "commit" }, () => setRepoMenu(false), repoBtn)}>
           Commit…
         </MenuItem>
-        <MenuItem icon={<Cloud size={16} aria-hidden />} disabled={running} title={running ? BUSY : undefined} onClick={pickDialog({ kind: "addRemote" }, () => setRepoMenu(false))}>
+        <MenuItem icon={<Cloud size={16} aria-hidden />} disabled={running} title={running ? BUSY : undefined} onClick={pickDialog({ kind: "addRemote" }, () => setRepoMenu(false), repoBtn)}>
           Add remote…
         </MenuItem>
-        <MenuItem icon={<Terminal size={16} aria-hidden />} kbd="Ctrl+Shift+R" disabled={running} title={running ? BUSY : undefined} onClick={pickDialog({ kind: "runCommand" }, () => setRepoMenu(false))}>
+        <MenuItem icon={<Terminal size={16} aria-hidden />} kbd="Ctrl+Shift+R" disabled={running} title={running ? BUSY : undefined} onClick={pickDialog({ kind: "runCommand" }, () => setRepoMenu(false), repoBtn)}>
           Run git command…
         </MenuItem>
         <MenuSeparator />
@@ -185,6 +188,7 @@ export function Toolbar() {
         align="left"
         anchor={
           <ToolbarButton
+            ref={branchBtn}
             icon={<GitBranch size={18} aria-hidden />}
             disabled={running}
             title={opTitle("Branch operations")}
@@ -196,16 +200,16 @@ export function Toolbar() {
           </ToolbarButton>
         }
       >
-        <MenuItem icon={<Plus size={16} aria-hidden />} kbd="Ctrl+B" onClick={pickDialog({ kind: "createBranch" }, () => setBranchMenu(false))}>
+        <MenuItem icon={<Plus size={16} aria-hidden />} kbd="Ctrl+B" onClick={pickDialog({ kind: "createBranch" }, () => setBranchMenu(false), branchBtn)}>
           Create branch…
         </MenuItem>
-        <MenuItem icon={<GitBranch size={16} aria-hidden />} onClick={pickDialog({ kind: "checkout" }, () => setBranchMenu(false))}>
+        <MenuItem icon={<GitBranch size={16} aria-hidden />} onClick={pickDialog({ kind: "checkout" }, () => setBranchMenu(false), branchBtn)}>
           Checkout…
         </MenuItem>
-        <MenuItem icon={<GitMerge size={16} aria-hidden />} onClick={pickDialog({ kind: "merge" }, () => setBranchMenu(false))}>
+        <MenuItem icon={<GitMerge size={16} aria-hidden />} onClick={pickDialog({ kind: "merge" }, () => setBranchMenu(false), branchBtn)}>
           Merge…
         </MenuItem>
-        <MenuItem icon={<GitMerge size={16} aria-hidden />} onClick={pickDialog({ kind: "rebase" }, () => setBranchMenu(false))}>
+        <MenuItem icon={<GitMerge size={16} aria-hidden />} onClick={pickDialog({ kind: "rebase" }, () => setBranchMenu(false), branchBtn)}>
           Rebase…
         </MenuItem>
       </Menu>
@@ -216,6 +220,7 @@ export function Toolbar() {
         align="left"
         anchor={
           <ToolbarButton
+            ref={stashBtn}
             icon={<Archive size={18} aria-hidden />}
             count={stashes.length}
             disabled={running}
@@ -228,7 +233,7 @@ export function Toolbar() {
           </ToolbarButton>
         }
       >
-        <MenuItem icon={<Archive size={16} aria-hidden />} disabled={changes === 0} onClick={pickDialog({ kind: "stashPush" }, () => setStashMenu(false))}>
+        <MenuItem icon={<Archive size={16} aria-hidden />} disabled={changes === 0} onClick={pickDialog({ kind: "stashPush" }, () => setStashMenu(false), stashBtn)}>
           Stash changes…
         </MenuItem>
         <MenuItem disabled={stashes.length === 0} onClick={pick(() => void stashPop(0), () => setStashMenu(false))}>
@@ -245,7 +250,7 @@ export function Toolbar() {
             <MenuItem
               key={st.index}
               title={`stash@{${st.index}}: ${st.message}`}
-              onClick={pickDialog({ kind: "stash", index: st.index, message: st.message }, () => setStashMenu(false))}
+              onClick={pickDialog({ kind: "stash", index: st.index, message: st.message }, () => setStashMenu(false), stashBtn)}
             >
               {st.message}
             </MenuItem>

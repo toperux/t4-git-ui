@@ -11,7 +11,7 @@ const stored = () => JSON.parse(localStorage.getItem("kv:recents") ?? "null") as
 
 beforeEach(() => {
   localStorage.clear();
-  useRecentsStore.setState({ recents: [], lastOpen: null, lastCloneDir: null, loaded: false });
+  useRecentsStore.setState({ recents: [], lastOpen: null, lastCloneDir: null });
 });
 
 describe("recents helpers", () => {
@@ -43,7 +43,6 @@ describe("recentsStore", () => {
     localStorage.setItem("lastRepo", "C:\\src\\legacy");
     await useRecentsStore.getState().load();
     const st = useRecentsStore.getState();
-    expect(st.loaded).toBe(true);
     expect(st.recents.map((x) => x.name)).toEqual(["legacy"]);
     expect(st.lastOpen).toBe("C:\\src\\legacy");
     expect(localStorage.getItem("lastRepo")).toBeNull();
@@ -71,7 +70,7 @@ describe("recentsStore", () => {
     useRecentsStore.getState().setLastOpen("a");
     useRecentsStore.getState().setLastCloneDir("C:\\src");
     await flush();
-    useRecentsStore.setState({ recents: [], lastOpen: null, lastCloneDir: null, loaded: false });
+    useRecentsStore.setState({ recents: [], lastOpen: null, lastCloneDir: null });
     await useRecentsStore.getState().load();
     const st = useRecentsStore.getState();
     expect(st.recents).toEqual([{ ...r("a", 1), pinned: true }]);

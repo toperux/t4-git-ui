@@ -53,7 +53,13 @@ export const GridRow = memo(function GridRow({ id, index, offset, top, rowH, lan
       aria-selected={selected}
       className={cx(s.row, selected && s.selected)}
       style={{ transform: `translateY(${top}px)`, height: rowH }}
-      onMouseDown={(e) => (mods(e).ctrl ? compareWith(index) : select(index))}
+      // Left button only: Ctrl+right-click is macOS's secondary click, and taking it as a compare
+      // gesture would set the pair a moment before `onContextMenu` wipes it again.
+      onMouseDown={(e) => {
+        if (e.button !== 0) return;
+        if (mods(e).ctrl) compareWith(index);
+        else select(index);
+      }}
       onContextMenu={(e) => {
         if (!commit) return;
         e.preventDefault();

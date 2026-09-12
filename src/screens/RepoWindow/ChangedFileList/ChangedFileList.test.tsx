@@ -1,4 +1,4 @@
-import { cleanup, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { FileChange } from "../../../api/types";
 import { useDiffStore } from "../../../store/diffStore";
@@ -11,19 +11,23 @@ vi.mock("../../../api/ipc", () => ({
 }));
 
 // jsdom has no layout: give the virtualizer a viewport so it renders rows.
+const scrolls = vi.hoisted(() => ({ offsets: [] as number[] }));
 vi.mock("@tanstack/react-virtual", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-virtual")>();
   return {
     ...actual,
-    useVirtualizer: (opts: Parameters<typeof actual.useVirtualizer>[0]) =>
-      actual.useVirtualizer({
+    useVirtualizer: (opts: Parameters<typeof actual.useVirtualizer>[0]) => {
+      const v = actual.useVirtualizer({
         ...opts,
         initialRect: { width: 320, height: 400 },
         observeElementRect: (_instance, cb) => {
           cb({ width: 320, height: 400 });
           return () => {};
         },
-      }),
+      });
+      v.scrollToOffset = (offset: number) => scrolls.offsets.push(offset);
+      return v;
+    },
   };
 });
 
@@ -65,5 +69,40 @@ describe("ChangedFileList", () => {
     const leaves = getAllByRole("treeitem").filter((r) => !r.hasAttribute("aria-expanded"));
     expect(leaves.map((r) => r.textContent?.replace(/\s+/g, ""))).toEqual(["Acache.rs+88", "Mgraph.rs+42−7", "Rmod.rs"]);
     expect(leaves[0].getAttribute("aria-level")).toBe("2"); // crates/git-core/src/log > cache.rs
+  });
+
+  it("a focused folder row answers ←/→/Enter itself", () => {
+    useDiffStore.setState({ target: { kind: "commit", oid: "c" }, files: FILES, filesLoading: false, filesError: null, selectedPath: null, fileListMode: "tree" });
+    const { getByTitle } = render(<ChangedFileList />);
+    const folder = () => getByTitle("src/log");
+    fireEvent.keyDown(folder(), { key: "ArrowLeft" });
+    expect(folder().getAttribute("aria-expanded")).toBe("false");
+    fireEvent.keyDown(folder(), { key: "ArrowRight" });
+    expect(folder().getAttribute("aria-expanded")).toBe("true");
+    fireEvent.keyDown(folder(), { key: "Enter" });
+    expect(folder().getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("↑/↓ resume from a collapsed folder's row, not from the top of the list", () => {
+    // Rows: a/, a/one.rs, b/, b/two.rs, c.rs — a collapsed `b/` sits in the middle of the walk.
+    const nested: FileChange[] = ["a/one.rs", "b/two.rs", "c.rs"].map((path) => ({ path, oldPath: null, status: "modified", additions: 1, deletions: 0, binary: false }));
+    useDiffStore.setState({ target: { kind: "commit", oid: "c" }, files: nested, filesLoading: false, filesError: null, selectedPath: "b/two.rs", fileListMode: "tree" });
+    const { getByRole, getByTitle } = render(<ChangedFileList />);
+    fireEvent.click(getByTitle("b"));
+    const tree = getByRole("tree", { name: "Changed files" });
+    fireEvent.keyDown(tree, { key: "ArrowDown" });
+    expect(useDiffStore.getState().selectedPath).toBe("c.rs");
+    useDiffStore.setState({ selectedPath: "b/two.rs" });
+    fireEvent.keyDown(tree, { key: "ArrowUp" });
+    expect(useDiffStore.getState().selectedPath).toBe("a/one.rs");
+  });
+
+  it("another target starts the list back at the top", () => {
+    useDiffStore.setState({ target: { kind: "commit", oid: "c1" }, files: FILES, filesLoading: false, filesError: null, selectedPath: null, fileListMode: "flat" });
+    render(<ChangedFileList />);
+    scrolls.offsets.length = 0;
+    // A scrolled list showing a new commit's files must not keep the old offset: row 0 would be off-screen.
+    act(() => useDiffStore.setState({ target: { kind: "commit", oid: "c2" }, files: FILES.slice(0, 1) }));
+    expect(scrolls.offsets).toEqual([0]);
   });
 });

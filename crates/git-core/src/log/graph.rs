@@ -152,7 +152,11 @@ impl LaneLayout {
                         out.push((Target::Top(lane), color));
                     }
                 }
-                for &p in rest {
+                for (i, &p) in rest.iter().enumerate() {
+                    // A parent listed twice gets one line, not two identical ones.
+                    if p == p0 || rest[..i].contains(&p) {
+                        continue;
+                    }
                     if let Some(k) = self.find_expecting(p, &removed) {
                         out.push((Target::Top(k), self.columns[k].color));
                     } else if let Some(n) = inserted.iter().position(|c| c.expecting == p) {
@@ -304,6 +308,17 @@ mod tests {
         assert_eq!((a.lane, a.color), (0, 1));
         assert_eq!(a.lines, vec![line(Merge, 0, 0, 1)]);
         assert_eq!(l.width(), 0);
+    }
+
+    #[test]
+    fn a_repeated_parent_draws_one_line() {
+        // A merge of a commit with itself: git allows it, the graph must not
+        // stack two identical lines on the same lane.
+        let mut l = LaneLayout::new();
+        let m = l.push(o(1), &[o(0), o(0)]);
+        assert_eq!((m.lane, m.color, m.max_lane), (0, 0, 0));
+        assert_eq!(m.lines, vec![line(Branch, 0, 0, 0)]);
+        assert_eq!(l.width(), 1);
     }
 
     #[test]
