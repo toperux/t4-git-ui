@@ -124,7 +124,12 @@ lists"; the commit window after "Amend a commit"._
       the right, all three splitters drag; staging there is mirrored in the panel behind; `Esc`
       closes it, and a successful Commit closes it by itself; `Esc` with the Message history menu
       open closes only the menu; the tree toggle in the dialog flips the panel behind it too;
-      Commit & Push from the dialog → after closing Push, focus is back where the dialog was opened
+      Commit & Push from the dialog → after closing Push, focus is back where the dialog was opened;
+      right-click (or Shift+F10) a row in the dialog → the same row menu as the panel's, drawn
+      over the dialog, `Esc` closes only the menu and focus stays in the dialog; Keep <side>'s
+      version from it → the native confirm, then the conflict is gone; a failed action in the
+      dialog (plant `.git/index.lock`, Stage all) → its toast shows on top of the dialog and Retry
+      works once the lock is gone _(walked 2026-09-12, `b1c3377`)_
 
 ## F. Discard hunks and lines (main §4, after "Hover a hunk header → Stage hunk")
 _Shipped 2026-09-02: `78f8f02`._
