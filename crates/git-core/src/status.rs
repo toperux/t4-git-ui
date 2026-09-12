@@ -121,7 +121,17 @@ pub fn status_with(repo: &Repository, refresh: bool) -> Result<WorkdirStatus, Gi
     // Read before the scan, not after it: the stamp has to describe the tree this scan saw, so a
     // state change while it runs (up to 1.5 s) reads as a mismatch rather than as a match.
     let state: RepoState = repo.state().into();
-    let statuses = repo.statuses(Some(&mut opts)).map_err(map_git2)?;
+    let statuses = match repo.statuses(Some(&mut opts)).map_err(map_git2) {
+        Ok(s) => s,
+        // Something else holds `index.lock` (a `git` in a terminal, mid-commit):
+        // the write-back is what needs the lock, not the scan. Scan again without
+        // it, rather than report a status that could not be read.
+        Err(GitError::IndexLocked) if refresh => {
+            opts.update_index(false);
+            repo.statuses(Some(&mut opts)).map_err(map_git2)?
+        }
+        Err(e) => return Err(e),
+    };
 
     let mut entries = Vec::with_capacity(statuses.len());
     let mut out = WorkdirStatus {
