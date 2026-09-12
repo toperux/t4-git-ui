@@ -1239,6 +1239,133 @@ focus — fixed in this commit by keeping the wrapper in the DOM (`display: cont
 - [x] **In the commit dialog** (§3): repeat Dismiss with the full-window commit dialog open → the
       focus returns inside the dialog, never to the panel behind the scrim
 
+## AK. Files tab: a commit's whole tree, its files' content, a row menu (main §2, §3)
+_Shipped 2026-09-13 (three commits, `feat: Read a revision's whole file list…` onward). The file
+list's header grows a **Changes | Files** tab strip; Files lists every file of the selected commit
+(the *to* commit of a compare), folders collapsed by default, a filter row that flattens to
+matches, and shows the selected file's content on the right in a sibling of the diff viewer. Both
+tabs get a row menu. Walked 2026-09-13 over CDP in `c:/tmp/t4/work` (315 files at HEAD) on a release
+build, pane and diff window. **Not walked: the working-tree side.** The working-tree row renders the
+commit panel, not this list, so the index listing the backend serves has no surface yet — where the
+tab lives on that row is an open decision (plan §1 status)._
+
+- [x] **The strip and the tree** (§2): select HEAD → **Changes** is selected, **Files** beside it;
+      click **Files** → `315 files`, tree mode with every folder collapsed (`deep/one/two`,
+      `examples/exclude/schema`, `many`, `src`) and the root files under them with a size each
+      (`big.txt 264 kB`), no status letter
+- [x] **Content** (§2): click `hunks.txt` → the right side reads `hunks.txt · 30 lines` with one
+      line-number column and no sign column; `blob.bin` → *Binary file*; `big.txt` → the first
+      `max_lines` lines and the *File truncated at N lines* banner
+- [x] **Folders and keyboard** (§2): click `deep/one/two` → `z.txt` appears and selecting it shows
+      its content; the folder stays open after a filter round-trip. `↓` moves the selection, `Shift+F10`
+      opens the row menu under it, `Escape` returns the focus to the list. `←`/`→` on the tab strip
+      switch tabs and move the focus with the selection; each tab keeps its own selected file
+- [x] **Filter** (§2): type `MANY/00` → the list flattens (`listbox`, 9 rows, no folders) and the
+      tree toggle is disabled with a title saying why; `zzzz` → *No matching files*; clear → the tree
+      is back
+- [x] **Row menu, commit** (§3): right-click `a.txt` → **Copy path · Open · Save as…** (no Reveal:
+      a commit's file has no working-tree path); `twins.txt`, the file HEAD changed, adds **Show in
+      Changes** → the Changes tab opens with `twins.txt` selected and its diff up
+- [x] **Open** (§3): **Open** on `a.txt` → a temp copy `%TEMP%\t4-git-ui-diff\<blob oid>\a.txt`
+      opens in the `.txt` handler (Notepad here); the copy holds the blob
+- [x] **Save as…** (§3): the native save dialog titled `Save a.txt` → name a path → the file lands
+      there with the blob's bytes. The Win32 helper (`WM_SETTEXT` on the dialog's `Edit`, `BM_CLICK`
+      on `&Save`) drives it; `SendKeys` and UI Automation both failed to reach the dialog
+- [x] **Diff window** (§2): open it → the same strip, Files list, filter and content view inside the
+      dialog; switching tabs and picking `b.txt` there is the same store, so closing the dialog leaves
+      the pane on Files with `b.txt` selected
+
+## AL. Blame (main §2, §3)
+_Shipped 2026-09-13 (two commits, `feat: Blame a file's lines through git blame --porcelain` and
+`feat: Show blame in the Files tab's content view`). A **Blame** toggle in the content view's header
+adds a per-hunk gutter (short SHA, author, age, age tint) fed by `git blame --porcelain` parsed off
+the runner's event stream. Clicking a hunk selects its commit in the grid and the Files tab follows;
+the hunk menu has Select in graph, Blame parent (porcelain's `previous`) and Copy SHA. Walked
+2026-09-13 over CDP in `c:/tmp/t4/work` (`hunks.txt`: hunks by `958f0c7` and `3e6b9e1`) on a
+release build. One finding (last bullet), fixed in `f3587d6`. **Not walked:** uncommitted lines —
+the working tree has no Files tab (plan §1's open decision), so the panel's Blame goes to HEAD._
+
+- [x] **The gutter agrees with git** (§2): HEAD → Files → `hunks.txt` → **Blame** → six labels at
+      lines 1, 2, 4, 16, 17, 29, exactly `git blame --porcelain HEAD -- hunks.txt`'s hunk starts;
+      the rest of each hunk shows the tint bar only; hover reads `<summary> / <author> · <date>`;
+      the age steps are 1 (oldest) and 5 (newest)
+- [x] **Not an operation** (§2): while blame loads the toolbar's Fetch / Pull / Push stay enabled
+      and nothing is `aria-busy` — it is registered for the kill handle only, no op lock
+- [x] **Drill-down** (§2): click line 2's gutter (`3e6b9e1`) → the grid selects `zxc`, the Files tab
+      keeps `hunks.txt`, blame stays on and reloads at that commit
+- [x] **Hunk menu** (§3): right-click line 2 → **Select in graph · Blame parent · Copy SHA**; **Blame
+      parent** → the grid moves to `hunks fixture` (`958f0c7`, the `previous` of that hunk) with one
+      hunk; on a hunk whose commit is where the file begins the item is disabled with *This commit is
+      where the file begins*
+- [x] **Keyboard** (§2): Tab into the content → the cursor row (line 1) takes the focus; `↓` moves it;
+      `Shift+F10` opens the hunk menu under it; `Escape` closes it
+- [x] **Entry points** (§3): Changes tab → right-click `twins.txt` → **Blame** → Files tab, `twins.txt`,
+      blame on, HEAD selected. Commit panel → right-click a modified tracked file (`a.txt`) →
+      **Blame** → HEAD's `a.txt` with its two hunks; on a staged add (`decoy.txt`) the item is
+      disabled with *The file has never been committed*
+- [x] **A hunk's commit outside the view** (§2): search `zxc` (one row), blame `hunks.txt` there,
+      click a `958f0c7` gutter → *Not in the current view — clear the filter*, selection unchanged.
+      **First walk: no toast and the selection vanished** — a shrunken walk kept its stale row tail
+      and the reveal found the old row. Fixed in `f3587d6` (rows truncated on a complete page)
+
+## AM. File history: the grid filtered to one path (main §2, §3)
+_Shipped 2026-09-13 (two commits, `feat: List one file's history through git log --follow` and
+`feat: Filter the grid to one file's history`). **History** on a file row sets a path filter on the
+revision grid, shown as a chip beside the search field ("History: <basename> ×", full path in the
+title). The walker lists `git log --follow --format=%H --name-status -z` instead of a revwalk and
+builds rows from those oids, each carrying the path the file had at that commit, which the details
+pane preselects on both tabs. Walked 2026-09-13 over CDP in `c:/tmp/t4/work` and read-only in
+`c:/tmp/t4/mbk-clone` (a real rename) on a release build. One finding (last bullet), fixed in
+`5e99ca8`. **Not walked:** the working-tree row under a history filter — it is hidden like under
+a text filter even when the file is modified (plan §3's edge case, not kept in this round)._
+
+- [x] **Entry from the Files tab** (§3): HEAD → Files → right-click `hunks.txt` → **Copy path ·
+      Open · Save as… · Blame · History** → **History** → two rows (`zxc`, `hunks fixture`), the
+      first selected, chip `History: hunks.txt` with the path as its title, the Files tab still on
+      `hunks.txt`
+- [x] **Preselect on both tabs** (§3): click `hunks fixture` → Files keeps `hunks.txt`; switch to
+      Changes → `hunks.txt` is the selected changed file, not the commit's first
+- [x] **Composes with the search** (§2): type `fixture` → one row, chip stays; a search that matches
+      nothing under the chip → *No matching commits* (the search's own empty state; *No history
+      yet* is only for a path with no commits at all — it showed here on the first walk, corrected in
+      `d56be8c`); clear the text → the two rows are back
+- [x] **Hunk menu** (§3): Blame on, right-click a gutter → **Select in graph · Blame parent ·
+      History of this file · Copy SHA**
+- [x] **Chip × keeps the selection** (§3): with `zxc` selected, × → the full walk (24 rows), `zxc`
+      still selected, no chip
+- [x] **Rename follow** (§3, `mbk-clone`): Files → filter `html-css` → `reviews/old/html-css.md` →
+      **History** → four rows across the rename; the oldest (`d153469`) preselects
+      `reviews/html-css.md` on both tabs; back to HEAD → `reviews/old/html-css.md`; × → the full
+      walk, HEAD still selected
+- [x] **Entry from the commit panel** (§3): append a line to `a.txt`, select the working-tree row →
+      right-click the unstaged `a.txt` → **History** → two rows (`feature edit`, `first`), row 0
+      selected, chip `History: a.txt`, the details pane preselects `a.txt`; **Commit** clears the
+      chip *and* the search and returns to the working-tree row. **First walk: nothing was
+      selected** — the working-tree selection kept a stale commit index under the flat walk.
+      Fixed in `5e99ca8` (the selection is dropped when a filter flattens the walk)
+
+## AN. Review pass 3 fixes (main §2, §3)
+_Walked 2026-09-13 over CDP in `c:/tmp/t4/work` on a release build of `5b024f9`, after the pass-3
+fixes (`docs/plans/2026-09-12-consolidated-findings.md`, F1–F18). The store and backend rows are
+covered by their tests; these are the ones only a window shows._
+
+- [x] **Blame toggle on a truncated file** (F8): blame on → `big diff` → Files → `big.txt` (note
+      *first 20 000 lines*, banner) → the toggle is still enabled and pressed; click → off, and only
+      now disabled with *Blame needs the whole file*
+- [x] **Shift+Tab leaves the content view** (F9): blame on `hunks.txt` → Tab from **Blame** → the
+      cursor row (line 1); `↓` → line 2; Shift+Tab → the region, again → **Open diff window**, again →
+      **Blame**. Same code in the diff viewer
+- [x] **Submenu inside the window** (F10): Repository → hover **More recent** at a 977px window →
+      level with the item; at a 380px window → slid up so its bottom sits 4px above the edge, scrolls
+- [x] **List header at the panel minimum** (F11): drag the file list to its minimum → 200px, the
+      header's four controls all inside the pane (at the old 180px the Tree toggle was 19px past it)
+- [x] **Blamed rows are a listbox** (F13): with blame on the content body is `listbox` "Blame" and
+      the mounted rows are `option`s, the cursor row `aria-selected`
+- [x] **Re-walk after the fixes**: AL *Drill-down* and *A hunk's commit outside the view*, AM
+      *Preselect on both tabs* and *Chip × keeps the selection* pass on `5b024f9`; F16 in a window
+      (path + a search that matches nothing → *No matching commits*); the diff viewer's region
+      Shift+Tabs out to **Ignore whitespace**; the diff dialog's file list stops at 200px, header inside
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the

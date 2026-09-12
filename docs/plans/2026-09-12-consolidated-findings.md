@@ -17,7 +17,7 @@ confirmed, a step still needs an experiment (named).
 
 **Numbers.** 65 fresh findings (A6 B8 C8 D13 E11 F9 X10) plus the 13 existing R-items → **61
 checklist items** below (four cluster entries bundle 16 of the inputs; 6 were exact duplicates):
-**8 P0, 19 P1, 34 P2**. R12/R13 stay recorded-only. Six findings are marked **to revisit** (E6, B3, C6 ×2, R10, R12, R13): not fixed, not closed; `grep "to revisit"` lists them.
+**8 P0, 19 P1, 34 P2**. R12/R13 stay recorded-only. Six findings are marked **to revisit** (E6, B3, C6 ×2, R10, R12, R13), plus five from pass 3 (S1–S5): not fixed, not closed; `grep "to revisit"` lists them.
 
 **Caveat on the diff pass (X).** That reviewer inherited this session's context, which already
 summarised R1–R7, so its re-finding R1/R3/R8 is not independent confirmation. The six area
@@ -573,3 +573,44 @@ debouncer's last-seen `time` semantics; `repo_relative`; every consumer of the o
 shape migrated; `revealOid`'s retry; `notOpen` at both sites; `key={dialog.kind}` keeps return
 focus; capabilities minimal and sufficient; every preview but the clone dialog matches its argv;
 `ref_arg` has no false positives.
+
+## Review pass 3 (2026-09-13, over the Files / Blame / History features `d116c36..cd8b9c4`)
+
+Three blind reviewers (Opus), one per area: git-core + commands (backend), stores + actions +
+grid + toolbar (store), components (UI). Every row below was re-read in the code by me before it
+was accepted (*CONFIRMED*). All 18 landed 2026-09-13 (`21c3b08..5b024f9`), gates green, F8–F11 and F13 walked on a release build. A blind second reviewer then read the fix range: no regressions; four residuals
+landed as `0e785e3` (a capped file with no newline keeps 64 KiB, not 16 MiB of one line), `b53c701`
+(`.git.` / `.git ` match the guard — Win32 strips trailing dots and spaces), `6726000` (no pin when
+`selectTreePathAt` applies at once) and `aed3d25` (TS doc). The AL/AM rows that F6/F7 touch
+(drill-down, outside-view, preselect on both tabs, chip ×) were re-walked on the fixed build and pass.
+Coverage gaps closed after: the byte cap on a commit's blob and the mid-line cut-back (`17278ff`,
+`8929eb7`), `RevSpec::All` reaching a stash-only commit — pinned on `refs/stash^2`, since `--follow`
+simplifies the stash's merge tip away (`a2ab152`), the Files filter's 2000-row cap and banner
+(`8b91877`), the dead Blame-parent item's hint (`83ccaf0`). The §1 working-tree
+decision (c) and the §3 working-tree-row edge case are closed in the feature plan, not here.
+
+| # | Sev | Verdict | Area | One line | Fix | Landed |
+|---|---|---|---|---|---|---|
+| F1 | high | CONFIRMED | blame | `TreeTarget::Commit.oid` reaches argv unvalidated, before `--end-of-options`; `--contents=<abs>` blames any file | `Oid::from_str` → `Refused` before building args | done `b224098` |
+| F2 | med | CONFIRMED | repo | `repo_relative` admits a `.git` component; `read_file`/`save_file_as` reach `.git/config` | refuse any `.git` component (case-insensitive) in `repo_relative`, shared with `save_as`'s dest guard | done `fd214a5` |
+| F3 | med | CONFIRMED | tree | A file of exactly `max_lines` lines reports `truncated` and loses its trailing newline | the trailing empty piece is not a line | done `d2b9408` (the trailing-newline half of the symptom is left: `kept.join` still drops the empty piece at exactly the cap) |
+| F4 | med | CONFIRMED | commands | `list_tree` holds the shared repo mutex across one `stat` per index entry | `open_private()` | done `8597abf` |
+| F5 | med | CONFIRMED | tree | No byte cap on `read`: the whole file (and a lossy copy) in memory to show 20k lines | stream ≤ 16 MiB (`odb.reader` / `File::take`), `truncated` covers bytes, the note shows the kept line count | done `1e9b038` + `c5ab6b5` (note shows the kept count); the blob branch caps the copy, not the read — `odb.reader` streams loose objects only, verified on a repacked fixture |
+| F6 | med | CONFIRMED | repoStore | A truncated walk keeps `selectedIndex` past `rows.length`; a `startLog` during the reselect strands it | null the index (and `compare`) in the truncation branch | done `21c3b08` |
+| F7 | med | CONFIRMED | diffStore | `load`'s row-path preselect overwrites `selectTreePathAt`'s seed → blame drill-down under a history filter lands on the row's file | the explicit seed wins once (`pinned` key) | done `a00b0e2` |
+| F8 | med | CONFIRMED | FileContent | Blame toggle disabled on a truncated/binary file while on → cannot turn blame off | `disabled={!whole && !blameOn}` | done `2d027d0`, walked on `big.txt` |
+| F9 | med | CONFIRMED | FileContent, DiffViewer | Shift+Tab trapped: the region's `onFocus` re-forwards to the cursor row (pre-existing in the diff) | forward only when `relatedTarget` is outside the region | done `ae3c0db`, walked (region → header buttons) |
+| F10 | med | CONFIRMED | Menu | A submenu is never clamped to the viewport bottom and cannot scroll; "More recent" tail unreachable | clamp `top`; `.submenu` max-height + overflow-y | done `bb60ba1`, walked at a 380px window (panel slid up, bottom 4px in) |
+| F11 | med | CONFIRMED | ChangedFileList | Tabs are `flex: none`: at the 180 px minimum panel the Tree toggle is clipped (arithmetic) | measure at 180 px on the rebuild; then shrink the tabs or hide the title | CONFIRMED on a build (Tree toggle 19px past the pane at 180); done `5b024f9` — minimum raised to 200px, the header's 199px fits; ellipsising the tabs read "Ch… F…" |
+| F12 | low | CONFIRMED | FileContent | `select` recreated per render → `ContentLine` memo dead, ~60 rows re-render per arrow key | `useCallback` | done `05d77d9` |
+| F13 | low | CONFIRMED | FileContent | Cursor rows focusable with no role/name; the diff uses listbox/option | listbox/option while blame is on | done `067b4e5`, walked (listbox, 30 options) |
+| F14 | low | CONFIRMED | FileContent | Blame reply can land before content: file B's gutter on file A's text | no gutter while `contentLoading` | done `defcc97` |
+| F15 | low | CONFIRMED | diffStore | `setBlameOn(false)` does not bump `blameSeq`; an in-flight reply repopulates `blame` | `blameSeq++` | done `fcfe2cf` |
+| F16 | low | CONFIRMED | RevisionGrid | "No history yet" shown when it is the *search* that matches nothing | text-filter empty state first; docs corrected | done `d56be8c`, docs `603898a` |
+| F17 | low | CONFIRMED | ChangedFileList | `aria-controls` names an id absent in loading/empty/error states, and the list is no tabpanel | drop the attribute | done `f20dd2e` |
+| F18 | low | CONFIRMED | diffStore | `treeSelection` / `treeCache` never cleared on repo close | clear when `repoId` goes null | done `22e2d01` |
+| S1 | low | CONFIRMED | blame, history | Registered ops nobody can cancel: 20 quick file clicks run 20 blames to completion | to revisit — a per-repo "latest blame" token cancelled by the next; not built | — |
+| S2 | low | CONFIRMED | tree, history | Non-UTF-8 paths are dropped from the working-tree listing (lossy decode, then `stat` misses) or listed but unreadable | to revisit — the IPC type is `String`; log the skip at most | — |
+| S3 | low | CONFIRMED | history | `path_history` fails on `CliOutput::truncated`, which also fires for a 4 MB *stderr* | to revisit — contrived; split the flag if it ever bites | — |
+| S4 | low | CONFIRMED | actions | `blameAt` switches tab / seeds / turns blame on before the reveal is known to hit | to revisit — reordering races the details-pane effect; toast only | — |
+| S5 | low | CONFIRMED | FileRowMenu | No Blame on a working-tree target while the commit panel offers it | to revisit — moot under the §1 (c) decision (no working-tree Files surface) | — |

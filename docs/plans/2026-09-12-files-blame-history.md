@@ -359,6 +359,47 @@ remounted every button an operation disabled, so there was never a live node to 
 keeping its wrapper in the DOM (`display: contents` while idle), which also retires the reason
 `Dialog`/`Toolbar` pass return-focus targets as refs (left as they are). 1–3 next, in that order.
 
+**§1 landed 2026-09-13** (three commits: backend `tree` module + commands, store + tab, content view
++ row menu; smoke group AK walked on the pane and the diff window). Deviations, all recorded in the
+code: `dialog:default` was still granted, so it was replaced by the three named permissions rather
+than adding `allow-save` beside an `ask`; there is no editor setting, so Open hands a commit's file
+(temp copy) to the OS handler like the working tree's; "Show in Changes" is offered from the Files
+tab only; the "N more" line is a banner under the list, not a row; the listing cache is keyed by
+target with the tree oid sharing arrays between targets; `save_as` also refuses a relative dest.
+**Open decision:** the working-tree side has no surface. The working-tree row renders the commit
+panel (Unstaged / Staged), not `ChangedFileList`, so the index listing `tree::list` serves is
+unreachable. Options: (a) a third **Files** section in the commit panel's file column, (b) a Files
+tab on the commit panel's diff side, (c) leave the working tree without it and let §2/§3 reach the
+working-tree file through HEAD. **Decided 2026-09-13: (c).** Nothing to build; the commit panel's
+Blame / History go to HEAD, as shipped.
+
+**§2 landed 2026-09-13** (two commits; smoke group AL walked). Deviations, recorded in the code:
+the plan's arg order fails on real git (`--end-of-options <rev> -- <path>` reads the path as a
+second revision), shipped as `-c core.quotePath=false blame --porcelain [-w] [<rev>]
+--end-of-options -- <path>`; `close_repo` does not cancel in-flight ops, so blame is registered
+through `begin_op`/`end_op` for the kill handle only (no op lock, no dock forwarding); age tint by
+`color-mix` on `--accent`, no new tokens; `blameOn` is session state; the commit panel's Blame goes
+to HEAD (see the open decision above) and is disabled for a never-committed file; a new store seam
+`selectTreePathAt` seeds the per-target file memory before the reveal, or `load` would land on the
+commit's last-viewed file. The walk found a pre-existing reveal bug (stale rows after a shrunken
+walk), fixed in `f3587d6`. §3 next.
+
+**§3 landed 2026-09-13** (two commits `8e1a538`, `10afa17`; smoke group AM walked, one finding
+fixed in `5e99ca8`). Deviations, recorded in the code: the arg order is `log --follow … [--all]
+--end-of-options [<rev>…] -- <path>` (verified on git 2.55; `--all` is an option and precedes the
+separator), and `RevSpec::All → --all` takes in stashes and notes the revwalk skips — flagged, not
+changed; a truncated CLI capture is a hard error rather than a wrong answer; `walk` takes the
+history list as an argument and shares its row builder with the revwalk; `GraphRow.path` carries
+the name at that commit and `diffStore.load` seeds the per-target file memory with it, so the
+preselect survives a tab switch; `openCommitPanel` clears `path` as well as `text`; History is
+offered unconditionally on the Files / Changes menus and on the commit panel resolves to HEAD
+(`oldPath ?? path`), disabled for a never-committed file; the chip shows the basename with the
+full path as its title; "No history yet" is shown only for a path with no commits, a search that
+matches nothing under the chip gets the search's own empty state (pass-3 F16); the CLI list is re-run on every `start_log`, not cached. The working-tree-row edge case (kept
+when the file is modified) is not implemented: the row hides under a history filter as under a
+text filter. **Decided 2026-09-13: dropped** — the commit panel and the chip's × already reach the
+working tree. With §1's (c) above, nothing is open.
+
 ## 7. Open for the refine pass
 
 - Tab strip placement: in `ChangedFileList`'s header (left of the tree toggle), or a header row
