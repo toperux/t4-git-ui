@@ -32,7 +32,9 @@ updates:
         patterns:
           - "*"
 
-  # Same for the frontend and its package-lock.json.
+  # Same for the frontend and its package-lock.json — for patch and minor bumps.
+  # A major (TypeScript, Vite, Vitest) can break the build on its own, and in
+  # the group it holds every safe bump hostage; majors come one PR each.
   - package-ecosystem: npm
     directory: /
     schedule:
@@ -44,3 +46,6 @@ updates:
       npm:
         patterns:
           - "*"
+        update-types:
+          - minor
+          - patch
