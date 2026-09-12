@@ -61,6 +61,7 @@ fn graph_row_shape() {
             kind: LineKind::Straight,
         }],
         max_lane: 2,
+        path: None,
     };
     let v = serde_json::to_value(&row).expect("ser");
     assert_eq!(v["maxLane"], 2);

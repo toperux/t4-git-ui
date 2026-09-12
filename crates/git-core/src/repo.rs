@@ -296,6 +296,7 @@ mod tests {
                 &repo,
                 &RevSpec::Head,
                 &LogFilter::default(),
+                None,
                 &AtomicBool::new(false),
                 |chunk| {
                     out.extend(chunk.into_iter().map(|r| r.commit.oid));

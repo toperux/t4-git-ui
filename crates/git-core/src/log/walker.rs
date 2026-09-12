@@ -38,13 +38,23 @@ fn push_glob(repo: &Repository, walker: &mut Revwalk<'_>, glob: &str) -> Result<
 /// peel to a commit; `Head` pushes HEAD only; `Refs` pushes each full ref name
 /// (a missing ref is an error, a ref that doesn't peel to a commit is skipped).
 /// An unborn HEAD yields zero rows for `Head` and is ignored for `All`.
+///
+/// Under a path filter there is no revwalk at all: `history` is the ordered
+/// `(commit, path there)` list [`super::history::path_history`] got from
+/// `git log --follow`, and the rows are built from it. `spec` has already been
+/// applied by that command, so it is not read here.
 pub fn walk(
     repo: &Repository,
     spec: &RevSpec,
     filter: &LogFilter,
+    history: Option<&[(Oid, String)]>,
     cancel: &AtomicBool,
-    mut on_chunk: impl FnMut(Vec<GraphRow>) -> bool,
+    on_chunk: impl FnMut(Vec<GraphRow>) -> bool,
 ) -> Result<usize, GitError> {
+    if let Some(history) = history {
+        let items = history.iter().map(|(oid, path)| Ok((*oid, Some(path))));
+        return rows(repo, filter, None, items, cancel, on_chunk);
+    }
     let mut walker = repo.revwalk().map_err(map_git2)?;
     walker
         .set_sorting(Sort::TOPOLOGICAL | Sort::TIME)
@@ -76,35 +86,55 @@ pub fn walk(
         }
     }
 
+    // A filtered walk has no contiguous topology, so it is laid out flat.
+    let layout = if filter.is_active() {
+        None
+    } else {
+        let mut layout = LaneLayout::new();
+        // ponytail: a `Refs` spec that never reaches HEAD leaves this column open to
+        // the bottom; the UI only sends `all` / `head`.
+        if filter.working_tree {
+            if let Ok(head) = repo.head().and_then(|r| r.peel_to_commit()) {
+                layout.open(head.id());
+            }
+        }
+        Some(layout)
+    };
+    let items = walker.map(|oid| oid.map(|oid| (oid, None)).map_err(map_git2));
+    rows(repo, filter, layout, items, cancel, on_chunk)
+}
+
+/// Turns an ordered commit source into rows: the text filter, the graph layout
+/// (`None` lays every row flat) and the chunking, shared by the revwalk and the
+/// path-history list. A path item carries the name the file had at that commit.
+fn rows<'a>(
+    repo: &Repository,
+    filter: &LogFilter,
+    mut layout: Option<LaneLayout>,
+    items: impl Iterator<Item = Result<(Oid, Option<&'a String>), GitError>>,
+    cancel: &AtomicBool,
+    mut on_chunk: impl FnMut(Vec<GraphRow>) -> bool,
+) -> Result<usize, GitError> {
     let text = filter
         .text
         .as_deref()
         .map(str::trim)
         .filter(|t| !t.is_empty())
         .map(str::to_lowercase);
-    let use_graph = text.is_none();
     // A hex query of 4+ characters also matches a commit id prefix.
     let text_is_hex = text
         .as_deref()
         .is_some_and(|t| t.len() >= 4 && t.bytes().all(|b| b.is_ascii_hexdigit()));
 
-    let mut layout = LaneLayout::new();
-    // ponytail: a `Refs` spec that never reaches HEAD leaves this column open to
-    // the bottom; the UI only sends `all` / `head`.
-    if use_graph && filter.working_tree {
-        if let Ok(head) = repo.head().and_then(|r| r.peel_to_commit()) {
-            layout.open(head.id());
-        }
-    }
     let mut chunk: Vec<GraphRow> = Vec::with_capacity(CHUNK_SIZE);
     let mut total = 0usize;
     let mut parents: Vec<Oid> = Vec::with_capacity(4);
 
-    for oid in walker {
+    for item in items {
         if cancel.load(Ordering::Relaxed) {
             return Err(GitError::Cancelled);
         }
-        let oid = oid.map_err(map_git2)?;
+        let (oid, path) = item?;
         let commit = repo.find_commit(oid).map_err(map_git2)?;
         let info = CommitInfo::from_commit(&commit);
 
@@ -118,7 +148,7 @@ pub fn walk(
             }
         }
 
-        let row = if use_graph {
+        let row = if let Some(layout) = layout.as_mut() {
             parents.clear();
             parents.extend(commit.parent_ids());
             let p = layout.push(oid, &parents);
@@ -128,6 +158,7 @@ pub fn walk(
                 color: p.color,
                 lines: p.lines,
                 max_lane: p.max_lane,
+                path: path.cloned(),
             }
         } else {
             GraphRow {
@@ -136,6 +167,7 @@ pub fn walk(
                 color: 0,
                 lines: Vec::new(),
                 max_lane: 0,
+                path: path.cloned(),
             }
         };
 

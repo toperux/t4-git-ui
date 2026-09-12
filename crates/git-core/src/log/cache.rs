@@ -71,6 +71,7 @@ mod tests {
             color: 0,
             lines: vec![],
             max_lane: 0,
+            path: None,
         }
     }
 

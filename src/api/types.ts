@@ -94,6 +94,8 @@ export interface RefLabel {
 export interface LogRow {
   row: GraphRow;
   labels: RefLabel[];
+  /** Under a path filter: the name the file had at this commit (`--follow` renames it going back). */
+  path?: string | null;
 }
 
 /** `#[serde(tag = "kind", content = "refs")]` */
@@ -104,6 +106,8 @@ export interface LogFilter {
   text?: string | null;
   /** Seed the layout with a column expecting HEAD so the working-tree row connects to it. */
   workingTree?: boolean;
+  /** File history: only the commits that touched this repository-relative path, renames followed. */
+  path?: string | null;
 }
 
 // --- refs.rs ---

@@ -23,6 +23,7 @@ fn main() {
         &repo,
         &RevSpec::All,
         &LogFilter::default(),
+        None,
         &cancel,
         |chunk| {
             chunks += 1;

@@ -80,6 +80,11 @@ pub struct GraphRow {
     pub lines: Vec<GraphLine>,
     /// Highest column index touched by this row (node or any line end).
     pub max_lane: u16,
+    /// Under a path filter: what the file was called at this commit. Storage
+    /// only — the walk cache holds `GraphRow`s, and [`LogRow`] is where the
+    /// frontend reads it from, so it is never serialized here.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -112,6 +117,11 @@ pub struct RefLabel {
 pub struct LogRow {
     pub row: GraphRow,
     pub labels: Vec<RefLabel>,
+    /// Under a path filter: the path the filtered file had at this commit
+    /// (`--follow` renames it as the history goes back), which is the file the
+    /// details pane preselects. Absent on an unfiltered walk.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
 }
 
 /// Which commits to walk.
@@ -137,11 +147,16 @@ pub struct LogFilter {
     pub text: Option<String>,
     #[serde(default)]
     pub working_tree: bool,
+    /// File history: only the commits that touched this repository-relative
+    /// path, renames followed. Composes with `text` (the text match is applied
+    /// to the commits the path list named).
+    #[serde(default)]
+    pub path: Option<String>,
 }
 
 impl LogFilter {
     /// `true` when a filter that actually restricts output is set.
     pub fn is_active(&self) -> bool {
-        self.text.as_deref().is_some_and(|t| !t.trim().is_empty())
+        self.text.as_deref().is_some_and(|t| !t.trim().is_empty()) || self.path.is_some()
     }
 }

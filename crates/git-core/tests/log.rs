@@ -20,6 +20,7 @@ fn rows(t: &TempRepo, spec: &RevSpec) -> Vec<GraphRow> {
         &t.repo,
         spec,
         &LogFilter::default(),
+        None,
         &no_cancel(),
         |chunk| {
             out.extend(chunk);
@@ -119,10 +120,17 @@ fn branch_and_merge() {
         ..Default::default()
     };
     let mut out = Vec::new();
-    walk(&t.repo, &RevSpec::All, &filter, &no_cancel(), |chunk| {
-        out.extend(chunk);
-        true
-    })
+    walk(
+        &t.repo,
+        &RevSpec::All,
+        &filter,
+        None,
+        &no_cancel(),
+        |chunk| {
+            out.extend(chunk);
+            true
+        },
+    )
     .expect("walk");
     assert_eq!(out.len(), 4);
     assert!(!out[0].lines.is_empty());
@@ -388,6 +396,7 @@ fn tags_are_peeled_and_non_commit_tags_are_skipped() {
             &t.repo,
             &RevSpec::Refs(vec!["refs/heads/nope".into()]),
             &LogFilter::default(),
+            None,
             &no_cancel(),
             |_| true
         ),
@@ -433,10 +442,17 @@ fn text_filter_matches_summary_and_author() {
         text: Some("FIX".into()),
         ..Default::default()
     };
-    let n = walk(&t.repo, &RevSpec::All, &filter, &no_cancel(), |chunk| {
-        out.extend(chunk);
-        true
-    })
+    let n = walk(
+        &t.repo,
+        &RevSpec::All,
+        &filter,
+        None,
+        &no_cancel(),
+        |chunk| {
+            out.extend(chunk);
+            true
+        },
+    )
     .expect("walk");
     assert_eq!(n, 2);
     assert!(out.iter().all(|r| r.commit.oid != s(b)));
@@ -447,7 +463,10 @@ fn text_filter_matches_summary_and_author() {
         ..Default::default()
     };
     assert_eq!(
-        walk(&t.repo, &RevSpec::All, &filter, &no_cancel(), |_| true).expect("walk"),
+        walk(&t.repo, &RevSpec::All, &filter, None, &no_cancel(), |_| {
+            true
+        })
+        .expect("walk"),
         3
     );
 
@@ -457,10 +476,17 @@ fn text_filter_matches_summary_and_author() {
         ..Default::default()
     };
     let mut out = Vec::new();
-    walk(&t.repo, &RevSpec::All, &filter, &no_cancel(), |chunk| {
-        out.extend(chunk);
-        true
-    })
+    walk(
+        &t.repo,
+        &RevSpec::All,
+        &filter,
+        None,
+        &no_cancel(),
+        |chunk| {
+            out.extend(chunk);
+            true
+        },
+    )
     .expect("walk");
     assert_eq!(oids(&out), vec![s(a)]);
 }
@@ -487,10 +513,17 @@ fn working_tree_seeds_a_column_expecting_head() {
         ..Default::default()
     };
     let mut out = Vec::new();
-    walk(&t.repo, &RevSpec::All, &filter, &no_cancel(), |chunk| {
-        out.extend(chunk);
-        true
-    })
+    walk(
+        &t.repo,
+        &RevSpec::All,
+        &filter,
+        None,
+        &no_cancel(),
+        |chunk| {
+            out.extend(chunk);
+            true
+        },
+    )
     .expect("walk");
     assert_eq!(oids(&out), vec![s(c), s(b), s(a)]);
     // HEAD's column is already open, so C is pushed into lane 1 and the row
@@ -518,7 +551,10 @@ fn empty_repo_walks_nothing() {
         ..Default::default()
     };
     assert_eq!(
-        walk(&t.repo, &RevSpec::All, &filter, &no_cancel(), |_| true).expect("walk"),
+        walk(&t.repo, &RevSpec::All, &filter, None, &no_cancel(), |_| {
+            true
+        })
+        .expect("walk"),
         0
     );
     let snap = snapshot(&mut t.repo).expect("snapshot");
@@ -546,6 +582,7 @@ fn chunking_early_stop_and_cancellation() {
         &t.repo,
         &RevSpec::All,
         &LogFilter::default(),
+        None,
         &no_cancel(),
         |chunk| {
             calls += 1;
@@ -562,6 +599,7 @@ fn chunking_early_stop_and_cancellation() {
         &t.repo,
         &RevSpec::Refs(vec!["refs/heads/exact".into()]),
         &LogFilter::default(),
+        None,
         &no_cancel(),
         |chunk| {
             calls += 1;
@@ -579,6 +617,7 @@ fn chunking_early_stop_and_cancellation() {
         &t.repo,
         &RevSpec::All,
         &LogFilter::default(),
+        None,
         &cancel,
         |_| {
             calls += 1;
@@ -588,4 +627,66 @@ fn chunking_early_stop_and_cancellation() {
     );
     assert!(matches!(r, Err(GitError::Cancelled)), "{r:?}");
     assert_eq!(calls, 1);
+}
+
+/// A path filter replaces the revwalk: the rows come from the list
+/// `path_history` built, carry the name the file had at each commit, are laid
+/// out flat, and `text` still narrows them.
+#[test]
+fn a_path_history_is_walked_flat_and_composes_with_the_text_filter() {
+    let t = TempRepo::new();
+    let a = t.commit(&[("a", "1")], "Add the parser");
+    let b = t.commit(&[("b", "1")], "Fix the parser");
+    // What `--follow` hands back for `b`, renamed from `a` by B.
+    let history = vec![(b, "b".to_string()), (a, "a".to_string())];
+
+    let mut out = Vec::new();
+    let filter = LogFilter {
+        path: Some("b".into()),
+        ..Default::default()
+    };
+    let n = walk(
+        &t.repo,
+        &RevSpec::All,
+        &filter,
+        Some(&history),
+        &no_cancel(),
+        |chunk| {
+            out.extend(chunk);
+            true
+        },
+    )
+    .expect("walk");
+    assert_eq!(n, 2);
+    assert_eq!(oids(&out), vec![s(b), s(a)]);
+    assert_eq!(
+        out.iter().map(|r| r.path.as_deref()).collect::<Vec<_>>(),
+        vec![Some("b"), Some("a")],
+        "the pre-rename name is what the older row preselects"
+    );
+    assert!(
+        out.iter().all(|r| r.lane == 0 && r.lines.is_empty()),
+        "a filtered walk is not laid out"
+    );
+
+    let filter = LogFilter {
+        path: Some("b".into()),
+        text: Some("fix".into()),
+        ..Default::default()
+    };
+    let mut out = Vec::new();
+    walk(
+        &t.repo,
+        &RevSpec::All,
+        &filter,
+        Some(&history),
+        &no_cancel(),
+        |chunk| {
+            out.extend(chunk);
+            true
+        },
+    )
+    .expect("walk");
+    assert_eq!(oids(&out), vec![s(b)], "text narrows the path's own list");
+    assert_eq!(out[0].path.as_deref(), Some("b"));
 }

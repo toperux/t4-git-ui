@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use git_core::commit::CommitDetail;
-use git_core::log::{walk, LogFilter, LogRow, RefLabel, RevSpec};
+use git_core::log::{path_history, walk, LogFilter, LogRow, RefLabel, RevSpec};
 use git_core::refs::{self, HeadInfo, RefsSnapshot};
 use git_core::repo::repo_relative;
 use git_core::tree::{self, TreeTarget};
@@ -206,6 +206,10 @@ pub async fn get_commit(
 /// Starts a background walk that fills `RepoHandle::log`; returns its generation.
 /// Progress is reported via `log://progress`. Ref labels are snapshotted here
 /// (see [`refresh_labels`]).
+///
+/// A path filter has no revwalk to spawn: the commits come from
+/// `git log --follow`, which is awaited here (a read, registered as an op only
+/// for the kill handle) before the rows are built off the blocking pool.
 #[tauri::command]
 pub async fn start_log(
     app: AppHandle,
@@ -221,6 +225,16 @@ pub async fn start_log(
         let generation = log.begin();
         log.labels = labels;
         (generation, Arc::clone(&log.cancel))
+    };
+    let history = match &filter.path {
+        None => None,
+        Some(path) => {
+            let cli = state.git_cli();
+            let (op_id, token) = state.begin_op();
+            let listed = path_history(&cli, &handle.path, &op_id, &spec, path, token).await;
+            state.end_op(&op_id);
+            Some(listed?)
+        }
     };
 
     let emit = move |total: usize, complete: bool, error: Option<String>| {
@@ -241,21 +255,28 @@ pub async fn start_log(
         let mut last_emit: Option<Instant> = None;
         let walked = std::panic::catch_unwind(AssertUnwindSafe(|| {
             handle.open_private().and_then(|repo| {
-                walk(&repo, &spec, &filter, &cancel, |chunk| {
-                    let total = {
-                        let mut log = handle.log.write();
-                        if log.generation != generation {
-                            return false;
+                walk(
+                    &repo,
+                    &spec,
+                    &filter,
+                    history.as_deref(),
+                    &cancel,
+                    |chunk| {
+                        let total = {
+                            let mut log = handle.log.write();
+                            if log.generation != generation {
+                                return false;
+                            }
+                            log.rows.extend(chunk);
+                            log.rows.len()
+                        };
+                        if last_emit.is_none_or(|t| t.elapsed() >= PROGRESS_THROTTLE) {
+                            emit(total, false, None);
+                            last_emit = Some(Instant::now());
                         }
-                        log.rows.extend(chunk);
-                        log.rows.len()
-                    };
-                    if last_emit.is_none_or(|t| t.elapsed() >= PROGRESS_THROTTLE) {
-                        emit(total, false, None);
-                        last_emit = Some(Instant::now());
-                    }
-                    true
-                })
+                        true
+                    },
+                )
             })
         }));
         let result: Result<usize, String> = match walked {
@@ -326,8 +347,11 @@ pub async fn get_log_page(
         let (rows, total, complete) = log.page(offset, limit);
         let rows = rows
             .into_iter()
-            .map(|row| LogRow {
+            .map(|mut row| LogRow {
                 labels: log.labels.get(&row.commit.oid).cloned().unwrap_or_default(),
+                // Carried on the cached row, reported on the wire here: one
+                // copy either way, and the frontend reads it off the log row.
+                path: row.path.take(),
                 row,
             })
             .collect();
