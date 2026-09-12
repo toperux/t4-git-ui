@@ -145,7 +145,14 @@ fn commit_vs_parent_add_modify_delete() {
     assert_eq!(range, files);
 
     // Hunks / line numbers of the modified file.
-    let d = file_diff(&t.repo, &commit(b), "keep.txt", &DiffOptions::default()).expect("file_diff");
+    let d = file_diff(
+        &t.repo,
+        &commit(b),
+        "keep.txt",
+        None,
+        &DiffOptions::default(),
+    )
+    .expect("file_diff");
     assert_eq!(
         (d.status, d.binary, d.truncated),
         (FileStatus::Modified, false, false)
@@ -176,7 +183,14 @@ fn commit_vs_parent_add_modify_delete() {
     assert!(h.lines.iter().all(|l| !l.no_newline));
 
     // Deleted file: all `-` lines, addressed by its (old) path.
-    let d = file_diff(&t.repo, &commit(b), "gone.txt", &DiffOptions::default()).expect("deleted");
+    let d = file_diff(
+        &t.repo,
+        &commit(b),
+        "gone.txt",
+        None,
+        &DiffOptions::default(),
+    )
+    .expect("deleted");
     assert_eq!(d.status, FileStatus::Deleted);
     assert_eq!(d.hunks[0].lines.len(), 2);
     assert!(d.hunks[0].lines.iter().all(|l| l.kind == DiffLineKind::Del));
@@ -189,7 +203,8 @@ fn no_newline_at_eof_is_a_flag() {
     t.write("f.txt", "a\nb\n");
     t.stage(&["f.txt"]);
     let b = t.commit_index("B");
-    let d = file_diff(&t.repo, &commit(b), "f.txt", &DiffOptions::default()).expect("file_diff");
+    let d =
+        file_diff(&t.repo, &commit(b), "f.txt", None, &DiffOptions::default()).expect("file_diff");
     let lines = &d.hunks[0].lines;
     let del = lines
         .iter()
@@ -226,7 +241,8 @@ fn rename_with_small_edit() {
 
     // file_diff by the NEW path (and by the old one) resolves the rename.
     for p in ["src/new.txt", "src/old.txt"] {
-        let d = file_diff(&t.repo, &commit(b), p, &DiffOptions::default()).expect("file_diff");
+        let d =
+            file_diff(&t.repo, &commit(b), p, None, &DiffOptions::default()).expect("file_diff");
         assert_eq!(d.status, FileStatus::Renamed);
         assert_eq!(d.path, "src/new.txt");
         assert_eq!(d.old_path.as_deref(), Some("src/old.txt"));
@@ -236,7 +252,13 @@ fn rename_with_small_edit() {
 
     // Unknown path → error.
     assert!(matches!(
-        file_diff(&t.repo, &commit(b), "nope.txt", &DiffOptions::default()),
+        file_diff(
+            &t.repo,
+            &commit(b),
+            "nope.txt",
+            None,
+            &DiffOptions::default()
+        ),
         Err(GitError::Git2(_))
     ));
 }
@@ -261,16 +283,37 @@ fn workdir_rename_pairs_in_the_unstaged_diff() {
     assert_eq!(files[0].path, "new.txt");
     assert_eq!(files[0].old_path.as_deref(), Some("old.txt"));
 
-    // The unstaged diff has to agree, by either half of the pair.
+    // The unstaged diff has to agree, by either half of the pair — told the old
+    // path, as the panel tells it from the status entry.
     for p in ["new.txt", "old.txt"] {
-        let d = file_diff(&t.repo, &DiffTarget::Unstaged, p, &DiffOptions::default())
-            .unwrap_or_else(|e| panic!("file_diff {p}: {e:?}"));
+        let d = file_diff(
+            &t.repo,
+            &DiffTarget::Unstaged,
+            p,
+            Some("old.txt"),
+            &DiffOptions::default(),
+        )
+        .unwrap_or_else(|e| panic!("file_diff {p}: {e:?}"));
         assert_eq!(d.status, FileStatus::Renamed, "by {p}");
         assert_eq!(d.path, "new.txt", "by {p}");
         assert_eq!(d.old_path.as_deref(), Some("old.txt"), "by {p}");
         // 100% similar: nothing to show.
         assert!(d.hunks.is_empty(), "by {p}: {:?}", d.hunks);
     }
+
+    // Without the hint the single-path diff answers on its own: an untracked
+    // file never costs a scan of every other untracked file, which is exactly
+    // why the pairing above needs telling.
+    let d = file_diff(
+        &t.repo,
+        &DiffTarget::Unstaged,
+        "new.txt",
+        None,
+        &DiffOptions::default(),
+    )
+    .expect("file_diff new.txt");
+    assert_eq!(d.status, FileStatus::Untracked);
+    assert_eq!(d.old_path, None);
 }
 
 #[test]
@@ -291,7 +334,8 @@ fn root_commit_is_all_added() {
     ) {
         assert_eq!(triples(&files), expected);
     }
-    let d = file_diff(&t.repo, &commit(a), "a.txt", &DiffOptions::default()).expect("file_diff");
+    let d =
+        file_diff(&t.repo, &commit(a), "a.txt", None, &DiffOptions::default()).expect("file_diff");
     assert_eq!(d.hunks[0].header, "@@ -0,0 +1,2 @@");
     assert!(d.hunks[0].lines.iter().all(|l| l.kind == DiffLineKind::Add));
 }
@@ -310,7 +354,14 @@ fn binary_file_has_no_hunks() {
         (true, 0, 0)
     );
     assert_eq!(files[0].status, FileStatus::Added);
-    let d = file_diff(&t.repo, &commit(b), "blob.bin", &DiffOptions::default()).expect("file_diff");
+    let d = file_diff(
+        &t.repo,
+        &commit(b),
+        "blob.bin",
+        None,
+        &DiffOptions::default(),
+    )
+    .expect("file_diff");
     assert!(d.binary);
     assert!(d.hunks.is_empty());
 
@@ -340,7 +391,8 @@ fn crlf_lines_keep_carriage_return() {
         assert_eq!(triples(&files), expected);
     }
 
-    let d = file_diff(&t.repo, &commit(b), "w.txt", &DiffOptions::default()).expect("file_diff");
+    let d =
+        file_diff(&t.repo, &commit(b), "w.txt", None, &DiffOptions::default()).expect("file_diff");
     let texts: Vec<&str> = d.hunks[0].lines.iter().map(|l| l.text.as_str()).collect();
     assert_eq!(texts, vec!["a\r", "b\r", "B\r", "c\r", "d\r"]);
 
@@ -350,6 +402,7 @@ fn crlf_lines_keep_carriage_return() {
         &t.repo,
         &DiffTarget::Unstaged,
         "w.txt",
+        None,
         &DiffOptions::default(),
     )
     .expect("unstaged");
@@ -398,6 +451,7 @@ fn staged_unstaged_workdir_and_status() {
         &t.repo,
         &DiffTarget::Unstaged,
         "dir/c.txt",
+        None,
         &DiffOptions::default(),
     )
     .expect("untracked diff");
@@ -418,6 +472,7 @@ fn staged_unstaged_workdir_and_status() {
             &t.repo,
             &DiffTarget::Unstaged,
             "a.txt",
+            None,
             &DiffOptions::default()
         ),
         Err(GitError::Git2(_))
@@ -491,14 +546,15 @@ fn max_lines_truncates() {
         max_lines: 10,
         ..Default::default()
     };
-    let d = file_diff(&t.repo, &commit(b), "a.txt", &opts).expect("file_diff");
+    let d = file_diff(&t.repo, &commit(b), "a.txt", None, &opts).expect("file_diff");
     assert!(d.truncated);
     let n: usize = d.hunks.iter().map(|h| h.lines.len()).sum();
     assert_eq!(n, 10);
     // Full counts are still reported.
     assert_eq!((d.additions, d.deletions), (100, 0));
 
-    let full = file_diff(&t.repo, &commit(b), "a.txt", &DiffOptions::default()).expect("full");
+    let full =
+        file_diff(&t.repo, &commit(b), "a.txt", None, &DiffOptions::default()).expect("full");
     assert!(!full.truncated);
     assert_eq!(full.hunks[0].lines.len(), 100);
 }
@@ -510,13 +566,14 @@ fn ignore_whitespace_hides_indentation_change() {
     t.write("a.txt", "fn x() {\n    return 1;\n}\n");
     t.stage(&["a.txt"]);
     let b = t.commit_index("B");
-    let d = file_diff(&t.repo, &commit(b), "a.txt", &DiffOptions::default()).expect("file_diff");
+    let d =
+        file_diff(&t.repo, &commit(b), "a.txt", None, &DiffOptions::default()).expect("file_diff");
     assert_eq!(d.hunks.len(), 1);
     let opts = DiffOptions {
         ignore_whitespace: true,
         ..Default::default()
     };
-    let d = file_diff(&t.repo, &commit(b), "a.txt", &opts).expect("file_diff");
+    let d = file_diff(&t.repo, &commit(b), "a.txt", None, &opts).expect("file_diff");
     assert!(d.hunks.is_empty(), "{d:?}");
     assert_eq!((d.additions, d.deletions), (0, 0));
 }
@@ -529,13 +586,14 @@ fn context_option_widens_hunks() {
     t.write("a.txt", body.replacen("10\n", "ten\n", 1));
     t.stage(&["a.txt"]);
     let b = t.commit_index("B");
-    let d = file_diff(&t.repo, &commit(b), "a.txt", &DiffOptions::default()).expect("default");
+    let d =
+        file_diff(&t.repo, &commit(b), "a.txt", None, &DiffOptions::default()).expect("default");
     assert_eq!(d.hunks[0].lines.len(), 8);
     let opts = DiffOptions {
         context: 0,
         ..Default::default()
     };
-    let d = file_diff(&t.repo, &commit(b), "a.txt", &opts).expect("ctx0");
+    let d = file_diff(&t.repo, &commit(b), "a.txt", None, &opts).expect("ctx0");
     assert_eq!(d.hunks[0].lines.len(), 2);
 }
 
@@ -560,6 +618,7 @@ fn a_conflicted_file_shows_the_markers_git_left_on_disk() {
         &t.repo,
         &DiffTarget::Unstaged,
         "f.txt",
+        None,
         &DiffOptions::default(),
     )
     .expect("file_diff");

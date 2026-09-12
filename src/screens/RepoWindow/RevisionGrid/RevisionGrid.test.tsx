@@ -155,6 +155,22 @@ describe("RevisionGrid", () => {
     expect(useRepoStore.getState().selectedIndex).toBe(1);
   });
 
+  it("selects a row whose page has not arrived yet on right-click, even though it has no menu to offer", () => {
+    useRepoStore.setState({
+      repo: { id: "r", name: "r", path: "r", head: { oid: "oid0", branch: "main", detached: false } },
+      refs: null,
+      log: { generation: 1, total: 3, complete: false, error: null, flat: false },
+      rows: [row(0, "Top", [])],
+      selectedIndex: 0,
+    });
+    const { container } = render(<RevisionGrid />);
+    const rows = container.querySelectorAll(ROWS);
+
+    fireEvent.contextMenu(rows[1], { clientX: 10, clientY: 20 });
+    // Right-click selects before it asks for the menu; mousedown ignores the secondary button.
+    expect(useRepoStore.getState().selectedIndex).toBe(1);
+  });
+
   it("shows at most 3 chips; +N opens a popover listing the rest", () => {
     const labels: LogRow["labels"] = ["a", "b", "c", "d", "e"].map((name) => ({ name, kind: "local" as const, isCurrent: false, remote: null }));
     useRepoStore.setState({

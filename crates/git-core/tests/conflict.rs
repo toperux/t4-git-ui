@@ -118,6 +118,14 @@ fn a_configured_merge_tool_that_is_not_installed_is_a_config_error() {
         conflict::open_merge_editor(&t.repo, "nothing.txt", Some(&tool)),
         Err(GitError::Refused(_))
     ));
+    // An absolute path would have replaced the working directory in the join.
+    let abs = t.path().join("f.txt");
+    let err = conflict::open_merge_editor(&t.repo, &abs.to_string_lossy(), Some(&tool))
+        .expect_err("absolute");
+    assert!(
+        matches!(&err, GitError::Refused(m) if m.contains("inside the repository")),
+        "{err}"
+    );
 }
 
 /// The panel's guard for "the file on screen changed": an editor writing the

@@ -355,8 +355,9 @@ pub fn diff_temp_dir() -> PathBuf {
 /// Creates `<base>/<sub>` for one set of sides. The name of `base` is
 /// predictable and on unix it sits in a world-writable `/tmp`, so it is created
 /// for this user only (0700) and refused when something that is not a real
-/// directory — a planted symlink or file — is there already: `create_dir_all`
-/// would follow the symlink and write the sides wherever it points.
+/// directory — a planted symlink or file — is there already, at either level:
+/// `create_dir_all` would follow the symlink and write the sides wherever it
+/// points. A `base` that exists but belongs to another user is refused too.
 pub(crate) fn temp_subdir(base: PathBuf, sub: &str) -> Result<PathBuf, GitError> {
     let mut builder = std::fs::DirBuilder::new();
     #[cfg(unix)]
@@ -364,19 +365,25 @@ pub(crate) fn temp_subdir(base: PathBuf, sub: &str) -> Result<PathBuf, GitError>
         use std::os::unix::fs::DirBuilderExt;
         builder.mode(0o700);
     }
+    let refused = |p: &Path, why: &str| GitError::Refused(format!("{} {why}", p.display()));
     // `symlink_metadata`, so a link to a directory is seen as the link it is.
     match std::fs::symlink_metadata(&base) {
-        Ok(m) if !m.is_dir() => {
-            return Err(GitError::Refused(format!(
-                "{} is not a directory",
-                base.display()
-            )))
+        Ok(m) if !m.is_dir() => return Err(refused(&base, "is not a directory")),
+        // Someone else got to the predictable name first; 0700 on their
+        // directory says nothing about who may write in it.
+        #[cfg(unix)]
+        // SAFETY: plain libc call, no arguments and no failure mode.
+        Ok(m) if std::os::unix::fs::MetadataExt::uid(&m) != unsafe { libc::getuid() } => {
+            return Err(refused(&base, "belongs to another user"))
         }
         Ok(_) => {}
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => builder.create(&base)?,
         Err(e) => return Err(e.into()),
     }
     let dir = base.join(sub);
+    if std::fs::symlink_metadata(&dir).is_ok_and(|m| !m.is_dir()) {
+        return Err(refused(&dir, "is not a directory"));
+    }
     builder.recursive(true).create(&dir)?;
     Ok(dir)
 }
@@ -547,6 +554,22 @@ mod tests {
             let link = tmp.path().join("planted-link");
             std::os::unix::fs::symlink(tmp.path(), &link).expect("symlink");
             assert!(matches!(temp_subdir(link, "ab"), Err(GitError::Refused(_))));
+        }
+
+        // The leaf is just as plantable as the base.
+        let occupied = tmp.path().join("occupied");
+        std::fs::create_dir(&occupied).expect("mkdir");
+        std::fs::write(occupied.join("ab"), "").expect("write");
+        assert!(matches!(
+            temp_subdir(occupied, "ab"),
+            Err(GitError::Refused(_))
+        ));
+        #[cfg(unix)]
+        {
+            let base = tmp.path().join("leaf-link");
+            std::fs::create_dir(&base).expect("mkdir");
+            std::os::unix::fs::symlink(tmp.path(), base.join("ab")).expect("symlink");
+            assert!(matches!(temp_subdir(base, "ab"), Err(GitError::Refused(_))));
         }
 
         // A base of ours is this user's alone.

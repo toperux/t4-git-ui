@@ -1,15 +1,24 @@
 import { X } from "lucide-react";
-import { createContext, useContext, useEffect, useId, useRef, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useId, useRef, type FormEvent, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { cx } from "../../../lib/cx";
 import { IconButton } from "../IconButton/IconButton";
 import s from "./Dialog.module.css";
 
 /**
+ * Where focus goes when a dialog closes. A ref or a getter is resolved at close time rather than
+ * when the dialog opened: an op starting under an open dialog wraps the button it came from in a
+ * `DisabledHint`, which remounts it, and a node captured earlier is detached by then.
+ */
+export type FocusTarget = HTMLElement | RefObject<HTMLElement | null> | (() => HTMLElement | null);
+
+const resolveFocus = (t: FocusTarget | null | undefined): HTMLElement | null => (!t ? null : typeof t === "function" ? t() : "current" in t ? t.current : t);
+
+/**
  * Focus target on close, supplied by whoever renders the dialog (`DialogHost`). A dialog opened from
  * a menu item can't use `document.activeElement`: the item unmounts in the same commit.
  */
-export const DialogReturnFocus = createContext<HTMLElement | null>(null);
+export const DialogReturnFocus = createContext<FocusTarget | null>(null);
 
 export interface DialogProps {
   title: string;
@@ -41,7 +50,7 @@ export function Dialog({ title, wide, full, onClose, busy, onSubmit, preview, fo
   const titleId = useId();
   const returnFocusTo = useContext(DialogReturnFocus);
   // Captured during the first render, before React's own `autoFocus` moves the focus into the dialog.
-  const opener = useRef<HTMLElement | null | undefined>(undefined);
+  const opener = useRef<FocusTarget | null | undefined>(undefined);
   if (opener.current === undefined) opener.current = returnFocusTo ?? (document.activeElement as HTMLElement | null);
 
   // React focuses an `autoFocus` control itself; only fall back when nothing inside took focus.
@@ -55,7 +64,8 @@ export function Dialog({ title, wide, full, onClose, busy, onSubmit, preview, fo
       // opener would leave that dialog on its Close button.
       const active = document.activeElement;
       const lost = !active || active === document.body || !active.isConnected;
-      if (lost && back?.isConnected) back.focus();
+      const el = resolveFocus(back);
+      if (lost && el?.isConnected) el.focus();
     };
   }, []);
 

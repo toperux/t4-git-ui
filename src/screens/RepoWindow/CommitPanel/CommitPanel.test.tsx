@@ -391,7 +391,7 @@ describe("CommitPanel", () => {
     await act(async () => {});
 
     fireEvent.click(getByRole("button", { name: "Discard hunk" }));
-    await waitFor(() => expect(mocked.discardHunks).toHaveBeenCalledWith("r", "a.rs", [0], 3));
+    await waitFor(() => expect(mocked.discardHunks).toHaveBeenCalledWith("r", "a.rs", [0], 3, undefined));
     expect(ask.mock.calls[0][0]).toContain("Discard this hunk from a.rs?");
 
     // The staged diff edits the index: unstaging is the only thing on offer there.
@@ -495,25 +495,47 @@ describe("CommitPanel", () => {
     expect(btn.getAttribute("title")).toContain("Every file you selected is conflicted");
   });
 
-  it("Stage selected hands the header back to Stage all, conflicted survivors or not", async () => {
+  it("Stage selected re-seeds a conflict it left behind, never the file it just staged", async () => {
     const conflict2 = { path: "conflict2.rs", oldPath: null, index: null, workdir: null, conflicted: true, workdirStamp: "1:1" } as const;
-    useStatusStore.setState({ status: { ...STATUS, entries: [...STATUS.entries, conflict2], conflicted: 2 }, error: null });
+    const before = { ...STATUS, entries: [...STATUS.entries, conflict2], conflicted: 2 };
     // What the status looks like once a.rs is staged: the two conflicts it skipped are still there.
-    mocked.getStatus.mockResolvedValueOnce({ ...STATUS, entries: [...STATUS.entries.filter((e) => e.path !== "a.rs"), conflict2], conflicted: 2 });
+    const after = { ...STATUS, entries: [...STATUS.entries.filter((e) => e.path !== "a.rs"), conflict2], conflicted: 2 };
+    useStatusStore.setState({ status: before, error: null });
+    const deferred = () => {
+      let resolve!: (s: WorkdirStatus) => void;
+      const promise = new Promise<WorkdirStatus>((r) => (resolve = r));
+      return { promise, resolve };
+    };
+    const [stale, fresh] = [deferred(), deferred()];
     const { getByRole } = renderPanel();
     // Unstaged, in order: a.rs, both.rs, conflict.rs, untracked.txt, conflict2.rs.
     const rows = () => Array.from(getByRole("listbox", { name: "Unstaged files" }).querySelectorAll('[role="option"]'));
     fireEvent.click(rows()[0]);
     fireEvent.click(rows()[2], { ctrlKey: true });
     fireEvent.click(rows()[4], { ctrlKey: true });
+    mocked.getFileDiff.mockClear();
+    // The next two status reads are the stage's own and the watcher's; the opening one is long gone.
+    mocked.getStatus.mockClear();
+    mocked.getStatus.mockImplementationOnce(() => stale.promise).mockImplementationOnce(() => fresh.promise);
     fireEvent.click(getByRole("button", { name: "Stage selected" }));
     expect(mocked.stagePaths).toHaveBeenCalledWith("r", ["a.rs"]);
-    await act(async () => {}); // the stage settles and the fresh status comes back
 
-    // Without the re-seed the two conflicts it skipped keep the header in selected mode with nothing
-    // to act on — a dead "Stage selected" over a list full of stageable files.
-    const btn = getByRole("button", { name: "Stage all" });
-    expect(btn.hasAttribute("disabled")).toBe(false);
+    // The stage's own status read goes out, and the watcher — which saw the same index write — starts
+    // another before it lands: the stage's is dropped as stale, so the panel still holds the old status
+    // when the stage resolves.
+    while (mocked.getStatus.mock.calls.length === 0) await Promise.resolve();
+    void useStatusStore.getState().refresh();
+    stale.resolve(before);
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+    // So the re-seed reads a selection that still holds the path it just staged. It must not park on
+    // a row that is on its way out (nor load its diff): the conflict it skipped is what is left to do.
+    expect(useCommitStore.getState().selected).toEqual(["conflict.rs"]);
+    expect(mocked.getFileDiff.mock.calls.map((c) => c[2])).not.toContain("a.rs");
+
+    // And once the new status lands, the two conflicts it skipped no longer keep the header in
+    // selected mode with nothing to act on — a dead "Stage selected" over stageable files.
+    await act(async () => fresh.resolve(after));
+    expect(getByRole("button", { name: "Stage all" }).hasAttribute("disabled")).toBe(false);
     expect(useCommitStore.getState().selected).toEqual(["conflict.rs"]);
   });
 
@@ -525,6 +547,15 @@ describe("CommitPanel", () => {
     // and it is dead because an operation is running, not because conflict.rs is conflicted.
     expect(btn.hasAttribute("disabled")).toBe(true);
     expect(btn.getAttribute("title")).toBe("Operation in progress");
+  });
+
+  it("the staged header and a row's own +/− say the same while a mutation runs", () => {
+    const { getByRole, container } = renderPanel();
+    act(() => useCommitStore.setState({ busy: true }));
+    // Neither has a note of its own, so neither said anything at all: a dead control that explains
+    // nothing is exactly what the hoverable disabled title is for.
+    expect(getByRole("button", { name: "Unstage all" }).getAttribute("title")).toBe("Operation in progress");
+    expect(container.querySelector('[data-path="a.rs"] button')!.getAttribute("title")).toBe("Operation in progress");
   });
 
   it("Unstage selected acts on the staged selection alone", () => {
@@ -560,6 +591,18 @@ describe("CommitPanel", () => {
     fireEvent.change(summary, { target: { value: "x".repeat(73) } });
     expect(counter.textContent).toBe("73/72");
     expect(counter.className).toMatch(/over/);
+  });
+
+  it("Commit & Push names the condition it is waiting on, its title being hoverable while dead", () => {
+    const { getByRole } = renderPanel();
+    const btn = () => getByRole("button", { name: "Commit & Push" });
+    expect(btn().hasAttribute("disabled")).toBe(true);
+    expect(btn().getAttribute("title")).toBe("Summary is empty");
+
+    act(() => useCommitStore.setState({ summary: "Fix lanes" }));
+    expect(btn().getAttribute("title")).toBe("Commit, then open the Push dialog");
+    act(() => useStatusStore.setState({ status: { ...STATUS, staged: 0, entries: STATUS.entries.filter((e) => e.index === null) } }));
+    expect(btn().getAttribute("title")).toBe("Nothing staged");
   });
 
   it("Commit stays disabled with nothing staged unless amending; the staged header says so", () => {
@@ -991,6 +1034,21 @@ describe("CommitPanel tree view", () => {
     expect(folderAction(unstaged, "only").getAttribute("title")).toBe("Every file in this folder is conflicted — a conflict is staged on its own, once resolved");
     fireEvent.click(src);
     expect(mocked.stagePaths).toHaveBeenCalledWith("r", ["src/lib/b.rs", "src/a.rs"]);
+  });
+
+  it("a folder's menu refuses a lone conflict under it, in the row action's words", () => {
+    useStatusStore.setState({
+      status: { ...NESTED, entries: [...NESTED.entries, { path: "only/x.rs", oldPath: null, index: null, workdir: null, conflicted: true, workdirStamp: "1:1" }] },
+      error: null,
+    });
+    useTreeModeStore.setState({ tree: true });
+    const { getByRole } = renderPanel();
+    // A folder is a group however few files are under it, so its menu skips the conflict its own
+    // row's + does — one click there must not mark a conflict resolved with the markers still in it.
+    fireEvent.contextMenu(getByRole("tree", { name: "Unstaged files" }).querySelector('[data-folder="only"] [role="treeitem"]')!);
+    const item = getByRole("menuitem", { name: "Stage" });
+    expect(item.hasAttribute("disabled")).toBe(true);
+    expect(item.getAttribute("title")).toBe("Every file in this folder is conflicted — a conflict is staged on its own, once resolved");
   });
 
   it("right-clicking a folder selects its files and opens the menu over them", () => {

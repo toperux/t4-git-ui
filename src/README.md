@@ -57,7 +57,7 @@ src/
                            keeps the `diff` object identity when the hunks are equal, and refetches
                            the stats only when the entry list changed — one call in flight), stage/unstage/discard
                            (native ask(); discard resolves `false` when declined *or* when another mutation held `busy`),
-                           stageHunk/stageLines (reverse for staged; every hunk / line action sends the context the *shown*
+                           stageHunk/stageLines (reverse for staged; every hunk / line action sends the context and rename hint the *shown*
                            diff was built with, and a diffStore `context` change reloads the panel diff first),
                            discardHunk/discardLines (native ask, then `discard_hunks` / `discard_lines` — `git apply -R` on
                            the working tree; dropped with a toast when the diff was replaced during the confirmation),

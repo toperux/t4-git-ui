@@ -72,10 +72,17 @@ export const stashApply = (index: number) => runOp(`Applying stash@{${index}}…
 export const stashPop = (index: number) => runOp(`Popping stash@{${index}}…`, (id) => ipc.stashPop(id, index), { success: `Popped stash@{${index}}` });
 /** Confirmed: a dropped stash has no undo. Named by both index and message — the index shifts with every drop, the message is what the user recognises. */
 export async function stashDrop(index: number, message: string) {
+  if (refusedWhileRunning("dropping a stash")) return;
+  // The confirmation is part of the drop, so it is busy from here: a second one answered while this
+  // prompt is still up would drop by an index this one has already shifted.
+  const busy = `Dropping stash@{${index}}…`;
+  useOpsStore.setState({ busy });
   // No confirmation available (no Tauri dialog plugin) → treat it as declined; nothing is lost.
   const ok = await ask(`Drop stash@{${index}} "${message}"? This cannot be undone.`, { title: "Drop stash", kind: "warning", cancelLabel: "Cancel", okLabel: "Drop" }).catch(() => false);
+  // `runOp` sets it again — and refuses outright if it is still held.
+  useOpsStore.setState({ busy: null });
   if (!ok) return;
-  return runOp(`Dropping stash@{${index}}…`, (id) => ipc.stashDrop(id, index), { success: `Dropped stash@{${index}}` });
+  return runOp(busy, (id) => ipc.stashDrop(id, index), { success: `Dropped stash@{${index}}` });
 }
 
 /**

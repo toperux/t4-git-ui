@@ -88,10 +88,14 @@ export function Toolbar() {
     close();
     open();
   };
-  /** A dialog opened from a menu item: the item unmounts in the same commit, so name the menu's trigger. */
+  /**
+   * A dialog opened from a menu item: the item unmounts in the same commit, so name the menu's
+   * trigger — the ref itself, since an op starting while the dialog is open remounts that button
+   * inside a `DisabledHint` and a node captured here would be detached by the time it closes.
+   */
   const pickDialog = (spec: DialogSpec, close: () => void, trigger: RefObject<HTMLButtonElement | null>) => () => {
     close();
-    openDialog(spec, { returnFocusTo: trigger.current });
+    openDialog(spec, { returnFocusTo: trigger });
   };
 
   return (

@@ -3,6 +3,11 @@
 Supersedes the "Fix before push" list in `2026-09-12-review-findings.md` (kept for its R1–R13
 analysis; R-ids below refer to it). Everything here is one list, ordered by what to fix first.
 
+**Hashes.** Every per-row hash below names a commit of the one-fix-per-row history this was
+executed in. That history was squashed on 2026-09-12 before the push into nine thematic commits
+(P0, P1, P2, N1+R2, review pass 2, …); each squashed commit's body lists the subjects it absorbed,
+so a row's hash is found by its subject in `git log --grep`.
+
 **How.** Six read-only reviewers in parallel, one per area, each told to ignore existing review
 files: git-core core (A), git-core cli+log (B), Tauri commands (C), stores/api/lib (D), RepoWindow
 screens (E), dialogs/start/settings/ui (F). Plus a second diff-only pass over `origin/main..main`
@@ -475,3 +480,96 @@ D8→P1-11 · D9→P1-12.
   Rust command signature; `validateRefName` misses no `check-ref-format` rule; `gitArgs` matches
   the Rust builders; `GitCli::run` never goes through a shell; lock order `op_lock → git2` with no
   guard across an await; CSP is `default-src 'self'`.
+
+---
+
+## Review pass 2 (2026-09-12, over the fixes `f6eb8b7..5528573`)
+
+Four blind read-only reviewers (Opus), one per area, told to ignore this file: git-core (A),
+Tauri + stores + lib (B), commit panel + diff + hints (C), dialogs + inputs + screens (D). Each
+also judged whether every commit's test fails without its fix. Verdicts below are mine where I
+re-traced (*CONFIRMED*), the reviewer's where I did not (*PLAUSIBLE*). No highs. Duplicates
+folded: A3 = B3 = D3 (git floor), A5 = A11 = B7 (`truncated`), A9 = B8 (`open_merge_editor`).
+B2 (the second walk when status beats refs) is the `repoStore.ts:263` double-walk already closed
+won't-fix at the R1 decision — recorded, not reopened.
+
+| # | Id | Sev | Verdict | Area | One line | Recommendation | Decision (2026-09-12) / landed |
+|---|---|---|---|---|---|---|---|
+| Q1 | A1 | med | CONFIRMED | cli ops | B4's marker parse breaks `CONFLICT (rename/delete)`: path = "old.txt renamed to new.txt in feat, but" | fix — branch on the kind inside `CONFLICT (…)`: markers only for `modify/delete`, first word otherwise; add a rename/delete row to the test | fix — done `e9d89d0` |
+| Q2 | A2 | med | CONFIRMED | tools | `temp_subdir` guards `base` but not `base/<sub>`; a planted symlink there is followed by `create_dir_all`; a pre-existing foreign `base` is accepted | fix — same `symlink_metadata` refusal on `dir`; on unix also refuse a `base` not owned by the current uid; test the planted-subdir case | fix — done `8b106e1` |
+| Q3 | A3=B3=D3 | med | CONFIRMED | app/probe | Floor stated as 2.24 in three places but never enforced; git 2.20–2.23 passes the probe and every op fails with "unknown option" | fix — parse `git version` in `probe_git`, route `< 2.24` to `GitMissingScreen` with the version in the message; test the parse | fix — done `d964cae` |
+| Q4 | A4 | med | CONFIRMED | diff | N1's `Untracked` in the rebuild guard makes *every* untracked file's diff build the full workdir diff with untracked content | decide — (a) the command takes the status entry's `oldPath` as a hint and diffs the pathspec `[path, old_path]`, no full rebuild; (b) rebuild only when a cheap tracked-only scan shows a Deleted entry. Recommend (a) | fix (a) — oldPath hint — done `6ec37f7 + e0e6bc9 (hunk actions carry the hint too)` |
+| Q5 | B1 | med | PLAUSIBLE | opsStore | Dock now keeps the *first* 5 000 lines; a long command's ending (where the error is) is lost, and the test pins that | decide — keep head-cap as triaged, or tail-keep with chunked trimming (drop 500 at a time past `MAX_LINES + 500`, O(1) amortised, marker at the top). Recommend tail | fix — tail-keep, chunked — done `351ad18` |
+| Q6 | C1 | med | CONFIRMED | commit panel | `reseed` runs when the IPC returns, before the status lands, so it selects the path that just left the list; test passes via `act()` interleaving | fix — seed from `selected` minus the acted-on `target`; nothing survives → leave it to `syncWithStatus`; fix the test to set status after the promise | fix — done `ca14c5c` |
+| Q7 | C2 (+C3) | med | CONFIRMED | stageTarget | "2+ = group" now counts *surviving* paths, so a stale 2-path selection stages a lone conflict as resolved; helper also rebuilds two Sets per folder row per render | fix — threshold on the requested `paths.length`; take `conflicted: Set<string>` from the caller's memo | fix — done `eddeff8` |
+| Q8 | C4 | med | PLAUSIBLE | changed files | Folder expand/collapse keys fire only when the folder row holds focus (after a click); arrow navigation never lands on a folder, so keyboard-only users can't reach it | decide — (a) on the container, ← collapses the selected file's parent folder, → expands a collapsed parent (what FilesColumn does); (b) wont, the click path works. Recommend (a) | fix (a) — done `dfe341d` |
+| Q9 | D1 | med | CONFIRMED | ui/Select | `pickable` searches one way; with P1-1's trailing disabled "(no longer exists)" option selected, `show()` lands on it and ↓/Enter are swallowed | fix — `pickable` falls back to the other direction; test with a trailing disabled selected option | fix — done `988caa1` |
+| Q10 | D2 | med | PLAUSIBLE | ui/Menu | Menus close on *any* capture-phase scroll, including the output dock's programmatic autoscroll while an op streams | decide — (a) close only when the scrolled element contains the menu's anchor (Menu: `wrap`; ContextMenu: `elementFromPoint` at open); (b) wont. Recommend (a) | fix (a) — done `05ccedf` |
+| Q11 | A5=A11=B7 | low | PLAUSIBLE | cli runner | 4 MB tail cap cuts at a byte (U+FFFD at the seam) and `truncated` has no reader; `parse_ls_remote_tags` could parse a fragment | fix — `ls_remote_tags` (and any parser of stdout) errors when `truncated`; trim the cut to a char boundary | fix — done `c687c42` |
+| Q12 | A6 | low | PLAUSIBLE | watch | 50 ms grace also drops a real external write in that window (the synthetic refresh fires before it closes) | wont — accept; autosave in that exact window is rare and the next event catches up | wont |
+| Q13 | A7 | low | CONFIRMED | cli ops | `strip_suffix('.')` also runs on the `Merge conflict in` branch (a path ending in `.` loses it) | fix — fold into Q1 (strip only on the modify/delete branch) | fix — done `e9d89d0` |
+| Q14 | A8 | low | PLAUSIBLE | cli rebase | `write_todo` refuses over `git_path` quoting even when no exec line will be written | fix — compute `git` lazily in the `Amend` arm | fix — done `3e3ca38` |
+| Q15 | A9=B8 | low | CONFIRMED | conflict | `open_merge_editor` still joins `workdir.join(path)` unguarded (saved only by the `stages()` lookup) | fix — `repo_relative(path)?` first, one line | fix — done `47c15aa` |
+| Q16 | A10 | low | PLAUSIBLE | cli ops | `push` / `delete_remote_branch` / `ls_remote_tags` keep `remote` before `--end-of-options`; safety lives in `ref_arg` in another crate | wont — a remote name is a config key, not a ref, and `ref_arg` covers it; add a git-core test that pins the boundary refusal instead | wont |
+| Q17 | B4 | low | PLAUSIBLE | opsStore | `cancelled.delete` sits after `&&`, never evaluated on exit 0 | fix — delete unconditionally | fix — done `128ec1f` |
+| Q18 | B5 | low | PLAUSIBLE | lib/eqDeep | Doc says stringify semantics; an `undefined`-valued key differs (extra `refreshLabels`/`loadDiff`, no wrong state) | fix — treat `undefined` as absent (skip such keys both sides); pin with a test | fix — done `9a6d9dc` |
+| Q19 | B6 | low | PLAUSIBLE | toasts | Cap evicts the oldest regardless of kind, so info can push out an unread error | fix — evict the oldest non-error first | fix — done `7e47185` |
+| Q20 | B9 | low | PLAUSIBLE | theme | `getThemeTokens()` can re-fill the cache with no observer attached | fix — the getter does not cache when there is no subscriber | fix — done `10d695b` |
+| Q21 | B10 | low | PLAUSIBLE | commitStore | Discard's rename pairing reads an `entries` snapshot taken before the native confirm | fix — read `entries` after the confirm | fix — done `8de466a` |
+| Q22 | C5 | low | CONFIRMED | changed files | ArrowUp with nothing selected now goes to the *last* row (was first) | wont — matches the commit panel; pin with a test | wont (+test) — done `08e20e9 (test)` |
+| Q23 | C6 | low | PLAUSIBLE | details pane | Clearing `detail` too leaves the pane fully blank during the round trip | wont — decided at P1-4 (blank during the round trip); reconsider only if it flickers on the smoke walk | wont |
+| Q24 | C7 | low | PLAUSIBLE | toolbar | `returnFocusTo` is a node snapshot; when DisabledHint unwraps mid-dialog the node detaches | fix — pass the ref object (or a getter) and resolve on close | fix — done `0f779fe` |
+| Q25 | C8 | low | CONFIRMED | DisabledHint css | Comment cites the `.headerBtn` floor that R2 deleted | fix — reword | fix — done `2b27828` |
+| Q26 | C9 | low | PLAUSIBLE | commit panel | Commit & Push dead for want of a summary/staged file now has no title at all | fix — name the reason ("Nothing staged" / "Summary is empty") | fix — done `7c0fc6b` |
+| Q27 | C10 | low | PLAUSIBLE | commit panel | Staged header button and the row +/− missed by the BUSY sweep | fix — `title={busy ? BUSY : undefined}` on both | fix — done `6545831` |
+| Q28 | C11 | low | PLAUSIBLE | commit panel | Folder context menu and folder row disagree on wording and on a single-conflict folder | fix — folder branch of the menu passes `{ bulk: true, where: "in this folder" }` | fix — done `acfd088` |
+| Q29 | D4 | low | CONFIRMED | clone dialog | Clone preview lacks `--end-of-options` | fix — add it before the url | fix — done `145d047` |
+| Q30 | D5 | low | PLAUSIBLE | grid | Right-click on a not-yet-loaded row no longer selects it | fix — `select(index)` above the `!commit` guard in `onContextMenu` | fix — done `2ba7ad8` |
+| Q31 | D6 | low | PLAUSIBLE | ui/Select | `End` on an empty list sets `aria-activedescendant` to a dead id | fix — clamp the fallback | fix — done `988caa1` |
+| Q32 | D7 | low | PLAUSIBLE | stash | Drop confirm sits outside the busy gate; two confirms can drop by a shifted index | fix — resolve the stash to its oid before asking, or set busy around the `ask()` | fix — done `6dc11d7` |
+
+**Landed 2026-09-12 (`e9d89d0..e0e6bc9`, 29 rows, one commit each; gates green).** Notes from the
+execution: Q4 opened a hole the coder caught — `apply_selection` rebuilt the diff without the hint,
+so a hunk index from the shown (`Renamed`) diff could land on another hunk of the unhinted
+(`Untracked`) one; `e0e6bc9` threads `oldPath` through the four hunk/line commands, and
+`commitStore.renameHint` is the single source for it. Q6's stated mechanism (reseed before the
+effect prunes) does not reproduce — React flushes the passive effect a microtask after the status
+`set`, before `stage()` resolves; the reachable window is a *stale status read* (the watcher's
+fetch overtaking `run()`'s, `mySeq !== seq`), which is what the replacement test stages. Q3 checks
+the floor only in `probe_git`; picking an old git in Settings still shows its version without a
+warning until the re-probe. Q28 records `folder` as a boolean (only truthiness is read). Q20's
+getter reads fresh with no observer, at the cost of one extra render on a hook's first mount.
+Q17 exposes `__cancelledForTests` — nothing observable existed. Q10's `elementFromPoint` is
+absent in jsdom, so a `null` anchor keeps the old close-on-any-scroll.
+
+**Smoke walk 2026-09-12** over CDP on a `--no-bundle` build of `4402c91` copied over the installed
+exe, in a throwaway `c:/tmp/t4/qwalk` (merge conflict in `dir/a.txt`, edit in `other/`, untracked in
+`dir/sub/`; deleted afterwards, recents restored). Passed: Q8 (container ←/→ folded and unfolded
+the selected file's parent in the details tree, focus never left the container); Q6 (Stage selected
+on conflict + edit staged the edit, left the selection on the conflict, header back to *Stage all*);
+Q28 (folder menu reads *Stage 2 files* with the "(1 skipped)" note, same as the row); Q10 (Branch
+menu and a row's context menu both survive a `scroll` on a scroller that does not contain their
+anchor and close on one that does); Q26 (*Commit & Push* dead with an empty summary titled
+"Summary is empty"); Q9 (Merge dialog with `side` deleted behind it: the list opened on `extra`,
+Enter picked it and closed); Q24's plain path (Escape returned focus to the Branch button); Q5
+(`git log -p -n 120` in this repo: marker first, 4 832 lines kept, the oldest commit's text and
+`exit 0` at the end, dock scrolled to the end). Not walked: Q24's remount case (needs an op to
+start under a modal dialog), Q3 (no git < 2.24 here), Q30 (needs an unloaded page of rows), Q27
+(busy titles pass too fast to catch) — all covered by their unit tests only. Two targeted checks afterwards: Q2's unix arm compiled and its symlink-at-leaf test passed under WSL (`cargo test -p git-core` + clippy, all green on a clone of `cba12c3`); Q4 end to end on a tracked file renamed on disk without `git mv` and edited at lines 5 and 35 — the panel paired the rename with two hunks, *Stage hunk* on the second put exactly the line-35 edit in the index as `RM old.txt -> new.txt`, the line-5 edit stayed unstaged.
+
+**Test adequacy (reviewers' verdicts, not re-run by me):** vacuous or misleading — `31d7e62`
+(stringify spies would pass a broken `eqDeep`), `84fdc82` (pins the `act()` artefact Q6 names),
+`d64e3fa` (no assertion on the change), `d057c90` (pins Q5's head cap as correct), `a25f5f3`
+(the repeated `opId` it pins is unreachable). Weak — `909a22f` (never tests `show()` with a
+trailing disabled option), `235f21f` (only the shape it handles), `74dcde2` (misses Q2),
+`c953e91` (asserts mutex semantics, never the index corruption), `b8aff4c` (never fires
+contextMenu), `6d852bd` (two-item list can't tell End from ↓), `790b1b1` (fires on the button
+directly). Fix rows that touch those tests should replace them, not add beside them.
+
+**Verified clean by the reviewers:** lock order `op_lock → scan_lock → git2` with no inversion
+and scans never taking `op_lock`; the `unstage_paths` rollback; the reverse-rename patch header;
+`--end-of-options` in all 15 builders; the batcher's final flush and re-armed timer; the
+debouncer's last-seen `time` semantics; `repo_relative`; every consumer of the old `line` event
+shape migrated; `revealOid`'s retry; `notOpen` at both sites; `key={dialog.kind}` keeps return
+focus; capabilities minimal and sufficient; every preview but the clone dialog matches its argv;
+`ref_arg` has no false positives.

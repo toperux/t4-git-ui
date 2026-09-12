@@ -280,12 +280,17 @@ enum PatchOp {
 }
 
 /// Builds the patch for `selection` from the stage-able diff of `path`
-/// (`Staged` for an unstage, `Unstaged` otherwise) and applies it.
+/// (`Staged` for an unstage, `Unstaged` otherwise) and applies it. `old_path`
+/// is the rename hint the frontend loaded the shown diff with: without the
+/// same hint the rebuild here is a different diff, and the indices would point
+/// at other hunks.
+#[allow(clippy::too_many_arguments)]
 async fn apply_selection(
     app: &AppHandle,
     state: &AppState,
     id: &RepoId,
     path: String,
+    old_path: Option<String>,
     selection: PatchSelection,
     op: PatchOp,
     context: u32,
@@ -313,7 +318,7 @@ async fn apply_selection(
         let mode = op != PatchOp::Discard;
         let h = Arc::clone(&handle);
         let patch = blocking(move || {
-            let d = diff::file_diff(&h.git2.lock(), &target, &path, &opts)?;
+            let d = diff::file_diff(&h.git2.lock(), &target, &path, old_path.as_deref(), &opts)?;
             Ok(patch::build_patch(&d, &selection, reverse, mode)?)
         })
         .await?;
@@ -340,11 +345,13 @@ async fn apply_selection(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn stage_hunks(
     app: AppHandle,
     state: State<'_, AppState>,
     id: RepoId,
     path: String,
+    old_path: Option<String>,
     hunks: Vec<usize>,
     reverse: bool,
     context: u32,
@@ -359,6 +366,7 @@ pub async fn stage_hunks(
         &state,
         &id,
         path,
+        old_path,
         PatchSelection::Hunks(hunks),
         op,
         context,
@@ -368,11 +376,13 @@ pub async fn stage_hunks(
 
 /// `lines` are `[hunkIndex, lineIndexWithinHunk]` pairs.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn stage_lines(
     app: AppHandle,
     state: State<'_, AppState>,
     id: RepoId,
     path: String,
+    old_path: Option<String>,
     lines: Vec<[usize; 2]>,
     reverse: bool,
     context: u32,
@@ -388,6 +398,7 @@ pub async fn stage_lines(
         &state,
         &id,
         path,
+        old_path,
         PatchSelection::Lines(lines),
         op,
         context,
@@ -403,6 +414,7 @@ pub async fn discard_hunks(
     state: State<'_, AppState>,
     id: RepoId,
     path: String,
+    old_path: Option<String>,
     hunks: Vec<usize>,
     context: u32,
 ) -> Result<(), AppError> {
@@ -411,6 +423,7 @@ pub async fn discard_hunks(
         &state,
         &id,
         path,
+        old_path,
         PatchSelection::Hunks(hunks),
         PatchOp::Discard,
         context,
@@ -425,6 +438,7 @@ pub async fn discard_lines(
     state: State<'_, AppState>,
     id: RepoId,
     path: String,
+    old_path: Option<String>,
     lines: Vec<[usize; 2]>,
     context: u32,
 ) -> Result<(), AppError> {
@@ -434,6 +448,7 @@ pub async fn discard_lines(
         &state,
         &id,
         path,
+        old_path,
         PatchSelection::Lines(lines),
         PatchOp::Discard,
         context,

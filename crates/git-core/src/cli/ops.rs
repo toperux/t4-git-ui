@@ -436,22 +436,31 @@ pub fn parse_conflicts(status: &WorkdirStatus) -> Vec<String> {
 /// <path>` or `CONFLICT (modify/delete): <path> deleted in ...`.
 fn conflict_path(line: &str) -> Option<String> {
     let rest = line.strip_prefix("CONFLICT (")?;
-    let rest = &rest[rest.find("): ")? + 3..];
-    let path = match rest.find("conflict in ") {
-        Some(i) => &rest[i + "conflict in ".len()..],
+    let close = rest.find("): ")?;
+    let (kind, rest) = (&rest[..close], &rest[close + 3..]);
+    let path = if kind == "modify/delete" {
         // `<path> deleted in <ref> and modified in <ref>. Version ...`: the
-        // path can contain spaces, so it ends at the marker, not at a space.
-        None => match [" deleted in ", " added in "]
+        // path can contain spaces, so it ends at the marker, not at a space,
+        // and the period there ends git's sentence, not the name. Other kinds
+        // put the markers mid-sentence (`renamed to <new> in <ref>, but
+        // deleted in <ref>`), where they are not the end of the path.
+        let path = match [" deleted in ", " added in "]
             .iter()
             .filter_map(|m| rest.find(m))
             .min()
         {
             Some(i) => &rest[..i],
             None => rest.split(' ').next().unwrap_or(rest),
-        },
+        }
+        .trim();
+        path.strip_suffix('.').unwrap_or(path)
+    } else {
+        match rest.find("conflict in ") {
+            Some(i) => &rest[i + "conflict in ".len()..],
+            None => rest.split(' ').next().unwrap_or(rest),
+        }
+        .trim()
     };
-    let path = path.trim();
-    let path = path.strip_suffix('.').unwrap_or(path);
     (!path.is_empty()).then(|| path.to_string())
 }
 
@@ -924,6 +933,27 @@ mod tests {
             classify_failure(1, stdout, ""),
             OpFailure::Conflicts {
                 paths: vec!["my notes.txt".into(), "src/mod.d".into()]
+            }
+        );
+    }
+
+    #[test]
+    fn other_kinds_take_the_first_word_and_keep_a_trailing_period() {
+        // The markers of `modify/delete` appear here too, mid-sentence.
+        let rename = "CONFLICT (rename/delete): old.txt renamed to new.txt in feat, \
+                      but deleted in HEAD.\n";
+        assert_eq!(
+            classify_failure(1, rename, ""),
+            OpFailure::Conflicts {
+                paths: vec!["old.txt".into()]
+            }
+        );
+        // git ends this one without a period, so a final `.` is the name's.
+        let content = "CONFLICT (content): Merge conflict in weird.\n";
+        assert_eq!(
+            classify_failure(1, content, ""),
+            OpFailure::Conflicts {
+                paths: vec!["weird.".into()]
             }
         );
     }

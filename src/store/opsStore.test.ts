@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OpResult, RepoSummary } from "../api/types";
 import { useDialogStore } from "./dialogStore";
-import { MAX_LINES, MAX_OPS, runOp, TRUNCATED, useOpsStore } from "./opsStore";
+import { __cancelledForTests, MAX_LINES, MAX_OPS, runOp, TRUNCATED, useOpsStore } from "./opsStore";
 import { __resetForTests as resetRepo, useRepoStore } from "./repoStore";
 import { __resetForTests as resetStatus } from "./statusStore";
 import { useToastStore } from "./toastStore";
@@ -74,21 +74,23 @@ describe("opsStore", () => {
     expect(useOpsStore.getState().ops[0].lines).toHaveLength(200);
   });
 
-  it("stops recording one op's log at MAX_LINES, leaving a truncation marker", () => {
+  it("keeps the tail of a long log past MAX_LINES, marking what it dropped", () => {
     const st = useOpsStore.getState();
     st.onEvent({ repoId: "r", opId: "1", event: { kind: "started", opId: "1", cmd: "git clone x" } });
-    for (let i = 0; i < MAX_LINES + 400; i += 200) st.onEvent({ repoId: "r", opId: "1", event: batch(200, i) });
-    const { lines } = useOpsStore.getState().ops[0];
-    expect(lines).toHaveLength(MAX_LINES + 1);
-    expect(lines[0].text).toBe("l0");
-    expect(lines[MAX_LINES - 1].text).toBe(`l${MAX_LINES - 1}`);
-    expect(lines[MAX_LINES]).toEqual({ kind: "stdout", text: TRUNCATED });
-    // Nothing after it costs a render.
     let updates = 0;
     const unsub = useOpsStore.subscribe(() => updates++);
-    st.onEvent({ repoId: "r", opId: "1", event: batch(200, 99999) });
+    const total = MAX_LINES + 400;
+    for (let i = 0; i < total; i += 200) st.onEvent({ repoId: "r", opId: "1", event: batch(200, i) });
     unsub();
-    expect(updates).toBe(0);
+    // One `set` per event, whatever the trimming costs — never one per line.
+    expect(updates).toBe(total / 200);
+    const { lines, truncated } = useOpsStore.getState().ops[0];
+    expect(truncated).toBe(true);
+    // The end of the output is where the error is: it is the start that goes.
+    expect(lines[0]).toEqual({ kind: "stdout", text: TRUNCATED });
+    expect(lines[lines.length - 1].text).toBe(`l${total - 1}`);
+    expect(lines.some((l) => l.text === "l0")).toBe(false);
+    expect(lines.length).toBeLessThanOrEqual(MAX_LINES + 1);
   });
 
   it("cancel calls cancel_op for the running op", async () => {
@@ -99,19 +101,22 @@ describe("opsStore", () => {
     expect(mocked.cancelOp).toHaveBeenCalledWith("7");
   });
 
-  it("a cancel that lands after the op exited is not remembered", async () => {
-    mocked.cancelOp.mockResolvedValue(false);
+  it("remembers a cancelled op only until it exits, whatever its code", async () => {
+    mocked.cancelOp.mockResolvedValue(true);
     const st = useOpsStore.getState();
+    st.onEvent({ repoId: "r", opId: "8", event: { kind: "started", opId: "8", cmd: "git fetch" } });
+    await useOpsStore.getState().cancel("8");
+    expect(__cancelledForTests().has("8")).toBe(true);
+    // The kill raced the command home: a zero exit has to clear the id too, or it is kept forever.
+    st.onEvent({ repoId: "r", opId: "8", event: { kind: "exit", code: 0, elapsedMs: 12 } });
+    expect(__cancelledForTests().has("8")).toBe(false);
+
+    // A cancel that lands after the exit is never remembered: no later exit would come to clear it.
+    mocked.cancelOp.mockResolvedValue(false);
     st.onEvent({ repoId: "r", opId: "9", event: { kind: "started", opId: "9", cmd: "git fetch" } });
     st.onEvent({ repoId: "r", opId: "9", event: { kind: "exit", code: 1, elapsedMs: 12 } });
     await useOpsStore.getState().cancel("9");
-
-    // The dock's records are gone (another repo, a restart), but the id would still be remembered:
-    // the next op carrying it must not have its failure swallowed.
-    useOpsStore.setState({ ops: [], open: false });
-    st.onEvent({ repoId: "r", opId: "9", event: { kind: "started", opId: "9", cmd: "git fetch" } });
-    st.onEvent({ repoId: "r", opId: "9", event: { kind: "exit", code: 1, elapsedMs: 12 } });
-    expect(useOpsStore.getState().open).toBe(true);
+    expect(__cancelledForTests().has("9")).toBe(false);
   });
 
   it("opens the dock when a command fails, so its output is on screen with the toast", () => {

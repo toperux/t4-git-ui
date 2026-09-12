@@ -10,6 +10,7 @@ import type {
   FfMode,
   FileChange,
   FileDiff,
+  GitProbe,
   LogFilter,
   LogPage,
   OpResult,
@@ -53,7 +54,7 @@ export async function call<T>(cmd: string, args?: Record<string, unknown>): Prom
 }
 
 /** `git --version` with the configured executable; rejects with kind `gitNotFound`. */
-export const probeGit = () => call<string>("probe_git");
+export const probeGit = () => call<GitProbe>("probe_git");
 
 /** Uses `path` as the git executable from now on if it answers `--version` (resolves with it); otherwise rejects and keeps the old one. */
 export const setGitPath = (path: string) => call<string>("set_git_path", { path });
@@ -116,9 +117,12 @@ export const installUpdate = () => call<void>("install_update");
 export const getChangedFiles = (id: RepoId, target: DiffTarget) =>
   call<FileChange[]>("get_changed_files", { id, target });
 
-/** Hunks of one file (a renamed file is also found by its old path). */
-export const getFileDiff = (id: RepoId, target: DiffTarget, path: string, opts?: DiffOptions) =>
-  call<FileDiff>("get_file_diff", { id, target, path, opts });
+/**
+ * Hunks of one file (a renamed file is also found by its old path). `oldPath` — the status entry's,
+ * for a working-tree rename — is what pairs the two halves without diffing the whole tree.
+ */
+export const getFileDiff = (id: RepoId, target: DiffTarget, path: string, opts?: DiffOptions, oldPath?: string) =>
+  call<FileDiff>("get_file_diff", { id, target, path, opts, oldPath });
 
 /** `git checkout --merge -- <paths>`: puts files staged without being resolved back in conflict. */
 export const recreateConflict = (id: RepoId, paths: string[]) => call<void>("recreate_conflict", { id, paths });
@@ -159,22 +163,23 @@ export const resolveConflict = (id: RepoId, paths: string[], side: ConflictSide)
 
 /**
  * Hunk indices into the `unstaged` diff of `path` (`staged` when `reverse`, which unstages);
- * `context` must be the one the shown diff was loaded with, or the indices point elsewhere.
+ * `context` and `oldPath` must be the ones the shown diff was loaded with, or the backend rebuilds
+ * a different diff and the indices point elsewhere.
  */
-export const stageHunks = (id: RepoId, path: string, hunks: number[], reverse: boolean, context: number) =>
-  call<void>("stage_hunks", { id, path, hunks, reverse, context });
+export const stageHunks = (id: RepoId, path: string, hunks: number[], reverse: boolean, context: number, oldPath?: string) =>
+  call<void>("stage_hunks", { id, path, oldPath, hunks, reverse, context });
 
 /** `[hunkIndex, lineIndexWithinHunk]` pairs; same target rule as `stageHunks`. */
-export const stageLines = (id: RepoId, path: string, lines: [number, number][], reverse: boolean, context: number) =>
-  call<void>("stage_lines", { id, path, lines, reverse, context });
+export const stageLines = (id: RepoId, path: string, lines: [number, number][], reverse: boolean, context: number, oldPath?: string) =>
+  call<void>("stage_lines", { id, path, oldPath, lines, reverse, context });
 
 /** Throws `hunks` of the `unstaged` diff away — the working file loses them, the index keeps what is staged. */
-export const discardHunks = (id: RepoId, path: string, hunks: number[], context: number) =>
-  call<void>("discard_hunks", { id, path, hunks, context });
+export const discardHunks = (id: RepoId, path: string, hunks: number[], context: number, oldPath?: string) =>
+  call<void>("discard_hunks", { id, path, oldPath, hunks, context });
 
 /** `[hunkIndex, lineIndexWithinHunk]` pairs of the `unstaged` diff; same rule as `discardHunks`. */
-export const discardLines = (id: RepoId, path: string, lines: [number, number][], context: number) =>
-  call<void>("discard_lines", { id, path, lines, context });
+export const discardLines = (id: RepoId, path: string, lines: [number, number][], context: number, oldPath?: string) =>
+  call<void>("discard_lines", { id, path, oldPath, lines, context });
 
 /** `git commit` via the CLI (hook output streams as `op://event`); resolves with the new HEAD oid. */
 export const commit = (id: RepoId, message: string, amend: boolean, signoff: boolean) =>

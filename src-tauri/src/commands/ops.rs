@@ -904,8 +904,18 @@ pub async fn remote_tags(
     let args = gitops::ls_remote_tags(ref_arg(&remote)?);
     let argv: Vec<&str> = args.iter().map(String::as_str).collect();
     let run = run_git_op(&app, &state, Some(&id), &handle.path, &argv, None, false).await?;
-    run.out.check("git ls-remote --tags")?;
-    Ok(gitops::parse_ls_remote_tags(&run.out.stdout))
+    remote_tags_of(&run.out)
+}
+
+/// Tags from a finished `git ls-remote --tags`. Only the tail of a huge stream
+/// is kept, and its first record would be half a line, so it is refused rather
+/// than parsed into a tag pointing at the wrong commit.
+fn remote_tags_of(out: &CliOutput) -> Result<Vec<RemoteTag>, AppError> {
+    out.check("git ls-remote --tags")?;
+    if out.truncated {
+        return Err(GitError::Refused("output too large to parse".into()).into());
+    }
+    Ok(gitops::parse_ls_remote_tags(&out.stdout))
 }
 
 // ---- repo creation ----
@@ -973,9 +983,34 @@ pub async fn init_repo(
 
 #[cfg(test)]
 mod tests {
-    use super::{is_rebase, opt_ref, pause_message, ref_arg};
+    use super::{is_rebase, opt_ref, pause_message, ref_arg, remote_tags_of};
     use crate::AppError;
+    use git_core::cli::CliOutput;
     use git_core::GitError;
+
+    #[test]
+    fn a_truncated_ls_remote_is_not_parsed() {
+        let line = "0123456789abcdef0123456789abcdef01234567\trefs/tags/v1\n";
+        let out = CliOutput {
+            code: 0,
+            stdout: line.into(),
+            stderr: String::new(),
+            truncated: false,
+        };
+        assert_eq!(remote_tags_of(&out).expect("parsed").len(), 1);
+        // The head is gone, so the first record can be half a line.
+        let out = CliOutput {
+            truncated: true,
+            ..out
+        };
+        assert!(
+            matches!(
+                remote_tags_of(&out),
+                Err(AppError::Git(GitError::Refused(_)))
+            ),
+            "a truncated stream is refused"
+        );
+    }
 
     fn argv(a: &[&str]) -> Vec<String> {
         a.iter().map(|s| s.to_string()).collect()

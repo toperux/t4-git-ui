@@ -21,8 +21,18 @@ export interface MenuProps {
 
 const ITEMS = '[role="menuitem"]:not(:disabled)';
 
-/** Outside mousedown / Escape / a scroll or resize under it → `onClose`; first item focused when opened. */
-function useMenuDismiss(open: boolean, onClose: () => void, wrap: RefObject<HTMLElement | null>, menu: RefObject<HTMLElement | null>) {
+/**
+ * Outside mousedown / Escape / a scroll or resize under it → `onClose`; first item focused when
+ * opened. `anchor` is what the menu is placed from (the trigger's wrapper, or the element under a
+ * context menu's click point); only a scroll that moves *that* closes it.
+ */
+function useMenuDismiss(
+  open: boolean,
+  onClose: () => void,
+  wrap: RefObject<HTMLElement | null>,
+  menu: RefObject<HTMLElement | null>,
+  anchor: RefObject<HTMLElement | null> = wrap,
+) {
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
@@ -35,22 +45,25 @@ function useMenuDismiss(open: boolean, onClose: () => void, wrap: RefObject<HTML
     };
     // The menu is placed once, from the trigger or the click point: close it rather than let the
     // page slide out from under it and leave it labelling a row its items no longer act on. Its own
-    // scrollbar is not that.
-    const drift = (e?: Event) => {
-      if (e?.target instanceof Node && menu.current?.contains(e.target)) return;
+    // scrollbar is not that — and neither is a scroller the anchor doesn't sit in: the output dock
+    // autoscrolls itself while an op streams, and that moves nothing the menu was placed from.
+    const drift = (e: Event) => {
+      const t = e.target;
+      if (t instanceof Node && menu.current?.contains(t)) return;
+      if (anchor.current && t instanceof Node && !t.contains(anchor.current)) return;
       onClose();
     };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
-    window.addEventListener("resize", drift);
+    window.addEventListener("resize", onClose);
     document.addEventListener("scroll", drift, true);
     return () => {
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("keydown", onKey);
-      window.removeEventListener("resize", drift);
+      window.removeEventListener("resize", onClose);
       document.removeEventListener("scroll", drift, true);
     };
-  }, [open, onClose, wrap, menu]);
+  }, [open, onClose, wrap, menu, anchor]);
 
   useEffect(() => {
     if (open) menu.current?.querySelector<HTMLElement>(ITEMS)?.focus();
@@ -143,8 +156,14 @@ export function ContextMenu({ at, onClose, label, children }: ContextMenuProps) 
   const menu = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState(at);
   const open = at !== null;
+  // What the click point landed on, read while the menu is still uncommitted — an effect would read
+  // the menu itself, which is drawn over that very point. `null` when nothing is there (or in jsdom,
+  // which has no layout): then any scroll closes it, as it did before.
+  const anchor = useRef<HTMLElement | null>(null);
+  if (!at) anchor.current = null;
+  else anchor.current ??= (document.elementFromPoint?.(at.x, at.y) as HTMLElement | null) ?? null;
   useRestoreFocus(open);
-  useMenuDismiss(open, onClose, menu, menu);
+  useMenuDismiss(open, onClose, menu, menu, anchor);
 
   // Clamp to the viewport once the menu has a size.
   useLayoutEffect(() => {

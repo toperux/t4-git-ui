@@ -317,14 +317,10 @@ fn oid(s: &str) -> Result<git2::Oid, GitError> {
 /// `msg-N.txt` file plus the `exec` line that applies it. Returns the todo file.
 ///
 /// The `exec` lines run under `sh`, so a configured `git_path` is checked and
-/// quoted; the default bare `git` is left as it is.
+/// quoted; the default bare `git` is left as it is. A path `sh` could not take
+/// only fails a list that writes an `exec` line in the first place.
 pub fn write_todo(dir: &Path, steps: &[TodoStep], git_path: &str) -> Result<PathBuf, GitError> {
-    let git = check_shell_path(Path::new(git_path)).map_err(GitError::Refused)?;
-    let git = if git == "git" {
-        git
-    } else {
-        format!("\"{git}\"")
-    };
+    let mut git: Option<String> = None;
     if let Err(e) = std::fs::remove_dir_all(dir) {
         if e.kind() != std::io::ErrorKind::NotFound {
             return Err(e.into());
@@ -338,6 +334,11 @@ pub fn write_todo(dir: &Path, steps: &[TodoStep], git_path: &str) -> Result<Path
         match step {
             TodoStep::Line { text } => lines.push(text.clone()),
             TodoStep::Amend { message } => {
+                if git.is_none() {
+                    let g = check_shell_path(Path::new(git_path)).map_err(GitError::Refused)?;
+                    git = Some(if g == "git" { g } else { format!("\"{g}\"") });
+                }
+                let git = git.as_deref().expect("set just above");
                 let name = format!("msg-{msgs}.txt");
                 std::fs::write(dir.join(&name), message)?;
                 lines.push(format!("exec {git} commit --amend -F \"{base}/{name}\""));
@@ -491,6 +492,16 @@ mod tests {
             )
         );
         assert!(write_todo(&dir, &steps, "/opt/g$t/git").is_err());
+
+        // No `exec` line to run under `sh`, so the path is never needed.
+        let plain = vec![TodoStep::Line {
+            text: "pick abc msg".into(),
+        }];
+        let todo = write_todo(&dir, &plain, "/opt/g$t/git").expect("write_todo");
+        assert_eq!(
+            std::fs::read_to_string(&todo).unwrap(),
+            "pick abc msg\n".to_string()
+        );
     }
 
     #[test]

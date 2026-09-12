@@ -69,10 +69,14 @@ function useSelectedTarget(list: ListId, entries: StatusEntry[]): string[] | nul
  * dead "Stage selected" while the stageable files below it have no whole-list action to reach them
  * with. One selected row is the resting state (`syncWithStatus` seeds it after every refresh), so
  * keep the first survivor — or leave it to that seeding when nothing survived.
+ *
+ * The survivor is found by dropping what was `acted` on, not by taking the first of the selection:
+ * the refresh may not have pruned it yet (its status read can come back stale, the watcher's having
+ * overtaken it), and parking on a row that is on its way out loads a diff for a file already gone.
  */
-function reseed(list: ListId) {
+function reseed(list: ListId, acted: string[]) {
   const { selected, select } = useCommitStore.getState();
-  const first = selected[0];
+  const first = selected.find((p) => !acted.includes(p));
   if (first !== undefined) select(list, { selected: [first], anchor: first });
 }
 
@@ -108,7 +112,7 @@ export function UnstagedFiles({ tree, onToggleTree }: { tree: boolean; onToggleT
           title={busy ? BUSY : note}
           onClick={() =>
             void stage(target).then(() => {
-              if (selectedTarget) reseed("unstaged");
+              if (selectedTarget) reseed("unstaged", target);
             })
           }
         >
@@ -140,9 +144,12 @@ export function StagedFiles({ tree, headerClassName }: { tree: boolean; headerCl
           size="sm"
           className={s.headerBtn}
           disabled={busy || target.length === 0}
+          /* Nothing of its own to say, unlike Stage all — but a disabled title is hoverable, so the
+             mutation that killed the button still has to own up to it. */
+          title={busy ? BUSY : undefined}
           onClick={() =>
             void unstage(target).then(() => {
-              if (selectedTarget) reseed("staged");
+              if (selectedTarget) reseed("staged", target);
             })
           }
         >
@@ -253,13 +260,13 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
   const conflictedPaths = useMemo(() => new Set(entries.filter((e) => e.conflicted).map((e) => e.path)), [entries]);
   const conflicted = (p: string) => conflictedPaths.has(p);
   /** Enter, double-click and the menu act on the rows they were pointed at, so a lone one stages (see `stageTarget`). */
-  const stageable = (ps: string[]) => stageTarget(list, entries, ps).target;
+  const stageable = (ps: string[]) => stageTarget(list, entries, ps, { conflicted: conflictedPaths }).target;
   /** A conflicted file has no single version to go back to: Discard skips them, the way Stage all does. */
   const discardable = (ps: string[]) => ps.filter((p) => !conflicted(p));
   /** Every file under a folder row: a compacted chain keeps the deepest folder's path, a real prefix of them all. */
   const under = (folder: string) => all.filter((p) => p.startsWith(folder + "/"));
   /** What a folder row's own +/− acts on — one closure so the render and the click can't drift apart. */
-  const folderTarget = (folder: string) => stageTarget(list, entries, under(folder), { bulk: true, where: "in this folder" });
+  const folderTarget = (folder: string) => stageTarget(list, entries, under(folder), { bulk: true, where: "in this folder", conflicted: conflictedPaths });
 
   // One delegated listener per list keeps every `FileRow` prop stable, so `memo` actually skips rows.
   function onClick(e: MouseEvent<HTMLDivElement>) {
@@ -307,7 +314,7 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
       if (ps.length === 0) return;
       e.preventDefault();
       select(list, { selected: ps, anchor: ps[0] });
-      setMenu({ at, paths: ps });
+      setMenu({ at, paths: ps, folder: true });
       return;
     }
     const path = row.dataset.path;
@@ -539,6 +546,8 @@ const FileRow = memo(function FileRow({ id, top, list, entry, label, depth, stat
         className={s.action}
         label={list === "unstaged" ? "Stage" : "Unstage"}
         disabled={busy}
+        /* "Stage" on a dead button explains nothing; the running mutation does. */
+        title={busy ? BUSY : undefined}
         tabIndex={-1}
         onDoubleClick={stop}
       >

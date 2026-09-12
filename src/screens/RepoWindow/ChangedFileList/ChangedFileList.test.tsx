@@ -71,16 +71,19 @@ describe("ChangedFileList", () => {
     expect(leaves[0].getAttribute("aria-level")).toBe("2"); // crates/git-core/src/log > cache.rs
   });
 
-  it("a focused folder row answers ←/→/Enter itself", () => {
+  it("←/→ on the tree fold the selected file's own folder", () => {
     useDiffStore.setState({ target: { kind: "commit", oid: "c" }, files: FILES, filesLoading: false, filesError: null, selectedPath: null, fileListMode: "tree" });
-    const { getByTitle } = render(<ChangedFileList />);
+    const { getByRole, getByTitle } = render(<ChangedFileList />);
+    const tree = getByRole("tree", { name: "Changed files" });
     const folder = () => getByTitle("src/log");
-    fireEvent.keyDown(folder(), { key: "ArrowLeft" });
+    // ↑/↓ move the selection with the focus still on the container, so that is where ←/→ arrive:
+    // a keyboard-only user never has a folder row focused to fold it.
+    fireEvent.keyDown(tree, { key: "End" });
+    expect(useDiffStore.getState().selectedPath).toBe("src/log/mod.rs");
+    fireEvent.keyDown(tree, { key: "ArrowLeft" });
     expect(folder().getAttribute("aria-expanded")).toBe("false");
-    fireEvent.keyDown(folder(), { key: "ArrowRight" });
+    fireEvent.keyDown(tree, { key: "ArrowRight" });
     expect(folder().getAttribute("aria-expanded")).toBe("true");
-    fireEvent.keyDown(folder(), { key: "Enter" });
-    expect(folder().getAttribute("aria-expanded")).toBe("false");
   });
 
   it("↑/↓ resume from a collapsed folder's row, not from the top of the list", () => {
@@ -95,6 +98,13 @@ describe("ChangedFileList", () => {
     useDiffStore.setState({ selectedPath: "b/two.rs" });
     fireEvent.keyDown(tree, { key: "ArrowUp" });
     expect(useDiffStore.getState().selectedPath).toBe("a/one.rs");
+  });
+
+  it("↑ with nothing selected lands on the last row, the way the commit panel walks", () => {
+    useDiffStore.setState({ target: { kind: "commit", oid: "c" }, files: FILES, filesLoading: false, filesError: null, selectedPath: null, fileListMode: "flat" });
+    const { getByRole } = render(<ChangedFileList />);
+    fireEvent.keyDown(getByRole("listbox", { name: "Changed files" }), { key: "ArrowUp" });
+    expect(useDiffStore.getState().selectedPath).toBe("src/log/mod.rs");
   });
 
   it("another target starts the list back at the top", () => {

@@ -324,11 +324,14 @@ fn locate<'d>(diff: &git2::Diff<'d>, path: &str) -> Option<usize> {
 }
 
 /// Hunks of one file of `target`, addressed by its new path (a renamed file
-/// is also found by its old path).
+/// is also found by its old path). `old_path` — the other half of a
+/// working-tree rename, from the caller's status entry — joins the pathspec so
+/// the pair is detected without the whole diff being built.
 pub fn file_diff(
     repo: &Repository,
     target: &DiffTarget,
     path: &str,
+    old_path: Option<&str>,
     opts: &DiffOptions,
 ) -> Result<FileDiff, GitError> {
     if matches!(target, DiffTarget::Unstaged | DiffTarget::Workdir) {
@@ -336,16 +339,22 @@ pub fn file_diff(
             return Ok(d);
         }
     }
-    // The diff of this one path first (cheap: no other content is loaded).
-    // Its other half of a rename is outside that pathspec, so an `Added`,
-    // `Deleted` or `Untracked` result may really be a rename: only then is the
-    // whole diff built, where rename detection can pair it up.
-    let mut diff = build_diff(repo, target, opts, &[path])?;
+    // The diff of this one path (plus the hinted half) first: cheap, no other
+    // content is loaded. An unhinted rename's other half is outside that
+    // pathspec, so an `Added` or `Deleted` result may really be a rename: only
+    // then is the whole diff built, where rename detection can pair it up. An
+    // `Untracked` result is left alone — pairing it would mean diffing every
+    // untracked file in the tree, which is what the hint is for.
+    let paths = match old_path {
+        Some(old) => vec![path, old],
+        None => vec![path],
+    };
+    let mut diff = build_diff(repo, target, opts, &paths)?;
     let mut idx = locate(&diff, path);
     let maybe_rename = idx.is_some_and(|i| {
         matches!(
             diff.get_delta(i).map(|d| d.status()),
-            Some(Delta::Added | Delta::Deleted | Delta::Untracked)
+            Some(Delta::Added | Delta::Deleted)
         )
     });
     if idx.is_none() || maybe_rename {

@@ -317,6 +317,12 @@ async fn pump<R: AsyncRead + Unpin>(
         drain(&mut pending, false, kind, &tx);
     }
     drain(&mut pending, true, kind, &tx);
+    // The cut can land inside a multi-byte character; drop the continuation
+    // bytes it left at the front so the tail starts on a character boundary
+    // instead of a U+FFFD.
+    while truncated && all.front().is_some_and(|b| b & 0b1100_0000 == 0b1000_0000) {
+        all.pop_front();
+    }
     (
         String::from_utf8_lossy(all.make_contiguous()).into_owned(),
         truncated,
@@ -577,6 +583,18 @@ mod tests {
         let (text, truncated) = pump(&data[..], Kind::Stdout, tx, MAX_RETAINED).await;
         assert!(!truncated);
         assert_eq!(text.len(), data.len());
+    }
+
+    #[tokio::test]
+    async fn a_tail_that_cuts_a_character_in_half_drops_its_leftover_bytes() {
+        // 40 bytes of two-byte characters kept back to 15: the cut lands
+        // between the halves of one of them.
+        let data = "é".repeat(20).into_bytes();
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let (text, truncated) = pump(&data[..], Kind::Stdout, tx, 15).await;
+        assert!(truncated);
+        assert!(!text.contains('\u{FFFD}'), "{text:?}");
+        assert_eq!(text, "é".repeat(7));
     }
 
     #[test]

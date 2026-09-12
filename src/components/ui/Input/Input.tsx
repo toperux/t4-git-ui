@@ -124,9 +124,15 @@ export function Select({ value, onChange, children, disabled, autoFocus, classNa
     if (open) list.current?.children[active]?.scrollIntoView?.({ block: "nearest" });
   }, [open, active]);
 
-  /** `i` if it can be picked, else the nearest option past it in direction `d` that can (`i` if there is none). */
+  /**
+   * `i` if it can be picked, else the nearest option that can: past it in direction `d` first, then
+   * back the other way (`i` only when no option can be picked at all). A dialog that appends the ref
+   * it was opened for once that ref is gone puts a disabled option last *and* selects it — searching
+   * only downwards from there finds nothing and leaves the active option on a dead row.
+   */
   function pickable(i: number, d: number) {
     for (let j = i; j >= 0 && j < opts.length; j += d) if (!opts[j].disabled) return j;
+    for (let j = i; j >= 0 && j < opts.length; j -= d) if (!opts[j].disabled) return j;
     return i;
   }
 
@@ -213,7 +219,8 @@ export function Select({ value, onChange, children, disabled, autoFocus, classNa
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? id : undefined}
-        aria-activedescendant={open ? `${id}-${active}` : undefined}
+        // No rows, no active option: an id pointing at an option that isn't rendered is worse than none.
+        aria-activedescendant={open && opts.length > 0 ? `${id}-${active}` : undefined}
         onClick={() => (open ? setOpen(false) : show())}
         onKeyDown={onKeyDown}
         onBlur={() => setOpen(false)}

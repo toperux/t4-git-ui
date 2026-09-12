@@ -35,6 +35,9 @@ function read(): ThemeTokens {
 }
 
 export function getThemeTokens(): ThemeTokens {
+  // Only fill the cache while the observer watches `data-theme`: a value stored with nothing
+  // watching survives the next flip, and the subscriber after it would be handed stale tokens.
+  if (!observer) return cache ?? read();
   return (cache ??= read());
 }
 

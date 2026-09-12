@@ -6,8 +6,8 @@
 .wrap {
   display: inline-flex;
   /* No `min-width` of its own on purpose. The wrapper stands in for the control as the flex item, so
-     `min-width: auto` is what carries the control's own floor through — `.headerBtn`'s 112px, an icon
-     button's square. Zeroing it let every wrapped control shrink past the size it was given, and a
-     control that really has to shrink below its content still says so on itself (`min-width: 0` on
-     `DiffViewer`'s `.resolve`), which reaches through the wrapper either way. */
+     `min-width: auto` is what carries the control's own floor through — an icon button's square, a
+     dialog button's declared min width. Zeroing it let every wrapped control shrink past the size it
+     was given, and a control that really has to shrink below its content still says so on itself
+     (`min-width: 0` on `DiffViewer`'s `.resolve`), which reaches through the wrapper either way. */
 }

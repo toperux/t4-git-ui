@@ -63,6 +63,9 @@ export function MessageColumn({ onExpand, onCommitted, autoFocus }: MessageColum
 
   const noIdentity = authorError?.kind === "config";
   const canCommit = !busy && !!summary.trim() && (stagedCount > 0 || amend || merging) && !noIdentity;
+  // The two conditions the user fills in themselves; the identity warning is already on screen, and
+  // a running mutation says so where it is read (below).
+  const waitingOn = !summary.trim() ? "Summary is empty" : stagedCount === 0 && !amend && !merging ? "Nothing staged" : undefined;
 
   /** An amend keeps a non-empty editor no longer, but the oid is the only reliable success signal. */
   async function commitOnly() {
@@ -181,8 +184,9 @@ export function MessageColumn({ onExpand, onCommitted, autoFocus }: MessageColum
             Commit
           </Button>
           {/* What the button does is worth a tooltip only while it can do it: dead for want of a
-              summary or a staged file, that sentence describes nothing that is about to happen. */}
-          <Button disabled={!canCommit || running} title={running ? "Operation in progress" : canCommit ? "Commit, then open the Push dialog" : undefined} onClick={() => void commitAndPush()}>
+              summary or a staged file, the sentence describes nothing that is about to happen — and
+              a dead title is hoverable (`DisabledHint`), so it names the condition instead. */}
+          <Button disabled={!canCommit || running} title={running ? "Operation in progress" : canCommit ? "Commit, then open the Push dialog" : waitingOn} onClick={() => void commitAndPush()}>
             Commit &amp; Push
           </Button>
         </div>

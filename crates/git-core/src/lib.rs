@@ -20,6 +20,17 @@ pub use repo::{map_git2, RepoHandle, RepoId};
 
 use std::process::Command;
 
+/// `(major, minor)` of the oldest git the CLI layer works with: `--end-of-options`,
+/// which every op passes, landed in 2.24.
+pub const MIN_GIT_VERSION: (u32, u32) = (2, 24);
+
+/// `(major, minor)` of a `git version X.Y.Z…` line (`git_version`'s output);
+/// `None` when it does not look like one.
+pub fn parse_git_version(version: &str) -> Option<(u32, u32)> {
+    let mut parts = version.trim().strip_prefix("git version ")?.split('.');
+    Some((parts.next()?.parse().ok()?, parts.next()?.parse().ok()?))
+}
+
 /// Runs `<git_path> --version` and returns its trimmed stdout (e.g. `git version 2.55.0`).
 pub fn git_version(git_path: &str) -> Result<String, GitError> {
     let mut cmd = Command::new(git_path);
@@ -60,5 +71,19 @@ mod tests {
             Err(GitError::GitNotFound) => eprintln!("git not on PATH; skipping"),
             Err(e) => panic!("git --version failed: {e}"),
         }
+    }
+
+    #[test]
+    fn parse_git_version_reads_major_and_minor() {
+        assert_eq!(parse_git_version("git version 2.24.0"), Some((2, 24)));
+        assert_eq!(
+            parse_git_version("git version 2.55.0.windows.1"),
+            Some((2, 55))
+        );
+        assert_eq!(parse_git_version("git version 2.23.9"), Some((2, 23)));
+        assert_eq!(parse_git_version("not a git at all"), None);
+        // The floor: 2.23 is below it, 2.24 is not.
+        assert!(parse_git_version("git version 2.23.9").is_some_and(|v| v < MIN_GIT_VERSION));
+        assert!(parse_git_version("git version 2.24.0").is_some_and(|v| v >= MIN_GIT_VERSION));
     }
 }

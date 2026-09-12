@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Dialog, DialogReturnFocus } from "../../components/ui/Dialog/Dialog";
 import { useDialogStore } from "../../store/dialogStore";
 import { useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
@@ -77,17 +78,43 @@ describe("Toolbar Commit", () => {
   });
 });
 
-describe("Toolbar Branch menu", () => {
-  it("names its own button as the dialog's focus target, even once an op wraps it in a hint", () => {
-    const { getByRole } = render(<Toolbar />);
-    fireEvent.click(getByRole("button", { name: "Branch" }));
-    // An op starting under the open menu wraps the disabled trigger in a `DisabledHint` span.
-    act(() => useOpsStore.setState({ busy: "Pushing to origin…" }));
-    const branch = getByRole("button", { name: "Branch" });
-    expect(branch.parentElement?.getAttribute("role")).toBe("none");
+/** `DialogHost` in miniature: whatever the store points at, with a field that takes the focus. */
+function Host() {
+  const dialog = useDialogStore((st) => st.dialog);
+  const returnFocus = useDialogStore((st) => st.returnFocus);
+  const close = useDialogStore((st) => st.close);
+  if (!dialog) return null;
+  return (
+    <DialogReturnFocus.Provider value={returnFocus}>
+      <Dialog title="Create branch" onClose={close}>
+        <input aria-label="Name" autoFocus />
+      </Dialog>
+    </DialogReturnFocus.Provider>
+  );
+}
 
+describe("Toolbar Branch menu", () => {
+  it("hands focus back to the button it has at close time, even once an op wraps it in a hint", () => {
+    const { getByRole } = render(
+      <>
+        <Toolbar />
+        <Host />
+      </>,
+    );
+    fireEvent.click(getByRole("button", { name: "Branch" }));
+    const stale = getByRole("button", { name: "Branch" });
     fireEvent.click(getByRole("menuitem", { name: /Create branch/ }));
-    expect(useDialogStore.getState().returnFocus).toBe(branch);
+    expect(document.activeElement).toBe(getByRole("textbox", { name: "Name" }));
+
+    // An op runs under the open dialog: the disabled trigger is wrapped in a `DisabledHint` span and
+    // unwrapped again when it finishes, so the button the dialog opened from is gone twice over.
+    act(() => useOpsStore.setState({ busy: "Pushing to origin…" }));
+    expect(getByRole("button", { name: "Branch" }).parentElement?.getAttribute("role")).toBe("none");
+    act(() => useOpsStore.setState({ busy: null }));
+    expect(stale.isConnected).toBe(false);
+
+    act(() => useDialogStore.getState().close());
+    expect(document.activeElement).toBe(getByRole("button", { name: "Branch" }));
   });
 });
 

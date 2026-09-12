@@ -15,6 +15,8 @@ import { stageTarget } from "./stageTarget";
 export interface FileMenuState {
   at: { x: number; y: number };
   paths: string[];
+  /** Opened over a folder row: its files are a group however few they are, like the row's own action. */
+  folder?: boolean;
 }
 
 export interface FileContextMenuProps {
@@ -45,8 +47,9 @@ export function FileContextMenu({ list, paths, entries, menu, onClose, act, disc
   const single = n === 1 ? entryOf(paths[0]) : undefined;
   // Nothing on disk to hand the OS: a deletion staged or not.
   const gone = !single || single.workdir === "deleted" || single.index === "deleted";
-  // A lone file is the row's own Stage action, so it stages; more than one skips the conflicts.
-  const { target, note } = stageTarget(list, entries, paths, { where: "you selected" });
+  // A lone file is the row's own Stage action, so it stages; more than one skips the conflicts. Over
+  // a folder it is that row's action, word for word — a folder is a group whatever is under it.
+  const { target, note } = stageTarget(list, entries, paths, menu.folder ? { bulk: true, where: "in this folder" } : { where: "you selected" });
   // A conflicted file has no single version to go back to — its two sides are the items below — so
   // Discard skips them however few there are, and is refused only when every file is conflicted.
   const discardTarget = paths.filter((p) => !entryOf(p)?.conflicted);

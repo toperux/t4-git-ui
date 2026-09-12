@@ -4,9 +4,9 @@ import { useCmdHistoryStore } from "../../store/cmdHistoryStore";
 import { useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
 import { useToastStore } from "../../store/toastStore";
-import { busyLabel, checkoutTag, closeRepo, pickAndOpenRepo, runGit, switchRepo } from "./actions";
+import { busyLabel, checkoutTag, closeRepo, pickAndOpenRepo, runGit, stashDrop, switchRepo } from "./actions";
 
-vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(() => Promise.resolve("/elsewhere")) }));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(() => Promise.resolve("/elsewhere")), ask: vi.fn(() => Promise.resolve(true)) }));
 vi.mock("@tauri-apps/plugin-clipboard-manager", () => ({ writeText: vi.fn() }));
 vi.mock("../../api/ipc", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/ipc")>();
@@ -14,16 +14,18 @@ vi.mock("../../api/ipc", async (importOriginal) => {
     ...actual,
     runGit: vi.fn(),
     checkout: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
+    stashDrop: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     // `runOp`'s trailing refresh / syncRefs must never resolve, or they'd race the assertions.
     getStatus: vi.fn(() => new Promise(() => {})),
     getRefs: vi.fn(() => new Promise(() => {})),
   };
 });
 
-import { open as openFolder } from "@tauri-apps/plugin-dialog";
+import { ask, open as openFolder } from "@tauri-apps/plugin-dialog";
 import * as ipc from "../../api/ipc";
 
-const mocked = ipc as unknown as Record<"runGit" | "checkout", ReturnType<typeof vi.fn>>;
+const mocked = ipc as unknown as Record<"runGit" | "checkout" | "stashDrop", ReturnType<typeof vi.fn>>;
+const asked = ask as unknown as ReturnType<typeof vi.fn>;
 const openRepo = vi.fn(() => Promise.resolve());
 const closeRepoStore = vi.fn(() => Promise.resolve());
 const toasts = () => useToastStore.getState().toasts;
@@ -106,6 +108,32 @@ describe("busyLabel", () => {
     expect(label).toBe(`git commit -m '${"🎉".repeat(30)}[…]`);
     // What a failure would be titled: the cut stays visible.
     expect(`${label.replace(/…$/, "")} failed`).toMatch(/\[…\] failed$/);
+  });
+});
+
+describe("stashDrop", () => {
+  it("refuses a second drop while the first confirmation is still up: the index it names has already shifted", async () => {
+    let confirm!: (ok: boolean) => void;
+    asked.mockImplementation(() => new Promise<boolean>((r) => (confirm = r)));
+
+    const first = stashDrop(0, "wip");
+    const second = stashDrop(1, "older wip");
+    expect(asked).toHaveBeenCalledTimes(1);
+    expect(await second).toBeUndefined();
+    expect(toasts().map((t) => t.title)).toEqual(["Operation in progress"]);
+
+    confirm(true);
+    await first;
+    expect(mocked.stashDrop).toHaveBeenCalledTimes(1);
+    expect(mocked.stashDrop).toHaveBeenCalledWith("r", 0);
+  });
+
+  it("drops nothing when the confirmation is declined, and lets the next one through", async () => {
+    asked.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    await stashDrop(0, "wip");
+    expect(mocked.stashDrop).not.toHaveBeenCalled();
+    await stashDrop(0, "wip");
+    expect(mocked.stashDrop).toHaveBeenCalledWith("r", 0);
   });
 });
 

@@ -25,6 +25,14 @@ describe("eqDeep", () => {
     expect(eqDeep({ a: 1, b: 2 }, { a: 1, c: 2 })).toBe(false);
   });
 
+  it("counts an undefined-valued key as absent, the way JSON.stringify drops it", () => {
+    expect(eqDeep({ a: 1, b: undefined }, { a: 1 })).toBe(true);
+    expect(eqDeep({ a: 1 }, { a: 1, b: undefined })).toBe(true);
+    expect(eqDeep({ a: undefined }, { a: 1 })).toBe(false);
+    expect(eqDeep({ a: 1, b: undefined }, { a: 1, b: 2 })).toBe(false);
+    expect(eqDeep({ h: [{ text: "x", oldNo: undefined }] }, { h: [{ text: "x" }] })).toBe(true);
+  });
+
   it("finds a mismatch nested deep in the structure", () => {
     const a = { hunks: [{ header: "@@", lines: [{ kind: "add", text: "x" }] }] };
     expect(eqDeep(a, { hunks: [{ header: "@@", lines: [{ kind: "add", text: "x" }] }] })).toBe(true);

@@ -26,7 +26,7 @@ fn have_git() -> bool {
 }
 
 fn diff(t: &TempRepo, target: DiffTarget, path: &str) -> FileDiff {
-    file_diff(&t.repo, &target, path, &DiffOptions::default()).expect("file_diff")
+    file_diff(&t.repo, &target, path, None, &DiffOptions::default()).expect("file_diff")
 }
 
 fn index_content(t: &TempRepo, path: &str) -> Option<String> {
@@ -158,6 +158,55 @@ async fn stage_hunk_subset_then_unstage_it() {
     assert_eq!(
         index_content(&t, "f.txt").unwrap(),
         expected.join("\n") + "\n"
+    );
+}
+
+/// A rename made on disk (no `git mv`), then edited: the panel's diff is the
+/// hinted one, so the patch a hunk action builds has to come from the same
+/// hint. The unhinted diff of the new name is a whole-file add — its hunk 0 is
+/// a different change, and applying it would leave the old name in the index.
+#[tokio::test]
+async fn stage_a_hunk_of_a_workdir_rename_needs_the_old_path() {
+    if !have_git() {
+        return;
+    }
+    let t = TempRepo::new();
+    t.commit(&[("old.txt", &numbered(30))], "base");
+    std::fs::rename(t.path().join("old.txt"), t.path().join("new.txt")).expect("rename");
+    let mut lines: Vec<String> = numbered(30).lines().map(String::from).collect();
+    lines[1] = "LINE 2".into();
+    lines.insert(15, "extra".into());
+    t.write("new.txt", lines.join("\n") + "\n");
+
+    // What the panel shows: the pair, with the edits as hunks.
+    let d = file_diff(
+        &t.repo,
+        &DiffTarget::Unstaged,
+        "new.txt",
+        Some("old.txt"),
+        &DiffOptions::default(),
+    )
+    .expect("hinted");
+    assert_eq!(d.status, FileStatus::Renamed);
+    assert_eq!(d.hunks.len(), 2);
+
+    // Unhinted, the same path is a whole-file add instead: other hunks, other indices.
+    let un = diff(&t, DiffTarget::Unstaged, "new.txt");
+    assert_eq!(un.status, FileStatus::Untracked);
+    assert_eq!(un.hunks.len(), 1);
+
+    // Hunk 0 only: the rename lands with the first edit, the second stays unstaged.
+    let p = build_patch(&d, &PatchSelection::Hunks(vec![0]), false, true).unwrap();
+    apply(&t, &p, false).await;
+    let mut expected: Vec<String> = numbered(30).lines().map(String::from).collect();
+    expected[1] = "LINE 2".into();
+    assert_eq!(
+        index_content(&t, "new.txt").unwrap(),
+        expected.join("\n") + "\n"
+    );
+    assert!(
+        index_content(&t, "old.txt").is_none(),
+        "old name still staged"
     );
 }
 

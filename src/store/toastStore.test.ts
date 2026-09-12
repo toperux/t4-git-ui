@@ -40,6 +40,16 @@ describe("toastStore", () => {
     expect(toasts[0].title).toBe("e1");
   });
 
+  it("over the cap the oldest dismissable toast goes, not an unread error", () => {
+    const st = useToastStore.getState();
+    // An info in the middle of a run of errors: it expires by itself, the errors do not.
+    for (let i = 0; i < 4; i++) st.push({ kind: "error", title: `e${i}` });
+    st.push({ kind: "info", title: "i" });
+    for (let i = 4; i < 7; i++) st.push({ kind: "error", title: `e${i}` });
+    st.push({ kind: "error", title: "e7" });
+    expect(useToastStore.getState().toasts.map((t) => t.title)).toEqual(["e0", "e1", "e2", "e3", "e4", "e5", "e6", "e7"]);
+  });
+
   it("cliDetail keeps the first stderr line of a `cli` message", () => {
     expect(cliDetail("`git push` exited with code 1: \n error: failed to push\nhint: try pull")).toBe("error: failed to push");
     // A negative exit code (a signal) is still a prefix.

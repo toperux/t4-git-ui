@@ -146,13 +146,19 @@ describe("commitStore.syncWithStatus", () => {
     expect(mocked.getChangedFiles).toHaveBeenCalledTimes(4);
   });
 
-  it("compares the status and the diff without stringifying them", async () => {
-    await sync([entry("a.rs"), entry("b.rs")]);
-    const stringify = vi.spyOn(JSON, "stringify");
-    // Every `repo://changed` runs this: the entry list, the anchor's entry and the diff hunks.
-    await sync([entry("a.rs"), entry("b.rs")]);
-    expect(stringify).not.toHaveBeenCalled();
-    stringify.mockRestore();
+  it("keeps the shown diff object for hunks equal in value, replaces it for a nested difference", async () => {
+    await sync([entry("a.rs")]);
+    const shown = useCommitStore.getState().diff;
+
+    // A refetch of the same file hands back a new object every time: only its content decides.
+    await sync([entry("a.rs", "modified", "2:9")]);
+    expect(mocked.getFileDiff).toHaveBeenCalledTimes(2);
+    expect(useCommitStore.getState().diff).toBe(shown);
+
+    // One line's text deep inside the hunks is a different diff — the viewer must take the new one.
+    mocked.getFileDiff.mockImplementation((_id: string, _t: unknown, path: string) => Promise.resolve(diff(path, "b")));
+    await sync([entry("a.rs", "modified", "3:9")]);
+    expect(useCommitStore.getState().diff).not.toBe(shown);
   });
 
   it("a vanished anchor lands on its display neighbour: the row below, else the last one above", async () => {
@@ -246,13 +252,13 @@ describe("commitStore mutations", () => {
   it("hunk / line staging reverses only when the staged diff is shown", async () => {
     await sync([entry("a.rs")]);
     await useCommitStore.getState().stageHunk(0);
-    expect(mocked.stageHunks).toHaveBeenCalledWith(REPO.id, "a.rs", [0], false, 3);
+    expect(mocked.stageHunks).toHaveBeenCalledWith(REPO.id, "a.rs", [0], false, 3, undefined);
 
     useCommitStore.setState({ diffList: "staged" });
     await useCommitStore.getState().stageHunk(2);
-    expect(mocked.stageHunks).toHaveBeenLastCalledWith(REPO.id, "a.rs", [2], true, 3);
+    expect(mocked.stageHunks).toHaveBeenLastCalledWith(REPO.id, "a.rs", [2], true, 3, undefined);
     await useCommitStore.getState().stageLines([[0, 1]]);
-    expect(mocked.stageLines).toHaveBeenLastCalledWith(REPO.id, "a.rs", [[0, 1]], true, 3);
+    expect(mocked.stageLines).toHaveBeenLastCalledWith(REPO.id, "a.rs", [[0, 1]], true, 3, undefined);
   });
 
   it("hunk / line discard asks first and sends the context the diff was loaded with", async () => {
@@ -261,11 +267,11 @@ describe("commitStore mutations", () => {
 
     await useCommitStore.getState().discardHunk(1);
     expect(ask.mock.calls[0][0]).toContain("Discard this hunk from a.rs?");
-    expect(mocked.discardHunks).toHaveBeenCalledWith(REPO.id, "a.rs", [1], 8);
+    expect(mocked.discardHunks).toHaveBeenCalledWith(REPO.id, "a.rs", [1], 8, undefined);
 
     await useCommitStore.getState().discardLines([[0, 1]]);
     expect(ask.mock.calls[1][0]).toContain("Discard 1 selected line from a.rs?");
-    expect(mocked.discardLines).toHaveBeenCalledWith(REPO.id, "a.rs", [[0, 1]], 8);
+    expect(mocked.discardLines).toHaveBeenCalledWith(REPO.id, "a.rs", [[0, 1]], 8, undefined);
 
     // Declined → nothing leaves the store.
     ask.mockResolvedValue(false);
@@ -273,17 +279,48 @@ describe("commitStore mutations", () => {
     expect(mocked.discardHunks).toHaveBeenCalledTimes(1);
   });
 
+  it("tells the backend a renamed entry's old path, so it can pair the halves without the whole diff", async () => {
+    await sync([{ ...entry("new.txt", "renamed"), oldPath: "old.txt" }]);
+    expect(mocked.getFileDiff).toHaveBeenLastCalledWith(REPO.id, { kind: "unstaged" }, "new.txt", { context: 3 }, "old.txt");
+
+    // Anything else has no other half to name.
+    await sync([entry("a.rs")]);
+    expect(mocked.getFileDiff).toHaveBeenLastCalledWith(REPO.id, { kind: "unstaged" }, "a.rs", { context: 3 }, undefined);
+  });
+
+  it("sends the same rename hint with a hunk / line action, so the patch is cut from the diff on screen", async () => {
+    // Without it the backend rebuilds an unhinted diff — a whole-file add of the new name, whose
+    // hunk 0 is a different change from the one the user clicked.
+    const renamed = { ...entry("new.txt", "renamed"), oldPath: "old.txt" };
+
+    await sync([renamed]);
+    await useCommitStore.getState().stageHunk(0);
+    expect(mocked.stageHunks).toHaveBeenLastCalledWith(REPO.id, "new.txt", [0], false, 3, "old.txt");
+
+    await sync([renamed]);
+    await useCommitStore.getState().stageLines([[0, 1]]);
+    expect(mocked.stageLines).toHaveBeenLastCalledWith(REPO.id, "new.txt", [[0, 1]], false, 3, "old.txt");
+
+    await sync([renamed]);
+    await useCommitStore.getState().discardHunk(0);
+    expect(mocked.discardHunks).toHaveBeenLastCalledWith(REPO.id, "new.txt", [0], 3, "old.txt");
+
+    await sync([renamed]);
+    await useCommitStore.getState().discardLines([[0, 1]]);
+    expect(mocked.discardLines).toHaveBeenLastCalledWith(REPO.id, "new.txt", [[0, 1]], 3, "old.txt");
+  });
+
   it("a context change rebuilds the panel diff, and the rebuilt one's context is what the next action sends", async () => {
     await sync([entry("a.rs")]);
-    expect(mocked.getFileDiff).toHaveBeenLastCalledWith(REPO.id, { kind: "unstaged" }, "a.rs", { context: 3 });
+    expect(mocked.getFileDiff).toHaveBeenLastCalledWith(REPO.id, { kind: "unstaged" }, "a.rs", { context: 3 }, undefined);
 
     // Settings → Context lines: the details pane reloads on its own, the panel has to follow, or the
     // hunks on screen keep the old shape while the next stage / discard is resolved with the new one.
     useDiffStore.getState().setContext(8);
     await flush();
-    expect(mocked.getFileDiff).toHaveBeenLastCalledWith(REPO.id, { kind: "unstaged" }, "a.rs", { context: 8 });
+    expect(mocked.getFileDiff).toHaveBeenLastCalledWith(REPO.id, { kind: "unstaged" }, "a.rs", { context: 8 }, undefined);
     await useCommitStore.getState().stageHunk(0);
-    expect(mocked.stageHunks).toHaveBeenCalledWith(REPO.id, "a.rs", [0], false, 8);
+    expect(mocked.stageHunks).toHaveBeenCalledWith(REPO.id, "a.rs", [0], false, 8, undefined);
   });
 
   it("sends the context of the diff on screen while its rebuild is still in flight", async () => {
@@ -294,7 +331,7 @@ describe("commitStore mutations", () => {
 
     // The reload has not landed: what the user sees is still the context-3 diff, so its indices are.
     await useCommitStore.getState().stageHunk(0);
-    expect(mocked.stageHunks).toHaveBeenCalledWith(REPO.id, "a.rs", [0], false, 3);
+    expect(mocked.stageHunks).toHaveBeenCalledWith(REPO.id, "a.rs", [0], false, 3, undefined);
   });
 
   it("drops a discard whose diff was replaced while the confirmation was up", async () => {
@@ -397,6 +434,20 @@ describe("commitStore mutations", () => {
     expect(mocked.discardPaths).toHaveBeenCalledWith(REPO.id, ["new.txt", "old.txt"]);
     // The prompt counts what the user picked, not what the payload grew to.
     expect(ask.mock.calls[0][0]).toContain("Discard changes in new.txt?");
+  });
+
+  it("pairs the rename halves against the status as it is when the confirmation is answered", async () => {
+    // The prompt blocks nothing: a `repo://changed` can land while it is up, and a stale pairing
+    // would discard a path the user no longer sees (or miss the half they do).
+    useStatusStore.setState({ status: status([{ ...entry("new.txt", "renamed"), oldPath: "old.txt" }]), error: null });
+    ask.mockImplementationOnce(async () => {
+      // The user renamed it again before answering.
+      useStatusStore.setState({ status: status([{ ...entry("new.txt", "renamed"), oldPath: "older.txt" }]), error: null });
+      return true;
+    });
+
+    await expect(useCommitStore.getState().discard(["new.txt"])).resolves.toBe(true);
+    expect(mocked.discardPaths).toHaveBeenCalledWith(REPO.id, ["new.txt", "older.txt"]);
   });
 
   it("keeping one side of a conflict names the branch in the confirmation before overwriting the file", async () => {

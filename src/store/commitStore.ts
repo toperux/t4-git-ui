@@ -138,6 +138,18 @@ const NO_ORDER = { unstaged: null, staged: null };
 /** States that stop with a message prepared and are finished by a plain commit from the panel. */
 const PENDING = new Set<RepoState>(["merge", "cherryPick", "revert"]);
 
+/**
+ * The other half of a working-tree rename of `path`, which is what lets the backend pair the two
+ * from that file's diff alone instead of diffing every untracked file in the tree. Every call that
+ * makes the backend build the diff of a file — the panel's own load, and each hunk / line action,
+ * which resolves its indices against a rebuild — has to send the same hint, or they are two
+ * different diffs.
+ */
+function renameHint(path: string | null): string | undefined {
+  const e = path ? useStatusStore.getState().status?.entries.find((x) => x.path === path) : undefined;
+  return e?.workdir === "renamed" ? (e.oldPath ?? undefined) : undefined;
+}
+
 /** Nothing the user typed is in the editor: it is empty, or holds exactly what the last prefill put there. */
 const untouched = ({ summary, body, prefill }: CommitStore) =>
   (!summary.trim() && !body.trim()) || (prefill !== null && prefill.summary === summary && prefill.body === body);
@@ -149,7 +161,8 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
     const mySeq = ++diffSeq;
     const id = repoId();
     const { anchor, list, diffPath, diffList } = get();
-    diffEntry = anchor ? (useStatusStore.getState().status?.entries.find((e) => e.path === anchor) ?? null) : null;
+    const entry = anchor ? (useStatusStore.getState().status?.entries.find((e) => e.path === anchor) ?? null) : null;
+    diffEntry = entry;
     if (!id || !anchor) {
       set({ diff: null, diffPath: null, diffLoading: false, diffError: null });
       return;
@@ -163,7 +176,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
     // the backend rebuilds the diff to resolve the indices, and another context merges / splits hunks.
     const context = useDiffStore.getState().context;
     try {
-      const diff = await ipc.getFileDiff(id, { kind: list }, anchor, { context });
+      const diff = await ipc.getFileDiff(id, { kind: list }, anchor, { context }, renameHint(anchor));
       if (mySeq !== diffSeq) return;
       // Identical content → keep the old object: `DiffViewer` keys its scroll / line selection off it.
       // Only for the same target, though — a selection made against the unstaged diff means something
@@ -353,11 +366,13 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       if (!ok) return false;
       // A working-tree rename is one row here but two halves on disk, and `status_file` cannot pair
       // them back up — so the old name rides along or it is never restored. After the prompt: the
-      // user picked one file and the wording above must keep saying so.
+      // user picked one file and the wording above must keep saying so. The tree can have moved
+      // while the prompt was up, so the pairing reads the status of now, not the one it was worded on.
+      const fresh = useStatusStore.getState().status?.entries ?? [];
       const targets = [
         ...new Set(
           paths.flatMap((p) => {
-            const e = entries.find((x) => x.path === p);
+            const e = fresh.find((x) => x.path === p);
             return e?.workdir === "renamed" && e.oldPath ? [p, e.oldPath] : [p];
           }),
         ),
@@ -376,18 +391,19 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
     },
 
     async stageHunk(hunk) {
-      // The indices are the shown diff's, so the backend has to rebuild it with the same context.
+      // The indices are the shown diff's, so the backend has to rebuild it with the same context
+      // and the same rename hint.
       const { diffPath, diffList, diffContext } = get();
       if (!diffPath) return;
       const reverse = diffList === "staged";
-      await run(reverse ? "Unstage failed" : "Stage failed", (id) => ipc.stageHunks(id, diffPath, [hunk], reverse, diffContext));
+      await run(reverse ? "Unstage failed" : "Stage failed", (id) => ipc.stageHunks(id, diffPath, [hunk], reverse, diffContext, renameHint(diffPath)));
     },
 
     async stageLines(lines) {
       const { diffPath, diffList, diffContext } = get();
       if (!diffPath || lines.length === 0) return;
       const reverse = diffList === "staged";
-      await run(reverse ? "Unstage failed" : "Stage failed", (id) => ipc.stageLines(id, diffPath, lines, reverse, diffContext));
+      await run(reverse ? "Unstage failed" : "Stage failed", (id) => ipc.stageLines(id, diffPath, lines, reverse, diffContext, renameHint(diffPath)));
     },
 
     async discardHunk(hunk) {
@@ -396,7 +412,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       // No confirmation available → declined; a discard has no undo.
       const ok = await ask(`Discard this hunk from ${diffPath}? This cannot be undone.`, { title: "Discard hunk", kind: "warning", cancelLabel: "Cancel", okLabel: "Discard" }).catch(() => false);
       if (!ok || !stillShown(diff)) return;
-      await run("Discard failed", (id) => ipc.discardHunks(id, diffPath, [hunk], diffContext));
+      await run("Discard failed", (id) => ipc.discardHunks(id, diffPath, [hunk], diffContext, renameHint(diffPath)));
     },
 
     async discardLines(lines) {
@@ -405,7 +421,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       const n = lines.length;
       const ok = await ask(`Discard ${n} selected line${n === 1 ? "" : "s"} from ${diffPath}? This cannot be undone.`, { title: "Discard lines", kind: "warning", cancelLabel: "Cancel", okLabel: "Discard" }).catch(() => false);
       if (!ok || !stillShown(diff)) return;
-      await run("Discard failed", (id) => ipc.discardLines(id, diffPath, lines, diffContext));
+      await run("Discard failed", (id) => ipc.discardLines(id, diffPath, lines, diffContext, renameHint(diffPath)));
     },
 
     setSummary: (summary) => set({ summary }),

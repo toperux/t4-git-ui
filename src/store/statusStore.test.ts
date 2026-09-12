@@ -229,12 +229,15 @@ describe("statusStore", () => {
     expect(mocked.getStatus).toHaveBeenCalledTimes(1);
   });
 
-  it("compares the refs snapshot without stringifying it", async () => {
+  it("relabels on a real ref change, never on an equal snapshot in a fresh object", async () => {
+    // `get_refs` allocates a new snapshot every call, so identity says nothing: only a difference
+    // in the values may cost a relabel of the whole walk.
     await useStatusStore.getState().syncRefs();
-    const stringify = vi.spyOn(JSON, "stringify");
+    expect(mocked.refreshLabels).not.toHaveBeenCalled();
+
+    mocked.getRefs.mockResolvedValue(refs("h1", ["v1.0"]));
     await useStatusStore.getState().syncRefs();
-    expect(stringify).not.toHaveBeenCalled();
-    stringify.mockRestore();
+    expect(mocked.refreshLabels).toHaveBeenCalledTimes(1);
   });
 
   it("a failing syncRefs toasts once", async () => {

@@ -34,7 +34,8 @@ fn main() {
     println!("changed_files: {} files in {listed:?}", files.len());
     if let Some(f) = largest {
         let t1 = Instant::now();
-        let d = file_diff(&repo, &target, &f.path, &DiffOptions::default()).expect("file_diff");
+        let d =
+            file_diff(&repo, &target, &f.path, None, &DiffOptions::default()).expect("file_diff");
         let lines: usize = d.hunks.iter().map(|h| h.lines.len()).sum();
         println!(
             "file_diff:     {} (+{} -{}) {} hunks / {lines} lines, truncated={} in {:?}",

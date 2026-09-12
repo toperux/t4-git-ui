@@ -28,10 +28,22 @@ pub async fn get_file_diff(
     target: DiffTarget,
     path: String,
     opts: Option<DiffOptions>,
+    // The status entry's `oldPath` for a working-tree rename: without it the
+    // two halves are only paired by diffing the whole tree.
+    old_path: Option<String>,
 ) -> Result<FileDiff, AppError> {
     let handle = state.repo(&id)?;
     let opts = opts.unwrap_or_default();
-    blocking(move || Ok(diff::file_diff(&handle.git2.lock(), &target, &path, &opts)?)).await
+    blocking(move || {
+        Ok(diff::file_diff(
+            &handle.git2.lock(),
+            &target,
+            &path,
+            old_path.as_deref(),
+            &opts,
+        )?)
+    })
+    .await
 }
 
 /// Opens a conflicted file's three sides in the configured merge tool, or in

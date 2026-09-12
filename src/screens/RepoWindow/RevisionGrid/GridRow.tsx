@@ -61,9 +61,11 @@ export const GridRow = memo(function GridRow({ id, index, offset, top, rowH, lan
         else select(index);
       }}
       onContextMenu={(e) => {
+        // Selection first: mousedown leaves the secondary button alone, so this is the only thing
+        // that selects a row whose page has not arrived yet — the menu itself needs the commit.
+        select(index);
         if (!commit) return;
         e.preventDefault();
-        select(index);
         onMenu({ x: e.clientX, y: e.clientY }, commit, e.currentTarget);
       }}
     >

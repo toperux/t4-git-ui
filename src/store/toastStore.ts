@@ -33,7 +33,17 @@ export const useToastStore = create<ToastStore>()((set, get) => ({
 
   push(toast) {
     const id = nextId++;
-    set((s) => ({ toasts: [...s.toasts, { ...toast, id }].slice(-MAX_TOASTS) }));
+    set((s) => {
+      const toasts = [...s.toasts, { ...toast, id }];
+      if (toasts.length > MAX_TOASTS) {
+        // An info must not push an unread error off the screen: the oldest toast that expires by
+        // itself goes first, and only a stack of nothing but errors loses its oldest error. Never
+        // the one just pushed, whatever its kind.
+        const victim = toasts.findIndex((t, i) => t.kind !== "error" && i < toasts.length - 1);
+        toasts.splice(victim < 0 ? 0 : victim, 1);
+      }
+      return { toasts };
+    });
     if (toast.kind !== "error") setTimeout(() => get().dismiss(id), TOAST_MS);
     return id;
   },

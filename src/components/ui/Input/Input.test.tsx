@@ -136,6 +136,46 @@ describe("Select", () => {
     expect(queryByRole("listbox")).toBeNull();
   });
 
+  it("opens on the nearest option it can pick when the selected one is a trailing dead row", () => {
+    // The Merge / Rebase / Create branch dialogs append the ref they were opened for once it is
+    // gone: last row, disabled, and the selected one. Landing the active option there would swallow
+    // ↓ and Enter without even closing the list.
+    const onChange = vi.fn();
+    const { getByRole, getAllByRole, queryByRole } = render(
+      <Select aria-label="Branch" value="gone" onChange={(e) => onChange(e.target.value)}>
+        <option value="main">main</option>
+        <option value="dev">dev</option>
+        <option value="gone" disabled title="No longer exists">
+          gone (no longer exists)
+        </option>
+      </Select>,
+    );
+    const combo = getByRole("combobox", { name: "Branch" });
+    fireEvent.click(combo);
+    const opts = getAllByRole("option");
+    expect(combo.getAttribute("aria-activedescendant")).toBe(opts[1].id);
+
+    // Nothing below it can be picked, so ↓ stays put — and Enter commits it and closes.
+    fireEvent.keyDown(combo, { key: "ArrowDown" });
+    expect(combo.getAttribute("aria-activedescendant")).toBe(opts[1].id);
+    fireEvent.keyDown(combo, { key: "Enter" });
+    expect(onChange).toHaveBeenCalledWith("dev");
+    expect(queryByRole("listbox")).toBeNull();
+  });
+
+  it("names no active option when the list is empty", () => {
+    const { getByRole } = render(
+      <Select aria-label="Remote" value="" onChange={() => {}}>
+        {null}
+      </Select>,
+    );
+    const combo = getByRole("combobox", { name: "Remote" });
+    fireEvent.click(combo);
+    fireEvent.keyDown(combo, { key: "End" });
+    // There is no row to point at: an id of one that does not exist is worse than none.
+    expect(combo.getAttribute("aria-activedescendant")).toBeNull();
+  });
+
   it("Alt+↑ does not commit an option the pointer swept over but cannot be picked", () => {
     const onChange = vi.fn();
     const { getByRole, queryByRole } = render(<Actions onChange={onChange} />);

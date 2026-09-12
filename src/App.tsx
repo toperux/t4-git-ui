@@ -33,7 +33,13 @@ export default function App() {
       // A git executable chosen with "Locate git…" earlier; one that no longer answers falls back to PATH.
       const saved = await kvGet<string>("gitPath");
       if (saved) await setGitPath(saved).catch(() => undefined);
-      useRepoStore.getState().setGitVersion(await probeGit());
+      const probed = await probeGit();
+      // Below the floor every op dies on `--end-of-options`: the same screen, saying which git it found.
+      if (probed.tooOld) {
+        setPhase({ kind: "gitMissing", message: `Found ${probed.version}, which is older than the required git 2.24.` });
+        return;
+      }
+      useRepoStore.getState().setGitVersion(probed.version);
     } catch (e) {
       setPhase({ kind: "gitMissing", message: toAppError(e).message });
       return;

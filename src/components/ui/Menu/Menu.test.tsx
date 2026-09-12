@@ -102,6 +102,32 @@ describe("Menu", () => {
     expect(queryByRole("menu")).toBeNull();
     expect(document.activeElement).toBe(trigger);
   });
+
+  it("closes for a scroll that moves its trigger, not for one somewhere else on the page", () => {
+    const onClose = vi.fn();
+    const { getByRole, getByTestId } = render(
+      <div>
+        {/* The output dock autoscrolls itself while an op streams — nowhere near the menu. */}
+        <div data-testid="dock" />
+        <div data-testid="pane">
+          <Menu open onClose={onClose} label="History" anchor={<button>Open</button>}>
+            <MenuItem>First</MenuItem>
+          </Menu>
+        </div>
+      </div>,
+    );
+    fireEvent.scroll(getByTestId("dock"));
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.scroll(getByRole("menu"));
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.scroll(getByTestId("pane"));
+    expect(onClose).toHaveBeenCalled();
+    onClose.mockClear();
+    // A resize moves everything.
+    fireEvent.resize(window);
+    expect(onClose).toHaveBeenCalled();
+  });
 });
 
 describe("ContextMenu", () => {
@@ -117,5 +143,33 @@ describe("ContextMenu", () => {
     // The menu is placed once, from the click point: it would name a different row after a scroll.
     fireEvent.scroll(document);
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("closes for the scroller the click point sits in, not for one elsewhere", () => {
+    const { getByTestId } = render(
+      <div>
+        <div data-testid="dock" />
+        <div data-testid="grid">
+          <span data-testid="row">Fix the thing</span>
+        </div>
+      </div>,
+    );
+    // jsdom has no layout, so the row the menu was opened on has to be named outright.
+    const row = getByTestId("row");
+    document.elementFromPoint = (() => row) as typeof document.elementFromPoint;
+    try {
+      const onClose = vi.fn();
+      render(
+        <ContextMenu at={{ x: 10, y: 10 }} onClose={onClose} label="Commit">
+          <MenuItem>Copy SHA</MenuItem>
+        </ContextMenu>,
+      );
+      fireEvent.scroll(getByTestId("dock"));
+      expect(onClose).not.toHaveBeenCalled();
+      fireEvent.scroll(getByTestId("grid"));
+      expect(onClose).toHaveBeenCalled();
+    } finally {
+      Reflect.deleteProperty(document, "elementFromPoint");
+    }
   });
 });

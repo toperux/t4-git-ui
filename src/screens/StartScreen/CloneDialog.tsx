@@ -44,7 +44,8 @@ export function CloneDialog({ defaultParent, onClose, onCloned }: CloneDialogPro
   // A relative parent would clone into the app's own working directory, wherever that is.
   const parentRelative = parent.trim() !== "" && !isAbsolutePath(parent.trim());
   const valid = url.trim() !== "" && name.trim() !== "" && parent.trim() !== "" && !parentRelative;
-  const cmd = ["git clone --progress", recurse && "--recurse-submodules", shallow && "--depth 1", url.trim() || "<url>", dest || "<dest>"]
+  // `--end-of-options` as the real argv has it: a url that starts with a dash is data, not a flag.
+  const cmd = ["git clone --progress", recurse && "--recurse-submodules", shallow && "--depth 1", "--end-of-options", url.trim() || "<url>", dest || "<dest>"]
     .filter(Boolean)
     .join(" ");
 

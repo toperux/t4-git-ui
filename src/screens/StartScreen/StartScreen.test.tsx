@@ -159,6 +159,8 @@ describe("StartScreen", () => {
     expect((getByRole("textbox", { name: "Folder name" }) as HTMLInputElement).value).toBe("repo");
     // Default parent = parent of the most recent (pinned first) repo.
     expect(dialog.textContent).toContain("Clones into F:\\src\\repo");
+    // The preview matches the argv: a url is data, and `--end-of-options` is what says so.
+    expect(dialog.querySelector("code")?.textContent).toBe("git clone --progress --end-of-options https://github.com/x/repo.git F:\\src\\repo");
 
     // The op subscription is awaited before the invoke, so let the submit's microtasks run.
     await act(async () => {

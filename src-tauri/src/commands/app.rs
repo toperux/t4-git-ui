@@ -9,17 +9,29 @@ async fn probe(git_path: String) -> Result<String, AppError> {
     Ok(version)
 }
 
+/// `probe_git`'s answer: the `git --version` line, and whether it names a git
+/// older than the supported floor (`git_core::MIN_GIT_VERSION`). An unparseable
+/// version is taken at its word — it answered `--version`, so it is a git.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitProbe {
+    pub version: String,
+    pub too_old: bool,
+}
+
 /// Runs `git --version` with the configured git executable.
 #[tauri::command]
-pub async fn probe_git(state: State<'_, AppState>) -> Result<String, AppError> {
+pub async fn probe_git(state: State<'_, AppState>) -> Result<GitProbe, AppError> {
     let git_path = state
         .git_path
         .read()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .clone();
     let version = probe(git_path).await?;
-    tracing::info!(%version, "probed git");
-    Ok(version)
+    let too_old =
+        git_core::parse_git_version(&version).is_some_and(|v| v < git_core::MIN_GIT_VERSION);
+    tracing::info!(%version, too_old, "probed git");
+    Ok(GitProbe { version, too_old })
 }
 
 /// Points every later git invocation at `path` (a git executable), after

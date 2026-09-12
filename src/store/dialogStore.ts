@@ -1,5 +1,6 @@
 // One modal dialog at a time. `DialogHost` (RepoWindow/dialogs) renders the component for `dialog.kind`.
 import { create } from "zustand";
+import type { FocusTarget } from "../components/ui/Dialog/Dialog";
 
 export type DialogSpec =
   | { kind: "push"; branch?: string }
@@ -53,14 +54,15 @@ export interface OpenOptions {
   /**
    * Where focus goes when the dialog closes. Menus / context menus pass their anchor: the item that
    * was clicked unmounts in the same commit, so `document.activeElement` is already `<body>` by then.
+   * A ref or getter survives a remount of that anchor while the dialog is open; a node does not.
    */
-  returnFocusTo?: HTMLElement | null;
+  returnFocusTo?: FocusTarget | null;
 }
 
 export interface DialogStore {
   dialog: DialogSpec | null;
   /** Focus target for the open dialog (`null` = whatever had focus when it mounted). */
-  returnFocus: HTMLElement | null;
+  returnFocus: FocusTarget | null;
   open(spec: DialogSpec, opts?: OpenOptions): void;
   close(): void;
 }

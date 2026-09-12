@@ -250,13 +250,21 @@ mod tests {
             &t.repo,
             &DiffTarget::Unstaged,
             path,
+            None,
             &DiffOptions::default(),
         )
         .expect("file_diff")
     }
 
     fn staged(t: &TempRepo, path: &str) -> FileDiff {
-        file_diff(&t.repo, &DiffTarget::Staged, path, &DiffOptions::default()).expect("file_diff")
+        file_diff(
+            &t.repo,
+            &DiffTarget::Staged,
+            path,
+            None,
+            &DiffOptions::default(),
+        )
+        .expect("file_diff")
     }
 
     fn numbered(n: u32) -> String {

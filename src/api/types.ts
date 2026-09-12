@@ -204,6 +204,14 @@ export interface CommitDetail {
   committerEmail: string;
 }
 
+// --- src-tauri/src/commands/app.rs ---
+
+/** `probe_git`: the `git --version` line, and whether it names a git older than the 2.24 floor. */
+export interface GitProbe {
+  version: string;
+  tooOld: boolean;
+}
+
 // --- src-tauri/src/commands/repo.rs ---
 
 export interface RepoSummary {

@@ -122,13 +122,15 @@ pub fn open_merge_editor(
     path: &str,
     tool: Option<&Tool>,
 ) -> Result<String, GitError> {
+    // An absolute `path` would replace the working directory in the join below.
+    let rel = crate::repo::repo_relative(path)?;
     let Some(stages) = stages(repo, path)? else {
         return Err(GitError::Refused(format!("{path} is not conflicted")));
     };
     let workdir = repo
         .workdir()
         .ok_or_else(|| GitError::Refused("bare repository".into()))?;
-    let merged = workdir.join(path);
+    let merged = workdir.join(rel);
 
     // One directory per path so a second file's sides cannot overwrite the first's.
     let dir = crate::tools::temp_subdir(merge_temp_dir(), &format!("{:x}", oid_key(&stages)))?;

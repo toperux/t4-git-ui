@@ -23,16 +23,20 @@ export interface StageTarget {
  *
  * `paths` is intersected with `entries` because the two stores are a render apart: `useCommitSync`
  * prunes the selection in an effect, so a header runs once with fresh entries and a stale selection.
+ * The one / many count is of what was *asked* for, not of what survived that intersection: a stale
+ * two-path selection is still a group, and must not degrade into the lone row's "mark resolved".
+ *
+ * `conflicted` is the caller's own set where it has one — a folder row asks per row per render.
  *
  * `where` names what was refused when nothing at all survives, for the message that replaces the skip
  * count — a selection or a folder can be conflicted through and through while the list around it is
  * full of stageable files.
  */
-export function stageTarget(list: ListId, entries: StatusEntry[], paths: string[], opts: { bulk?: boolean; where?: string } = {}): StageTarget {
+export function stageTarget(list: ListId, entries: StatusEntry[], paths: string[], opts: { bulk?: boolean; where?: string; conflicted?: Set<string> } = {}): StageTarget {
   const inList = new Set(entries.map((e) => e.path));
   const chosen = paths.filter((p) => inList.has(p));
-  const conflicted = new Set(entries.filter((e) => e.conflicted).map((e) => e.path));
-  const filter = list === "unstaged" && (opts.bulk || chosen.length > 1);
+  const conflicted = opts.conflicted ?? new Set(entries.filter((e) => e.conflicted).map((e) => e.path));
+  const filter = list === "unstaged" && (opts.bulk || paths.length > 1);
   const target = filter ? chosen.filter((p) => !conflicted.has(p)) : chosen;
   const skipped = chosen.length - target.length;
   const note =

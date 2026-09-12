@@ -70,6 +70,9 @@ export function ChangedFileList({ autoFocus }: { autoFocus?: boolean }) {
   /** The folder row at `path` — a compacted one stands for its whole `chain`. */
   const folderRow = (path: string) => rows.find((r) => r.kind === "folder" && r.path === path);
 
+  /** The folder row holding `path`: the deepest one whose path is a prefix of it (ancestors come first). */
+  const parentRow = (path: string) => rows.filter((r) => r.kind === "folder" && path.startsWith(r.path + "/")).pop();
+
   // Keyed by the path that was clicked, and cleared along the whole chain: a compacted row may be
   // collapsed by an ancestor's key, and only removing that one reopens it.
   const toggleFolder = (path: string) =>
@@ -98,6 +101,16 @@ export function ChangedFileList({ autoFocus }: { autoFocus?: boolean }) {
     if (folder !== undefined && row?.kind === "folder" && folderKey(e.key, !row.expanded)) {
       toggleFolder(folder);
       e.preventDefault();
+      return;
+    }
+    // On the container itself: ↑/↓ move the selection while the focus stays here, so a folder row is
+    // only ever focused after a click — ←/→ fold the folder the selected file sits in instead.
+    if (folder === undefined && selectedPath && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+      const parent = parentRow(selectedPath);
+      if (parent?.kind === "folder" && folderKey(e.key, !parent.expanded)) {
+        toggleFolder(parent.path);
+        e.preventDefault();
+      }
       return;
     }
     if (visible.length === 0) return;

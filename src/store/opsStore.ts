@@ -11,7 +11,9 @@ import { toastError, useToastStore } from "./toastStore";
 
 export const MAX_OPS = 50;
 export const MAX_LINES = 5000;
-/** Stands in for everything an op printed past `MAX_LINES`. */
+/** Lines dropped per trim: the array is cut every `CHUNK` lines, not on every event. */
+const CHUNK = 500;
+/** Stands in for everything an op printed before the last `MAX_LINES` lines. */
 export const TRUNCATED = "… output truncated";
 
 export interface OpLine {
@@ -27,7 +29,7 @@ export interface OpRecord {
   elapsedMs: number | null;
   running: boolean;
   startedAt: number;
-  /** `MAX_LINES` reached: `lines` ends with the marker and takes nothing more. */
+  /** Older output was dropped: `lines` starts with the marker and holds only the last `MAX_LINES`. */
   truncated: boolean;
 }
 
@@ -46,6 +48,9 @@ export interface OpsStore {
 
 /** Ops the user cancelled: their non-zero exit is expected, so it must not open the dock. */
 const cancelled = new Set<string>();
+
+/** Test-only: the set is private, and nothing else can show that an id was forgotten. */
+export const __cancelledForTests = (): ReadonlySet<string> => cancelled;
 
 export const selectLastOp = (s: OpsStore) => s.ops[s.ops.length - 1] ?? null;
 
@@ -74,10 +79,10 @@ export const useOpsStore = create<OpsStore>()((set, get) => ({
     let reveal = false;
     if (event.kind === "exit") {
       next = { ...op, running: false, code: event.code, elapsedMs: event.elapsedMs };
-      reveal = event.code !== 0 && !cancelled.delete(opId);
+      // Forgotten whatever the code: behind an `&&` a zero exit would leave the id in the set forever.
+      const wasCancelled = cancelled.delete(opId);
+      reveal = event.code !== 0 && !wasCancelled;
     } else {
-      // Past the cap the dock keeps what it has: no copy, no `set`, no render.
-      if (op.truncated) return;
       const lines = op.lines.slice();
       for (const text of event.lines) {
         const last = lines[lines.length - 1];
@@ -85,10 +90,13 @@ export const useOpsStore = create<OpsStore>()((set, get) => ({
         if (event.kind === "progress" && last?.kind === "progress") lines[lines.length - 1] = { kind: "progress", text };
         else lines.push({ kind: event.kind, text });
       }
-      const truncated = lines.length > MAX_LINES;
-      if (truncated) {
-        lines.length = MAX_LINES;
-        lines.push({ kind: "stdout", text: TRUNCATED });
+      // The end of a long command's output is where the error is, so the *start* goes — a whole
+      // `CHUNK` beyond the cap at a time (the old marker with it), which is one trim per 500 lines.
+      let truncated = op.truncated;
+      if (lines.length > MAX_LINES) {
+        lines.splice(0, lines.length - MAX_LINES + CHUNK);
+        lines.unshift({ kind: "stdout", text: TRUNCATED });
+        truncated = true;
       }
       next = { ...op, lines, truncated };
     }
