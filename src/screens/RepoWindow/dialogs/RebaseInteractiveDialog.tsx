@@ -12,7 +12,7 @@ import { Select } from "../../../components/ui/Input/Input";
 import { cx } from "../../../lib/cx";
 import { runOp } from "../../../store/opsStore";
 import { useRepoStore } from "../../../store/repoStore";
-import { useStatusStore } from "../../../store/statusStore";
+import { useFreshStatus } from "../../../store/statusStore";
 import { gitCmd, rebaseInteractiveArgs } from "./gitArgs";
 import s from "./RebaseInteractiveDialog.module.css";
 import {
@@ -41,7 +41,11 @@ export function RebaseInteractiveDialog({ onClose, base, ontoLabel }: { onClose:
   // The read step runs `git rebase -i` for real, so a dirty tree needs `--autostash` or git refuses.
   // Decided once, at open: a status change while the dialog is up must not re-read the todo
   // under the user's edits (a later dirty tree fails the run with git's own message instead).
-  const dirty = useStatusStore((st) => (st.status ? st.status.staged + st.status.unstaged : 0)) > 0;
+  // A status that predates the refs is "not known yet", and the two answers are not symmetric here:
+  // `--autostash` is a no-op on a clean tree, while leaving it off a dirty one makes git refuse the
+  // whole rebase. So an unknown tree counts as dirty.
+  const fresh = useFreshStatus();
+  const dirty = fresh === null || fresh.staged + fresh.unstaged > 0;
   const [autostash] = useState(dirty);
   const [confirmed, setConfirmed] = useState(!autostash);
   const [rebaseMerges, setRebaseMerges] = useState(true);

@@ -58,6 +58,22 @@ while the app is closed.
   toast carries the copied text as its detail; read that instead.
 - Panels: `[data-panel]`.
 
+Two traps that cost a walk on 2026-09-11, both of which look like something else:
+
+- **Never select a toolbar button by position.** `[role="toolbar"][aria-label="Repository"] > button:first-of-type`
+  resolves to **Pull**, not the repository button: the repo button sits inside a wrapper that the
+  accessibility tree flattens away, so the snapshot shows it as the toolbar's first child and the DOM
+  does not. The click reports success and opens the Pull dialog, and the symptom — "the menu never
+  opened" — reads like a stuck menu rather than a wrong target, so it survives a retry. Use the
+  snapshot's `ref`, or a title selector (`button[title="Branch operations"]`).
+- **The app under test is a window a person can use.** Mid-walk the open repository changed and a
+  dialog appeared that no scripted action had opened, because the same window was being worked in by
+  hand. Nothing in the harness says so. What caught it was `document.title` in a routine measurement,
+  after several steps had already been driven against the wrong repository. So carry the title (or
+  the status bar) in **every** measurement, and treat a change you did not cause as a stop condition
+  rather than noise — then check `git reflog` in both repositories before trusting anything measured
+  either side of it.
+
 Playwright's `click()` scrolls the target into view first, which skews a "no scroll jump" check;
 measure `scrollTop` after a plain `scrollIntoViewIfNeeded()` settles, then click. Its click does
 focus the target the way a real mouse does, so focus checks are meaningful; jsdom's does not.

@@ -170,7 +170,9 @@ describe("RevisionGrid", () => {
   it("shows the working-tree pseudo-row first while the tree is dirty; commits shift by one", () => {
     useRepoStore.setState({
       repo: { id: "r", name: "r", path: "r", head: { oid: "oid0", branch: "main", detached: false } },
-      refs: null,
+      // The refs the status below was scanned against: a status from another state reads as
+      // "not known yet" and would leave the walk's seed to decide (lib/freshStatus).
+      refs: REFS,
       log: { generation: 1, total: 2, complete: true, error: null, flat: false },
       rows: [row(0, "Top", []), row(1, "Initial", [])],
       selectedIndex: 0,

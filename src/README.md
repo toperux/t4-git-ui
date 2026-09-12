@@ -131,6 +131,10 @@ src/
                            `~^:?*[\` + control chars, reserved, already taken)
                            highlight.ts (langForPath → lezer grammar, code-split + loadLang on first use; highlightLine(lang, text)
                            parses ONE line → {text, cls}[] spans, 5k-entry LRU; cls ∈ keyword|string|comment|number|type|function|punct)
+                           freshStatus.ts (freshStatus(status, refsState) → the status only while its `state` still matches the
+                           refs'; a scan from another state predates the change and reads as "not known yet", never as clean.
+                           The one rule the banners, the walk seed, the pseudo-row, the drop-selection check and the rebase
+                           dialog's autostash all route through — pure, so store-free `banners.ts` can use it too)
   components/ui/<Name>/    one folder per style-guide component: <Name>.tsx + <Name>.module.css (incl. StatusGlyph A/M/D/R/U/C,
                            Checkbox, Kbd (the one shortcut-chip anatomy, used by MenuItem + StartScreen),
                            DisabledHint (a control that is `disabled` **and** carries a `title` gets wrapped in a

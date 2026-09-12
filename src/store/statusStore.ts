@@ -4,6 +4,7 @@ import { create } from "zustand";
 import * as ipc from "../api/ipc";
 import { toAppError } from "../api/ipc";
 import type { RefsSnapshot, RepoChanged, RevSpec, WorkdirStatus } from "../api/types";
+import { freshStatus } from "../lib/freshStatus";
 import { useMerging, useRepoStore } from "./repoStore";
 import { toastError } from "./toastStore";
 
@@ -30,14 +31,34 @@ export interface StatusStore {
 export const selectChangeCount = (s: StatusStore) =>
   s.status ? s.status.staged + s.status.unstaged + s.status.untracked + s.status.conflicted : 0;
 
-export const selectHasChanges = (s: StatusStore) => (s.status?.entries.length ?? 0) > 0;
+/** `lib/freshStatus` against the refs as they are now — for the imperative callers below. */
+const freshNow = () => freshStatus(useStatusStore.getState().status, useRepoStore.getState().refs?.state);
+
+/** The same, reactive: re-reads when either the status or the refs change. */
+export const useFreshStatus = () =>
+  freshStatus(
+    useStatusStore((st) => st.status),
+    useRepoStore((st) => st.refs?.state),
+  );
+
+/**
+ * "The pseudo-row is shown", from a status that may predate the refs. Not fresh = not known yet, and
+ * the answer that churns nothing is the one the walk already has: `filter.workingTree` is kept equal
+ * to "the row is shown" (see `syncWalkSeed`), so holding it there neither hides the row nor re-walks.
+ */
+const rowShown = (fresh: WorkdirStatus | null, seeded: boolean) => (fresh ? fresh.entries.length > 0 : seeded);
 
 /**
  * The working-tree pseudo-row exists: the tree is dirty and no text filter flattened the walk.
  * The grid row, the bottom pane and the grid's keyboard index math must all agree on this.
  */
 export const useShowWorkingTree = () => {
-  const dirty = useStatusStore(selectHasChanges);
+  // The reactive twin of `walkSeedWanted`: same rule, same staleness fallback, or the rendered row
+  // and the walk seed disagree.
+  const dirty = rowShown(
+    useFreshStatus(),
+    useRepoStore((st) => !!st.filter.workingTree),
+  );
   const merging = useMerging();
   const flat = useRepoStore((st) => st.log.flat);
   return (dirty || merging) && !flat;
@@ -81,7 +102,7 @@ function walkSeeds(spec: RevSpec, refs: RefsSnapshot | null, headOid: string | n
  */
 function walkSeedWanted() {
   const rs = useRepoStore.getState();
-  return (useStatusStore.getState().status?.entries.length ?? 0) > 0 || rs.refs?.state === "merge";
+  return rowShown(freshNow(), !!rs.filter.workingTree) || rs.refs?.state === "merge";
 }
 
 /**
@@ -149,7 +170,9 @@ async function syncRefsOnce() {
  */
 function dropWorkingTreeIfClean() {
   const rs = useRepoStore.getState();
-  if (useStatusStore.getState().status?.entries.length === 0 && rs.wtSelected && rs.refs?.state !== "merge") rs.selectWorkingTree(false);
+  // Only a status scanned in the state the refs are in now is evidence of an empty tree: a stale one
+  // would take the user out of the pseudo-row they are working in, so "not known yet" keeps it.
+  if (freshNow()?.entries.length === 0 && rs.wtSelected && rs.refs?.state !== "merge") rs.selectWorkingTree(false);
 }
 
 export const useStatusStore = create<StatusStore>()((_set, get) => ({

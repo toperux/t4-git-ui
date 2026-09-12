@@ -1,5 +1,6 @@
 // Which banners sit above the grid (States artboard): detached HEAD, merge / rebase in progress, conflicts.
 import type { Branch, RefsSnapshot, WorkdirStatus } from "../../api/types";
+import { freshStatus } from "../../lib/freshStatus";
 
 export type BannerAction =
   | "checkoutDefault"
@@ -42,7 +43,7 @@ export function computeBanners(refs: RefsSnapshot | null, status: WorkdirStatus 
   const { head, state } = refs;
   // A status scanned in another state predates the change and says nothing about the new one: it has
   // to read as "not known yet", exactly as a status that has not arrived yet does.
-  const fresh = status && status.state === state ? status : null;
+  const fresh = freshStatus(status, state);
   if (head.detached && head.oid && state === "clean") {
     const def = defaultBranch(refs.local.filter((b) => !b.isHead));
     out.push({

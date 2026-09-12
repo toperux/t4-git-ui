@@ -1083,6 +1083,76 @@ open repo can fail on a locked file and leave the fixture half-built._
       Wait on the rebase banner's text **disappearing** rather than sleeping a fixed time — the wait
       is itself the assertion, and it fails loudly if the banner never clears
 
+## AG. One freshness rule for every status consumer (main §1, §2, §5)
+_Shipped 2026-09-11 (`2c1b498`), **not yet walked**. `WorkdirStatus` already carried the `RepoState`
+its scan ran in, but only `computeBanners` consulted it; four other consumers paired a status against
+the refs with no such check. `src/lib/freshStatus.ts` is now the single rule — a scan from another
+state predates the change and reads as "not known yet", never as "clean" — and the banners,
+`walkSeedWanted()` / `useShowWorkingTree()`, `dropWorkingTreeIfClean()` and the rebase dialog's
+autostash all route through it._
+
+_**What "not known yet" resolves to differs per consumer, on one principle: whichever answer neither
+destroys user state nor churns the walk.** The row is kept, the selection is not dropped, and the
+rebase dialog counts an unknown tree as dirty (`--autostash` is a no-op on a clean tree, while
+omitting it on a dirty one makes git refuse the whole rebase)._
+
+_**Why this needs a walk at all.** The unit tests already cover the rule (`lib/freshStatus.test.ts`),
+the no-drop / no-re-walk / row-stays case (`statusStore.test.ts`) and the stale autostash
+(`dialogs.test.tsx`). What they cannot cover is the thing that made this worth holding back from the
+review fixes: the two `statusStore` callers decide **when the walk restarts** and **when a selection
+is dropped**, in a real app, against a real status arriving late. Fixture: `docs/irebase-fixture.sh`
+for the conflicting-rebase path — it opens with `rm -rf`, so point the app at another repository
+first._
+
+_**The trap that governs every box here: these are all transients.** A state change and its status
+refresh are milliseconds apart, so reading after the fact shows the settled state and reads as a
+pass whatever happened in between. Arm a `MutationObserver` **before** the action, exactly as group
+AF's banner boxes do, and let the observer's log be the evidence._
+
+- [ ] **A late status does not take you out of the working-tree row** (§2) — **recipe falsified
+      2026-09-11; not walkable as written.** It wants a dirty tree, the working-tree pseudo-row
+      selected, and then a conflicting rebase — but git refuses to start a non-interactive rebase
+      over a dirty tree (*"error: Please commit or stash them."*, surfaced as an **Operation failed**
+      toast; no `rebase-merge/` is created and the reflog does not move), so the precondition and the
+      transition cannot both hold. Autostash does not rescue it: it cleans the tree on purpose, so
+      the row then leaves for a real reason. Same class of error as AF box 1 — written from the code
+      rather than from a repo. What it was reaching for is covered by the "blink out and back" box
+      below and by the direct evidence under **What the AG walk showed**. (For whoever rewrites it:
+      the selection class is `_selected_`, checked 2026-09-11; group Z's note above names
+      `_rowActive_`, which this grid does not use.)
+- [ ] **No spurious re-walk as the state changes** (§1, §2) — **walked 2026-09-11, partial: this
+      observable cannot decide it.** A re-walk was seen (rows 10 → 11, "Loading commits… 9"), but
+      HEAD had genuinely moved — the rebase detached it at `c172c6d` — so that re-walk is correct
+      behaviour, not churn. A jump proves nothing when the commit set legitimately changed underneath
+      it. Deciding it needs a state change that does *not* move HEAD, or an instrumented
+      `syncWalkSeed`. The code-level argument is unaffected (`rowShown` returns `filter.workingTree`
+      when not fresh, so `show !== filter.workingTree` cannot fire); it is just not what this box
+      measures
+- [x] **The pseudo-row does not blink out and back** (§2) — walked 2026-09-11 on `c:/tmp/t4/irebase`,
+      observer armed before each action. On the rebase the row went `null → present` **once**; on the
+      abort, `present → absent` **once**. No bouncing in either direction
+- [x] **The counts keep the last known number** (§2, §4) — walked 2026-09-11. Across the rebase the
+      toolbar read `Commit [disabled]` → `Commit 1`: never `Commit 0`, and the row never read
+      **0 changes**. `Toolbar.tsx:46`'s gate was never seen enabled over a genuinely clean tree
+- [x] **Rebase dialog: autostash still follows the tree** (§5) — dirty half walked 2026-09-11: the
+      interactive dialog read *"Uncommitted changes will be stashed before the rebase and restored
+      after it."*, previewed `git rebase -i --autostash --rebase-merges mid`, and its button read
+      *Stash and continue*. **The stale-status half was not walked** — unknown ⇒ dirty needs the
+      dialog opened inside the refresh window, which is not hand-reachable; `dialogs.test.tsx` covers
+      it. Ticked for the half a walk can reach, and this note is the other half
+- [x] **Banners unchanged** (§5) — re-walked 2026-09-11. At the conflict the rebase banner's first
+      and only text was *"Rebase in progress — resolve conflicts and stage them, then continue"*; the
+      amend wording never appeared, not for a single frame. On Abort both banners went **2 → 0 in one
+      transition**, not one at a time
+
+**What the AG walk showed** (2026-09-11, `c:/tmp/t4/irebase`, release build over CDP). The rule was
+caught working in both directions, which is better evidence than any of the boxes above. Going in:
+at rebase log entry 4 the status scan reported `1 conflicted` while the bar still read `Clean`, with
+`wt: null` and `banners: []` — the stale window, treated as *not known yet* rather than as clean.
+Coming out: at abort log entry 4 the refs were already on `other`/`Clean` while the status still said
+`1 conflicted`; both banners stayed empty and the working-tree row **held** through entries 4–5,
+removed once at entry 6. Neither direction flashed a wrong answer.
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the

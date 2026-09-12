@@ -1,6 +1,6 @@
 import { cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { RefsSnapshot, RepoSummary, WorkdirStatus } from "../api/types";
+import type { RefsSnapshot, RepoState, RepoSummary, WorkdirStatus } from "../api/types";
 
 vi.mock("../api/ipc", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api/ipc")>();
@@ -21,13 +21,13 @@ import { useToastStore } from "./toastStore";
 
 const mocked = ipc as unknown as Record<"getStatus" | "getRefs" | "refreshLabels" | "startLog" | "getLogPage", ReturnType<typeof vi.fn>>;
 const REPO: RepoSummary = { id: "r1", name: "r1", path: "r1", head: { oid: "h1", branch: "main", detached: false } };
-const status = (n: number): WorkdirStatus => ({
+const status = (n: number, state: RepoState = "clean"): WorkdirStatus => ({
   entries: Array.from({ length: n }, (_, i) => ({ path: `f${i}`, oldPath: null, index: null, workdir: "modified", conflicted: false, workdirStamp: "1:1" })),
   staged: 0,
   unstaged: n,
   untracked: 0,
   conflicted: 0,
-  state: "clean",
+  state,
 });
 const refs = (oid: string, tags: string[] = []): RefsSnapshot => ({
   head: { oid, branch: "main", detached: false },
@@ -299,8 +299,19 @@ describe("statusStore", () => {
 
   it("a stopped rebase with an empty status has no pseudo-row: only a merge is committed from the panel", async () => {
     useRepoStore.setState({ refs: { ...refs("h1"), state: "rebase" } });
-    mocked.getStatus.mockResolvedValue(status(0));
+    // Scanned during the rebase: a `clean` one would predate the stop and say nothing about it.
+    mocked.getStatus.mockResolvedValue(status(0, "rebase"));
     await useStatusStore.getState().refresh();
     expect(renderHook(() => useShowWorkingTree()).result.current).toBe(false);
+  });
+
+  it("a status scanned in another state is 'not known yet': no drop, no re-walk, the row stays", async () => {
+    // The refs already say `rebase`; this status still describes the tree as it was before the stop.
+    useRepoStore.setState({ wtSelected: true, refs: { ...refs("h1"), state: "rebase" } });
+    mocked.getStatus.mockResolvedValue(status(0));
+    await useStatusStore.getState().refresh();
+    expect(useRepoStore.getState().wtSelected).toBe(true);
+    expect(mocked.startLog).not.toHaveBeenCalled();
+    expect(renderHook(() => useShowWorkingTree()).result.current).toBe(true);
   });
 });

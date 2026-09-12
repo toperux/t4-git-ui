@@ -42,6 +42,10 @@ export function RevisionGrid() {
   const selectedIndex = useRepoStore((st) => st.selectedIndex);
   const wtSelected = useRepoStore((st) => st.wtSelected);
   const hasWt = useShowWorkingTree();
+  // Unguarded on purpose: a status that predates the refs still holds the last count anyone was
+  // shown, and "not known yet" resolves here to keeping that number rather than flashing
+  // "0 changes" at every state change (lib/freshStatus). `merging` below is refs-derived, so it is
+  // fresh by construction.
   const changes = useStatusStore(selectChangeCount);
   const merging = useMerging();
   const offset = hasWt ? 1 : 0;

@@ -516,8 +516,13 @@ const todoPick = (oid: string, summary: string, action: "pick" | "fixup" = "pick
 });
 const TODO: RebaseTodo = { head: "head1", baseOid: "base9", lines: [todoPick("a1", "One"), todoPick("b2", "Two")] };
 const dirty = () => useStatusStore.setState({ status: { entries: [], staged: 1, unstaged: 0, untracked: 0, conflicted: 0, state: "clean" } });
+const clean = () => useStatusStore.setState({ status: { entries: [], staged: 0, unstaged: 0, untracked: 0, conflicted: 0, state: "clean" } });
 
 describe("RebaseInteractiveDialog", () => {
+  // A tree only reads as clean from a status scanned in the state the refs are in: no status at all
+  // (the outer beforeEach) is "not known yet", which this dialog stashes for (lib/freshStatus).
+  beforeEach(clean);
+
   it("asks before stashing a dirty tree, then reads the todo with --autostash", async () => {
     dirty();
     mocked.rebaseTodo.mockImplementation(() => Promise.resolve(TODO));
@@ -529,6 +534,17 @@ describe("RebaseInteractiveDialog", () => {
     expect(preview(dialog)).toBe("git rebase -i --autostash --rebase-merges origin/main");
     fireEvent.click(getByRole("button", { name: "Stash and continue" }));
     await waitFor(() => expect(mocked.rebaseTodo).toHaveBeenCalledWith("r", "origin/main", true, true, false, false));
+  });
+
+  it("a status scanned in another state is not a clean tree: it stashes rather than let git refuse", () => {
+    // "Not known yet" resolves to dirty here: `--autostash` is a no-op on a clean tree, while leaving
+    // it off a dirty one makes git refuse the whole rebase.
+    useStatusStore.setState({ status: { entries: [], staged: 0, unstaged: 0, untracked: 0, conflicted: 0, state: "rebase" } });
+    mocked.rebaseTodo.mockImplementation(() => Promise.resolve(TODO));
+    const { getByRole } = render(<RebaseInteractiveDialog onClose={() => {}} base="origin/main" ontoLabel="origin/main" />);
+    const dialog = getByRole("dialog", { name: "Rebase main onto origin/main" });
+    expect(preview(dialog)).toBe("git rebase -i --autostash --rebase-merges origin/main");
+    expect(mocked.rebaseTodo).not.toHaveBeenCalled();
   });
 
   it("reorders the rows and submits the todo git will replay", async () => {
