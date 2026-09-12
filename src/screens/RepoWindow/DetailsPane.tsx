@@ -29,9 +29,12 @@ export function DetailsPane() {
     () => (compare ? ({ kind: "commitRange", from: compare.from.oid, to: compare.to.oid } as const) : oid ? ({ kind: "commit", oid } as const) : null),
     [oid, compare],
   );
+  // Under a history filter the row names the file it was listed for: that is the one both tabs
+  // open on. A plain walk carries no path, so this is `null` and the first changed file wins.
+  const rowPath = useRepoStore((st) => (st.wtSelected || st.selectedIndex === null ? null : (st.rows[st.selectedIndex]?.path ?? null)));
   useEffect(() => {
-    void load(repoId, target);
-  }, [repoId, target, load]);
+    void load(repoId, target, rowPath);
+  }, [repoId, target, rowPath, load]);
 
   return (
     <Group orientation="horizontal" className={s.pane}>

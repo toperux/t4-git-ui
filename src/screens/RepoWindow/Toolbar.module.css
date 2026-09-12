@@ -33,3 +33,28 @@
   height: var(--control-h-sm);
   margin-left: var(--space-2);
 }
+/* The file-history chip: the search box's own height, so the two read as one row of controls. */
+.history {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--control-h-sm);
+  max-width: 220px;
+  padding: 0 var(--space-1) 0 var(--space-2);
+  margin-right: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+.historyPath {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.historyClear {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}

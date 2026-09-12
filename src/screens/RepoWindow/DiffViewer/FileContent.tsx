@@ -1,5 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Copy, CornerUpLeft, File, FileText, GitCommitHorizontal, Maximize2, UserSearch } from "lucide-react";
+import { Copy, CornerUpLeft, File, FileText, GitCommitHorizontal, History, Maximize2, UserSearch } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import type { BlameHunk, FileContent as FileContentModel } from "../../../api/types";
 import { Banner } from "../../../components/ui/Banner/Banner";
@@ -11,7 +11,7 @@ import { Progress } from "../../../components/ui/Progress/Progress";
 import { cx } from "../../../lib/cx";
 import { isLoaded, langForPath, loadLang, type Lang } from "../../../lib/highlight";
 import { useDiffStore } from "../../../store/diffStore";
-import { blameAt, copyText } from "../actions";
+import { blameAt, copyText, showHistory } from "../actions";
 import { blameLabel, blameRows, blameTitle, type BlameRow } from "./blameRows";
 import { groupThousands, LineText } from "./DiffViewer";
 import s from "./DiffViewer.module.css";
@@ -311,6 +311,11 @@ function BlameHunkMenu({ menu, path, onClose }: { menu: HunkMenuState | null; pa
         onClick={run(() => previous && void blameAt(previous.oid, previous.path))}
       >
         Blame parent
+      </MenuItem>
+      {/* The hunk's own name for the file — a rename since means the grid should follow the file
+          under the name the commits behind it know, which is what `--follow` starts from. */}
+      <MenuItem icon={<History size={16} aria-hidden />} onClick={run(() => showHistory(hunk.origPath ?? path))}>
+        History of this file
       </MenuItem>
       <MenuItem icon={<Copy size={16} aria-hidden />} disabled={hunk.uncommitted} title={hunk.uncommitted ? notYet : undefined} onClick={run(() => copyText(hunk.oid, "SHA"))}>
         Copy SHA

@@ -80,6 +80,39 @@ describe("Toolbar Commit", () => {
   });
 });
 
+describe("Toolbar history chip", () => {
+  it("shows the file's basename with the full path as its title, and × clears only the path", () => {
+    useRepoStore.setState({ filter: { text: "lane", path: "src/screens/RepoWindow/Toolbar.tsx" } });
+    const { getByRole, getByText, queryByRole } = render(<Toolbar />);
+    expect(getByText("History: Toolbar.tsx").parentElement?.getAttribute("title")).toBe("src/screens/RepoWindow/Toolbar.tsx");
+
+    fireEvent.click(getByRole("button", { name: "Clear the file history filter" }));
+    expect(useRepoStore.getState().filter.path).toBeNull();
+    expect(useRepoStore.getState().filter.text).toBe("lane");
+    expect(queryByRole("button", { name: "Clear the file history filter" })).toBeNull();
+  });
+
+  it("is absent with no path filter", () => {
+    useRepoStore.setState({ filter: {} });
+    const { queryByText } = render(<Toolbar />);
+    expect(queryByText(/^History:/)).toBeNull();
+  });
+
+  it("Commit clears the path filter too — it flattens the walk just as the search does", () => {
+    useRepoStore.setState({
+      refs: { head: { oid: "a", branch: "main", detached: false }, state: "merge", local: [], remotes: [], tags: [], stashes: [] },
+      filter: { path: "a.txt" },
+      log: { generation: 1, total: 1, complete: true, error: null, flat: true },
+      wtSelected: false,
+    });
+    const { getByRole } = render(<Toolbar />);
+    fireEvent.click(getByRole("button", { name: "Commit" }));
+    expect(useRepoStore.getState().filter.path).toBeNull();
+    expect(useRepoStore.getState().filter.text).toBeNull();
+    expect(useRepoStore.getState().wtSelected).toBe(true);
+  });
+});
+
 /** `DialogHost` in miniature: whatever the store points at, with a field that takes the focus. */
 function Host() {
   const dialog = useDialogStore((st) => st.dialog);

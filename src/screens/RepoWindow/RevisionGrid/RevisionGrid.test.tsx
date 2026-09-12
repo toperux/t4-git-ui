@@ -120,6 +120,23 @@ describe("RevisionGrid", () => {
     expect(rows[1].getAttribute("aria-selected")).toBe("false");
   });
 
+  it("an empty history filter says the file has none yet, not that the search matched nothing", () => {
+    const empty = { generation: 1, total: 0, complete: true, error: null, flat: true };
+    useRepoStore.setState({ repo: { id: "r", name: "r", path: "r", head: { oid: null, branch: "main", detached: false } }, log: empty, rows: [], filter: { path: "src/new.ts" } });
+    const { container, getByText, rerender } = render(<RevisionGrid />);
+    expect(getByText("No history yet")).toBeTruthy();
+    expect(container.textContent).toContain("src/new.ts");
+
+    useRepoStore.setState({ filter: { text: "nope" } });
+    rerender(<RevisionGrid />);
+    expect(getByText("No matching commits")).toBeTruthy();
+
+    // Both at once: the file does have history, the search is what matched none of it.
+    useRepoStore.setState({ filter: { path: "src/new.ts", text: "nope" } });
+    rerender(<RevisionGrid />);
+    expect(getByText("No matching commits")).toBeTruthy();
+  });
+
   it("Ctrl+click marks a second commit: both rows selected, the anchor keeps the focus", () => {
     withRefs();
     const { container, getByRole } = render(<RevisionGrid />);

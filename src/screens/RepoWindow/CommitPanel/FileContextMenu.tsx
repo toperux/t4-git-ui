@@ -1,4 +1,4 @@
-import { Copy, ExternalLink, FolderOpen, GitMerge, Minus, Plus, Trash2, UserSearch } from "lucide-react";
+import { Copy, ExternalLink, FolderOpen, GitMerge, History, Minus, Plus, Trash2, UserSearch } from "lucide-react";
 import * as ipc from "../../../api/ipc";
 import { toAppError } from "../../../api/ipc";
 import type { StatusEntry } from "../../../api/types";
@@ -8,7 +8,7 @@ import { useCommitStore, type ListId } from "../../../store/commitStore";
 import { selectRunning, useOpsStore } from "../../../store/opsStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { toastError } from "../../../store/toastStore";
-import { blameAt, copyText } from "../actions";
+import { blameAt, copyText, showHistory } from "../actions";
 import { stageTarget } from "./stageTarget";
 
 /** Where to put the menu, and the paths it was opened over — a snapshot: the list moves under it. */
@@ -53,6 +53,8 @@ export function FileContextMenu({ list, paths, entries, menu, onClose, act, disc
   // unborn HEAD) has nothing to blame against; a rename is blamed under the name HEAD knows.
   const newFile = !single || single.workdir === "untracked" || single.index === "added";
   const blameOid = newFile ? null : head;
+  // Blame and History both want the *tracked* path — a rename's pre-rename name is what the commits
+  // behind it know the file as, and `--follow` starts from there too.
   const blamePath = single?.oldPath ?? paths[0];
   // A lone file is the row's own Stage action, so it stages; more than one skips the conflicts. Over
   // a folder it is that row's action, word for word — a folder is a group whatever is under it.
@@ -140,6 +142,16 @@ export function FileContextMenu({ list, paths, entries, menu, onClose, act, disc
           onClick={run(() => blameOid && void blameAt(blameOid, blamePath))}
         >
           Blame
+        </MenuItem>
+      )}
+      {n === 1 && (
+        <MenuItem
+          icon={<History size={16} aria-hidden />}
+          disabled={newFile}
+          title={newFile ? "The file has never been committed" : undefined}
+          onClick={run(() => !newFile && showHistory(blamePath))}
+        >
+          History
         </MenuItem>
       )}
     </ContextMenu>

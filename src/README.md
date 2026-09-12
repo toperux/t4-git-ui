@@ -34,8 +34,12 @@ src/
                            around the last `ensureRows` viewport, drop the rest so they reload lazily), startLog,
                            ensureRows (500-row pages, dedupe, stale drop), select, selectWorkingTree, revealOid;
                            a page rejected with `staleGeneration` restarts the walk, any other kind toasts once (never loops);
-                           `__resetForTests()` clears the module-level page bookkeeping
-    diffStore.ts           zustand: selected commit → files (get_changed_files), selectedPath (default first), diff (get_file_diff with `context` — 3 unless Settings says otherwise;
+                           `__resetForTests()` clears the module-level page bookkeeping.
+                           filter {text, workingTree, path}: `path` is the file history filter (§3) — `flat` counts it, so the
+                           graph is not laid out and rows carry `path` = the name the file had at that commit
+    diffStore.ts           zustand: selected commit → files (get_changed_files), selectedPath (default first, or `load`'s
+                           `preselect` — the history row's own file, seeded into `treeSelection` too so the Files tab follows;
+                           a path the changed list names differently falls back to the first file), diff (get_file_diff with `context` — 3 unless Settings says otherwise;
                            setContext reloads),
                            stale responses dropped via seq counters; view unified|split (localStorage.diffView), ignoreWhitespace,
                            fileListMode flat|tree (localStorage.fileListMode).
@@ -199,7 +203,8 @@ src/
                            button: click → default remote w/ prune, ▾ → the Fetch dialog (remote, prune, tags), Pull / Push
                            dialogs + ahead/behind counts, Branch and Stash menus, Commit button
                            = change count, Repository menu › Commit… / Run git command…, ThemeToggle beside the Settings gear
-                           (dialogStore kind `settings`);
+                           (dialogStore kind `settings`); the file-history chip (§3) sits left of the search box at the same
+                           height — "History: <basename>", the full path as its title, × clears `filter.path` and nothing else;
                            every op button disabled while one runs),
                            Sidebar (one `role="tree"` per section with a roving tabIndex; branches with `/` nest in
                            folder rows under Local and under each remote; a `mergedInto` branch (never the current one, nor a protected main / master / remote-default) is muted with a
@@ -209,7 +214,10 @@ src/
                            non-zero exit unless conflicts / auth / non-fast-forward / diverged, the dock's exit line says it;
                            busyLabel cuts the label by code point with a marker runOp keeps;
                            blameAt(oid, path) is every way into blame — Files tab + `selectTreePathAt` + the gutter on, then
-                           `revealOid`, which misses under a filter or a `Head`-only spec and toasts "Not in the current view"),
+                           `revealOid`, which misses under a filter or a `Head`-only spec and toasts "Not in the current view";
+                           showHistory(path) is every way into file history (§3) — `startLog` with `filter.path`, the caller
+                           having resolved the file to its tracked name; openCommitPanel clears both filters, since either flattens
+                           the walk and hides the pseudo-row that mounts the panel),
                            banners.ts (pure refs+status → detached | merge | rebase (Abort · Skip · Continue; with
                            nothing conflicted and the status agreeing with refs about which state it was scanned in,
                            the text is the `edit` / exec pause, not "resolve conflicts") |
@@ -240,7 +248,8 @@ src/
                            gitArgs.ts mirrors cli/ops.rs
                            for the footer's "Runs `git …`" preview — that file is the source of truth),
                            DetailsPane (bottom pane: CommitDetails 340 | ChangedFileList 320 | CommitDiff = DiffViewer, or
-                           DiffViewer/FileContent on the Files tab, resizable;
+                           DiffViewer/FileContent on the Files tab, resizable; the selected row's `path` (§3) rides into
+                           `diffStore.load` as the file to preselect, so both tabs open on the file the history is of;
                            an annotated tag pointing at the selected commit adds its own message block under the
                            commit message — `refs.tags[].message` is `null` on a lightweight tag, which is all that
                            tells the two apart once the tag is peeled),
@@ -250,7 +259,8 @@ src/
                            at 200 every launch)
       RevisionGrid/        RevisionGrid (virtualized; role=grid wraps the header row + the scrolling rowgroup, owns the keyboard
                            and aria-activedescendant; row 0 = WorkingTreeRow while dirty & unfiltered —
-                           commit rows shift by one, store indices stay commit-based), GridRow (memo, per-row store selectors),
+                           commit rows shift by one, store indices stay commit-based; an empty walk is "No history yet" under
+                           `filter.path`, else "No matching commits" when flat, else "No commits yet"), GridRow (memo, per-row store selectors),
                            GraphCell (<canvas> per row, `useDevicePixelRatio()` repaints on a DPI change) + WorkingTreeNode
                            (dashed ring; double-click opens the commit dialog), graphGeometry.ts, visibleLanes.ts (graph
                            column width follows the busiest row in view, grows at once / shrinks after 300 ms, up to 40
@@ -275,7 +285,8 @@ src/
                            first: Copy path, Open (a commit's file as a temp copy of its blob, the working tree's in place),
                            Reveal in folder (working-tree target only), Save as… (`@tauri-apps/plugin-dialog` `save` →
                            `save_file_as`, the whole blob), Blame (§2 — `blameAt` the target's commit, so the Changes tab hands
-                           over to the Files tab) and Show in Changes, which only appears on the Files tab for a
+                           over to the Files tab), History (§3 — `showHistory` on the row's path, always offered: a listed file is
+                           a file some commit has) and Show in Changes, which only appears on the Files tab for a
                            path the commit actually changed and switches tab + selection. All reads, so nothing here is
                            disabled while an operation runs).
                            fileTree.ts (pure: nest by `/`, folders first; a chain of single-child folders folds into one
@@ -315,7 +326,8 @@ src/
                            `aria-label` so a continuation row still names its commit, and `title` = summary · date · pre-rename
                            path. No tab stop per hunk (virtualized rows would leave the tab order): one roving cursor for the
                            list, ↑/↓ to move it, Enter or a gutter click → `blameAt`, ContextMenu / Shift+F10 or right-click →
-                           the hunk menu (Select in graph, Blame parent = porcelain's `previous` commit *and* path, Copy SHA),
+                           the hunk menu (Select in graph, Blame parent = porcelain's `previous` commit *and* path,
+                           History of this file = `showHistory` on the hunk's own `origPath` — the name its commit knew — and Copy SHA),
                            blameRows.ts (pure: line → {hunk, first, step}; the tint is 5 steps on a **log** scale over this
                            file's own hunk ages, since commit times cluster; blameLabel / blameTitle)
       CommitPanel/         CommitPanel (Files 320 | Diff | Message 340, resizable; `useCommitSync` — called once from RepoWindow
@@ -333,7 +345,8 @@ src/
                            still on disk — through `open_path`, a Rust command that joins the repo-relative path itself so the
                            webview never gets an arbitrary-path opener scope — and Blame (§2), which resolves the working-tree
                            file to **HEAD**: this panel is what the working-tree row renders, so there is no Files tab on it;
-                           dead for a path HEAD has never seen and for an unborn HEAD),
+                           dead for a path HEAD has never seen and for an unborn HEAD — and History (§3) on the same
+                           `oldPath ?? path`, dead with the same reason for a file that has never been committed),
                            FilesColumn (Unstaged + Stage all / Staged + Unstage all — each header button reads "Stage selected" /
                            "Unstage selected" and acts on the selection alone once its own list owns two or more rows,
                            "Stage selected" skipping conflicted ones like Stage all — Unstage never filters, since

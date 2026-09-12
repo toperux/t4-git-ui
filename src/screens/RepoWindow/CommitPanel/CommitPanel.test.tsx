@@ -655,13 +655,13 @@ describe("CommitPanel file context menu", () => {
   it("an unstaged file offers Stage, Discard, Copy path and the openers", () => {
     const { getByRole, container } = renderPanel();
     fireEvent.contextMenu(rows(container, "Unstaged")[0]);
-    expect(labels(getByRole("menu", { name: "File actions" }))).toEqual(["Stage", "Discard…", "Copy path", "Open", "Reveal in folder", "Blame"]);
+    expect(labels(getByRole("menu", { name: "File actions" }))).toEqual(["Stage", "Discard…", "Copy path", "Open", "Reveal in folder", "Blame", "History"]);
   });
 
   it("a staged file offers Unstage, with no Discard", () => {
     const { getByRole, container } = renderPanel();
     fireEvent.contextMenu(rows(container, "Staged")[1]);
-    expect(labels(getByRole("menu", { name: "File actions" }))).toEqual(["Unstage", "Copy path", "Open", "Reveal in folder", "Blame"]);
+    expect(labels(getByRole("menu", { name: "File actions" }))).toEqual(["Unstage", "Copy path", "Open", "Reveal in folder", "Blame", "History"]);
   });
 
   it("a conflicted file offers either side by the branch name the backend put on it", async () => {
@@ -670,7 +670,7 @@ describe("CommitPanel file context menu", () => {
     fireEvent.contextMenu(rows(container, "Unstaged")[2]);
     const menu = getByRole("menu", { name: "File actions" });
     // Discard is there but refused: a conflict has no single version to go back to — the two sides are.
-    expect(labels(menu)).toEqual(["Stage", "Discard…", "Keep main's version", "Keep feature's version", "Copy path", "Open", "Reveal in folder", "Blame"]);
+    expect(labels(menu)).toEqual(["Stage", "Discard…", "Keep main's version", "Keep feature's version", "Copy path", "Open", "Reveal in folder", "Blame", "History"]);
     expect(getByRole("menuitem", { name: "Discard…" }).hasAttribute("disabled")).toBe(true);
     fireEvent.click(getByRole("menuitem", { name: "Keep feature's version" }));
     await act(async () => {});
@@ -693,6 +693,20 @@ describe("CommitPanel file context menu", () => {
     // A file HEAD has never seen has nothing to blame against.
     fireEvent.contextMenu(rows(container, "Unstaged")[3]); // untracked.txt
     const item = getByRole("menuitem", { name: "Blame" });
+    expect(item.hasAttribute("disabled")).toBe(true);
+    expect(item.getAttribute("title")).toBe("The file has never been committed");
+  });
+
+  it("History filters the walk to the file's tracked path, and is dead for a never-committed one", () => {
+    const startLog = vi.fn(() => Promise.resolve());
+    useRepoStore.setState({ refs: REFS, startLog, spec: { kind: "all" }, filter: {} });
+    const { getByRole, container } = renderPanel();
+    fireEvent.contextMenu(rows(container, "Unstaged")[0]); // a.rs, modified
+    fireEvent.click(getByRole("menuitem", { name: "History" }));
+    expect(startLog).toHaveBeenCalledWith({ kind: "all" }, { path: "a.rs" });
+
+    fireEvent.contextMenu(rows(container, "Unstaged")[3]); // untracked.txt
+    const item = getByRole("menuitem", { name: "History" });
     expect(item.hasAttribute("disabled")).toBe(true);
     expect(item.getAttribute("title")).toBe("The file has never been committed");
   });

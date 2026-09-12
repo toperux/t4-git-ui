@@ -117,6 +117,21 @@ describe("CommitDetails", () => {
   });
 });
 
+describe("DetailsPane under a history filter", () => {
+  it("preselects the file the row was listed for, under the name it had at that commit", async () => {
+    const files: FileChange[] = [
+      { path: "other.ts", oldPath: null, status: "modified", additions: 1, deletions: 0, binary: false },
+      { path: "old/name.ts", oldPath: null, status: "modified", additions: 1, deletions: 0, binary: false },
+    ];
+    (ipc.getChangedFiles as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(files);
+    useRepoStore.setState({ filter: { path: "new/name.ts" }, rows: [{ ...ROW, path: "old/name.ts" }] });
+    render(<DetailsPane />);
+    // Not `other.ts`, which is the first of the commit's changed files.
+    await waitFor(() => expect(useDiffStore.getState().selectedPath).toBe("old/name.ts"));
+    expect(useDiffStore.getState().treeSelectedPath).toBe("old/name.ts");
+  });
+});
+
 describe("CompareDetails", () => {
   it("replaces the commit panel with the compared pair, and loads the range's files", async () => {
     const from: CommitInfo = { ...DETAIL.info, oid: "b0b0b0b", short: "b0b0b0b", summary: "Earlier work" };

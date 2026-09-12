@@ -48,8 +48,11 @@ export interface DiffStore {
   blameLoading: boolean;
   blameError: string | null;
 
-  /** Loads the file list of `target` (or clears everything for `null`) and selects its first file. */
-  load(repoId: RepoId | null, target: DiffTarget | null): Promise<void>;
+  /**
+   * Loads the file list of `target` (or clears everything for `null`) and selects its first file —
+   * or `preselect`, the file a history row names, on both tabs.
+   */
+  load(repoId: RepoId | null, target: DiffTarget | null, preselect?: string | null): Promise<void>;
   selectPath(path: string): void;
   setView(view: DiffView): void;
   toggleWhitespace(): void;
@@ -119,6 +122,8 @@ const treeCache = new Map<string, { oid: string | null; entries: TreeEntry[] }>(
 const MAX_TREES = 20;
 /** The file each target was last left on, so switching back to it resumes there. */
 const treeSelection = new Map<string, string>();
+/** Target `selectTreePathAt` just seeded, for the one `load` that follows it: its `preselect` loses. */
+let pinned: string | null = null;
 
 /** Caches `entries` for `key`, sharing the array of an equal tree and evicting the oldest listing. */
 function remember(key: string, oid: string | null, entries: TreeEntry[]): TreeEntry[] {
@@ -226,12 +231,23 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
     blameLoading: false,
     blameError: null,
 
-    async load(repoId, target) {
+    async load(repoId, target, preselect) {
       const seq = ++filesSeq;
       diffSeq++; // any diff in flight belongs to the previous target
       treeSeq++;
       contentSeq++;
       blameSeq++;
+      // The repository is closed (a target of `null` alone only means nothing is selected in it):
+      // its listings are megabytes nothing will ask for again, and another repo's oids are not these.
+      if (!repoId) {
+        treeCache.clear();
+        treeSelection.clear();
+      }
+      // The same per-target memory `selectTreePathAt` writes, seeded before the read below so the
+      // Files tab lands on the history row's own file rather than the one this target was left on.
+      const treeKey = targetKey(treeTargetOf(target));
+      if (preselect && pinned !== treeKey) treeSelection.set(treeKey, preselect);
+      pinned = null;
       set({
         repoId,
         target,
@@ -246,7 +262,7 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
         treeLoading: false,
         treeError: null,
         // The file this target was last left on; another one starts with no selection.
-        treeSelectedPath: treeSelection.get(targetKey(treeTargetOf(target))) ?? null,
+        treeSelectedPath: treeSelection.get(treeKey) ?? null,
         content: null,
         contentLoading: false,
         contentError: null,
@@ -262,7 +278,10 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
       try {
         const files = await ipc.getChangedFiles(repoId, target);
         if (seq !== filesSeq) return; // stale
-        set({ files, filesLoading: false, selectedPath: files[0]?.path ?? null });
+        // `preselect` is in the list by construction, but rename detection here can name it
+        // differently from the one `--follow` reported: the first file is the fallback.
+        const wanted = preselect && files.some((f) => f.path === preselect) ? preselect : null;
+        set({ files, filesLoading: false, selectedPath: wanted ?? files[0]?.path ?? null });
         void loadDiff();
       } catch (e) {
         if (seq !== filesSeq) return;
@@ -349,7 +368,11 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
 
     selectTreePathAt(oid, path) {
       treeSelection.set(oid, path);
-      if (targetKey(treeTargetOf(get().target)) === oid) get().selectTreePath(path);
+      const current = targetKey(treeTargetOf(get().target)) === oid;
+      // No reload follows a seed that applies at once, so a pin would outlive it and void the
+      // next row click's own file on this commit.
+      pinned = current ? null : oid;
+      if (current) get().selectTreePath(path);
     },
 
     setBlameOn(blameOn) {
@@ -370,4 +393,5 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
 export function __resetTreeCacheForTests() {
   treeCache.clear();
   treeSelection.clear();
+  pinned = null;
 }

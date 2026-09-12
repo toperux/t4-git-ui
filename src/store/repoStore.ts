@@ -16,7 +16,7 @@ export interface LogState {
   total: number;
   complete: boolean;
   error: string | null;
-  /** Text filter active: rows carry no graph → render a flat list. */
+  /** A filter is active (text or path): rows carry no graph → render a flat list. */
   flat: boolean;
 }
 
@@ -360,7 +360,7 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
       set({
         spec,
         filter,
-        log: { ...EMPTY_LOG, total: prev.log.total, flat: !!filter.text?.trim() },
+        log: { ...EMPTY_LOG, total: prev.log.total, flat: !!filter.text?.trim() || !!filter.path },
       });
       try {
         const generation = await ipc.startLog(repo.id, spec, filter);

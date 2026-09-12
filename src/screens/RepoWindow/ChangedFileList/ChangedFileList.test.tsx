@@ -248,6 +248,18 @@ describe("ChangedFileList", () => {
     await waitFor(() => expect(revealOid).toHaveBeenCalledWith("c"));
   });
 
+  it("History puts the row's path on the walk's filter", () => {
+    const startLog = vi.fn(() => Promise.resolve());
+    useRepoStore.setState({ startLog, spec: { kind: "head" }, filter: { text: "lane" } });
+    useDiffStore.setState({ repoId: "r", target: { kind: "commit", oid: "c" }, files: FILES, filesLoading: false, filesError: null, fileListMode: "flat", tab: "changes" });
+    const { getByRole } = render(<ChangedFileList />);
+
+    fireEvent.contextMenu(getByRole("option", { name: /graph\.rs/ }), { clientX: 1, clientY: 1 });
+    fireEvent.click(getByRole("menuitem", { name: "History" }));
+    // The text filter composes with it; the spec is left alone.
+    expect(startLog).toHaveBeenCalledWith({ kind: "head" }, { text: "lane", path: "crates/git-core/src/log/graph.rs" });
+  });
+
   it("Show in Changes appears for a file the commit changed and switches tab + selection", () => {
     useDiffStore.setState({
       repoId: "r",

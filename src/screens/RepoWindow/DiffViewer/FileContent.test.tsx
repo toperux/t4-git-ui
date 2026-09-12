@@ -155,7 +155,7 @@ describe("FileContent blame gutter", () => {
 
     // The first hunk is the file's start, so it has no `previous` to blame.
     fireEvent.contextMenu(cells(container)[0], { clientX: 4, clientY: 4 });
-    expect(labels(getByRole("menu", { name: "Blame actions" }))).toEqual(["Select in graph", "Blame parent", "Copy SHA"]);
+    expect(labels(getByRole("menu", { name: "Blame actions" }))).toEqual(["Select in graph", "Blame parent", "History of this file", "Copy SHA"]);
     const dead = getByRole("menuitem", { name: "Blame parent" });
     expect(dead.hasAttribute("disabled")).toBe(true);
     // Why it is dead, on the item and on the `DisabledHint` wrapper that takes the hover a
@@ -174,6 +174,17 @@ describe("FileContent blame gutter", () => {
     await waitFor(() => expect(revealOid).toHaveBeenCalledWith("c".repeat(40)));
     void useDiffStore.getState().load("r", { kind: "commit", oid: "c".repeat(40) });
     expect(useDiffStore.getState().treeSelectedPath).toBe("old.rs");
+  });
+
+  it("History of this file filters the walk to the name the hunk's commit knew it by", () => {
+    const startLog = vi.fn(() => Promise.resolve());
+    useRepoStore.setState({ startLog, spec: { kind: "all" }, filter: {} });
+    blamed();
+    const { container, getByRole } = render(<FileContent path="src/a.rs" content={content()} loading={false} error={null} />);
+
+    fireEvent.contextMenu(cells(container)[0], { clientX: 4, clientY: 4 });
+    fireEvent.click(getByRole("menuitem", { name: "History of this file" }));
+    expect(startLog).toHaveBeenCalledWith({ kind: "all" }, { path: "src/a.rs" });
   });
 
   it("refuses the toggle on a file blame cannot see whole", () => {

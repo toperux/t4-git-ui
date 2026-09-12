@@ -147,6 +147,17 @@ export async function blameAt(oid: string, path: string) {
   if (!(await useRepoStore.getState().revealOid(oid))) useToastStore.getState().push({ kind: "info", title: "Not in the current view — clear the filter" });
 }
 
+/**
+ * "History" from any file row: a path filter on the grid, so the rows are the commits that touched
+ * `path` (renames followed). Every entry point resolves the file to its *tracked* path first — the
+ * name git knows it by — since that is what `--follow` starts from. The text filter composes, and
+ * the chip beside the search box is what clears this one.
+ */
+export function showHistory(path: string) {
+  const st = useRepoStore.getState();
+  void st.startLog(st.spec, { ...st.filter, path });
+}
+
 export function copyText(text: string, what: string) {
   void writeText(text)
     .then(() => useToastStore.getState().push({ kind: "info", title: `Copied ${what}`, detail: text }))
@@ -154,13 +165,13 @@ export function copyText(text: string, what: string) {
 }
 
 /**
- * Toolbar Commit, "Commit merge", "Open commit panel". A text filter flattens the walk, and the
- * pseudo-row (the only thing that mounts the panel) is suppressed while it does: clear it first, or
- * the click does nothing at all.
+ * Toolbar Commit, "Commit merge", "Open commit panel". Any filter flattens the walk, and the
+ * pseudo-row (the only thing that mounts the panel) is suppressed while it does: clear them first,
+ * or the click does nothing at all.
  */
 export function openCommitPanel() {
   const st = useRepoStore.getState();
-  if (st.log.flat) void st.startLog(st.spec, { ...st.filter, text: null });
+  if (st.log.flat) void st.startLog(st.spec, { ...st.filter, text: null, path: null });
   st.selectWorkingTree();
 }
 

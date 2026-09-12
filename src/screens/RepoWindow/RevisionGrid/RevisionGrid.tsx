@@ -1,5 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Cherry, ChevronDown, Copy, GitBranch, GitCommitHorizontal, GitMerge, ListRestart, Pencil, Plus, RotateCcw, Search, Tag, Trash2, Undo2 } from "lucide-react";
+import { Cherry, ChevronDown, Copy, GitBranch, GitCommitHorizontal, GitMerge, History, ListRestart, Pencil, Plus, RotateCcw, Search, Tag, Trash2, Undo2 } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import type { CommitInfo } from "../../../api/types";
 import { Button } from "../../../components/ui/Button/Button";
@@ -33,6 +33,8 @@ export function RevisionGrid() {
   const complete = useRepoStore((st) => st.log.complete);
   const error = useRepoStore((st) => st.log.error);
   const flat = useRepoStore((st) => st.log.flat);
+  const historyPath = useRepoStore((st) => st.filter.path ?? null);
+  const filterText = useRepoStore((st) => st.filter.text ?? "");
   const headOid = useRepoStore((st) => st.refs?.head.oid ?? null);
   const headBranch = useRepoStore((st) => st.refs?.head.branch ?? null);
   const reveal = useRepoStore((st) => st.reveal);
@@ -166,6 +168,12 @@ export function RevisionGrid() {
       {empty ? (
         error ? (
           <EmptyState title="Couldn't load history" hint={error} />
+        ) : historyPath && !filterText.trim() ? (
+          // `git log --follow` found nothing for the path: a file that is only in the working tree
+          // (untracked, or a staged add), so there is no commit to list rather than none matching.
+          // With a search on top of the path it is the search that matched nothing — the file may
+          // well have history — so that case falls through to "No matching commits".
+          <EmptyState icon={<History size={24} aria-hidden />} title="No history yet" hint={historyPath} />
         ) : flat ? (
           <EmptyState icon={<Search size={24} aria-hidden />} title="No matching commits" hint="Try a different search" />
         ) : (

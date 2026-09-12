@@ -276,6 +276,13 @@ describe("diffStore — Files tab", () => {
     // The current target: selected at once, since no reload is coming to read the seed.
     useDiffStore.getState().selectTreePathAt("c2", "other.ts");
     expect(useDiffStore.getState().treeSelectedPath).toBe("other.ts");
+
+    // ...and no pin is left behind: a later history row for c2 still lands on its own file.
+    await useDiffStore.getState().load("r", commit("c1"));
+    await flush();
+    await useDiffStore.getState().load("r", commit("c2"), "a.ts");
+    await flush();
+    expect(useDiffStore.getState().treeSelectedPath).toBe("a.ts");
   });
 
   it("drops a blame reply that arrives after the gutter was switched off", async () => {
@@ -296,6 +303,64 @@ describe("diffStore — Files tab", () => {
     resolveBlame(blameFor("a.ts"));
     await flush();
     expect(useDiffStore.getState().blame).toBeNull();
+  });
+
+  it("a file seeded by selectTreePathAt survives the reload's own preselect", async () => {
+    mocked.listTree.mockImplementation((_id: string, t: { oid: string }) => Promise.resolve(listing(`tree-${t.oid}`, "a.ts", "b.ts")));
+    useDiffStore.setState({ tab: "files" });
+
+    // Blame drills into b.ts on X; revealing X reloads the store with the history filter's file.
+    useDiffStore.getState().selectTreePathAt("X", "b.ts");
+    await useDiffStore.getState().load("r", commit("X"), "a.ts");
+    await flush();
+    expect(useDiffStore.getState().treeSelectedPath).toBe("b.ts");
+    expect(useDiffStore.getState().content?.path).toBe("b.ts");
+
+    // The seed is spent: the next reload's preselect is what it lands on.
+    await useDiffStore.getState().load("r", commit("Y"), "a.ts");
+    await flush();
+    expect(useDiffStore.getState().treeSelectedPath).toBe("a.ts");
+  });
+
+  it("a history row's path preselects the file on both tabs, falling back to the first one", async () => {
+    mocked.getChangedFiles.mockResolvedValue([file("a.ts"), file("b.ts")]);
+    mocked.getFileDiff.mockImplementation((_id: string, _t: unknown, path: string) => Promise.resolve(diffFor(path)));
+    mocked.listTree.mockImplementation((_id: string, t: { oid: string }) => Promise.resolve(listing(`tree-${t.oid}`, "a.ts", "b.ts")));
+    mocked.readFile.mockImplementation((_i: string, _t: unknown, p: string) => Promise.resolve(contentFor(p)));
+    useDiffStore.setState({ tab: "files" });
+
+    await useDiffStore.getState().load("r", commit("c1"), "b.ts");
+    await flush();
+    expect(useDiffStore.getState().selectedPath).toBe("b.ts");
+    expect(useDiffStore.getState().treeSelectedPath).toBe("b.ts");
+    expect(useDiffStore.getState().content?.path).toBe("b.ts");
+
+    // Rename detection in the changed-files diff can name it differently from `--follow`: the
+    // Changes tab falls back to the first file, and the Files tab keeps the name it was given.
+    await useDiffStore.getState().load("r", commit("c2"), "old/b.ts");
+    await flush();
+    expect(useDiffStore.getState().selectedPath).toBe("a.ts");
+    expect(useDiffStore.getState().treeSelectedPath).toBe("old/b.ts");
+  });
+
+  it("forgets the cached listings when the repository is closed, but not while one is open", async () => {
+    mocked.listTree.mockImplementation((_id: string, t: { oid: string }) => Promise.resolve(listing(`tree-${t.oid}`, "a.ts")));
+    useDiffStore.setState({ tab: "files" });
+    await useDiffStore.getState().load("r", commit("c1"));
+    await flush();
+    expect(mocked.listTree).toHaveBeenCalledTimes(1);
+
+    // Nothing selected in an open repo: the cache is still worth something.
+    await useDiffStore.getState().load("r", null);
+    await useDiffStore.getState().load("r", commit("c1"));
+    await flush();
+    expect(mocked.listTree).toHaveBeenCalledTimes(1);
+
+    // The repo is gone: its trees are megabytes nothing will ask for again.
+    await useDiffStore.getState().load(null, null);
+    await useDiffStore.getState().load("r", commit("c1"));
+    await flush();
+    expect(mocked.listTree).toHaveBeenCalledTimes(2);
   });
 
   it("never caches the working tree — it changes under us", async () => {

@@ -10,6 +10,7 @@ import {
   GitBranch,
   GitCommitHorizontal,
   GitMerge,
+  History,
   Plus,
   RefreshCw,
   Search,
@@ -28,6 +29,7 @@ import { UpdateBadge } from "../../components/ui/UpdateBadge/UpdateBadge";
 import tb from "../../components/ui/ToolbarButton/ToolbarButton.module.css";
 import { useDialogStore, type DialogSpec } from "../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../store/opsStore";
+import { baseName } from "../../lib/paths";
 import { useRecentsStore, type RecentRepo } from "../../store/recentsStore";
 import { useMerging, useRepoStore } from "../../store/repoStore";
 import { selectChangeCount, useStatusStore } from "../../store/statusStore";
@@ -52,6 +54,7 @@ export function Toolbar() {
   const repo = useRepoStore((st) => st.repo);
   const recents = useRecentsStore((st) => st.recents);
   const [text, setText] = useState(() => useRepoStore.getState().filter.text ?? "");
+  const historyPath = useRepoStore((st) => st.filter.path ?? null);
   const [repoMenu, setRepoMenu] = useState(false);
   const [branchMenu, setBranchMenu] = useState(false);
   const [stashMenu, setStashMenu] = useState(false);
@@ -277,6 +280,23 @@ export function Toolbar() {
         Commit
       </ToolbarButton>
       <div className={s.grow} />
+      {/* File history (§3): its own filter, so `×` clears it and leaves the search text alone. */}
+      {historyPath && (
+        <span className={s.history} title={historyPath}>
+          <History size={13} aria-hidden />
+          <span className={s.historyPath}>History: {baseName(historyPath)}</span>
+          <IconButton
+            className={s.historyClear}
+            label="Clear the file history filter"
+            onClick={() => {
+              const st = useRepoStore.getState();
+              void startLog(st.spec, { ...st.filter, path: null });
+            }}
+          >
+            <X size={13} aria-hidden />
+          </IconButton>
+        </span>
+      )}
       <Input
         className={s.search}
         icon={<Search size={14} aria-hidden />}
