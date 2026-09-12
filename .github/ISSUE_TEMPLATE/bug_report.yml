@@ -1,0 +1,57 @@
+name: Bug report
+description: Something in T4 Git misbehaves
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for reporting a bug. Please fill in as much as you can.
+  - type: input
+    id: app-version
+    attributes:
+      label: App version
+      description: Shown on the start screen header and in Settings → Updates
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+  - type: input
+    id: git-version
+    attributes:
+      label: git version
+      description: Output of `git --version`
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log excerpt
+      description: >-
+        From Tauri's app log dir — %APPDATA%\dev.topher.t4gitui\logs on Windows,
+        ~/Library/Logs/dev.topher.t4gitui on macOS, ~/.local/share/dev.topher.t4gitui/logs on Linux
+      render: shell
+    validations:
+      required: false
