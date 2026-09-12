@@ -363,6 +363,39 @@ export interface FileContent {
   kind: TreeEntryKind;
 }
 
+// --- blame.rs ---
+// Which commit last touched each line of a file, grouped into hunks.
+
+/** The commit and pre-rename path a hunk's lines came from — the "Blame parent" target. */
+export interface BlameParent {
+  oid: string;
+  path: string;
+}
+
+/** Consecutive lines of the blamed file that one commit is responsible for. */
+export interface BlameHunk {
+  /** First line of the hunk in the blamed file, 1-based. */
+  start: number;
+  lines: number;
+  oid: string;
+  short: string;
+  author: string;
+  /** Author time (UTC seconds). */
+  time: number;
+  summary: string;
+  /** What the file was called at `oid`, when a rename has moved it since. */
+  origPath: string | null;
+  /** The zero oid: the lines are in the working tree, uncommitted. */
+  uncommitted: boolean;
+  previous: BlameParent | null;
+}
+
+export interface Blame {
+  /** The path that was asked for; a hunk's `origPath` is what it used to be. */
+  path: string;
+  hunks: BlameHunk[];
+}
+
 // --- tools.rs ---
 
 /** Which pair of git-config entries a tool belongs to (`diff.guitool` / `merge.guitool`). */

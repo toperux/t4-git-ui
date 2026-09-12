@@ -159,6 +159,7 @@ pub fn run() {
             commands::tree::list_tree,
             commands::tree::read_file,
             commands::tree::save_file_as,
+            commands::tree::get_blame,
             commands::stage::stage_paths,
             commands::stage::unstage_paths,
             commands::stage::discard_paths,

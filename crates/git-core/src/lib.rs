@@ -1,3 +1,4 @@
+pub mod blame;
 pub mod cli;
 pub mod commit;
 pub mod config;

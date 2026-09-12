@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use git_core::blame::{self, Blame};
 use git_core::tree::{self, FileContent, TreeListing, TreeTarget};
 use git_core::RepoId;
 use tauri::State;
@@ -49,4 +50,36 @@ pub async fn save_file_as(
 ) -> Result<(), AppError> {
     let handle = state.repo(&id)?;
     blocking(move || Ok(tree::save_as(&handle.git2.lock(), &target, &path, &dest)?)).await
+}
+
+/// Which commit last touched each line of `path` at `target`
+/// (`git blame --porcelain`, streamed and parsed line by line).
+///
+/// A read: no `op://event` forwarding and no op lock, so it never makes the UI
+/// busy. It is still registered as an op, which is what gives its process tree
+/// the job handle every other `git` we spawn is killed through; the frontend
+/// drops a reply that a newer selection has superseded.
+#[tauri::command]
+pub async fn get_blame(
+    state: State<'_, AppState>,
+    id: RepoId,
+    target: TreeTarget,
+    path: String,
+    ignore_whitespace: bool,
+) -> Result<Blame, AppError> {
+    let handle = state.repo(&id)?;
+    let cli = state.git_cli();
+    let (op_id, cancel) = state.begin_op();
+    let result = blame::blame(
+        &cli,
+        &handle.path,
+        &op_id,
+        &target,
+        &path,
+        ignore_whitespace,
+        cancel,
+    )
+    .await;
+    state.end_op(&op_id);
+    Ok(result?)
 }

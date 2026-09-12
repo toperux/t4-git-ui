@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   AppError,
   Author,
+  Blame,
   CommitDetail,
   ConflictSide,
   DiffOptions,
@@ -151,6 +152,13 @@ export const readFile = (id: RepoId, target: TreeTarget, path: string) => call<F
 /** Writes the whole file at `target` to `dest` (the native save dialog's answer); a `dest` inside `.git` is refused. */
 export const saveFileAs = (id: RepoId, target: TreeTarget, path: string, dest: string) =>
   call<void>("save_file_as", { id, target, path, dest });
+
+/**
+ * Which commit last touched each line of `path` at `target` (`git blame --porcelain`). A read: it
+ * neither makes the UI busy nor writes to the output dock; a superseded reply is dropped by the store.
+ */
+export const getBlame = (id: RepoId, target: TreeTarget, path: string, ignoreWhitespace: boolean) =>
+  call<Blame>("get_blame", { id, target, path, ignoreWhitespace });
 
 // --- src-tauri/src/commands/tools.rs ---
 // The external diff / merge tools, in the global git config (`diff.guitool`, `difftool.<name>.*`).
