@@ -1,4 +1,18 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type KeyboardEvent, type ReactNode, type RefObject } from "react";
+import { ChevronRight } from "lucide-react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ButtonHTMLAttributes,
+  type KeyboardEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { createPortal } from "react-dom";
 import { cx } from "../../../lib/cx";
 import { DisabledHint } from "../DisabledHint/DisabledHint";
@@ -20,6 +34,35 @@ export interface MenuProps {
 }
 
 const ITEMS = '[role="menuitem"]:not(:disabled)';
+
+/**
+ * How long the pointer has to settle on an item before its submenu opens — or before the open one
+ * closes, when it settles on a *sibling*: the pointer crosses siblings on its diagonal path from
+ * the item into the panel, and closing on the first of them would put the panel out of its reach.
+ */
+const SUBMENU_HOVER_MS = 150;
+
+/**
+ * What a `MenuItem` needs from the `Menu` around it to own a submenu. `null` outside one (a
+ * `ContextMenu` item) and inside a panel, which is what keeps submenus one level deep.
+ */
+interface MenuCtx {
+  /** The panel's portal target: it is a DOM sibling of `.menu`, see `MenuItem`. */
+  wrap: RefObject<HTMLDivElement | null>;
+  /** The panel is placed beside this. */
+  menu: RefObject<HTMLDivElement | null>;
+  /** Identity of the item whose submenu is open — one at a time. */
+  openSub: object | null;
+  setOpenSub: (id: object | null) => void;
+  /** The pointer settled on an item: open its submenu after the grace, or close the open one (`null`). */
+  hover: (id: object | null) => void;
+  /** The pointer reached the panel: whatever the grace was about to do, don't. */
+  keepOpen: () => void;
+  /** The parent menu's `onClose`. */
+  close: () => void;
+}
+
+const MenuCtx = createContext<MenuCtx | null>(null);
 
 /**
  * Outside mousedown / Escape / a scroll or resize under it → `onClose`; first item focused when
@@ -132,19 +175,69 @@ function onMenuKeyDown(onClose: () => void) {
   };
 }
 
+/**
+ * A submenu panel is portalled into the parent's `wrap`, but it still sits inside its item in the
+ * React tree — so every key in it bubbles to the parent `.menu`'s `onMenuKeyDown` and to
+ * `closeOnEscape` on `wrap`. Escape and ArrowLeft close the panel alone and hand focus back to the
+ * item; the ↑/↓ cycle runs against the panel's own rows and stops there, or the parent's would run
+ * over its own rows as well. Tab closes both, as it does anywhere in a menu.
+ */
+function onSubmenuKeyDown(closePanel: () => void, closeAll: () => void) {
+  const cycle = onMenuKeyDown(closeAll);
+  return (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Escape" || e.key === "ArrowLeft") {
+      e.preventDefault();
+      e.stopPropagation();
+      closePanel();
+      return;
+    }
+    cycle(e);
+    e.stopPropagation();
+  };
+}
+
 /** Dropdown menu (style guide `Menu`): closes on outside click / Escape; ↑/↓ move focus; focus returns to the trigger. */
 export function Menu({ open, onClose, anchor, label, children, align = "right", className }: MenuProps) {
   const wrap = useRef<HTMLDivElement>(null);
   const menu = useRef<HTMLDivElement>(null);
+  const [openSub, setOpenSub] = useState<object | null>(null);
+  const grace = useRef<number | undefined>(undefined);
   useRestoreFocus(open);
   useMenuDismiss(open, onClose, wrap, menu);
+
+  // A closed menu has no open submenu, and no timer left running to open one.
+  useEffect(() => {
+    if (open) return;
+    clearTimeout(grace.current);
+    setOpenSub(null);
+  }, [open]);
+  useEffect(() => () => clearTimeout(grace.current), []);
+
+  const ctx = useMemo<MenuCtx>(() => {
+    const keepOpen = () => clearTimeout(grace.current);
+    return {
+      wrap,
+      menu,
+      openSub,
+      keepOpen,
+      close: onClose,
+      setOpenSub: (id) => {
+        keepOpen();
+        setOpenSub(id);
+      },
+      hover: (id) => {
+        keepOpen();
+        grace.current = window.setTimeout(() => setOpenSub(id), SUBMENU_HOVER_MS);
+      },
+    };
+  }, [openSub, onClose]);
 
   return (
     <div ref={wrap} className={cx(s.wrap, className)} onKeyDown={closeOnEscape(open, onClose)}>
       {anchor}
       {open && (
         <div ref={menu} role="menu" aria-label={label} className={cx(s.menu, align === "left" && s.left)} onKeyDown={onMenuKeyDown(onClose)}>
-          {children}
+          <MenuCtx.Provider value={ctx}>{children}</MenuCtx.Provider>
         </div>
       )}
     </div>
@@ -202,25 +295,125 @@ export interface MenuItemProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   danger?: boolean;
   /** Shortcut hint, right-aligned (`Ctrl+B`). */
   kbd?: string;
+  /**
+   * Rows the item opens beside itself, in a panel: hover, click, Enter or ArrowRight open it,
+   * ArrowLeft or Escape close it again. Only inside a `Menu`, and only one level deep.
+   */
+  submenu?: ReactNode;
 }
 
-export function MenuItem({ icon, danger, kbd, className, children, type = "button", ...rest }: MenuItemProps) {
+export function MenuItem({ icon, danger, kbd, submenu, className, children, type = "button", ...rest }: MenuItemProps) {
+  const ctx = useContext(MenuCtx);
+  const btn = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  /** This item's identity in the menu's one-open-submenu state. */
+  const id = useRef({}).current;
+  const itemId = useId();
+  const open = ctx !== null && ctx.openSub === id;
+  const [pos, setPos] = useState<{ top: number; left: number }>();
+  /** Opened by key or click: the panel takes the focus. Opened by hover: the pointer keeps it. */
+  const takeFocus = useRef(false);
+
+  const openPanel = (focus: boolean) => {
+    takeFocus.current = focus;
+    ctx?.setOpenSub(id);
+  };
+  /** The panel only: focus goes back to the item it belongs to. */
+  const closePanel = () => {
+    ctx?.setOpenSub(null);
+    btn.current?.focus();
+  };
+
+  // Beside the parent menu, level with the item, flipped to its left when the viewport is short on
+  // the right and slid up when it is short at the bottom (`.submenu` scrolls what still doesn't
+  // fit). ponytail: a panel is `.menu`-wide, so the parent's own width stands in for its width and
+  // the placement takes one pass; only the height is measured.
+  useLayoutEffect(() => {
+    const m = ctx?.menu.current;
+    if (!open || !m || !btn.current) return;
+    const box = m.getBoundingClientRect();
+    const fits = box.right + box.width <= window.innerWidth;
+    const pad = 4;
+    // `box.top` puts the menu's own coordinates in the viewport, where the clamp is: bottom edge
+    // first, then the top, so a panel taller than the window starts at the top rather than above it.
+    const top = Math.max(Math.min(btn.current.offsetTop, window.innerHeight - pad - box.top - (panel.current?.offsetHeight ?? 0)), pad - box.top);
+    setPos({ top: m.offsetTop + top, left: m.offsetLeft + (fits ? m.offsetWidth : -m.offsetWidth) });
+  }, [open, ctx]);
+
+  useEffect(() => {
+    if (open && takeFocus.current) panel.current?.querySelector<HTMLElement>(ITEMS)?.focus();
+  }, [open]);
+
+  const target = ctx?.wrap.current ?? null;
   return (
-    // A disabled item is the one that most needs its `title` read — that is where "why is this
-    // greyed out?" gets answered — and it is exactly the case Chromium refuses to show.
-    <DisabledHint disabled={rest.disabled} title={rest.title} className={s.itemWrap}>
-      {/* The chip is a picture of the shortcut, not part of the item's name ("Discard… Delete"):
-          `aria-keyshortcuts` is what carries it to a screen reader. */}
-      <button type={type} role="menuitem" className={cx(s.item, danger && s.danger, className)} aria-keyshortcuts={kbd} {...rest}>
-        {icon && <span className={s.icon}>{icon}</span>}
-        <span className={s.grow}>{children}</span>
-        {kbd && (
-          <Kbd className={s.kbd} aria-hidden>
-            {kbd}
-          </Kbd>
+    <>
+      {/* A disabled item is the one that most needs its `title` read — that is where "why is this
+          greyed out?" gets answered — and it is exactly the case Chromium refuses to show. */}
+      <DisabledHint disabled={rest.disabled} title={rest.title} className={s.itemWrap}>
+        {/* The chip is a picture of the shortcut, not part of the item's name ("Discard… Delete"):
+            `aria-keyshortcuts` is what carries it to a screen reader. */}
+        <button
+          type={type}
+          role="menuitem"
+          className={cx(s.item, danger && s.danger, className)}
+          aria-keyshortcuts={kbd}
+          {...rest}
+          ref={btn}
+          id={submenu ? itemId : rest.id}
+          aria-haspopup={submenu ? "menu" : undefined}
+          aria-expanded={submenu ? open : undefined}
+          onClick={submenu ? () => openPanel(true) : rest.onClick}
+          onKeyDown={(e) => {
+            rest.onKeyDown?.(e);
+            // Enter is handled here rather than left to the click a browser makes of it, so the
+            // keyboard path is the same one ArrowRight takes.
+            if (submenu && (e.key === "ArrowRight" || e.key === "Enter")) {
+              e.preventDefault();
+              openPanel(true);
+            }
+          }}
+          // The menu's one open submenu belongs to whichever item the pointer or the focus is on.
+          onMouseEnter={ctx ? () => ctx.hover(submenu ? id : null) : undefined}
+          onFocus={
+            ctx
+              ? () => {
+                  if (!open) ctx.setOpenSub(null);
+                }
+              : undefined
+          }
+        >
+          {icon && <span className={s.icon}>{icon}</span>}
+          <span className={s.grow}>{children}</span>
+          {kbd && (
+            <Kbd className={s.kbd} aria-hidden>
+              {kbd}
+            </Kbd>
+          )}
+          {submenu && <ChevronRight size={14} className={s.chev} aria-hidden />}
+        </button>
+      </DisabledHint>
+      {open &&
+        target &&
+        createPortal(
+          <div
+            ref={panel}
+            role="menu"
+            aria-labelledby={itemId}
+            className={cx(s.menu, s.submenu)}
+            style={pos}
+            onKeyDown={onSubmenuKeyDown(closePanel, () => {
+              ctx?.setOpenSub(null);
+              ctx?.close();
+            })}
+            onMouseEnter={ctx?.keepOpen}
+          >
+            {/* No context inside a panel: its rows neither nest a submenu of their own nor close
+                the one they are in by taking the focus. */}
+            <MenuCtx.Provider value={null}>{submenu}</MenuCtx.Provider>
+          </div>,
+          target,
         )}
-      </button>
-    </DisabledHint>
+    </>
   );
 }
 

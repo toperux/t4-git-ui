@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useState } from "react";
 import { Dialog } from "../Dialog/Dialog";
@@ -127,6 +127,153 @@ describe("Menu", () => {
     // A resize moves everything.
     fireEvent.resize(window);
     expect(onClose).toHaveBeenCalled();
+  });
+});
+
+/** A menu whose last item owns a submenu, as the Repository menu's "More recent" does. */
+function SubHarness({ onOuterKey, onPick }: { onOuterKey?: (key: string) => void; onPick?: () => void }) {
+  const [open, setOpen] = useState(false);
+  const close = () => setOpen(false);
+  return (
+    <div onKeyDown={(e) => onOuterKey?.(e.key)}>
+      <Menu open={open} onClose={close} label="Repository" anchor={<button onClick={() => setOpen((o) => !o)}>Open</button>}>
+        <MenuItem onClick={close}>First</MenuItem>
+        <MenuItem
+          submenu={
+            <>
+              <MenuItem
+                onClick={() => {
+                  close();
+                  onPick?.();
+                }}
+              >
+                Sixth
+              </MenuItem>
+              <MenuItem onClick={close}>Seventh</MenuItem>
+            </>
+          }
+        >
+          More recent
+        </MenuItem>
+      </Menu>
+    </div>
+  );
+}
+
+describe("MenuItem submenu", () => {
+  /** Opens the menu and returns the item that owns the submenu. */
+  function openMenu(getByRole: ReturnType<typeof render>["getByRole"]) {
+    fireEvent.click(getByRole("button", { name: "Open" }));
+    return getByRole("menuitem", { name: "More recent" });
+  }
+
+  it("opens on click, and closes again when a sibling item takes the focus", () => {
+    const { getByRole, queryByRole } = render(<SubHarness />);
+    const item = openMenu(getByRole);
+    expect(item.getAttribute("aria-haspopup")).toBe("menu");
+    expect(item.getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.click(item);
+    expect(queryByRole("menu", { name: "More recent" })).not.toBeNull();
+    expect(item.getAttribute("aria-expanded")).toBe("true");
+    // The panel is a sibling of the menu, not one of its rows: the ↑/↓ cycle must not pick it up.
+    expect(getByRole("menu", { name: "Repository" }).querySelectorAll('[role="menuitem"]')).toHaveLength(2);
+
+    act(() => getByRole("menuitem", { name: "First" }).focus());
+    expect(queryByRole("menu", { name: "More recent" })).toBeNull();
+  });
+
+  it("clamps a panel taller than the window instead of letting it run off the bottom", () => {
+    const proto = HTMLElement.prototype;
+    const offsetTop = Object.getOwnPropertyDescriptor(proto, "offsetTop")!;
+    const offsetHeight = Object.getOwnPropertyDescriptor(proto, "offsetHeight")!;
+    const innerHeight = Object.getOwnPropertyDescriptor(window, "innerHeight")!;
+    // jsdom lays nothing out: the item sits 300px down a 200px-tall window, with a 150px panel.
+    Object.defineProperty(proto, "offsetTop", { configurable: true, get: () => 300 });
+    Object.defineProperty(proto, "offsetHeight", { configurable: true, get: () => 150 });
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 200 });
+    try {
+      const { getByRole } = render(<SubHarness />);
+      fireEvent.click(openMenu(getByRole));
+      // Level with the item would be 300 + 300; the last row the window can show is 200 - 4 - 150.
+      expect(getByRole("menu", { name: "More recent" }).style.top).toBe("346px");
+    } finally {
+      Object.defineProperty(proto, "offsetTop", offsetTop);
+      Object.defineProperty(proto, "offsetHeight", offsetHeight);
+      Object.defineProperty(window, "innerHeight", innerHeight);
+    }
+  });
+
+  it("opens on ArrowRight and on Enter, with the focus on its first row", () => {
+    const { getByRole, queryByRole } = render(<SubHarness />);
+    const item = openMenu(getByRole);
+    fireEvent.keyDown(item, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(getByRole("menuitem", { name: "Sixth" }));
+    // ↓ inside the panel stays inside the panel.
+    fireEvent.keyDown(getByRole("menuitem", { name: "Sixth" }), { key: "ArrowDown" });
+    expect(document.activeElement).toBe(getByRole("menuitem", { name: "Seventh" }));
+
+    fireEvent.keyDown(getByRole("menuitem", { name: "Seventh" }), { key: "ArrowLeft" });
+    expect(queryByRole("menu", { name: "More recent" })).toBeNull();
+    expect(document.activeElement).toBe(item);
+
+    fireEvent.keyDown(item, { key: "Enter" });
+    expect(document.activeElement).toBe(getByRole("menuitem", { name: "Sixth" }));
+  });
+
+  it("Escape closes the panel alone, and nothing around the menu sees the key", () => {
+    const outer = vi.fn();
+    const { getByRole, queryByRole } = render(<SubHarness onOuterKey={outer} />);
+    const item = openMenu(getByRole);
+    fireEvent.keyDown(item, { key: "ArrowRight" });
+
+    fireEvent.keyDown(getByRole("menuitem", { name: "Sixth" }), { key: "Escape" });
+    expect(queryByRole("menu", { name: "More recent" })).toBeNull();
+    expect(queryByRole("menu", { name: "Repository" })).not.toBeNull();
+    expect(document.activeElement).toBe(item);
+    expect(outer).not.toHaveBeenCalledWith("Escape");
+  });
+
+  it("Tab closes both, and a mousedown in the panel closes neither", () => {
+    const { getByRole, queryAllByRole } = render(<SubHarness />);
+    fireEvent.click(openMenu(getByRole));
+    fireEvent.mouseDown(getByRole("menuitem", { name: "Sixth" }));
+    expect(queryAllByRole("menu")).toHaveLength(2);
+
+    fireEvent.keyDown(getByRole("menuitem", { name: "Sixth" }), { key: "Tab" });
+    expect(queryAllByRole("menu")).toHaveLength(0);
+  });
+
+  it("a panel row runs its own onClick, which closes the whole menu", () => {
+    const onPick = vi.fn();
+    const { getByRole, queryAllByRole } = render(<SubHarness onPick={onPick} />);
+    fireEvent.click(openMenu(getByRole));
+    fireEvent.click(getByRole("menuitem", { name: "Sixth" }));
+    expect(onPick).toHaveBeenCalled();
+    expect(queryAllByRole("menu")).toHaveLength(0);
+  });
+
+  it("hover opens the panel after a grace, and only a settled hover on a sibling closes it", () => {
+    vi.useFakeTimers();
+    try {
+      const { getByRole, queryByRole } = render(<SubHarness />);
+      fireEvent.mouseOver(openMenu(getByRole));
+      expect(queryByRole("menu", { name: "More recent" })).toBeNull();
+      act(() => vi.advanceTimersByTime(150));
+      expect(queryByRole("menu", { name: "More recent" })).not.toBeNull();
+
+      // The pointer crosses siblings on its diagonal path into the panel: one hover is not enough.
+      fireEvent.mouseOver(getByRole("menuitem", { name: "First" }));
+      fireEvent.mouseOver(getByRole("menu", { name: "More recent" }));
+      act(() => vi.advanceTimersByTime(150));
+      expect(queryByRole("menu", { name: "More recent" })).not.toBeNull();
+
+      fireEvent.mouseOver(getByRole("menuitem", { name: "First" }));
+      act(() => vi.advanceTimersByTime(150));
+      expect(queryByRole("menu", { name: "More recent" })).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

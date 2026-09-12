@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Dialog, DialogReturnFocus } from "../../components/ui/Dialog/Dialog";
 import { useDialogStore } from "../../store/dialogStore";
 import { useOpsStore } from "../../store/opsStore";
+import { sortRecents, useRecentsStore, type RecentRepo } from "../../store/recentsStore";
 import { useRepoStore } from "../../store/repoStore";
 import { Toolbar } from "./Toolbar";
 
@@ -27,6 +28,7 @@ beforeEach(() => {
   useRepoStore.setState({ repo: { id: "r", name: "r", path: "/r", head: { oid: "a", branch: "main", detached: false } }, refs: null });
   useOpsStore.setState({ ops: [], open: false, busy: null });
   useDialogStore.setState({ dialog: null });
+  useRecentsStore.setState({ recents: [] });
 });
 afterEach(cleanup);
 
@@ -138,6 +140,48 @@ describe("Toolbar Repository menu", () => {
     fireEvent.click(getByRole("menuitem", { name: /Add remote/ }));
     expect(useDialogStore.getState().dialog).toEqual({ kind: "addRemote" });
   });
+  const recent = (name: string, lastOpened: number, pinned = false): RecentRepo => ({ path: `/${name}`, name, lastOpened, pinned });
+  /** The menu's rows, with the shortcut chips stripped off their text. */
+  const names = (menu: HTMLElement) => Array.from(menu.querySelectorAll('[role="menuitem"]')).map((el) => el.textContent!.replace(/Ctrl.*$/, ""));
+
+  it("lists four recents inline, with no submenu", () => {
+    useRecentsStore.setState({ recents: sortRecents([recent("r", 9), recent("a", 4), recent("b", 3), recent("c", 2), recent("d", 1)]) });
+    const { getByRole, queryByRole } = render(<Toolbar />);
+    fireEvent.click(getByRole("button", { name: "r" }));
+    expect(names(getByRole("menu", { name: "Repository" }))).toEqual(["Commit…", "Add remote…", "Run git command…", "Open repository…", "a", "b", "c", "d", "Close repository"]);
+    expect(queryByRole("menuitem", { name: "More recent" })).toBeNull();
+  });
+
+  it("lists five recents inline and the rest in a submenu, in store order, without the open repo", () => {
+    useRecentsStore.setState({
+      recents: sortRecents([
+        recent("r", 99), // the repository that is open: in neither list
+        recent("old", 1, true), // pinned, so it leads even as the oldest
+        ...["a", "b", "c", "d", "e", "f"].map((n, i) => recent(n, 50 - i)),
+      ]),
+    });
+    const { getByRole, queryByRole } = render(<Toolbar />);
+    fireEvent.click(getByRole("button", { name: "r" }));
+    expect(names(getByRole("menu", { name: "Repository" }))).toEqual([
+      "Commit…",
+      "Add remote…",
+      "Run git command…",
+      "Open repository…",
+      "old",
+      "a",
+      "b",
+      "c",
+      "d",
+      "More recent",
+      "Close repository",
+    ]);
+
+    fireEvent.click(getByRole("menuitem", { name: "More recent" }));
+    expect(names(getByRole("menu", { name: "More recent" }))).toEqual(["e", "f"]);
+    expect(getByRole("menuitem", { name: "f" }).getAttribute("title")).toBe("/f");
+    expect(queryByRole("menuitem", { name: "r" })).toBeNull();
+  });
+
   it("groups the items: act on the open repo, switch to another, close", () => {
     const { getByRole } = render(<Toolbar />);
     fireEvent.click(getByRole("button", { name: "r" }));

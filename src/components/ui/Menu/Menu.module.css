@@ -19,6 +19,17 @@
   left: 0;
   right: auto;
 }
+/* A submenu panel: a second `.menu` portalled into the same `wrap`, so it is a DOM sibling of the
+   parent's — never a child, or its rows would join the parent's ↑/↓ cycle. `MenuItem` measures the
+   top and left (beside the parent, level with the item) and sets them inline. */
+.submenu {
+  top: 0;
+  right: auto;
+  margin: 0;
+  /* Slid up to fit the window; longer than the window itself, it scrolls. */
+  max-height: calc(100vh - 8px);
+  overflow-y: auto;
+}
 /* ContextMenu: portal at a viewport point. Portalled to the body, so z-index clears the dialog
    scrim (40) — a row menu inside the commit window otherwise opens underneath it. Ties with the
    other body portals (Toast, Input, CommandInput); DOM order decides, which is fine. */
@@ -84,6 +95,15 @@
   display: inline-flex;
   flex: none;
   color: var(--fg-muted);
+}
+/* The submenu affordance, on the right where a shortcut chip would sit. */
+.chev {
+  flex: none;
+  color: var(--fg-muted);
+}
+.item:hover:not(:disabled) .chev,
+.item:focus-visible .chev {
+  color: inherit;
 }
 .grow {
   flex: 1;

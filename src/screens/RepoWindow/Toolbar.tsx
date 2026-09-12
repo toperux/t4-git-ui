@@ -28,7 +28,7 @@ import { UpdateBadge } from "../../components/ui/UpdateBadge/UpdateBadge";
 import tb from "../../components/ui/ToolbarButton/ToolbarButton.module.css";
 import { useDialogStore, type DialogSpec } from "../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../store/opsStore";
-import { useRecentsStore } from "../../store/recentsStore";
+import { useRecentsStore, type RecentRepo } from "../../store/recentsStore";
 import { useMerging, useRepoStore } from "../../store/repoStore";
 import { selectChangeCount, useStatusStore } from "../../store/statusStore";
 import { closeRepo, fetchDefault, openCommitPanel, pickAndOpenRepo, refreshAll, stashApply, stashPop, switchRepo } from "./actions";
@@ -37,6 +37,8 @@ import s from "./Toolbar.module.css";
 const SEARCH_DEBOUNCE_MS = 250;
 const BUSY = "Operation in progress";
 const NO_STASHES: Stash[] = [];
+/** Recents listed in the menu itself; the rest go in the "More recent" submenu. */
+const INLINE_RECENTS = 5;
 
 export function Toolbar() {
   const specKind = useRepoStore((st) => st.spec.kind);
@@ -97,6 +99,12 @@ export function Toolbar() {
     close();
     openDialog(spec, { returnFocusTo: trigger });
   };
+  /** Store order is already pinned first, then most recently opened; the same row either way. */
+  const recentItem = (r: RecentRepo) => (
+    <MenuItem key={r.path} icon={<FolderGit2 size={16} aria-hidden />} disabled={running} title={running ? BUSY : r.path} onClick={pick(() => switchRepo(r.path), () => setRepoMenu(false))}>
+      {r.name}
+    </MenuItem>
+  );
 
   return (
     <div className={s.toolbar} role="toolbar" aria-label="Repository">
@@ -132,14 +140,11 @@ export function Toolbar() {
         <MenuItem icon={<FolderOpen size={16} aria-hidden />} disabled={running} title={running ? BUSY : undefined} onClick={pick(() => void pickAndOpenRepo(), () => setRepoMenu(false))}>
           Open repository…
         </MenuItem>
-        {others.length === 0 ? (
-          <MenuItem disabled>No other recent repositories</MenuItem>
-        ) : (
-          others.map((r) => (
-            <MenuItem key={r.path} icon={<FolderGit2 size={16} aria-hidden />} disabled={running} title={running ? BUSY : r.path} onClick={pick(() => switchRepo(r.path), () => setRepoMenu(false))}>
-              {r.name}
-            </MenuItem>
-          ))
+        {others.length === 0 ? <MenuItem disabled>No other recent repositories</MenuItem> : others.slice(0, INLINE_RECENTS).map(recentItem)}
+        {others.length > INLINE_RECENTS && (
+          <MenuItem icon={<FolderGit2 size={16} aria-hidden />} submenu={others.slice(INLINE_RECENTS).map(recentItem)}>
+            More recent
+          </MenuItem>
         )}
         <MenuSeparator />
         <MenuItem icon={<X size={16} aria-hidden />} kbd="Ctrl+Shift+W" disabled={running} title={running ? BUSY : undefined} onClick={pick(closeRepo, () => setRepoMenu(false))}>
