@@ -12,9 +12,20 @@ import { useRepoStore } from "./repoStore";
 
 export const DEFAULT_CONTEXT = 3;
 export const MAX_CONTEXT = 99;
+export const DEFAULT_FOLDERS_MAX = 10;
+export const MAX_FOLDERS_MAX = 999;
 
 /** Anything unusable (a corrupt kv value, an empty number field) reads as the default. */
 export const clampContext = (n: number): number => (Number.isFinite(n) ? Math.min(MAX_CONTEXT, Math.max(0, Math.round(n))) : DEFAULT_CONTEXT);
+
+/** How the sidebar seeds its folder rows; `"auto"` collapses one holding more than `sidebarFoldersMax` refs. */
+export type SidebarFolders = "expanded" | "collapsed" | "auto";
+
+/** Anything but the three modes (a corrupt kv value) reads as today's behaviour. */
+const asFolders = (v: unknown): SidebarFolders => (v === "collapsed" || v === "auto" ? v : "expanded");
+
+/** A folder with no refs is still a folder: the threshold starts at 1. */
+export const clampFoldersMax = (n: number): number => (Number.isFinite(n) ? Math.min(MAX_FOLDERS_MAX, Math.max(1, Math.round(n))) : DEFAULT_FOLDERS_MAX);
 
 export interface SettingsStore {
   diffContext: number;
@@ -28,11 +39,17 @@ export interface SettingsStore {
   tools: Tools;
   /** Ask GitHub for a newer release at launch. On by default: nothing is stored until it is turned off. */
   autoUpdateCheck: boolean;
+  /** Which sidebar folder rows start collapsed. */
+  sidebarFolders: SidebarFolders;
+  /** The `"auto"` threshold: a folder holding more refs than this starts collapsed. */
+  sidebarFoldersMax: number;
 
   load(): Promise<void>;
   setDiffContext(n: number): void;
   setIgnoreWhitespace(b: boolean): void;
   setAutoUpdateCheck(b: boolean): void;
+  setSidebarFolders(v: SidebarFolders): void;
+  setSidebarFoldersMax(n: number): void;
   /** Tries `path` before keeping it; `false` (with `gitError` set) when git refused to answer. */
   setGitPath(path: string): Promise<boolean>;
   /** Writes the tool to the global git config, then keeps it here; `null` clears the selector. */
@@ -51,13 +68,17 @@ export const useSettingsStore = create<SettingsStore>()((set) => ({
   gitError: null,
   tools: { diff: null, merge: null },
   autoUpdateCheck: true,
+  sidebarFolders: "expanded",
+  sidebarFoldersMax: DEFAULT_FOLDERS_MAX,
 
   async load() {
-    const [context, whitespace, gitPath, autoUpdate, tools] = await Promise.all([
+    const [context, whitespace, gitPath, autoUpdate, folders, foldersMax, tools] = await Promise.all([
       kvGet<number>("diffContext"),
       kvGet<boolean>("ignoreWhitespace"),
       kvGet<string>("gitPath"),
       kvGet<boolean>("autoUpdateCheck"),
+      kvGet<string>("sidebarFolders"),
+      kvGet<number>("sidebarFoldersMax"),
       // An unreadable git config leaves both tools unset rather than failing startup.
       ipc.getTools().catch(() => null),
     ]);
@@ -66,7 +87,15 @@ export const useSettingsStore = create<SettingsStore>()((set) => ({
     // Nothing stored means nobody has opted out yet — an app that never looks for its own updates is
     // the worse default, so an absent value reads as on.
     const autoUpdateCheck = autoUpdate ?? true;
-    set({ diffContext, ignoreWhitespace, gitPath: gitPath ?? "", autoUpdateCheck, tools: tools ?? { diff: null, merge: null } });
+    set({
+      diffContext,
+      ignoreWhitespace,
+      gitPath: gitPath ?? "",
+      autoUpdateCheck,
+      sidebarFolders: asFolders(folders),
+      sidebarFoldersMax: clampFoldersMax(foldersMax ?? DEFAULT_FOLDERS_MAX),
+      tools: tools ?? { diff: null, merge: null },
+    });
     // Nothing is loaded yet at startup, so seeding the diff store needs no reload.
     useDiffStore.getState().setContext(diffContext);
     useDiffStore.setState({ ignoreWhitespace });
@@ -90,6 +119,17 @@ export const useSettingsStore = create<SettingsStore>()((set) => ({
   setAutoUpdateCheck(autoUpdateCheck) {
     set({ autoUpdateCheck });
     void persist("autoUpdateCheck", autoUpdateCheck);
+  },
+
+  setSidebarFolders(sidebarFolders) {
+    set({ sidebarFolders });
+    void persist("sidebarFolders", sidebarFolders);
+  },
+
+  setSidebarFoldersMax(n) {
+    const sidebarFoldersMax = clampFoldersMax(n);
+    set({ sidebarFoldersMax });
+    void persist("sidebarFoldersMax", sidebarFoldersMax);
   },
 
   async setGitPath(path) {

@@ -1,7 +1,7 @@
 // App preferences, reachable from both screens (toolbar gear / start screen gear).
-// Theme and the whitespace default apply as they change; the two text fields apply on Enter (the git
-// path on Apply / Locate… too, since trying it starts a process); the two tool sections have an
-// Apply of their own. The footer only closes.
+// Theme, the whitespace default and the folder mode apply as they change; the path field and the two
+// number fields apply on Enter (the git path on Apply / Locate… too, since trying it starts a
+// process); the two tool sections have an Apply of their own. The footer only closes.
 import { open as openFile } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { FolderSearch } from "lucide-react";
@@ -14,7 +14,7 @@ import { Input, Select } from "../../components/ui/Input/Input";
 import { Progress } from "../../components/ui/Progress/Progress";
 import { APP_NAME } from "../../lib/app";
 import { getThemePref, setTheme, type ThemePref } from "../../theme/theme";
-import { MAX_CONTEXT, useSettingsStore } from "../../store/settingsStore";
+import { MAX_CONTEXT, MAX_FOLDERS_MAX, useSettingsStore, type SidebarFolders } from "../../store/settingsStore";
 import { toastError } from "../../store/toastStore";
 import { useUpdateStore } from "../../store/updateStore";
 import pkg from "../../../package.json";
@@ -28,7 +28,9 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const gitVersion = useSettingsStore((st) => st.gitVersion);
   const gitError = useSettingsStore((st) => st.gitError);
   const autoUpdateCheck = useSettingsStore((st) => st.autoUpdateCheck);
-  const { setDiffContext, setIgnoreWhitespace, setAutoUpdateCheck, setGitPath, clearGitError } = useSettingsStore.getState();
+  const sidebarFolders = useSettingsStore((st) => st.sidebarFolders);
+  const sidebarFoldersMax = useSettingsStore((st) => st.sidebarFoldersMax);
+  const { setDiffContext, setIgnoreWhitespace, setAutoUpdateCheck, setSidebarFolders, setSidebarFoldersMax, setGitPath, clearGitError } = useSettingsStore.getState();
   // Field by field, not `useUpdateStore()`: the whole-store subscription re-rendered the dialog on
   // every `set` the store makes, and a download makes one per chunk.
   const info = useUpdateStore((st) => st.info);
@@ -55,6 +57,18 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
     // Empty or unparsable: nothing to apply, so the field goes back to what is stored.
     if (Number.isFinite(n)) setDiffContext(n);
     else setContext(String(diffContext));
+  }
+
+  // The folder threshold is typed and applied like the context lines above.
+  const [foldersMax, setFoldersMax] = useState(String(sidebarFoldersMax));
+  useEffect(() => {
+    setFoldersMax(String(sidebarFoldersMax));
+  }, [sidebarFoldersMax]);
+
+  function applyFoldersMax() {
+    const n = Number.parseInt(foldersMax, 10);
+    if (Number.isFinite(n)) setSidebarFoldersMax(n);
+    else setFoldersMax(String(sidebarFoldersMax));
   }
 
   async function apply() {
@@ -162,6 +176,34 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             <option value="dark">Dark</option>
             <option value="system">Follow system</option>
           </Select>
+        </Field>
+      </section>
+
+      <section className={s.section}>
+        <h3 className={s.head}>Sidebar</h3>
+        {/* The rule seeds the folder rows: one opened or closed by hand stays that way for the session. */}
+        <Field label="Sidebar folders" help={`"More than N" counts the refs under a folder at any depth (1–${MAX_FOLDERS_MAX}).`}>
+          <div className={s.row}>
+            <Select aria-label="Sidebar folders" value={sidebarFolders} onChange={(e) => setSidebarFolders(e.target.value as SidebarFolders)}>
+              <option value="expanded">Always expanded</option>
+              <option value="collapsed">Always collapsed</option>
+              <option value="auto">Collapsed when more than N refs</option>
+            </Select>
+            <Input
+              className={s.number}
+              aria-label="Refs per folder"
+              type="number"
+              min={1}
+              max={MAX_FOLDERS_MAX}
+              disabled={sidebarFolders !== "auto"}
+              value={foldersMax}
+              onChange={(e) => setFoldersMax(e.target.value)}
+              onBlur={applyFoldersMax}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") applyFoldersMax();
+              }}
+            />
+          </div>
         </Field>
       </section>
 

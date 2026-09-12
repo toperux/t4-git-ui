@@ -1,9 +1,10 @@
-import { cleanup, fireEvent, render, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RefsSnapshot } from "../../api/types";
 import { useDialogStore } from "../../store/dialogStore";
 import { useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
+import { DEFAULT_FOLDERS_MAX, useSettingsStore, type SidebarFolders } from "../../store/settingsStore";
 import { useToastStore } from "../../store/toastStore";
 import { Sidebar } from "./Sidebar";
 
@@ -49,6 +50,7 @@ beforeEach(() => {
   useRepoStore.setState({ refs: REFS, remoteTags: {} });
   useDialogStore.setState({ dialog: null });
   useToastStore.setState({ toasts: [] });
+  useSettingsStore.setState({ sidebarFolders: "expanded", sidebarFoldersMax: DEFAULT_FOLDERS_MAX });
 });
 
 /** The Tags section starts collapsed. */
@@ -365,5 +367,87 @@ describe("Sidebar stash menu", () => {
     clickDrop();
     await waitFor(() => expect(ask).toHaveBeenCalledTimes(2));
     expect(dropped).not.toHaveBeenCalled();
+  });
+});
+
+describe("Sidebar folder collapse", () => {
+  // `feature` holds four refs, two of them under `feature/deep`: a rule counting only the rows
+  // directly inside it would see three and leave it open at N = 3.
+  const NESTED: RefsSnapshot = {
+    ...REFS,
+    local: [branch("main", true), branch("feature/a"), branch("feature/b"), branch("feature/deep/x"), branch("feature/deep/y")],
+  };
+  const rule = (sidebarFolders: SidebarFolders, sidebarFoldersMax = DEFAULT_FOLDERS_MAX) => useSettingsStore.setState({ sidebarFolders, sidebarFoldersMax });
+  /** `origin` has a `feature` folder too; the Local section renders first, so its row is the first match. */
+  const feature = (view: ReturnType<typeof render>) => view.queryAllByRole("treeitem", { name: "feature" })[0];
+  const refresh = (refs: RefsSnapshot) => act(() => useRepoStore.setState({ refs }));
+
+  it("leaves every folder expanded by default", () => {
+    useRepoStore.setState({ refs: NESTED });
+    const view = render(<Sidebar />);
+    expect(feature(view).getAttribute("aria-expanded")).toBe("true");
+    expect(view.getByRole("treeitem", { name: "x" })).toBeTruthy();
+  });
+
+  it("collapses every folder row when the setting says always, and no top-level group", () => {
+    useRepoStore.setState({ refs: NESTED });
+    rule("collapsed");
+    const view = render(<Sidebar />);
+    expect(view.getAllByRole("treeitem", { name: "feature" }).map((r) => r.getAttribute("aria-expanded"))).toEqual(["false", "false"]);
+    expect(view.queryByRole("treeitem", { name: "a" })).toBeNull();
+    expect(view.queryByRole("treeitem", { name: "lanes" })).toBeNull();
+    // The remote's own row is a group, not a folder: the rule never visits it.
+    expect(view.getByRole("treeitem", { name: "origin" }).getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("counts the refs under a folder at any depth for the threshold", () => {
+    useRepoStore.setState({ refs: NESTED });
+    rule("auto", 3);
+    const view = render(<Sidebar />);
+    // Four refs under `feature`, one under origin's: only the first is over the threshold.
+    expect(view.getAllByRole("treeitem", { name: "feature" }).map((r) => r.getAttribute("aria-expanded"))).toEqual(["false", "true"]);
+
+    fireEvent.click(feature(view));
+    // `feature/deep` holds two: under the threshold, so it came up expanded.
+    expect(view.getByRole("treeitem", { name: "deep" }).getAttribute("aria-expanded")).toBe("true");
+    expect(view.getByRole("treeitem", { name: "x" })).toBeTruthy();
+  });
+
+  it("leaves a folder the user opened open across a refs refresh", () => {
+    useRepoStore.setState({ refs: NESTED });
+    rule("collapsed");
+    const view = render(<Sidebar />);
+    fireEvent.click(feature(view));
+    expect(feature(view).getAttribute("aria-expanded")).toBe("true");
+
+    refresh({ ...NESTED, local: [...NESTED.local, branch("feature/c")] });
+    expect(feature(view).getAttribute("aria-expanded")).toBe("true");
+    expect(view.getByRole("treeitem", { name: "c" })).toBeTruthy();
+  });
+
+  it("seeds a folder that first appears mid-session, and only that once", () => {
+    useRepoStore.setState({ refs: { ...REFS, remotes: [], local: [branch("main", true)] } });
+    rule("collapsed");
+    const view = render(<Sidebar />);
+    expect(view.queryByRole("treeitem", { name: "feature" })).toBeNull();
+
+    refresh({ ...REFS, remotes: [], local: [branch("main", true), branch("feature/a")] });
+    expect(feature(view).getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.click(feature(view));
+    refresh({ ...REFS, remotes: [], local: [branch("main", true), branch("feature/a"), branch("feature/b")] });
+    expect(feature(view).getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("reseeds every folder when the setting changes", () => {
+    useRepoStore.setState({ refs: NESTED });
+    rule("auto", 3);
+    const view = render(<Sidebar />);
+    fireEvent.click(feature(view));
+    expect(feature(view).getAttribute("aria-expanded")).toBe("true");
+
+    // The same rule with a lower threshold: the folder the user opened goes back to collapsed.
+    act(() => rule("auto", 2));
+    expect(feature(view).getAttribute("aria-expanded")).toBe("false");
   });
 });

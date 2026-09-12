@@ -16,7 +16,7 @@ vi.mock("../../theme/theme", async (importOriginal) => {
 
 import { open as openFile } from "@tauri-apps/plugin-dialog";
 import * as ipc from "../../api/ipc";
-import { DEFAULT_CONTEXT, useSettingsStore } from "../../store/settingsStore";
+import { DEFAULT_CONTEXT, DEFAULT_FOLDERS_MAX, useSettingsStore } from "../../store/settingsStore";
 import * as theme from "../../theme/theme";
 import { SettingsDialog } from "./SettingsDialog";
 
@@ -27,7 +27,15 @@ const setThemeMock = theme.setTheme as unknown as ReturnType<typeof vi.fn>;
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
-  useSettingsStore.setState({ diffContext: DEFAULT_CONTEXT, ignoreWhitespace: false, gitPath: "", gitVersion: null, gitError: null });
+  useSettingsStore.setState({
+    diffContext: DEFAULT_CONTEXT,
+    ignoreWhitespace: false,
+    gitPath: "",
+    gitVersion: null,
+    gitError: null,
+    sidebarFolders: "expanded",
+    sidebarFoldersMax: DEFAULT_FOLDERS_MAX,
+  });
 });
 afterEach(cleanup);
 
@@ -70,6 +78,25 @@ describe("SettingsDialog", () => {
     const { getByRole } = render(<SettingsDialog onClose={() => {}} />);
     fireEvent.click(getByRole("checkbox", { name: "Ignore whitespace by default" }));
     expect(setIgnoreWhitespace).toHaveBeenCalledWith(true);
+  });
+
+  it("shows the sidebar folder rule, the threshold enabled only for the auto mode", () => {
+    const { getByRole } = render(<SettingsDialog onClose={() => {}} />);
+    const max = () => getByRole("spinbutton", { name: "Refs per folder" }) as HTMLInputElement;
+    expect(getByRole("combobox", { name: "Sidebar folders" }).textContent).toBe("Always expanded");
+    expect(max().value).toBe(String(DEFAULT_FOLDERS_MAX));
+    expect(max().disabled).toBe(true);
+
+    fireEvent.click(getByRole("combobox", { name: "Sidebar folders" }));
+    fireEvent.click(getByRole("option", { name: "Collapsed when more than N refs" }));
+    expect(useSettingsStore.getState().sidebarFolders).toBe("auto");
+    expect(max().disabled).toBe(false);
+
+    // Like the context lines: typed freely, applied on Enter.
+    fireEvent.change(max(), { target: { value: "4" } });
+    expect(useSettingsStore.getState().sidebarFoldersMax).toBe(DEFAULT_FOLDERS_MAX);
+    fireEvent.keyDown(max(), { key: "Enter" });
+    expect(useSettingsStore.getState().sidebarFoldersMax).toBe(4);
   });
 
   it("picking a theme applies it right away", () => {

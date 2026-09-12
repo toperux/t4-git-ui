@@ -9,7 +9,7 @@ vi.mock("../api/ipc", async (importOriginal) => {
 
 import * as ipc from "../api/ipc";
 import { useDiffStore } from "./diffStore";
-import { clampContext, DEFAULT_CONTEXT, useSettingsStore } from "./settingsStore";
+import { clampContext, clampFoldersMax, DEFAULT_CONTEXT, DEFAULT_FOLDERS_MAX, useSettingsStore } from "./settingsStore";
 
 const mocked = ipc as unknown as Record<"setGitPath", ReturnType<typeof vi.fn>>;
 const flush = () => new Promise((res) => setTimeout(res, 0));
@@ -18,7 +18,16 @@ const stored = (key: string) => JSON.parse(localStorage.getItem(`kv:${key}`) ?? 
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
-  useSettingsStore.setState({ diffContext: DEFAULT_CONTEXT, ignoreWhitespace: false, gitPath: "", gitVersion: null, gitError: null, autoUpdateCheck: true });
+  useSettingsStore.setState({
+    diffContext: DEFAULT_CONTEXT,
+    ignoreWhitespace: false,
+    gitPath: "",
+    gitVersion: null,
+    gitError: null,
+    autoUpdateCheck: true,
+    sidebarFolders: "expanded",
+    sidebarFoldersMax: DEFAULT_FOLDERS_MAX,
+  });
   useDiffStore.setState({ repoId: null, target: null, selectedPath: null, context: DEFAULT_CONTEXT, ignoreWhitespace: false });
 });
 
@@ -28,6 +37,15 @@ describe("clampContext", () => {
     expect(clampContext(-2)).toBe(0);
     expect(clampContext(1000)).toBe(99);
     expect(clampContext(NaN)).toBe(DEFAULT_CONTEXT);
+  });
+});
+
+describe("clampFoldersMax", () => {
+  it("rounds into 1–999 and falls back to the default for a corrupt value", () => {
+    expect(clampFoldersMax(10.6)).toBe(11);
+    expect(clampFoldersMax(0)).toBe(1);
+    expect(clampFoldersMax(5000)).toBe(999);
+    expect(clampFoldersMax(NaN)).toBe(DEFAULT_FOLDERS_MAX);
   });
 });
 
@@ -57,6 +75,25 @@ describe("settingsStore.load", () => {
     await useSettingsStore.getState().load();
     expect(useSettingsStore.getState().autoUpdateCheck).toBe(false);
   });
+
+  it("reads back the sidebar folder rule, and keeps today's behaviour for a corrupt one", async () => {
+    localStorage.setItem("kv:sidebarFolders", JSON.stringify("auto"));
+    localStorage.setItem("kv:sidebarFoldersMax", "25");
+    await useSettingsStore.getState().load();
+    expect(useSettingsStore.getState()).toMatchObject({ sidebarFolders: "auto", sidebarFoldersMax: 25 });
+
+    // Neither of the three modes, and a threshold out of range: both read as the defaults.
+    localStorage.setItem("kv:sidebarFolders", JSON.stringify("sometimes"));
+    localStorage.setItem("kv:sidebarFoldersMax", "0");
+    await useSettingsStore.getState().load();
+    expect(useSettingsStore.getState()).toMatchObject({ sidebarFolders: "expanded", sidebarFoldersMax: 1 });
+  });
+
+  it("starts with every sidebar folder expanded when nothing is stored", async () => {
+    useSettingsStore.setState({ sidebarFolders: "collapsed", sidebarFoldersMax: 3 });
+    await useSettingsStore.getState().load();
+    expect(useSettingsStore.getState()).toMatchObject({ sidebarFolders: "expanded", sidebarFoldersMax: DEFAULT_FOLDERS_MAX });
+  });
 });
 
 describe("settingsStore setters", () => {
@@ -85,6 +122,15 @@ describe("settingsStore setters", () => {
     expect(useSettingsStore.getState().autoUpdateCheck).toBe(false);
     await flush();
     expect(stored("autoUpdateCheck")).toBe(false);
+  });
+
+  it("the sidebar folder setters persist, the threshold clamped", async () => {
+    useSettingsStore.getState().setSidebarFolders("auto");
+    useSettingsStore.getState().setSidebarFoldersMax(0);
+    expect(useSettingsStore.getState()).toMatchObject({ sidebarFolders: "auto", sidebarFoldersMax: 1 });
+    await flush();
+    expect(stored("sidebarFolders")).toBe("auto");
+    expect(stored("sidebarFoldersMax")).toBe(1);
   });
 
   it("setGitPath keeps a working executable and its version", async () => {

@@ -12,6 +12,7 @@ import { relativeDate } from "../../lib/relativeDate";
 import { useDialogStore, type DialogSpec } from "../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
+import { useSettingsStore } from "../../store/settingsStore";
 import { useToastStore } from "../../store/toastStore";
 import { checkoutBranch, checkoutRemoteBranch, checkoutTag, copyText, fetchRemote, protectedNames, stashApply, stashDrop, stashPop, stripRemote } from "./actions";
 import s from "./Sidebar.module.css";
@@ -60,6 +61,21 @@ function buildTree<T>(items: T[], nameOf: (item: T) => string): TreeNode<T>[] {
   };
   sort(root.children);
   return root.children;
+}
+
+/**
+ * Every folder row `renderTree` will draw, keyed the way it keys them, against the refs under it at
+ * any depth — what the "collapsed past N" rule counts. Returns the refs in `nodes`, so one fold does it.
+ */
+function countFolders<T>(nodes: TreeNode<T>[], folderKey: (path: string) => string, out: Map<string, number>): number {
+  let refs = 0;
+  for (const n of nodes) {
+    const under = countFolders(n.children, folderKey, out) + (n.leaf === undefined ? 0 : 1);
+    // `renderTree`'s own test: children make it a folder, a bare leaf is just a row.
+    if (n.children.length > 0) out.set(folderKey(n.path), under);
+    refs += under;
+  }
+  return refs;
 }
 
 const ITEMS = '[role="treeitem"]';
@@ -115,12 +131,17 @@ export function Sidebar() {
   const refs = useRepoStore((st) => st.refs);
   const remoteTags = useRepoStore((st) => st.remoteTags);
   const revealOid = useRepoStore((st) => st.revealOid);
+  const repoId = useRepoStore((st) => st.repo?.id ?? null);
   // `open` is the section state below, so the dialog opener keeps its own name here.
   const openDialog = useDialogStore((st) => st.open);
   const running = useOpsStore(selectRunning);
+  const folderMode = useSettingsStore((st) => st.sidebarFolders);
+  const folderMax = useSettingsStore((st) => st.sidebarFoldersMax);
   const [open, setOpen] = useState<Record<Section, boolean>>({ local: true, remotes: true, tags: false, stashes: true });
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [menu, setMenu] = useState<{ at: { x: number; y: number }; target: Target; el: HTMLElement } | null>(null);
+  /** Folders the setting has already seeded, keyed like `collapsed`: a refresh leaves those to the user. */
+  const seeded = useRef<Set<string>>(new Set());
 
   const toggle = (k: Section) => setOpen((o) => ({ ...o, [k]: !o[k] }));
   const toggleFolder = (path: string) =>
@@ -163,6 +184,53 @@ export function Sidebar() {
   );
   /** Tag names any of them has: a tag on none of them is the local-only one. */
   const onRemote = useMemo(() => new Set(cachedRemotes.flatMap(([, e]) => e.tags.map((t) => t.name))), [cachedRemotes]);
+
+  /**
+   * Every tree the sections draw, built once: the rows render from these nodes and the collapse rule
+   * folds over the same ones for its per-folder ref counts. Each carries the key scheme its folders
+   * collapse under, so the rule and the rows can never key one differently.
+   */
+  const trees = useMemo(() => {
+    const counts = new Map<string, number>();
+    const tree = <T,>(items: T[], nameOf: (item: T) => string, folderKey: (path: string) => string) => {
+      const nodes = buildTree(items, nameOf);
+      countFolders(nodes, folderKey, counts);
+      return { nodes, folderKey };
+    };
+    return {
+      local: tree(local, (b) => b.name, (path) => path),
+      // Nested by `/` like the local branches; folder state is per remote.
+      remotes: remotes.map((r) => [r, tree(r.branches, (rb) => stripRemote(rb, r.name), (path) => `remote:${r.name}/${path}`)] as const),
+      tags: tree(tags, (t) => t.name, (path) => `tag:${path}`),
+      remoteTags: cachedRemotes.map(([remote, entry]) => [remote, entry, tree(entry.tags, (t) => t.name, (path) => `tag:${remote}/${path}`)] as const),
+      counts,
+    };
+  }, [local, remotes, tags, cachedRemotes]);
+
+  // A setting change reseeds every folder, and so does opening another repository.
+  useEffect(() => {
+    seeded.current = new Set();
+  }, [folderMode, folderMax, repoId]);
+
+  /**
+   * Seeds the folders the setting has not been applied to yet — on open, after it changes, and once
+   * for a folder that first appears mid-session. The top-level `remote:` / `tag:` groups are not in
+   * `counts`, so the rule never touches them, and a folder already seeded keeps whatever the user did
+   * with it: a refs refresh must not shut one they opened.
+   */
+  useEffect(() => {
+    const fresh = [...trees.counts].filter(([key]) => !seeded.current.has(key));
+    if (fresh.length === 0) return;
+    for (const [key] of fresh) seeded.current.add(key);
+    setCollapsed((c) => {
+      const next = new Set(c);
+      for (const [key, count] of fresh) {
+        if (folderMode === "collapsed" || (folderMode === "auto" && count > folderMax)) next.add(key);
+        else next.delete(key);
+      }
+      return next;
+    });
+  }, [trees, folderMode, folderMax]);
 
   /** A branch inside another one is muted and says so: it adds nothing and can go. */
   const mergedLabel = (label: string, mergedInto: string | null) => (mergedInto ? <span className={s.merged}>{label}</span> : label);
@@ -298,7 +366,7 @@ export function Sidebar() {
         (local.length === 0 ? (
           <EmptyState className={s.empty} icon={<GitBranch size={20} aria-hidden />} title="No branches yet" />
         ) : (
-          <Tree label="Local branches">{renderTree(buildTree(local, (b) => b.name), 0, branchRow, (path) => path)}</Tree>
+          <Tree label="Local branches">{renderTree(trees.local.nodes, 0, branchRow, trees.local.folderKey)}</Tree>
         ))}
 
       {/* Branches, not remotes: every other section counts refs, and the remotes are right there to count by eye. */}
@@ -317,7 +385,7 @@ export function Sidebar() {
       )}
       {open.remotes && remotes.length > 0 && (
         <Tree label="Remote branches">
-          {remotes.map((r) => {
+          {trees.remotes.map(([r, tree]) => {
             const isCollapsed = collapsed.has(`remote:${r.name}`);
             return (
               <div key={r.name} className={s.tree}>
@@ -334,13 +402,7 @@ export function Sidebar() {
                 />
                 {!isCollapsed && (
                   <div role="group" className={s.tree}>
-                    {/* Nested by `/` like the local branches; folder state is per remote. */}
-                    {renderTree(
-                      buildTree(r.branches, (rb) => stripRemote(rb, r.name)),
-                      1,
-                      remoteRow(r.name),
-                      (path) => `remote:${r.name}/${path}`,
-                    )}
+                    {renderTree(tree.nodes, 1, remoteRow(r.name), tree.folderKey)}
                   </div>
                 )}
               </div>
@@ -353,9 +415,9 @@ export function Sidebar() {
       <SectionHeader title="Tags" count={tags.length} open={open.tags} onToggle={() => toggle("tags")} />
       {open.tags && (tags.length > 0 || cachedRemotes.length > 0) && (
         <Tree label="Tags">
-          {renderTree(buildTree(tags, (t) => t.name), 0, tagRow, (path) => `tag:${path}`)}
+          {renderTree(trees.tags.nodes, 0, tagRow, trees.tags.folderKey)}
           {/* One folder per remote that answered, holding the tags it has — a tag can be in several. */}
-          {cachedRemotes.map(([remote, entry]) => {
+          {trees.remoteTags.map(([remote, entry, tree]) => {
             const isCollapsed = collapsed.has(`tag:${remote}`);
             return (
               <div key={`tag:${remote}`} className={s.tree}>
@@ -371,7 +433,7 @@ export function Sidebar() {
                 />
                 {!isCollapsed && (
                   <div role="group" className={s.tree}>
-                    {renderTree(buildTree(entry.tags, (t) => t.name), 1, remoteTagRow(remote), (path) => `tag:${remote}/${path}`)}
+                    {renderTree(tree.nodes, 1, remoteTagRow(remote), tree.folderKey)}
                   </div>
                 )}
               </div>
