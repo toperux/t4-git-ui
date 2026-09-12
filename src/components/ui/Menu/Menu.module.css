@@ -19,13 +19,15 @@
   left: 0;
   right: auto;
 }
-/* ContextMenu: portal at a viewport point */
+/* ContextMenu: portal at a viewport point. Portalled to the body, so z-index clears the dialog
+   scrim (40) — a row menu inside the commit window otherwise opens underneath it. Ties with the
+   other body portals (Toast, Input, CommandInput); DOM order decides, which is fine. */
 .fixed {
   position: fixed;
   top: auto;
   right: auto;
   margin: 0;
-  z-index: 35;
+  z-index: 45;
   /* Grow to the longest item (a branch name, say) instead of ellipsizing it, within reason. */
   width: max-content;
   min-width: 220px;

@@ -101,12 +101,20 @@ function closeOnEscape(open: boolean, onClose: () => void) {
   };
 }
 
-/** ↑/↓ move focus between enabled items (wrapping), Home/End jump to the ends; Tab closes the menu. */
+/** ↑/↓ move focus between enabled items (wrapping), Home/End jump to the ends; Tab and Escape close the menu. */
 function onMenuKeyDown(onClose: () => void) {
   return (e: KeyboardEvent<HTMLDivElement>) => {
     // Tab must not walk focus out of a menu that stays open behind it — `Select` closes its list the
     // same way and lets the focus move on naturally.
     if (e.key === "Tab") {
+      onClose();
+      return;
+    }
+    // A `ContextMenu` is portalled, so its keys still bubble up the React tree to whatever opened
+    // it: inside the commit window that is the `Dialog`, which closes on Escape too. Stop it here.
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
       onClose();
       return;
     }

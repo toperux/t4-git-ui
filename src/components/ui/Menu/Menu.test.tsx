@@ -131,6 +131,23 @@ describe("Menu", () => {
 });
 
 describe("ContextMenu", () => {
+  it("Escape closes the menu and not the dialog it was opened from", () => {
+    // The menu is portalled to the body, but React still bubbles its keys up to the dialog's form —
+    // whose own Escape closes the dialog. A row menu in the commit window must close alone.
+    const closeDialog = vi.fn();
+    const closeMenu = vi.fn();
+    const { getByRole } = render(
+      <Dialog title="Commit" onClose={closeDialog}>
+        <ContextMenu at={{ x: 10, y: 10 }} onClose={closeMenu} label="File actions">
+          <MenuItem>Stage</MenuItem>
+        </ContextMenu>
+      </Dialog>,
+    );
+    fireEvent.keyDown(getByRole("menuitem", { name: "Stage" }), { key: "Escape" });
+    expect(closeMenu).toHaveBeenCalled();
+    expect(closeDialog).not.toHaveBeenCalled();
+  });
+
   it("closes when the page scrolls under it, but not when the menu itself scrolls", () => {
     const onClose = vi.fn();
     const { getByRole } = render(
