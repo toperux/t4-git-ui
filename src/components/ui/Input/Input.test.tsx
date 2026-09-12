@@ -23,6 +23,26 @@ function Harness({ onChange = () => {} }: { onChange?: (v: string) => void }) {
   );
 }
 
+function Actions({ onChange = () => {} }: { onChange?: (v: string) => void }) {
+  const [value, setValue] = useState("pick");
+  return (
+    <Select
+      aria-label="Action"
+      value={value}
+      onChange={(e) => {
+        setValue(e.target.value);
+        onChange(e.target.value);
+      }}
+    >
+      <option value="pick">pick</option>
+      <option value="squash" disabled title="No commit above to squash into">
+        squash
+      </option>
+      <option value="drop">drop</option>
+    </Select>
+  );
+}
+
 describe("Select", () => {
   it("shows the selected option and opens the list on click", () => {
     const { getByRole, queryByRole, getAllByRole } = render(<Harness />);
@@ -83,6 +103,49 @@ describe("Select", () => {
     expect(queryByRole("listbox")).toBeNull();
 
     fireEvent.keyDown(combo, { key: "Enter", altKey: true });
+    expect(queryByRole("listbox")).toBeNull();
+  });
+
+  it("stays open when its own list scrolls", () => {
+    const { getByRole, queryByRole } = render(
+      <Select aria-label="Commit" value="c0" onChange={() => {}}>
+        {Array.from({ length: 40 }, (_, i) => (
+          <option key={i} value={`c${i}`}>{`commit ${i}`}</option>
+        ))}
+      </Select>,
+    );
+    fireEvent.click(getByRole("combobox", { name: "Commit" }));
+    fireEvent.scroll(getByRole("listbox"));
+    expect(queryByRole("listbox")).not.toBeNull();
+
+    // A scroll anywhere else still closes it: the list is placed once, from the field's rect.
+    fireEvent.scroll(document);
+    expect(queryByRole("listbox")).toBeNull();
+  });
+
+  it("↑/↓ step over an option that cannot be picked", () => {
+    const onChange = vi.fn();
+    const { getByRole, queryByRole, getAllByRole } = render(<Actions onChange={onChange} />);
+    const combo = getByRole("combobox", { name: "Action" });
+    fireEvent.click(combo);
+
+    fireEvent.keyDown(combo, { key: "ArrowDown" });
+    expect(combo.getAttribute("aria-activedescendant")).toBe(getAllByRole("option")[2].id);
+    fireEvent.keyDown(combo, { key: "Enter" });
+    expect(onChange).toHaveBeenCalledWith("drop");
+    expect(queryByRole("listbox")).toBeNull();
+  });
+
+  it("Alt+↑ does not commit an option the pointer swept over but cannot be picked", () => {
+    const onChange = vi.fn();
+    const { getByRole, queryByRole } = render(<Actions onChange={onChange} />);
+    const combo = getByRole("combobox", { name: "Action" });
+    fireEvent.click(combo);
+
+    fireEvent.mouseMove(getByRole("option", { name: "squash" }));
+    fireEvent.keyDown(combo, { key: "ArrowUp", altKey: true });
+    // The active option stayed on `pick` (the value already held), so the chord closes and commits nothing.
+    expect(onChange).not.toHaveBeenCalled();
     expect(queryByRole("listbox")).toBeNull();
   });
 

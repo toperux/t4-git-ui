@@ -37,7 +37,7 @@ function row(i: number): LogRow {
 }
 
 function page(generation: number, offset: number, count: number, total: number, complete = true): LogPage {
-  return { rows: Array.from({ length: count }, (_, i) => row(offset + i)), total, complete, generation };
+  return { rows: Array.from({ length: count }, (_, i) => row(offset + i)), total, complete, generation, error: null };
 }
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
@@ -136,6 +136,44 @@ describe("repoStore walk restarts", () => {
     expect(mocked.getLogPage).toHaveBeenLastCalledWith(REPO.id, 1, 4000, PAGE_SIZE);
     expect(useRepoStore.getState().selectedIndex).toBe(4321);
     expect(useRepoStore.getState().reveal?.index).toBe(4321);
+  });
+
+  it("does not reveal an index from a walk superseded while its page loaded", async () => {
+    let resolveReveal!: (p: LogPage) => void;
+    mocked.startLog.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
+    mocked.getLogPage
+      .mockImplementationOnce((_id: string, gen: number, offset: number) => Promise.resolve(page(gen, offset, PAGE_SIZE, 5000)))
+      .mockImplementationOnce(() => new Promise<LogPage>((r) => (resolveReveal = r)))
+      .mockImplementation((_id: string, gen: number, offset: number) => Promise.resolve(page(gen, offset, PAGE_SIZE, 5000)));
+    // Gone from the restarted walk, so the retry gives up instead of reusing the old walk's index.
+    mocked.findLogRow.mockResolvedValueOnce(4321).mockResolvedValueOnce(null);
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    const revealing = useRepoStore.getState().revealOid("oidX");
+    await flush();
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    resolveReveal(page(1, 4000, PAGE_SIZE, 5000));
+
+    expect(await revealing).toBe(false);
+    expect(mocked.findLogRow).toHaveBeenLastCalledWith(REPO.id, 2, "oidX");
+    expect(useRepoStore.getState().selectedIndex).toBe(0);
+    expect(useRepoStore.getState().reveal).toBeNull();
+  });
+
+  it("recovers a walk error that failed before startLog resolved", async () => {
+    let resolveStart!: (generation: number) => void;
+    mocked.startLog.mockImplementationOnce(() => new Promise<number>((r) => (resolveStart = r)));
+    mocked.getLogPage.mockImplementation((_id: string, gen: number, offset: number) =>
+      Promise.resolve({ ...page(gen, offset, 0, 0), error: "revwalk failed" }),
+    );
+    const started = useRepoStore.getState().startLog({ kind: "all" }, {});
+    // The walk failed while the frontend still had no generation, so this is dropped …
+    useRepoStore.getState().onProgress({ repoId: REPO.id, generation: 9, total: 0, complete: true, error: "revwalk failed" });
+    resolveStart(9);
+    await started;
+    await flush();
+    // … and the first page is the only thing left to carry the failure.
+    expect(useRepoStore.getState().log.error).toBe("revwalk failed");
   });
 });
 

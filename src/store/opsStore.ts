@@ -11,6 +11,8 @@ import { toastError, useToastStore } from "./toastStore";
 
 export const MAX_OPS = 50;
 export const MAX_LINES = 5000;
+/** Stands in for everything an op printed past `MAX_LINES`. */
+export const TRUNCATED = "… output truncated";
 
 export interface OpLine {
   kind: "stdout" | "stderr" | "progress";
@@ -25,6 +27,8 @@ export interface OpRecord {
   elapsedMs: number | null;
   running: boolean;
   startedAt: number;
+  /** `MAX_LINES` reached: `lines` ends with the marker and takes nothing more. */
+  truncated: boolean;
 }
 
 export interface OpsStore {
@@ -56,7 +60,7 @@ export const useOpsStore = create<OpsStore>()((set, get) => ({
   onEvent({ opId, event }) {
     const ops = get().ops;
     if (event.kind === "started") {
-      const rec: OpRecord = { opId, cmd: event.cmd, lines: [], code: null, elapsedMs: null, running: true, startedAt: Date.now() };
+      const rec: OpRecord = { opId, cmd: event.cmd, lines: [], code: null, elapsedMs: null, running: true, startedAt: Date.now(), truncated: false };
       set({ ops: [...ops, rec].slice(-MAX_OPS) });
       return;
     }
@@ -72,12 +76,21 @@ export const useOpsStore = create<OpsStore>()((set, get) => ({
       next = { ...op, running: false, code: event.code, elapsedMs: event.elapsedMs };
       reveal = event.code !== 0 && !cancelled.delete(opId);
     } else {
+      // Past the cap the dock keeps what it has: no copy, no `set`, no render.
+      if (op.truncated) return;
       const lines = op.lines.slice();
-      const last = lines[lines.length - 1];
-      // A progress segment redraws the previous progress line.
-      if (event.kind === "progress" && last?.kind === "progress") lines[lines.length - 1] = { kind: "progress", text: event.line };
-      else lines.push({ kind: event.kind, text: event.line });
-      next = { ...op, lines: lines.length > MAX_LINES ? lines.slice(-MAX_LINES) : lines };
+      for (const text of event.lines) {
+        const last = lines[lines.length - 1];
+        // A progress segment redraws the previous progress line.
+        if (event.kind === "progress" && last?.kind === "progress") lines[lines.length - 1] = { kind: "progress", text };
+        else lines.push({ kind: event.kind, text });
+      }
+      const truncated = lines.length > MAX_LINES;
+      if (truncated) {
+        lines.length = MAX_LINES;
+        lines.push({ kind: "stdout", text: TRUNCATED });
+      }
+      next = { ...op, lines, truncated };
     }
     const copy = ops.slice();
     copy[i] = next;

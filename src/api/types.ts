@@ -23,6 +23,8 @@ export type AppErrorKind =
   | "busy"
   /** The requested walk generation was superseded — restart the walk. */
   | "staleGeneration"
+  /** The repo id names no open repository (normal after a close). */
+  | "notOpen"
   | "internal"
   | "unknown";
 
@@ -219,6 +221,8 @@ export interface LogPage {
   total: number;
   complete: boolean;
   generation: number;
+  /** Why the walk stopped, if it failed — a `log://progress` that arrived too early is recovered from here. */
+  error: string | null;
 }
 
 /** Payload of the `log://progress` event. */
@@ -378,13 +382,13 @@ export interface RepoChanged {
 
 // --- cli/runner.rs ---
 
-/** `#[serde(tag = "kind")]` — one streamed event of a running git command. */
+/** `#[serde(tag = "kind")]` — one streamed event of a running git command. Lines come batched. */
 export type CliEvent =
   | { kind: "started"; opId: string; cmd: string }
-  | { kind: "stdout"; line: string }
-  | { kind: "stderr"; line: string }
-  /** A `\r`-terminated segment (progress meter redraw). */
-  | { kind: "progress"; line: string }
+  | { kind: "stdout"; lines: string[] }
+  | { kind: "stderr"; lines: string[] }
+  /** `\r`-terminated segments (progress meter redraws). */
+  | { kind: "progress"; lines: string[] }
   | { kind: "exit"; code: number; elapsedMs: number };
 
 /** Payload of `op://event`. `repoId` is `null` for ops without a repo (clone). */

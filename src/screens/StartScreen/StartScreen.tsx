@@ -121,7 +121,8 @@ export function StartScreen() {
 
   useEffect(() => {
     function onKey(e: globalThis.KeyboardEvent) {
-      if (!e.ctrlKey || e.altKey || clone || settings) return;
+      // `busy`: the picker would come back to an `openPath` that drops the folder without a word.
+      if (!e.ctrlKey || e.altKey || clone || settings || busy) return;
       const k = e.key.toLowerCase();
       if (k === "o" && !e.shiftKey) void pick();
       else if (k === "o" && e.shiftKey) void startClone();

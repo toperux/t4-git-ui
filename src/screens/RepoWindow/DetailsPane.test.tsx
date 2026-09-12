@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as ipc from "../../api/ipc";
 import type { CommitDetail, CommitInfo, FileChange, LogRow, RefsSnapshot } from "../../api/types";
@@ -98,6 +98,20 @@ describe("CommitDetails", () => {
     const { findByText, queryByText } = render(<DetailsPane />);
     await findByText("Ship it");
     await waitFor(() => expect(queryByText("lw")).toBeNull());
+  });
+
+  it("clears a failed commit's error once another commit is selected", async () => {
+    const later: CommitInfo = { ...DETAIL.info, oid: "b", short: "b", summary: "Later work" };
+    useRepoStore.setState({ rows: [ROW, { row: { ...ROW.row, commit: later }, labels: [] }] });
+    const getCommit = ipc.getCommit as unknown as ReturnType<typeof vi.fn>;
+    getCommit.mockRejectedValueOnce(new Error("bad object"));
+    const { findByText, queryByText } = render(<DetailsPane />);
+    expect(await findByText("bad object")).toBeTruthy();
+
+    getCommit.mockResolvedValueOnce({ ...DETAIL, info: later, message: "Later work\n" });
+    act(() => useRepoStore.setState({ selectedIndex: 1 }));
+    expect(await findByText("Later work")).toBeTruthy();
+    expect(queryByText("bad object")).toBeNull();
   });
 });
 

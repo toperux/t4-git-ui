@@ -146,6 +146,15 @@ describe("commitStore.syncWithStatus", () => {
     expect(mocked.getChangedFiles).toHaveBeenCalledTimes(4);
   });
 
+  it("compares the status and the diff without stringifying them", async () => {
+    await sync([entry("a.rs"), entry("b.rs")]);
+    const stringify = vi.spyOn(JSON, "stringify");
+    // Every `repo://changed` runs this: the entry list, the anchor's entry and the diff hunks.
+    await sync([entry("a.rs"), entry("b.rs")]);
+    expect(stringify).not.toHaveBeenCalled();
+    stringify.mockRestore();
+  });
+
   it("a vanished anchor lands on its display neighbour: the row below, else the last one above", async () => {
     await sync([entry("a.rs"), entry("b.rs"), entry("c.rs")]);
     const st = useCommitStore.getState();

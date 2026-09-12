@@ -32,6 +32,7 @@ vi.mock("../../api/events", () => ({
   }),
 }));
 
+import { open } from "@tauri-apps/plugin-dialog";
 import * as ipc from "../../api/ipc";
 import { sortRecents, useRecentsStore } from "../../store/recentsStore";
 import { useRepoStore } from "../../store/repoStore";
@@ -87,6 +88,16 @@ describe("StartScreen", () => {
     expect(pins()[1].getAttribute("aria-label")).toBe("Unpin");
     expect(pins()[1].querySelector("svg")?.getAttribute("fill")).toBe("currentColor");
     expect(useRecentsStore.getState().recents.find((r) => r.name === "rust")?.pinned).toBe(true);
+  });
+
+  it("ignores Ctrl+O while a repo is already opening", () => {
+    (ipc.openRepo as ReturnType<typeof vi.fn>).mockImplementation(() => new Promise(() => {}));
+    const { getByRole } = render(<StartScreen />);
+    fireEvent.keyDown(getByRole("listbox", { name: "Recent repositories" }), { key: "Enter" });
+    expect(ipc.openRepo).toHaveBeenCalledTimes(1);
+    // The picker would come back to an `openPath` that drops the folder on the floor.
+    fireEvent.keyDown(window, { key: "o", ctrlKey: true });
+    expect(open).not.toHaveBeenCalled();
   });
 
   it("removes a row with the mouse (the X button), without opening it", () => {
@@ -158,7 +169,7 @@ describe("StartScreen", () => {
     expect(events.opCb).not.toBeNull();
     act(() => {
       events.opCb!({ repoId: null as unknown as string, opId: "op1", event: { kind: "started", opId: "op1", cmd: "git clone" } });
-      events.opCb!({ repoId: null as unknown as string, opId: "op1", event: { kind: "progress", line: "Receiving objects:  58% (7/12)" } });
+      events.opCb!({ repoId: null as unknown as string, opId: "op1", event: { kind: "progress", lines: ["Receiving objects:  58% (7/12)"] } });
     });
     expect(getByText((t) => t.replace(/\s+/g, " ") === "Receiving objects: 58% (7/12)")).toBeTruthy();
 

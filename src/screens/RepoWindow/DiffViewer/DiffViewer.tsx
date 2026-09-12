@@ -23,6 +23,8 @@ import { cut, type EmphRange } from "./intraLine";
 import { carryRef, carrySelection, clickLine, EMPTY_LINES, hunkMap, lineKey, toPairs, type LineRef, type LineSelection } from "./lineSelection";
 
 const OVERSCAN = 30;
+/** Why the header's conflict buttons are dead while a mutation runs, like the toolbar's. */
+const BUSY = "Operation in progress";
 /** `20000` → `20 000` (the style guide's thousands separator). */
 const groupThousands = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 const SIGN: Record<DiffLine["kind"], string> = { context: " ", add: "+", del: "−" };
@@ -273,14 +275,16 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
             size="sm"
             className={s.resolve}
             disabled={actions.busy}
-            title={mergeTool ? `Resolve in ${toolLabel(mergeTool.name)}` : "Resolve in editor"}
+            /* Dead while a mutation runs, and a disabled title is hoverable: say that, not what the
+               click would have done. */
+            title={actions.busy ? BUSY : mergeTool ? `Resolve in ${toolLabel(mergeTool.name)}` : "Resolve in editor"}
             onClick={actions.onResolve}
           >
             Resolve in editor
           </Button>
         )}
         {actions?.onRestoreConflict && (
-          <Button size="sm" className={s.resolve} disabled={actions.busy} title="Restore conflict" onClick={actions.onRestoreConflict}>
+          <Button size="sm" className={s.resolve} disabled={actions.busy} title={actions.busy ? BUSY : "Restore conflict"} onClick={actions.onRestoreConflict}>
             Restore conflict
           </Button>
         )}
@@ -366,7 +370,7 @@ const PLAIN_MODE = "100644";
 function KeepSide({ side, sides, busy, onKeepSide }: { side: ConflictSide; sides?: ConflictSides | null; busy?: boolean; onKeepSide: (side: ConflictSide) => void }) {
   const label = sideLabel(sides, side);
   return (
-    <Button size="sm" className={s.resolve} disabled={busy} title={`${label} (git checkout --${side})`} onClick={() => onKeepSide(side)}>
+    <Button size="sm" className={s.resolve} disabled={busy} title={busy ? BUSY : `${label} (git checkout --${side})`} onClick={() => onKeepSide(side)}>
       <span className={s.resolveLabel}>{label}</span>
     </Button>
   );

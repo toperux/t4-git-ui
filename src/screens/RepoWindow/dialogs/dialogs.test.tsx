@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RebaseTodo, RefsSnapshot, RepoSummary, TodoLine } from "../../../api/types";
 import { useCmdHistoryStore } from "../../../store/cmdHistoryStore";
@@ -9,7 +9,7 @@ import { useStatusStore } from "../../../store/statusStore";
 import { useToastStore } from "../../../store/toastStore";
 import { DeleteRemoteTagDialog, MergeDialog, PickDialog, PullDialog, PushDialog, PushTagDialog, RebaseDialog, ResetBranchDialog, ResetDialog } from "./OpsDialogs";
 import { RebaseInteractiveDialog } from "./RebaseInteractiveDialog";
-import { CheckoutBranchDialog, CheckoutDialog, CreateBranchDialog, CreateTagDialog, DeleteTagDialog } from "./RefDialogs";
+import { CheckoutBranchDialog, CheckoutDialog, CreateBranchDialog, CreateTagDialog, DeleteRemoteBranchDialog, DeleteTagDialog } from "./RefDialogs";
 import { AddRemoteDialog, RemoveRemoteDialog, RenameRemoteDialog, SetRemoteUrlDialog } from "./RemoteDialogs";
 import { RunCommandDialog } from "./RunCommandDialog";
 
@@ -288,6 +288,26 @@ describe("CreateBranchDialog", () => {
     fireEvent.click(getByRole("button", { name: "Create" }));
     await waitFor(() => expect(mocked.createBranch).toHaveBeenCalledWith("r", "fix", oid, false));
   });
+
+  it("disarms Create when a refs refresh removes the chosen start point", () => {
+    const { getByRole } = render(<CreateBranchDialog onClose={() => {}} />);
+    fireEvent.change(getByRole("textbox", { name: "Name" }), { target: { value: "fix" } });
+    fireEvent.click(getByRole("combobox", { name: "Start point" }));
+    fireEvent.click(getByRole("option", { name: "feature/lane-graph" }));
+    expect(getByRole("button", { name: "Create" }).hasAttribute("disabled")).toBe(false);
+    act(() => useRepoStore.setState({ refs: { ...REFS, local: [REFS.local[0]] } }));
+    expect(getByRole("combobox", { name: "Start point" }).textContent).toBe("feature/lane-graph (no longer exists)");
+    expect(getByRole("button", { name: "Create" }).hasAttribute("disabled")).toBe(true);
+  });
+});
+
+describe("DeleteRemoteBranchDialog", () => {
+  it("names the branch by its full ref, so a tag of the same name cannot match too", async () => {
+    const { getByRole } = render(<DeleteRemoteBranchDialog onClose={() => {}} remote="origin" name="release" />);
+    expect(preview(getByRole("dialog"))).toBe("git push origin --delete --end-of-options refs/heads/release");
+    fireEvent.click(getByRole("button", { name: "Delete on remote" }));
+    await waitFor(() => expect(mocked.deleteRemoteBranch).toHaveBeenCalledWith("r", "origin", "refs/heads/release"));
+  });
 });
 
 describe("CreateTagDialog", () => {
@@ -477,6 +497,14 @@ describe("MergeDialog", () => {
     const { getByRole } = render(<MergeDialog onClose={() => {}} branch="feature/lane-graph" />);
     expect(getByRole("combobox", { name: "Branch to merge" }).textContent).toBe("feature/lane-graph");
   });
+
+  it("disarms Merge when a refs refresh removes the selected branch", () => {
+    const { getByRole } = render(<MergeDialog onClose={() => {}} />);
+    expect(getByRole("button", { name: "Merge" }).hasAttribute("disabled")).toBe(false);
+    act(() => useRepoStore.setState({ refs: { ...REFS, local: [REFS.local[0]] } }));
+    expect(getByRole("combobox", { name: "Branch to merge" }).textContent).toBe("feature/lane-graph (no longer exists)");
+    expect(getByRole("button", { name: "Merge" }).hasAttribute("disabled")).toBe(true);
+  });
 });
 
 describe("RebaseDialog", () => {
@@ -504,6 +532,14 @@ describe("RebaseDialog", () => {
     expect(mocked.rebase).not.toHaveBeenCalled();
     expect(close).toHaveBeenCalled();
     expect(useDialogStore.getState().dialog).toEqual({ kind: "rebaseInteractive", base: "feature/lane-graph", ontoLabel: "feature/lane-graph" });
+  });
+
+  it("disarms Rebase when a refs refresh removes the selected ref", () => {
+    const { getByRole } = render(<RebaseDialog onClose={() => {}} />);
+    expect(getByRole("button", { name: "Rebase" }).hasAttribute("disabled")).toBe(false);
+    act(() => useRepoStore.setState({ refs: { ...REFS, local: [REFS.local[0]] } }));
+    expect(getByRole("combobox", { name: "Onto" }).textContent).toBe("feature/lane-graph (no longer exists)");
+    expect(getByRole("button", { name: "Rebase" }).hasAttribute("disabled")).toBe(true);
   });
 });
 
@@ -616,6 +652,28 @@ describe("RebaseInteractiveDialog", () => {
     expect(mocked.rebaseInteractive.mock.calls[0][4]).toEqual([
       { kind: "line", text: "pick a1 One" },
       { kind: "line", text: "pick b2 Two" },
+    ]);
+  });
+
+  it("an open dropdown keeps Alt+↑: the chord commits the option, it does not move the row", async () => {
+    mocked.rebaseTodo.mockImplementation(() => Promise.resolve(TODO));
+    const { getByRole, getByText, queryByRole } = render(<RebaseInteractiveDialog onClose={() => {}} base="origin/main" />);
+    await waitFor(() => expect(getByRole("combobox", { name: "Action for b2" })).toBeTruthy());
+    const combo = getByRole("combobox", { name: "Action for b2" });
+    fireEvent.click(getByText("Two"));
+    fireEvent.click(combo);
+    fireEvent.keyDown(combo, { key: "ArrowDown" });
+    fireEvent.keyDown(combo, { key: "ArrowUp", altKey: true });
+    expect(queryByRole("listbox")).toBeNull();
+    expect(combo.textContent).toBe("reword");
+
+    fireEvent.click(getByRole("button", { name: "Rebase" }));
+    await waitFor(() => expect(mocked.rebaseInteractive).toHaveBeenCalled());
+    // Still in the order they were read in — the chord never reached the list — with b2 reworded.
+    expect(mocked.rebaseInteractive.mock.calls[0][4]).toEqual([
+      { kind: "line", text: "pick a1 One" },
+      { kind: "line", text: "pick b2 Two" },
+      { kind: "amend", message: "Two\n\nbody of b2" },
     ]);
   });
 

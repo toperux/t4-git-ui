@@ -180,7 +180,9 @@ export function MessageColumn({ onExpand, onCommitted, autoFocus }: MessageColum
           <Button variant="primary" className={s.commitBtn} icon={<Check size={14} aria-hidden />} disabled={!canCommit} onClick={() => void commitOnly()}>
             Commit
           </Button>
-          <Button disabled={!canCommit || running} title={running ? "Operation in progress" : "Commit, then open the Push dialog"} onClick={() => void commitAndPush()}>
+          {/* What the button does is worth a tooltip only while it can do it: dead for want of a
+              summary or a staged file, that sentence describes nothing that is about to happen. */}
+          <Button disabled={!canCommit || running} title={running ? "Operation in progress" : canCommit ? "Commit, then open the Push dialog" : undefined} onClick={() => void commitAndPush()}>
             Commit &amp; Push
           </Button>
         </div>

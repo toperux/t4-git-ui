@@ -36,25 +36,25 @@ every row are in the sections below, keyed by the same id.
 | P0-6 | A2 | med | CONFIRMED | git-core | `unstage_paths` has no rollback on a locked index | done `deba502` — on `reset_default` error, `index.read(true)` (two lines, same guarantee as `with_index`); automated test mirrors `a_locked_index_leaves_the_path_unstaged` |
 | P0-7 | E3 | med | CONFIRMED | sidebar | Stash Drop has no confirmation | done `9b02c28` — native `ask()` in `actions.stashDrop` naming `stash@{n}` + message, "cannot be undone"; Pop untouched; Sidebar test: not called until accepted |
 | P0-8 | R1 | high | CONFIRMED | stores | Opening a dirty repo leaves the walk unseeded (regression, unpushed) | done `20f0a50` — `syncWalkSeed()` in the subscription's refs branch; test opens with `refs: null`; restores the known second walk |
-| P1-1 | F2 | med | CONFIRMED | dialogs | Merge/Rebase/Create-branch keep a ref the refresh removed; button still armed | fix — vanished ref = no selection: `valid = options.some(...)`, button disabled; `Select` has no placeholder prop today — render the stale name greyed with "(no longer exists)" rather than adding one; inline at all three sites, no hook; test: refs replaced without the ref → disabled |
-| P1-2 | D2 | med | CONFIRMED | stores | `revealOid` applies an index from a superseded walk | fix — re-check repo+generation after `fetchPage`; on change retry once against the new generation, then `false`; test with a walk restart mid-fetch |
-| P1-3 | D1 | med | CONFIRMED | theme | Theme token cache stale after the grid unmounts | fix — `cache = null` beside `observer.disconnect()`; mount/unmount/flip/remount test |
-| P1-4 | E2 | med | CONFIRMED | details pane | `CommitDetails` never clears error/detail on a new oid | fix — clear both at the top of the effect (blank during the round trip); reject-then-resolve test |
-| P1-5 | F1 | med | CONFIRMED | ui/Select | Select closes when its own listbox scrolls | fix — copy CommandInput's `list.contains(e.target)` guard; 40-option scroll test |
-| P1-6 | X3+X4+F6+R8 | med | CONFIRMED | ui/Select + rebase dialog | Select keyboard cluster: disabled options, Alt+↑ commits hover, chord stolen from open list | fix — `move()` + `onMouseMove` skip disabled; Alt+↑ keeps commit-active semantics; dialog capture guard yields when `e.target.closest('[role=combobox]')` is `aria-expanded=true`; 3 new tests |
-| P1-7 | X7+X6+R11 | low | CONFIRMED | commit panel | DisabledHint surfaces titles written for the enabled state (~9 sites) + "(N skipped)" on a full refusal | fix — rule: disabled title = why it is dead or absent; sites: MessageColumn:183, DiffViewer:276/283/369, FilesColumn:103, FileContextMenu:80 + FilesColumn:445; IconButton: `DisabledHint` gets only the explicit `title` (the enabled `title={tip}` fallback stays); fold X10: one `stageTarget(entries, paths) → {target, skipped, note}` helper |
-| P1-8 | X8+R10 | low | CONFIRMED | commit panel | Selected-mode rules: dead header after partial stage / silent promotion to whole list | fix X8 — a header "… selected" action resets the selection to a single seed on completion; R10 = wont (recorded); correct smoke-test-post-v1.md:772 |
-| P1-9 | R3 (+R2) | med | CONFIRMED mech | ui/DisabledHint | Wrapper cancels the control's flex sizing; R2 header floor needs a 220px measurement | fix — drop `min-width: 0` from `.wrap` (item min-width auto = control's own box); audit wrapped growers, per-caller class only if one exists. R2: measure title rect at 220px with/without the floor on a real build; rule: floor truncates the title and no-floor doesn't → drop the floor, accept the jog; else keep |
-| P1-10 | C2 | med | CONFIRMED | tauri | Every mutation triggers a second full status scan (suppression lifted before the debounce flushes) | fix — time-stamped: record `last_unsuppress` at op end, handler drops events with `time < last_unsuppress + ~50ms` (or while suppressed); no timer; two watch tests (own write dropped, external write 200ms later kept) |
-| P1-11 | D4 (+D8) | med | CONFIRMED | stores | `same()` / `sameRefs` / `entriesKey` JSON-stringify whole payloads per event | fix — one generic `eqDeep` in src/lib (exact, recursive, early exit, no allocation) at all three sites; `entriesKey` built from the four entry fields; unit test + stringify spy |
-| P1-12 | B2 (+D9) | med | CONFIRMED | cli runner + opsStore | Streamed CLI output retained and emitted per line without bound; O(n²) on the frontend | fix — cap retained buffer to a ~4 MB tail + `truncated` flag; Rust batches lines (~50 ms / 200 lines) into one `op://event` with `lines: string[]`, frontend one `set` per batch; stop streaming after MAX_LINES with a truncation marker; runner + opsStore tests |
-| P1-13 | D3 | med | PLAUSIBLE | stores | Walk error emitted before `start_log` returns is dropped | fix — `get_log_page` returns `error` from the cache; `fetchPage` applies it beside total/complete; store test with progress-before-resolve |
+| P1-1 | F2 | med | CONFIRMED | dialogs | Merge/Rebase/Create-branch keep a ref the refresh removed; button still armed | done `453d3d5` — vanished ref = no selection: `valid = options.some(...)`, button disabled; `Select` has no placeholder prop today — render the stale name greyed with "(no longer exists)" rather than adding one; inline at all three sites, no hook; test: refs replaced without the ref → disabled |
+| P1-2 | D2 | med | CONFIRMED | stores | `revealOid` applies an index from a superseded walk | done `b31cac5` — re-check repo+generation after `fetchPage`; on change retry once against the new generation, then `false`; test with a walk restart mid-fetch |
+| P1-3 | D1 | med | CONFIRMED | theme | Theme token cache stale after the grid unmounts | done `fbb4c8c` — `cache = null` beside `observer.disconnect()`; mount/unmount/flip/remount test |
+| P1-4 | E2 | med | CONFIRMED | details pane | `CommitDetails` never clears error/detail on a new oid | done `6a95389` — clear both at the top of the effect (blank during the round trip); reject-then-resolve test |
+| P1-5 | F1 | med | CONFIRMED | ui/Select | Select closes when its own listbox scrolls | done `e1f69f9` — copy CommandInput's `list.contains(e.target)` guard; 40-option scroll test |
+| P1-6 | X3+X4+F6+R8 | med | CONFIRMED | ui/Select + rebase dialog | Select keyboard cluster: disabled options, Alt+↑ commits hover, chord stolen from open list | done `909a22f` — `move()` + `onMouseMove` skip disabled; Alt+↑ keeps commit-active semantics; dialog capture guard yields when `e.target.closest('[role=combobox]')` is `aria-expanded=true`; 3 new tests |
+| P1-7 | X7+X6+R11 | low | CONFIRMED | commit panel | DisabledHint surfaces titles written for the enabled state (~9 sites) + "(N skipped)" on a full refusal | done `79431aa` — rule: disabled title = why it is dead or absent; sites: MessageColumn:183, DiffViewer:276/283/369, FilesColumn:103, FileContextMenu:80 + FilesColumn:445; IconButton: `DisabledHint` gets only the explicit `title` (the enabled `title={tip}` fallback stays); fold X10: one `stageTarget(entries, paths) → {target, skipped, note}` helper |
+| P1-8 | X8+R10 | low | CONFIRMED | commit panel | Selected-mode rules: dead header after partial stage / silent promotion to whole list | done `84fdc82` — X8: a header "… selected" action resets the selection to a single seed on completion; R10 = wont (recorded); correct smoke-test-post-v1.md:772 |
+| P1-9 | R3 (+R2) | med | CONFIRMED mech | ui/DisabledHint | Wrapper cancels the control's flex sizing; R2 header floor needs a 220px measurement | done `d64e3fa` (R3; R2 measurement pending) — drop `min-width: 0` from `.wrap` (item min-width auto = control's own box); audit wrapped growers, per-caller class only if one exists. R2: measure title rect at 220px with/without the floor on a real build; rule: floor truncates the title and no-floor doesn't → drop the floor, accept the jog; else keep |
+| P1-10 | C2 | med | CONFIRMED | tauri | Every mutation triggers a second full status scan (suppression lifted before the debounce flushes) | done `4190d9d` — time-stamped: record `last_unsuppress` at op end, handler drops events with `time < last_unsuppress + ~50ms` (or while suppressed); no timer; two watch tests (own write dropped, external write 200ms later kept) |
+| P1-11 | D4 (+D8) | med | CONFIRMED | stores | `same()` / `sameRefs` / `entriesKey` JSON-stringify whole payloads per event | done `31d7e62` — one generic `eqDeep` in src/lib (exact, recursive, early exit, no allocation) at all three sites; `entriesKey` built from the four entry fields; unit test + stringify spy |
+| P1-12 | B2 (+D9) | med | CONFIRMED | cli runner + opsStore | Streamed CLI output retained and emitted per line without bound; O(n²) on the frontend | done `d057c90` — cap retained buffer to a ~4 MB tail + `truncated` flag; Rust batches lines (~50 ms / 200 lines) into one `op://event` with `lines: string[]`, frontend one `set` per batch; stop streaming after MAX_LINES with a truncation marker; runner + opsStore tests |
+| P1-13 | D3 | med | PLAUSIBLE | stores | Walk error emitted before `start_log` returns is dropped | done `a890a79` — `get_log_page` returns `error` from the cache; `fetchPage` applies it beside total/complete; store test with progress-before-resolve |
 | P1-14 | E5 | low | PLAUSIBLE | diff viewer | Unstaged→staged selection-carry guard can never fire | done `ff46e63` — folded into P0-3 |
-| P1-15 | F9 | low | CONFIRMED | dialogs | Delete remote branch sends the bare short name (tag dialogs send a full ref) | fix — `refs/heads/${name}` + preview; payload test |
-| P1-16 | C7 | low | CONFIRMED | tauri/stores | "repo not open" is `internal`; frontend uses `internal` as "stay quiet" | fix — new `AppError::NotOpen` → `"notOpen"`; the two frontend sites suppress on it, `internal` toasts again; state test + statusStore toast test |
-| P1-17 | C6 | low | CONFIRMED | tauri | `close_repo` never cancels the repo's in-flight ops | wont — unreachable: `refusedWhileRunning()` blocks close/switch in the UI (actions.ts:140-175); add a comment on `close_repo` naming that invariant |
-| P1-18 | F4 | low | CONFIRMED | ui/Menu | ContextMenu never closes on scroll/resize | fix — same resize + capture-scroll → onClose effect as Select (with the inside guard); scroll test |
-| P1-19 | F8 | low | CONFIRMED | start screen | Ctrl+O etc. ignore `busy`; picked folder dropped silently | fix — `|| busy` in the key handler; Ctrl+O-while-busy test |
+| P1-15 | F9 | low | CONFIRMED | dialogs | Delete remote branch sends the bare short name (tag dialogs send a full ref) | done `98f337d` — `refs/heads/${name}` + preview; payload test |
+| P1-16 | C7 | low | CONFIRMED | tauri/stores | "repo not open" is `internal`; frontend uses `internal` as "stay quiet" | done `b00a15c` — new `AppError::NotOpen` → `"notOpen"`; the two frontend sites suppress on it, `internal` toasts again; state test + statusStore toast test |
+| P1-17 | C6 | low | CONFIRMED | tauri | `close_repo` never cancels the repo's in-flight ops | done `44f9e38` (wont, comment) — unreachable: `refusedWhileRunning()` blocks close/switch in the UI (actions.ts:140-175); add a comment on `close_repo` naming that invariant |
+| P1-18 | F4 | low | CONFIRMED | ui/Menu | ContextMenu never closes on scroll/resize | done `f6eb328` — same resize + capture-scroll → onClose effect as Select (with the inside guard); scroll test |
+| P1-19 | F8 | low | CONFIRMED | start screen | Ctrl+O etc. ignore `busy`; picked folder dropped silently | done `889c39c` — `|| busy` in the key handler; Ctrl+O-while-busy test |
 | P2 | C3=A5 | low | CONFIRMED | tools | `open_diff_tool` joins the caller path unchecked |fix — `repo_relative` check like `open_path`; refusal test |
 | P2 | C4 | low | CONFIRMED | capabilities | `opener:default` grants unscoped reveal-item-in-dir |fix — capability: only `allow-open-url` + `allow-default-urls` |
 | P2 | C5 | low | PLAUSIBLE | tauri | Clone URL positional, no `--`, no scheme check |fix — folded into P0-1 (separator only; no scheme allowlist) |
@@ -203,7 +203,7 @@ every row are in the sections below, keyed by the same id.
 
 ## P1 — user-visible correctness. Fix in the same push.
 
-- [ ] **P1-1 · F2 — Merge / Rebase / Create-branch keep a ref name the refs refresh removed.**
+- [x] **P1-1 · F2 — Merge / Rebase / Create-branch keep a ref name the refs refresh removed.**
       CONFIRMED. `OpsDialogs.tsx:302` (`useState(initial ?? candidates[0])`), `:546` (Rebase),
       `RefDialogs.tsx:41` (start point). `candidates` recomputes; `branch` does not. `Select` then
       renders `opts[-1]?.label` (blank) while `disabled={!branch}` keeps the button armed → `git merge
@@ -211,7 +211,7 @@ every row are in the sections below, keyed by the same id.
       (`options.some(o => o.value === branch) ? branch : options[0]?.value ?? ""`) or clear it in an
       effect. Test: render with `feature`, replace refs without it → button disabled / real option.
 
-- [ ] **P1-2 · D2 — `revealOid` applies an index from a superseded walk.** CONFIRMED.
+- [x] **P1-2 · D2 — `revealOid` applies an index from a superseded walk.** CONFIRMED.
       `repoStore.ts:401-411` re-checks repo + generation after `findIndex` but not after
       `await fetchPage(...)`. A `startLog` during the page fetch (a fetch landing → `syncRefsOnce`
       re-seeds) bumps the generation; the final `set` writes the old index into the new walk and
@@ -219,18 +219,18 @@ every row are in the sections below, keyed by the same id.
       `fetchPage`. Test: stub `getLogPage` to resolve after a second `startLog`; assert selection
       unchanged and `false`.
 
-- [ ] **P1-3 · D1 — Theme token cache goes stale once the grid unmounts.** CONFIRMED.
+- [x] **P1-3 · D1 — Theme token cache goes stale once the grid unmounts.** CONFIRMED.
       `useThemeTokens.ts:52-55` disconnects the `MutationObserver` at zero subscribers but keeps
       `cache`. Open repo → close → switch theme on the Start screen → reopen: lanes drawn in the old
       theme until the next toggle. Fix: `cache = null` beside `observer.disconnect()`. Test:
       mount, unmount, set `data-theme`, remount → dark tokens.
 
-- [ ] **P1-4 · E2 — `CommitDetails` never clears `error`/`detail` on a new oid.** CONFIRMED.
+- [x] **P1-4 · E2 — `CommitDetails` never clears `error`/`detail` on a new oid.** CONFIRMED.
       `DetailsPane.tsx:85`. One rejected `getCommit` shows its error for every later commit; without
       an error, arrowing shows the previous commit's fields under the new chips for the round trip.
       Fix: reset both at the top of the effect. Test: reject once then resolve → body, not stale error.
 
-- [ ] **P1-5 · F1 — `Select` closes itself when its own listbox scrolls.** CONFIRMED.
+- [x] **P1-5 · F1 — `Select` closes itself when its own listbox scrolls.** CONFIRMED.
       `Input.tsx:109-118` — capture-phase `scroll` on `document` with no target check;
       `scrollIntoView` at `:121` (or the wheel) fires it on the listbox. Any list past
       `max-height: 320px` (Create branch › Start point on a repo with many refs) vanishes
@@ -238,7 +238,7 @@ every row are in the sections below, keyed by the same id.
       `list.current?.contains(e.target)` check. Test: 40 options, `fireEvent.scroll(listbox)` →
       still open.
 
-- [ ] **P1-6 · Select keyboard cluster — X3 + X4 + F6 + R8.** Four findings, one component.
+- [x] **P1-6 · Select keyboard cluster — X3 + X4 + F6 + R8.** Four findings, one component.
       *X3* (`Input.tsx:153`): Alt+↑ → `pick(active)` bails on a disabled option *before*
       `setOpen(false)`, so the chord is consumed and neither commits nor closes.
       *X4* (`:231`): `onMouseMove` sets `active` and Alt+↑ now commits `active`, so a pointer sweep
@@ -253,7 +253,7 @@ every row are in the sections below, keyed by the same id.
       *selected* value, or require keyboard-set `active`). Tests: disabled-skip on ArrowDown; Alt+↑
       on a disabled active closes; Alt+↑ with the list open does not move the row.
 
-- [ ] **P1-7 · DisabledHint title cluster — X7 + X6 + R11.** `DisabledHint` made every disabled
+- [x] **P1-7 · DisabledHint title cluster — X7 + X6 + R11.** `DisabledHint` made every disabled
       control's `title` visible for the first time, and ~9 titles were written for the enabled state.
       *X7* (`MessageColumn.tsx:183` and others): a dead Commit button says "Commit, then open the
       Push dialog"; a disabled "Move up" arrow says "Move up"; `DiffViewer.tsx:369` shows the
@@ -266,7 +266,7 @@ every row are in the sections below, keyed by the same id.
       **Fix:** audit every `disabled` + `title` pair; a disabled control's title says *why it is
       dead*, or is omitted. Consider `IconButton` not falling back to `label` for the hint.
 
-- [ ] **P1-8 · Selected-mode rules — X8 + R10.** Two hazards of the `> 1` selection threshold in
+- [x] **P1-8 · Selected-mode rules — X8 + R10.** Two hazards of the `> 1` selection threshold in
       `FilesColumn.tsx:56-58,102`. *X8*: after a partial "Stage selected" (3 conflicted of 5), the
       surviving conflicted selection keeps the header in selected mode with `target = []` — "Stage
       selected" disabled, "Every file you selected is conflicted" — while stageable files remain and
@@ -276,7 +276,7 @@ every row are in the sections below, keyed by the same id.
       payload. **Decide one rule** (e.g. drop the conflicted survivors from the selection after a
       stage, and/or treat an all-conflicted selection as "no selection") and pin it.
 
-- [ ] **P1-9 · R3 (+ R2 decision) — `DisabledHint`'s wrapper cancels the control's flex sizing.**
+- [x] **P1-9 · R3 (+ R2 decision) — `DisabledHint`'s wrapper cancels the control's flex sizing.**
       CONFIRMED mechanism (X5 re-found it). `DisabledHint.module.css:6-11` `.wrap { display:
       inline-flex; min-width: 0 }` replaces the control as the flex item; `IconButton`'s
       `flex: none`, `DiffViewer`'s `.resolve { flex: none; max-width: 12rem }` and `.headerBtn`'s
@@ -284,7 +284,7 @@ every row are in the sections below, keyed by the same id.
       `.itemWrap` does) restoring the declared sizing for the affected callers. **R2 still needs the
       220px-panel measurement on a real build** before choosing the header floor.
 
-- [ ] **P1-10 · C2 — Every mutation triggers a second full status scan.** CONFIRMED.
+- [x] **P1-10 · C2 — Every mutation triggers a second full status scan.** CONFIRMED.
       `commands/stage.rs:83-84` lifts watcher suppression the instant the op returns;
       `notify_debouncer_full` flushes ~250 ms later and `watch.rs:108` reads the flag at handler time
       → a second `repo://changed` → a second `get_status` (+ `syncRefs` for refs kinds) per stage /
@@ -293,14 +293,14 @@ every row are in the sections below, keyed by the same id.
       events. Test: extend `suppressed_drops_events_and_stop_is_clean` — un-suppress immediately
       after the write, assert nothing arrives within 1 s (fails today).
 
-- [ ] **P1-11 · D4 — `same(prev.hunks, diff.hunks)` JSON-stringifies whole diffs on every load.**
+- [x] **P1-11 · D4 — `same(prev.hunks, diff.hunks)` JSON-stringifies whole diffs on every load.**
       CONFIRMED. `commitStore.ts:170`. Runs after every `run()` and every debounced watcher event on
       the focused file; near the 20 000-line cap that is ~2×4 MB serialised on the main thread per
       keystroke-in-another-editor. Fix: cheap compare first (hunk count, per-hunk header +
       `lines.length`), deep only on a match. Same shape: **D8** `statusStore.ts:75` `sameRefs` and
       `commitStore.ts:147` `entriesKey` stringify whole snapshots per event.
 
-- [ ] **P1-12 · B2 — Streamed CLI output is retained and emitted without bound.** CONFIRMED.
+- [x] **P1-12 · B2 — Streamed CLI output is retained and emitted without bound.** CONFIRMED.
       `cli/runner.rs:213` keeps all of stdout+stderr in `all: Vec<u8>`, copies it into
       `CliOutput::stdout`, and `app.emit`s one IPC event per line from the select loop. A typed
       `log -p` (allowed by `check_custom_args`) on a big repo is hundreds of MB resident and millions
@@ -308,7 +308,7 @@ every row are in the sections below, keyed by the same id.
       O(n²) copies, one render per line). Fix: cap `all`, coalesce line events (rAF/timer batch on
       both sides).
 
-- [ ] **P1-13 · D3 — A walk error emitted before `start_log` returns is dropped.** PLAUSIBLE
+- [x] **P1-13 · D3 — A walk error emitted before `start_log` returns is dropped.** PLAUSIBLE
       (needs a repro on a corrupt/empty repo). `repoStore.ts:364,415` — `onProgress` filters on a
       still-`null` generation; `LogPage` has no `error` field to recover it from, so the grid shows
       an empty history instead of the failure. Fix: return `error` from `get_log_page` alongside
@@ -322,27 +322,27 @@ every row are in the sections below, keyed by the same id.
       `DiffViewer.test.tsx:399` passes a fresh object the store would not produce. Fix: include the
       target in the effect key and in `unchanged`.
 
-- [ ] **P1-15 · F9 — Delete remote branch sends the bare short name.** CONFIRMED.
+- [x] **P1-15 · F9 — Delete remote branch sends the bare short name.** CONFIRMED.
       `RefDialogs.tsx:185` → `git push origin --delete release`; with `refs/tags/release` on the
       remote too, git refuses ("matches more than one"). The tag dialogs pass `refs/tags/<name>`
       (`OpsDialogs.tsx:95`, `RefDialogs.tsx:289`). Fix: `refs/heads/${name}`. Safe failure today.
 
-- [ ] **P1-16 · C7 — "repo not open" is `AppError::Internal`, and the frontend uses `internal` as
+- [x] **P1-16 · C7 — "repo not open" is `AppError::Internal`, and the frontend uses `internal` as
       "stay quiet".** CONFIRMED. `state.rs:43`; `statusStore.ts:220` and `actions.ts:181` suppress
       the toast on `kind === "internal"`, so a real internal error (a panicked blocking task in
       `get_refs`) stops refs updating with nothing on screen. Fix: own kind (`notOpen`), branch on it.
 
-- [ ] **P1-17 · C6 — `close_repo` never cancels the repo's in-flight ops.** CONFIRMED.
+- [x] **P1-17 · C6 — `close_repo` never cancels the repo's in-flight ops.** CONFIRMED.
       `commands/repo.rs:149`. Switch repo mid-push: the push keeps running against A, its events are
       dropped by the id filter, and there is no UI to cancel it. Fix: track op ids per `RepoId`,
       cancel them on close.
 
-- [ ] **P1-18 · F4 — `ContextMenu` never closes on scroll/resize.** CONFIRMED. `Menu.tsx:119`;
+- [x] **P1-18 · F4 — `ContextMenu` never closes on scroll/resize.** CONFIRMED. `Menu.tsx:119`;
       `useMenuDismiss` listens for mousedown and Escape only. Wheel-scroll the grid under an open
       row menu → the menu visually labels a different commit than its items act on. Fix: the
       resize/capture-scroll → `onClose` effect `Select` and `CommandInput` already have.
 
-- [ ] **P1-19 · F8 — Start-screen shortcuts ignore `busy`.** CONFIRMED. `StartScreen.tsx:124`:
+- [x] **P1-19 · F8 — Start-screen shortcuts ignore `busy`.** CONFIRMED. `StartScreen.tsx:124`:
       Ctrl+O during a slow open picks a folder that `openPath` (`:55`) then drops silently. Fix:
       `|| busy` in the key handler.
 

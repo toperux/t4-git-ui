@@ -69,7 +69,8 @@ export function CloneDialog({ defaultParent, onClose, onCloned }: CloneDialogPro
       setPhase((p) => {
         if (p.kind !== "running") return p;
         if (event.kind === "started") return { ...p, opId };
-        if (p.opId === opId && (event.kind === "progress" || event.kind === "stderr")) return { ...p, line: event.line };
+        // One event carries a batch of lines; the newest is the one to show.
+        if (p.opId === opId && (event.kind === "progress" || event.kind === "stderr")) return { ...p, line: event.lines[event.lines.length - 1] ?? p.line };
         return p;
       });
     });

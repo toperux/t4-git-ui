@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useState } from "react";
 import { Dialog } from "../Dialog/Dialog";
-import { Menu, MenuItem } from "./Menu";
+import { ContextMenu, Menu, MenuItem } from "./Menu";
 
 afterEach(cleanup);
 
@@ -89,5 +89,21 @@ describe("Menu", () => {
     fireEvent.click(getByRole("menuitem", { name: "Second" }));
     expect(queryByRole("menu")).toBeNull();
     expect(document.activeElement).toBe(trigger);
+  });
+});
+
+describe("ContextMenu", () => {
+  it("closes when the page scrolls under it, but not when the menu itself scrolls", () => {
+    const onClose = vi.fn();
+    const { getByRole } = render(
+      <ContextMenu at={{ x: 10, y: 10 }} onClose={onClose} label="Commit">
+        <MenuItem>Copy SHA</MenuItem>
+      </ContextMenu>,
+    );
+    fireEvent.scroll(getByRole("menu"));
+    expect(onClose).not.toHaveBeenCalled();
+    // The menu is placed once, from the click point: it would name a different row after a scroll.
+    fireEvent.scroll(document);
+    expect(onClose).toHaveBeenCalled();
   });
 });

@@ -494,6 +494,38 @@ describe("CommitPanel", () => {
     expect(btn.getAttribute("title")).toContain("Every file you selected is conflicted");
   });
 
+  it("Stage selected hands the header back to Stage all, conflicted survivors or not", async () => {
+    const conflict2 = { path: "conflict2.rs", oldPath: null, index: null, workdir: null, conflicted: true, workdirStamp: "1:1" } as const;
+    useStatusStore.setState({ status: { ...STATUS, entries: [...STATUS.entries, conflict2], conflicted: 2 }, error: null });
+    // What the status looks like once a.rs is staged: the two conflicts it skipped are still there.
+    mocked.getStatus.mockResolvedValueOnce({ ...STATUS, entries: [...STATUS.entries.filter((e) => e.path !== "a.rs"), conflict2], conflicted: 2 });
+    const { getByRole } = renderPanel();
+    // Unstaged, in order: a.rs, both.rs, conflict.rs, untracked.txt, conflict2.rs.
+    const rows = () => Array.from(getByRole("listbox", { name: "Unstaged files" }).querySelectorAll('[role="option"]'));
+    fireEvent.click(rows()[0]);
+    fireEvent.click(rows()[2], { ctrlKey: true });
+    fireEvent.click(rows()[4], { ctrlKey: true });
+    fireEvent.click(getByRole("button", { name: "Stage selected" }));
+    expect(mocked.stagePaths).toHaveBeenCalledWith("r", ["a.rs"]);
+    await act(async () => {}); // the stage settles and the fresh status comes back
+
+    // Without the re-seed the two conflicts it skipped keep the header in selected mode with nothing
+    // to act on — a dead "Stage selected" over a list full of stageable files.
+    const btn = getByRole("button", { name: "Stage all" });
+    expect(btn.hasAttribute("disabled")).toBe(false);
+    expect(useCommitStore.getState().selected).toEqual(["conflict.rs"]);
+  });
+
+  it("a header button dead because a mutation is running says so, not what it would have skipped", () => {
+    const { getByRole } = renderPanel();
+    act(() => useCommitStore.setState({ busy: true }));
+    const btn = getByRole("button", { name: "Stage all" });
+    // The wrapper makes a disabled title hoverable, so it has to explain why the button is dead —
+    // and it is dead because an operation is running, not because conflict.rs is conflicted.
+    expect(btn.hasAttribute("disabled")).toBe(true);
+    expect(btn.getAttribute("title")).toBe("Operation in progress");
+  });
+
   it("Unstage selected acts on the staged selection alone", () => {
     const { getByRole } = renderPanel();
     const staged = () => Array.from(getByRole("listbox", { name: "Staged files" }).querySelectorAll('[role="option"]'));
@@ -945,6 +977,9 @@ describe("CommitPanel tree view", () => {
     expect(folderAction(unstaged, "only").disabled).toBe(true);
     const src = folderAction(unstaged, "src");
     expect(src.getAttribute("title")).toContain("(1 skipped)");
+    // Nothing was staged around them, so "(1 skipped)" beside the dead action would be a lie: the
+    // whole action was refused, and the message says which files refused it.
+    expect(folderAction(unstaged, "only").getAttribute("title")).toBe("Every file in this folder is conflicted — a conflict is staged on its own, once resolved");
     fireEvent.click(src);
     expect(mocked.stagePaths).toHaveBeenCalledWith("r", ["src/lib/b.rs", "src/a.rs"]);
   });

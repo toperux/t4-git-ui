@@ -47,10 +47,13 @@ export function CreateBranchDialog({ onClose, startPoint: initial }: { onClose: 
   // An oid from the grid ("Create branch here…") is not in the list: keep it as an extra option,
   // otherwise the Select falls back to its first entry and the branch lands on HEAD.
   const starts = known || !initial ? options : [{ value: initial, label: shortRef(initial) }, ...options];
+  // A refs refresh can take the start point away under us; branching off the name anyway would hit a
+  // ref that no longer exists, so it stops being a selection.
+  const startExists = starts.some((o) => o.value === start);
   const preview = checkout ? gitCmd(checkoutArgs(start, name || "<name>", isRemote && track)) : `git branch ${name || "<name>"} ${start}`;
 
   function submit() {
-    if (!valid) return;
+    if (!valid || !startExists) return;
     onClose();
     // `create_branch --checkout` runs `git checkout -b`; --track needs the CLI path too.
     if (checkout) {
@@ -69,7 +72,7 @@ export function CreateBranchDialog({ onClose, startPoint: initial }: { onClose: 
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" type="submit" disabled={!valid}>
+          <Button variant="primary" type="submit" disabled={!valid || !startExists}>
             Create
           </Button>
         </>
@@ -85,6 +88,11 @@ export function CreateBranchDialog({ onClose, startPoint: initial }: { onClose: 
               {o.label}
             </option>
           ))}
+          {!startExists && start && (
+            <option value={start} disabled>
+              {start} (no longer exists)
+            </option>
+          )}
         </Select>
       </Field>
       <Options>
@@ -180,16 +188,19 @@ export function DeleteBranchDialog({ onClose, name }: { onClose: () => void; nam
 }
 
 export function DeleteRemoteBranchDialog({ onClose, remote, name }: { onClose: () => void; remote: string; name: string }) {
+  // The full ref, not the short name: a tag of the same name on the remote makes the short one
+  // ambiguous and git refuses the push.
+  const refspec = `refs/heads/${name}`;
   function submit() {
     onClose();
-    void runOp(`Deleting ${remote}/${name}…`, (id) => ipc.deleteRemoteBranch(id, remote, name), { success: `Deleted ${remote}/${name}`, remote });
+    void runOp(`Deleting ${remote}/${name}…`, (id) => ipc.deleteRemoteBranch(id, remote, refspec), { success: `Deleted ${remote}/${name}`, remote });
   }
   return (
     <Dialog
       title="Delete remote branch"
       onClose={onClose}
       onSubmit={submit}
-      preview={`git push ${remote} --delete --end-of-options ${name}`}
+      preview={`git push ${remote} --delete --end-of-options ${refspec}`}
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>

@@ -83,11 +83,10 @@ function CommitDetails() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!repoId || !oid) {
-      setDetail(null);
-      setError(null);
-      return;
-    }
+    // Blank for the round trip: the previous commit's body — or its error — is not this one's.
+    setDetail(null);
+    setError(null);
+    if (!repoId || !oid) return;
     let live = true;
     getCommit(repoId, oid)
       .then((d) => live && setDetail(d))

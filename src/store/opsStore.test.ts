@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OpResult, RepoSummary } from "../api/types";
 import { useDialogStore } from "./dialogStore";
-import { MAX_LINES, MAX_OPS, runOp, useOpsStore } from "./opsStore";
+import { MAX_LINES, MAX_OPS, runOp, TRUNCATED, useOpsStore } from "./opsStore";
 import { __resetForTests as resetRepo, useRepoStore } from "./repoStore";
 import { __resetForTests as resetStatus } from "./statusStore";
 import { useToastStore } from "./toastStore";
@@ -38,16 +38,18 @@ beforeEach(() => {
 });
 
 const toasts = () => useToastStore.getState().toasts;
+/** `n` stdout lines numbered from `from`, the way the runner batches them. */
+const batch = (n: number, from: number) =>
+  ({ kind: "stdout", lines: Array.from({ length: n }, (_, i) => `l${from + i}`) }) as const;
 
 describe("opsStore", () => {
   it("records started → lines (progress redraws) → exit", () => {
     const st = useOpsStore.getState();
     st.onEvent({ repoId: "r", opId: "1", event: { kind: "started", opId: "1", cmd: "git commit -F msg" } });
-    st.onEvent({ repoId: "r", opId: "1", event: { kind: "stdout", line: "hook: ok" } });
-    st.onEvent({ repoId: "r", opId: "1", event: { kind: "progress", line: "50%" } });
-    st.onEvent({ repoId: "r", opId: "1", event: { kind: "progress", line: "100%" } });
-    st.onEvent({ repoId: "r", opId: "1", event: { kind: "stderr", line: "warn" } });
-    st.onEvent({ repoId: "r", opId: "unknown", event: { kind: "stdout", line: "ignored" } });
+    st.onEvent({ repoId: "r", opId: "1", event: { kind: "stdout", lines: ["hook: ok"] } });
+    st.onEvent({ repoId: "r", opId: "1", event: { kind: "progress", lines: ["50%", "100%"] } });
+    st.onEvent({ repoId: "r", opId: "1", event: { kind: "stderr", lines: ["warn"] } });
+    st.onEvent({ repoId: "r", opId: "unknown", event: { kind: "stdout", lines: ["ignored"] } });
     let op = useOpsStore.getState().ops[0];
     expect(op.running).toBe(true);
     expect(op.lines).toEqual([
@@ -61,14 +63,32 @@ describe("opsStore", () => {
     expect(useOpsStore.getState().ops).toHaveLength(1);
   });
 
-  it("caps one op's log at MAX_LINES, keeping the newest", () => {
+  it("applies a batch of lines as one state update", () => {
+    const st = useOpsStore.getState();
+    st.onEvent({ repoId: "r", opId: "1", event: { kind: "started", opId: "1", cmd: "git log -p" } });
+    let updates = 0;
+    const unsub = useOpsStore.subscribe(() => updates++);
+    st.onEvent({ repoId: "r", opId: "1", event: batch(200, 0) });
+    unsub();
+    expect(updates).toBe(1);
+    expect(useOpsStore.getState().ops[0].lines).toHaveLength(200);
+  });
+
+  it("stops recording one op's log at MAX_LINES, leaving a truncation marker", () => {
     const st = useOpsStore.getState();
     st.onEvent({ repoId: "r", opId: "1", event: { kind: "started", opId: "1", cmd: "git clone x" } });
-    for (let i = 0; i < MAX_LINES + 10; i++) st.onEvent({ repoId: "r", opId: "1", event: { kind: "stdout", line: `l${i}` } });
+    for (let i = 0; i < MAX_LINES + 400; i += 200) st.onEvent({ repoId: "r", opId: "1", event: batch(200, i) });
     const { lines } = useOpsStore.getState().ops[0];
-    expect(lines).toHaveLength(MAX_LINES);
-    expect(lines[lines.length - 1].text).toBe(`l${MAX_LINES + 9}`);
-    expect(lines[0].text).toBe("l10");
+    expect(lines).toHaveLength(MAX_LINES + 1);
+    expect(lines[0].text).toBe("l0");
+    expect(lines[MAX_LINES - 1].text).toBe(`l${MAX_LINES - 1}`);
+    expect(lines[MAX_LINES]).toEqual({ kind: "stdout", text: TRUNCATED });
+    // Nothing after it costs a render.
+    let updates = 0;
+    const unsub = useOpsStore.subscribe(() => updates++);
+    st.onEvent({ repoId: "r", opId: "1", event: batch(200, 99999) });
+    unsub();
+    expect(updates).toBe(0);
   });
 
   it("cancel calls cancel_op for the running op", async () => {
@@ -82,7 +102,7 @@ describe("opsStore", () => {
   it("opens the dock when a command fails, so its output is on screen with the toast", () => {
     const st = useOpsStore.getState();
     st.onEvent({ repoId: "r", opId: "1", event: { kind: "started", opId: "1", cmd: "git commit -F msg" } });
-    st.onEvent({ repoId: "r", opId: "1", event: { kind: "stderr", line: "lint: 3 problems in 2 files" } });
+    st.onEvent({ repoId: "r", opId: "1", event: { kind: "stderr", lines: ["lint: 3 problems in 2 files"] } });
     expect(useOpsStore.getState().open).toBe(false);
 
     st.onEvent({ repoId: "r", opId: "1", event: { kind: "exit", code: 1, elapsedMs: 12 } });

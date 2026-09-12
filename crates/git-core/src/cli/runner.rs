@@ -1,14 +1,19 @@
 //! Streaming runner for the system `git` executable.
 //!
-//! Output is delivered line by line while the process runs: `\n`-terminated
-//! segments become [`CliEvent::Stdout`] / [`CliEvent::Stderr`], `\r`-terminated
-//! segments (progress meters) become [`CliEvent::Progress`]. Cancelling the
-//! token kills the whole process tree (Job Object on Windows, process group on
-//! Unix) so credential helpers, `ssh`, `git-remote-https` etc. die with it.
+//! Output is delivered while the process runs: `\n`-terminated segments become
+//! [`CliEvent::Stdout`] / [`CliEvent::Stderr`], `\r`-terminated segments
+//! (progress meters) become [`CliEvent::Progress`]. Lines are batched
+//! ([`BATCH_LINES`] or [`BATCH_AGE`], whichever comes first) so a command that
+//! prints millions of them costs the UI thousands of events, not millions, and
+//! only the last [`MAX_RETAINED`] bytes of each stream are kept for the caller.
+//! Cancelling the token kills the whole process tree (Job Object on Windows,
+//! process group on Unix) so credential helpers, `ssh`, `git-remote-https` etc.
+//! die with it.
 
+use std::collections::VecDeque;
 use std::path::Path;
 use std::process::Stdio;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
@@ -17,6 +22,14 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use crate::GitError;
+
+/// Lines per batched event.
+const BATCH_LINES: usize = 200;
+/// How long a batch may wait for more lines before it is emitted.
+const BATCH_AGE: Duration = Duration::from_millis(50);
+/// Per-stream cap on the text handed back in [`CliOutput`]: everything before
+/// the last of these bytes is dropped and `truncated` is set.
+const MAX_RETAINED: usize = 4 * 1024 * 1024;
 
 /// One streamed event of a running git command.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -31,14 +44,14 @@ pub enum CliEvent {
         cmd: String,
     },
     Stdout {
-        line: String,
+        lines: Vec<String>,
     },
     Stderr {
-        line: String,
+        lines: Vec<String>,
     },
-    /// A `\r`-terminated segment (progress meter redraw).
+    /// `\r`-terminated segments (progress meter redraws).
     Progress {
-        line: String,
+        lines: Vec<String>,
     },
     Exit {
         code: i32,
@@ -53,6 +66,8 @@ pub struct CliOutput {
     pub code: i32,
     pub stdout: String,
     pub stderr: String,
+    /// Output outgrew [`MAX_RETAINED`]; `stdout` / `stderr` are the tail only.
+    pub truncated: bool,
 }
 
 impl CliOutput {
@@ -96,10 +111,53 @@ pub struct GitCli {
     git_path: String,
 }
 
-#[derive(Clone, Copy)]
-enum Stream {
-    Out,
-    Err,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Kind {
+    Stdout,
+    Stderr,
+    Progress,
+}
+
+impl Kind {
+    fn event(self, lines: Vec<String>) -> CliEvent {
+        match self {
+            Kind::Stdout => CliEvent::Stdout { lines },
+            Kind::Stderr => CliEvent::Stderr { lines },
+            Kind::Progress => CliEvent::Progress { lines },
+        }
+    }
+}
+
+/// Lines waiting to go out as one event. One batch carries one kind.
+#[derive(Default)]
+struct Batch {
+    kind: Option<Kind>,
+    lines: Vec<String>,
+    since: Option<Instant>,
+}
+
+impl Batch {
+    fn push(&mut self, kind: Kind, line: String, on_event: &mut impl FnMut(CliEvent)) {
+        if self.kind != Some(kind) {
+            self.flush(on_event);
+            self.kind = Some(kind);
+            self.since = Some(Instant::now());
+        }
+        self.lines.push(line);
+        let aged = self.since.is_some_and(|t| t.elapsed() >= BATCH_AGE);
+        if self.lines.len() >= BATCH_LINES || aged {
+            self.flush(on_event);
+        }
+    }
+
+    fn flush(&mut self, on_event: &mut impl FnMut(CliEvent)) {
+        if let Some(kind) = self.kind.take() {
+            if !self.lines.is_empty() {
+                on_event(kind.event(std::mem::take(&mut self.lines)));
+            }
+        }
+        self.since = None;
+    }
 }
 
 impl GitCli {
@@ -186,16 +244,22 @@ impl GitCli {
         let (tx, mut rx) = mpsc::unbounded_channel();
         let stdout = child.stdout.take().expect("stdout piped");
         let stderr = child.stderr.take().expect("stderr piped");
-        let out_task = tokio::spawn(pump(stdout, Stream::Out, tx.clone()));
-        let err_task = tokio::spawn(pump(stderr, Stream::Err, tx));
+        let out_task = tokio::spawn(pump(stdout, Kind::Stdout, tx.clone(), MAX_RETAINED));
+        let err_task = tokio::spawn(pump(stderr, Kind::Stderr, tx, MAX_RETAINED));
 
         let mut cancelled = false;
+        let mut batch = Batch::default();
         loop {
             tokio::select! {
                 ev = rx.recv() => match ev {
-                    Some(ev) => on_event(ev),
+                    Some((kind, line)) => batch.push(kind, line, &mut on_event),
                     None => break,
                 },
+                // Recreated each iteration, so it measures the wait since the
+                // last line: a stalled stream still gets its partial batch out.
+                _ = tokio::time::sleep(BATCH_AGE), if !batch.lines.is_empty() => {
+                    batch.flush(&mut on_event);
+                }
                 _ = cancel.cancelled(), if !cancelled => {
                     cancelled = true;
                     tracing::info!(op_id, "cancelling git command");
@@ -203,10 +267,11 @@ impl GitCli {
                 }
             }
         }
+        batch.flush(&mut on_event);
 
         let status = child.wait().await?;
-        let stdout = out_task.await.unwrap_or_default();
-        let stderr = err_task.await.unwrap_or_default();
+        let (stdout, out_truncated) = out_task.await.unwrap_or_default();
+        let (stderr, err_truncated) = err_task.await.unwrap_or_default();
         let code = status.code().unwrap_or(-1);
         on_event(CliEvent::Exit {
             code,
@@ -220,17 +285,22 @@ impl GitCli {
             code,
             stdout,
             stderr,
+            truncated: out_truncated || err_truncated,
         })
     }
 }
 
-/// Reads a pipe to EOF, streaming segments as events; returns the full text.
+/// Reads a pipe to EOF, streaming segments; returns the last `limit` bytes of
+/// the text and whether anything before them was dropped.
 async fn pump<R: AsyncRead + Unpin>(
     mut r: R,
-    stream: Stream,
-    tx: mpsc::UnboundedSender<CliEvent>,
-) -> String {
-    let mut all = Vec::new();
+    kind: Kind,
+    tx: mpsc::UnboundedSender<(Kind, String)>,
+    limit: usize,
+) -> (String, bool) {
+    // A deque so dropping the head of a multi-gigabyte stream stays cheap.
+    let mut all: VecDeque<u8> = VecDeque::new();
+    let mut truncated = false;
     let mut pending = Vec::new();
     let mut buf = [0u8; 8192];
     loop {
@@ -238,28 +308,27 @@ async fn pump<R: AsyncRead + Unpin>(
             Ok(0) | Err(_) => break,
             Ok(n) => n,
         };
-        all.extend_from_slice(&buf[..n]);
+        all.extend(&buf[..n]);
+        if all.len() > limit {
+            all.drain(..all.len() - limit);
+            truncated = true;
+        }
         pending.extend_from_slice(&buf[..n]);
-        drain(&mut pending, false, stream, &tx);
+        drain(&mut pending, false, kind, &tx);
     }
-    drain(&mut pending, true, stream, &tx);
-    String::from_utf8_lossy(&all).into_owned()
+    drain(&mut pending, true, kind, &tx);
+    (
+        String::from_utf8_lossy(all.make_contiguous()).into_owned(),
+        truncated,
+    )
 }
 
 /// Splits `pending` into `\n` / `\r\n` lines and `\r` progress segments,
 /// keeping an unterminated tail (or a trailing `\r` whose successor is unknown)
 /// for the next read unless `eof`.
-fn drain(pending: &mut Vec<u8>, eof: bool, stream: Stream, tx: &mpsc::UnboundedSender<CliEvent>) {
-    let line = |bytes: &[u8]| {
-        let line = String::from_utf8_lossy(bytes).into_owned();
-        match stream {
-            Stream::Out => CliEvent::Stdout { line },
-            Stream::Err => CliEvent::Stderr { line },
-        }
-    };
-    let progress = |bytes: &[u8]| CliEvent::Progress {
-        line: String::from_utf8_lossy(bytes).into_owned(),
-    };
+fn drain(pending: &mut Vec<u8>, eof: bool, kind: Kind, tx: &mpsc::UnboundedSender<(Kind, String)>) {
+    let line = |bytes: &[u8]| (kind, String::from_utf8_lossy(bytes).into_owned());
+    let progress = |bytes: &[u8]| (Kind::Progress, String::from_utf8_lossy(bytes).into_owned());
 
     let mut start = 0;
     let mut i = 0;
@@ -452,24 +521,58 @@ mod tests {
     fn drain_splits_lines_and_progress() {
         let (tx, mut rx) = mpsc::unbounded_channel();
         let mut pending = b"a\nb\r\nc\rd\re".to_vec();
-        drain(&mut pending, false, Stream::Err, &tx);
+        drain(&mut pending, false, Kind::Stderr, &tx);
         assert_eq!(pending, b"e");
         let mut pending2 = b"x\r".to_vec();
-        drain(&mut pending2, false, Stream::Err, &tx);
+        drain(&mut pending2, false, Kind::Stderr, &tx);
         assert_eq!(pending2, b"x\r", "trailing CR waits for the next byte");
-        drain(&mut pending2, true, Stream::Err, &tx);
+        drain(&mut pending2, true, Kind::Stderr, &tx);
         assert!(pending2.is_empty());
         let mut got = Vec::new();
         while let Ok(e) = rx.try_recv() {
             got.push(e);
         }
-        let l = |s: &str| CliEvent::Stderr {
-            line: s.to_string(),
-        };
-        let p = |s: &str| CliEvent::Progress {
-            line: s.to_string(),
-        };
+        let l = |s: &str| (Kind::Stderr, s.to_string());
+        let p = |s: &str| (Kind::Progress, s.to_string());
         assert_eq!(got, vec![l("a"), l("b"), p("c"), p("d"), p("x")]);
+    }
+
+    #[test]
+    fn batches_lines_by_count_and_kind() {
+        let (events, mut sink) = collect();
+        let mut batch = Batch::default();
+        for i in 0..BATCH_LINES + 5 {
+            batch.push(Kind::Stdout, format!("l{i}"), &mut sink);
+        }
+        batch.push(Kind::Stderr, "e".into(), &mut sink);
+        batch.flush(&mut sink);
+        let events = events.lock().unwrap();
+        assert_eq!(events.len(), 3, "{events:?}");
+        assert!(matches!(&events[0], CliEvent::Stdout { lines } if lines.len() == BATCH_LINES));
+        assert!(matches!(&events[1], CliEvent::Stdout { lines } if lines.len() == 5));
+        assert!(matches!(&events[2], CliEvent::Stderr { lines } if lines == &["e"]));
+    }
+
+    #[tokio::test]
+    async fn pump_retains_only_the_tail_but_streams_every_line() {
+        let data: Vec<u8> = (0..100u8)
+            .flat_map(|i| format!("line {i}\n").into_bytes())
+            .collect();
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let (text, truncated) = pump(&data[..], Kind::Stdout, tx, 32).await;
+        assert!(truncated);
+        assert_eq!(text.len(), 32);
+        assert!(data.ends_with(text.as_bytes()), "{text:?}");
+        let mut lines = 0;
+        while rx.try_recv().is_ok() {
+            lines += 1;
+        }
+        assert_eq!(lines, 100, "every line is still streamed");
+
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let (text, truncated) = pump(&data[..], Kind::Stdout, tx, MAX_RETAINED).await;
+        assert!(!truncated);
+        assert_eq!(text.len(), data.len());
     }
 
     #[test]
@@ -480,6 +583,11 @@ mod tests {
         })
         .unwrap();
         assert_eq!(json, r#"{"kind":"started","opId":"op-1","cmd":"git x"}"#);
+        let json = serde_json::to_string(&CliEvent::Stdout {
+            lines: vec!["a".into(), "b".into()],
+        })
+        .unwrap();
+        assert_eq!(json, r#"{"kind":"stdout","lines":["a","b"]}"#);
         let json = serde_json::to_string(&CliEvent::Exit {
             code: 0,
             elapsed_ms: 5,
@@ -511,7 +619,7 @@ mod tests {
         let events = events.lock().unwrap();
         assert!(matches!(&events[0], CliEvent::Started { op_id, .. } if op_id == "op-1"));
         assert!(
-            matches!(&events[1], CliEvent::Stdout { line } if line.starts_with("git version")),
+            matches!(&events[1], CliEvent::Stdout { lines } if lines[0].starts_with("git version")),
             "{events:?}"
         );
         assert!(matches!(
@@ -541,11 +649,9 @@ mod tests {
             .expect("run");
         assert_ne!(out.code, 0);
         assert!(out.stderr.contains("fatal"), "{:?}", out.stderr);
-        assert!(events
-            .lock()
-            .unwrap()
-            .iter()
-            .any(|e| matches!(e, CliEvent::Stderr { line } if line.contains("fatal"))));
+        assert!(events.lock().unwrap().iter().any(
+            |e| matches!(e, CliEvent::Stderr { lines } if lines.iter().any(|l| l.contains("fatal")))
+        ));
         assert!(
             matches!(out.check("git rev-parse"), Err(GitError::Cli { code, .. }) if code == out.code)
         );

@@ -108,7 +108,10 @@ export function Select({ value, onChange, children, disabled, autoFocus, classNa
   // The list is placed once, from the field's rect: close it rather than let it drift.
   useEffect(() => {
     if (!open) return;
-    const close = () => setOpen(false);
+    const close = (e?: Event) => {
+      if (e?.target instanceof Node && list.current?.contains(e.target)) return;
+      setOpen(false);
+    };
     window.addEventListener("resize", close);
     document.addEventListener("scroll", close, true);
     return () => {
@@ -121,8 +124,14 @@ export function Select({ value, onChange, children, disabled, autoFocus, classNa
     if (open) list.current?.children[active]?.scrollIntoView?.({ block: "nearest" });
   }, [open, active]);
 
+  /** `i` if it can be picked, else the nearest option past it in direction `d` that can (`i` if there is none). */
+  function pickable(i: number, d: number) {
+    for (let j = i; j >= 0 && j < opts.length; j += d) if (!opts[j].disabled) return j;
+    return i;
+  }
+
   function show() {
-    setActive(Math.max(0, selected));
+    setActive(pickable(Math.max(0, selected), 1));
     setOpen(true);
   }
 
@@ -133,8 +142,13 @@ export function Select({ value, onChange, children, disabled, autoFocus, classNa
     if (o && o.value !== value) onChange({ target: { value: o.value } });
   }
 
+  // The active option is always one that can be picked: a disabled one would swallow Enter (and the
+  // Alt+↑ that commits it) without even closing the list.
   function move(d: number) {
-    setActive((i) => Math.min(opts.length - 1, Math.max(0, i + d)));
+    setActive((i) => {
+      const next = pickable(Math.min(opts.length - 1, Math.max(0, i + d)), d);
+      return opts[next]?.disabled ? i : next;
+    });
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
@@ -177,10 +191,10 @@ export function Select({ value, onChange, children, disabled, autoFocus, classNa
       move(-1);
     } else if (e.key === "Home") {
       e.preventDefault();
-      setActive(0);
+      setActive(pickable(0, 1));
     } else if (e.key === "End") {
       e.preventDefault();
-      setActive(opts.length - 1);
+      setActive(pickable(opts.length - 1, -1));
     } else if (e.key === "Tab") {
       setOpen(false);
     }
@@ -228,7 +242,9 @@ export function Select({ value, onChange, children, disabled, autoFocus, classNa
                 aria-disabled={o.disabled || undefined}
                 title={o.title}
                 className={cx(s.opt, o.disabled && s.optDisabled, i === active && s.optActive, i === selected && s.optSelected)}
-                onMouseMove={() => setActive(i)}
+                onMouseMove={() => {
+                  if (!o.disabled) setActive(i);
+                }}
                 onClick={() => pick(i)}
               >
                 {o.label}

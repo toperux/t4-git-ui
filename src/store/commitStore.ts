@@ -6,6 +6,7 @@ import { create } from "zustand";
 import * as ipc from "../api/ipc";
 import { toAppError } from "../api/ipc";
 import type { AppError, Author, ConflictSide, FileChange, FileDiff, FileStatus, RepoState, StatusEntry, WorkdirStatus } from "../api/types";
+import { eqDeep } from "../lib/eqDeep";
 import { joinMessage, pushHistory, splitMessage } from "../lib/msgHistory";
 import { EMPTY_SELECTION, pruneSelection, type Selection } from "../lib/multiSelect";
 import { useDiffStore } from "./diffStore";
@@ -123,9 +124,9 @@ let statsSeq = 0;
 /** The `StatusEntry` the shown diff was loaded for — an unrelated `repo://changed` must not reload it. */
 let diffEntry: StatusEntry | null = null;
 /** Entry list the current stats belong to, plus the one-in-flight guard (`get_changed_files` walks the tree). */
-let statsKey = "";
+let statsFor: StatusEntry[] | null = null;
 let statsInflight = false;
-let statsPending: string | null = null;
+let statsPending: StatusEntry[] | null = null;
 /** Repository whose author fetch is in flight. */
 let authorFor: string | null = null;
 /** Both prefill entry points await an IPC and then write the editor: the later start wins. */
@@ -134,17 +135,12 @@ let prefillSeq = 0;
 const EMPTY_STATS = { unstaged: {}, staged: {} };
 const NO_ORDER = { unstaged: null, staged: null };
 
-const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
-
 /** States that stop with a message prepared and are finished by a plain commit from the panel. */
 const PENDING = new Set<RepoState>(["merge", "cherryPick", "revert"]);
 
 /** Nothing the user typed is in the editor: it is empty, or holds exactly what the last prefill put there. */
 const untouched = ({ summary, body, prefill }: CommitStore) =>
   (!summary.trim() && !body.trim()) || (prefill !== null && prefill.summary === summary && prefill.body === body);
-
-/** Signature of a status: stats only need refetching when an entry appears, vanishes or changes state. */
-const entriesKey = (status: WorkdirStatus | null) => JSON.stringify(status?.entries ?? []);
 
 export const useCommitStore = create<CommitStore>()((set, get) => {
   const repoId = () => useRepoStore.getState().repo?.id ?? null;
@@ -173,7 +169,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       // Only for the same target, though — a selection made against the unstaged diff means something
       // else in the staged one, however alike the two patches are.
       const prev = get().diff;
-      const unchanged = !changed && prev && prev.path === diff.path && same(prev.hunks, diff.hunks);
+      const unchanged = !changed && prev && prev.path === diff.path && eqDeep(prev.hunks, diff.hunks);
       set({ diff: unchanged ? prev : diff, diffContext: context, diffLoading: false });
     } catch (e) {
       if (mySeq !== diffSeq) return;
@@ -182,10 +178,10 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
   }
 
   /** `get_changed_files` walks the whole tree twice: only on a real entry change, one call at a time. */
-  async function loadStats(key: string) {
-    if (key === statsKey) return;
+  async function loadStats(entries: StatusEntry[]) {
+    if (eqDeep(entries, statsFor)) return;
     if (statsInflight) {
-      statsPending = key;
+      statsPending = entries;
       return;
     }
     const mySeq = ++statsSeq;
@@ -199,7 +195,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
         ipc.getChangedFiles(id, { kind: "staged" }).catch(() => []),
       ]);
       if (mySeq !== statsSeq) return;
-      statsKey = key;
+      statsFor = entries;
       set({ stats: { unstaged: byPath(unstaged), staged: byPath(staged) } });
     } finally {
       statsInflight = false;
@@ -246,7 +242,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
     // computed for makes them reload. (Identical content still keeps the `diff` object, so a reload
     // that finds nothing new never jumps the view.)
     diffEntry = null;
-    statsKey = "";
+    statsFor = null;
     await useStatusStore.getState().refresh();
     return true;
   }
@@ -313,8 +309,8 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       // An unrelated file changing on disk must not reload (and so reset the scroll / line selection of)
       // the shown diff: only reload when the focused row moved or its own status entry changed.
       const entry = sel.anchor ? (status?.entries.find((e) => e.path === sel.anchor) ?? null) : null;
-      if (sel.anchor !== s.diffPath || list !== s.diffList || !same(entry, diffEntry)) void loadDiff();
-      void loadStats(entriesKey(status));
+      if (sel.anchor !== s.diffPath || list !== s.diffList || !eqDeep(entry, diffEntry)) void loadDiff();
+      void loadStats(status?.entries ?? []);
     },
 
     reloadDiff: loadDiff,
@@ -484,7 +480,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       diffSeq++;
       statsSeq++;
       diffEntry = null;
-      statsKey = "";
+      statsFor = null;
       statsPending = null;
       authorFor = null;
       set({

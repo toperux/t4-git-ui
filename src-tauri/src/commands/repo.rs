@@ -35,6 +35,9 @@ pub struct LogPage {
     pub total: usize,
     pub complete: bool,
     pub generation: u64,
+    /// Why the walk stopped, if it failed. A `log://progress` emitted before
+    /// the frontend knew the generation is dropped; this is how it recovers it.
+    pub error: Option<String>,
 }
 
 /// Payload of `log://progress`, emitted after each chunk (throttled) and once at the end.
@@ -145,6 +148,10 @@ async fn start_watcher(app: &AppHandle, state: &AppState, handle: &Arc<RepoHandl
     }
 }
 
+/// Drops the repository, its watcher and its log walk. In-flight operations
+/// are deliberately not cancelled here: the UI refuses close and switch while
+/// one runs (`refusedWhileRunning` in `src/screens/RepoWindow/actions.ts`), so
+/// there is nothing to cancel by the time this command is reachable.
 #[tauri::command]
 pub async fn close_repo(state: State<'_, AppState>, id: RepoId) -> Result<(), AppError> {
     let removed = state
@@ -328,6 +335,7 @@ pub async fn get_log_page(
             total,
             complete,
             generation,
+            error: log.error.clone(),
         })
     })
     .await

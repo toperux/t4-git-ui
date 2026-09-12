@@ -4,6 +4,7 @@ import { create } from "zustand";
 import * as ipc from "../api/ipc";
 import { toAppError } from "../api/ipc";
 import type { RefsSnapshot, RepoChanged, RevSpec, WorkdirStatus } from "../api/types";
+import { eqDeep } from "../lib/eqDeep";
 import { freshStatus } from "../lib/freshStatus";
 import { useMerging, useRepoStore } from "./repoStore";
 import { toastError } from "./toastStore";
@@ -71,8 +72,6 @@ let timer: ReturnType<typeof setTimeout> | null = null;
 let refsRun: Promise<void> | null = null;
 let refsStarted = false;
 let refsDirty = false;
-
-const sameRefs = (a: RefsSnapshot | null, b: RefsSnapshot | null) => JSON.stringify(a) === JSON.stringify(b);
 
 /**
  * The oids the backend seeds the walk from under `spec` — HEAD for `head`, and every branch,
@@ -160,7 +159,7 @@ async function syncRefsOnce() {
   if (now !== before || show !== !!after.filter.workingTree) await after.startLog(after.spec, { ...after.filter, workingTree: show });
   // The watcher reports `FETCH_HEAD` / `logs/*` / `config` writes as `refs`, and a new tag on a
   // commit the walk already reached moves no seed: relabel only on a real change.
-  else if (!sameRefs(beforeRefs, after.refs)) await after.refreshLabels();
+  else if (!eqDeep(beforeRefs, after.refs)) await after.refreshLabels();
 }
 
 /**
@@ -216,8 +215,8 @@ export const useStatusStore = create<StatusStore>()((_set, get) => ({
         } while (refsDirty);
       } catch (e) {
         const err = toAppError(e);
-        // `internal` after `closeRepo` just means the repo is gone — nothing to report.
-        if (err.kind !== "internal" && useRepoStore.getState().repo) toastError(err, "Couldn't refresh references");
+        // `notOpen` after `closeRepo` just means the repo is gone — nothing to report.
+        if (err.kind !== "notOpen" && useRepoStore.getState().repo) toastError(err, "Couldn't refresh references");
       } finally {
         refsRun = null;
         refsStarted = false;

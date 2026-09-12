@@ -229,11 +229,29 @@ describe("statusStore", () => {
     expect(mocked.getStatus).toHaveBeenCalledTimes(1);
   });
 
+  it("compares the refs snapshot without stringifying it", async () => {
+    await useStatusStore.getState().syncRefs();
+    const stringify = vi.spyOn(JSON, "stringify");
+    await useStatusStore.getState().syncRefs();
+    expect(stringify).not.toHaveBeenCalled();
+    stringify.mockRestore();
+  });
+
   it("a failing syncRefs toasts once", async () => {
     mocked.getRefs.mockRejectedValue({ kind: "git", message: "boom" });
     await useStatusStore.getState().syncRefs();
     expect(useToastStore.getState().toasts).toHaveLength(1);
     expect(useToastStore.getState().toasts[0]).toMatchObject({ kind: "error", title: "Couldn't refresh references" });
+  });
+
+  it("stays quiet for a closed repo, but reports a real internal failure", async () => {
+    mocked.getRefs.mockRejectedValue({ kind: "notOpen", message: "repo not open: r1" });
+    await useStatusStore.getState().syncRefs();
+    expect(useToastStore.getState().toasts).toHaveLength(0);
+
+    mocked.getRefs.mockRejectedValue({ kind: "internal", message: "blocking task failed" });
+    await useStatusStore.getState().syncRefs();
+    expect(useToastStore.getState().toasts).toHaveLength(1);
   });
 
   it("a clean tree drops the working-tree selection", async () => {

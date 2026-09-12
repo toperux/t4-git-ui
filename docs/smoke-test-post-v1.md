@@ -41,19 +41,19 @@ sit in §5 next to "Checkout a commit (detached)"; the merge / rebase and ellips
       `origin/solo` is created and checked out (one chip with a remote segment on the row)
 - [x] Right-click `twins (three branches here)` → **Checkout branch…** → picker lists `twin-a`,
       `twin-b`, `origin/twin-remote`; pick `origin/twin-remote` → the help line says it creates
-      `twin-remote`, preview reads `git checkout --track -b twin-remote origin/twin-remote` → Checkout →
+      `twin-remote`, preview reads `git checkout --track -b twin-remote --end-of-options origin/twin-remote` → Checkout →
       `twin-remote` is the current branch
 - [x] Check out `reset-me` (sidebar double-click), right-click the `reset fixture 1` row → **Reset
-      reset-me to here…** → dialog defaults to Mixed, preview reads `git reset --mixed <sha>` → Reset →
+      reset-me to here…** → dialog defaults to Mixed, preview reads `git reset --mixed --end-of-options <sha>` → Reset →
       the `reset-me` chip moves down one row while `origin/reset-me` stays on `reset fixture 2`, and
       `reset.txt` shows up as an **unstaged** change
 - [x] Right-click `reset fixture 2` → **Reset reset-me to origin/reset-me…** → same dialog (it is the
-      current branch), preview reads `git reset --mixed origin/reset-me`; pick **Hard** → the button
+      current branch), preview reads `git reset --mixed --end-of-options origin/reset-me`; pick **Hard** → the button
       turns danger and the text warns about uncommitted changes → Reset → `reset.txt` is clean again
       and the two chips are one row again
 - [x] Reset `reset-me` to `reset fixture 1` once more, this time **Hard** (no leftover change), then
       double-click `main` in the sidebar and right-click `reset fixture 2` → **Reset reset-me to
-      origin/reset-me…** → a plain confirm dialog, preview reads `git branch -f reset-me origin/reset-me`
+      origin/reset-me…** → a plain confirm dialog, preview reads `git branch -f --end-of-options reset-me origin/reset-me`
       (not `git reset`: the branch is not checked out) → Reset → the chip is back on the tip and the
       working tree was never touched
 - [x] **Before** the Pull check on `feature` above (it needs `feature` behind its upstream — Cancel
@@ -175,7 +175,7 @@ _Shipped 2026-09-02: `9c4bc35`._
 _Shipped 2026-09-02: `21c2158`._
 
 - [x] Create tag with **Push to remote after creating** ticked → the preview ends in
-      `&& git push --progress origin refs/tags/<name>`, two ops run back to back, the tag is on the bare remote
+      `&& git push --progress origin --end-of-options refs/tags/<name>`, two ops run back to back, the tag is on the bare remote
       (`git -C <bare> tag`); a name that already exists is refused inline and Create stays disabled;
       in a repo without remotes the checkbox is absent
 - [x] Same dialog, same tick, but pick the `nowhere` remote (the fixture's path that does not exist)
@@ -346,7 +346,7 @@ _Shipped 2026-09-06; walked the same day over CDP; protected branches added and 
       "also on remote" unchecked, preview `git tag -d v0.1.0` → Delete → the tag chip is gone.
       Restore: `git -C C:\tmp\t4\work tag v0.1.0 9f87c5f`
 - [x] **A remote branch, and while an op runs** (§2): right-click `solo (remote only)` → **Delete
-      origin/solo on remote…** → the dialog's preview reads `git push origin --delete solo` →
+      origin/solo on remote…** → the dialog's preview reads `git push origin --delete --end-of-options refs/heads/solo` →
       Cancel (the push path itself is walked from the sidebar in the main doc). While an op runs
       (`fetch slow` from the Run git command dialog) every Delete item is greyed, Copy SHA is not
 - [x] **Protected branches** (§2): right-click `nested folders` (`origin/main`) → no **Delete
@@ -361,7 +361,7 @@ _Shipped 2026-09-06 (this commit); walked the same day over CDP._
 
 - [x] **Add a remote** (§5): on `work`, Repository menu → **Add remote…** → name `mirror`, URL
       `C:/tmp/t4/bare.git`, **Fetch now** checked, preview
-      `git remote add mirror C:/tmp/t4/bare.git && git fetch --progress --prune mirror` → Add → toast
+      `git remote add mirror C:/tmp/t4/bare.git && git fetch --progress --prune --end-of-options mirror` → Add → toast
       `Added mirror`, the fetch runs in the dock, the sidebar gains a `mirror` folder with `main`
       under it; the Remotes count grows by its branches
 - [x] **The remote's menu** (§2): right-click `mirror` → **Fetch mirror**, **Rename…**, **Change
@@ -467,10 +467,10 @@ _Shipped 2026-09-07 (this commit); walked the same day over CDP on the installed
       records nothing)
 - [x] **A clean pick** (§2): **Cherry-pick 0aa57e5…** → dialog `Cherry-pick 0aa57e5` with the
       summary, **Commit right away** (on), **Record the source commit (-x)** (off), preview
-      `Runs git cherry-pick 0aa57e5…` → **Cherry-pick** → toast `Cherry-picked 0aa57e5`, the commit
+      `Runs git cherry-pick --end-of-options 0aa57e5…` → **Cherry-pick** → toast `Cherry-picked 0aa57e5`, the commit
       sits on `main` under the working-tree row, no banner
 - [x] **Commit right away off** (§5): pick `twins (three branches here)` with the box unticked →
-      preview `git cherry-pick -n …` → toast `Cherry-picked e6cbe9a — staged, commit to finish`,
+      preview `git cherry-pick -n --end-of-options …` → toast `Cherry-picked e6cbe9a — staged, commit to finish`,
       the working tree gains the staged file and the commit editor's Summary reads `twins (three
       branches here)` (from `MERGE_MSG`; the state stays clean). Undo from a shell: `git restore
       --staged twins.txt` and delete the file
@@ -486,10 +486,10 @@ _Shipped 2026-09-07 (this commit); walked the same day over CDP on the installed
       `CHERRY_PICK_HEAD` is gone, banners gone, status bar `Clean`
 - [x] **Revert HEAD** (§2): right-click the new HEAD row → `Revert 9217e5e…` → dialog `Revert
       9217e5e` (summary, **Commit right away**, no `-x` box), preview `Runs git revert --no-edit
-      9217e5e…` → **Revert** → toast `Reverted 9217e5e`, HEAD is `Revert "conflict branch side"`
+      --end-of-options 9217e5e…` → **Revert** → toast `Reverted 9217e5e`, HEAD is `Revert "conflict branch side"`
 - [x] **A merge commit asks for its mainline** (§2): right-click `merge feature` → **Revert
       1574561…** → the dialog adds **Mainline parent** (`1 — 9f87c5f`, with the help line) and the
-      preview reads `git revert --no-edit -m 1 …`; **Cancel**
+      preview reads `git revert --no-edit -m 1 --end-of-options …`; **Cancel**
 - [x] **An empty pick** (§5): **Cherry-pick 9099161…** on `nested folders` (already in `main`) →
       toast `Operation failed — The previous cherry-pick is now empty, possibly due to conflict
       resolution.`, the in-progress banner with **Abort** / **Commit** and nothing staged →
@@ -501,7 +501,7 @@ _Shipped 2026-09-07 (this commit); walked the same day over CDP on the installed
       -- conflict.txt && git checkout -- conflict.txt` to drop it
 - [x] **Commit right away off and a conflicting revert** (§5): from a shell, commit a further edit to
       `conflict.txt` on `main`, then **Revert 837a5a9…** (`main side of the conflict`) with the box
-      unticked → preview `git revert --no-edit -n …` → the `Revert in progress` banner (**Abort**,
+      unticked → preview `git revert --no-edit -n --end-of-options …` → the `Revert in progress` banner (**Abort**,
       **Commit**) and the conflicts banner both show (a `-n` revert keeps `REVERT_HEAD`, unlike a
       `-n` pick), the status bar says `Revert in progress`, the Summary reads `Revert "main side of
       the conflict"` → **Abort** → toast `Revert aborted`, `Clean`, the Summary empty; `git reset
@@ -607,7 +607,7 @@ _Shipped 2026-09-07 (this commit); walked the same day over CDP on the installed
       here…** → "Uncommitted changes will be stashed…" with **Stash and continue** / Cancel; after
       it the rows `add a`, `add b`, `fixup! add b` already marked `fixup`, `add s1`, a read-only
       `merge` row, `add d`, `add e`; "1 merge commit in this range" with Keep merges / Flatten; the
-      `--update-refs` checkbox (git ≥ 2.38); preview `git rebase -i --autostash --rebase-merges <parent oid>`
+      `--update-refs` checkbox (git ≥ 2.38); preview `git rebase -i --autostash --rebase-merges --end-of-options <parent oid>`
 - [x] **Move barriers**: Move up / down greyed against the merge row and the section boundaries;
       `add d` ↔ `add e` swap (Alt+↑ / ↓ too, the moved row keeps focus)
 - [x] **Reword + `--update-refs`**: `add e` → `reword`, the textarea prefilled with its message,
@@ -627,7 +627,7 @@ _Shipped 2026-09-07 (this commit); walked the same day over CDP on the installed
       progress"; **Continue** → `Rebase continued`, banner gone, dirty tree back
 - [x] **Abort**: the same edit stop → **Abort** → back where it was
 - [x] **Branch path with a conflict, Skip**: checkout `other`, right-click `main`'s tip → **Rebase
-      other onto main…** → tick **Interactive** (preview `git rebase -i main`) → **Rebase** → the
+      other onto main…** → tick **Interactive** (preview `git rebase -i --end-of-options main`) → **Rebase** → the
       interactive dialog titled `Rebase other onto main` with the one pick → **Rebase** → `1 conflict`
       toast, both banners (rebase + conflicts) with **Skip** → `Commit skipped`, `other` on `main`
 - [x] **Nothing to rebase**: Branch › Rebase… onto `main` with Interactive on → "Nothing to rebase",
@@ -677,7 +677,7 @@ _Shipped 2026-09-07 (this commit); walked the same day over CDP on the installed
       `document.body` *before* firing, logging every distinct `[class*="banner"]` / `[role="alert"]`
       text with a `performance.now()` stamp, then drain it afterwards.
       Walked on `other` (checked out from the sidebar), right-click `main`'s tip → **Rebase other
-      onto main…** → tick **Interactive** (preview flips to `git rebase -i --rebase-merges main`) →
+      onto main…** → tick **Interactive** (preview flips to `git rebase -i --rebase-merges --end-of-options main`) →
       **Rebase** → **Stash and continue** (the app adds `--autostash` at that step, so a dirty tree
       is fine) → the single pick `other d` → **Rebase**. The log held exactly **two** entries: the
       empty baseline at `t=0`, then both conflict banners together — "Rebase in progress — resolve
@@ -768,8 +768,10 @@ header jog, last bullet) and one check that this fixture cannot reach (second-to
       selected** and Unstaged is back to **Stage all**. A *single* staged Ctrl+click moves ownership
       but keeps **Unstage all** — the threshold is two, and one row is the resting state
 - [x] **Back to the whole list** (§4): click any single row → the label returns to **Stage all**.
-      There is no clear-selection gesture, so this is the only way back. (Not the same thing as the
-      list emptying: `syncWithStatus` re-seeds one row after a stage, which also restores the label.)
+      There is no clear-selection gesture, so mid-selection this is the only way back. A finished
+      "… selected" action needs no click: it re-seeds one row itself, so the label comes back even
+      when the conflicted files it skipped are still there (they used to keep the header on a dead
+      **Stage selected** with the whole-list action out of reach).
 - [x] **The commit dialog is the same** (§4): open the full-window commit dialog and repeat the first
       two checks — it mounts these very same headers. Both surfaces are mounted at once, so scope
       every query to the dialog: an unscoped `[aria-label="Unstaged files"]` finds the *panel* first
@@ -1157,7 +1159,7 @@ AF's banner boxes do, and let the observer's log be the evidence._
       **0 changes**. `Toolbar.tsx:46`'s gate was never seen enabled over a genuinely clean tree
 - [x] **Rebase dialog: autostash still follows the tree** (§5) — dirty half walked 2026-09-11: the
       interactive dialog read *"Uncommitted changes will be stashed before the rebase and restored
-      after it."*, previewed `git rebase -i --autostash --rebase-merges mid`, and its button read
+      after it."*, previewed `git rebase -i --autostash --rebase-merges --end-of-options mid`, and its button read
       *Stash and continue*. **The stale-status half was not walked** — unknown ⇒ dirty needs the
       dialog opened inside the refresh window, which is not hand-reachable; `dialogs.test.tsx` covers
       it. Ticked for the half a walk can reach, and this note is the other half

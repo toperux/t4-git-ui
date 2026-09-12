@@ -40,7 +40,7 @@ impl AppState {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .get(id)
             .cloned()
-            .ok_or_else(|| AppError::Internal(format!("repo not open: {id}")))
+            .ok_or_else(|| AppError::NotOpen(format!("repo not open: {id}")))
     }
 
     pub fn git_cli(&self) -> GitCli {
@@ -120,13 +120,21 @@ mod tests {
     }
 
     #[test]
-    fn unknown_repo_is_an_internal_error() {
+    fn unknown_repo_is_a_not_open_error() {
         let state = AppState::default();
         let id: RepoId = serde_json::from_str("\"c:/nope\"").expect("repo id");
-        match state.repo(&id) {
-            Err(AppError::Internal(msg)) => assert!(msg.contains("not open"), "{msg}"),
-            other => panic!("expected Internal, got {:?}", other.map(|_| ())),
-        }
+        let err = state.repo(&id).err().expect("a closed repo has no handle");
+        // Its own kind, not `internal`: the frontend stays quiet about a repo that was closed and
+        // still reports the failures that are bugs.
+        let v = serde_json::to_value(&err).expect("serializes");
+        assert_eq!(v["kind"], "notOpen");
+        assert!(
+            v["message"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("not open"),
+            "{v}"
+        );
         // Suppressing a watcher that does not exist is a no-op, not a panic.
         state.set_watcher_suppressed(&id, true);
     }

@@ -14,19 +14,34 @@
 //! remove + create, which classify to the same kinds.
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use git2::Repository;
 use notify::{RecommendedWatcher, RecursiveMode};
 use notify_debouncer_full::{new_debouncer_opt, DebounceEventResult, Debouncer, NoCache};
+use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 
 use crate::repo::normalize_workdir_string;
 use crate::{GitError, RepoHandle};
 
 pub const DEBOUNCE: Duration = Duration::from_millis(250);
+
+/// How long after an operation ends its own writes keep being dropped. The
+/// event is stamped when the watch thread sees it, which can be a moment after
+/// the write that produced it — and after a fast op has already returned.
+const SUPPRESS_GRACE: Duration = Duration::from_millis(50);
+
+/// Watcher suppression state.
+#[derive(Debug, Clone, Copy)]
+enum Suppress {
+    /// One of our own operations is running: drop everything.
+    Running,
+    /// Drop events last seen before this instant — they are the writes that
+    /// operation made, flushed by the debouncer after it returned.
+    Until(Instant),
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -48,7 +63,7 @@ pub struct RepoChange {
 /// Stops watching when dropped.
 pub struct Watcher {
     debouncer: Option<Debouncer<RecommendedWatcher, NoCache>>,
-    suppressed: Arc<AtomicBool>,
+    suppress: Arc<Mutex<Suppress>>,
 }
 
 fn normalized(path: &Path) -> PathBuf {
@@ -100,14 +115,15 @@ impl Watcher {
         if !git_dirs.contains(&common) {
             git_dirs.push(common);
         }
-        let suppressed = Arc::new(AtomicBool::new(false));
-        let flag = Arc::clone(&suppressed);
+        let suppress = Arc::new(Mutex::new(Suppress::Until(Instant::now())));
+        let flag = Arc::clone(&suppress);
         let (wd, gd) = (workdir.clone(), git_dirs.clone());
 
         let handler = move |result: DebounceEventResult| {
-            if flag.load(Ordering::Relaxed) {
-                return;
-            }
+            let cutoff = match *flag.lock() {
+                Suppress::Running => return,
+                Suppress::Until(t) => t,
+            };
             let mut change = RepoChange {
                 kinds: Vec::new(),
                 rescan: false,
@@ -120,6 +136,11 @@ impl Watcher {
                         // `.gitignore` as edited on the next round — and so would every
                         // file an editor opens.
                         if ev.kind.is_access() {
+                            continue;
+                        }
+                        // `time` is when the merged event was last seen: a path
+                        // written during the op and again after it survives.
+                        if ev.time < cutoff {
                             continue;
                         }
                         if ev.need_rescan() {
@@ -167,14 +188,21 @@ impl Watcher {
         tracing::debug!(workdir = %workdir.display(), "watcher started");
         Ok(Watcher {
             debouncer: Some(debouncer),
-            suppressed,
+            suppress,
         })
     }
 
     /// While suppressed, events are dropped (used during our own mutations;
-    /// the caller emits one synthetic change afterwards).
+    /// the caller emits one synthetic change afterwards). Un-suppressing keeps
+    /// dropping the events the operation itself produced: the debouncer only
+    /// flushes them [`DEBOUNCE`] after the last write, long after a short op
+    /// has returned.
     pub fn set_suppressed(&self, on: bool) {
-        self.suppressed.store(on, Ordering::Relaxed);
+        *self.suppress.lock() = if on {
+            Suppress::Running
+        } else {
+            Suppress::Until(Instant::now() + SUPPRESS_GRACE)
+        };
     }
 
     pub fn stop(mut self) {
@@ -299,8 +327,36 @@ mod tests {
         t.write("a.txt", "b");
         assert!(rx.recv_timeout(Duration::from_millis(600)).is_err());
         w.set_suppressed(false);
+        std::thread::sleep(SUPPRESS_GRACE);
         t.write("a.txt", "c");
         assert!(rx.recv_timeout(Duration::from_secs(1)).is_ok());
         w.stop();
+    }
+
+    #[test]
+    fn a_write_made_during_the_op_stays_dropped_after_unsuppressing() {
+        let t = TempRepo::new();
+        t.commit(&[("a.txt", "a")], "init");
+        let (w, rx) = start(&t);
+        w.set_suppressed(true);
+        t.write("a.txt", "b");
+        // The op returns at once; the debouncer only flushes it ~250 ms later.
+        w.set_suppressed(false);
+        assert!(
+            rx.recv_timeout(Duration::from_secs(1)).is_err(),
+            "our own write must not come back as a change"
+        );
+    }
+
+    #[test]
+    fn an_external_write_after_the_op_is_reported() {
+        let t = TempRepo::new();
+        t.commit(&[("a.txt", "a")], "init");
+        let (w, rx) = start(&t);
+        w.set_suppressed(true);
+        w.set_suppressed(false);
+        std::thread::sleep(Duration::from_millis(200));
+        t.write("a.txt", "b");
+        assert!(rx.recv_timeout(Duration::from_secs(1)).is_ok());
     }
 }

@@ -110,6 +110,8 @@ export function RebaseInteractiveDialog({ onClose, base, ontoLabel }: { onClose:
   // Capture phase: the chord is the list's, so it is claimed before the row's action Select sees it.
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (!e.altKey || sel === null || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
+    // An open dropdown owns the chord first: Alt+↑ commits its active option there.
+    if ((e.target as HTMLElement).closest?.('[role="combobox"]')?.getAttribute("aria-expanded") === "true") return;
     const up = e.key === "ArrowUp";
     // Only claim the chord when the move can happen: a refused one (the end of the list, or a merge
     // barrier) falls through to the row's Select, where Alt+↓ opens the dropdown as it does elsewhere.

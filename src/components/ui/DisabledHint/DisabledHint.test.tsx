@@ -37,21 +37,34 @@ describe("DisabledHint", () => {
     expect(wrapperOf(getByRole("button", { name: "Commit" }))).toBeNull();
   });
 
-  it("wraps a disabled menu item", () => {
+  it("wraps a disabled menu item in the caller's own box", () => {
     const { getByRole } = render(
       <MenuItem disabled title="The file is not in the working tree">
         Open
       </MenuItem>,
     );
-    expect(wrapperOf(getByRole("menuitem", { name: "Open" }))).not.toBeNull();
+    const wrap = wrapperOf(getByRole("menuitem", { name: "Open" }));
+    expect(wrap).not.toBeNull();
+    // The default box hugs the control, which is right in a flex row and wrong for a menu item: it
+    // fills the menu, and a hugging wrapper leaves it narrower than its neighbours. `MenuItem` is
+    // the one caller that needs the escape hatch, and this is what proves it still reaches the DOM.
+    expect(wrap?.className).toMatch(/itemWrap/);
   });
 
-  it("wraps a disabled icon button, whose label doubles as its tooltip", () => {
-    // IconButton falls back to `label` for the title, so a disabled one always has something to
-    // show even though no `title` was passed.
+  it("leaves a disabled icon button with nothing but its label to say alone", () => {
+    // IconButton falls back to `label` for the title, which is the name of the action, not a reason
+    // it cannot be taken: hovering a dead arrow to be told "Move up" explains nothing.
     const { getByRole } = render(<IconButton label="Split view" disabled />);
+    const btn = getByRole("button", { name: "Split view" });
+    expect(wrapperOf(btn)).toBeNull();
+    // The fallback still names the button for an enabled hover and for assistive tech.
+    expect(btn.getAttribute("title")).toBe("Split view");
+  });
+
+  it("wraps a disabled icon button that was given a reason", () => {
+    const { getByRole } = render(<IconButton label="Split view" disabled title="Split view is unavailable while staging" />);
     const wrap = wrapperOf(getByRole("button", { name: "Split view" }));
-    expect(wrap?.getAttribute("title")).toBe("Split view");
+    expect(wrap?.getAttribute("title")).toBe("Split view is unavailable while staging");
   });
 
   it("wraps a disabled toolbar button", () => {

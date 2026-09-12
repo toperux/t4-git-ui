@@ -21,7 +21,7 @@ export interface MenuProps {
 
 const ITEMS = '[role="menuitem"]:not(:disabled)';
 
-/** Outside mousedown / Escape → `onClose`; first item focused when opened. */
+/** Outside mousedown / Escape / a scroll or resize under it → `onClose`; first item focused when opened. */
 function useMenuDismiss(open: boolean, onClose: () => void, wrap: RefObject<HTMLElement | null>, menu: RefObject<HTMLElement | null>) {
   useEffect(() => {
     if (!open) return;
@@ -33,13 +33,24 @@ function useMenuDismiss(open: boolean, onClose: () => void, wrap: RefObject<HTML
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
+    // The menu is placed once, from the trigger or the click point: close it rather than let the
+    // page slide out from under it and leave it labelling a row its items no longer act on. Its own
+    // scrollbar is not that.
+    const drift = (e?: Event) => {
+      if (e?.target instanceof Node && menu.current?.contains(e.target)) return;
+      onClose();
+    };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", drift);
+    document.addEventListener("scroll", drift, true);
     return () => {
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", drift);
+      document.removeEventListener("scroll", drift, true);
     };
-  }, [open, onClose, wrap]);
+  }, [open, onClose, wrap, menu]);
 
   useEffect(() => {
     if (open) menu.current?.querySelector<HTMLElement>(ITEMS)?.focus();

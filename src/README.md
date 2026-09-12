@@ -140,7 +140,8 @@ src/
                            DisabledHint (a control that is `disabled` **and** carries a `title` gets wrapped in a
                            `role="none"` span holding that title: Chromium gives a disabled control no pointer events, so its
                            own tooltip never fires, and that title is usually the reason it is dead. Button, IconButton,
-                           MenuItem and ToolbarButton route through it — every component here that renders a raw `<button>`.
+                           MenuItem and ToolbarButton route through it — Select, TreeRow and SectionHeader render their own
+                           buttons unwrapped. IconButton only passes a `title` through (its `label` alone no longer hints).
                            It wraps only when both are true, so an enabled control renders exactly the DOM it always did; a
                            caller whose wrapper must be a block box passes `className`, which *replaces* the default one
                            rather than joining it, since two classes both setting `display` would be settled by stylesheet
@@ -285,7 +286,8 @@ src/
                            webview never gets an arbitrary-path opener scope),
                            FilesColumn (Unstaged + Stage all / Staged + Unstage all — each header button reads "Stage selected" /
                            "Unstage selected" and acts on the selection alone once its own list owns two or more rows,
-                           skipping conflicted ones like Stage all; virtualized 26px rows, role=listbox
+                           "Stage selected" skipping conflicted ones like Stage all — Unstage never filters, since
+                           unstaging always took whatever it was given; virtualized 26px rows, role=listbox
                            aria-multiselectable + aria-activedescendant — or role=tree with folder rows when the header's
                            "Show as tree" toggle beside the title is on (store/treeModeStore.ts, one mode for every mount, `localStorage.commitFileListMode`;
                            ChangedFileList/fileTree builds + flattens it; a collapsed folder's files leave the ↑/↓ + Shift *walk*

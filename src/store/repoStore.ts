@@ -176,7 +176,9 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
         set({
           rows,
           // A page response can be older than the last `log://progress`; never move the walk backwards.
-          log: { ...s.log, total: Math.max(s.log.total, page.total), complete: s.log.complete || page.complete },
+          // `error` too: a `log://progress` emitted before `start_log` resolved was dropped for
+          // having no generation to match, and the page is where that failure is still readable.
+          log: { ...s.log, total: Math.max(s.log.total, page.total), complete: s.log.complete || page.complete, error: s.log.error ?? page.error },
           selectedIndex: s.selectedIndex ?? (offset === 0 && page.rows.length > 0 && !pendingSelect ? 0 : null),
         });
         if (lg !== labelGen) {
@@ -399,15 +401,23 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
     selectWorkingTree: (on = true) => set({ wtSelected: on, compare: null }),
 
     async revealOid(oid) {
-      const { repo, log } = get();
-      if (!repo || log.generation === null) return false;
-      const index = await findIndex(oid, log.generation);
-      const s = get();
-      if (index === null || s.repo?.id !== repo.id || s.log.generation !== log.generation) return false;
-      await fetchPage(Math.floor(index / PAGE_SIZE));
-      // Revealing a commit moves the selection off the working-tree row (and out of the commit panel).
-      set((st) => ({ selectedIndex: index, wtSelected: false, compare: null, reveal: { index, seq: (st.reveal?.seq ?? 0) + 1 } }));
-      return true;
+      // Two passes at most: a `startLog` during the page fetch leaves the index pointing into a walk
+      // that is gone, so it is looked up again against the new one rather than written back blindly.
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const { repo, log } = get();
+        if (!repo || log.generation === null) return false;
+        const index = await findIndex(oid, log.generation);
+        const s = get();
+        if (index === null || s.repo?.id !== repo.id || s.log.generation !== log.generation) return false;
+        await fetchPage(Math.floor(index / PAGE_SIZE));
+        const after = get();
+        if (after.repo?.id !== repo.id) return false;
+        if (after.log.generation !== log.generation) continue;
+        // Revealing a commit moves the selection off the working-tree row (and out of the commit panel).
+        set((st) => ({ selectedIndex: index, wtSelected: false, compare: null, reveal: { index, seq: (st.reveal?.seq ?? 0) + 1 } }));
+        return true;
+      }
+      return false;
     },
 
     onProgress(p) {

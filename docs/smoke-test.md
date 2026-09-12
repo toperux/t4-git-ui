@@ -237,11 +237,11 @@ Use `C:\tmp\t4\work` and the bare remote.
 - [x] Select the tagged row → commit details shows the **annotated** tag's message in its own block
       under the commit message; the lightweight one adds nothing
 - [x] Sidebar → Tags → right-click the annotated tag → **Push…** → preview reads
-      `git push --progress origin refs/tags/<name>` → Push → it appears on the remote
+      `git push --progress origin --end-of-options refs/tags/<name>` → Push → it appears on the remote
       (`git -C <bare> tag`); push it again → "Everything up-to-date"; re-create it locally on another
       commit and push → rejected toast ("already exists"), the remote tag is unchanged
 - [x] Right-click the pushed tag → **Delete on remote…** → pick the remote → preview reads
-      `git push origin --delete refs/tags/<name>` → it is gone from `git -C <bare> tag`, still in
+      `git push origin --delete --end-of-options refs/tags/<name>` → it is gone from `git -C <bare> tag`, still in
       the sidebar
 - [x] Delete a tag from the sidebar (Tags → right-click → Delete…) — local only by default; tick
       **Also delete on the remote** and pick the remote → preview chains the push first → both go;

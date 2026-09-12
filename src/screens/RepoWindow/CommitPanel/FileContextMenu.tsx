@@ -9,6 +9,7 @@ import { selectRunning, useOpsStore } from "../../../store/opsStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { toastError } from "../../../store/toastStore";
 import { copyText } from "../actions";
+import { stageTarget } from "./stageTarget";
 
 /** Where to put the menu, and the paths it was opened over — a snapshot: the list moves under it. */
 export interface FileMenuState {
@@ -27,9 +28,6 @@ export interface FileContextMenuProps {
   discard(paths: string[]): void;
 }
 
-/** What every partial stage says about the conflicted files it left behind: the header button, a folder row's action and this menu all word it the same. */
-export const stageSkipNote = (skipped: number) => `Conflicted files are staged one by one, once resolved (${skipped} skipped)`;
-
 /** File-row actions: stage / unstage, discard, keep a conflict side, copy the path, open the file. */
 export function FileContextMenu({ list, paths, entries, menu, onClose, act, discard }: FileContextMenuProps) {
   const running = useOpsStore(selectRunning);
@@ -47,11 +45,8 @@ export function FileContextMenu({ list, paths, entries, menu, onClose, act, disc
   const single = n === 1 ? entryOf(paths[0]) : undefined;
   // Nothing on disk to hand the OS: a deletion staged or not.
   const gone = !single || single.workdir === "deleted" || single.index === "deleted";
-  // Staging a conflicted file is "mark resolved" with the markers still in it — one file at a time,
-  // on purpose: a lone file is the row's own Stage action, so it stages; more than one skips them,
-  // like "Stage all".
-  const target = list === "unstaged" && n > 1 ? paths.filter((p) => !entryOf(p)?.conflicted) : paths;
-  const skipped = n - target.length;
+  // A lone file is the row's own Stage action, so it stages; more than one skips the conflicts.
+  const { target, note } = stageTarget(list, entries, paths, { where: "you selected" });
   // A conflicted file has no single version to go back to — its two sides are the items below — so
   // Discard skips them however few there are, and is refused only when every file is conflicted.
   const discardTarget = paths.filter((p) => !entryOf(p)?.conflicted);
@@ -77,7 +72,8 @@ export function FileContextMenu({ list, paths, entries, menu, onClose, act, disc
         icon={list === "unstaged" ? <Plus size={16} aria-hidden /> : <Minus size={16} aria-hidden />}
         {...op}
         disabled={op.disabled || target.length === 0}
-        title={skipped > 0 ? stageSkipNote(skipped) : op.title}
+        /* A dead item's title is hoverable, so the running operation — what actually killed it — comes first. */
+        title={op.title ?? note}
         onClick={run(() => act(target))}
       >
         {list === "unstaged" ? "Stage" : "Unstage"}

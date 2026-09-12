@@ -17,13 +17,17 @@ import { useTreeMode } from "../../../store/treeModeStore";
 import { Stats } from "../ChangedFileList/ChangedFileList";
 import { buildFileTree, flattenTree, hiddenSlot, type TreeLine } from "../ChangedFileList/fileTree";
 import s from "./CommitPanel.module.css";
-import { FileContextMenu, stageSkipNote, type FileMenuState } from "./FileContextMenu";
+import { FileContextMenu, type FileMenuState } from "./FileContextMenu";
+import { stageTarget } from "./stageTarget";
 
 /** `--row-h`; the virtualizer needs the number, and the rule below pins the same value. */
 const ROW_H = 26;
 const OVERSCAN = 10;
 
 const NONE: ReadonlySet<string> = new Set();
+
+/** Why every button here is dead while a mutation runs, like the toolbar's. */
+const BUSY = "Operation in progress";
 
 /** Unstaged (+ Stage all) over Staged (+ Unstage all); each a multi-select listbox, or a tree. */
 export function FilesColumn() {
@@ -59,6 +63,19 @@ function useSelectedTarget(list: ListId, entries: StatusEntry[]): string[] | nul
   }, [owns, selected, entries]);
 }
 
+/**
+ * Ends selected mode once a header's "… selected" action is done. What it acted on has left the
+ * list, but a conflict it skipped has not: a surviving multi-selection would leave the header on a
+ * dead "Stage selected" while the stageable files below it have no whole-list action to reach them
+ * with. One selected row is the resting state (`syncWithStatus` seeds it after every refresh), so
+ * keep the first survivor — or leave it to that seeding when nothing survived.
+ */
+function reseed(list: ListId) {
+  const { selected, select } = useCommitStore.getState();
+  const first = selected[0];
+  if (first !== undefined) select(list, { selected: [first], anchor: first });
+}
+
 /** Unstaged header (tree toggle, count, Stage all / Stage selected) + list. */
 export function UnstagedFiles({ tree, onToggleTree }: { tree: boolean; onToggleTree: () => void }) {
   const status = useStatusStore((st) => st.status);
@@ -66,22 +83,8 @@ export function UnstagedFiles({ tree, onToggleTree }: { tree: boolean; onToggleT
   const busy = useCommitStore((st) => st.busy);
   const stage = useCommitStore((st) => st.stage);
   const selectedTarget = useSelectedTarget("unstaged", entries);
-  // Staging a conflicted file whole is "mark resolved" (`index.add_path` drops the stages), which is
-  // how a resolved file leaves the list — one at a time, on purpose. Stage all skips them: one click
-  // would otherwise resolve every conflict with the markers still in the files, and a selection of
-  // several skips them for the same reason. `stageable` (below) and the menu's own target gate that
-  // filter on `length > 1`; this one filters unconditionally, which comes to the same thing here — a
-  // selection is two or more by construction, and the whole-list case is what Stage all always did.
-  const conflicted = useMemo(() => new Set(entries.filter((e) => e.conflicted).map((e) => e.path)), [entries]);
-  const source = selectedTarget ?? entries.map((e) => e.path);
-  const target = source.filter((p) => !conflicted.has(p));
-  const skipped = source.length - target.length;
-  // Its own message when the whole action is refused, like the menu's Discard: a bare "(N skipped)"
-  // beside a dead button reads as a partial skip, and this is every file being refused. "here" is
-  // only true of the whole list — a selection can be all-conflicted while the list around it is full
-  // of stageable files, so the message names the selection when that is what was refused.
-  const refused = `Every file ${selectedTarget ? "you selected" : "here"} is conflicted — a conflict is staged on its own, once resolved`;
-  const skipNote = skipped === 0 ? undefined : target.length === 0 ? refused : stageSkipNote(skipped);
+  // Stage all and Stage selected are both bulk actions, so both skip conflicts (see `stageTarget`).
+  const { target, note } = stageTarget("unstaged", entries, selectedTarget ?? entries.map((e) => e.path), { bulk: true, where: selectedTarget ? "you selected" : "here" });
 
   return (
     <div className={s.col}>
@@ -100,8 +103,14 @@ export function UnstagedFiles({ tree, onToggleTree }: { tree: boolean; onToggleT
           size="sm"
           className={s.headerBtn}
           disabled={busy || target.length === 0}
-          title={skipNote}
-          onClick={() => void stage(target)}
+          /* A disabled title is hoverable (`DisabledHint`), so it says why the button is dead: while
+             a mutation runs that is the mutation, whatever the conflicts in the list would have said. */
+          title={busy ? BUSY : note}
+          onClick={() =>
+            void stage(target).then(() => {
+              if (selectedTarget) reseed("unstaged");
+            })
+          }
         >
           {selectedTarget ? "Stage selected" : "Stage all"}
         </Button>
@@ -127,7 +136,16 @@ export function StagedFiles({ tree, headerClassName }: { tree: boolean; headerCl
     <div className={s.col}>
       <PanelHeader className={headerClassName} icon={<Check size={14} aria-hidden />} title={amend ? "Staged (amending)" : "Staged"}>
         <Badge>{entries.length}</Badge>
-        <Button size="sm" className={s.headerBtn} disabled={busy || target.length === 0} onClick={() => void unstage(target)}>
+        <Button
+          size="sm"
+          className={s.headerBtn}
+          disabled={busy || target.length === 0}
+          onClick={() =>
+            void unstage(target).then(() => {
+              if (selectedTarget) reseed("staged");
+            })
+          }
+        >
           {selectedTarget ? "Unstage selected" : "Unstage all"}
         </Button>
       </PanelHeader>
@@ -234,23 +252,14 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
   // A set, not a `find`: every visible folder row asks for each file under it on every render.
   const conflictedPaths = useMemo(() => new Set(entries.filter((e) => e.conflicted).map((e) => e.path)), [entries]);
   const conflicted = (p: string) => conflictedPaths.has(p);
-  /**
-   * Staging a conflicted file whole is "mark resolved" with the markers still in it, one file at a
-   * time on purpose: acting on a lone file — Enter, double-click, the menu — is the row's own Stage
-   * action and stages it. More than one skips them, the way "Stage all" does.
-   */
-  const stageable = (ps: string[]) => (list === "unstaged" && ps.length > 1 ? ps.filter((p) => !conflicted(p)) : ps);
+  /** Enter, double-click and the menu act on the rows they were pointed at, so a lone one stages (see `stageTarget`). */
+  const stageable = (ps: string[]) => stageTarget(list, entries, ps).target;
   /** A conflicted file has no single version to go back to: Discard skips them, the way Stage all does. */
   const discardable = (ps: string[]) => ps.filter((p) => !conflicted(p));
   /** Every file under a folder row: a compacted chain keeps the deepest folder's path, a real prefix of them all. */
   const under = (folder: string) => all.filter((p) => p.startsWith(folder + "/"));
   /** What a folder row's own +/− acts on — one closure so the render and the click can't drift apart. */
-  const folderTarget = (folder: string) => {
-    const ps = under(folder);
-    // Like Stage all: one click must not resolve every conflict with the markers still in the files.
-    const target = list === "unstaged" ? ps.filter((p) => !conflicted(p)) : ps;
-    return { target, skipped: ps.length - target.length };
-  };
+  const folderTarget = (folder: string) => stageTarget(list, entries, under(folder), { bulk: true, where: "in this folder" });
 
   // One delegated listener per list keeps every `FileRow` prop stable, so `memo` actually skips rows.
   function onClick(e: MouseEvent<HTMLDivElement>) {
@@ -415,7 +424,7 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
             const id = `${rowId}-${item.index}`;
             // Keyed by kind: a deleted file `a` and an untracked `a/b` put a file and a folder at the same path.
             if (row.kind === "folder") {
-              const { target, skipped } = folderTarget(row.path);
+              const { target, note } = folderTarget(row.path);
               return (
                 /* `TreeRow` is a button, so its Stage / Unstage action sits beside it, not inside;
                    `data-folder` is on the wrapper so `closest` resolves from the row and the action alike. */
@@ -442,7 +451,7 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
                     className={s.action}
                     label={list === "unstaged" ? "Stage folder" : "Unstage folder"}
                     disabled={busy || target.length === 0}
-                    title={skipped > 0 ? stageSkipNote(skipped) : undefined}
+                    title={busy ? BUSY : note}
                     tabIndex={-1}
                     data-act=""
                     /* Mouse-only, like a file row's, but a child of the tree rather than of a treeitem: hidden from the tree's outline. */

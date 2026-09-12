@@ -52,6 +52,8 @@ function subscribe(cb: () => void) {
     if (listeners.size === 0 && observer) {
       observer.disconnect();
       observer = null;
+      // Nothing watches `data-theme` from here on, so the cached values can only go stale.
+      cache = null;
     }
   };
 }

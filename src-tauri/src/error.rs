@@ -12,6 +12,9 @@ pub enum AppError {
     /// The requested walk generation has been superseded — the caller should restart its walk.
     #[error("{0}")]
     StaleGeneration(String),
+    /// The repo id names no open repository — normal after a close, so the frontend stays quiet.
+    #[error("{0}")]
+    NotOpen(String),
     /// Bugs / infrastructure failures (e.g. a blocking task panicked).
     #[error("internal error: {0}")]
     Internal(String),
@@ -24,6 +27,7 @@ impl Serialize for AppError {
             AppError::Git(e) => return e.serialize(serializer),
             AppError::Busy => ("busy", self.to_string()),
             AppError::StaleGeneration(msg) => ("staleGeneration", msg.clone()),
+            AppError::NotOpen(msg) => ("notOpen", msg.clone()),
             AppError::Internal(msg) => ("internal", msg.clone()),
         };
         let mut s = serializer.serialize_struct("AppError", 2)?;
@@ -46,6 +50,10 @@ mod tests {
         let v = serde_json::to_value(AppError::StaleGeneration("gen 3 is old".into())).unwrap();
         assert_eq!(v["kind"], "staleGeneration");
         assert_eq!(v["message"], "gen 3 is old");
+
+        let v = serde_json::to_value(AppError::NotOpen("repo not open: c:/x".into())).unwrap();
+        assert_eq!(v["kind"], "notOpen");
+        assert_eq!(v["message"], "repo not open: c:/x");
 
         let v = serde_json::to_value(AppError::Internal("boom".into())).unwrap();
         assert_eq!(v["kind"], "internal");

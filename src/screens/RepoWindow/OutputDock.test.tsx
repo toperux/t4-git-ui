@@ -54,7 +54,7 @@ describe("OutputDock", () => {
     act(() => {
       const st = useOpsStore.getState();
       st.onEvent({ repoId: "r", opId: "1", event: { kind: "started", opId: "1", cmd: "git fetch origin" } });
-      st.onEvent({ repoId: "r", opId: "1", event: { kind: "stdout", line: "Receiving objects: 100%" } });
+      st.onEvent({ repoId: "r", opId: "1", event: { kind: "stdout", lines: ["Receiving objects: 100%"] } });
       st.onEvent({ repoId: "r", opId: "1", event: { kind: "exit", code: 0, elapsedMs: 1500 } });
     });
     const { getByRole, getByText, rerender } = renderDock(false);
@@ -78,7 +78,7 @@ describe("OutputDock", () => {
     act(() => {
       const st = useOpsStore.getState();
       st.onEvent({ repoId: "r", opId: "1", event: { kind: "started", opId: "1", cmd: "git push origin main" } });
-      st.onEvent({ repoId: "r", opId: "1", event: { kind: "stderr", line: "remote: rejected" } });
+      st.onEvent({ repoId: "r", opId: "1", event: { kind: "stderr", lines: ["remote: rejected"] } });
       st.setOpen(true);
     });
     const { getByRole } = renderDock(true);

@@ -305,6 +305,9 @@ export function MergeDialog({ onClose, branch: initial }: { onClose: () => void;
   const [message, setMessage] = useState("");
 
   const label = options.find((o) => o.value === branch)?.label ?? branch;
+  // A refs refresh can take the selection away under us; merging the name anyway would hit a ref that
+  // no longer exists, so it stops being a selection.
+  const valid = options.some((o) => o.value === branch);
   // git's own wording, so an unchanged message still means "let git decide": the full oid for a commit,
   // and `remote-tracking branch` for a remote one.
   const commit = !!branch && !candidates.some((c) => c.value === branch);
@@ -314,7 +317,7 @@ export function MergeDialog({ onClose, branch: initial }: { onClose: () => void;
   const preview = branch ? gitCmd(mergeArgs(branch, ff, squash, effective)) : "";
 
   function submit() {
-    if (!branch) return;
+    if (!valid) return;
     onClose();
     // `--squash` records nothing: the changes land in the index and the user still has to commit.
     const success = squash ? `Squashed ${label} into the index — commit to finish` : `Merged ${label} into ${current}`;
@@ -330,7 +333,7 @@ export function MergeDialog({ onClose, branch: initial }: { onClose: () => void;
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" type="submit" disabled={!branch}>
+          <Button variant="primary" type="submit" disabled={!valid}>
             Merge
           </Button>
         </>
@@ -343,6 +346,11 @@ export function MergeDialog({ onClose, branch: initial }: { onClose: () => void;
               {o.label}
             </option>
           ))}
+          {!valid && branch && (
+            <option value={branch} disabled>
+              {branch} (no longer exists)
+            </option>
+          )}
         </Select>
       </Field>
       <Field label="Strategy">
@@ -547,11 +555,14 @@ export function RebaseDialog({ onClose, onto: initial }: { onClose: () => void; 
   const [interactive, setInteractive] = useState(false);
   const open = useDialogStore((st) => st.open);
   const label = options.find((o) => o.value === onto)?.label ?? onto;
+  // A refs refresh can take the selection away under us; rebasing onto the name anyway would hit a ref
+  // that no longer exists, so it stops being a selection.
+  const valid = options.some((o) => o.value === onto);
   const pushed = !!head?.upstream && (head?.ahead ?? 0) === 0 && !head?.gone;
   const preview = onto ? gitCmd(interactive ? rebaseInteractiveArgs(onto, false, true, false) : rebaseArgs(onto)) : "";
 
   function submit() {
-    if (!onto) return;
+    if (!valid) return;
     onClose();
     // The todo dialog takes it from here: the flags and the run are its own.
     if (interactive) return open({ kind: "rebaseInteractive", base: onto, ontoLabel: label });
@@ -567,7 +578,7 @@ export function RebaseDialog({ onClose, onto: initial }: { onClose: () => void; 
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" type="submit" disabled={!onto}>
+          <Button variant="primary" type="submit" disabled={!valid}>
             Rebase
           </Button>
         </>
@@ -589,6 +600,11 @@ export function RebaseDialog({ onClose, onto: initial }: { onClose: () => void; 
               {o.label}
             </option>
           ))}
+          {!valid && onto && (
+            <option value={onto} disabled>
+              {onto} (no longer exists)
+            </option>
+          )}
         </Select>
       </Field>
       <Options>

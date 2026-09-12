@@ -183,8 +183,8 @@ export function refreshAll() {
   const st = useRepoStore.getState();
   void st.refreshRefs().catch((e: unknown) => {
     const err = toAppError(e);
-    // `internal` after a close just means the repo is gone.
-    if (err.kind !== "internal") toastError(err, "Couldn't refresh references");
+    // `notOpen` after a close just means the repo is gone.
+    if (err.kind !== "notOpen") toastError(err, "Couldn't refresh references");
   });
   void useStatusStore.getState().refresh();
   void st.startLog(st.spec, st.filter);
