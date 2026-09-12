@@ -144,7 +144,9 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the first two perfo
 - [x] `hunks.txt` renders as **three** hunks — an edited line plus an added one, an indentation-only
       change, and a deletion — each with its own `@@` header
 - [x] Multi-select in the lists: click, `Ctrl+click`, `Shift+click`, `↑` `↓`, `Ctrl+A`
-- [x] Stage via `Enter`, double-click, and the hover `+` button; `Stage all` / `Unstage all` work
+- [ ] Stage via `Enter`, double-click, and the hover `+` button; then **click a single row first** —
+      with two or more selected the header reads `Stage selected` and takes only those (group AD) —
+      and check `Stage all` / `Unstage all` still take the whole list
 - [x] Hover a hunk header → **Stage hunk**; click it → only that hunk moves to Staged
 - [x] Scroll to the *second* hunk and click its **Stage hunk** with the mouse → the focus stays in the
       diff, on the changed line now at that spot (a mouse-started focus paints no ring; ↑ / ↓ moves

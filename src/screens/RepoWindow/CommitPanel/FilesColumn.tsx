@@ -17,7 +17,7 @@ import { useTreeMode } from "../../../store/treeModeStore";
 import { Stats } from "../ChangedFileList/ChangedFileList";
 import { buildFileTree, flattenTree, hiddenSlot, type TreeLine } from "../ChangedFileList/fileTree";
 import s from "./CommitPanel.module.css";
-import { FileContextMenu, type FileMenuState } from "./FileContextMenu";
+import { FileContextMenu, stageSkipNote, type FileMenuState } from "./FileContextMenu";
 
 /** `--row-h`; the virtualizer needs the number, and the rule below pins the same value. */
 const ROW_H = 26;
@@ -36,17 +36,52 @@ export function FilesColumn() {
   );
 }
 
-/** Unstaged header (tree toggle, count, Stage all) + list. */
+/**
+ * What a header's button acts on: the selection, when this list owns a real multi-selection, else
+ * `null` for "the whole list". The two lists share one selection and `list` says which owns it, so
+ * at most one of the two headers is ever in "selected" mode.
+ *
+ * Two or more, not one: `syncWithStatus` re-seeds the selection onto the first row after every
+ * refresh, so a single selected row is the resting state — flipping on one would hide the "all"
+ * action for good. A lone file already has Enter, double-click and the row's own +/−.
+ *
+ * Intersected with `entries` because the two stores are a render apart: `useCommitSync` prunes the
+ * selection in an effect, so after a refresh this runs once with fresh entries and a stale selection.
+ */
+function useSelectedTarget(list: ListId, entries: StatusEntry[]): string[] | null {
+  const owns = useCommitStore((st) => st.list === list);
+  const selected = useCommitStore((st) => st.selected);
+  return useMemo(() => {
+    if (!owns) return null;
+    const inList = new Set(entries.map((e) => e.path));
+    const chosen = selected.filter((p) => inList.has(p));
+    return chosen.length > 1 ? chosen : null;
+  }, [owns, selected, entries]);
+}
+
+/** Unstaged header (tree toggle, count, Stage all / Stage selected) + list. */
 export function UnstagedFiles({ tree, onToggleTree }: { tree: boolean; onToggleTree: () => void }) {
   const status = useStatusStore((st) => st.status);
   const entries = useMemo(() => splitStatus(status).unstaged, [status]);
   const busy = useCommitStore((st) => st.busy);
   const stage = useCommitStore((st) => st.stage);
+  const selectedTarget = useSelectedTarget("unstaged", entries);
   // Staging a conflicted file whole is "mark resolved" (`index.add_path` drops the stages), which is
   // how a resolved file leaves the list — one at a time, on purpose. Stage all skips them: one click
-  // would otherwise resolve every conflict with the markers still in the files.
-  const unstagedPaths = entries.filter((e) => !e.conflicted).map((e) => e.path);
-  const skipped = entries.length - unstagedPaths.length;
+  // would otherwise resolve every conflict with the markers still in the files, and a selection of
+  // several skips them for the same reason. `stageable` (below) and the menu's own target gate that
+  // filter on `length > 1`; this one filters unconditionally, which comes to the same thing here — a
+  // selection is two or more by construction, and the whole-list case is what Stage all always did.
+  const conflicted = useMemo(() => new Set(entries.filter((e) => e.conflicted).map((e) => e.path)), [entries]);
+  const source = selectedTarget ?? entries.map((e) => e.path);
+  const target = source.filter((p) => !conflicted.has(p));
+  const skipped = source.length - target.length;
+  // Its own message when the whole action is refused, like the menu's Discard: a bare "(N skipped)"
+  // beside a dead button reads as a partial skip, and this is every file being refused. "here" is
+  // only true of the whole list — a selection can be all-conflicted while the list around it is full
+  // of stageable files, so the message names the selection when that is what was refused.
+  const refused = `Every file ${selectedTarget ? "you selected" : "here"} is conflicted — a conflict is staged on its own, once resolved`;
+  const skipNote = skipped === 0 ? undefined : target.length === 0 ? refused : stageSkipNote(skipped);
 
   return (
     <div className={s.col}>
@@ -64,11 +99,11 @@ export function UnstagedFiles({ tree, onToggleTree }: { tree: boolean; onToggleT
         <Button
           size="sm"
           className={s.headerBtn}
-          disabled={busy || unstagedPaths.length === 0}
-          title={skipped > 0 ? `Conflicted files are staged one by one, once resolved (${skipped} skipped)` : undefined}
-          onClick={() => void stage(unstagedPaths)}
+          disabled={busy || target.length === 0}
+          title={skipNote}
+          onClick={() => void stage(target)}
         >
-          Stage all
+          {selectedTarget ? "Stage selected" : "Stage all"}
         </Button>
       </PanelHeader>
       <FileList list="unstaged" entries={entries} tree={tree} />
@@ -76,19 +111,24 @@ export function UnstagedFiles({ tree, onToggleTree }: { tree: boolean; onToggleT
   );
 }
 
-/** Staged header (count, Unstage all) + list. */
+/** Staged header (count, Unstage all / Unstage selected) + list. */
 export function StagedFiles({ tree, headerClassName }: { tree: boolean; headerClassName?: string }) {
   const status = useStatusStore((st) => st.status);
   const entries = useMemo(() => splitStatus(status).staged, [status]);
   const amend = useCommitStore((st) => st.amend);
   const busy = useCommitStore((st) => st.busy);
   const unstage = useCommitStore((st) => st.unstage);
+  const selectedTarget = useSelectedTarget("staged", entries);
+  // No conflict filter, unlike Stage all: unstaging every staged entry is what this has always done.
+  // `splitStatus` puts a file in both lists when it has an index change and a conflict, so "the
+  // staged list holds no conflicts" is not a safe assumption to lean on.
+  const target = selectedTarget ?? entries.map((e) => e.path);
   return (
     <div className={s.col}>
       <PanelHeader className={headerClassName} icon={<Check size={14} aria-hidden />} title={amend ? "Staged (amending)" : "Staged"}>
         <Badge>{entries.length}</Badge>
-        <Button size="sm" className={s.headerBtn} disabled={busy || entries.length === 0} onClick={() => void unstage(entries.map((e) => e.path))}>
-          Unstage all
+        <Button size="sm" className={s.headerBtn} disabled={busy || target.length === 0} onClick={() => void unstage(target)}>
+          {selectedTarget ? "Unstage selected" : "Unstage all"}
         </Button>
       </PanelHeader>
       <FileList list="staged" entries={entries} tree={tree} />
@@ -402,7 +442,7 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
                     className={s.action}
                     label={list === "unstaged" ? "Stage folder" : "Unstage folder"}
                     disabled={busy || target.length === 0}
-                    title={skipped > 0 ? `Conflicted files are staged one by one, once resolved (${skipped} skipped)` : undefined}
+                    title={skipped > 0 ? stageSkipNote(skipped) : undefined}
                     tabIndex={-1}
                     data-act=""
                     /* Mouse-only, like a file row's, but a child of the tree rather than of a treeitem: hidden from the tree's outline. */

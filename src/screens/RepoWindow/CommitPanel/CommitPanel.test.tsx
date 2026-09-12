@@ -432,6 +432,64 @@ describe("CommitPanel", () => {
     expect(staged[1].getAttribute("aria-selected")).toBe("true");
   });
 
+  it("the header button switches to the selection once more than one row is selected", async () => {
+    const { getByRole } = renderPanel();
+    const rows = () => Array.from(getByRole("listbox", { name: "Unstaged files" }).querySelectorAll('[role="option"]'));
+    // A single row is selected from the start (the store seeds one), and that is the resting state.
+    expect(getByRole("button", { name: "Stage all" })).toBeTruthy();
+    fireEvent.click(rows()[0]);
+    fireEvent.click(rows()[1], { ctrlKey: true });
+    const btn = getByRole("button", { name: "Stage selected" });
+    // One selection is shared between the lists, so the list that does not own it keeps "all".
+    expect(getByRole("button", { name: "Unstage all" })).toBeTruthy();
+    fireEvent.click(btn);
+    expect(mocked.stagePaths).toHaveBeenCalledWith("r", ["a.rs", "both.rs"]);
+    await act(async () => {}); // the mutation settles (`busy` off); the status stays as mocked
+    // Back down to one row and the whole-list action returns — the only way back to it.
+    fireEvent.click(rows()[0]);
+    expect(getByRole("button", { name: "Stage all" })).toBeTruthy();
+  });
+
+  it("a selected group skips conflicted files, the way Stage all does", () => {
+    const { getByRole } = renderPanel();
+    const rows = () => Array.from(getByRole("listbox", { name: "Unstaged files" }).querySelectorAll('[role="option"]'));
+    fireEvent.click(rows()[1]);
+    fireEvent.click(rows()[2], { ctrlKey: true });
+    const btn = getByRole("button", { name: "Stage selected" });
+    expect(btn.getAttribute("title")).toContain("1 skipped");
+    fireEvent.click(btn);
+    expect(mocked.stagePaths).toHaveBeenCalledWith("r", ["both.rs"]);
+  });
+
+  it("a selection with nothing stageable refuses the whole action and says why", () => {
+    useStatusStore.setState({
+      status: { ...STATUS, entries: [...STATUS.entries, { path: "conflict2.rs", oldPath: null, index: null, workdir: null, conflicted: true, workdirStamp: "1:1" }], conflicted: 2 },
+      error: null,
+    });
+    const { getByRole } = renderPanel();
+    // Unstaged, in order: a.rs, both.rs, conflict.rs, untracked.txt, conflict2.rs.
+    const rows = () => Array.from(getByRole("listbox", { name: "Unstaged files" }).querySelectorAll('[role="option"]'));
+    fireEvent.click(rows()[2]);
+    fireEvent.click(rows()[4], { ctrlKey: true });
+    const btn = getByRole("button", { name: "Stage selected" });
+    // Not "(2 skipped)": nothing was staged around them, the action itself is refused.
+    expect(btn.hasAttribute("disabled")).toBe(true);
+    // The selection is refused, not the list — a.rs, untracked.txt and both.rs are all still
+    // stageable right there, so the message must not claim every file here is conflicted.
+    expect(btn.getAttribute("title")).toContain("Every file you selected is conflicted");
+  });
+
+  it("Unstage selected acts on the staged selection alone", () => {
+    const { getByRole } = renderPanel();
+    const staged = () => Array.from(getByRole("listbox", { name: "Staged files" }).querySelectorAll('[role="option"]'));
+    fireEvent.click(staged()[0]);
+    fireEvent.click(staged()[1], { ctrlKey: true });
+    // The unstaged list no longer owns the selection, so its own button is back to "all".
+    expect(getByRole("button", { name: "Stage all" })).toBeTruthy();
+    fireEvent.click(getByRole("button", { name: "Unstage selected" }));
+    expect(mocked.unstagePaths).toHaveBeenCalledWith("r", ["both.rs", "new.rs"]);
+  });
+
   it("Commit is disabled until a summary exists; the counter turns danger past 72", async () => {
     const { getByRole, getByLabelText, findByText } = renderPanel();
     const commit = getByRole("button", { name: "Commit" });

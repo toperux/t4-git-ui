@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { cx } from "../../../lib/cx";
+import { DisabledHint } from "../DisabledHint/DisabledHint";
 import { Kbd } from "../Kbd/Kbd";
 import s from "./Menu.module.css";
 
@@ -155,17 +156,21 @@ export interface MenuItemProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 export function MenuItem({ icon, danger, kbd, className, children, type = "button", ...rest }: MenuItemProps) {
   return (
-    // The chip is a picture of the shortcut, not part of the item's name ("Discard… Delete"):
-    // `aria-keyshortcuts` is what carries it to a screen reader.
-    <button type={type} role="menuitem" className={cx(s.item, danger && s.danger, className)} aria-keyshortcuts={kbd} {...rest}>
-      {icon && <span className={s.icon}>{icon}</span>}
-      <span className={s.grow}>{children}</span>
-      {kbd && (
-        <Kbd className={s.kbd} aria-hidden>
-          {kbd}
-        </Kbd>
-      )}
-    </button>
+    // A disabled item is the one that most needs its `title` read — that is where "why is this
+    // greyed out?" gets answered — and it is exactly the case Chromium refuses to show.
+    <DisabledHint disabled={rest.disabled} title={rest.title} className={s.itemWrap}>
+      {/* The chip is a picture of the shortcut, not part of the item's name ("Discard… Delete"):
+          `aria-keyshortcuts` is what carries it to a screen reader. */}
+      <button type={type} role="menuitem" className={cx(s.item, danger && s.danger, className)} aria-keyshortcuts={kbd} {...rest}>
+        {icon && <span className={s.icon}>{icon}</span>}
+        <span className={s.grow}>{children}</span>
+        {kbd && (
+          <Kbd className={s.kbd} aria-hidden>
+            {kbd}
+          </Kbd>
+        )}
+      </button>
+    </DisabledHint>
   );
 }
 

@@ -27,6 +27,9 @@ export interface FileContextMenuProps {
   discard(paths: string[]): void;
 }
 
+/** What every partial stage says about the conflicted files it left behind: the header button, a folder row's action and this menu all word it the same. */
+export const stageSkipNote = (skipped: number) => `Conflicted files are staged one by one, once resolved (${skipped} skipped)`;
+
 /** File-row actions: stage / unstage, discard, keep a conflict side, copy the path, open the file. */
 export function FileContextMenu({ list, paths, entries, menu, onClose, act, discard }: FileContextMenuProps) {
   const running = useOpsStore(selectRunning);
@@ -74,7 +77,7 @@ export function FileContextMenu({ list, paths, entries, menu, onClose, act, disc
         icon={list === "unstaged" ? <Plus size={16} aria-hidden /> : <Minus size={16} aria-hidden />}
         {...op}
         disabled={op.disabled || target.length === 0}
-        title={skipped > 0 ? `Conflicted files are staged one by one, once resolved (${skipped} skipped)` : op.title}
+        title={skipped > 0 ? stageSkipNote(skipped) : op.title}
         onClick={run(() => act(target))}
       >
         {list === "unstaged" ? "Stage" : "Unstage"}

@@ -60,6 +60,21 @@
 .item:disabled {
   opacity: 0.45;
 }
+/*
+ * A disabled item is wrapped (components/ui/DisabledHint) so its `title` still has something to
+ * hover. `.menu` is a block, and `.item` fills it with `width: 100%`, so that wrapper has to be
+ * the block-level box in its place — left inline it would shrink to its own text and the item
+ * would sit narrower than every other row, hover background and all.
+ *
+ * This stands in for `DisabledHint`'s own `.wrap` rather than joining it, so it has to carry
+ * everything that class would have given the wrapper — `min-width: 0` included, or a stretched
+ * item cannot shrink through it.
+ */
+.itemWrap {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+}
 .danger {
   color: var(--danger-text);
 }

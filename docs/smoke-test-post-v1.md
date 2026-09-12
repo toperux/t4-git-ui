@@ -713,6 +713,194 @@ they stay clear._
 - [ ] **deb / rpm**: on a `.deb` install the button reads **Download…** and opens the releases page
       instead of installing; on the AppImage it installs in place like Windows
 
+## AD. Stage / unstage the selection from the header (main §4)
+_Shipped 2026-09-11 (this commit). The two header buttons read **Stage selected** / **Unstage selected**
+and act on that list's selection alone once it owns two or more rows; at one row or none they stay
+**Stage all** / **Unstage all** and take the whole list. One selection is shared between the lists
+(`commitStore.list` records which owns it), so only one header is ever in "selected" mode. Two rows
+rather than one because `syncWithStatus` re-seeds a single row after every refresh — flipping on one
+would hide the whole-list action for good. Walked 2026-09-11 over CDP on the installed build in
+`c:/tmp/t4/work`; every staging assertion was taken from `git`, not from the panel. One finding (the
+header jog, last bullet) and one check that this fixture cannot reach (second-to-last)._
+
+- [x] **The flip, and what it stages** (§4): in Unstaged click a file, `Ctrl+click` a second → the
+      button reads **Stage selected** → click it → exactly those two move to Staged, the rest of the
+      list is untouched (`git diff --cached --name-only` named only them; the three unselected rows
+      stayed ` M`)
+- [x] **Only the owning list flips** (§4): while that selection is alive in Unstaged the Staged header
+      still reads **Unstage all**; now `Ctrl`-select two staged rows → Staged reads **Unstage
+      selected** and Unstaged is back to **Stage all**. A *single* staged Ctrl+click moves ownership
+      but keeps **Unstage all** — the threshold is two, and one row is the resting state
+- [x] **Back to the whole list** (§4): click any single row → the label returns to **Stage all**.
+      There is no clear-selection gesture, so this is the only way back. (Not the same thing as the
+      list emptying: `syncWithStatus` re-seeds one row after a stage, which also restores the label.)
+- [x] **The commit dialog is the same** (§4): open the full-window commit dialog and repeat the first
+      two checks — it mounts these very same headers. Both surfaces are mounted at once, so scope
+      every query to the dialog: an unscoped `[aria-label="Unstaged files"]` finds the *panel* first
+- [x] **A folder right-click flips it too** (tree view, cf. group M): right-click a folder holding two
+      or more files → its subtree becomes the selection and the header reads **Stage selected**; the
+      menu's own "Stage 2 files" agrees on the count. Dismissing the menu keeps the selection
+- [x] **Conflicted files are skipped, not the whole action** (§5, mid-merge): `Ctrl`-select a modified
+      file and a conflicted one → **Stage selected** is enabled, its tooltip says "(1 skipped)", and
+      clicking it stages only the modified one. Check the index, not the tooltip: "(1 skipped)" reads
+      the same whether counted over the selection or the whole list, so keep a third unselected file
+      in the list and prove *it* was not staged. `git ls-files -u conflict.txt` must still print 3
+      stages — `git diff --cached` lists a conflicted path whether or not it was staged, so it is not
+      evidence on its own
+- [x] **A selection with nothing to stage is refused** (§4, mid-merge): needs two or more files that
+      are *all* conflicted. `git merge conflict` yields exactly one (`conflict.txt`) — confirm with
+      `git merge-tree --write-tree HEAD conflict` before trying — so the stock fixture cannot reach
+      it. Rather than reshape the fixture's history, build two throwaway branches off `main` that
+      change the **same two files** differently and merge them: `scripts/ad7-setup.sh` in the
+      scratchpad does it (`tc-a`, `tc-b` → `hunks.txt` + `nonl.txt` both `UU`), and its teardown puts
+      `work` back to `A decoy.txt` on `reset-me`. Walked 2026-09-11: selecting only the two
+      conflicted rows flipped the header to **Stage selected**, `disabled: true`, titled "Every file
+      here is conflicted — a conflict is staged on its own, once resolved" — its own message, **not**
+      a "(2 skipped)" partial. Then adding `crlf.txt` to the selection re-enabled it with the
+      "(2 skipped)" title, and clicking it staged `crlf.txt` **only**: `git diff --cached --stat`
+      showed `crlf.txt | 1 +`, `ls-files -u` still showed 3 stages each for the two conflicts, and
+      the unselected `decoy.txt` stayed `??`. That untracked control is the whole point — the
+      "(2 skipped)" tooltip reads the same whether counted over the selection or the list, so only
+      an unselected stageable file proves the action respected the selection
+- [ ] **The header does not jog** (§4, §6) — **FINDING, 2026-09-11: it jogs.** Measured over CDP:
+      at rest `Stage all` is `left: 514, width: 63`; flipped, `Stage selected` is `left: 481,
+      width: 96`. The right edge stays pinned at 577, so nothing downstream moves — but the button's
+      left edge **and the count badge both slide 33px left** (badge `left` 491 → 458). Cause is as
+      predicted: `.headerBtn` (`CommitPanel.module.css:24-27`) sets only `height` and `font-size`.
+      **Fixed the same day** with `min-width: 112px` on `.headerBtn`: the `all`→`selected` swap costs
+      the same +33px on both buttons (identical prefix, identical suffix), so `Unstage selected` is
+      the widest of the four at 110px and one floor covers both headers.
+      **Re-walked 2026-09-11 on the rebuilt installer — it holds still.** `Stage all` at rest:
+      `left 465, w 112`; flipped to `Stage selected`: `left 465, w 112`. The count badge sat at
+      `left 442` in both states. Movement is **0px** either side, against 33px before. `Unstage all`
+      measures `left 465, w 112` too, so the shared floor lines both headers up rather than just
+      padding one. No test can stand in for this: jsdom has no layout, so the suite cannot see a
+      `min-width` — it has to be measured in a real build
+
+## AE. Tooltips on disabled controls (main §2, §4, §5, §6)
+_Shipped 2026-09-11 (this commit). Chromium gives a disabled control no pointer events, so its
+`title` never fires — and on a disabled control the `title` is almost always the explanation for
+**why** it is dead ("No changes", "No URL configured", "The file is not in the working tree"). About
+twenty of those were unreadable. `components/ui/DisabledHint` wraps such a control in a `<span
+role="none" title=…>`, which is not itself disabled and so does take the hover. **Four** components
+go through it — `Button`, `IconButton`, `MenuItem` and `ToolbarButton`. The fourth was missed on the
+first pass and the walk caught it (see the toolbar bullet): the fix was driven by grepping for
+`disabled`+`title` *call sites* and wiring up the three components those pointed at, when the
+question that mattered was which components render a raw `<button>`. Everything else with a raw
+button is genuinely unaffected: `ActionCard` renders its `title` as visible text, `Input`'s trigger
+carries no title, and `Input`'s option rows use `aria-disabled`, which still takes a hover.
+It wraps **only** when `disabled && title` are both true, so every enabled control renders exactly
+the DOM it always did — which is what bounds this group: only disabled-with-a-reason controls can
+have moved._
+
+**What CDP can and cannot prove here.** A native `title` tooltip is drawn by the browser as an OS
+widget, **not** in the DOM, and a page screenshot does not capture it. So the walk proves the hover
+target exists (a `[role="none"]` wrapper carrying the title, wrapping the disabled control) and that
+nothing shifted; whether the tooltip actually paints needs a human hover, held ~1s. Tick the DOM
+half from CDP, and the visual half only once someone has really seen one.
+
+- [x] **A disabled toolbar button** (§5) — **FINDING, then fixed and re-walked the same day; passes.**
+      Fetching from the `slow` remote holds every toolbar control disabled for ~60s, and in that
+      window the page had **9 disabled buttons but only 3 wrappers** — the three being
+      `IconButton`s. The cause is in source, not inference: `ToolbarButton`
+      (`components/ui/ToolbarButton/ToolbarButton.tsx:12`) renders its **own** `<button>` and never
+      touched `DisabledHint`, so Fetch / Fetch options / Pull / Push / Branch / Stash / Commit &
+      Push all kept an unreadable "Operation in progress". That is the most-seen dead-control
+      message in the app. **Wired up the same day** and covered by a unit test; **re-walk on a fresh
+      build.** The lesson generalises: the first pass grepped for `disabled`+`title` *call sites* and
+      fixed the three components they pointed at, without asking which components render a raw
+      `<button>`. The full set is four — `Button`, `IconButton`, `MenuItem`, `ToolbarButton`;
+      `ActionCard` renders `title` as visible text, `Input`'s trigger has no title, and `Input`'s
+      option rows use `aria-disabled` (which still takes a hover), so those three are unaffected.
+      **Re-walked on the rebuilt binary: 9 disabled, 9 titled, 9 wrapped, `unwrappedDisabledTitled`
+      empty** — covering all three families at once (`ToolbarButton` ×6, `IconButton` ×2, `Button` ×1
+      for Commit & Push). Every one reported `boxesMatch: true`, i.e. the wrapper's box equals the
+      button's, which settles the "has the toolbar row reflowed?" half without a separate
+      measurement. If re-walking again, the race-free alternative is a **clean** repo
+      (`c:/tmp/t4/other` or `mbk-clone`; `work` never qualifies, `decoy.txt` is permanently staged),
+      where the commit button sits disabled at "No changes" (`Toolbar.tsx:259`) indefinitely
+- [x] **A disabled item in a dropdown menu** (§2) — **walked 2026-09-11 on the rebuilt binary,
+      passes**, after two failed attempts described below. With a `slow` fetch in flight the
+      Repository menu had **18 items, 17 of them disabled and titled "Operation in progress", and
+      all 17 wrapped** — every one 212px, identical to the single enabled item
+      (`disabledWidths` == `enabledWidths` == `[212]`, `widthsMatch: true`), each `wrapDisplay:
+      flex` with `boxesMatch: true`. This is the **block-layout** `.menu` (`display: block`,
+      `width: 220px`), the harder of the two menu types and the exact case `.itemWrap` exists for:
+      left inline, all 17 rows would have shrunk to their own text and lost their hover background.
+      Direct child roles stayed `menuitem` / `none` / `separator`, so ARIA holds up at 17 wrappers.
+      The disabled items must be **full width**: this is the regression the wrapper nearly caused
+      (`.menu` is a block and `.item` fills it with `width: 100%`, so an inline wrapper would shrink
+      the row and cut its hover background — hence `.itemWrap`). Two dead ends worth knowing:
+      the **Stash** dropdown has persistently disabled items (`Pop latest`, `Apply latest`,
+      `No stashes` with 0 stashes) but they carry **no `title`**, so `DisabledHint` correctly does
+      not wrap them — all 212px, but that is the pre-existing baseline and proves nothing about the
+      wrapper. The only dropdown items that are disabled **and** titled are the Repository menu's
+      (`Toolbar.tsx:118-138`, `disabled={running}` + `title={BUSY}`), which needs an operation in
+      flight. `git fetch slow` buys ~60s (`remote.slow.uploadpack` runs `slow-upload-pack.sh`, which
+      sleeps 60) — but the window closed before the menu was opened, and all 18 items came back
+      enabled. **Open the Repository menu first and measure immediately**, or re-trigger the fetch
+      and go straight there. The equivalent check already passed in a *context* menu (see below),
+      which shares the same `.item` rule and the same `.itemWrap`, so this is a gap in coverage
+      rather than a suspected bug
+- [ ] **Keyboard still works in that menu** (§2, §6): `↑`/`↓` skip the disabled items and `Escape`
+      closes — `Menu.tsx` finds items with `[role="menuitem"]:not(:disabled)`, a descendant query
+      the wrapper does not disturb, so this is confirming the reasoning, not guessing at it
+- [x] **A disabled item in a context menu** (§4) — **walked 2026-09-11, passes.** Right-clicking the
+      deleted row gave a menu of 5 items, 3 enabled and 2 disabled (`Open`, `Reveal in folder`), both
+      titled "The file is not in the working tree" on the item **and** on the wrapper. Every item
+      measured **212px** — `disabledWidths` and `enabledWidths` both `[212]` — so the wrapped rows
+      are exactly as wide as the rest, which is the regression this bullet exists to catch. Each
+      wrapper's box equalled its item's box exactly (`428/836/212/26`, `428/862/212/26`), so the
+      wrapper costs no layout at all, and its computed `display` was `flex` (the `.itemWrap`
+      override doing its job). The menu itself stayed 220px. The menu's direct children were 3
+      `menuitem` + 1 `separator` + 2 `role="none"` spans, so `role="menu"` still owns only menuitems
+- [x] **Keyboard still works in that menu** (§2, §6) — **walked, passes.** With 3 enabled and 2
+      disabled items, four `ArrowDown` presses discriminate cleanly: skipping correctly lands on
+      `Discard…`, while treating disabled items as reachable would land on `Reveal in folder`. Focus
+      landed on **`Discard…`**, and no disabled item ever held focus. `Escape` then closed the menu
+      and focus returned to the panel's listbox. So the `role="none"` wrapper does not disturb
+      `[role="menuitem"]:not(:disabled)` — confirmed, not assumed
+  **Setup for those two:** they need a **deleted** file, and `work` has none —
+      nothing is deleted there and `gone.txt` does not exist (checked, 2026-09-11). Make one:
+      `rm C:/tmp/t4/work/crlf-hunks.txt` → the row appears as ` D` → right-click it → **Open** and
+      **Reveal** are disabled and carry "The file is not in the working tree"
+      (`FileContextMenu.tsx:117,122`). Restore with
+      `git -C C:/tmp/t4/work checkout -- crlf-hunks.txt`. Pick a file the AD 7 fixture does not
+      touch — `ad7-setup.sh` conflicts `hunks.txt` and `nonl.txt` and dirties `crlf.txt`, and a
+      conflicted file is not a deleted one.
+      The context menu sizes to `width: max-content`, so check the menu itself did not grow or
+      shrink, and that the disabled rows are as wide as the enabled ones
+- [x] **A disabled icon button** (§3) — **walked 2026-09-11, passes**, though on a different control
+      than this bullet first named: the output dock's **Expand output** arrives disabled, so it
+      serves with no setup at all. It carried a wrapper titled "Expand output" — an `IconButton`
+      falls back to its `label`, so a disabled icon button gets a tooltip even when none was passed
+      — and the wrapper's box was identical to the button's (`left 1898, top 1110, 24×24`), i.e. no
+      layout cost. `DiffViewer`'s `Split view` ("unavailable while staging") is the same code path
+      if a second witness is ever wanted
+- [ ] **A disabled item in the sidebar** — **NOT REACHABLE THROUGH THE UI (finding, 2026-09-11).**
+      `Sidebar.tsx:518` disables **Copy URL** with "No URL configured" when `!r.url`. `git remote
+      add` always sets a URL, so no fixture has such a remote; the only way to make one is
+      `git -C C:/tmp/t4/work config --unset remote.nowhere.url`. Tried it — and **the remote then
+      disappears from the sidebar altogether**: after a refresh only `mirror`, `origin` and `slow`
+      were listed, while `git remote` still knew about `nowhere`. The app enumerates remotes from a
+      source that omits URL-less ones (`git remote -v` prints nothing for them), so a remote with no
+      URL is never drawn, and the `!r.url` branch cannot be reached by a user. Either that guard is
+      dead code or the enumeration should keep such remotes — worth deciding, not filing as a bug
+      yet. Restored byte-exact afterwards (mind the backslashes: `C:\tmp\t4\does-not-exist`, not
+      forward slashes) and confirmed all four remotes are back; other groups lean on `nowhere`
+      pointing at a path that does not exist
+- [x] **Nothing changed where it should not** (§6) — **walked, passes, in both directions.** The
+      commit panel held **0** `[role="none"]` wrappers while `Stage all` was enabled, **1** the
+      moment the selection made it disabled, and **0** again once a stageable file rejoined the
+      selection. In the context menu the three enabled items were `wrapped: false` and only the two
+      disabled ones were wrapped. That 0→1→0 is what bounds the blast radius: an enabled control
+      renders exactly the DOM it always did, so nothing outside "disabled **and** titled" can have
+      moved
+- [ ] **Known not fixed:** `RebaseInteractiveDialog.tsx:182` puts a title on a disabled `<option>`
+      ("No commit above to squash into"). That is a native select option, not a `Button`/`MenuItem`,
+      so it does not go through `DisabledHint` and still shows nothing. Left alone deliberately —
+      native option tooltips are unreliable across platforms anyway. Note it, do not file it
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the

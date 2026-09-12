@@ -133,6 +133,14 @@ src/
                            parses ONE line → {text, cls}[] spans, 5k-entry LRU; cls ∈ keyword|string|comment|number|type|function|punct)
   components/ui/<Name>/    one folder per style-guide component: <Name>.tsx + <Name>.module.css (incl. StatusGlyph A/M/D/R/U/C,
                            Checkbox, Kbd (the one shortcut-chip anatomy, used by MenuItem + StartScreen),
+                           DisabledHint (a control that is `disabled` **and** carries a `title` gets wrapped in a
+                           `role="none"` span holding that title: Chromium gives a disabled control no pointer events, so its
+                           own tooltip never fires, and that title is usually the reason it is dead. Button, IconButton,
+                           MenuItem and ToolbarButton route through it — every component here that renders a raw `<button>`.
+                           It wraps only when both are true, so an enabled control renders exactly the DOM it always did; a
+                           caller whose wrapper must be a block box passes `className`, which *replaces* the default one
+                           rather than joining it, since two classes both setting `display` would be settled by stylesheet
+                           order),
                            CommandInput (`$ git …` field + portalled completion list from lib/gitCompletions, above or
                            below; completes the word at the caret and keeps what follows it; focus stays in the field via
                            aria-activedescendant; Tab/Enter accept, Enter alone submits, Escape closes the list before the
@@ -270,7 +278,9 @@ src/
                            selected file is conflicted, Copy path, Open (OS default app) and Reveal in folder — single file,
                            still on disk — through `open_path`, a Rust command that joins the repo-relative path itself so the
                            webview never gets an arbitrary-path opener scope),
-                           FilesColumn (Unstaged + Stage all / Staged + Unstage all; virtualized 26px rows, role=listbox
+                           FilesColumn (Unstaged + Stage all / Staged + Unstage all — each header button reads "Stage selected" /
+                           "Unstage selected" and acts on the selection alone once its own list owns two or more rows,
+                           skipping conflicted ones like Stage all; virtualized 26px rows, role=listbox
                            aria-multiselectable + aria-activedescendant — or role=tree with folder rows when the header's
                            "Show as tree" toggle beside the title is on (store/treeModeStore.ts, one mode for every mount, `localStorage.commitFileListMode`;
                            ChangedFileList/fileTree builds + flattens it; a collapsed folder's files leave the ↑/↓ + Shift *walk*

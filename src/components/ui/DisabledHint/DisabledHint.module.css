@@ -1,0 +1,11 @@
+/*
+ * Hugs the control so it takes the control's place in a flex/grid row without adding space of its
+ * own. `display: contents` looks like the tidier answer but is the wrong one: it removes the
+ * element's box, and with the box goes the hover target this whole component exists to provide.
+ */
+.wrap {
+  display: inline-flex;
+  /* The wrapper stands in for the control as the flex item, so a stretched control (a full-width
+     dialog button) has to be able to stretch through it. */
+  min-width: 0;
+}

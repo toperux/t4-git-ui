@@ -24,6 +24,10 @@
 .headerBtn {
   height: var(--control-h-sm);
   font-size: var(--text-xs);
+  /* The label flips to "…selected" with a multi-selection, which costs the same +33px on both
+     buttons; "Unstage selected" is the widest at 110px. Without a floor the button grows leftward
+     out of the right-aligned slot and drags the count badge with it. */
+  min-width: 112px;
 }
 .list {
   flex: 1 1 0;
