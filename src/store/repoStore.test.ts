@@ -125,6 +125,58 @@ describe("repoStore walk restarts", () => {
     expect(useRepoStore.getState().compare).toBeNull();
   });
 
+  it("a filter started from the working-tree row selects the first row, not a stale commit index", async () => {
+    mocked.startLog.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
+    mocked.getLogPage.mockImplementation((_id: string, gen: number, offset: number) => Promise.resolve(gen === 1 ? page(1, offset, 20, 20) : page(2, offset, 2, 2)));
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    useRepoStore.getState().select(15);
+    useRepoStore.getState().selectWorkingTree();
+    // History from the commit panel: the pseudo-row is hidden under the flat walk, and index 15
+    // names nothing in a two-row history.
+    await useRepoStore.getState().startLog({ kind: "all" }, { path: "a.txt" });
+    await flush();
+    expect(useRepoStore.getState().wtSelected).toBe(false);
+    expect(useRepoStore.getState().selectedIndex).toBe(0);
+  });
+
+  it("revealOid misses a commit the filtered walk dropped, instead of finding its stale row", async () => {
+    mocked.startLog.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
+    // Walk 1: 20 rows. Walk 2 (a text filter): 1 row, complete — the other 19 must not linger.
+    mocked.getLogPage.mockImplementation((_id: string, gen: number, offset: number) => Promise.resolve(gen === 1 ? page(1, offset, 20, 20) : page(2, offset, 1, 1)));
+    mocked.findLogRow.mockResolvedValue(null);
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    await useRepoStore.getState().startLog({ kind: "all" }, { text: "only row 0" });
+    await flush();
+    expect(useRepoStore.getState().rows).toHaveLength(1);
+    expect(await useRepoStore.getState().revealOid("oid15")).toBe(false);
+    expect(useRepoStore.getState().selectedIndex).toBe(0);
+  });
+
+  it("drops a selection the truncated walk no longer has, so the next walk's first page selects row 0", async () => {
+    mocked.startLog.mockResolvedValueOnce(1).mockResolvedValueOnce(2).mockResolvedValueOnce(3);
+    // Walk 1: 20 rows; walk 2 (a path filter): 2; walk 3: 3 — index 15 names a row in the first only.
+    mocked.getLogPage.mockImplementation((_id: string, gen: number, offset: number) =>
+      Promise.resolve(gen === 1 ? page(1, offset, 20, 20) : gen === 2 ? page(2, offset, 2, 2) : page(3, offset, 3, 3)),
+    );
+    // Walk 2's `reselect` never answers, so walk 3 starts while it is still in flight and finds no
+    // oid at index 15 to carry over: nothing but the truncation can clear the stale index.
+    mocked.findLogRow.mockImplementation(() => new Promise<number | null>(() => {}));
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    useRepoStore.getState().select(15);
+
+    await useRepoStore.getState().startLog({ kind: "all" }, { path: "a.txt" });
+    await flush();
+    expect(useRepoStore.getState().selectedIndex).toBeNull();
+
+    await useRepoStore.getState().startLog({ kind: "all" }, { path: "b.txt" });
+    await flush();
+    expect(useRepoStore.getState().rows).toHaveLength(3);
+    expect(useRepoStore.getState().selectedIndex).toBe(0);
+  });
+
   it("revealOid uses the backend index instead of paging through the log", async () => {
     mocked.startLog.mockResolvedValue(1);
     mocked.getLogPage.mockImplementation((_id: string, gen: number, offset: number) => Promise.resolve(page(gen, offset, PAGE_SIZE, 5000)));

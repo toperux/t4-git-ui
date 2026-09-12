@@ -176,13 +176,28 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
         page.rows.forEach((r, i) => {
           rows[offset + i] = r;
         });
+        // A finished walk that is shorter than the one before it (a text filter, say) leaves the
+        // old rows past its end: the grid never shows them, but `loadedIndex` would find one and
+        // "reveal" an index the grid no longer has — no toast, and the selection vanishes.
+        let selectedIndex = s.selectedIndex;
+        let compare = s.compare;
+        if (page.complete && rows.length > page.total) {
+          rows.length = page.total;
+          // The selection can be one of the rows that went: kept, it names nothing the grid has, and
+          // a later walk whose own page is not short has no truncation left to clear it.
+          if (selectedIndex !== null && selectedIndex >= rows.length) {
+            selectedIndex = null;
+            compare = null;
+          }
+        }
         set({
           rows,
+          compare,
           // A page response can be older than the last `log://progress`; never move the walk backwards.
           // `error` too: a `log://progress` emitted before `start_log` resolved was dropped for
           // having no generation to match, and the page is where that failure is still readable.
           log: { ...s.log, total: Math.max(s.log.total, page.total), complete: s.log.complete || page.complete, error: s.log.error ?? page.error },
-          selectedIndex: s.selectedIndex ?? (offset === 0 && page.rows.length > 0 && !pendingSelect ? 0 : null),
+          selectedIndex: selectedIndex ?? (offset === 0 && page.rows.length > 0 && !pendingSelect ? 0 : null),
         });
         if (lg !== labelGen) {
           // Labels were recomputed while this page was in flight: what arrived is already stale.
@@ -357,10 +372,15 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
       // and the selected commit is selected again once the new walk has it — see `reselect`.
       const selectedOid = prev.wtSelected || prev.selectedIndex === null ? null : (prev.rows[prev.selectedIndex]?.row.commit.oid ?? null);
       pendingSelect = selectedOid ? { oid: selectedOid, generation: null } : null;
+      const flat = !!filter.text?.trim() || !!filter.path;
       set({
         spec,
         filter,
-        log: { ...EMPTY_LOG, total: prev.log.total, flat: !!filter.text?.trim() || !!filter.path },
+        log: { ...EMPTY_LOG, total: prev.log.total, flat },
+        // A flat walk hides the working-tree row. Selected, it would keep the commit index it sat
+        // over (a row the filtered walk may not even have) and nothing would show as selected;
+        // dropping both lets the first page select row 0, as it does for a walk with no selection.
+        ...(prev.wtSelected && flat ? { wtSelected: false, selectedIndex: null, compare: null } : {}),
       });
       try {
         const generation = await ipc.startLog(repo.id, spec, filter);
