@@ -63,18 +63,27 @@ describe("Select", () => {
     expect(onChange).toHaveBeenCalledWith("");
   });
 
-  it("leaves Alt+Arrow to the surrounding list", () => {
-    const { getByRole, queryByRole, getAllByRole } = render(<Harness />);
+  it("Alt+↓ opens the list and Alt+↑ commits the active option; any other Alt chord is left to the surrounding app", () => {
+    const onChange = vi.fn();
+    const { getByRole, queryByRole, getAllByRole } = render(<Harness onChange={onChange} />);
     const combo = getByRole("combobox", { name: "Remote" });
     fireEvent.keyDown(combo, { key: "ArrowDown", altKey: true });
-    expect(queryByRole("listbox")).toBeNull();
+    expect(getAllByRole("option")).toHaveLength(3);
 
-    // Nor does it move the active option once the list is open.
-    fireEvent.click(combo);
+    // Alt+↓ again neither moves the active option — only ↓ on its own does — nor toggles the list shut.
     const active = combo.getAttribute("aria-activedescendant");
     fireEvent.keyDown(combo, { key: "ArrowDown", altKey: true });
     expect(combo.getAttribute("aria-activedescendant")).toBe(active);
-    expect(getAllByRole("option")).toHaveLength(3);
+    expect(queryByRole("listbox")).not.toBeNull();
+
+    // Alt+↑ closes the list on the active option, as a native select does.
+    fireEvent.keyDown(combo, { key: "ArrowDown" });
+    fireEvent.keyDown(combo, { key: "ArrowUp", altKey: true });
+    expect(onChange).toHaveBeenCalledWith("upstream");
+    expect(queryByRole("listbox")).toBeNull();
+
+    fireEvent.keyDown(combo, { key: "Enter", altKey: true });
+    expect(queryByRole("listbox")).toBeNull();
   });
 
   it("closes when the trigger loses focus", () => {

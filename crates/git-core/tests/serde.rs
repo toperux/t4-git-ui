@@ -293,8 +293,10 @@ fn diff_shapes_are_camel_case() {
         unstaged: 0,
         untracked: 0,
         conflicted: 0,
+        state: git_core::refs::RepoState::CherryPick,
     })
     .expect("ser");
+    assert_eq!(ws["state"], "cherryPick");
     assert_eq!(ws["entries"][0]["index"], "modified");
     assert_eq!(ws["entries"][0]["workdir"], Value::Null);
     assert_eq!(ws["entries"][0]["oldPath"], Value::Null);

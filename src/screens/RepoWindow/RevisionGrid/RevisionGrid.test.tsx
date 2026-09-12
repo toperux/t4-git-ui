@@ -177,7 +177,7 @@ describe("RevisionGrid", () => {
       wtSelected: false,
     });
     useStatusStore.setState({
-      status: { entries: [{ path: "a", oldPath: null, index: null, workdir: "modified", conflicted: false, workdirStamp: "1:1" }], staged: 0, unstaged: 1, untracked: 2, conflicted: 0 },
+      status: { entries: [{ path: "a", oldPath: null, index: null, workdir: "modified", conflicted: false, workdirStamp: "1:1" }], staged: 0, unstaged: 1, untracked: 2, conflicted: 0, state: "clean" },
     });
     const { container, getByRole } = render(<RevisionGrid />);
     const rows = container.querySelectorAll(ROWS);
@@ -409,7 +409,7 @@ describe("RevisionGrid", () => {
       log: { generation: 1, total: 1, complete: true, error: null, flat: false },
       rows: [row(0, "Top", [])],
     });
-    useStatusStore.setState({ status: { entries: [], staged: 0, unstaged: 0, untracked: 0, conflicted: 0 } });
+    useStatusStore.setState({ status: { entries: [], staged: 0, unstaged: 0, untracked: 0, conflicted: 0, state: "merge" } });
     const { container } = render(<RevisionGrid />);
     expect(container.querySelectorAll(ROWS)[0].textContent?.trim()).toBe("Working tree · merge to commit");
   });

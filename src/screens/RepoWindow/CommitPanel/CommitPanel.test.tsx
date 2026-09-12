@@ -82,6 +82,7 @@ const STATUS: WorkdirStatus = {
   unstaged: 2,
   untracked: 1,
   conflicted: 1,
+  state: "clean",
 };
 
 beforeEach(() => {
@@ -241,6 +242,7 @@ describe("CommitPanel", () => {
       unstaged: 0,
       untracked: 0,
       conflicted: 0,
+      state: "clean",
     };
     act(() => useStatusStore.setState({ status: allStaged }));
     expect(useCommitStore.getState().list).toBe("staged");
@@ -521,7 +523,7 @@ describe("CommitPanel", () => {
 
   it("Commit is enabled with nothing staged while a merge is still to be committed", async () => {
     // "Keep main's version" on the only conflict: MERGE_HEAD is there, the status is empty.
-    useStatusStore.setState({ status: { entries: [], staged: 0, unstaged: 0, untracked: 0, conflicted: 0 } });
+    useStatusStore.setState({ status: { entries: [], staged: 0, unstaged: 0, untracked: 0, conflicted: 0, state: "merge" } });
     useRepoStore.setState({ refs: { ...REFS, state: "merge" } });
     useCommitStore.setState({ summary: "Merge branch 'feature'" });
     const { getByRole, getByText, findByText } = renderPanel();
@@ -733,6 +735,7 @@ describe("CommitPanel tree view", () => {
     unstaged: 3,
     untracked: 0,
     conflicted: 0,
+    state: "clean",
   };
 
   beforeEach(() => {

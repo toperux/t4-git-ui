@@ -90,12 +90,41 @@ describe("groups", () => {
     expect(groupOf(items, 0)).toEqual([0]);
   });
 
-  it("canSquash needs a commit above whose group head is not dropped", () => {
+  it("canSquash looks past a dropped row for the head — git folds the fixup into the pick above the drop", () => {
     expect(canSquash(items, 0)).toBe(false);
     expect(canSquash(items, 1)).toBe(true);
     expect(canSquash(items, 3)).toBe(true);
     const dropped = items.map((it, i) => (i === 1 ? { ...(it as Row), action: "drop" as Action } : it));
-    expect(canSquash(dropped, 2)).toBe(false);
+    expect(canSquash(dropped, 2)).toBe(true);
+    // And the dropped row stays inside the group: head through last member, with no gap.
+    expect(groupOf(dropped, 2)).toEqual([0, 1, 2, 3]);
+  });
+
+  it("a drop belongs to the group it sits inside, unless it trails past the last member", () => {
+    // Nothing is folded into it, so it is a group of its own — `toSteps` advances by group length.
+    const trailing = buildItems([pick("a1", "One"), pick("b2", "Two", "drop")]);
+    expect(groupOf(trailing, 1)).toEqual([1]);
+    expect(groupOf(trailing, 0)).toEqual([0]);
+    // Inside a group it is one of the group's rows: selecting it keeps the squash's message box up.
+    const inside = buildItems([pick("a1", "One"), pick("b2", "Two", "drop"), pick("c3", "Three", "squash")]);
+    expect(groupOf(inside, 1)).toEqual([0, 1, 2]);
+    expect(groupOf(inside, 0)).toEqual([0, 1, 2]);
+    expect(groupOf(inside, 2)).toEqual([0, 1, 2]);
+    expect(needsMessage(inside, groupOf(inside, 1))).toBe(true);
+  });
+
+  it("nothing but drops above means no group at all, and every index agrees on that", () => {
+    // `canSquash` refuses b2 here because git has no commit left to fold it into. `groupOf` has to
+    // say the same, or the two encode different ideas of a group and whichever runs first wins.
+    const topDrop = buildItems([pick("a1", "One", "drop"), pick("b2", "Two", "fixup")]);
+    expect(canSquash(topDrop, 1)).toBe(false);
+    expect(groupOf(topDrop, 0)).toEqual([0]);
+    expect(groupOf(topDrop, 1)).toEqual([1]);
+    // Each row is its own group, so the todo still goes out in order and nothing is emitted twice.
+    expect(toSteps(topDrop, {}, true)).toEqual([
+      { kind: "line", text: "drop a1 One" },
+      { kind: "line", text: "fixup b2 Two" },
+    ]);
   });
 
   it("the default message is the head's plus each squash member's; fixups contribute nothing", () => {
@@ -172,6 +201,18 @@ describe("toSteps", () => {
       const changed = items.map((it, i) => (i === 1 ? { ...(it as Row), action } : it));
       expect(toSteps(changed, {}, true)[1]).toEqual({ kind: "line", text: `${action} b2 amend! One` });
     }
+  });
+
+  it("a drop inside a group is emitted in place, and the fixup below it folds into the pick above", () => {
+    const items = buildItems([pick("a1", "One"), pick("b2", "Two", "drop"), pick("c3", "Three", "fixup")]);
+    expect(groupOf(items, 2)).toEqual([0, 1, 2]);
+    // The dropped commit contributes no message: the fixup lands on a1 with a1's own.
+    expect(defaultMessage(items, groupOf(items, 2))).toBe("One");
+    expect(toSteps(items, {}, true)).toEqual([
+      { kind: "line", text: "pick a1 One" },
+      { kind: "line", text: "drop b2 Two" },
+      { kind: "line", text: "fixup c3 Three" },
+    ]);
   });
 
   it("writes edit / drop as themselves, a merge line verbatim, and never amends a plain pick", () => {

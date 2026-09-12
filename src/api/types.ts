@@ -356,6 +356,11 @@ export interface WorkdirStatus {
   unstaged: number;
   untracked: number;
   conflicted: number;
+  /**
+   * The repository state this scan ran in. A status whose `state` disagrees with the refs' predates
+   * the change and says nothing about the new one — read it as "not known yet", not as "clean".
+   */
+  state: RepoState;
 }
 
 // --- watch.rs / src-tauri/src/commands/stage.rs ---

@@ -32,6 +32,18 @@ export const isPickRow = (it: Item | undefined): it is Row => it?.kind === "row"
 
 const isMemberAt = (items: Item[], i: number) => isPickRow(items[i]) && isMember((items[i] as Row).action);
 
+const isDroppedAt = (items: Item[], i: number) => isPickRow(items[i]) && (items[i] as Row).action === "drop";
+
+/**
+ * The nearest pick at / above `i` that isn't dropped, `-1` when the drops reach the top of the list.
+ * A `drop` is no barrier to a squash: git removes that commit and folds the member into the pick above it.
+ */
+function pickAbove(items: Item[], i: number): number {
+  let j = i;
+  while (isDroppedAt(items, j)) j--;
+  return isPickRow(items[j]) ? j : -1;
+}
+
 /** The commit a pick row names (a merge row's may be missing — it is read-only either way). */
 export const rowCommit = (r: Row): TodoCommit | null => (r.line.kind === "other" || r.line.kind === "updateRef" ? null : r.line.commit);
 
@@ -64,26 +76,46 @@ export function moveRow(items: Item[], i: number, dir: -1 | 1): Item[] {
   return out;
 }
 
-/** Indices of the head pick at / above `i` and the squash / fixup picks folded into it. */
+/**
+ * Indices of the head pick at / above `i` and the squash / fixup picks folded into it — head through
+ * last member, contiguous, so a `drop` that falls inside the group travels with it. `toSteps` walks
+ * the list by group length and emits every row of the group, so a gap would lose that `drop` line.
+ * A `drop` resolves to the group it sits inside — selecting it must not take the group's message
+ * box away — unless it trails past the last member, or nothing but drops sits above it, where it
+ * belongs to no group at all.
+ */
 export function groupOf(items: Item[], i: number): number[] {
   let head = i;
-  while (isMemberAt(items, head) && isPickRow(items[head - 1])) head--;
-  const out = [head];
-  for (let j = head + 1; isMemberAt(items, j); j++) out.push(j);
+  while (isMemberAt(items, head) || isDroppedAt(items, head)) {
+    const above = pickAbove(items, head - 1);
+    if (above < 0) break;
+    head = above;
+  }
+  // Drops all the way up: there is no commit to fold into, so no group forms — and `canSquash`
+  // refuses the member below for that same reason. Without this the two disagree, and `groupOf`
+  // hands back a span headed by a row git is about to remove.
+  if (isDroppedAt(items, head)) return [i];
+  let last = head;
+  for (let j = head + 1; isMemberAt(items, j) || isDroppedAt(items, j); j++) if (isMemberAt(items, j)) last = j;
+  if (i > last) return [i];
+  const out: number[] = [];
+  for (let j = head; j <= last; j++) out.push(j);
   return out;
 }
 
-/** Squash / fixup need a commit above to fold into, and that group's head must not be dropped. */
+/** Squash / fixup need a commit above to fold into — past the drops, whose commits git removes anyway. */
 export function canSquash(items: Item[], i: number): boolean {
-  if (!isPickRow(items[i - 1])) return false;
-  const head = items[groupOf(items, i - 1)[0]];
-  return isPickRow(head) && !isMember(head.action) && head.action !== "drop";
+  const above = pickAbove(items, i - 1);
+  if (above < 0) return false;
+  const head = items[groupOf(items, above)[0]];
+  return isPickRow(head) && !isMember(head.action);
 }
 
 /** A reword, or a group with a `squash` in it, gets a message of its own (a fixup keeps the head's). */
 export function needsMessage(items: Item[], group: number[]): boolean {
   const head = items[group[0]];
-  if (!isPickRow(head)) return false;
+  // A dropped head keeps no message: the group its drop sits inside is the one that gets the textarea.
+  if (!isPickRow(head) || head.action === "drop") return false;
   return head.action === "reword" || group.slice(1).some((j) => (items[j] as Row).action === "squash");
 }
 
@@ -112,7 +144,9 @@ export function validate(items: Item[], messages: Record<string, string> = {}): 
     }
     // An empty `-F` file makes git refuse the amend and the rebase stops on "execution failed".
     const group = groupOf(items, i);
-    if (needsMessage(items, group) && (messages[rowCommit(items[i] as Row)?.oid ?? ""] ?? defaultMessage(items, group)).trim() === "") {
+    // Keyed by the group's head, which is what the dialog stores an edited message under — `i` can
+    // be a `drop` sitting inside the group, whose own oid was never a key.
+    if (needsMessage(items, group) && (messages[rowCommit(items[group[0]] as Row)?.oid ?? ""] ?? defaultMessage(items, group)).trim() === "") {
       return `${short} needs a message`;
     }
   }

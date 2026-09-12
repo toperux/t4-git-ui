@@ -515,7 +515,7 @@ const todoPick = (oid: string, summary: string, action: "pick" | "fixup" = "pick
   amend: false,
 });
 const TODO: RebaseTodo = { head: "head1", baseOid: "base9", lines: [todoPick("a1", "One"), todoPick("b2", "Two")] };
-const dirty = () => useStatusStore.setState({ status: { entries: [], staged: 1, unstaged: 0, untracked: 0, conflicted: 0 } });
+const dirty = () => useStatusStore.setState({ status: { entries: [], staged: 1, unstaged: 0, untracked: 0, conflicted: 0, state: "clean" } });
 
 describe("RebaseInteractiveDialog", () => {
   it("asks before stashing a dirty tree, then reads the todo with --autostash", async () => {
@@ -566,6 +566,41 @@ describe("RebaseInteractiveDialog", () => {
         false,
       ),
     );
+  });
+
+  it("Alt+↓ moves the focused row from inside its action Select, without opening that dropdown", async () => {
+    mocked.rebaseTodo.mockImplementation(() => Promise.resolve(TODO));
+    const { getByRole, getByText, queryByRole } = render(<RebaseInteractiveDialog onClose={() => {}} base="origin/main" />);
+    await waitFor(() => expect(getByRole("combobox", { name: "Action for a1" })).toBeTruthy());
+    const combo = getByRole("combobox", { name: "Action for a1" });
+    fireEvent.click(getByText("One"));
+    combo.focus();
+    fireEvent.keyDown(combo, { key: "ArrowDown", altKey: true });
+    // The list claimed the chord in the capture phase: the row moved and the Select stayed shut.
+    expect(queryByRole("listbox")).toBeNull();
+    fireEvent.click(getByRole("button", { name: "Rebase" }));
+    await waitFor(() => expect(mocked.rebaseInteractive).toHaveBeenCalled());
+    expect(mocked.rebaseInteractive.mock.calls[0][4]).toEqual([
+      { kind: "line", text: "pick b2 Two" },
+      { kind: "line", text: "pick a1 One" },
+    ]);
+  });
+
+  it("a refused move leaves the chord alone: Alt+↓ on the last row opens its dropdown instead", async () => {
+    mocked.rebaseTodo.mockImplementation(() => Promise.resolve(TODO));
+    const { getByRole, getByText, queryByRole } = render(<RebaseInteractiveDialog onClose={() => {}} base="origin/main" />);
+    await waitFor(() => expect(getByRole("combobox", { name: "Action for b2" })).toBeTruthy());
+    const combo = getByRole("combobox", { name: "Action for b2" });
+    fireEvent.click(getByText("Two"));
+    combo.focus();
+    fireEvent.keyDown(combo, { key: "ArrowDown", altKey: true });
+    expect(queryByRole("listbox")).not.toBeNull();
+    fireEvent.click(getByRole("button", { name: "Rebase" }));
+    await waitFor(() => expect(mocked.rebaseInteractive).toHaveBeenCalled());
+    expect(mocked.rebaseInteractive.mock.calls[0][4]).toEqual([
+      { kind: "line", text: "pick a1 One" },
+      { kind: "line", text: "pick b2 Two" },
+    ]);
   });
 
   it("a reword gets a message box prefilled with the commit's message, and the edit becomes an amend", async () => {

@@ -21,9 +21,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 22.04 rather than latest: the .deb links against the builder's glibc,
-        # so the oldest supported runner reaches the most distros. CI matches
-        # the release matrix so a break shows up here first.
+        # 22.04 rather than latest so this matrix matches release.yml's: a
+        # break on the runner the .deb is really built on then shows up here
+        # first. The glibc floor is release.yml's reason and not this file's —
+        # nothing here bundles, it only builds and tests.
         os: [windows-latest, macos-latest, ubuntu-22.04]
 
     steps:

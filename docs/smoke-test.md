@@ -144,9 +144,23 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the first two perfo
 - [x] `hunks.txt` renders as **three** hunks — an edited line plus an added one, an indentation-only
       change, and a deletion — each with its own `@@` header
 - [x] Multi-select in the lists: click, `Ctrl+click`, `Shift+click`, `↑` `↓`, `Ctrl+A`
-- [ ] Stage via `Enter`, double-click, and the hover `+` button; then **click a single row first** —
+- [x] Stage via `Enter`, double-click, and the hover `+` button; then **click a single row first** —
       with two or more selected the header reads `Stage selected` and takes only those (group AD) —
-      and check `Stage all` / `Unstage all` still take the whole list
+      and check `Stage all` / `Unstage all` still take the whole list — **walked 2026-09-11 over
+      CDP, passes.** Fixture: four tracked files dirtied on `reset-me`, with the repo's staged add
+      `decoy.txt` left alone as a control. Every assertion came from `git`, never from the panel.
+      Each gesture staged **exactly one** file: `Enter` on the selected row took `crlf-hunks.txt`,
+      double-click took `crlf.txt`, and the row's hover `+` — a single `button[aria-label="Stage"]`,
+      24×24, inside the row — took `hunks.txt`; the other rows never moved. `Unstage all` emptied
+      the staged list: all four tracked files came back and `decoy.txt` dropped to `??`, which is
+      right for a staged *add* rather than a modification. Ctrl-clicking two rows flipped the header
+      to `Stage selected` and it took **only** those two — the two unselected tracked files stayed
+      unstaged and `decoy.txt` stayed `??`. Clicking a single row returned the label to `Stage all`,
+      and that took the whole list, including the **unselected** `decoy.txt`, back to `A`. That
+      untracked control is the point: a staged-file count reads identically whether the button acted
+      on the selection or on the list, so only an unselected file can tell them apart. Header
+      geometry never moved — `left 465, right 577, w 112` for `Stage all`, `Stage selected` and
+      `Unstage all` alike, so the `min-width` floor from `bc93b2e` holds across every label
 - [x] Hover a hunk header → **Stage hunk**; click it → only that hunk moves to Staged
 - [x] Scroll to the *second* hunk and click its **Stage hunk** with the mouse → the focus stays in the
       diff, on the changed line now at that spot (a mouse-started focus paints no ring; ↑ / ↓ moves

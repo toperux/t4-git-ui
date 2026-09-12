@@ -27,6 +27,7 @@ const status = (n: number): WorkdirStatus => ({
   unstaged: n,
   untracked: 0,
   conflicted: 0,
+  state: "clean",
 });
 const refs = (oid: string, tags: string[] = []): RefsSnapshot => ({
   head: { oid, branch: "main", detached: false },

@@ -40,6 +40,9 @@ export function computeBanners(refs: RefsSnapshot | null, status: WorkdirStatus 
   const out: BannerSpec[] = [];
   if (!refs) return out;
   const { head, state } = refs;
+  // A status scanned in another state predates the change and says nothing about the new one: it has
+  // to read as "not known yet", exactly as a status that has not arrived yet does.
+  const fresh = status && status.state === state ? status : null;
   if (head.detached && head.oid && state === "clean") {
     const def = defaultBranch(refs.local.filter((b) => !b.isHead));
     out.push({
@@ -66,10 +69,10 @@ export function computeBanners(refs: RefsSnapshot | null, status: WorkdirStatus 
       kind: "warning",
       // Without conflicts the stop is an `edit` line (or an `exec` a hook rejected): nothing to resolve,
       // the user amends or adds commits and continues.
-      // A status that has not arrived yet is not a clean one: assume conflicts rather than flash the
-      // amend text over a conflicted rebase.
+      // A status that has not arrived yet — or a stale one — is not a clean one: assume conflicts
+      // rather than flash the amend text over a conflicted rebase.
       text:
-        status !== null && status.conflicted === 0
+        fresh !== null && fresh.conflicted === 0
           ? "Rebase paused — amend or add commits in the commit panel, then Continue"
           : "Rebase in progress — resolve conflicts and stage them, then continue",
       buttons: [
@@ -96,7 +99,7 @@ export function computeBanners(refs: RefsSnapshot | null, status: WorkdirStatus 
   if (state === "bisect") {
     out.push({ id: "sequencer", kind: "warning", text: SEQUENCER_TEXT[state], buttons: [] });
   }
-  const n = status?.conflicted ?? 0;
+  const n = fresh?.conflicted ?? 0;
   if (n > 0) {
     out.push({
       id: "conflicts",

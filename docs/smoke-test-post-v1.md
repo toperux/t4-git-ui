@@ -654,6 +654,42 @@ _Shipped 2026-09-07 (this commit); walked the same day over CDP on the installed
       Repository › Run git command… `rebase --continue` → info toast "Stopped at <second>…", still paused
       (was an exit-0 "failure" with no toast, since only conflict-checked ops could report a pause) →
       **Abort**
+- [x] **Re-walk: Move barriers** (`cb7c994`) — **walked 2026-09-11, passes.** The box above used to
+      pass for a reason that no longer exists: `Input.tsx` bailed out of the Select's key handler on
+      *every* Alt chord, app-wide, so Alt+↑/↓ reached the list by default. The list claims the chord
+      in the capture phase now, and **only when the move is legal**.
+      **The greyed buttons, from `add a` with Keep merges:** `add a` Move up disabled (first row);
+      `fixup! add b` Move down disabled and `add d` Move up disabled (the merge row is a barrier on
+      both sides); `add s1` **both** disabled, alone in its section; `add e` Move down disabled
+      (last). Tick **Flatten** and the merge row goes, the six rows become one run, and only the two
+      ends stay disabled — which is the cleanest proof the barrier is the merge line itself. A
+      single-row dialog (`other d`, rebasing a branch) has both disabled.
+      **The Alt half** is covered in full by AF's Alt+Arrow box: a refused Alt+↓ falls through and
+      opens the Select's dropdown, a refused Alt+↑ commits the active option, and a **legal** Alt+↑
+      moves the row — with focus staying on the moved row's own combobox, which is this box's
+      original "the moved row keeps focus" assertion still holding under the new mechanism
+- [x] **Re-walk: Branch path with a conflict** (`cb7c994`) — **walked 2026-09-11, passes, with the
+      caveat below.** The banner-freshness fix: at the instant the conflict lands the rebase banner
+      must never read "Rebase paused — amend or add commits…" and then correct itself.
+      **Do not read this with a single query after the fact** — the flash is a stale status being
+      replaced, so it can last one frame, and a late read sees only the settled state. (I lost the
+      `Rebased main` toast in exactly that way earlier in this group.) Arm a `MutationObserver` on
+      `document.body` *before* firing, logging every distinct `[class*="banner"]` / `[role="alert"]`
+      text with a `performance.now()` stamp, then drain it afterwards.
+      Walked on `other` (checked out from the sidebar), right-click `main`'s tip → **Rebase other
+      onto main…** → tick **Interactive** (preview flips to `git rebase -i --rebase-merges main`) →
+      **Rebase** → **Stash and continue** (the app adds `--autostash` at that step, so a dirty tree
+      is fine) → the single pick `other d` → **Rebase**. The log held exactly **two** entries: the
+      empty baseline at `t=0`, then both conflict banners together — "Rebase in progress — resolve
+      conflicts and stage them, then continue" with Abort · Skip · Continue, and "1 file has
+      conflicts — resolve, then stage it". **No intermediate state, no amend wording.** Git agreed:
+      `AA d.txt`, `rebase-merge/`, `REBASE_HEAD`, detached HEAD.
+      **The caveat, unchanged from when this box was written:** the stale window is one status scan,
+      and `irebase` is tiny, so the scan is far too fast to leave much of a window. A failure here
+      would have been strong evidence; this pass is weak evidence. The fix's real proof is the unit
+      test and the ordering argument in `status.rs`, not this box
+      (the checkbox's real `<input>` is visually hidden — click the wrapping `<label>`, not the input,
+      or the click times out on "element is not visible")
 
 ## AA. Working tree linked to HEAD (main §2)
 _Shipped 2026-09-07 (this commit); walked the same day over CDP on the installed build in `c:/tmp/t4/irebase`. While the tree is dirty (or a merge waits to be committed) the walk opens a lane column expecting HEAD before the first commit (`LogFilter.workingTree`), so HEAD's lineage takes lane 0 and the working-tree row's line runs down into it; a clean tree walks without the seed and gets the old layout back._
@@ -762,7 +798,7 @@ header jog, last bullet) and one check that this fixture cannot reach (second-to
       the unselected `decoy.txt` stayed `??`. That untracked control is the whole point — the
       "(2 skipped)" tooltip reads the same whether counted over the selection or the list, so only
       an unselected stageable file proves the action respected the selection
-- [ ] **The header does not jog** (§4, §6) — **FINDING, 2026-09-11: it jogs.** Measured over CDP:
+- [x] **The header does not jog** (§4, §6) — **was a FINDING, 2026-09-11: it jogged.** Measured over CDP:
       at rest `Stage all` is `left: 514, width: 63`; flipped, `Stage selected` is `left: 481,
       width: 96`. The right edge stays pinned at 577, so nothing downstream moves — but the button's
       left edge **and the count badge both slide 33px left** (badge `left` 491 → 458). Cause is as
@@ -842,9 +878,15 @@ half from CDP, and the visual half only once someone has really seen one.
       and go straight there. The equivalent check already passed in a *context* menu (see below),
       which shares the same `.item` rule and the same `.itemWrap`, so this is a gap in coverage
       rather than a suspected bug
-- [ ] **Keyboard still works in that menu** (§2, §6): `↑`/`↓` skip the disabled items and `Escape`
-      closes — `Menu.tsx` finds items with `[role="menuitem"]:not(:disabled)`, a descendant query
-      the wrapper does not disturb, so this is confirming the reasoning, not guessing at it
+- [x] **Keyboard still works in that menu** (§2, §6) — **walked 2026-09-11, passes.** Walked on the
+      `ghost` remote-group menu (5 items, `Copy URL` disabled at index 1). From `Fetch ghost`
+      (index 0), `↓` landed on `Rename…` — **index 2** — skipping the wrapped disabled row; `↑` went
+      straight back to index 0, so the skip holds **upward as well**, which matters because the
+      wrapper sits between the menu and the item. `Escape` closed it (`[role="menu"]` count 0) and
+      returned focus to the `ghost` treeitem. `Menu.tsx` finds items with
+      `[role="menuitem"]:not(:disabled)`, a descendant query the wrapper does not disturb — but that
+      reasoning was written here **before** any walk, and this box was briefly reported as passing on
+      the strength of it. It is now actually measured
 - [x] **A disabled item in a context menu** (§4) — **walked 2026-09-11, passes.** Right-clicking the
       deleted row gave a menu of 5 items, 3 enabled and 2 disabled (`Open`, `Reveal in folder`), both
       titled "The file is not in the working tree" on the item **and** on the wrapper. Every item
@@ -877,18 +919,23 @@ half from CDP, and the visual half only once someone has really seen one.
       — and the wrapper's box was identical to the button's (`left 1898, top 1110, 24×24`), i.e. no
       layout cost. `DiffViewer`'s `Split view` ("unavailable while staging") is the same code path
       if a second witness is ever wanted
-- [ ] **A disabled item in the sidebar** — **NOT REACHABLE THROUGH THE UI (finding, 2026-09-11).**
-      `Sidebar.tsx:518` disables **Copy URL** with "No URL configured" when `!r.url`. `git remote
-      add` always sets a URL, so no fixture has such a remote; the only way to make one is
-      `git -C C:/tmp/t4/work config --unset remote.nowhere.url`. Tried it — and **the remote then
-      disappears from the sidebar altogether**: after a refresh only `mirror`, `origin` and `slow`
-      were listed, while `git remote` still knew about `nowhere`. The app enumerates remotes from a
-      source that omits URL-less ones (`git remote -v` prints nothing for them), so a remote with no
-      URL is never drawn, and the `!r.url` branch cannot be reached by a user. Either that guard is
-      dead code or the enumeration should keep such remotes — worth deciding, not filing as a bug
-      yet. Restored byte-exact afterwards (mind the backslashes: `C:\tmp\t4\does-not-exist`, not
-      forward slashes) and confirmed all four remotes are back; other groups lean on `nowhere`
-      pointing at a path that does not exist
+- [x] **A disabled item in the sidebar** — **walked 2026-09-11, passes. The earlier "unreachable"
+      finding recorded here was wrong.** `Sidebar.tsx:518` disables **Copy URL** with "No URL
+      configured" when `!r.url`. The first attempt unset `remote.nowhere.url`; the remote vanished
+      from the sidebar, and that was written up as "the branch cannot be reached by a user" — a bad
+      generalisation from the one fixture that could not show it (`nowhere` had never been fetched,
+      so it had no refs to fall back on). `refs.rs` builds a `Remote` with `url: None` on two
+      **reachable** paths: `:704-709` and `:719-724` (`or_insert_with`) create a group from
+      `refs/remotes/<name>/…` **refs** when the remote is absent from config, and `:673-676`
+      `.filter(|u| !u.is_empty())` maps an **empty** configured url to `None`. A removed remote that
+      left stale tracking refs — an ordinary state — lands on the first. Reproduced instantly with
+      `git -C C:/tmp/t4/work update-ref refs/remotes/ghost/main $(git -C … rev-parse main)` and no
+      `remote.ghost.url`: `ghost` drew in the sidebar as a `treeitem` (y 308), and its menu's **Copy
+      URL** came back `disabled: true`, titled "No URL configured" on the item **and** on the
+      wrapper, `wrapped: true`, wrapper width **212px** — identical to the item and to all four
+      enabled rows — inside the 220px `display: block` menu. Ref deleted afterwards.
+      **Do not delete that guard**: removing it would make Copy URL copy an empty string in a state
+      users reach by deleting a remote
 - [x] **Nothing changed where it should not** (§6) — **walked, passes, in both directions.** The
       commit panel held **0** `[role="none"]` wrappers while `Stage all` was enabled, **1** the
       moment the selection made it disabled, and **0** again once a stageable file rejoined the
@@ -896,10 +943,145 @@ half from CDP, and the visual half only once someone has really seen one.
       disabled ones were wrapped. That 0→1→0 is what bounds the blast radius: an enabled control
       renders exactly the DOM it always did, so nothing outside "disabled **and** titled" can have
       moved
-- [ ] **Known not fixed:** `RebaseInteractiveDialog.tsx:182` puts a title on a disabled `<option>`
-      ("No commit above to squash into"). That is a native select option, not a `Button`/`MenuItem`,
-      so it does not go through `DisabledHint` and still shows nothing. Left alone deliberately —
-      native option tooltips are unreliable across platforms anyway. Note it, do not file it
+- [x] **This bullet was wrong — corrected and closed 2026-09-11.** It claimed
+      `RebaseInteractiveDialog.tsx:191` puts a title on a **native** `<option>` that "still shows
+      nothing". Measured over CDP in the rebase dialog: there is no native `<select>` and **zero
+      `<option>` elements in the DOM**. The `<option>` JSX is consumed as data by `Input.tsx`'s
+      `Select` (`:61-64` reads `value` / `disabled` / `title` off the children), which renders
+      `div[role="option"]` rows with `aria-disabled="true"` (`:228`) and `title={o.title}` (`:229`).
+      An `aria-disabled` div is not pointer-dead, so the title is on a hoverable element — which is
+      what `smoke-cdp.md:41` said all along and what this group's own preamble (`:791`) says too.
+      So the premise for "left alone deliberately" does not hold. **Hover confirmed in a real window
+      2026-09-11**, so this is a behaviour claim now, not only a documentation fix: with the tree
+      clean the toolbar's **Commit** button is `disabled` and wrapped
+      (`<span role="none" title="No changes">`), and parking the **real** cursor on it painted a
+      native **No changes** tooltip, absent from the control grab taken with the cursor parked away.
+      A page screenshot **cannot** see this — the tooltip is an OS-drawn layer outside the page — so
+      it needs the real cursor (`SetCursorPos`) and a screen grab (`Graphics.CopyFromScreen`).
+      Two traps, each of which yielded a confident **wrong** result before a right one.
+      (1) Gate the capture on the app genuinely being **foreground**, asserted immediately before
+      *and* after every grab: `SetForegroundWindow` from a background process is downgraded to a
+      taskbar flash, and a grab of whatever window is really on top is indistinguishable from
+      "no tooltip appeared". Twice the capture was of another window entirely — once of the browser,
+      once of a window that stole focus *mid-run*, after the opening check had already passed.
+      (2) Confirm the button is still **disabled at capture time**. A stray `.playwright-mcp/`
+      snapshot file dirtied the working tree, which re-enabled **Commit** and produced a perfectly
+      real tooltip — of the *enabled* button's own `title` (`1 change`), which proves nothing about
+      the wrapper
+
+## AF. Squash past a drop, Alt+Arrow, banner freshness (main §2, §5)
+_Shipped 2026-09-11 (`cb7c994`); **walked the same day over CDP on a build made for it** — all five
+boxes pass, and the two group Z re-walks above with them. Three changes, one of which reaches the
+whole app. (1) `canSquash` no longer refuses a member whose group head is `drop` — git accepts it, and with
+`pick A / drop B / fixup C` it removes B and folds C into A. `groupOf` returns a contiguous span so
+the drop travels with the group. (2) `Input.tsx` used to bail out of the Select's key handler on
+**every** Alt chord, app-wide, purely so the rebase list could move a row while a Select had the
+focus; the list claims the chord in the capture phase now, and only when the move is legal, so the
+combobox has Alt+↓ opens / Alt+↑ commits back. (3) The rebase banner chose its wording from
+`status.conflicted === 0`, which a status scanned **before** the rebase began also satisfies;
+`WorkdirStatus` now carries the `RepoState` it was scanned in and the banner takes the pause wording
+only when that agrees with the refs._
+
+_**Fixture first.** These want `c:/tmp/t4/irebase` in the shape group Z's preamble describes
+(`base — add a — add b — [side: add s1] merged — fixup! add b — add d — add e`). A walk **rewrites**
+it — that is the point of it — so it is drifted more often than not: the 2026-09-07 walk left
+`add e (reworded)` and `e and s1 together (rewalk reword)` behind, and this one consumed it twice
+more. `smoke-fixtures.ps1` builds `work` only and never touched this one, so 2026-09-11 added
+**`docs/irebase-fixture.sh`**: it wipes and rebuilds the whole shape, including `mid` / `side` /
+`other` and the resting dirty state (` M a.txt`, `A dirty.txt`), with a repo-local identity so
+`~/.gitconfig` is never involved. Run it before the group and again between boxes that rewrite
+history. It opens with `rm -rf`, so **point the app at another repository first** — a wipe under an
+open repo can fail on a locked file and leave the fixture half-built._
+
+- [x] **Squash past a drop** (§2) — **walked 2026-09-11, passes.** From `add a`, **tick Flatten
+      first**: with Keep merges the merge row sits between `add s1` and `add d`, and `pickAbove`
+      stops there (a merge line is not a pick), so `add e` would be refused for that reason and the
+      box would read as a failure it isn't. Proof it is the barrier and not the fix: under Keep
+      merges `add d`'s own squash/fixup were disabled and titled "No commit above to squash into";
+      flattening enabled them. Flattened, set `add d` → `drop` and `add e` → `fixup`. **Control
+      first** — with `add d` still `pick`, every option on `add e` is enabled; after the drop they
+      are *still* enabled, unchanged, which is the assertion (before this commit the drop above
+      disabled them). Todo read `pick / pick / fixup / pick / drop / fixup`, Rebase enabled, no
+      validation line and **no textarea** (fixups carry no message, and no squash was present).
+      **Rebase** → `base — add a — add b — add s1`: `add d` gone and `d.txt` gone from the tree, no
+      merge commit, and `add s1` (`4e2a113`) carries **both `s1.txt` and `e.txt`** — folded into the
+      pick *above* the drop. `b.txt` held `b` + `b fixed`, so the autosquash fixup folded too; the
+      dirty tree came back (` M a.txt`, `A dirty.txt`) with `stash list` empty; `mid` and `side`
+      stayed on their old oids, `--update-refs` being unticked. All of it read from `git`, none from
+      the dialog. **Not** evidenced: the `Rebased main` toast — it was read too late and had already
+      gone, so only the git outcome is on the record
+- [x] **A run of drops is still no ladder** (§2) — **walked 2026-09-11, passes.** This is the half of
+      the change that must **not** have moved. Over the three rows `add a` / `add b` / `add s1`: set
+      `add s1` → `squash`, then `drop` **both** rows above it. `add s1`'s squash and fixup came back
+      `aria-disabled="true"` titled "No commit above to squash into", the **Rebase button was
+      disabled**, and the textarea was gone (a lone squash forms no group, so `needsMessage` is
+      false). `pickAbove` walked past both drops and fell off the top, which is the refusal. Two
+      free witnesses on the way: `add a`, the first row, has the same two options disabled with no
+      drops involved at all; and under Keep merges the row just below the merge line does too,
+      because a merge is not a pick (see the box above).
+      **Probe correctly.** Read `aria-disabled`, **not** `disabled` — the action list is not a
+      native select (see the AE correction below) but `Input.tsx`'s own listbox of
+      `div[role="option"]` rows with a live `title`. And the validation line is **not** in a `<p>`:
+      it is `span._problem_` inside the dialog, reading `4e2a113 has no commit above it to squash
+      into`. A probe that scans paragraphs finds nothing and reads as a pass
+- [x] **A dropped row inside a group keeps the message box** (§2) — **walked 2026-09-11, passes.**
+      Build `pick` / `drop` / `squash` over three adjacent rows. The textarea must stay up and the
+      drop must resolve to the group it sits *inside*, not to a group of its own.
+      **It re-keys, which is more than "stays up".** With `add a` pick / `add b` pick / `add s1`
+      squash the box was labelled `Message for afb6e0d` (`add b`, the head at that moment) holding
+      `add b\n\nadd s1`. Setting `add b` → `drop` re-keyed it to **`Message for 95ad317`** (`add a`,
+      the new head past the drop) and recomposed the default to `add a\n\nadd s1` — the head walk
+      stepping over the dropped row, visible in the UI.
+      **The edit survives a round trip**: typed `EDITED-KEYED-BY-HEAD`, clicked away to another row,
+      clicked back **onto the dropped row** — box still up, still labelled `Message for 95ad317`,
+      still holding the edit, with the drop itself the active row. That is `validate` and the dialog
+      agreeing to key by the group's head rather than the drop's own oid.
+      **And it lands.** On a re-seeded fixture, flattened, `add d` → `drop` and `add e` → `squash`:
+      the box came up `Message for 47c1fe0` (`add s1`, again the head past the drop) defaulting to
+      `add s1\n\nadd e`; typed `BOX3-MESSAGE-LANDED` → **Rebase** → toast `Rebased main`, and
+      `git log` gave `base — add a — add b — BOX3-MESSAGE-LANDED`, that commit carrying `e.txt` and
+      `s1.txt` together, `add d` and `d.txt` gone, `b.txt` holding the folded fixup, the dirty tree
+      back and `stash list` empty.
+      Selection is a **class** (`_rowActive_`), not `aria-selected` — assert on that
+- [x] **Alt+Arrow in every dropdown** (§2, §6) — **the app-wide one. Walked 2026-09-11, passes in all
+      four cases.** No test can stand in for it: jsdom has neither the capture-phase handoff against a
+      real listbox nor a native combobox's feel.
+      **Away from the rebase list** — the toolbar's **Branch filter** serves with no setup (the Push
+      remote picker or Create branch would do as well). Alt+↓ opened it (`aria-expanded` true, focus
+      kept on the button); ArrowDown moved the active option to `HEAD` while the value still read
+      `All branches`; Alt+↑ then **set the value to `HEAD` and closed** — and the commit grid
+      re-filtered to 12 rows, so the change reached the store, not just the label.
+      **In the rebase action Select**, the case the capture handler exists for, all three:
+      on the **last** row (move down refused) Alt+↓ **fell through and opened its own dropdown**,
+      leaving the row order untouched; on the **first** row (move up refused) Alt+↑ **committed the
+      active option** — value went `drop` → `edit`, list closed, order unchanged; and on a row whose
+      move **was** legal, Alt+↑ **moved the row** (`add s1` swapped above `add b`) and did *not*
+      commit the highlighted option. That contrast is the whole design.
+      **Two things a re-walk must get right, both of which made my first attempt inconclusive.**
+      (1) The highlight **parks on disabled options** — ArrowUp from `drop` stopped on `fixup`, which
+      carries `aria-disabled` (correct ARIA: `aria-disabled` rows stay navigable, unlike `disabled`).
+      Alt+↑ over a disabled option closes **without committing**, which reads exactly like a no-op.
+      So measure `aria-activedescendant` *before* pressing Alt+↑ and pick an **enabled** option that
+      differs from the current value, or the test proves nothing. (2) Pick the row by which move is
+      **refused**, not by position: the last row still moves *up* happily, so Alt+↑ there exercises
+      the list, not the Select.
+      **Every other Alt chord is left alone — measured 2026-09-11.** On the Branch filter, closed:
+      Alt+Home, Alt+End and Alt+Enter each left the value (`All branches`), `aria-expanded` and the
+      button's own focus untouched. Open: Alt+End neither closed the list nor moved
+      `aria-activedescendant` off `All branches`. State it precisely, though — the one Alt chord that
+      **is** handled is **Alt+↓**, which opens the listbox. That is the standard ARIA combobox chord
+      and is deliberate, not a leak from the rebase list
+- [x] **No phantom conflicts after an abort** (§5) — **walked 2026-09-11, passes.** Continues
+      straight on from the conflicted rebase in the Z re-walk above, with the same
+      `MutationObserver` still armed. **Abort** → the log's next and final entry took **both**
+      banners to empty in a *single* transition: no intermediate state in which the conflicts banner
+      outlived the rebase banner, which is exactly the stale non-zero count this had to rule out.
+      `computeBanners` resolves the status once and both banners share the freshness rule, and that
+      is what the single transition shows. Git confirmed the restore: back on `other` at `other d`,
+      the dirty tree returned from the autostash (` M a.txt`, `A dirty.txt`), no `rebase-merge/` or
+      `REBASE_HEAD`, no unmerged paths, `stash list` empty.
+      Wait on the rebase banner's text **disappearing** rather than sleeping a fixed time — the wait
+      is itself the assertion, and it fails loudly if the banner never clears
 
 ## Reporting
 

@@ -138,8 +138,22 @@ export function Select({ value, onChange, children, disabled, autoFocus, classNa
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
-    // Alt+↑/↓ belongs to whatever holds the list (the interactive rebase moves the focused row with it).
-    if (e.altKey) return;
+    // Alt+↓ opens the list and Alt+↑ takes the active option with it (a native select and the ARIA
+    // combobox pattern both commit on that chord); every other Alt chord belongs to whatever holds
+    // the combobox (the interactive rebase claims Alt+↑/↓ in the capture phase, before this runs).
+    // A chord we act on stops here, like Escape below: an ancestor must not act on it as well.
+    if (e.altKey) {
+      if (e.key === "ArrowDown" && !open) {
+        e.preventDefault();
+        e.stopPropagation();
+        show();
+      } else if (e.key === "ArrowUp" && open) {
+        e.preventDefault();
+        e.stopPropagation();
+        pick(active);
+      }
+      return;
+    }
     if (!open) {
       if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter" || e.key === " ") {
         e.preventDefault();

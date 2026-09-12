@@ -10,7 +10,7 @@ vi.mock("../api/ipc", async (importOriginal) => {
     ...actual,
     getFileDiff: vi.fn(),
     getChangedFiles: vi.fn(() => Promise.resolve([])),
-    getStatus: vi.fn(() => Promise.resolve({ entries: [], staged: 0, unstaged: 0, untracked: 0, conflicted: 0 })),
+    getStatus: vi.fn(() => Promise.resolve({ entries: [], staged: 0, unstaged: 0, untracked: 0, conflicted: 0, state: "clean" })),
     getRefs: vi.fn(() => Promise.resolve(REFS)),
     refreshLabels: vi.fn(() => Promise.resolve(1)),
     startLog: vi.fn(() => Promise.resolve(1)),
@@ -60,7 +60,7 @@ const REPO: RepoSummary = { id: "r", name: "r", path: "r", head: { oid: "h", bra
 
 const entry = (path: string, workdir: StatusEntry["workdir"] = "modified", stamp: string | null = "1:1"): StatusEntry => ({ path, oldPath: null, index: null, workdir, conflicted: false, workdirStamp: stamp });
 
-const status = (entries: StatusEntry[]): WorkdirStatus => ({ entries, staged: 0, unstaged: entries.length, untracked: 0, conflicted: 0 });
+const status = (entries: StatusEntry[]): WorkdirStatus => ({ entries, staged: 0, unstaged: entries.length, untracked: 0, conflicted: 0, state: "clean" });
 
 const diff = (path: string, text: string): FileDiff => ({
   path,
@@ -189,7 +189,7 @@ describe("commitStore.syncWithStatus", () => {
     expect(useCommitStore.getState()).toMatchObject({ list: "unstaged", anchor: "a.rs" });
 
     // Everything staged: the unstaged list is empty, so the focus moves to the staged one.
-    const staged: WorkdirStatus = { entries: [{ path: "a.rs", oldPath: null, index: "modified", workdir: null, conflicted: false, workdirStamp: null }], staged: 1, unstaged: 0, untracked: 0, conflicted: 0 };
+    const staged: WorkdirStatus = { entries: [{ path: "a.rs", oldPath: null, index: "modified", workdir: null, conflicted: false, workdirStamp: null }], staged: 1, unstaged: 0, untracked: 0, conflicted: 0, state: "clean" };
     useStatusStore.setState({ status: staged, error: null });
     useCommitStore.getState().syncWithStatus(staged);
     await flush();

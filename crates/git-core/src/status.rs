@@ -7,6 +7,7 @@ use git2::{Repository, Status, StatusOptions};
 use serde::{Deserialize, Serialize};
 
 use crate::diff::FileStatus;
+use crate::refs::RepoState;
 use crate::{map_git2, GitError};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -39,6 +40,10 @@ pub struct WorkdirStatus {
     pub unstaged: u32,
     pub untracked: u32,
     pub conflicted: u32,
+    /// The repository state this scan ran in (a `.git` read, not part of the scan).
+    /// A status whose `state` disagrees with the current refs predates the change
+    /// and says nothing about the new one — the UI has to wait for the next scan.
+    pub state: RepoState,
 }
 
 /// `<mtime ms>:<size>` of a working-tree file — the pair git's own index cache
@@ -106,6 +111,9 @@ pub fn status(repo: &Repository) -> Result<WorkdirStatus, GitError> {
         .include_ignored(false)
         .exclude_submodules(true)
         .update_index(true);
+    // Read before the scan, not after it: the stamp has to describe the tree this scan saw, so a
+    // state change while it runs (up to 1.5 s) reads as a mismatch rather than as a match.
+    let state: RepoState = repo.state().into();
     let statuses = repo.statuses(Some(&mut opts)).map_err(map_git2)?;
 
     let mut entries = Vec::with_capacity(statuses.len());
@@ -115,6 +123,7 @@ pub fn status(repo: &Repository) -> Result<WorkdirStatus, GitError> {
         unstaged: 0,
         untracked: 0,
         conflicted: 0,
+        state,
     };
     for e in statuses.iter() {
         let s = e.status();

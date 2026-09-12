@@ -103,10 +103,16 @@ export function RebaseInteractiveDialog({ onClose, base, ontoLabel }: { onClose:
   }
 
   // Alt+↑ / Alt+↓ on the focused row; the rows are keyed by oid, so the moved one keeps the focus.
+  // Capture phase: the chord is the list's, so it is claimed before the row's action Select sees it.
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (!e.altKey || sel === null || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
+    const up = e.key === "ArrowUp";
+    // Only claim the chord when the move can happen: a refused one (the end of the list, or a merge
+    // barrier) falls through to the row's Select, where Alt+↓ opens the dropdown as it does elsewhere.
+    if (!(up ? canMoveUp(items, sel) : canMoveDown(items, sel))) return;
     e.preventDefault();
-    move(sel, e.key === "ArrowUp" ? -1 : 1);
+    e.stopPropagation();
+    move(sel, up ? -1 : 1);
   }
 
   function setAction(i: number, action: Action) {
@@ -160,11 +166,14 @@ export function RebaseInteractiveDialog({ onClose, base, ontoLabel }: { onClose:
         <DialogText>{error}</DialogText>
       ) : (
         <>
-          <div className={s.list} onKeyDown={onKeyDown}>
+          <div className={s.list} onKeyDownCapture={onKeyDown}>
             {items.map((it, i) => {
               if (it.kind === "hidden") return null;
               const c = rowCommit(it);
               const merge = it.line.kind === "merge";
+              // Once per row, not once per option: both squash and fixup ask, and the walk behind it
+              // rescans any run of dropped rows above.
+              const squashable = merge ? false : canSquash(items, i);
               return (
                 <div
                   key={merge ? `m${i}` : c!.oid}
@@ -177,7 +186,7 @@ export function RebaseInteractiveDialog({ onClose, base, ontoLabel }: { onClose:
                   ) : (
                     <Select className={s.action} aria-label={`Action for ${c!.short}`} value={it.action} onChange={(e) => setAction(i, e.target.value as Action)}>
                       {ACTIONS.map((a) => {
-                        const off = (a === "squash" || a === "fixup") && !canSquash(items, i);
+                        const off = (a === "squash" || a === "fixup") && !squashable;
                         return (
                           <option key={a} value={a} disabled={off} title={off ? "No commit above to squash into" : undefined}>
                             {a}

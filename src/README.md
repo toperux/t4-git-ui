@@ -189,7 +189,8 @@ src/
                            non-zero exit unless conflicts / auth / non-fast-forward / diverged, the dock's exit line says it;
                            busyLabel cuts the label by code point with a marker runOp keeps),
                            banners.ts (pure refs+status → detached | merge | rebase (Abort · Skip · Continue; with
-                           nothing conflicted the text is the `edit` / exec pause, not "resolve conflicts") |
+                           nothing conflicted and the status agreeing with refs about which state it was scanned in,
+                           the text is the `edit` / exec pause, not "resolve conflicts") |
                            cherryPick | revert (each Abort +
                            the way forward: Commit for merge / pick / revert, Continue for rebase) | sequencer (bisect,
                            text only — no backend abort) | conflicts banners),
@@ -352,7 +353,9 @@ cancelled is exempt — its kill exits non-zero too, and whoever pressed Cancel 
 Dialogs are one at a time (`dialogStore` → `DialogHost`) and every option-bearing action gets one, with a
 "Runs `git …`" preview built by `dialogs/gitArgs.ts` (a mirror of `crates/git-core/src/cli/ops.rs`, so the preview and
 the real argv stay in step). Banners above the grid come from `banners.ts` — a pure function of `refs.state` / `head` /
-`status.conflicted`, so it re-derives on every `repo://changed`.
+`status.conflicted` / `status.state` (the `RepoState` the status was scanned in — a status scanned in a different
+state predates the change and reads as "not known yet" rather than as "clean"), so it re-derives on every
+`repo://changed`.
 
 ## Adding a component (style guide §7)
 

@@ -792,6 +792,7 @@ mod tests {
             unstaged: 1,
             untracked: 0,
             conflicted: 1,
+            state: crate::refs::RepoState::Merge,
         };
         assert_eq!(parse_conflicts(&st), ["a.txt"]);
 
