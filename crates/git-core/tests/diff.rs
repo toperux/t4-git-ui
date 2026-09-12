@@ -242,6 +242,38 @@ fn rename_with_small_edit() {
 }
 
 #[test]
+fn workdir_rename_pairs_in_the_unstaged_diff() {
+    let t = TempRepo::new();
+    let body: String = (1..=12).map(|i| format!("line {i}\n")).collect();
+    t.commit(&[("old.txt", body.as_str())], "A");
+    // Renamed on disk only: the index still has the old path.
+    std::fs::rename(t.path().join("old.txt"), t.path().join("new.txt")).expect("rename");
+
+    let s = status(&t.repo).expect("status");
+    assert_eq!(s.entries.len(), 1);
+    assert_eq!(s.entries[0].path, "new.txt");
+    assert_eq!(s.entries[0].workdir, Some(FileStatus::Renamed));
+    assert_eq!(s.entries[0].old_path.as_deref(), Some("old.txt"));
+
+    let files = changed_files(&t.repo, &DiffTarget::Unstaged).expect("unstaged");
+    assert_eq!(files.len(), 1, "{files:?}");
+    assert_eq!(files[0].status, FileStatus::Renamed);
+    assert_eq!(files[0].path, "new.txt");
+    assert_eq!(files[0].old_path.as_deref(), Some("old.txt"));
+
+    // The unstaged diff has to agree, by either half of the pair.
+    for p in ["new.txt", "old.txt"] {
+        let d = file_diff(&t.repo, &DiffTarget::Unstaged, p, &DiffOptions::default())
+            .unwrap_or_else(|e| panic!("file_diff {p}: {e:?}"));
+        assert_eq!(d.status, FileStatus::Renamed, "by {p}");
+        assert_eq!(d.path, "new.txt", "by {p}");
+        assert_eq!(d.old_path.as_deref(), Some("old.txt"), "by {p}");
+        // 100% similar: nothing to show.
+        assert!(d.hunks.is_empty(), "by {p}: {:?}", d.hunks);
+    }
+}
+
+#[test]
 fn root_commit_is_all_added() {
     let t = TempRepo::new();
     let a = t.commit(&[("a.txt", "1\n2\n"), ("d/b.txt", "x\n")], "root");

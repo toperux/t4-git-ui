@@ -160,7 +160,9 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the first two perfo
       untracked control is the point: a staged-file count reads identically whether the button acted
       on the selection or on the list, so only an unselected file can tell them apart. Header
       geometry never moved — `left 465, right 577, w 112` for `Stage all`, `Stage selected` and
-      `Unstage all` alike, so the `min-width` floor from `bc93b2e` holds across every label
+      `Unstage all` alike, so the `min-width` floor from `bc93b2e` held across every label.
+      (That floor was removed 2026-09-12 — it ellipsised the `Unstaged` title at a 220px column —
+      so the button now widens leftward by 33px while a multi-selection shows; see post-v1 AD.)
 - [x] Hover a hunk header → **Stage hunk**; click it → only that hunk moves to Staged
 - [x] Scroll to the *second* hunk and click its **Stage hunk** with the mouse → the focus stays in the
       diff, on the changed line now at that spot (a mouse-started focus paints no ring; ↑ / ↓ moves

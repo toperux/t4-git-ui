@@ -232,7 +232,10 @@ fn build_diff<'r>(
     }
     .map_err(map_git2)?;
     let mut find = DiffFindOptions::new();
-    find.renames(true).copies(false);
+    // `for_untracked`: a file renamed on disk without `git mv` is a delete plus
+    // an untracked add, and only then is the untracked half a rename candidate
+    // (no effect on the tree-to-tree targets, which have no untracked side).
+    find.renames(true).copies(false).for_untracked(true);
     diff.find_similar(Some(&mut find)).map_err(map_git2)?;
     Ok(diff)
 }
@@ -334,15 +337,15 @@ pub fn file_diff(
         }
     }
     // The diff of this one path first (cheap: no other content is loaded).
-    // Its other half of a rename is outside that pathspec, so an `Added` or
-    // `Deleted` result may really be a rename: only then is the whole diff
-    // built, where rename detection can pair it up.
+    // Its other half of a rename is outside that pathspec, so an `Added`,
+    // `Deleted` or `Untracked` result may really be a rename: only then is the
+    // whole diff built, where rename detection can pair it up.
     let mut diff = build_diff(repo, target, opts, &[path])?;
     let mut idx = locate(&diff, path);
     let maybe_rename = idx.is_some_and(|i| {
         matches!(
             diff.get_delta(i).map(|d| d.status()),
-            Some(Delta::Added | Delta::Deleted)
+            Some(Delta::Added | Delta::Deleted | Delta::Untracked)
         )
     });
     if idx.is_none() || maybe_rename {

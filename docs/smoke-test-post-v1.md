@@ -812,7 +812,7 @@ header jog, last bullet) and one check that this fixture cannot reach (second-to
       the unselected `decoy.txt` stayed `??`. That untracked control is the whole point — the
       "(2 skipped)" tooltip reads the same whether counted over the selection or the list, so only
       an unselected stageable file proves the action respected the selection
-- [x] **The header does not jog** (§4, §6) — **was a FINDING, 2026-09-11: it jogged.** Measured over CDP:
+- [x] **The header jog is bounded** (§4, §6; was "does not jog" — see the 2026-09-12 note at the end) — **was a FINDING, 2026-09-11: it jogged.** Measured over CDP:
       at rest `Stage all` is `left: 514, width: 63`; flipped, `Stage selected` is `left: 481,
       width: 96`. The right edge stays pinned at 577, so nothing downstream moves — but the button's
       left edge **and the count badge both slide 33px left** (badge `left` 491 → 458). Cause is as
@@ -834,7 +834,14 @@ header jog, last bullet) and one check that this fixture cannot reach (second-to
       `.wrap` carries `min-width: 0` and none of the control's own sizing, so the floor stops
       governing the slot in precisely the conflicted case this feature is about. Both were measured
       with the panel unconstrained, which is why neither showed up here; settling them needs
-      `getBoundingClientRect()` at a 220px panel
+      `getBoundingClientRect()` at a 220px panel.
+      **Measured 2026-09-12 at the files column's 220px minimum (installed build, panel forced by
+      style):** with the floor, the resting `Stage all` header shows `Unstaged` at **15px of 56**
+      (ellipsised); without it, 56 of 56. `Staged` fits either way (no tree toggle beside it).
+      `Stage selected` clips the title in both cases (15 vs 31 of 56). Rule decided at triage:
+      the floor truncates the resting title and no-floor doesn't → **the floor is gone** and the
+      33px jog during a multi-selection is accepted. This box now asserts the *jog* — button and
+      badge slide left while "…selected" shows and return on a single click — not its absence.
 
 ## AE. Tooltips on disabled controls (main §2, §4, §5, §6)
 _Shipped 2026-09-11 (this commit). Chromium gives a disabled control no pointer events, so its

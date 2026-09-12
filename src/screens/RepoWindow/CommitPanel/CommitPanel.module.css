@@ -24,10 +24,12 @@
 .headerBtn {
   height: var(--control-h-sm);
   font-size: var(--text-xs);
-  /* The label flips to "…selected" with a multi-selection, which costs the same +33px on both
-     buttons; "Unstage selected" is the widest at 110px. Without a floor the button grows leftward
-     out of the right-aligned slot and drags the count badge with it. */
-  min-width: 112px;
+  /* No width floor on purpose. The label flips to "…selected" with a multi-selection (+33px), so
+     the button and the count badge slide left for as long as the selection lasts. A 112px floor
+     held them still, but the panel title is the only flexible item in this header and paid for
+     it: at the column's 220px minimum "Unstaged" ellipsised to 15px of 56 in the resting
+     "Stage all" state (measured 2026-09-12), while without the floor it fits. The jog is the
+     cheaper of the two. */
 }
 .list {
   flex: 1 1 0;
