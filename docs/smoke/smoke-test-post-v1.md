@@ -1528,6 +1528,143 @@ https / ssh. Walked 2026-09-13 with AO._
       WebKitGTK build links. Not walked in the Linux app: the WSLg window sat behind the live
       desktop and the driver sends input to whatever is focused (see `smoke-cdp.md`)
 
+## AQ. Bisect (main §2, §5)
+_Fixture: `c:/tmp/t4/irebase` (`docs/smoke/fixtures/irebase-fixture.sh`) — `main` at `add e`, with
+`base — add a — add b — merge side — fixup! add b — add d (branch mid) — add e` behind it. Walked
+2026-09-14 over CDP on a release build of `653e90b`; all rows pass (the terminal mark landed as the
+final `bad`, so the chip moved to HEAD and the banner followed)._
+
+- [x] **Mark bad from a row starts it**: right-click `add e` → **Bisect: mark bad** → the banner
+      reads *Bisecting — mark a good commit to begin* with only **Reset**; `add e`'s row carries a
+      `bad` chip (Bug icon)
+- [x] **Mark good moves HEAD**: right-click `add a` → **Bisect: mark good** → `add a` carries a
+      `good` chip, HEAD moves to git's own midpoint and the banner reads *Bisecting — testing
+      <oid7> · 1 good · 1 bad* with **Good** / **Bad** / **Skip** / **Reset**
+- [x] **Banner buttons act on HEAD**: click **Good** (or **Bad**, or **Skip**) on the banner → the
+      commit HEAD was sitting on gets the matching chip, HEAD moves again, the banner's counts and
+      testing oid follow
+- [x] **Detached banner is suppressed**: throughout the bisect, no *Detached HEAD at …* banner shows
+      even though HEAD is detached at each step
+- [x] **Reset returns to the branch**: click **Reset** on the banner → the banner is gone, HEAD is
+      back on `main`, every `good` / `bad` / `skip` chip is gone
+- [x] **Good-first ordering**: start again by right-clicking `add a` → **Bisect: mark good** first →
+      the banner reads *Bisecting — mark a bad commit to begin* with only **Reset**
+- [x] **A terminal mark is picked up**: with a bisect running, `git bisect good` (or `bad`) from a
+      shell in `irebase` → the watcher (or F5) shows the new chip and the banner's counts without
+      restarting the app
+
+## AR. GPG signing (main §1, §3, §6)
+_Walk with `gpg.format=ssh` on `c:/tmp/t4/irebase` (or any repo). The walker's own `~/.gitconfig`
+must be restored afterwards — dump it first if it exists. A `HOME` override does not isolate it:
+libgit2 resolves the Windows profile folder itself, so the app writes the real file (learned
+2026-09-14). Walked 2026-09-14 over CDP on `653e90b` with the user's OK to back up and restore the
+real file (restored byte-exact afterwards); all rows pass. The commits carried a `gpgsig` header, the
+tag a `BEGIN SSH SIGNATURE` block. Row 8 was walked by moving the file aside: the Settings section
+kept showing the values it had loaded, and the save created a file holding only the new key._
+
+- [x] **Settings shows the current global values**: Settings (toolbar gear) → **Signing** → Format
+      reads whatever `git config --global gpg.format` is (`OpenPGP (gpg)` when unset), Signing key
+      and Program are empty unless already set, **Sign commits** / **Sign annotated tags** reflect
+      `commit.gpgsign` / `tag.gpgsign`
+- [x] **Set format, key, gpgsign**: Format → **SSH** → the Program field's label switches to
+      `gpg.ssh.program`; Signing key → a path to an SSH public key → blur or Enter saves it;
+      **Sign commits** ticked → all three land in `git config --global --get gpg.format` /
+      `user.signingkey` / `commit.gpgsign`
+- [x] **Commit signed, "as configured"**: in `irebase`, commit a change with the Commit panel's
+      **Sign: as configured** Select left as is → the details pane's `signed` chip shows, tooltip
+      *This commit carries a signature (not verified)*
+- [x] **Don't sign this commit**: Select → **Don't sign this commit** → Commit → no `signed` chip;
+      the output dock's commit line ends in `--no-gpg-sign`
+- [x] **Sign this commit with gpgsign off**: Settings → untick **Sign commits** → back in the panel,
+      Select → **Sign this commit** → Commit → the dock line carries `-S`
+- [x] **Annotated tag while gpgsign is on**: with **Sign annotated tags** ticked, create an annotated
+      tag → the dock line reads `git tag -a -F <message file> --end-of-options <name> <target>`
+- [x] **Clearing a field unsets it**: Settings → clear Signing key → blur → `git config --global
+      --get user.signingkey` fails (the key is gone), the field shows the `Not set` placeholder
+- [x] **A missing `~/.gitconfig` is created**: with no `~/.gitconfig` on disk, set any signing value
+      from Settings → the file exists afterwards with that value in it
+
+## AS. Repository tabs, windows, drag and drop (main §1, §6)
+_Any two or three repositories from recents (`mbk-portal`, `c:/tmp/t4/linked`, `c:/tmp/t4/irebase`).
+The layout lives in `%APPDATA%\dev.topher.t4gitui\layout.json`. Walked 2026-09-14 over CDP on a
+release build of `37ce413`; the two rows marked ⌂ need a real pointer and an uncovered second window
+(a maximized browser over the app makes the hit test answer "not ours", which is correct) — walked
+2026-09-14 on `653e90b` with a user32 `SetCursorPos` / `mouse_event` drag (`drag.ps1` in the session
+scratchpad), the second window moved beside the first with `SetWindowPos`; both pass. The second
+review pass (`e2a4247`) was re-checked in the app 2026-09-14: Ctrl+W and Ctrl+Shift+N refused while
+a commit runs (a `pre-commit` hook that sleeps), a `tab-spawn-failed` event reopens its tabs one
+after another and toasts the one that is not a repository, a whitespace preference flipped in one
+window's Settings reaches the other window's diff, marking a commit bad while a cherry-pick is in
+progress starts the bisect, and a stash preview survives a branch added from a shell (the walk
+restarts, the preview stays)._
+
+- [x] **A second open is a tab**: Repository › a recent → a tab strip appears above the toolbar with
+      both names, the new one active, title `T4 Git - <new>`; with one tab the strip is hidden
+- [x] **Switching restores the state**: select a commit, type a commit message, switch tabs and back →
+      selection and draft are as left; Ctrl+Tab / Ctrl+Shift+Tab cycle, Ctrl+1..9 jump
+- [x] **Stale dot**: touch a file in the background tab's repository from a shell → a dot
+      (`Changed`) on its tab; activate it → the dot goes and the change list shows the file
+- [x] **Move to new window**: tab menu › **Move to new window** (Ctrl+Shift+N) → a second window
+      with that tab alone and its own title; the source loses the tab
+- [x] **Already open elsewhere**: open the moved repository from the first window's recents → the
+      other window comes forward, no tab is added, no toast
+- [x] **Last tab closes a secondary window**: Ctrl+W on the second window's only tab → the window
+      closes; on the main window it goes back to the start screen
+- [x] **Reorder by drag**: with two tabs, press a tab and drag it sideways along the strip → the
+      order follows the pointer, the dragged tab fades; release → the order stays, the active tab
+      is unchanged
+- [x] **Tear off**: drag a tab down out of the strip → the tab's slot empties and a ghost chip with
+      its name follows the cursor; release anywhere that is not another T4 Git window → a new window
+      opens at the cursor with that tab; a window's only tab cannot be torn off (nothing happens)
+- [x] **Drop on another window** ⌂: drag a tab from one window onto the strip of another → a caret in
+      the target strip marks the slot (the strip appears there even with one tab); release → the
+      target adopts the tab at the caret, comes forward, and the source loses it — no re-open, the
+      repository was never closed
+- [x] **Escape cancels** ⌂: mid-drag press Escape → the ghost goes, the tab returns to where it was,
+      the other window's caret goes
+- [x] **The repository name is a drag handle** ⌂: with one tab (strip hidden) press the toolbar's
+      repository button and drag → once the cursor leaves the button (24 px of slack) a ghost
+      follows it, the menu does not open; release on another window → it adopts the tab and this
+      window goes to the start screen (a secondary window closes); release anywhere else → nothing,
+      the only tab is never torn off, and Enter on the still-focused button opens the menu; a plain
+      click or a slip of a few pixels still opens the menu. Walked 2026-09-14 on `46707b2`, re-walked
+      on `e2a4247` (slip, drop on nothing + Enter, adoption) with the real-pointer script
+- [x] **Quit keeps every window**: two windows → Repository › **Quit** (Ctrl+Q) → both close;
+      `layout.json` lists both with their tabs; relaunch → both come back, tabs and active tab as
+      left. Closing windows one at a time instead drops each from the file (by design)
+- [x] **Layout on every change**: after each open / close / move, `layout.json` matches what is open
+
+## AT. Stash preview and browser, sidebar headers, folder rows (main §2, §4)
+_`c:/tmp/t4/irebase` or any repo with stashes — `git stash` a dirty tree first if it has none. Walked
+2026-09-14 over CDP on `653e90b` (irebase for the stash rows, mbk-portal for the sidebar rows); the
+native confirms were answered with a SendKeys Enter on the `#32770` dialog. All rows pass. Observed:
+with the last stash gone the browser's file list and diff show the grid's selected commit rather than
+going blank — harmless, noted._
+
+- [x] **Click a stash row → preview**: Sidebar › **Stashes** → click a stash row → the commit panel
+      is replaced by the stash's `StashDetails`: Apply · Pop · Drop… · **Open browser**, Kv rows
+      **On** (the branch it was made on) / **Date**, and the file list is the stash's changes with
+      an untracked file shown "included, listed as added"
+- [x] **Diff and Untracked wording**: click a file in the list → its diff renders; hover or read the
+      Untracked row's text — it reads the "included, listed as added" wording, not a plain modified
+- [x] **Apply / Pop / Drop from the preview**: **Apply** → the stash's changes land in the working
+      tree, the stash list is unchanged; **Pop** on another stash → changes land and the row is gone
+      from the list; **Drop…** → confirm → the row is gone, no changes applied
+- [x] **Open browser**: **Open browser** on the preview (or the sidebar's **Manage stashes** icon
+      button in the Stashes header, or Toolbar › **Manage stashes…**, or `Ctrl+Shift+S`) → the
+      `StashesDialog` lists every stash, an inline push form at the top, and Apply / Pop / Drop on
+      each row
+- [x] **Clear all**: in the browser, **Clear all** → the confirm text names the stash count → confirm
+      → every stash is gone, `git stash list` is empty
+- [x] **Sections default state**: on a fresh launch (or a repo opened for the first time), **Stashes**
+      is collapsed while **Worktrees** and **Submodules** are open
+- [x] **Sticky headers**: with enough branches to scroll the sidebar, scroll the **Local** /
+      **Remotes** section → its header stays pinned at the top of the panel while the branch rows
+      scroll under it
+- [x] **Folder rows look like folders**: in the sidebar (a branch with `/` in its name) and in the
+      commit panel's tree view / Files tab (a nested path) alike, the folder row shows the folder
+      icon, bold text and the `--folder-fg` colour, distinct from a leaf row
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the

@@ -53,6 +53,18 @@ the README's "Next" line (review item H4). Nothing here is scheduled yet — pic
   compare* rather than the two pointers (its ours / theirs items still resolve it); the other
   dialogs still close on `runOp`'s busy short-circuit (a `ran` flag on `runOp` is the fix if it
   ever bites). Both leave §C.
+- Shipped 2026-09-14, after v0.8.0 (`4f01248..37ce413`, plan
+  `docs/archive/plans/2026-09-13-tabs-bisect-gpg.md`): **repository tabs and windows** (one tab per
+  open repository, snapshot / restore on switch, stale dot, Move to new window, pointer-capture drag
+  to reorder / tear off / drop on another window — the cross-window hit test is `WindowFromPoint`,
+  Windows only — `layout.json` restored window by window, Quit), **bisect** (row marks, banner loop,
+  `refs/bisect/*` chips), **signing** (a Settings section over the global signing keys, a
+  per-commit override, a `signed` chip, annotated tags through the CLI), **stash preview and
+  browser**, sticky sidebar section headers (stashes collapsed by default) and folder rows drawn as
+  folders. Smoke groups AQ–AT: AQ, AS and AT walked 2026-09-14 over CDP (AS's two real-pointer rows
+  are still open; AR and AT complete — AR writes the walker's own `~/.gitconfig`, and a `HOME`
+  override does not redirect libgit2 on Windows, so it ran with a backup and a byte-exact restore). The toolbar's repository name is the drag handle
+  for a window's only tab (`46707b2`, the strip stays hidden with one tab); adoption is Windows only. All three leave §C.
 - Sources this list replaces: `docs/archive/plans/2026-08-31-git-ui-v1-plan.md` › Known gaps (kept there as the v1
   record, not updated further), `docs/archive/reviews/2026-09-01-codebase-review.md` › Triage rows marked
   defer/later, README › Status / roadmap.
@@ -137,11 +149,9 @@ The rest needs machines we do not have:
   Revisit only if Tauri's pin starts carrying something this app does call.
 
 ## C. Roadmap — v1 out-of-scope, unchanged, unscheduled
-Bisect (`RepoState::Bisect` and a button-less banner already exist) · GPG config UI (signing
-already works — commits run through the CLI; this is only a Settings section over `config.rs`) ·
-custom titlebar (revisited in M6, native kept) · multi-repo tabs (state is already keyed by
-`RepoId`; a worktree's or submodule's **Open** becomes "open in a tab" then) · i18n · plugins.
+Custom titlebar (revisited in M6, native kept) · i18n · plugins.
 ~~Submodules · worktrees~~ — shipped 2026-09-13, see the Context bullet.
+~~Bisect · GPG config UI · multi-repo tabs~~ — shipped 2026-09-14, see the Context bullet.
 
 ## D. Small UI observations from the 2026-09-05 walks — done 2026-09-05
 Collected in `docs/archive/walks/2026-09-05-v1-smoke-rewalk.md` (Observations) and the re-walk chat. All

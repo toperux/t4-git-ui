@@ -18,7 +18,12 @@ Rust core (`git2` for reads and the index, the system `git` for everything that 
 - Light and dark themes following the OS, or a toggle in the toolbar; no flash on launch; every colour pair audited for WCAG contrast.
 - **Settings** — git executable, theme (light / dark / follow the OS), diff context lines and whitespace default; applied on change, the git path on Apply.
 
-Shipped since v1: cherry-pick / revert from a commit row, interactive rebase, and in-app updates. Still not here: blame, file history, submodules, worktrees, bisect, multi-repo tabs.
+- **Tabs and windows** — every open repository is a tab; drag a tab (or the toolbar's repository name) to reorder it, tear it off into a window of its own, or drop it on another window; Quit brings every window back next launch.
+- **Bisect** — mark a commit good or bad from its row, then drive the loop from the banner; the marks show as chips.
+- **Stashes** — click one to preview it in place of the commit panel (untracked files included), or manage them all in a browser.
+- **Signing** — a Settings section over the global `gpg.format` / `user.signingkey` / `commit.gpgsign` / `tag.gpgsign`, a per-commit override, and a `signed` chip on signed commits.
+
+Shipped since v1: cherry-pick / revert from a commit row, interactive rebase, in-app updates, blame, file history, submodules, worktrees, bisect, tabs and windows.
 
 ## Install
 
