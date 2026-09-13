@@ -44,6 +44,10 @@ export type DialogSpec =
   /** `url` is the remote's current fetch URL, `null` when it has none configured. */
   | { kind: "setRemoteUrl"; name: string; url: string | null }
   | { kind: "removeRemote"; name: string }
+  /** `branch` preselects an existing branch to check out in the new worktree (from a branch row). */
+  | { kind: "addWorktree"; branch?: string }
+  | { kind: "removeWorktree"; path: string }
+  | { kind: "lockWorktree"; path: string }
   | { kind: "stashPush" }
   /** Apply / Pop / Drop of one stash. */
   | { kind: "stash"; index: number; message: string };

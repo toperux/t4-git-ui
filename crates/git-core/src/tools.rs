@@ -14,7 +14,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use git2::{Config, ErrorCode, Oid, Repository, Tree};
+use git2::{Config, ErrorCode, FileMode, ObjectType, Oid, Repository, Tree};
 use serde::{Deserialize, Serialize};
 
 use crate::conflict;
@@ -388,16 +388,32 @@ pub(crate) fn temp_subdir(base: PathBuf, sub: &str) -> Result<PathBuf, GitError>
     Ok(dir)
 }
 
-/// Blob id of `path` in `tree`, `None` when the side does not have the file.
-fn blob_in(tree: Option<&Tree<'_>>, path: &str) -> Option<Oid> {
-    tree?.get_path(Path::new(path)).ok().map(|e| e.id())
+/// Blob id of `path` in `tree`, `None` when the side does not have the file —
+/// a gitlink included: its id names a commit in another repository, so there is
+/// no blob to write out and the side is the empty one. Only a diff whose *both*
+/// sides come out that way is refused (see [`open_diff_tool`]); a gitlink
+/// replaced by a real file still has the file to show.
+fn blob_in(tree: Option<&Tree<'_>>, path: &str) -> Result<Option<Oid>, GitError> {
+    let Some(e) = tree.and_then(|t| t.get_path(Path::new(path)).ok()) else {
+        return Ok(None);
+    };
+    if e.kind() == Some(ObjectType::Commit) {
+        return Ok(None);
+    }
+    Ok(Some(e.id()))
 }
 
-/// Blob id of `path` in the index (stage 0).
+/// Why a submodule has no external diff, wherever its side is read from.
+pub(crate) const NO_FILE: &str = "a submodule pointer has no file to compare";
+
+/// Blob id of `path` in the index (stage 0); a gitlink is `None`, as in [`blob_in`].
 fn blob_in_index(repo: &Repository, path: &str) -> Result<Option<Oid>, GitError> {
     let mut index = repo.index().map_err(map_git2)?;
     index.read(false).map_err(map_git2)?;
-    Ok(index.get_path(Path::new(path), 0).map(|e| e.id))
+    match index.get_path(Path::new(path), 0) {
+        Some(e) if crate::tree::file_mode(e.mode) == FileMode::Commit => Ok(None),
+        e => Ok(e.map(|e| e.id)),
+    }
 }
 
 fn tree_of<'r>(repo: &'r Repository, oid: &str) -> Result<Tree<'r>, GitError> {
@@ -466,20 +482,20 @@ pub fn open_diff_tool(
             let parent = commit.parent(0).ok().and_then(|p| p.tree().ok());
             let tree = commit.tree().map_err(map_git2)?;
             (
-                blob_in(parent.as_ref(), old_name),
-                RightSide::Blob(blob_in(Some(&tree), path)),
+                blob_in(parent.as_ref(), old_name)?,
+                RightSide::Blob(blob_in(Some(&tree), path)?),
             )
         }
         DiffTarget::CommitRange { from, to } => {
             let from = tree_of(repo, from)?;
             let to = tree_of(repo, to)?;
             (
-                blob_in(Some(&from), old_name),
-                RightSide::Blob(blob_in(Some(&to), path)),
+                blob_in(Some(&from), old_name)?,
+                RightSide::Blob(blob_in(Some(&to), path)?),
             )
         }
         DiffTarget::Staged => (
-            blob_in(head_tree(repo).as_ref(), old_name),
+            blob_in(head_tree(repo).as_ref(), old_name)?,
             RightSide::Blob(blob_in_index(repo, path)?),
         ),
         DiffTarget::Unstaged => (
@@ -487,10 +503,17 @@ pub fn open_diff_tool(
             RightSide::Workdir(workdir()?),
         ),
         DiffTarget::Workdir => (
-            blob_in(head_tree(repo).as_ref(), old_name),
+            blob_in(head_tree(repo).as_ref(), old_name)?,
             RightSide::Workdir(workdir()?),
         ),
     };
+
+    // Nothing on either side to write out: a submodule pointer against itself,
+    // the one diff a tool has no files for. A gitlink on one side only still
+    // opens — the file that replaced it (or that it replaced) is the other.
+    if old.is_none() && matches!(new, RightSide::Blob(None)) {
+        return Err(GitError::Refused(NO_FILE.into()));
+    }
 
     // One directory per diff so a second file's sides cannot overwrite the first's.
     let right = match &new {
@@ -511,6 +534,35 @@ pub fn open_diff_tool(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_util::TempRepo;
+
+    /// A gitlink's id names a commit in the submodule's own repository: `find_blob`
+    /// on it fails with libgit2's wording, so it reads as the empty side instead —
+    /// and a diff whose *both* sides come out empty is the one that is refused.
+    /// (The refusal itself lives in `open_diff_tool`, which needs a tool to spawn.)
+    #[test]
+    fn a_submodule_pointer_is_an_empty_side() {
+        let src = TempRepo::new();
+        src.commit(&[("s.txt", "1\n")], "s1");
+        let t = TempRepo::new();
+        t.commit(&[("f.txt", "v0\n")], "base");
+        t.add_submodule("sub", &src);
+
+        let tree = head_tree(&t.repo).expect("HEAD tree");
+        assert_eq!(blob_in(Some(&tree), "sub").expect("sub"), None);
+        assert_eq!(blob_in_index(&t.repo, "sub").expect("sub"), None);
+        // The file beside it still has its sides, and a path neither side has is `None`.
+        assert!(blob_in(Some(&tree), "f.txt").expect("f.txt").is_some());
+        assert_eq!(blob_in(Some(&tree), "gone.txt").expect("gone.txt"), None);
+
+        // A typechange: the pointer on the old side, a real file on the new one. Only
+        // the gitlink half is empty, so the diff has something to show after all.
+        let blob = t.repo.blob(b"now a file\n").expect("blob");
+        let mut b = t.repo.treebuilder(Some(&tree)).expect("treebuilder");
+        b.insert("sub", blob, 0o100_644).expect("insert");
+        let after = t.repo.find_tree(b.write().expect("write")).expect("tree");
+        assert_eq!(blob_in(Some(&after), "sub").expect("sub"), Some(blob));
+    }
 
     #[test]
     fn tokenizer_groups_quotes_and_keeps_escaped_ones() {

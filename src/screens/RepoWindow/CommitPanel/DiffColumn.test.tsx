@@ -19,7 +19,7 @@ vi.mock("../DiffViewer/DiffViewer", () => ({
 vi.mock("@tauri-apps/plugin-dialog", () => ({ ask: vi.fn(), open: vi.fn() }));
 
 const STATUS: WorkdirStatus = {
-  entries: [{ path: "a.rs", oldPath: null, index: null, workdir: "modified", conflicted: false, workdirStamp: "1:1" }],
+  entries: [{ path: "a.rs", oldPath: null, index: null, workdir: "modified", conflicted: false, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1" }],
   staged: 0,
   unstaged: 1,
   untracked: 0,
@@ -46,5 +46,17 @@ describe("DiffColumn", () => {
     act(() => useCommitStore.setState({ diffLoading: true }));
     expect(seen.actions.length).toBeGreaterThan(1);
     expect(last()).toBe(first);
+  });
+
+  it("offers no hunk or line actions on a gitlink: a 160000 entry has no patchable body", () => {
+    useStatusStore.setState({
+      status: { ...STATUS, entries: [{ path: "sub", oldPath: null, index: null, workdir: "modified", conflicted: false, submodule: true, submoduleDirtyOnly: false, workdirStamp: "abc:false" }] },
+    });
+    useCommitStore.setState({ diffPath: "sub", diffList: "unstaged" });
+    render(<DiffColumn />);
+    const actions = last() as { wholeFile: boolean; onDiscardHunk?: unknown; onDiscardLines?: unknown };
+    expect(actions.wholeFile).toBe(true);
+    expect(actions.onDiscardHunk).toBeUndefined();
+    expect(actions.onDiscardLines).toBeUndefined();
   });
 });

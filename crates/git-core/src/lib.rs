@@ -5,6 +5,7 @@ pub mod config;
 pub mod conflict;
 pub mod diff;
 pub mod error;
+pub mod linked;
 pub mod log;
 pub mod patch;
 pub mod refs;

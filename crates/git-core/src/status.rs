@@ -3,7 +3,7 @@
 //! The plan's `git status --porcelain=v2 -z` fallback for very large trees is
 //! not implemented yet; add it behind a flag if libgit2 proves too slow.
 
-use git2::{Repository, Status, StatusOptions};
+use git2::{FileMode, Repository, Status, StatusOptions};
 use serde::{Deserialize, Serialize};
 
 use crate::diff::FileStatus;
@@ -22,10 +22,23 @@ pub struct StatusEntry {
     /// Index → working directory change, `None` when the workdir matches the index.
     pub workdir: Option<FileStatus>,
     pub conflicted: bool,
+    /// A gitlink rather than a file — a submodule pointer, or an untracked
+    /// nested repository. There is no discard for one (`submodule update` is
+    /// the reset), so the frontend hides that action.
+    pub submodule: bool,
+    /// The gitlink's pointer is where the superproject wants it and only the
+    /// checkout's own contents changed — nothing `git add` on the superproject
+    /// can stage. `false` for everything else.
+    pub submodule_dirty_only: bool,
     /// `<mtime ms>:<size>` of the file on disk, `None` when it isn't there (or has
     /// no working-tree side). The status letters say nothing about *content*: a
     /// file edited in an editor stays `modified`, and a conflict stays `conflicted`
     /// until it is staged, so this is what tells the UI its diff went stale.
+    ///
+    /// A gitlink is a directory, whose mtime and length say nothing about either
+    /// side of it, so it carries the checkout's own HEAD oid instead — it moves
+    /// with the pointer. A conflicted one has no such id and falls back to the
+    /// directory stamp.
     pub workdir_stamp: Option<String>,
 }
 
@@ -116,7 +129,10 @@ pub fn status_with(repo: &Repository, refresh: bool) -> Result<WorkdirStatus, Gi
         .renames_head_to_index(true)
         .renames_index_to_workdir(true)
         .include_ignored(false)
-        .exclude_submodules(true)
+        // Included, so a moved submodule pointer shows up as a change at all.
+        // The cost is a status scan inside each initialized submodule per scan;
+        // `submodule.<name>.ignore` is the escape hatch for a vendored tree.
+        .exclude_submodules(false)
         .update_index(refresh);
     // Read before the scan, not after it: the stamp has to describe the tree this scan saw, so a
     // state change while it runs (up to 1.5 s) reads as a mismatch rather than as a match.
@@ -167,6 +183,24 @@ pub fn status_with(repo: &Repository, refresh: bool) -> Result<WorkdirStatus, Gi
             None
         }
         .filter(|old| *old != path);
+        // `160000` on whichever side of the delta exists — the old one when the
+        // pointer was deleted.
+        let gitlink = |d: Option<&git2::DiffDelta<'_>>| {
+            d.is_some_and(|d| {
+                d.new_file().mode() == FileMode::Commit || d.old_file().mode() == FileMode::Commit
+            })
+        };
+        let submodule = gitlink(wt.as_ref()) || gitlink(hi.as_ref());
+        // Both sides of the workdir delta name the same commit: the pointer is
+        // where it belongs and libgit2 flagged the entry for what is *inside*
+        // the checkout (edited, untracked), which the superproject cannot stage.
+        // A conflicted one is excluded: both sides of its delta carry the zero oid,
+        // which would read as "the pointer never moved".
+        let dirty_only = submodule
+            && !conflicted
+            && wt
+                .as_ref()
+                .is_some_and(|d| d.old_file().id() == d.new_file().id());
 
         if index.is_some() {
             out.staged += 1;
@@ -179,7 +213,23 @@ pub fn status_with(repo: &Repository, refresh: bool) -> Result<WorkdirStatus, Gi
         if conflicted {
             out.conflicted += 1;
         }
-        let workdir_stamp = if workdir.is_some() || conflicted {
+        let workdir_stamp = if submodule {
+            // The commit the pointer is at, from whichever delta carries it. A
+            // conflicted gitlink has the zero oid on both sides: stamping every one
+            // of them `0000…` would make them all look unchanged, so those — and only
+            // those — fall back to the directory's own stamp. With the move staged and
+            // the checkout back in step there is no workdir delta at all, and the
+            // head→index side is what moves when the pointer is re-staged behind us —
+            // without it a re-stage inside one debounce window would be invisible.
+            let pointer = |d: Option<&git2::DiffDelta<'_>>| {
+                d.map(|d| d.new_file().id())
+                    .filter(|id| !id.is_zero())
+                    .map(|id| id.to_string())
+            };
+            pointer(wt.as_ref())
+                .or_else(|| conflicted.then(|| workdir_stamp(repo, &path)).flatten())
+                .or_else(|| pointer(hi.as_ref()))
+        } else if workdir.is_some() || conflicted {
             workdir_stamp(repo, &path)
         } else {
             None
@@ -190,6 +240,8 @@ pub fn status_with(repo: &Repository, refresh: bool) -> Result<WorkdirStatus, Gi
             index,
             workdir,
             conflicted,
+            submodule,
+            submodule_dirty_only: dirty_only,
             workdir_stamp,
         });
     }

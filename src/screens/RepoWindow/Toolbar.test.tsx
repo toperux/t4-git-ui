@@ -15,6 +15,7 @@ vi.mock("../../api/ipc", async (importOriginal) => {
     getDefaultRemote: vi.fn(() => Promise.resolve("origin")),
     getStatus: vi.fn(() => new Promise(() => {})),
     getRefs: vi.fn(() => new Promise(() => {})),
+    getLinked: vi.fn(() => Promise.resolve(null)),
     startLog: vi.fn(() => Promise.resolve(1)),
     getLogPage: vi.fn(() => new Promise(() => {})),
   };
@@ -173,6 +174,12 @@ describe("Toolbar Repository menu", () => {
     fireEvent.click(getByRole("menuitem", { name: /Add remote/ }));
     expect(useDialogStore.getState().dialog).toEqual({ kind: "addRemote" });
   });
+  it("offers Add worktree…, which opens the dialog with no branch preselected", () => {
+    const { getByRole } = render(<Toolbar />);
+    fireEvent.click(getByRole("button", { name: "r" }));
+    fireEvent.click(getByRole("menuitem", { name: /Add worktree/ }));
+    expect(useDialogStore.getState().dialog).toEqual({ kind: "addWorktree" });
+  });
   const recent = (name: string, lastOpened: number, pinned = false): RecentRepo => ({ path: `/${name}`, name, lastOpened, pinned });
   /** The menu's rows, with the shortcut chips stripped off their text. */
   const names = (menu: HTMLElement) => Array.from(menu.querySelectorAll('[role="menuitem"]')).map((el) => el.textContent!.replace(/Ctrl.*$/, ""));
@@ -181,7 +188,7 @@ describe("Toolbar Repository menu", () => {
     useRecentsStore.setState({ recents: sortRecents([recent("r", 9), recent("a", 4), recent("b", 3), recent("c", 2), recent("d", 1)]) });
     const { getByRole, queryByRole } = render(<Toolbar />);
     fireEvent.click(getByRole("button", { name: "r" }));
-    expect(names(getByRole("menu", { name: "Repository" }))).toEqual(["Commit…", "Add remote…", "Run git command…", "Open repository…", "a", "b", "c", "d", "Close repository"]);
+    expect(names(getByRole("menu", { name: "Repository" }))).toEqual(["Commit…", "Add remote…", "Add worktree…", "Run git command…", "Open repository…", "a", "b", "c", "d", "Close repository"]);
     expect(queryByRole("menuitem", { name: "More recent" })).toBeNull();
   });
 
@@ -198,6 +205,7 @@ describe("Toolbar Repository menu", () => {
     expect(names(getByRole("menu", { name: "Repository" }))).toEqual([
       "Commit…",
       "Add remote…",
+      "Add worktree…",
       "Run git command…",
       "Open repository…",
       "old",
@@ -220,6 +228,6 @@ describe("Toolbar Repository menu", () => {
     fireEvent.click(getByRole("button", { name: "r" }));
     // The Kbd renders inside the item, so strip the shortcut off the text.
     const items = Array.from(getByRole("menu", { name: "Repository" }).children).map((el) => (el.getAttribute("role") === "separator" ? "---" : el.textContent!.replace(/Ctrl.*$/, "")));
-    expect(items).toEqual(["Commit…", "Add remote…", "Run git command…", "---", "Open repository…", "No other recent repositories", "---", "Close repository"]);
+    expect(items).toEqual(["Commit…", "Add remote…", "Add worktree…", "Run git command…", "---", "Open repository…", "No other recent repositories", "---", "Close repository"]);
   });
 });

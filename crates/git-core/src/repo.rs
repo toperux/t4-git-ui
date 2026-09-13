@@ -37,7 +37,10 @@ pub fn normalize_workdir_string(mut s: String) -> String {
 }
 
 impl RepoId {
-    fn from_workdir(workdir: &Path) -> (RepoId, PathBuf) {
+    /// The id of `workdir` and the canonical path it was built from (equal
+    /// strings). `workdir` is kept as it stands when it cannot be canonicalized
+    /// — a directory that is gone, so no open repo can share its id.
+    pub fn from_workdir(workdir: &Path) -> (RepoId, PathBuf) {
         let canonical = std::fs::canonicalize(workdir).unwrap_or_else(|_| workdir.to_path_buf());
         let s = normalize_workdir_string(canonical.to_string_lossy().into_owned());
         (RepoId(s.clone()), PathBuf::from(s))

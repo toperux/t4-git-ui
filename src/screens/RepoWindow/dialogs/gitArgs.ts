@@ -90,6 +90,21 @@ export const checkoutArgs = (target: string, createBranch: string | null, track:
   target,
 ];
 
+/** Exactly one of `branch` (existing) and `newBranch` (created at `start`, HEAD when null), as the command takes them. */
+export const worktreeAddArgs = (path: string, branch: string | null, newBranch: string | null, start: string | null, checkout: boolean) => [
+  "worktree",
+  "add",
+  ...flag(!checkout, "--no-checkout"),
+  ...(newBranch ? ["-b", newBranch] : []),
+  END,
+  path,
+  ...(newBranch ? (start ? [start] : []) : branch ? [branch] : []),
+];
+
+export const worktreeRemoveArgs = (path: string, force: boolean) => ["worktree", "remove", ...flag(force, "--force"), END, path];
+
+export const worktreeLockArgs = (path: string, reason: string | null) => ["worktree", "lock", ...(reason ? ["--reason", reason] : []), END, path];
+
 export const stashPushArgs = (message: string | null, includeUntracked: boolean, keepIndex: boolean) => [
   "stash",
   "push",

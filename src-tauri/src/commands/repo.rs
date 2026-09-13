@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use git_core::commit::CommitDetail;
+use git_core::linked::{self, LinkedSnapshot};
 use git_core::log::{path_history, walk, LogFilter, LogRow, RefLabel, RevSpec};
 use git_core::refs::{self, HeadInfo, RefsSnapshot};
 use git_core::repo::repo_relative;
@@ -188,6 +189,25 @@ pub async fn get_refs(state: State<'_, AppState>, id: RepoId) -> Result<RefsSnap
         let mut repo = handle.open_private()?;
         let snap = refs::snapshot_with(&mut repo, &mut handle.ahead_behind.lock())?;
         tracing::info!(id = %handle.id, elapsed = ?t.elapsed(), "refs read");
+        Ok(snap)
+    })
+    .await
+}
+
+/// The other checkouts reachable from the repo: linked worktrees and submodules.
+/// Its own `Repository` like [`get_refs`] — it opens one repository per row, so
+/// the branch list must not queue behind it.
+#[tauri::command]
+pub async fn get_linked(
+    state: State<'_, AppState>,
+    id: RepoId,
+) -> Result<LinkedSnapshot, AppError> {
+    let handle = state.repo(&id)?;
+    blocking(move || {
+        let t = Instant::now();
+        let repo = handle.open_private()?;
+        let snap = linked::snapshot(&repo, &handle.id)?;
+        tracing::info!(id = %handle.id, elapsed = ?t.elapsed(), "linked read");
         Ok(snap)
     })
     .await

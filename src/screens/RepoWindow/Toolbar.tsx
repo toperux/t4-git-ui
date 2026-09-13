@@ -136,6 +136,9 @@ export function Toolbar() {
         <MenuItem icon={<Cloud size={16} aria-hidden />} disabled={running} title={running ? BUSY : undefined} onClick={pickDialog({ kind: "addRemote" }, () => setRepoMenu(false), repoBtn)}>
           Add remote…
         </MenuItem>
+        <MenuItem icon={<FolderGit2 size={16} aria-hidden />} disabled={running} title={running ? BUSY : undefined} onClick={pickDialog({ kind: "addWorktree" }, () => setRepoMenu(false), repoBtn)}>
+          Add worktree…
+        </MenuItem>
         <MenuItem icon={<Terminal size={16} aria-hidden />} kbd="Ctrl+Shift+R" disabled={running} title={running ? BUSY : undefined} onClick={pickDialog({ kind: "runCommand" }, () => setRepoMenu(false), repoBtn)}>
           Run git command…
         </MenuItem>

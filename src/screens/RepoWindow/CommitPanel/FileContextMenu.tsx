@@ -59,10 +59,12 @@ export function FileContextMenu({ list, paths, entries, menu, onClose, act, disc
   // A lone file is the row's own Stage action, so it stages; more than one skips the conflicts. Over
   // a folder it is that row's action, word for word — a folder is a group whatever is under it.
   const { target, note } = stageTarget(list, entries, paths, menu.folder ? { bulk: true, where: "in this folder" } : { where: "you selected" });
-  // A conflicted file has no single version to go back to — its two sides are the items below — so
-  // Discard skips them however few there are, and is refused only when every file is conflicted.
-  const discardTarget = paths.filter((p) => !entryOf(p)?.conflicted);
+  // A conflicted file has no single version to go back to — its two sides are the items below — and
+  // a submodule pointer has no discard at all (Update is its reset), so Discard skips both however
+  // few there are, and is refused only when every file is one of them.
+  const discardTarget = paths.filter((p) => !entryOf(p)?.conflicted && !entryOf(p)?.submodule);
   const discardSkipped = n - discardTarget.length;
+  const discardSkip = "A conflict is resolved by keeping a side and a submodule by updating it, not discarded";
 
   /** Every item closes the menu first. */
   const run = (fn: () => void) => () => {
@@ -99,11 +101,7 @@ export function FileContextMenu({ list, paths, entries, menu, onClose, act, disc
           {...op}
           disabled={op.disabled || discardTarget.length === 0}
           title={
-            discardTarget.length === 0
-              ? "A conflict is resolved by keeping a side, not discarded"
-              : discardSkipped > 0
-                ? `A conflict is resolved by keeping a side, not discarded (${discardSkipped} skipped)`
-                : op.title
+            discardTarget.length === 0 ? discardSkip : discardSkipped > 0 ? `${discardSkip} (${discardSkipped} skipped)` : op.title
           }
           onClick={run(() => discard(discardTarget))}
         >

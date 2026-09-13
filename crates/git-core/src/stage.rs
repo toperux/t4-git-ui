@@ -64,6 +64,27 @@ pub fn stage_paths(repo: &Repository, paths: &[&str]) -> Result<(), GitError> {
     })
 }
 
+/// Deletes `file`. A symlink or junction *to* a directory is a directory
+/// reparse point on Windows, which `remove_file` refuses — `remove_dir` unlinks
+/// the link and leaves its target alone. On unix `remove_file` takes any
+/// symlink and the fallback never runs.
+fn unlink(file: &Path) -> std::io::Result<()> {
+    std::fs::remove_file(file).or_else(|e| {
+        #[cfg(windows)]
+        let dir_link = {
+            use std::os::windows::fs::FileTypeExt;
+            std::fs::symlink_metadata(file).is_ok_and(|m| m.file_type().is_symlink_dir())
+        };
+        #[cfg(not(windows))]
+        let dir_link = false;
+        if dir_link {
+            std::fs::remove_dir(file)
+        } else {
+            Err(e)
+        }
+    })
+}
+
 /// Removes the directories left empty by deleting `file`, up to (not
 /// including) `workdir`.
 fn prune_empty_dirs(workdir: &Path, file: &Path) {
@@ -108,6 +129,14 @@ pub fn discard_paths(repo: &Repository, paths: &[&str]) -> Result<Vec<String>, G
     // A working-tree rename arrives as both halves from the caller: `status_file` runs single-path
     // with no rename detection, so it reports `WT_NEW` / `WT_DELETED` and can never pair them.
     for p in paths {
+        // A directory, so nothing to discard: a gitlink, where git has no discard either
+        // (`submodule update` is the reset), or an untracked nested repository, whose
+        // `remove_file` would fail and abort the rest of the batch. `symlink_metadata`,
+        // not `is_dir()`: that one follows the link, and a tracked symlink *to* a
+        // directory is a blob like any other — it has a discard.
+        if std::fs::symlink_metadata(workdir.join(p)).is_ok_and(|m| m.is_dir()) {
+            continue;
+        }
         let s = match repo.status_file(Path::new(p)) {
             Ok(s) => s,
             Err(e) if e.code() == ErrorCode::NotFound => continue,
@@ -118,7 +147,7 @@ pub fn discard_paths(repo: &Repository, paths: &[&str]) -> Result<Vec<String>, G
         }
         if s.contains(Status::WT_NEW) {
             let file = workdir.join(p);
-            std::fs::remove_file(&file)?;
+            unlink(&file)?;
             prune_empty_dirs(workdir, &file);
             discarded.push((*p).to_string());
         } else if s.intersects(
@@ -209,7 +238,12 @@ pub fn remove_paths(repo: &Repository, paths: &[&str]) -> Result<(), GitError> {
             let rel = Path::new(p);
             index.remove_path(rel).map_err(map_git2)?;
             let file = workdir.join(rel);
-            if file.symlink_metadata().is_ok() {
+            // A directory is not a file `unlink` can delete, and a failed delete
+            // after the index write would abort the rest of the batch: a gitlink
+            // conflicted modify/delete is a real checkout, and git leaves it behind
+            // as an untracked nested repository too. `symlink_metadata`, as in
+            // `discard_paths`: a symlink *to* a directory is a file to delete.
+            if file.symlink_metadata().is_ok_and(|m| !m.is_dir()) {
                 files.push(file);
             }
         }
@@ -219,7 +253,7 @@ pub fn remove_paths(repo: &Repository, paths: &[&str]) -> Result<(), GitError> {
     // rolls the stages back, and a file already deleted would leave that
     // conflict with nothing behind it.
     for file in files {
-        std::fs::remove_file(&file)?;
+        unlink(&file)?;
         prune_empty_dirs(workdir, &file);
     }
     Ok(())
@@ -523,6 +557,74 @@ mod tests {
         assert!(entry(&t, "new.txt").is_none());
     }
 
+    /// The directory skip is about gitlinks and nested repositories, not about
+    /// whatever a link happens to point at: a tracked symlink is a blob, and
+    /// `is_dir()` — which follows it — would leave it stuck at its new target.
+    #[cfg(unix)]
+    #[test]
+    fn discard_restores_a_symlink_whose_target_was_changed() {
+        let t = TempRepo::new();
+        t.commit(&[("keep/a.txt", "a\n")], "base");
+        std::os::unix::fs::symlink("keep", t.path().join("link")).unwrap();
+        stage_paths(&t.repo, &["link"]).unwrap();
+        t.commit_index("add link");
+        std::fs::remove_file(t.path().join("link")).unwrap();
+        std::os::unix::fs::symlink("elsewhere", t.path().join("link")).unwrap();
+
+        assert_eq!(discard_paths(&t.repo, &["link"]).unwrap(), vec!["link"]);
+        assert_eq!(
+            std::fs::read_link(t.path().join("link")).unwrap(),
+            Path::new("keep")
+        );
+    }
+
+    /// An untracked symlink *to* a directory: what goes is the link, never the
+    /// directory it names (on Windows that link only unlinks with `remove_dir`).
+    #[cfg(unix)]
+    #[test]
+    fn discard_deletes_an_untracked_symlink_to_a_directory() {
+        let t = TempRepo::new();
+        t.commit(&[("keep/a.txt", "a\n")], "base");
+        std::os::unix::fs::symlink("keep", t.path().join("link")).unwrap();
+
+        assert_eq!(discard_paths(&t.repo, &["link"]).unwrap(), vec!["link"]);
+        assert!(t.path().join("link").symlink_metadata().is_err());
+        assert_eq!(
+            std::fs::read_to_string(t.path().join("keep/a.txt")).unwrap(),
+            "a\n"
+        );
+    }
+
+    /// A submodule pointer cannot be restored from the index (`checkout_index` is a
+    /// silent no-op on a gitlink) and must not take the rest of the batch down with it.
+    #[test]
+    fn discard_skips_a_submodule_but_still_discards_the_file_beside_it() {
+        let src = TempRepo::new();
+        let first = src.commit(&[("s.txt", "1\n")], "s1");
+        src.commit(&[("s.txt", "2\n")], "s2");
+        let t = TempRepo::new();
+        t.commit(&[("f.txt", "v0\n")], "base");
+        t.add_submodule("sub", &src);
+        // Move the pointer: the checkout's HEAD goes back one commit.
+        Repository::open(t.path().join("sub"))
+            .unwrap()
+            .set_head_detached(first)
+            .unwrap();
+        t.write("f.txt", "v1\n");
+
+        assert_eq!(
+            discard_paths(&t.repo, &["sub", "f.txt"]).unwrap(),
+            vec!["f.txt"]
+        );
+        assert_eq!(
+            std::fs::read_to_string(t.path().join("f.txt")).unwrap(),
+            "v0\n"
+        );
+        let e = entry(&t, "sub").expect("the pointer is still moved");
+        assert_eq!(e.workdir, Some(FileStatus::Modified));
+        assert!(e.submodule);
+    }
+
     /// Why the caller sends both halves: `status_file` sees only `WT_NEW` for the
     /// new name, so a one-path discard deletes it and leaves the old one missing.
     #[test]
@@ -601,5 +703,27 @@ mod tests {
         let args = discard_patch_args(false);
         assert_eq!(args, ["apply", "-R", "--whitespace=nowarn", "-"]);
         assert!(!args.contains(&"--cached"));
+    }
+
+    /// Keeping the delete side of a conflicted gitlink means removing a path whose
+    /// working copy is a *directory*: `unlink` cannot delete it, and a failure there
+    /// would abort the batch after the index was already written. The checkout is
+    /// left behind as an untracked nested repository, which is what git leaves too.
+    #[test]
+    fn removing_a_gitlink_leaves_its_checkout_behind() {
+        let src = TempRepo::new();
+        src.commit(&[("s.txt", "1\n")], "s1");
+        let t = TempRepo::new();
+        t.commit(&[("f.txt", "v0\n")], "base");
+        t.add_submodule("sub", &src);
+
+        remove_paths(&t.repo, &["sub"]).expect("remove");
+        assert!(t.path().join("sub").is_dir(), "the checkout stays");
+        let mut index = t.repo.index().expect("index");
+        index.read(false).expect("read");
+        assert!(
+            index.get_path(Path::new("sub"), 0).is_none(),
+            "index entry gone"
+        );
     }
 }

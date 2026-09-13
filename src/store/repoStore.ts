@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import * as ipc from "../api/ipc";
 import { toAppError } from "../api/ipc";
-import type { CommitInfo, LogFilter, LogProgress, LogRow, RefsSnapshot, RemoteTag, RepoSummary, RevSpec } from "../api/types";
+import type { CommitInfo, LinkedSnapshot, LogFilter, LogProgress, LogRow, RefsSnapshot, RemoteTag, RepoSummary, RevSpec } from "../api/types";
 import { kvGet, kvSet } from "../lib/kv";
 import { baseName } from "../lib/paths";
 import { toastError, useToastStore } from "./toastStore";
@@ -26,6 +26,8 @@ export interface RepoStore {
   /** Name of the repository `openRepo` is working on (drives the blocking overlay); `null` when idle. */
   opening: string | null;
   refs: RefsSnapshot | null;
+  /** Linked worktrees and submodules; `null` until the first one lands (it trails `refs`). */
+  linked: LinkedSnapshot | null;
   /**
    * Tags each remote had when it last answered (git keeps no local record of them), keyed by remote
    * name; `{}` until one answers or a cached entry is read on open. `at` (ms) is when it answered —
@@ -242,6 +244,7 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
     repo: null,
     opening: null,
     refs: null,
+    linked: null,
     remoteTags: {},
     spec: { kind: "all" },
     filter: {},
@@ -265,6 +268,7 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
         set({
           repo,
           refs: null,
+          linked: null,
           remoteTags: {},
           spec: { kind: "all" },
           filter: {},
@@ -300,7 +304,7 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
       startSeq++;
       resetPages();
       pendingSelect = null;
-      set({ repo: null, refs: null, remoteTags: {}, log: EMPTY_LOG, rows: [], selectedIndex: null, wtSelected: false, compare: null, reveal: null });
+      set({ repo: null, refs: null, linked: null, remoteTags: {}, log: EMPTY_LOG, rows: [], selectedIndex: null, wtSelected: false, compare: null, reveal: null });
       await ipc.closeRepo(repo.id);
     },
 
@@ -309,6 +313,14 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
       if (!repo) return;
       const refs = await ipc.getRefs(repo.id);
       if (get().repo?.id === repo.id) set({ refs });
+      // Not awaited: it opens a repository per worktree, and neither that wait nor a broken
+      // worktree link may hold up (or fail) the branch list.
+      void ipc
+        .getLinked(repo.id)
+        .then((linked) => {
+          if (get().repo?.id === repo.id) set({ linked });
+        })
+        .catch(() => {});
     },
 
     async refreshRemoteTags(opts) {
@@ -469,6 +481,7 @@ export function __resetForTests() {
     repo: null,
     opening: null,
     refs: null,
+    linked: null,
     remoteTags: {},
     spec: { kind: "all" },
     filter: {},

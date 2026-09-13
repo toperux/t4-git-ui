@@ -422,6 +422,98 @@ pub fn clone(url: &str, dest: &str, opts: &CloneOpts) -> Vec<String> {
     a
 }
 
+/// Which branch a new worktree checks out.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorktreeBranch<'a> {
+    /// A branch that exists already (git refuses one checked out elsewhere).
+    Existing(&'a str),
+    /// A branch created by the add, at `start` — HEAD when `None`.
+    New {
+        name: &'a str,
+        start: Option<&'a str>,
+    },
+}
+
+/// `worktree add [--no-checkout] [-b <name>] --end-of-options <path> [<branch>|<start>]`
+pub fn worktree_add(path: &str, branch: WorktreeBranch<'_>, checkout: bool) -> Vec<String> {
+    let mut a = args(["worktree", "add"]);
+    if !checkout {
+        a.push("--no-checkout".into());
+    }
+    if let WorktreeBranch::New { name, .. } = branch {
+        a.push("-b".into());
+        a.push(name.into());
+    }
+    a.push(END.into());
+    a.push(path.into());
+    match branch {
+        WorktreeBranch::Existing(name) => a.push(name.into()),
+        WorktreeBranch::New { start, .. } => a.extend(start.map(String::from)),
+    }
+    a
+}
+
+/// `worktree remove [--force] --end-of-options <path>` — refused while the
+/// worktree is dirty or locked, which is what `force` is re-offered for.
+pub fn worktree_remove(path: &str, force: bool) -> Vec<String> {
+    let mut a = args(["worktree", "remove"]);
+    if force {
+        a.push("--force".into());
+    }
+    a.push(END.into());
+    a.push(path.into());
+    a
+}
+
+/// Whether git's refusal is the one `--force` gets past: the dirty-worktree
+/// hint, "'<path>' contains modified or untracked files, use --force to delete
+/// it".
+///
+/// Nothing else matches on purpose. A locked worktree says `remove -f -f` — two
+/// of them, and unlocking is the answer we offer instead — and every other
+/// failure (a path that is not a worktree, a broken link) is not a refusal to
+/// re-offer at all. The runner pins `LC_ALL=C`, so the message is always git's
+/// own English.
+pub fn force_would_help(stderr: &str) -> bool {
+    stderr.contains("use --force")
+}
+
+/// `worktree prune -v` (`-v` so the output names what it removed).
+pub fn worktree_prune() -> Vec<String> {
+    args(["worktree", "prune", "-v"])
+}
+
+/// `worktree lock [--reason <r>] --end-of-options <path>`
+pub fn worktree_lock(path: &str, reason: Option<&str>) -> Vec<String> {
+    let mut a = args(["worktree", "lock"]);
+    if let Some(r) = reason {
+        a.push("--reason".into());
+        a.push(r.into());
+    }
+    a.push(END.into());
+    a.push(path.into());
+    a
+}
+
+/// `worktree unlock --end-of-options <path>`
+pub fn worktree_unlock(path: &str) -> Vec<String> {
+    let mut a = args(["worktree", "unlock", END]);
+    a.push(path.into());
+    a
+}
+
+/// `submodule update --init --recursive --progress [-- <path>]` — `--` rather
+/// than [`END`]: `git submodule` is not reliably a parse-options builtin (it is
+/// still a shell script on plenty of builds) and rejects `--end-of-options`.
+pub fn submodule_update(path: Option<&str>) -> Vec<String> {
+    let mut a = args(["submodule", "update", "--init", "--recursive", "--progress"]);
+    if let Some(p) = path {
+        a.push("--".into());
+        a.push(p.into());
+    }
+    a
+}
+
 /// Paths of the conflicted entries of a status (sorted, as `status()` is).
 pub fn parse_conflicts(status: &WorkdirStatus) -> Vec<String> {
     status
@@ -876,6 +968,115 @@ mod tests {
     }
 
     #[test]
+    fn worktree_and_submodule_args() {
+        assert_eq!(
+            worktree_add("/w/feat", WorktreeBranch::Existing("feat"), true),
+            ["worktree", "add", "--end-of-options", "/w/feat", "feat"]
+        );
+        assert_eq!(
+            worktree_add(
+                "/w/feat",
+                WorktreeBranch::New {
+                    name: "feat",
+                    start: None
+                },
+                false
+            ),
+            [
+                "worktree",
+                "add",
+                "--no-checkout",
+                "-b",
+                "feat",
+                "--end-of-options",
+                "/w/feat"
+            ]
+        );
+        assert_eq!(
+            worktree_add(
+                "/w/feat",
+                WorktreeBranch::New {
+                    name: "feat",
+                    start: Some("origin/main")
+                },
+                true
+            ),
+            [
+                "worktree",
+                "add",
+                "-b",
+                "feat",
+                "--end-of-options",
+                "/w/feat",
+                "origin/main"
+            ]
+        );
+        assert_eq!(
+            worktree_remove("/w/feat", false),
+            ["worktree", "remove", "--end-of-options", "/w/feat"]
+        );
+        assert_eq!(
+            worktree_remove("/w/feat", true),
+            [
+                "worktree",
+                "remove",
+                "--force",
+                "--end-of-options",
+                "/w/feat"
+            ]
+        );
+        assert_eq!(worktree_prune(), ["worktree", "prune", "-v"]);
+        assert_eq!(
+            worktree_lock("/w/feat", None),
+            ["worktree", "lock", "--end-of-options", "/w/feat"]
+        );
+        assert_eq!(
+            worktree_lock("/w/feat", Some("busy")),
+            [
+                "worktree",
+                "lock",
+                "--reason",
+                "busy",
+                "--end-of-options",
+                "/w/feat"
+            ]
+        );
+        assert_eq!(
+            worktree_unlock("/w/feat"),
+            ["worktree", "unlock", "--end-of-options", "/w/feat"]
+        );
+        assert_eq!(
+            submodule_update(None),
+            ["submodule", "update", "--init", "--recursive", "--progress"]
+        );
+        assert_eq!(
+            submodule_update(Some("vendor/dep")),
+            [
+                "submodule",
+                "update",
+                "--init",
+                "--recursive",
+                "--progress",
+                "--",
+                "vendor/dep"
+            ]
+        );
+    }
+
+    /// Only the dirty-worktree refusal is worth re-offering forced; the locked
+    /// one wants `remove -f -f`, which the app answers with Unlock instead.
+    #[test]
+    fn only_gits_dirty_worktree_hint_asks_for_force() {
+        assert!(force_would_help(
+            "fatal: '/w/feat' contains modified or untracked files, use --force to delete it"
+        ));
+        assert!(!force_would_help(
+            "fatal: cannot remove a locked working tree, lock reason: on a stick\nuse 'remove -f -f' to override or unlock first"
+        ));
+        assert!(!force_would_help("fatal: '/w/feat' is not a working tree"));
+    }
+
+    #[test]
     fn conflicts_from_status_and_output() {
         let st = WorkdirStatus {
             entries: vec![
@@ -885,6 +1086,8 @@ mod tests {
                     index: None,
                     workdir: None,
                     conflicted: true,
+                    submodule: false,
+                    submodule_dirty_only: false,
                     workdir_stamp: None,
                 },
                 StatusEntry {
@@ -893,6 +1096,8 @@ mod tests {
                     index: None,
                     workdir: Some(crate::diff::FileStatus::Modified),
                     conflicted: false,
+                    submodule: false,
+                    submodule_dirty_only: false,
                     workdir_stamp: None,
                 },
             ],

@@ -7,6 +7,7 @@ vi.mock("../api/ipc", async (importOriginal) => {
     ...actual,
     openRepo: vi.fn(),
     getRefs: vi.fn(),
+    getLinked: vi.fn(() => Promise.resolve(null)),
     startLog: vi.fn(),
     getLogPage: vi.fn(),
     closeRepo: vi.fn(),
@@ -48,6 +49,7 @@ const mocked = ipc as unknown as {
   refreshLabels: ReturnType<typeof vi.fn>;
   closeRepo: ReturnType<typeof vi.fn>;
   getRefs: ReturnType<typeof vi.fn>;
+  getLinked: ReturnType<typeof vi.fn>;
   findLogRow: ReturnType<typeof vi.fn>;
   remoteTags: ReturnType<typeof vi.fn>;
 };
@@ -57,6 +59,8 @@ beforeEach(() => {
   // survive into another test's `...Once` chain. Module-level page bookkeeping is reset too.
   vi.resetAllMocks();
   __resetForTests();
+  // `refreshRefs` fires it and does not await it, so it has to be a promise in every test.
+  mocked.getLinked.mockResolvedValue(null);
   useToastStore.setState({ toasts: [] });
   useRepoStore.setState({ repo: REPO });
 });
@@ -293,6 +297,22 @@ describe("repoStore openRepo", () => {
     expect(useRepoStore.getState().repo?.id).toBe(REPO.id);
     expect(useRepoStore.getState().refs).toBeNull();
     expect(useToastStore.getState().toasts[0]).toMatchObject({ kind: "error", title: "Couldn't load branches" });
+  });
+
+  it("refreshRefs sets the refs whatever the linked snapshot does, and takes it when it arrives", async () => {
+    const linked = { worktrees: [], submodules: [] };
+    mocked.getRefs.mockResolvedValue(REFS);
+    mocked.getLinked.mockRejectedValueOnce({ kind: "git", message: "broken worktree link" });
+
+    await useRepoStore.getState().refreshRefs();
+    await flush();
+    expect(useRepoStore.getState().refs).toBe(REFS);
+    expect(useRepoStore.getState().linked).toBeNull();
+
+    mocked.getLinked.mockResolvedValue(linked);
+    await useRepoStore.getState().refreshRefs();
+    await flush();
+    expect(useRepoStore.getState().linked).toBe(linked);
   });
 });
 

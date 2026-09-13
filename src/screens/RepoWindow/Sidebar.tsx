@@ -1,6 +1,6 @@
-import { Archive, ArrowDown, Check, Cloud, Copy, Folder, GitBranch, GitMerge, Link, Pencil, Plus, RefreshCw, Tag, Trash2 } from "lucide-react";
+import { Archive, ArrowDown, Check, Cloud, Copy, Folder, FolderGit2, GitBranch, GitMerge, Link, Lock, LockOpen, Package, Pencil, Plus, RefreshCw, Tag, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
-import type { Branch, Remote, RemoteBranch, RemoteTag, Stash, Tag as TagRef } from "../../api/types";
+import type { Branch, Remote, RemoteBranch, RemoteTag, Stash, Submodule, Tag as TagRef, Worktree } from "../../api/types";
 import { Badge } from "../../components/ui/Badge/Badge";
 import { Button } from "../../components/ui/Button/Button";
 import { ContextMenu, MenuItem, MenuSeparator } from "../../components/ui/Menu/Menu";
@@ -8,16 +8,33 @@ import { EmptyState } from "../../components/ui/EmptyState/EmptyState";
 import { SectionHeader } from "../../components/ui/SectionHeader/SectionHeader";
 import { AheadBehind, TREE_PANE_CLASS, TreeRow } from "../../components/ui/TreeRow/TreeRow";
 import { cx } from "../../lib/cx";
+import { baseName, joinPath } from "../../lib/paths";
 import { relativeDate } from "../../lib/relativeDate";
+import { takenBranches } from "../../lib/takenBranches";
 import { useDialogStore, type DialogSpec } from "../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
 import { useSettingsStore } from "../../store/settingsStore";
 import { useToastStore } from "../../store/toastStore";
-import { checkoutBranch, checkoutRemoteBranch, checkoutTag, copyText, fetchRemote, protectedNames, stashApply, stashDrop, stashPop, stripRemote } from "./actions";
+import {
+  checkoutBranch,
+  checkoutRemoteBranch,
+  checkoutTag,
+  copyText,
+  fetchRemote,
+  protectedNames,
+  stashApply,
+  stashDrop,
+  stashPop,
+  stripRemote,
+  submoduleUpdate,
+  switchRepo,
+  worktreePrune,
+  worktreeUnlock,
+} from "./actions";
 import s from "./Sidebar.module.css";
 
-type Section = "local" | "remotes" | "tags" | "stashes";
+type Section = "local" | "remotes" | "tags" | "stashes" | "worktrees" | "submodules";
 
 /** Which row the context menu belongs to. */
 type Target =
@@ -28,7 +45,12 @@ type Target =
   | { kind: "tag"; name: string; oid: string }
   /** A tag one remote has, under that remote's folder in the Tags section. */
   | { kind: "remoteTag"; remote: string; name: string }
-  | { kind: "stash"; stash: Stash };
+  | { kind: "stash"; stash: Stash }
+  | { kind: "worktree"; wt: Worktree }
+  | { kind: "submodule"; sub: Submodule }
+  /** The section headers themselves: the Add / Prune / Update-all actions hang off them. */
+  | { kind: "worktreeSection" }
+  | { kind: "submoduleSection" };
 
 /** Names nested by `/` segments (local branches, or one remote's branches without the remote prefix). */
 interface TreeNode<T> {
@@ -129,6 +151,7 @@ function Tree({ label, children }: { label: string; children: ReactNode }) {
 
 export function Sidebar() {
   const refs = useRepoStore((st) => st.refs);
+  const linked = useRepoStore((st) => st.linked);
   const remoteTags = useRepoStore((st) => st.remoteTags);
   const revealOid = useRepoStore((st) => st.revealOid);
   const repoId = useRepoStore((st) => st.repo?.id ?? null);
@@ -137,7 +160,7 @@ export function Sidebar() {
   const running = useOpsStore(selectRunning);
   const folderMode = useSettingsStore((st) => st.sidebarFolders);
   const folderMax = useSettingsStore((st) => st.sidebarFoldersMax);
-  const [open, setOpen] = useState<Record<Section, boolean>>({ local: true, remotes: true, tags: false, stashes: true });
+  const [open, setOpen] = useState<Record<Section, boolean>>({ local: true, remotes: true, tags: false, stashes: true, worktrees: true, submodules: true });
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [menu, setMenu] = useState<{ at: { x: number; y: number }; target: Target; el: HTMLElement } | null>(null);
   /** Folders the setting has already seeded, keyed like `collapsed`: a refresh leaves those to the user. */
@@ -172,6 +195,9 @@ export function Sidebar() {
   const remotes = refs?.remotes ?? [];
   const tags = refs?.tags ?? [];
   const stashes = refs?.stashes ?? [];
+  // A repository without linked checkouts shows neither section: one worktree is just the repository.
+  const worktrees = linked?.worktrees ?? [];
+  const submodules = linked?.submodules ?? [];
   const keep = protectedNames(remotes);
 
   /**
@@ -461,6 +487,70 @@ export function Sidebar() {
         </Tree>
       )}
 
+      {worktrees.length > 1 && (
+        <>
+          <SectionHeader title="Worktrees" count={worktrees.length} open={open.worktrees} onToggle={() => toggle("worktrees")} {...rowMenu({ kind: "worktreeSection" })} />
+          {open.worktrees && (
+            <Tree label="Worktrees">
+              {worktrees.map((wt) => (
+                <TreeRow
+                  key={wt.path}
+                  role="treeitem"
+                  aria-level={1}
+                  icon={<FolderGit2 size={14} aria-hidden />}
+                  label={baseName(wt.path)}
+                  title={wt.path}
+                  current={wt.current}
+                  aria-current={wt.current || undefined}
+                  selected={wt.current}
+                  meta={
+                    <>
+                      {wt.head && <span className={s.mono}>{wt.head.branch ?? "detached"}</span>}
+                      {wt.main && <Badge title="The working tree the linked ones hang off">main</Badge>}
+                      {wt.current && <Badge title="The checkout this window is open on">current</Badge>}
+                      {wt.locked && <Badge title={wt.lockReason ?? "Locked"}>locked</Badge>}
+                      {wt.prunable && <Badge title="Its directory is gone — Prune drops the entry">prunable</Badge>}
+                    </>
+                  }
+                  // Its HEAD is in the shared object database, so the grid can show where it sits.
+                  onClick={() => {
+                    if (wt.head?.oid && !wt.current) void revealOid(wt.head.oid);
+                  }}
+                  {...rowMenu({ kind: "worktree", wt })}
+                />
+              ))}
+            </Tree>
+          )}
+        </>
+      )}
+
+      {submodules.length > 0 && (
+        <>
+          <SectionHeader title="Submodules" count={submodules.length} open={open.submodules} onToggle={() => toggle("submodules")} {...rowMenu({ kind: "submoduleSection" })} />
+          {open.submodules && (
+            <Tree label="Submodules">
+              {submodules.map((sub) => (
+                <TreeRow
+                  key={sub.path}
+                  role="treeitem"
+                  aria-level={1}
+                  icon={<Package size={14} aria-hidden />}
+                  label={sub.path}
+                  title={sub.url ?? sub.path}
+                  meta={
+                    <>
+                      {sub.headOid && <span className={s.mono}>{sub.headOid.slice(0, 7)}</span>}
+                      {sub.workdirOid === null && <Badge title="No checkout on disk — Update clones it">not initialized</Badge>}
+                    </>
+                  }
+                  {...rowMenu({ kind: "submodule", sub })}
+                />
+              ))}
+            </Tree>
+          )}
+        </>
+      )}
+
       <RefContextMenu menu={menu} onClose={() => setMenu(null)} />
     </nav>
   );
@@ -472,6 +562,9 @@ function RefContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number 
   const current = useRepoStore((st) => st.refs?.local.find((b) => b.isHead)?.name ?? null);
   const state = useRepoStore((st) => st.refs?.state);
   const remotes = useRepoStore((st) => st.refs?.remotes);
+  const repoPath = useRepoStore((st) => st.repo?.path ?? null);
+  const refs = useRepoStore((st) => st.refs);
+  const linked = useRepoStore((st) => st.linked);
   const running = useOpsStore(selectRunning);
   if (!menu) return null;
   const { target } = menu;
@@ -490,6 +583,8 @@ function RefContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number 
   };
   // Branches never offered for deletion have no Delete item at all — nor the separator above it.
   const keep = protectedNames(remotes ?? []);
+  // Branches a worktree already has out: no second one can be added on them.
+  const checkedOut = takenBranches(linked, refs);
 
   const items = () => {
     switch (target.kind) {
@@ -512,6 +607,15 @@ function RefContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number 
             <MenuSeparator />
             <MenuItem icon={<Plus size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "createBranch", startPoint: b.name }))}>
               Create branch here…
+            </MenuItem>
+            {/* git refuses a branch that is already out somewhere — the current worktree included. */}
+            <MenuItem
+              icon={<FolderGit2 size={16} aria-hidden />}
+              {...(checkedOut.has(b.name) ? { disabled: true, title: "Already checked out in a worktree" } : {})}
+              {...op}
+              onClick={run(() => openDialog({ kind: "addWorktree", branch: b.name }))}
+            >
+              Create worktree here…
             </MenuItem>
             <MenuSeparator />
             <MenuItem {...op} onClick={run(() => openDialog({ kind: "push", branch: b.name }))}>Push…</MenuItem>
@@ -653,6 +757,88 @@ function RefContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number 
           </>
         );
       }
+      case "worktree": {
+        const wt = target.wt;
+        // A gone directory cannot be opened at all, and this window is already on the current one.
+        const noOpen = wt.current ? "Already the open repository" : wt.prunable ? "Its directory is gone" : null;
+        // git refuses a locked worktree outright (`remove -f -f` is the override), so Unlock above
+        // is the way through — Remove would only come back with an error.
+        const noRemove = wt.main ? "The main working tree stays" : wt.current ? "It is the open repository" : wt.locked ? "Unlock it first" : null;
+        return (
+          <>
+            <MenuItem icon={<FolderGit2 size={16} aria-hidden />} {...(noOpen ? { disabled: true, title: noOpen } : {})} {...op} onClick={run(() => switchRepo(wt.path))}>
+              Open
+            </MenuItem>
+            <MenuSeparator />
+            <MenuItem icon={<Copy size={16} aria-hidden />} onClick={run(() => copyText(wt.path, "path"))}>
+              Copy path
+            </MenuItem>
+            <MenuSeparator />
+            {wt.locked ? (
+              <MenuItem icon={<LockOpen size={16} aria-hidden />} {...op} onClick={run(() => void worktreeUnlock(wt.path))}>
+                Unlock
+              </MenuItem>
+            ) : (
+              <MenuItem icon={<Lock size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "lockWorktree", path: wt.path }))}>
+                Lock…
+              </MenuItem>
+            )}
+            <MenuSeparator />
+            <MenuItem
+              icon={<Trash2 size={16} aria-hidden />}
+              danger
+              {...(noRemove ? { disabled: true, title: noRemove } : {})}
+              {...op}
+              onClick={run(() => openDialog({ kind: "removeWorktree", path: wt.path }))}
+            >
+              Remove…
+            </MenuItem>
+          </>
+        );
+      }
+      case "submodule": {
+        const sub = target.sub;
+        const noOpen = sub.workdirOid === null ? "Not initialized — update it first" : null;
+        return (
+          <>
+            <MenuItem
+              icon={<FolderGit2 size={16} aria-hidden />}
+              {...(noOpen ? { disabled: true, title: noOpen } : {})}
+              {...op}
+              /* The submodule path is always `/`-separated: a nested one takes the repo's separator, which `joinPath` does. */
+              onClick={run(() => switchRepo(joinPath(repoPath ?? "", sub.path)))}
+            >
+              Open
+            </MenuItem>
+            <MenuItem icon={<RefreshCw size={16} aria-hidden />} {...op} onClick={run(() => void submoduleUpdate(sub.path))}>
+              Update
+            </MenuItem>
+            <MenuSeparator />
+            <MenuItem icon={<Copy size={16} aria-hidden />} onClick={run(() => copyText(sub.path, "path"))}>
+              Copy path
+            </MenuItem>
+          </>
+        );
+      }
+      // The section headers carry what the whole list does, the way a remote's folder row does.
+      case "worktreeSection":
+        return (
+          <>
+            <MenuItem icon={<Plus size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "addWorktree" }))}>
+              Add worktree…
+            </MenuItem>
+            <MenuSeparator />
+            <MenuItem icon={<Trash2 size={16} aria-hidden />} {...op} onClick={run(() => void worktreePrune())}>
+              Prune
+            </MenuItem>
+          </>
+        );
+      case "submoduleSection":
+        return (
+          <MenuItem icon={<RefreshCw size={16} aria-hidden />} {...op} onClick={run(() => void submoduleUpdate())}>
+            Update all
+          </MenuItem>
+        );
     }
   };
 

@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { RefsSnapshot } from "../../api/types";
+import type { LinkedSnapshot, RefsSnapshot } from "../../api/types";
 import { useDialogStore } from "../../store/dialogStore";
 import { useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
@@ -13,8 +13,11 @@ vi.mock("../../api/ipc", async (importOriginal) => {
   return {
     ...actual,
     getRefs: vi.fn(() => new Promise(() => {})),
+    getLinked: vi.fn(() => Promise.resolve(null)),
     getStatus: vi.fn(() => new Promise(() => {})),
     stashDrop: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
+    openRepo: vi.fn(() => new Promise(() => {})),
+    submoduleUpdate: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
   };
 });
 const ask = vi.hoisted(() => vi.fn((_message: string, _options?: unknown) => Promise.resolve(true)));
@@ -47,7 +50,7 @@ const REFS: RefsSnapshot = {
 
 afterEach(cleanup);
 beforeEach(() => {
-  useRepoStore.setState({ refs: REFS, remoteTags: {} });
+  useRepoStore.setState({ refs: REFS, linked: null, remoteTags: {} });
   useDialogStore.setState({ dialog: null });
   useToastStore.setState({ toasts: [] });
   useSettingsStore.setState({ sidebarFolders: "expanded", sidebarFoldersMax: DEFAULT_FOLDERS_MAX });
@@ -186,7 +189,7 @@ describe("Sidebar section counts", () => {
 
     // Hidden, not disabled — and the separator above it goes too: the same groups as the commit menu
     // (switch · integrate · new refs · network · clipboard · edit · delete), minus the last one.
-    expect(items("main")).toEqual(["Checkout", "Merge into main…", "Rebase main onto…", "Create branch here…", "Push…", "Copy name", "Rename…"]);
+    expect(items("main")).toEqual(["Checkout", "Merge into main…", "Rebase main onto…", "Create branch here…", "Create worktree here…", "Push…", "Copy name", "Rename…"]);
     expect(menu("main").queryAllByRole("separator")).toHaveLength(5);
     expect(items("feature/panels")).not.toContain("Delete…");
     expect(items("wip")).toContain("Delete…");
@@ -449,5 +452,124 @@ describe("Sidebar folder collapse", () => {
     // The same rule with a lower threshold: the folder the user opened goes back to collapsed.
     act(() => rule("auto", 2));
     expect(feature(view).getAttribute("aria-expanded")).toBe("false");
+  });
+});
+
+describe("Sidebar linked checkouts", () => {
+  const LINKED: LinkedSnapshot = {
+    worktrees: [
+      { path: "C:/src/work", head: { oid: "a", branch: "main", detached: false }, main: true, current: true, locked: false, lockReason: null, prunable: false },
+      { path: "C:/src/work-panels", head: { oid: "b", branch: "feature/panels", detached: false }, main: false, current: false, locked: true, lockReason: "on a USB stick", prunable: false },
+    ],
+    submodules: [{ path: "vendor/lib", url: "git@x/lib.git", headOid: "0123456789abcdef0123456789abcdef01234567", workdirOid: null }],
+  };
+  const rowMenu = (title: string, view: ReturnType<typeof render>) => {
+    fireEvent.contextMenu(view.getAllByRole("treeitem").find((r) => r.title === title)!);
+    return within(view.getByRole("menu", { name: "Reference actions" }));
+  };
+  const items = (menu: ReturnType<typeof within>) => menu.queryAllByRole("menuitem").map((el: HTMLElement) => el.textContent);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useRepoStore.setState({ refs: REFS, linked: LINKED, repo: { id: "r", name: "work", path: "C:/src/work", head: { oid: "a", branch: "main", detached: false } } });
+    useOpsStore.setState({ busy: null });
+  });
+
+  it("lists the worktrees and submodules with their badges", () => {
+    const view = render(<Sidebar />);
+    const row = (title: string) => view.getAllByRole("treeitem").find((r) => r.title === title)!;
+
+    // The branch (or `detached`) then the badges, in the row's meta slot.
+    const meta = (title: string) => Array.from(row(title).lastElementChild!.children).map((el) => el.textContent);
+
+    // Named by the directory, not the whole path — that is the row's title.
+    expect(within(row("C:/src/work")).getByText("work")).toBeTruthy();
+    expect(meta("C:/src/work")).toEqual(["main", "main", "current"]);
+
+    const linked = row("C:/src/work-panels");
+    expect(within(linked).getByText("work-panels")).toBeTruthy();
+    expect(meta("C:/src/work-panels")).toEqual(["feature/panels", "locked"]);
+    expect(within(linked).getByText("locked").getAttribute("title")).toBe("on a USB stick");
+
+    expect(within(row("git@x/lib.git")).getByText("vendor/lib")).toBeTruthy();
+    expect(meta("git@x/lib.git")).toEqual(["0123456", "not initialized"]);
+  });
+
+  it("shows neither section for an ordinary repository: one worktree is just the repository", () => {
+    const section = (view: ReturnType<typeof render>) => view.queryAllByRole("button").filter((b) => /^(Worktrees|Submodules)/.test(b.textContent!));
+    useRepoStore.setState({ linked: null });
+    const plain = render(<Sidebar />);
+    expect(section(plain)).toHaveLength(0);
+    plain.unmount();
+
+    useRepoStore.setState({ linked: { worktrees: [LINKED.worktrees[0]], submodules: [] } });
+    const single = render(<Sidebar />);
+    expect(section(single)).toHaveLength(0);
+  });
+
+  it("opens another worktree from its row, and offers neither Open nor Remove on the current one", () => {
+    const view = render(<Sidebar />);
+    const linked = rowMenu("C:/src/work-panels", view);
+    // Locked, so Unlock rather than Lock…
+    expect(items(linked)).toEqual(["Open", "Copy path", "Unlock", "Remove…"]);
+    fireEvent.click(linked.getByRole("menuitem", { name: "Open" }));
+    expect(ipc.openRepo).toHaveBeenCalledWith("C:/src/work-panels");
+
+    const currentMenu = rowMenu("C:/src/work", view);
+    expect(items(currentMenu)).toEqual(["Open", "Copy path", "Lock…", "Remove…"]);
+    expect(currentMenu.getByRole("menuitem", { name: "Open" }).getAttribute("title")).toBe("Already the open repository");
+    const remove = currentMenu.getByRole("menuitem", { name: "Remove…" });
+    expect((remove as HTMLButtonElement).disabled).toBe(true);
+    expect(remove.getAttribute("title")).toBe("The main working tree stays");
+  });
+
+  it("greys Open on a submodule that has no checkout, and updates one from its row", () => {
+    const view = render(<Sidebar />);
+    const menu = rowMenu("git@x/lib.git", view);
+    expect(items(menu)).toEqual(["Open", "Update", "Copy path"]);
+    expect(menu.getByRole("menuitem", { name: "Open" }).getAttribute("title")).toBe("Not initialized — update it first");
+    fireEvent.click(menu.getByRole("menuitem", { name: "Update" }));
+    expect(ipc.submoduleUpdate).toHaveBeenCalledWith("r", "vendor/lib");
+  });
+
+  it("opens a nested submodule with the repo's own separator", () => {
+    useRepoStore.setState({
+      repo: { id: "r", name: "work", path: "C:\\src\\work", head: { oid: "a", branch: "main", detached: false } },
+      linked: { ...LINKED, submodules: [{ ...LINKED.submodules[0], workdirOid: "0123456789abcdef0123456789abcdef01234567" }] },
+    });
+    const view = render(<Sidebar />);
+    fireEvent.click(rowMenu("git@x/lib.git", view).getByRole("menuitem", { name: "Open" }));
+    expect(ipc.openRepo).toHaveBeenCalledWith("C:\\src\\work\\vendor\\lib");
+  });
+
+  it("hangs the whole-list actions off the section headers", () => {
+    const view = render(<Sidebar />);
+    const header = (name: RegExp) => {
+      fireEvent.contextMenu(view.getAllByRole("button").find((b) => name.test(b.textContent!))!);
+      return within(view.getByRole("menu", { name: "Reference actions" }));
+    };
+    const worktrees = header(/^Worktrees/);
+    expect(items(worktrees)).toEqual(["Add worktree…", "Prune"]);
+    fireEvent.click(worktrees.getByRole("menuitem", { name: "Add worktree…" }));
+    expect(useDialogStore.getState().dialog).toEqual({ kind: "addWorktree" });
+
+    const submodules = header(/^Submodules/);
+    expect(items(submodules)).toEqual(["Update all"]);
+    fireEvent.click(submodules.getByRole("menuitem", { name: "Update all" }));
+    expect(ipc.submoduleUpdate).toHaveBeenCalledWith("r", null);
+  });
+
+  it("offers Create worktree here… on a branch row, greyed while a worktree already has it out", () => {
+    const view = render(<Sidebar />);
+    const free = rowMenu("main", view).getByRole("menuitem", { name: "Create worktree here…" });
+    // `main` is out in the current worktree, `feature/panels` in the linked one: neither can be added again.
+    expect((free as HTMLButtonElement).disabled).toBe(true);
+    expect(free.getAttribute("title")).toBe("Already checked out in a worktree");
+
+    useRepoStore.setState({ linked: { ...LINKED, worktrees: [LINKED.worktrees[0]] } });
+    const item = rowMenu("feature/panels", view).getByRole("menuitem", { name: "Create worktree here…" });
+    expect((item as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(item);
+    expect(useDialogStore.getState().dialog).toEqual({ kind: "addWorktree", branch: "feature/panels" });
   });
 });

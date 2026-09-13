@@ -8,6 +8,7 @@ vi.mock("../api/ipc", async (importOriginal) => {
     ...actual,
     getStatus: vi.fn(),
     getRefs: vi.fn(),
+    getLinked: vi.fn(() => Promise.resolve(null)),
     refreshLabels: vi.fn(),
     startLog: vi.fn(),
     getLogPage: vi.fn(() => new Promise(() => {})),
@@ -19,10 +20,10 @@ import { __resetForTests as resetRepo, useRepoStore } from "./repoStore";
 import { __resetForTests as resetStatus, STATUS_DEBOUNCE_MS, useShowWorkingTree, useStatusStore } from "./statusStore";
 import { useToastStore } from "./toastStore";
 
-const mocked = ipc as unknown as Record<"getStatus" | "getRefs" | "refreshLabels" | "startLog" | "getLogPage", ReturnType<typeof vi.fn>>;
+const mocked = ipc as unknown as Record<"getStatus" | "getRefs" | "getLinked" | "refreshLabels" | "startLog" | "getLogPage", ReturnType<typeof vi.fn>>;
 const REPO: RepoSummary = { id: "r1", name: "r1", path: "r1", head: { oid: "h1", branch: "main", detached: false } };
 const status = (n: number, state: RepoState = "clean"): WorkdirStatus => ({
-  entries: Array.from({ length: n }, (_, i) => ({ path: `f${i}`, oldPath: null, index: null, workdir: "modified", conflicted: false, workdirStamp: "1:1" })),
+  entries: Array.from({ length: n }, (_, i) => ({ path: `f${i}`, oldPath: null, index: null, workdir: "modified", conflicted: false, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1" })),
   staged: 0,
   unstaged: n,
   untracked: 0,
@@ -52,6 +53,7 @@ beforeEach(async () => {
   mocked.getLogPage.mockImplementation(() => new Promise(() => {}));
   mocked.getStatus.mockResolvedValue(status(2));
   mocked.getRefs.mockResolvedValue(refs("h1"));
+  mocked.getLinked.mockResolvedValue(null);
   mocked.refreshLabels.mockResolvedValue(1);
   mocked.startLog.mockResolvedValue(2);
   // Opening a repo triggers one refresh via the store subscription; not what these tests count, so it

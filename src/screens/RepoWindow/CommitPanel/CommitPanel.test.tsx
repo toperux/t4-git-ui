@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RefsSnapshot, WorkdirStatus } from "../../../api/types";
 import { useCommitStore } from "../../../store/commitStore";
@@ -24,6 +24,7 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
     getFileDiff: vi.fn(() => new Promise(() => {})),
     getAuthor: vi.fn(() => Promise.resolve({ name: "Ada", email: "ada@x" })),
     getRefs: vi.fn(() => Promise.resolve(REFS)),
+    getLinked: vi.fn(() => Promise.resolve(null)),
     refreshLabels: vi.fn(() => Promise.resolve(1)),
     startLog: vi.fn(() => Promise.resolve(1)),
     getLogPage: vi.fn(() => new Promise(() => {})),
@@ -77,11 +78,11 @@ const mocked = ipc as unknown as Record<
 
 const STATUS: WorkdirStatus = {
   entries: [
-    { path: "a.rs", oldPath: null, index: null, workdir: "modified", conflicted: false, workdirStamp: "1:1" },
-    { path: "both.rs", oldPath: null, index: "modified", workdir: "modified", conflicted: false, workdirStamp: "1:1" },
-    { path: "conflict.rs", oldPath: null, index: null, workdir: null, conflicted: true, workdirStamp: "1:1" },
-    { path: "new.rs", oldPath: null, index: "added", workdir: null, conflicted: false, workdirStamp: null },
-    { path: "untracked.txt", oldPath: null, index: null, workdir: "untracked", conflicted: false, workdirStamp: "1:1" },
+    { path: "a.rs", oldPath: null, index: null, workdir: "modified", conflicted: false, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1" },
+    { path: "both.rs", oldPath: null, index: "modified", workdir: "modified", conflicted: false, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1" },
+    { path: "conflict.rs", oldPath: null, index: null, workdir: null, conflicted: true, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1" },
+    { path: "new.rs", oldPath: null, index: "added", workdir: null, conflicted: false, submodule: false, submoduleDirtyOnly: false, workdirStamp: null },
+    { path: "untracked.txt", oldPath: null, index: null, workdir: "untracked", conflicted: false, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1" },
   ],
   staged: 2,
   unstaged: 2,
@@ -239,9 +240,9 @@ describe("CommitPanel", () => {
     // Everything is staged: the empty list answers no keys, so the focus follows the selection over.
     const allStaged: WorkdirStatus = {
       entries: [
-        { path: "a.rs", oldPath: null, index: "modified", workdir: null, conflicted: false, workdirStamp: "1:1" },
-        { path: "both.rs", oldPath: null, index: "modified", workdir: null, conflicted: false, workdirStamp: "1:1" },
-        { path: "new.rs", oldPath: null, index: "added", workdir: null, conflicted: false, workdirStamp: null },
+        { path: "a.rs", oldPath: null, index: "modified", workdir: null, conflicted: false, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1" },
+        { path: "both.rs", oldPath: null, index: "modified", workdir: null, conflicted: false, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1" },
+        { path: "new.rs", oldPath: null, index: "added", workdir: null, conflicted: false, submodule: false, submoduleDirtyOnly: false, workdirStamp: null },
       ],
       staged: 3,
       unstaged: 0,
@@ -483,7 +484,7 @@ describe("CommitPanel", () => {
 
   it("a selection with nothing stageable refuses the whole action and says why", () => {
     useStatusStore.setState({
-      status: { ...STATUS, entries: [...STATUS.entries, { path: "conflict2.rs", oldPath: null, index: null, workdir: null, conflicted: true, workdirStamp: "1:1" }], conflicted: 2 },
+      status: { ...STATUS, entries: [...STATUS.entries, { path: "conflict2.rs", oldPath: null, index: null, workdir: null, conflicted: true, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1" }], conflicted: 2 },
       error: null,
     });
     const { getByRole } = renderPanel();
@@ -500,7 +501,7 @@ describe("CommitPanel", () => {
   });
 
   it("Stage selected re-seeds a conflict it left behind, never the file it just staged", async () => {
-    const conflict2 = { path: "conflict2.rs", oldPath: null, index: null, workdir: null, conflicted: true, workdirStamp: "1:1" } as const;
+    const conflict2 = { path: "conflict2.rs", oldPath: null, index: null, workdir: null, conflicted: true, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1" } as const;
     const before = { ...STATUS, entries: [...STATUS.entries, conflict2], conflicted: 2 };
     // What the status looks like once a.rs is staged: the two conflicts it skipped are still there.
     const after = { ...STATUS, entries: [...STATUS.entries.filter((e) => e.path !== "a.rs"), conflict2], conflicted: 2 };
@@ -565,7 +566,7 @@ describe("CommitPanel", () => {
   it("Unstage selected acts on the staged selection alone", () => {
     // A third staged file, so the two selected rows are a strict subset: with only the fixture's two
     // the selection *is* the whole list and unstaging either one would pass.
-    const third = { path: "third.rs", oldPath: null, index: "modified", workdir: null, conflicted: false, workdirStamp: "1:1" } as const;
+    const third = { path: "third.rs", oldPath: null, index: "modified", workdir: null, conflicted: false, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1" } as const;
     useStatusStore.setState({ status: { ...STATUS, entries: [...STATUS.entries, third], staged: 3 }, error: null });
     const { getByRole } = renderPanel();
     const staged = () => Array.from(getByRole("listbox", { name: "Staged files" }).querySelectorAll('[role="option"]'));
@@ -651,6 +652,13 @@ describe("CommitPanel file context menu", () => {
   /** Item labels only: the `Kbd` hint lives in the same button. */
   const labels = (root: HTMLElement) => Array.from(root.querySelectorAll('[role="menuitem"]')).map((el) => text(el.querySelector('[class*="grow"]')!));
   const rows = (root: HTMLElement, list: string) => Array.from(root.querySelector(`[aria-label="${list} files"]`)!.querySelectorAll('[role="option"]')) as HTMLElement[];
+  /** The same list plus a submodule whose pointer is where it belongs: only its checkout changed. */
+  const withSub: WorkdirStatus = {
+    ...STATUS,
+    entries: [...STATUS.entries, { path: "sub", oldPath: null, index: null, workdir: "modified", conflicted: false, submodule: true, submoduleDirtyOnly: true, workdirStamp: "abc:true" }],
+    unstaged: 3,
+  };
+  const subRow = (root: HTMLElement) => rows(root, "Unstaged").find((r) => r.dataset.path === "sub")!;
 
   it("an unstaged file offers Stage, Discard, Copy path and the openers", () => {
     const { getByRole, container } = renderPanel();
@@ -748,6 +756,54 @@ describe("CommitPanel file context menu", () => {
     fireEvent.keyDown(list, { key: "Delete" });
     await act(async () => {});
     expect(mocked.discardPaths).not.toHaveBeenCalled();
+  });
+
+  it("a submodule row has no Discard: the menu item is dead and Delete does nothing", async () => {
+    useStatusStore.setState({ status: withSub });
+    const { getByRole, container } = renderPanel();
+    const list = container.querySelector('[aria-label="Unstaged files"]') as HTMLElement;
+    const row = subRow(container);
+    fireEvent.click(row);
+    fireEvent.keyDown(list, { key: "Delete" });
+    await act(async () => {});
+    expect(mocked.discardPaths).not.toHaveBeenCalled();
+
+    fireEvent.contextMenu(row);
+    expect(getByRole("menuitem", { name: "Discard…" }).hasAttribute("disabled")).toBe(true);
+  });
+
+  it("a submodule whose pointer never moved cannot be staged either — and the row says why", () => {
+    useStatusStore.setState({ status: withSub });
+    const { getByRole, container } = renderPanel();
+    const row = subRow(container);
+    expect(text(row)).toContain("content");
+
+    // The row's own + is dead for the same reason, and says so.
+    const plus = within(row).getByRole("button", { name: "Stage" });
+    expect((plus as HTMLButtonElement).disabled).toBe(true);
+    expect(plus.getAttribute("title")).toBe("Content changed inside the submodule — commit there, or Update it");
+
+    fireEvent.contextMenu(row);
+    const item = getByRole("menuitem", { name: "Stage" });
+    expect(item.hasAttribute("disabled")).toBe(true);
+    expect(item.getAttribute("title")).toBe("Content changed inside the submodule — commit there, or Update it");
+
+    // And Stage all walks past it, the way it walks past a conflict.
+    fireEvent.click(getByRole("button", { name: "Stage all" }));
+    expect(mocked.stagePaths).toHaveBeenCalledWith("r", ["a.rs", "both.rs", "untracked.txt"]);
+  });
+
+  it("the staged row of a submodule carries no `content` tag: what is staged there is the pointer move", () => {
+    // Pointer move staged, checkout still dirty: the same entry is in both lists, and only the
+    // unstaged side has nothing to stage.
+    const moved = { path: "moved", oldPath: null, index: "modified", workdir: "modified", conflicted: false, submodule: true, submoduleDirtyOnly: true, workdirStamp: "abc" } as const;
+    useStatusStore.setState({ status: { ...STATUS, entries: [...STATUS.entries, moved], staged: 3, unstaged: 3 } });
+    const { container } = renderPanel();
+    const row = (list: string) => rows(container, list).find((r) => r.dataset.path === "moved")!;
+    expect(text(row("Unstaged"))).toContain("content");
+    expect(text(row("Staged"))).not.toContain("content");
+    // And its − still works: unstaging the pointer is a real action.
+    expect((within(row("Staged")).getByRole("button", { name: "Unstage" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("Stage on a lone conflicted row marks it resolved, like the row's own action", () => {
@@ -849,7 +905,7 @@ describe("CommitPanel file context menu", () => {
     expect(mocked.openPath).toHaveBeenCalledWith("r", "a.rs", true);
 
     cleanup();
-    useStatusStore.setState({ status: { ...STATUS, entries: [{ path: "gone.rs", oldPath: null, index: null, workdir: "deleted", conflicted: false, workdirStamp: null }] } });
+    useStatusStore.setState({ status: { ...STATUS, entries: [{ path: "gone.rs", oldPath: null, index: null, workdir: "deleted", conflicted: false, submodule: false, submoduleDirtyOnly: false, workdirStamp: null }] } });
     useCommitStore.getState().reset();
     const second = renderPanel();
     fireEvent.contextMenu(rows(second.container, "Unstaged")[0]);
@@ -861,9 +917,9 @@ describe("CommitPanel file context menu", () => {
 describe("CommitPanel tree view", () => {
   const NESTED: WorkdirStatus = {
     entries: [
-      { path: "src/lib/b.rs", oldPath: null, index: null, workdir: "modified", conflicted: false, workdirStamp: "1:1" },
-      { path: "top.rs", oldPath: null, index: null, workdir: "modified", conflicted: false, workdirStamp: "1:1" },
-      { path: "src/a.rs", oldPath: null, index: "modified", workdir: "modified", conflicted: false, workdirStamp: "1:1" },
+      { path: "src/lib/b.rs", oldPath: null, index: null, workdir: "modified", conflicted: false, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1" },
+      { path: "top.rs", oldPath: null, index: null, workdir: "modified", conflicted: false, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1" },
+      { path: "src/a.rs", oldPath: null, index: "modified", workdir: "modified", conflicted: false, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1" },
     ],
     staged: 1,
     unstaged: 3,
@@ -916,7 +972,7 @@ describe("CommitPanel tree view", () => {
   it("a chain of single-child folders is one row, `a / b / c`, that collapses as a whole", () => {
     // Its own fixture: the shared one's row indexes are load-bearing for the tests around this.
     useStatusStore.setState({
-      status: { ...NESTED, entries: [...NESTED.entries, { path: "deep/one/two/z.rs", oldPath: null, index: null, workdir: "modified", conflicted: false, workdirStamp: "1:1" }] },
+      status: { ...NESTED, entries: [...NESTED.entries, { path: "deep/one/two/z.rs", oldPath: null, index: null, workdir: "modified", conflicted: false, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1" }] },
       error: null,
     });
     useTreeModeStore.setState({ tree: true });
@@ -1028,7 +1084,7 @@ describe("CommitPanel tree view", () => {
 
   it("a folder's + stages every file under it; the staged tree's − unstages them", async () => {
     useStatusStore.setState({
-      status: { ...NESTED, entries: [...NESTED.entries, { path: "deep/one/two/z.rs", oldPath: null, index: null, workdir: "modified", conflicted: false, workdirStamp: "1:1" }] },
+      status: { ...NESTED, entries: [...NESTED.entries, { path: "deep/one/two/z.rs", oldPath: null, index: null, workdir: "modified", conflicted: false, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1" }] },
       error: null,
     });
     useTreeModeStore.setState({ tree: true });
@@ -1053,8 +1109,8 @@ describe("CommitPanel tree view", () => {
         ...NESTED,
         entries: [
           ...NESTED.entries,
-          { path: "src/c.rs", oldPath: null, index: null, workdir: null, conflicted: true, workdirStamp: "1:1" },
-          { path: "only/x.rs", oldPath: null, index: null, workdir: null, conflicted: true, workdirStamp: "1:1" },
+          { path: "src/c.rs", oldPath: null, index: null, workdir: null, conflicted: true, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1" },
+          { path: "only/x.rs", oldPath: null, index: null, workdir: null, conflicted: true, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1" },
         ],
       },
       error: null,
@@ -1075,7 +1131,7 @@ describe("CommitPanel tree view", () => {
 
   it("a folder's menu refuses a lone conflict under it, in the row action's words", () => {
     useStatusStore.setState({
-      status: { ...NESTED, entries: [...NESTED.entries, { path: "only/x.rs", oldPath: null, index: null, workdir: null, conflicted: true, workdirStamp: "1:1" }] },
+      status: { ...NESTED, entries: [...NESTED.entries, { path: "only/x.rs", oldPath: null, index: null, workdir: null, conflicted: true, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1" }] },
       error: null,
     });
     useTreeModeStore.setState({ tree: true });

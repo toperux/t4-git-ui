@@ -288,6 +288,8 @@ fn diff_shapes_are_camel_case() {
             index: Some(FileStatus::Modified),
             workdir: None,
             conflicted: false,
+            submodule: false,
+            submodule_dirty_only: false,
             workdir_stamp: Some("1700000000000:12".into()),
         }],
         staged: 1,

@@ -94,6 +94,15 @@ fn classify(
         if !rel.as_os_str().is_empty() && repo.is_path_ignored(rel).unwrap_or(false) {
             return None;
         }
+        // The submodule list lives in the workdir; the sidebar reads it with the
+        // refs, so a hand edit has to reach that path too (status runs on every kind).
+        // ponytail: only the watcher maps it — an app-side rewrite of `.gitmodules`
+        // (discarding it) emits its own declared kinds, so the Submodules list waits
+        // for the next refs event. Upgrade path: a `Linked` change kind the watcher
+        // and those ops both emit.
+        if rel == Path::new(".gitmodules") {
+            return Some(ChangeKind::Refs);
+        }
     }
     Some(ChangeKind::Workdir)
 }
@@ -301,6 +310,16 @@ mod tests {
         let kinds = kinds_within(&rx, Duration::from_millis(1200));
         assert!(kinds.contains(&ChangeKind::Refs), "{kinds:?}");
         assert!(kinds.contains(&ChangeKind::Index), "{kinds:?}");
+    }
+
+    #[test]
+    fn a_gitmodules_edit_reports_refs() {
+        let t = TempRepo::new();
+        t.commit(&[("a.txt", "a")], "init");
+        let (_w, rx) = start(&t);
+        t.write(".gitmodules", "[submodule \"x\"]\n\tpath = x\n");
+        let kinds = kinds_within(&rx, Duration::from_millis(1200));
+        assert!(kinds.contains(&ChangeKind::Refs), "{kinds:?}");
     }
 
     #[test]

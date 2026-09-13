@@ -13,6 +13,7 @@ import type {
   FileContent,
   FileDiff,
   GitProbe,
+  LinkedSnapshot,
   LogFilter,
   LogPage,
   OpResult,
@@ -86,6 +87,9 @@ export const initRepo = (path: string) => call<RepoSummary>("init_repo", { path 
 export const closeRepo = (id: RepoId) => call<void>("close_repo", { id });
 
 export const getRefs = (id: RepoId) => call<RefsSnapshot>("get_refs", { id });
+
+/** Linked worktrees and submodules — a repository open per row, so it is asked for separately from the refs. */
+export const getLinked = (id: RepoId) => call<LinkedSnapshot>("get_linked", { id });
 
 export const getCommit = (id: RepoId, oid: string) => call<CommitDetail>("get_commit", { id, oid });
 
@@ -325,6 +329,23 @@ export const renameBranch = (id: RepoId, old: string, next: string, force: boole
 
 /** `git remote add <name> <url>`; rejects when the name is taken or invalid. */
 export const addRemote = (id: RepoId, name: string, url: string) => call<void>("add_remote", { id, name, url });
+
+/** `git worktree add <path>`: exactly one of `branch` (existing) and `newBranch` (created at `start`, HEAD when null). */
+export const worktreeAdd = (id: RepoId, path: string, branch: string | null, newBranch: string | null, start: string | null, checkout: boolean) =>
+  call<OpResult>("worktree_add", { id, path, branch, newBranch, start, checkout });
+
+/** `git worktree remove`; a dirty worktree rejects with kind `refused` (re-offer it with `force`), a locked one with kind `cli` — Unlock is its answer. */
+export const worktreeRemove = (id: RepoId, path: string, force: boolean) => call<void>("worktree_remove", { id, path, force });
+
+/** `git worktree prune` — drops the administrative entries of worktrees whose directory is gone. */
+export const worktreePrune = (id: RepoId) => call<OpResult>("worktree_prune", { id });
+
+export const worktreeLock = (id: RepoId, path: string, reason: string | null) => call<OpResult>("worktree_lock", { id, path, reason });
+
+export const worktreeUnlock = (id: RepoId, path: string) => call<OpResult>("worktree_unlock", { id, path });
+
+/** `git submodule update --init --recursive` for one submodule, or all of them when `path` is null. */
+export const submoduleUpdate = (id: RepoId, path: string | null) => call<OpResult>("submodule_update", { id, path });
 
 /** `git remote rename <old> <new>` — the remote-tracking refs and the branches tracking them follow. */
 export const renameRemote = (id: RepoId, old: string, next: string) => call<void>("rename_remote", { id, old, new: next });

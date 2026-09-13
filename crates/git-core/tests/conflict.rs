@@ -245,3 +245,43 @@ fn entry(t: &TempRepo, path: &str) -> git_core::status::StatusEntry {
         .find(|e| e.path == path)
         .expect("entry")
 }
+
+/// A conflicted gitlink has three stages and not a blob among them: every side
+/// names a commit in the submodule's own repository. The sides are refused where
+/// they are read, so nothing is written out before the refusal.
+#[test]
+fn a_conflicted_gitlinks_sides_are_refused() {
+    let src = TempRepo::new();
+    let c1 = src.commit(&[("s.txt", "1\n")], "s1");
+    let c2 = src.commit(&[("s.txt", "2\n")], "s2");
+    // A third, so the merge base's pointer is neither side's and the merge has no
+    // one to pick.
+    src.commit(&[("s.txt", "3\n")], "s3");
+    let t = TempRepo::new();
+    t.commit(&[("f.txt", "v0\n")], "base");
+    // Branched from the commit that adds the submodule, as in the status tests:
+    // an earlier one has no `sub` in its tree.
+    let base = t.add_submodule("sub", &src);
+    let sub = git2::Repository::open(t.path().join("sub")).unwrap();
+    t.branch("feat", base);
+    t.checkout("feat");
+    sub.set_head_detached(c1).unwrap();
+    t.stage(&["sub"]);
+    let feat = t.commit_index("feat moves the pointer");
+    t.checkout("master");
+    sub.set_head_detached(c2).unwrap();
+    t.stage(&["sub"]);
+    t.commit_index("master moves it elsewhere");
+    let ann = t.repo.find_annotated_commit(feat).unwrap();
+    t.repo.merge(&[&ann], None, None).unwrap();
+
+    assert!(matches!(
+        conflict::stages(&t.repo, "sub"),
+        Err(GitError::Refused(m)) if m.contains("submodule pointer")
+    ));
+    // Resolve in editor comes through `stages` too, before it makes a temp directory.
+    assert!(matches!(
+        conflict::open_merge_editor(&t.repo, "sub", None),
+        Err(GitError::Refused(m)) if m.contains("submodule pointer")
+    ));
+}

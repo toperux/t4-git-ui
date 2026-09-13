@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { StatusEntry } from "../../../api/types";
 import { stageTarget } from "./stageTarget";
 
-const entry = (path: string, conflicted = false): StatusEntry => ({ path, oldPath: null, index: null, workdir: "modified", conflicted, workdirStamp: "1:1" });
+const entry = (path: string, conflicted = false): StatusEntry => ({ path, oldPath: null, index: null, workdir: "modified", conflicted, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1" });
 
 describe("stageTarget", () => {
   it("drops paths the list no longer holds: a selection outlives the status it was made against", () => {
@@ -29,6 +29,34 @@ describe("stageTarget", () => {
     const { target, skipped } = stageTarget("unstaged", entries, ["a.rs", "b.rs"], { conflicted: new Set(["b.rs"]) });
     expect(target).toEqual(["a.rs"]);
     expect(skipped).toBe(1);
+  });
+
+  it("skips a submodule whose pointer never moved, lone row included — `git add` has nothing to do", () => {
+    // Not a group action and not a conflict: the row's own Stage would still stage nothing.
+    const sub: StatusEntry = { ...entry("sub"), submodule: true, submoduleDirtyOnly: true };
+    expect(stageTarget("unstaged", [sub], ["sub"], { where: "you selected" })).toEqual({
+      target: [],
+      skipped: 1,
+      note: "Content changed inside the submodule — commit there, or Update it",
+    });
+    // Beside a file it is a skip like any other, counted in the note.
+    const { target, note } = stageTarget("unstaged", [entry("a.rs"), sub], ["a.rs", "sub"], { where: "you selected" });
+    expect(target).toEqual(["a.rs"]);
+    expect(note).toBe("Content changed inside the submodule — commit there, or Update it (1 skipped)");
+    // The staged list is the pointer, not the contents: unstaging it is fine.
+    expect(stageTarget("staged", [sub], ["sub"]).target).toEqual(["sub"]);
+  });
+
+  it("names both kinds when a group skipped both: neither wording is the whole story", () => {
+    const sub: StatusEntry = { ...entry("sub"), submodule: true, submoduleDirtyOnly: true };
+    const entries = [entry("a.rs"), entry("x.rs", true), sub];
+    const { note } = stageTarget("unstaged", entries, ["a.rs", "x.rs", "sub"], { bulk: true, where: "here" });
+    expect(note).toBe("Conflicted files and submodules with unmoved pointers are skipped (2 skipped)");
+
+    // Nothing left to act on: the count gives way to what the whole group is.
+    const empty = stageTarget("unstaged", entries, ["x.rs", "sub"], { bulk: true, where: "here" });
+    expect(empty.target).toEqual([]);
+    expect(empty.note).toBe("Every file here is either conflicted or a submodule with an unmoved pointer");
   });
 
   it("names what was refused when every file in it is conflicted, instead of counting skips", () => {

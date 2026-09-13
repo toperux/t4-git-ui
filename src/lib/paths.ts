@@ -5,20 +5,27 @@ export function baseName(path: string): string {
   return path.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || path;
 }
 
-/** Parent directory (`C:\a\b` → `C:\a`); a root-level path returns itself. */
+/** Parent directory (`C:\a\b` → `C:\a`); a root keeps its separator (`/work` → `/`) and is its own parent. */
 export function parentDir(path: string): string {
   const t = path.replace(/[\\/]+$/, "");
+  // `\\server\share` is a root too: without the share it is not a path anyone can clone into.
+  if (/^[\\/]{2}[^\\/]+[\\/][^\\/]+$/.test(t)) return path;
   const i = Math.max(t.lastIndexOf("/"), t.lastIndexOf("\\"));
-  return i > 0 ? t.slice(0, i) : t;
+  // No separator left: a root (`C:\`, `/`) — given back untrimmed — or a bare name.
+  if (i < 0) return path;
+  const head = t.slice(0, i);
+  // `C:` and `` are roots, not directories: without the separator they are relative paths.
+  return head === "" || /^[A-Za-z]:$/.test(head) ? head + t[i] : head;
 }
 
 /** `\` when `path` already uses backslashes, else `/`. */
 export const pathSep = (path: string) => (path.includes("\\") ? "\\" : "/");
 
-/** `<parent><sep><name>`; a trailing separator on `parent` is not doubled. */
+/** `<parent><sep><name>`; a trailing separator on `parent` is not doubled, and `/` in `name` (git-relative paths are `/`-separated) takes the parent's. A backslash is left alone: on a `/` parent it is a character of the name, not a separator. */
 export function joinPath(parent: string, name: string): string {
   if (!parent) return name;
-  return parent.replace(/[\\/]+$/, "") + pathSep(parent) + name;
+  const sep = pathSep(parent);
+  return parent.replace(/[\\/]+$/, "") + sep + name.split("/").join(sep);
 }
 
 /** Last path segment of a clone URL minus `.git`: `https://x/y/repo.git/` → `repo`, `git@x:y/repo` → `repo`. */

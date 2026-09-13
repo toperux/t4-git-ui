@@ -130,6 +130,12 @@
 .path > bdi {
   unicode-bidi: isolate;
 }
+/* Row note beside the path (`content` on a submodule whose pointer never moved), like `Stats`. */
+.meta {
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  flex: none;
+}
 /* Folder label (`a / b / c`): same start-ellipsis as the file rows, inside TreeRow's own label box. */
 .folder {
   display: block;

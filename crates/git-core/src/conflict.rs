@@ -8,7 +8,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use git2::{Oid, Repository};
+use git2::{FileMode, Oid, Repository};
 
 use crate::tools::Tool;
 use crate::{map_git2, GitError};
@@ -22,7 +22,8 @@ pub struct ConflictStages {
     pub theirs: Option<Oid>,
 }
 
-/// The stages of `path`, or `None` when it is not unmerged.
+/// The stages of `path`, or `None` when it is not unmerged. A conflicted
+/// gitlink is `Refused`: it has stages, but none of them is a blob.
 pub fn stages(repo: &Repository, path: &str) -> Result<Option<ConflictStages>, GitError> {
     let mut index = repo.index().map_err(map_git2)?;
     // The CLI wrote this index a moment ago (merge, rebase, `apply --cached`),
@@ -36,6 +37,19 @@ pub fn stages(repo: &Repository, path: &str) -> Result<Option<ConflictStages>, G
         let named = c.our.as_ref().or(c.their.as_ref()).or(c.ancestor.as_ref());
         let Some(named) = named else { continue };
         if named.path == path.as_bytes() {
+            // Every side is read as a blob from here on (the merge editor's three
+            // files, the conflict diff's "ours"), and a gitlink's id names a commit
+            // in the submodule's own repository: `find_blob` would fail with
+            // libgit2's wording. Refused here, where the sides are read, so no
+            // caller writes anything out first.
+            let sides = [&c.ancestor, &c.our, &c.their];
+            if sides
+                .into_iter()
+                .flatten()
+                .any(|e| crate::tree::file_mode(e.mode) == FileMode::Commit)
+            {
+                return Err(GitError::Refused(crate::tools::NO_FILE.into()));
+            }
             return Ok(Some(ConflictStages {
                 ancestor: c.ancestor.map(|e| e.id),
                 ours: c.our.map(|e| e.id),

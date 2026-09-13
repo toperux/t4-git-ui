@@ -73,16 +73,19 @@ export function DiffColumn() {
   const conflicted = list === "unstaged" && !!entry?.conflicted;
   const untracked = list === "unstaged" && entry?.workdir === "untracked";
   // Nor these: a truncated diff's last hunk is cut mid-hunk and the backend rebuilds it untruncated,
-  // so the indices name something else; a typechange patch git refuses outright (blob ↔ symlink).
-  const wholeOnly = !!diff && (diff.truncated || diff.status === "typechange" || entry?.workdir === "typechange" || entry?.index === "typechange");
+  // so the indices name something else; a typechange patch git refuses outright (blob ↔ symlink);
+  // and a 160000 entry has no patchable body at all — a gitlink is one line about a commit.
+  const wholeOnly =
+    (!!diff && (diff.truncated || diff.status === "typechange" || entry?.workdir === "typechange" || entry?.index === "typechange")) || !!entry?.submodule;
   // Staging an unresolved file marks it resolved and drops its three index stages — git's own
   // behaviour, and no unstage brings them back. The markers are still in the file, so say so and
   // offer the one command that undoes it. Only mid-merge: a marker in a file is otherwise just text.
   const merging = state === "merge" || state === "rebase" || state === "cherryPick" || state === "revert";
   const stranded = merging && !conflicted && !!diff && hasMarkers(diff);
   // Discard rewrites the working file: only a plain unstaged diff has one to rewrite (the staged
-  // list edits the index, and untracked / conflicted files are whole-file anyway).
-  const canDiscard = list === "unstaged" && !conflicted && !untracked;
+  // list edits the index, untracked / conflicted files are whole-file anyway, and a gitlink has no
+  // body to apply a reversed patch to).
+  const canDiscard = list === "unstaged" && !conflicted && !untracked && !entry?.submodule;
   // Memoised: a fresh object every render re-renders every memoised row in the diff below it.
   const actions = useMemo<DiffActions | undefined>(
     () =>
@@ -115,8 +118,9 @@ export function DiffColumn() {
     [path, list, conflicted, untracked, wholeOnly, stranded, canDiscard, busy, diff, sides, resolveConflict, stageHunk, stageLines, discardHunk, discardLines],
   );
 
-  // The merge tool is a conflict's route, and an untracked file has nothing on the other side.
-  const external = path && !conflicted && !untracked ? () => void openInDiffTool({ kind: list }, path, entry?.oldPath ?? null) : undefined;
+  // The merge tool is a conflict's route, an untracked file has nothing on the other side, and a
+  // gitlink is a directory no diff tool can open.
+  const external = path && !conflicted && !untracked && !entry?.submodule ? () => void openInDiffTool({ kind: list }, path, entry?.oldPath ?? null) : undefined;
 
   return (
     <DiffViewer

@@ -13,6 +13,7 @@ vi.mock("../api/ipc", async (importOriginal) => {
     cancelOp: vi.fn(),
     getStatus: vi.fn(() => new Promise(() => {})),
     getRefs: vi.fn(() => new Promise(() => {})),
+    getLinked: vi.fn(() => Promise.resolve(null)),
   };
 });
 

@@ -18,6 +18,7 @@ vi.mock("../../api/ipc", async (importOriginal) => {
     // `runOp`'s trailing refresh / syncRefs must never resolve, or they'd race the assertions.
     getStatus: vi.fn(() => new Promise(() => {})),
     getRefs: vi.fn(() => new Promise(() => {})),
+    getLinked: vi.fn(() => Promise.resolve(null)),
   };
 });
 

@@ -14,6 +14,7 @@ vi.mock("../../api/ipc", async (importOriginal) => {
     ...actual,
     openRepo: vi.fn(),
     getRefs: vi.fn(pending),
+    getLinked: vi.fn(() => Promise.resolve(null)),
     startLog: vi.fn(pending),
     cancelOp: vi.fn(() => Promise.resolve(true)),
     cloneRepo: vi.fn(pending),

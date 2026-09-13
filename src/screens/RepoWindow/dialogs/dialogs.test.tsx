@@ -12,6 +12,7 @@ import { DeleteRemoteTagDialog, MergeDialog, PickDialog, PullDialog, PushDialog,
 import { RebaseInteractiveDialog } from "./RebaseInteractiveDialog";
 import { CheckoutBranchDialog, CheckoutDialog, CreateBranchDialog, CreateTagDialog, DeleteRemoteBranchDialog, DeleteTagDialog } from "./RefDialogs";
 import { AddRemoteDialog, RemoveRemoteDialog, RenameRemoteDialog, SetRemoteUrlDialog } from "./RemoteDialogs";
+import { AddWorktreeDialog, LockWorktreeDialog, RemoveWorktreeDialog } from "./WorktreeDialogs";
 import { RunCommandDialog } from "./RunCommandDialog";
 
 vi.mock("../../../api/ipc", async (importOriginal) => {
@@ -38,6 +39,9 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
     createTag: vi.fn(() => Promise.resolve()),
     deleteTag: vi.fn(() => Promise.resolve()),
     deleteRemoteBranch: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
+    worktreeAdd: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
+    worktreeRemove: vi.fn(() => Promise.resolve()),
+    worktreeLock: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     runGit: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     getDefaultRemote: vi.fn(() => Promise.resolve("origin")),
     // Every remote op refreshes the remote's tags; a failure there toasts, which these tests would see.
@@ -46,6 +50,7 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
     getMergeMessage: vi.fn(() => Promise.resolve("Add the parser")),
     getStatus: vi.fn(() => new Promise(() => {})),
     getRefs: vi.fn(() => new Promise(() => {})),
+    getLinked: vi.fn(() => Promise.resolve(null)),
   };
 });
 
@@ -66,6 +71,9 @@ const mocked = ipc as unknown as Record<
   | "createTag"
   | "deleteTag"
   | "deleteRemoteBranch"
+  | "worktreeAdd"
+  | "worktreeRemove"
+  | "worktreeLock"
   | "runGit"
   | "fetch"
   | "getMergeMessage"
@@ -831,5 +839,97 @@ describe("RunCommandDialog", () => {
     expect(getByRole("button", { name: "Run" }).hasAttribute("disabled")).toBe(true);
     fireEvent.keyDown(getByRole("combobox", { name: "Git command" }), { key: "Enter" });
     expect(mocked.runGit).not.toHaveBeenCalled();
+  });
+});
+
+describe("AddWorktreeDialog", () => {
+  // The folder the worktree lands in is named beside the repository, after the branch.
+  beforeEach(() => useRepoStore.setState({ repo: { ...REPO, name: "work", path: "/src/work" } }));
+
+  it("checks out an existing branch in a folder named after it, and passes --no-checkout when unticked", async () => {
+    const { getByRole } = render(<AddWorktreeDialog onClose={() => {}} branch="feature/lane-graph" />);
+    const dialog = getByRole("dialog", { name: "Add worktree" });
+    expect((getByRole("textbox", { name: "Parent folder" }) as HTMLInputElement).value).toBe("/src");
+    expect((getByRole("textbox", { name: "Folder name" }) as HTMLInputElement).value).toBe("work-feature-lane-graph");
+    expect(preview(dialog)).toBe("git worktree add --end-of-options /src/work-feature-lane-graph feature/lane-graph");
+
+    fireEvent.click(getByRole("checkbox", { name: "Check out the files" }));
+    expect(preview(dialog)).toBe("git worktree add --no-checkout --end-of-options /src/work-feature-lane-graph feature/lane-graph");
+    fireEvent.click(getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(mocked.worktreeAdd).toHaveBeenCalledWith("r", "/src/work-feature-lane-graph", "feature/lane-graph", null, null, false));
+  });
+
+  it("creates a branch instead, at the chosen start point", async () => {
+    const { getByRole } = render(<AddWorktreeDialog onClose={() => {}} />);
+    const dialog = getByRole("dialog", { name: "Add worktree" });
+    fireEvent.click(getByRole("checkbox", { name: "Create a new branch" }));
+    fireEvent.change(getByRole("textbox", { name: "New branch" }), { target: { value: "fix" } });
+    expect(preview(dialog)).toBe("git worktree add -b fix --end-of-options /src/work-fix HEAD");
+
+    fireEvent.click(getByRole("combobox", { name: "Start point" }));
+    fireEvent.click(getByRole("option", { name: "origin/main" }));
+    expect(preview(dialog)).toBe("git worktree add -b fix --end-of-options /src/work-fix origin/main");
+    fireEvent.click(getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(mocked.worktreeAdd).toHaveBeenCalledWith("r", "/src/work-fix", null, "fix", "origin/main", true));
+  });
+
+  it("refuses a relative parent folder — it would land next to the app", () => {
+    const { getByRole, getByText } = render(<AddWorktreeDialog onClose={() => {}} branch="feature/lane-graph" />);
+    fireEvent.change(getByRole("textbox", { name: "Parent folder" }), { target: { value: "worktrees" } });
+    expect(getByText("Use a full path — a relative one would land next to the app")).toBeTruthy();
+    expect(getByRole("button", { name: "Add" }).hasAttribute("disabled")).toBe(true);
+  });
+
+  it("refuses an empty parent folder the same way: it is as relative as they come", () => {
+    const { getByRole, getByText } = render(<AddWorktreeDialog onClose={() => {}} branch="feature/lane-graph" />);
+    fireEvent.change(getByRole("textbox", { name: "Parent folder" }), { target: { value: "" } });
+    expect(getByText("Use a full path — a relative one would land next to the app")).toBeTruthy();
+    expect(getByRole("button", { name: "Add" }).hasAttribute("disabled")).toBe(true);
+  });
+});
+
+describe("RemoveWorktreeDialog", () => {
+  it("re-offers a refused removal forced, and the preview says so", async () => {
+    mocked.worktreeRemove.mockRejectedValueOnce({ kind: "refused", message: "contains modified files" });
+    const { getByRole } = render(<RemoveWorktreeDialog onClose={() => {}} path="/src/work-panels" />);
+    const dialog = getByRole("dialog", { name: "Remove worktree" });
+    expect(preview(dialog)).toBe("git worktree remove --end-of-options /src/work-panels");
+    fireEvent.click(getByRole("button", { name: "Remove" }));
+
+    await waitFor(() => expect(getByRole("button", { name: "Force remove" })).toBeTruthy());
+    expect(preview(dialog)).toBe("git worktree remove --force --end-of-options /src/work-panels");
+    fireEvent.click(getByRole("button", { name: "Force remove" }));
+    await waitFor(() => expect(mocked.worktreeRemove).toHaveBeenCalledWith("r", "/src/work-panels", true));
+  });
+
+  it("stays open when another operation is in flight — nothing ran, so the question still stands", async () => {
+    useOpsStore.setState({ busy: "Pulling…" });
+    const onClose = vi.fn();
+    const { getByRole } = render(<RemoveWorktreeDialog onClose={onClose} path="/src/work-panels" />);
+    fireEvent.click(getByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(useToastStore.getState().toasts).toHaveLength(1));
+    expect(mocked.worktreeRemove).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(getByRole("dialog", { name: "Remove worktree" })).toBeTruthy();
+  });
+
+  it("closes on a failure it cannot re-offer — a locked worktree is `cli`, and the toast carries it", async () => {
+    mocked.worktreeRemove.mockRejectedValueOnce({ kind: "cli", message: "cannot remove a locked working tree" });
+    const onClose = vi.fn();
+    const { getByRole } = render(<RemoveWorktreeDialog onClose={onClose} path="/src/work-panels" />);
+    fireEvent.click(getByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+});
+
+describe("LockWorktreeDialog", () => {
+  it("locks with or without a reason", async () => {
+    const { getByRole } = render(<LockWorktreeDialog onClose={() => {}} path="/src/work-panels" />);
+    const dialog = getByRole("dialog", { name: "Lock worktree" });
+    expect(preview(dialog)).toBe("git worktree lock --end-of-options /src/work-panels");
+    fireEvent.change(getByRole("textbox", { name: "Reason" }), { target: { value: " on a USB stick " } });
+    expect(preview(dialog)).toBe("git worktree lock --reason 'on a USB stick' --end-of-options /src/work-panels");
+    fireEvent.click(getByRole("button", { name: "Lock" }));
+    await waitFor(() => expect(mocked.worktreeLock).toHaveBeenCalledWith("r", "/src/work-panels", "on a USB stick"));
   });
 });

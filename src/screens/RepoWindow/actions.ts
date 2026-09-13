@@ -71,6 +71,12 @@ export const revertAbort = () => runOp("Aborting revert…", (id) => ipc.revertA
 
 export const stashApply = (index: number) => runOp(`Applying stash@{${index}}…`, (id) => ipc.stashApply(id, index), { success: `Applied stash@{${index}}` });
 export const stashPop = (index: number) => runOp(`Popping stash@{${index}}…`, (id) => ipc.stashPop(id, index), { success: `Popped stash@{${index}}` });
+export const worktreePrune = () => runOp("Pruning worktrees…", (id) => ipc.worktreePrune(id), { success: "Worktrees pruned" });
+export const worktreeUnlock = (path: string) => runOp("Unlocking the worktree…", (id) => ipc.worktreeUnlock(id, path), { success: "Worktree unlocked" });
+/** One submodule, or every one of them when `path` is left out. */
+export const submoduleUpdate = (path: string | null = null) =>
+  runOp(`Updating ${path ?? "submodules"}…`, (id) => ipc.submoduleUpdate(id, path), { success: path ? `Updated ${path}` : "Submodules updated" });
+
 /** Confirmed: a dropped stash has no undo. Named by both index and message — the index shifts with every drop, the message is what the user recognises. */
 export async function stashDrop(index: number, message: string) {
   if (refusedWhileRunning("dropping a stash")) return;

@@ -198,6 +198,39 @@ export interface RefsSnapshot {
   stashes: Stash[];
 }
 
+// --- linked.rs ---
+
+export interface Worktree {
+  /** Working directory, in the shape `RepoSummary.path` has, so it can be opened as it stands. */
+  path: string;
+  /** `null` only when neither the checkout nor its administrative HEAD can be read. */
+  head: HeadInfo | null;
+  /** The working tree the linked ones hang off. */
+  main: boolean;
+  /** The checkout this snapshot was taken from. */
+  current: boolean;
+  locked: boolean;
+  lockReason: string | null;
+  /** `git worktree prune` would remove the administrative entry. */
+  prunable: boolean;
+}
+
+export interface Submodule {
+  /** Repo-relative path of the checkout (`/`-separated). */
+  path: string;
+  url: string | null;
+  /** The commit the superproject points at. */
+  headOid: string | null;
+  /** HEAD of the checkout on disk; `null` when the submodule is not initialized. */
+  workdirOid: string | null;
+}
+
+export interface LinkedSnapshot {
+  /** Main working tree first, then by path. */
+  worktrees: Worktree[];
+  submodules: Submodule[];
+}
+
 // --- commit.rs ---
 
 export interface CommitDetail {
@@ -430,9 +463,20 @@ export interface StatusEntry {
   workdir: FileStatus | null;
   conflicted: boolean;
   /**
+   * A gitlink rather than a file — a submodule pointer, or an untracked nested repository. There is
+   * no discard for one (`submodule update` is the reset), so that action is hidden.
+   */
+  submodule: boolean;
+  /**
+   * The pointer is where the superproject wants it and only the checkout's own contents changed:
+   * nothing staging it here can do anything about, so Stage is refused too.
+   */
+  submoduleDirtyOnly: boolean;
+  /**
    * `<mtime ms>:<size>` of the file on disk, `null` when it isn't there. The status letters say
    * nothing about content — an edited file stays `modified`, a conflict stays `conflicted` until
-   * it is staged — so this is what makes an entry differ when only the bytes changed.
+   * it is staged — so this is what makes an entry differ when only the bytes changed. A gitlink
+   * is a directory, so it carries the checkout's own HEAD oid instead.
    */
   workdirStamp: string | null;
 }

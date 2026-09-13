@@ -208,7 +208,9 @@ src/
                            every op button disabled while one runs),
                            Sidebar (one `role="tree"` per section with a roving tabIndex; branches with `/` nest in
                            folder rows under Local and under each remote; a `mergedInto` branch (never the current one, nor a protected main / master / remote-default) is muted with a
-                           `merged` badge; context menus per ref kind on right-click / Shift+F10, double-click = checkout),
+                           `merged` badge; context menus per ref kind on right-click / Shift+F10, double-click = checkout;
+                           flat Worktrees (only past one) and Submodules (only when there are any) sections after Stashes,
+                           whose own headers carry Add worktree… / Prune and Update all),
                            actions.ts (fetchDefault / checkout* / stash* / copyText / blameAt / refreshAll / switchRepo / pickAndOpenRepo /
                            closeRepo / runGit, plus the banner aborts merge/rebase/cherryPick/revertAbort — the git ones through runOp; runGit with `quietFailure`: no toast on a
                            non-zero exit unless conflicts / auth / non-fast-forward / diverged, the dock's exit line says it;
@@ -234,7 +236,8 @@ src/
                            prefilled from `MERGE_MSG`), cherry-pick's Record the source commit (`-x`), and a Mainline
                            parent Select on a merge commit only (`-m N`)), RefDialogs Checkout picker /
                            Create-Rename-Delete branch / remote branch / tags, RemoteDialogs Add / Rename / Change URL /
-                           Remove (a remote itself), StashDialogs, DiffDialog (the selected commit's / compare's
+                           Remove (a remote itself), WorktreeDialogs Add (where + an existing or a new branch) /
+                           Remove (a refusal re-offers it forced) / Lock, StashDialogs, DiffDialog (the selected commit's / compare's
                            changed files + diff as a full-window dialog, off the diff header's expand button),
                            RunCommandDialog (one
                            CommandInput; Run → actions `runGit`),

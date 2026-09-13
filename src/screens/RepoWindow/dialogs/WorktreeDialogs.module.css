@@ -1,0 +1,10 @@
+/* Path field + folder picker on one line (CloneDialog's own row). */
+.pathRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+.pathRow > :first-child {
+  flex: 1;
+  min-width: 0;
+}

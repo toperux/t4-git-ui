@@ -16,7 +16,7 @@ import { RemoteField, shortRef, useDefaultRemote, useRemotes } from "./OpsDialog
 import s from "./RefDialogs.module.css";
 
 /** Start points a branch / tag can be created at: HEAD, local branches, remote branches, tags. */
-function useStartPoints() {
+export function useStartPoints() {
   const refs = useRepoStore((st) => st.refs);
   return useMemo(() => {
     const remotes = (refs?.remotes ?? []).flatMap((r) => r.branches.map((b) => b.name));

@@ -79,12 +79,22 @@ pub struct FileContent {
 
 /// `git2::FileMode` of a raw mode word: tree entries and index entries both
 /// carry one, and git2 has no conversion of its own.
-fn file_mode(raw: u32) -> FileMode {
+pub(crate) fn file_mode(raw: u32) -> FileMode {
     match raw {
         0o120_000 => FileMode::Link,
         0o160_000 => FileMode::Commit,
         m if m & 0o111 != 0 => FileMode::BlobExecutable,
         _ => FileMode::Blob,
+    }
+}
+
+/// A gitlink's id names a commit in the submodule's own repository, so the
+/// `find_blob` behind Save as / Open would fail with libgit2's wording. Refused
+/// by name instead, as [`read`] answers one with its own one-liner.
+fn refuse_gitlink(entry: &git2::TreeEntry<'_>) -> Result<(), GitError> {
+    match file_mode(u32::try_from(entry.filemode_raw()).unwrap_or(0)) {
+        FileMode::Commit => Err(GitError::Refused(crate::tools::NO_FILE.into())),
+        _ => Ok(()),
     }
 }
 
@@ -373,6 +383,7 @@ pub fn save_as(
     match target {
         TreeTarget::Commit { oid } => {
             let entry = tree_of(repo, oid)?.get_path(rel).map_err(map_git2)?;
+            refuse_gitlink(&entry)?;
             let blob = repo.find_blob(entry.id()).map_err(map_git2)?;
             std::fs::write(dest, blob.content())?;
         }
@@ -391,6 +402,7 @@ pub fn save_as(
 pub fn temp_copy(repo: &Repository, oid: &str, path: &str) -> Result<PathBuf, GitError> {
     let rel = repo_relative(path)?;
     let entry = tree_of(repo, oid)?.get_path(rel).map_err(map_git2)?;
+    refuse_gitlink(&entry)?;
     let blob = repo.find_blob(entry.id()).map_err(map_git2)?;
     let dir = crate::tools::temp_subdir(crate::tools::diff_temp_dir(), &entry.id().to_string())?;
     let file = dir.join(rel.file_name().unwrap_or(rel.as_os_str()));
@@ -766,5 +778,16 @@ mod tests {
             "fn main() {}\n"
         );
         std::fs::remove_file(&file).expect("clean up");
+    }
+
+    /// A gitlink has no blob to copy out: `find_blob` on its id would fail with
+    /// libgit2's wording, so Open and Save as refuse it by name first.
+    #[test]
+    fn a_gitlink_has_nothing_to_copy_out() {
+        let (t, oid, _) = fixture();
+        assert!(matches!(
+            temp_copy(&t.repo, &oid.to_string(), "vendor/dep"),
+            Err(GitError::Refused(m)) if m == crate::tools::NO_FILE
+        ));
     }
 }

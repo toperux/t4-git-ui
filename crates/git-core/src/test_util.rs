@@ -203,6 +203,22 @@ impl TempRepo {
             .expect("remote");
     }
 
+    /// Adds `source` as a submodule at `path` and commits the pointer with
+    /// `.gitmodules`. Cloned through libgit2's local transport, so no network
+    /// and none of git's own `protocol.file.allow` refusal.
+    pub fn add_submodule(&self, path: &str, source: &TempRepo) -> Oid {
+        // Forward slashes: a backslashed Windows path is not a url libgit2 takes.
+        let url = source.path().to_string_lossy().replace('\\', "/");
+        let mut sub = self
+            .repo
+            .submodule(&url, Path::new(path), true)
+            .expect("submodule");
+        sub.clone(None).expect("submodule clone");
+        sub.add_to_index(true).expect("add_to_index");
+        sub.add_finalize().expect("add_finalize");
+        self.commit_index(&format!("add submodule {path}"))
+    }
+
     /// Sets `branch.<local>.remote/merge` so `local` tracks `upstream` (`origin/main`).
     pub fn set_upstream(&self, local: &str, upstream: &str) {
         let mut b = self

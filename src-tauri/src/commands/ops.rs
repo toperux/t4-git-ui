@@ -15,6 +15,7 @@ use git_core::cli::ops::{
 };
 use git_core::cli::rebase::{self, RebaseFlags, RebaseTodo, TodoStep};
 use git_core::cli::{CliEvent, CliOutput};
+use git_core::repo::repo_relative;
 use git_core::status::status;
 use git_core::watch::ChangeKind;
 use git_core::{config, refs, GitError, RepoHandle, RepoId};
@@ -438,12 +439,7 @@ pub async fn rebase_todo(
         // real error (unstaged changes, an upstream that does not resolve).
         if run.out.code == 0 || !run.out.stderr.contains("nothing to do") {
             let f = gitops::classify_failure(run.out.code, &run.out.stdout, &run.out.stderr);
-            return Err(GitError::Cli {
-                cmd: "git rebase -i".into(),
-                code: run.out.code,
-                stderr: failure_message(&f),
-            }
-            .into());
+            return Err(cli_failure("git rebase -i", run.out.code, &f));
         }
         let text = std::fs::read_to_string(&out).map_err(GitError::from)?;
         let before = head.clone();
@@ -719,18 +715,24 @@ pub async fn create_branch(
         let result = cli_op(&app, &state, &id, args, false).await?;
         return match result.failure {
             None => Ok(()),
-            Some(f) => Err(GitError::Cli {
-                cmd: "git checkout -b".into(),
-                code: result.code,
-                stderr: failure_message(&f),
-            }
-            .into()),
+            Some(f) => Err(cli_failure("git checkout -b", result.code, &f)),
         };
     }
     git2_op(&app, &state, &id, REFS, move |h| {
         refs::create_branch(&h.git2.lock(), &name, &target, false).map(|_| ())
     })
     .await
+}
+
+/// A classified failure reported as an error rather than as an `OpResult`:
+/// the ops whose caller has nothing to do with a `failure` field.
+fn cli_failure(cmd: &str, code: i32, f: &OpFailure) -> AppError {
+    GitError::Cli {
+        cmd: cmd.into(),
+        code,
+        stderr: failure_message(f),
+    }
+    .into()
 }
 
 fn failure_message(f: &OpFailure) -> String {
@@ -786,6 +788,123 @@ pub async fn add_remote(
         refs::add_remote(&h.git2.lock(), &name, &url)
     })
     .await
+}
+
+// ---- worktrees / submodules (CLI-backed) ----
+
+/// The path of a worktree, as the user picked it (absolute) or as `get_linked`
+/// listed it. It sits after `--end-of-options`, so only an empty one is refused.
+fn worktree_path(path: &str) -> Result<&str, AppError> {
+    if path.is_empty() {
+        return Err(GitError::Refused("no worktree path given".into()).into());
+    }
+    Ok(path)
+}
+
+/// `git worktree add <path>`: exactly one of `branch` (an existing branch) and
+/// `new_branch` (created at `start`, HEAD when absent) names what it checks out.
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub async fn worktree_add(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: RepoId,
+    path: String,
+    branch: Option<String>,
+    new_branch: Option<String>,
+    start: Option<String>,
+    checkout: bool,
+) -> Result<OpResult, AppError> {
+    let which = match (branch.as_deref(), new_branch.as_deref()) {
+        (Some(b), None) => gitops::WorktreeBranch::Existing(ref_arg(b)?),
+        (None, Some(name)) => gitops::WorktreeBranch::New {
+            name: ref_arg(name)?,
+            start: opt_ref(start.as_deref())?,
+        },
+        _ => {
+            return Err(GitError::Refused(
+                "a worktree needs exactly one of branch / newBranch".into(),
+            )
+            .into())
+        }
+    };
+    let args = gitops::worktree_add(worktree_path(&path)?, which, checkout);
+    cli_op(&app, &state, &id, args, false).await
+}
+
+/// `git worktree remove`. Only the refusal `--force` gets past becomes
+/// `Refused`, for the dialog to re-offer forced; anything else (a locked
+/// worktree, a path that is not one) is an error like any other CLI failure —
+/// offering Force there would just fail again.
+#[tauri::command]
+pub async fn worktree_remove(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: RepoId,
+    path: String,
+    force: bool,
+) -> Result<(), AppError> {
+    let args = gitops::worktree_remove(worktree_path(&path)?, force);
+    let result = cli_op(&app, &state, &id, args, false).await?;
+    match result.failure {
+        None => Ok(()),
+        Some(f) => {
+            let message = failure_message(&f);
+            Err(if gitops::force_would_help(&message) {
+                GitError::Refused(message).into()
+            } else {
+                cli_failure("git worktree remove", result.code, &f)
+            })
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn worktree_prune(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: RepoId,
+) -> Result<OpResult, AppError> {
+    cli_op(&app, &state, &id, gitops::worktree_prune(), false).await
+}
+
+#[tauri::command]
+pub async fn worktree_lock(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: RepoId,
+    path: String,
+    reason: Option<String>,
+) -> Result<OpResult, AppError> {
+    let args = gitops::worktree_lock(worktree_path(&path)?, reason.as_deref());
+    cli_op(&app, &state, &id, args, false).await
+}
+
+#[tauri::command]
+pub async fn worktree_unlock(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: RepoId,
+    path: String,
+) -> Result<OpResult, AppError> {
+    let args = gitops::worktree_unlock(worktree_path(&path)?);
+    cli_op(&app, &state, &id, args, false).await
+}
+
+/// `git submodule update --init --recursive` for one submodule, or all of them
+/// when `path` is absent.
+#[tauri::command]
+pub async fn submodule_update(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: RepoId,
+    path: Option<String>,
+) -> Result<OpResult, AppError> {
+    if let Some(p) = path.as_deref() {
+        repo_relative(p)?;
+    }
+    let args = gitops::submodule_update(path.as_deref());
+    cli_op(&app, &state, &id, args, false).await
 }
 
 #[tauri::command]

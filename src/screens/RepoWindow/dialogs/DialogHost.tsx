@@ -20,6 +20,7 @@ import {
 import { AddRemoteDialog, RemoveRemoteDialog, RenameRemoteDialog, SetRemoteUrlDialog } from "./RemoteDialogs";
 import { RunCommandDialog } from "./RunCommandDialog";
 import { StashDialog, StashPushDialog } from "./StashDialogs";
+import { AddWorktreeDialog, LockWorktreeDialog, RemoveWorktreeDialog } from "./WorktreeDialogs";
 
 export function DialogHost() {
   const dialog = useDialogStore((st) => st.dialog);
@@ -91,6 +92,12 @@ function renderDialog(dialog: DialogSpec, close: () => void): ReactNode {
       return <PushTagDialog onClose={close} name={dialog.name} />;
     case "deleteRemoteTag":
       return <DeleteRemoteTagDialog onClose={close} name={dialog.name} remote={dialog.remote} />;
+    case "addWorktree":
+      return <AddWorktreeDialog onClose={close} branch={dialog.branch} />;
+    case "removeWorktree":
+      return <RemoveWorktreeDialog onClose={close} path={dialog.path} />;
+    case "lockWorktree":
+      return <LockWorktreeDialog onClose={close} path={dialog.path} />;
     case "stashPush":
       return <StashPushDialog onClose={close} />;
     case "stash":

@@ -18,7 +18,7 @@ import { Stats } from "../ChangedFileList/ChangedFileList";
 import { buildFileTree, flattenTree, hiddenSlot, type TreeLine } from "../ChangedFileList/fileTree";
 import s from "./CommitPanel.module.css";
 import { FileContextMenu, type FileMenuState } from "./FileContextMenu";
-import { stageTarget } from "./stageTarget";
+import { DIRTY_ONLY, stageTarget } from "./stageTarget";
 
 /** `--row-h`; the virtualizer needs the number, and the rule below pins the same value. */
 const ROW_H = 26;
@@ -259,10 +259,12 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
   // A set, not a `find`: every visible folder row asks for each file under it on every render.
   const conflictedPaths = useMemo(() => new Set(entries.filter((e) => e.conflicted).map((e) => e.path)), [entries]);
   const conflicted = (p: string) => conflictedPaths.has(p);
+  const submodulePaths = useMemo(() => new Set(entries.filter((e) => e.submodule).map((e) => e.path)), [entries]);
   /** Enter, double-click and the menu act on the rows they were pointed at, so a lone one stages (see `stageTarget`). */
   const stageable = (ps: string[]) => stageTarget(list, entries, ps, { conflicted: conflictedPaths }).target;
-  /** A conflicted file has no single version to go back to: Discard skips them, the way Stage all does. */
-  const discardable = (ps: string[]) => ps.filter((p) => !conflicted(p));
+  /** What Delete acts on, worded by the menu item it shares: a conflict has no single version to go
+      back to, and a submodule pointer no discard at all — both are skipped, not refused. */
+  const discardable = (ps: string[]) => ps.filter((p) => !conflicted(p) && !submodulePaths.has(p));
   /** Every file under a folder row: a compacted chain keeps the deepest folder's path, a real prefix of them all. */
   const under = (folder: string) => all.filter((p) => p.startsWith(folder + "/"));
   /** What a folder row's own +/− acts on — one closure so the render and the click can't drift apart. */
@@ -287,7 +289,7 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
     if (!path) return;
     // The only button in a file row is its Stage / Unstage action.
     if (target.closest("button")) {
-      if (!busy) act([path]);
+      if (!busy) act(stageable([path]));
       return;
     }
     select(list, clickSelect(all, sel, path, mods(e), visible));
@@ -483,6 +485,7 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
                 selected={active && selected.includes(e.path)}
                 anchor={active && anchor === e.path}
                 busy={busy}
+                skipNote={list === "unstaged" && e.submoduleDirtyOnly ? DIRTY_ONLY : undefined}
               />
             );
           })}
@@ -517,9 +520,11 @@ interface FileRowProps {
   selected: boolean;
   anchor: boolean;
   busy: boolean;
+  /** Why this row's own +/− would act on nothing (`stageTarget`), `undefined` when it acts. */
+  skipNote?: string;
 }
 
-const FileRow = memo(function FileRow({ id, top, list, entry, label, depth, stat, selected, anchor, busy }: FileRowProps) {
+const FileRow = memo(function FileRow({ id, top, list, entry, label, depth, stat, selected, anchor, busy, skipNote }: FileRowProps) {
   const full = entry.oldPath ? `${entry.oldPath} → ${entry.path}` : entry.path;
   const tree = depth !== undefined;
   // Clicks are handled by the list (delegation): the row only carries the data the handler reads.
@@ -541,13 +546,16 @@ const FileRow = memo(function FileRow({ id, top, list, entry, label, depth, stat
       <span className={s.path}>
         <bdi dir="ltr">{tree ? label : full}</bdi>
       </span>
+      {/* The pointer is where it belongs; what changed is inside the checkout, and nothing here stages it.
+          Only in the unstaged list: on the staged row the pointer move *is* what is staged. */}
+      {entry.submoduleDirtyOnly && list === "unstaged" && <span className={s.meta}>content</span>}
       {stat && <Stats additions={stat.additions} deletions={stat.deletions} />}
       <IconButton
         className={s.action}
         label={list === "unstaged" ? "Stage" : "Unstage"}
-        disabled={busy}
-        /* "Stage" on a dead button explains nothing; the running mutation does. */
-        title={busy ? BUSY : undefined}
+        disabled={busy || skipNote !== undefined}
+        /* "Stage" on a dead button explains nothing; the running mutation — or the skip — does. */
+        title={busy ? BUSY : skipNote}
         tabIndex={-1}
         onDoubleClick={stop}
       >

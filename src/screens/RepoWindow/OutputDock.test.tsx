@@ -12,6 +12,7 @@ vi.mock("../../api/ipc", () => ({
   runGit: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
   getStatus: vi.fn(() => new Promise(() => {})),
   getRefs: vi.fn(() => new Promise(() => {})),
+  getLinked: vi.fn(() => Promise.resolve(null)),
   toAppError: (e: unknown) => ({ kind: "unknown", message: String(e) }),
 }));
 
