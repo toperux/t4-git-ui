@@ -1,0 +1,34 @@
+# graphify reads .gitignore first (node_modules, dist, target, *.log, gen/schemas),
+# so this file only narrows further. Goal: the graph is the code that ships
+# plus the docs that describe it as it is today.
+
+# graphify's own output and the transient Playwright MCP directory
+graphify-out/
+.playwright-mcp/
+
+# executed plans, dated reviews and smoke-walk records — history, not current state
+docs/archive/
+
+# the two tick-box walkthroughs (140 KB of checklist rows); the CDP recipe stays
+docs/smoke/smoke-test.md
+docs/smoke/smoke-test-post-v1.md
+
+# design canvases: generated .dc.html and the .mjs that draw them; style-guide.md stays
+docs/design/canvases/
+
+# binary and generated assets
+src-tauri/icons/
+src/assets/fonts/
+*.png
+*.ico
+*.icns
+*.jpg
+*.webp
+*.woff
+*.woff2
+*.tsbuildinfo
+Cargo.lock
+package-lock.json
+
+# agent worktrees (full repo copies when present)
+.claude/worktrees/

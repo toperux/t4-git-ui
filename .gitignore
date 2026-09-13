@@ -3,3 +3,7 @@ dist/
 target/
 *.log
 src-tauri/gen/schemas/
+# graphify: the generated graph and its sidecars, and the project-local
+# provider config (can hold API keys). .graphifyignore itself is tracked.
+graphify-out/
+.graphify/
