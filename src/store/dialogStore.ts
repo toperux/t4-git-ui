@@ -49,6 +49,8 @@ export type DialogSpec =
   | { kind: "removeWorktree"; path: string }
   | { kind: "lockWorktree"; path: string }
   | { kind: "stashPush" }
+  /** The stash browser: push form, every entry, and the previewed one's files and diffs. */
+  | { kind: "stashes" }
   /** Apply / Pop / Drop of one stash. */
   | { kind: "stash"; index: number; message: string };
 

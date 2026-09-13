@@ -11,7 +11,7 @@ const REFS: RefsSnapshot = {
   ],
   remotes: [{ name: "origin", url: null, branches: [{ name: "origin/main", oid: "a", mergedInto: null }] }],
   tags: [{ name: "v1.0", oid: "a", message: null }],
-  stashes: [{ index: 0, oid: "c", message: "wip" }],
+  stashes: [{ index: 0, oid: "c", message: "wip", baseOid: "a", time: 0, hasUntracked: false }],
 };
 
 const texts = (text: string, history: string[] = []) => complete(text, REFS, history).items.map((i) => i.text);

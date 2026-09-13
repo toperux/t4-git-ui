@@ -15,6 +15,10 @@ pub enum AppError {
     /// The repo id names no open repository — normal after a close, so the frontend stays quiet.
     #[error("{0}")]
     NotOpen(String),
+    /// Another window already has this repository open. That window has been focused, so the
+    /// frontend does nothing with it.
+    #[error("{0} is open in another window")]
+    OpenElsewhere(String),
     /// Bugs / infrastructure failures (e.g. a blocking task panicked).
     #[error("internal error: {0}")]
     Internal(String),
@@ -28,6 +32,7 @@ impl Serialize for AppError {
             AppError::Busy => ("busy", self.to_string()),
             AppError::StaleGeneration(msg) => ("staleGeneration", msg.clone()),
             AppError::NotOpen(msg) => ("notOpen", msg.clone()),
+            AppError::OpenElsewhere(_) => ("openElsewhere", self.to_string()),
             AppError::Internal(msg) => ("internal", msg.clone()),
         };
         let mut s = serializer.serialize_struct("AppError", 2)?;
@@ -54,6 +59,10 @@ mod tests {
         let v = serde_json::to_value(AppError::NotOpen("repo not open: c:/x".into())).unwrap();
         assert_eq!(v["kind"], "notOpen");
         assert_eq!(v["message"], "repo not open: c:/x");
+
+        let v = serde_json::to_value(AppError::OpenElsewhere("t4-git-ui".into())).unwrap();
+        assert_eq!(v["kind"], "openElsewhere");
+        assert_eq!(v["message"], "t4-git-ui is open in another window");
 
         let v = serde_json::to_value(AppError::Internal("boom".into())).unwrap();
         assert_eq!(v["kind"], "internal");

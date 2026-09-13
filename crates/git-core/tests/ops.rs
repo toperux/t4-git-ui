@@ -709,26 +709,37 @@ fn create_tag_lightweight_and_annotated_then_delete() {
     let a = t.commit(&[("f.txt", "1\n")], "A");
     let b = t.commit(&[("f.txt", "2\n")], "B");
 
-    let lw = refs::create_tag(&t.repo, "lw", &a.to_string(), None).unwrap();
+    let lw = refs::create_tag(&t.repo, "lw", &a.to_string()).unwrap();
     assert_eq!(
         (lw.name.as_str(), lw.oid.as_str()),
         ("lw", a.to_string().as_str())
     );
     assert_eq!(ref_oid(&t, "refs/tags/lw"), Some(a));
 
-    let ann = refs::create_tag(&t.repo, "ann", "HEAD", Some("release notes")).unwrap();
-    assert_eq!(ann.oid, b.to_string());
+    // Annotated tags are the CLI's (`cli::ops::tag_annotated`, so they can be
+    // signed); one made here stands in for what git would have written.
     {
+        let sig = t.repo.signature().unwrap();
+        let target = t.repo.find_commit(b).unwrap();
+        t.repo
+            .tag("ann", target.as_object(), &sig, "release notes", false)
+            .unwrap();
         let r = t.repo.find_reference("refs/tags/ann").unwrap();
         let tag = r.peel_to_tag().expect("annotated tag object");
         assert_eq!(tag.message().unwrap(), Some("release notes"));
         assert_eq!(tag.target_id(), b);
-        assert_eq!(tag.tagger().unwrap().email().unwrap(), "test@example.com");
     }
 
-    assert!(refs::create_tag(&t.repo, "ann", "HEAD", None).is_err());
+    assert!(refs::create_tag(&t.repo, "ann", "HEAD").is_err());
+    // The annotated path (`create_tag` in `commands/ops.rs`) hands git this, not
+    // the raw target: `git tag -a v2 ann` would otherwise tag the tag object.
+    assert_eq!(
+        refs::peel_to_commit(&t.repo, "ann").unwrap().id(),
+        b,
+        "an annotated tag peels to its commit"
+    );
     // A tag made from an annotated tag points at its commit, not at the tag object.
-    let from_tag = refs::create_tag(&t.repo, "from-ann", "ann", None).unwrap();
+    let from_tag = refs::create_tag(&t.repo, "from-ann", "ann").unwrap();
     assert_eq!(from_tag.oid, b.to_string());
     assert_eq!(ref_oid(&t, "refs/tags/from-ann"), Some(b));
     // Both are peeled to a commit in the snapshot, so the annotation is the only
@@ -748,7 +759,6 @@ fn create_tag_lightweight_and_annotated_then_delete() {
         ]
     );
     assert_eq!(lw.message, None);
-    assert_eq!(ann.message.as_deref(), Some("release notes"));
 
     let names: Vec<String> = snapshot(&mut t.repo)
         .unwrap()
@@ -770,12 +780,6 @@ fn create_tag_lightweight_and_annotated_then_delete() {
     refs::delete_tag(&t.repo, "from-ann").unwrap();
     assert!(refs::delete_tag(&t.repo, "ann").is_err());
     assert!(snapshot(&mut t.repo).unwrap().tags.is_empty());
-
-    t.set_config("user.email", "");
-    assert!(matches!(
-        refs::create_tag(&t.repo, "x", "HEAD", Some("m")),
-        Err(GitError::Config(_))
-    ));
 }
 
 #[tokio::test]

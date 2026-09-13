@@ -12,6 +12,10 @@ export type BannerAction =
   | "rebaseContinue"
   | "cherryPickAbort"
   | "revertAbort"
+  | "bisectGood"
+  | "bisectBad"
+  | "bisectSkip"
+  | "bisectReset"
   | "openCommitPanel";
 
 export interface BannerButton {
@@ -26,11 +30,6 @@ export interface BannerSpec {
   text: string;
   buttons: BannerButton[];
 }
-
-/** The one state we can only report: the backend has no abort command for it, so its banner carries no action. */
-const SEQUENCER_TEXT = {
-  bisect: "Bisect in progress — finish or reset it in a terminal",
-} as const;
 
 /** `main`, else `master`, else the first local branch. */
 export function defaultBranch(local: Branch[]): string | null {
@@ -98,7 +97,21 @@ export function computeBanners(refs: RefsSnapshot | null, status: WorkdirStatus 
     });
   }
   if (state === "bisect") {
-    out.push({ id: "sequencer", kind: "warning", text: SEQUENCER_TEXT[state], buttons: [] });
+    // Every button acts on HEAD — the commit git checked out for this step. Until both a good and a
+    // bad commit are marked git has not moved HEAD at all, so a mark there would hit the commit the
+    // user just marked the other way: Reset alone.
+    const good = refs.bisect?.good.length ?? 0;
+    const bad = refs.bisect?.bad ? 1 : 0;
+    const reset = { label: "Reset", action: "bisectReset" as const };
+    const waiting = good === 0 || bad === 0;
+    out.push({
+      id: "sequencer",
+      kind: "warning",
+      text: waiting
+        ? `Bisecting — mark a ${good === 0 ? "good" : "bad"} commit to begin`
+        : `Bisecting — testing ${head.oid?.slice(0, 7) ?? "HEAD"} · ${good} good · ${bad} bad`,
+      buttons: waiting ? [reset] : [{ label: "Good", action: "bisectGood" }, { label: "Bad", action: "bisectBad" }, { label: "Skip", action: "bisectSkip" }, reset],
+    });
   }
   const n = fresh?.conflicted ?? 0;
   if (n > 0) {

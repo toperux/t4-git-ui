@@ -9,6 +9,7 @@ import type { AppError, Author, ConflictSide, FileChange, FileDiff, FileStatus, 
 import { eqDeep } from "../lib/eqDeep";
 import { joinMessage, pushHistory, splitMessage } from "../lib/msgHistory";
 import { EMPTY_SELECTION, pruneSelection, type Selection } from "../lib/multiSelect";
+import { pick } from "../lib/pick";
 import { useDiffStore } from "./diffStore";
 import { useRepoStore } from "./repoStore";
 import { useStatusStore } from "./statusStore";
@@ -68,6 +69,8 @@ export interface CommitStore {
   body: string;
   amend: boolean;
   signoff: boolean;
+  /** Override for this commit's signature: `null` leaves it to `commit.gpgsign`. */
+  sign: boolean | null;
   /**
    * Message last written by a prefill (an untouched editor may be overwritten), and which entry
    * point wrote it — an abort takes back only its own (`pending`).
@@ -103,6 +106,7 @@ export interface CommitStore {
   setSummary(v: string): void;
   setBody(v: string): void;
   setSignoff(v: boolean): void;
+  setSign(v: boolean | null): void;
   /** Turning amend on prefills the editor from HEAD unless the user already typed something. */
   setAmend(on: boolean): Promise<void>;
   /**
@@ -283,6 +287,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
     body: "",
     amend: false,
     signoff: false,
+    sign: null,
     prefill: null,
     busy: false,
 
@@ -432,6 +437,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
     setSummary: (summary) => set({ summary }),
     setBody: (body) => set({ body }),
     setSignoff: (signoff) => set({ signoff }),
+    setSign: (sign) => set({ sign }),
 
     async setAmend(on) {
       set({ amend: on });
@@ -473,13 +479,13 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
 
     async commit() {
       const id = repoId();
-      const { summary, body, amend, signoff, busy } = get();
+      const { summary, body, amend, signoff, sign, busy } = get();
       if (!id || busy || !summary.trim()) return null;
       const message = joinMessage(summary, body);
       set({ busy: true });
       let committed: string | null = null;
       try {
-        const oid = await ipc.commit(id, message, amend, signoff);
+        const oid = await ipc.commit(id, message, amend, signoff, sign);
         committed = oid;
         pushHistory(id, message);
         useToastStore.getState().push({ kind: "success", title: amend ? "Amended HEAD" : "Committed", detail: `${oid.slice(0, 7)} ${summary.trim()}` });
@@ -521,12 +527,52 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
         body: "",
         amend: false,
         signoff: false,
+        sign: null,
         prefill: null,
         busy: false,
       });
     },
   };
 });
+
+/**
+ * What a background tab keeps of this store — the whole editor, so a half-written commit message
+ * survives a switch. One list, beside `reset`'s; see `tabsStore`.
+ */
+const SNAPSHOT_KEYS = [
+  "list",
+  "selected",
+  "anchor",
+  "order",
+  "stats",
+  "author",
+  "authorError",
+  "diff",
+  "diffPath",
+  "diffContext",
+  "diffLoading",
+  "diffError",
+  "summary",
+  "body",
+  "amend",
+  "signoff",
+  "sign",
+  "prefill",
+  "busy",
+] as const;
+
+export type CommitSnapshot = Pick<CommitStore, (typeof SNAPSHOT_KEYS)[number]>;
+
+export const snapshot = (): CommitSnapshot => pick(useCommitStore.getState(), SNAPSHOT_KEYS);
+
+export function restore(s: CommitSnapshot) {
+  // What the shown diff and stats were loaded for belongs to the tab being left: forgetting it makes
+  // the next `syncWithStatus` reload rather than decide against a foreign repository's entries.
+  diffEntry = null;
+  statsFor = null;
+  statsPending = null;
+  useCommitStore.setState(s);
+}
 
 // The editor belongs to one repository.
 useRepoStore.subscribe((st, prev) => {

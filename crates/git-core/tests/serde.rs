@@ -144,6 +144,7 @@ fn conflict_sides_are_camel_case() {
         remotes: vec![],
         tags: vec![],
         stashes: vec![],
+        bisect: None,
     };
     let v = serde_json::to_value(&snap).expect("ser");
     assert_eq!(v["state"], "merge");
@@ -179,6 +180,10 @@ fn diff_target_round_trips() {
         (json!({ "kind": "staged" }), DiffTarget::Staged),
         (json!({ "kind": "unstaged" }), DiffTarget::Unstaged),
         (json!({ "kind": "workdir" }), DiffTarget::Workdir),
+        (
+            json!({ "kind": "stash", "oid": "s" }),
+            DiffTarget::Stash { oid: "s".into() },
+        ),
     ];
     for (v, expected) in cases {
         let t: DiffTarget = serde_json::from_value(v.clone()).expect("de");

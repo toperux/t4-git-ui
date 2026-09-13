@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   AppError,
   Author,
+  BisectTerm,
   Blame,
   CommitDetail,
   ConflictSide,
@@ -13,6 +14,7 @@ import type {
   FileContent,
   FileDiff,
   GitProbe,
+  Layout,
   LinkedSnapshot,
   LogFilter,
   LogPage,
@@ -25,6 +27,8 @@ import type {
   RepoId,
   RepoSummary,
   RevSpec,
+  SigningConfig,
+  SigningKey,
   TodoStep,
   Tool,
   ToolKind,
@@ -32,6 +36,7 @@ import type {
   TreeListing,
   TreeTarget,
   UpdateInfo,
+  WindowOrigin,
   WorkdirStatus,
 } from "./types";
 
@@ -85,6 +90,43 @@ export const cloneRepo = (args: CloneArgs) => call<RepoSummary>("clone_repo", { 
 export const initRepo = (path: string) => call<RepoSummary>("init_repo", { path });
 
 export const closeRepo = (id: RepoId) => call<void>("close_repo", { id });
+
+// --- windows (src-tauri/src/commands/window.rs) ---
+
+/**
+ * Opens another T4 Git window showing `payload`'s tabs, at `placement` (a physical screen point for
+ * its top-left) or wherever the OS puts it. Resolves with the new window's label.
+ */
+export const spawnWindow = (payload: Layout, placement: [number, number] | null = null) =>
+  call<string>("spawn_window", { payload, placement });
+
+/** What this window was created to open; `null` in the main window, which reads `takeLayout`. */
+export const takePending = () => call<Layout | null>("take_pending");
+
+/** Reports this window's tabs, for `layout.json` — called on every tab change. */
+export const setLayout = (layout: Layout) => call<void>("set_layout", { layout });
+
+/** The windows open at the last exit, main's first; consumed, so `[]` on every launch after it. */
+export const takeLayout = () => call<Layout[]>("take_layout");
+
+/** Quits: every window closes at once, and they all come back next launch. */
+export const quit = () => call<void>("quit");
+
+/** This window's top-left on the virtual screen and its scale — the mapping a tab drag is tracked with. */
+export const windowOrigin = () => call<WindowOrigin>("window_origin");
+
+/** Where a detached tab drag is now (a physical screen point); resolves with the window under it, which draws the caret. */
+export const dragOver = (x: number, y: number) => call<string | null>("drag_over", { x, y });
+
+/** The drag ended without a drop: whichever window was showing a caret takes it off. */
+export const dragCancel = () => call<void>("drag_cancel");
+
+/**
+ * Releases a dragged tab at a physical screen point: `adopted` by the window under it, `spawned`
+ * into one of its own (`tearOff`), or `none` — nowhere to go, so the tab stays where it was. The
+ * caller closes its own tab on the first two.
+ */
+export const dropTab = (x: number, y: number, path: string, tearOff: boolean) => call<"adopted" | "spawned" | "none">("drop_tab", { x, y, path, tearOff });
 
 export const getRefs = (id: RepoId) => call<RefsSnapshot>("get_refs", { id });
 
@@ -213,9 +255,12 @@ export const discardHunks = (id: RepoId, path: string, hunks: number[], context:
 export const discardLines = (id: RepoId, path: string, lines: [number, number][], context: number, oldPath?: string) =>
   call<void>("discard_lines", { id, path, oldPath, lines, context });
 
-/** `git commit` via the CLI (hook output streams as `op://event`); resolves with the new HEAD oid. */
-export const commit = (id: RepoId, message: string, amend: boolean, signoff: boolean) =>
-  call<string>("commit", { id, message, amend, signoff });
+/**
+ * `git commit` via the CLI (hook output streams as `op://event`); resolves with the new HEAD oid.
+ * `sign` is the panel's override: `null` leaves signing to `commit.gpgsign`.
+ */
+export const commit = (id: RepoId, message: string, amend: boolean, signoff: boolean, sign: boolean | null = null) =>
+  call<string>("commit", { id, message, amend, signoff, sign });
 
 /** Full HEAD message (`null` on an unborn HEAD). */
 export const getHeadMessage = (id: RepoId) => call<string | null>("get_head_message", { id });
@@ -290,6 +335,12 @@ export const cherryPickAbort = (id: RepoId) => call<OpResult>("cherry_pick_abort
 
 export const revertAbort = (id: RepoId) => call<OpResult>("revert_abort", { id });
 
+/** `git bisect (good | bad | skip) [<oid>]` — HEAD without an oid; anything but a full commit id is refused. The first mark starts the bisect. */
+export const bisectMark = (id: RepoId, term: BisectTerm, oid: string | null) => call<OpResult>("bisect_mark", { id, term, oid });
+
+/** `git bisect reset` — ends the bisect and checks the starting branch back out. */
+export const bisectReset = (id: RepoId) => call<OpResult>("bisect_reset", { id });
+
 /** `git checkout [--track] [-b <createBranch>] [--detach] <target>`; `track` only applies with `createBranch`, `detach` only without it. */
 export const checkout = (id: RepoId, target: string, createBranch: string | null, track: boolean, detach = false) =>
   call<OpResult>("checkout", { id, target, createBranch, track, detach });
@@ -309,6 +360,9 @@ export const stashApply = (id: RepoId, index: number) => call<OpResult>("stash_a
 export const stashPop = (id: RepoId, index: number) => call<OpResult>("stash_pop", { id, index });
 
 export const stashDrop = (id: RepoId, index: number) => call<OpResult>("stash_drop", { id, index });
+
+/** `git stash clear` — drops every entry at once. */
+export const stashClear = (id: RepoId) => call<OpResult>("stash_clear", { id });
 
 /** `git push <remote> --delete <name>` */
 export const deleteRemoteBranch = (id: RepoId, remote: string, name: string) =>
@@ -367,6 +421,12 @@ export const getConfig = (id: RepoId, key: string) => call<string | null>("get_c
 
 /** Writes to the repo-local config. */
 export const setConfig = (id: RepoId, key: string, value: string) => call<void>("set_config", { id, key, value });
+
+/** The signing keys as `id` sees them; without one the effective config answers and nothing is `local`. */
+export const getSigning = (id: RepoId | null) => call<SigningConfig>("get_signing", { id });
+
+/** Writes one signing key to the global config (`~/.gitconfig`); `null` clears it. */
+export const setSigning = (key: SigningKey, value: string | null) => call<void>("set_signing", { key, value });
 
 /** The current branch's remote, else `origin` when it exists, else the only remote; `null` without remotes. */
 export const getDefaultRemote = (id: RepoId) => call<string | null>("get_default_remote", { id });

@@ -12,7 +12,7 @@ use git_core::tree::{self, TreeTarget};
 use git_core::watch::Watcher;
 use git_core::{GitError, RepoHandle, RepoId};
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, State, Window};
 use tauri_plugin_opener::OpenerExt;
 
 use crate::{AppError, AppState};
@@ -89,15 +89,23 @@ async fn compute_labels(
     .await
 }
 
-/// Opens (or returns the already-open) repository containing `path`.
+/// Opens (or returns the already-open) repository containing `path` in the
+/// calling window. A repository another window has open is refused: that window
+/// is brought forward instead, since two of them would fight over one handle,
+/// watcher and index lock.
 #[tauri::command]
 pub async fn open_repo(
     app: AppHandle,
+    window: Window,
     state: State<'_, AppState>,
     path: String,
 ) -> Result<RepoSummary, AppError> {
     let t = Instant::now();
     let opened = blocking(move || Ok(RepoHandle::open(&path)?)).await?;
+    if let Some(other) = state.holder_of(&opened.id, window.label()) {
+        super::window::focus_window(&app, &other);
+        return Err(AppError::OpenElsewhere(opened.name()));
+    }
     let handle = {
         let mut repos = state
             .repos
@@ -108,6 +116,7 @@ pub async fn open_repo(
         // cache) and drops the newcomer.
         Arc::clone(repos.entry(opened.id.clone()).or_insert(opened))
     };
+    state.hold(window.label(), &handle.id);
     let h = Arc::clone(&handle);
     let head = blocking(move || Ok(refs::head_info(&h.git2.lock())?)).await?;
     tracing::info!(id = %handle.id, elapsed = ?t.elapsed(), "opened repo");
@@ -150,22 +159,35 @@ async fn start_watcher(app: &AppHandle, state: &AppState, handle: &Arc<RepoHandl
     }
 }
 
+/// Closes one tab's repository. The handle stays while another window still has
+/// it open — see [`AppState::unhold`].
+#[tauri::command]
+pub async fn close_repo(
+    window: Window,
+    state: State<'_, AppState>,
+    id: RepoId,
+) -> Result<(), AppError> {
+    if state.unhold(window.label(), &id) {
+        drop_repo(&state, &id);
+    }
+    Ok(())
+}
+
 /// Drops the repository, its watcher and its log walk. In-flight operations
 /// are deliberately not cancelled here: the UI refuses close and switch while
 /// one runs (`refusedWhileRunning` in `src/screens/RepoWindow/actions.ts`), so
 /// there is nothing to cancel by the time this command is reachable.
-#[tauri::command]
-pub async fn close_repo(state: State<'_, AppState>, id: RepoId) -> Result<(), AppError> {
+pub(crate) fn drop_repo(state: &AppState, id: &RepoId) {
     let removed = state
         .repos
         .write()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .remove(&id);
+        .remove(id);
     let watcher = state
         .watchers
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .remove(&id);
+        .remove(id);
     if let Some(w) = watcher {
         w.stop();
     }
@@ -175,7 +197,6 @@ pub async fn close_repo(state: State<'_, AppState>, id: RepoId) -> Result<(), Ap
         handle.log.write().begin();
         tracing::info!(id = %id, "closed repo");
     }
-    Ok(())
 }
 
 #[tauri::command]

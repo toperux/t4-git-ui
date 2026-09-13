@@ -70,6 +70,9 @@ pub enum DiffTarget {
     Unstaged,
     /// HEAD tree → working directory (staged + unstaged), including untracked.
     Workdir,
+    /// What a stash commit holds: its first parent's tree → its own, plus the
+    /// untracked files of its third parent (`stash -u`) as additions.
+    Stash { oid: String },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -228,6 +231,27 @@ fn build_diff<'r>(
                 .show_untracked_content(true);
             let old = head_tree(repo)?;
             repo.diff_tree_to_workdir_with_index(old.as_ref(), Some(&mut o))
+        }
+        DiffTarget::Stash { oid } => {
+            let stash = repo
+                .find_commit(Oid::from_str(oid).map_err(map_git2)?)
+                .map_err(map_git2)?;
+            let base = parent_tree(repo, oid)?;
+            let tree = stash.tree().map_err(map_git2)?;
+            let mut d = repo
+                .diff_tree_to_tree(base.as_ref(), Some(&tree), Some(&mut o))
+                .map_err(map_git2)?;
+            // `stash -u` / `-a` parks the untracked files in a third parent; diffed
+            // against nothing they join the list as additions, which is how `apply`
+            // puts them back.
+            if let Ok(untracked) = stash.parent(2) {
+                let tree = untracked.tree().map_err(map_git2)?;
+                let extra = repo
+                    .diff_tree_to_tree(None, Some(&tree), Some(&mut o))
+                    .map_err(map_git2)?;
+                d.merge(&extra).map_err(map_git2)?;
+            }
+            Ok(d)
         }
     }
     .map_err(map_git2)?;

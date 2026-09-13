@@ -105,6 +105,12 @@ export const worktreeRemoveArgs = (path: string, force: boolean) => ["worktree",
 
 export const worktreeLockArgs = (path: string, reason: string | null) => ["worktree", "lock", ...(reason ? ["--reason", reason] : []), END, path];
 
+/**
+ * Annotated only — the lightweight tag is git2's and runs no command. The real message travels in a
+ * temp file (`tag_annotated`); `<message file>` stands in for the name it happens to get.
+ */
+export const tagAnnotatedArgs = (name: string, target: string) => ["tag", "-a", "-F", "<message file>", END, name, target];
+
 export const stashPushArgs = (message: string | null, includeUntracked: boolean, keepIndex: boolean) => [
   "stash",
   "push",
@@ -112,6 +118,8 @@ export const stashPushArgs = (message: string | null, includeUntracked: boolean,
   ...flag(keepIndex, "-k"),
   ...(message ? ["-m", message] : []),
 ];
+
+export const stashClearArgs = () => ["stash", "clear"];
 
 /** `git …` with shell-style quoting of arguments that need it (an empty one too, or it vanishes). */
 export const gitCmd = (args: string[]) => `git ${args.map((a) => (a === "" || /[\s'"]/.test(a) ? `'${a.replace(/'/g, "'\\''")}'` : a)).join(" ")}`;

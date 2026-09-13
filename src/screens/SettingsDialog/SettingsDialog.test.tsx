@@ -7,7 +7,7 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
 vi.mock("../../api/ipc", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/ipc")>();
   const pending = () => new Promise<never>(() => {});
-  return { ...actual, setGitPath: vi.fn(), getFileDiff: vi.fn(pending), getChangedFiles: vi.fn(pending) };
+  return { ...actual, setGitPath: vi.fn(), getFileDiff: vi.fn(pending), getChangedFiles: vi.fn(pending), getSigning: vi.fn(), setSigning: vi.fn() };
 });
 vi.mock("../../theme/theme", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../theme/theme")>();
@@ -16,16 +16,24 @@ vi.mock("../../theme/theme", async (importOriginal) => {
 
 import { open as openFile } from "@tauri-apps/plugin-dialog";
 import * as ipc from "../../api/ipc";
+import { SIGNING_KEYS, type SigningConfig } from "../../api/types";
 import { DEFAULT_CONTEXT, DEFAULT_FOLDERS_MAX, useSettingsStore } from "../../store/settingsStore";
 import * as theme from "../../theme/theme";
 import { SettingsDialog } from "./SettingsDialog";
 
-const mocked = ipc as unknown as Record<"setGitPath", ReturnType<typeof vi.fn>>;
+const mocked = ipc as unknown as Record<"setGitPath" | "getSigning" | "setSigning", ReturnType<typeof vi.fn>>;
 const picker = openFile as unknown as ReturnType<typeof vi.fn>;
 const setThemeMock = theme.setTheme as unknown as ReturnType<typeof vi.fn>;
 
+/** Every signing key unset, with the named ones overridden. */
+const signing = (over: Partial<SigningConfig> = {}): SigningConfig =>
+  ({ ...Object.fromEntries(SIGNING_KEYS.map((k) => [k, { value: null, local: false }])), ...over }) as SigningConfig;
+
 beforeEach(() => {
   vi.clearAllMocks();
+  // `clearAllMocks` keeps implementations: put the defaults back so one test's config is not the next one's.
+  mocked.getSigning.mockResolvedValue(signing());
+  mocked.setSigning.mockResolvedValue(undefined);
   localStorage.clear();
   useSettingsStore.setState({
     diffContext: DEFAULT_CONTEXT,
@@ -169,5 +177,69 @@ describe("SettingsDialog", () => {
     fireEvent.click(getByRole("button", { name: "Locate…" }));
     await waitFor(() => expect(mocked.setGitPath).toHaveBeenCalledWith("D:\\PortableGit\\bin\\git.exe"));
     expect((getByRole("textbox", { name: "Git executable" }) as HTMLInputElement).value).toBe("D:\\PortableGit\\bin\\git.exe");
+  });
+});
+
+describe("SettingsDialog ▸ Signing", () => {
+  it("shows the effective values, and says which keys the repository sets itself", async () => {
+    mocked.getSigning.mockResolvedValue(
+      signing({
+        "gpg.format": { value: "ssh", local: false },
+        "user.signingkey": { value: "~/.ssh/id_ed25519.pub", local: true },
+        "gpg.ssh.program": { value: "/usr/bin/ssh-keygen", local: false },
+        "commit.gpgsign": { value: "true", local: false },
+      }),
+    );
+    const { getByRole, findByText, queryByText } = render(<SettingsDialog onClose={() => {}} />);
+    await waitFor(() => expect(getByRole("combobox", { name: "Signing format" }).textContent).toBe("SSH"));
+    expect((getByRole("textbox", { name: "Signing key" }) as HTMLInputElement).value).toBe("~/.ssh/id_ed25519.pub");
+    // The SSH format's program key, not gpg.program.
+    expect((getByRole("textbox", { name: "Signing program" }) as HTMLInputElement).value).toBe("/usr/bin/ssh-keygen");
+    expect((getByRole("checkbox", { name: "Sign commits" }) as HTMLInputElement).checked).toBe(true);
+    expect((getByRole("checkbox", { name: "Sign annotated tags" }) as HTMLInputElement).checked).toBe(false);
+    expect(await findByText("Also set in this repository, which wins over this.")).toBeTruthy();
+    expect(queryByText("gpg.ssh.program — leave empty to use the one on PATH.")).toBeTruthy();
+  });
+
+  it("writes each field to the global config", async () => {
+    const { getByRole } = render(<SettingsDialog onClose={() => {}} />);
+    await waitFor(() => expect(mocked.getSigning).toHaveBeenCalledWith(null));
+    // A save disables the section until the re-read lands; wait it out before the next one.
+    const idle = () => waitFor(() => expect((getByRole("textbox", { name: "Signing key" }) as HTMLInputElement).disabled).toBe(false));
+
+    fireEvent.click(getByRole("combobox", { name: "Signing format" }));
+    fireEvent.click(getByRole("option", { name: "SSH" }));
+    await waitFor(() => expect(mocked.setSigning).toHaveBeenCalledWith("gpg.format", "ssh"));
+    await idle();
+
+    const key = getByRole("textbox", { name: "Signing key" });
+    fireEvent.change(key, { target: { value: "ABCD1234" } });
+    // Typed, not yet saved: the write happens on Enter (or once the field is left).
+    expect(mocked.setSigning).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(key, { key: "Enter" });
+    await waitFor(() => expect(mocked.setSigning).toHaveBeenCalledWith("user.signingkey", "ABCD1234"));
+    await idle();
+
+    const program = getByRole("textbox", { name: "Signing program" });
+    fireEvent.change(program, { target: { value: "C:\\gpg.exe" } });
+    fireEvent.blur(program);
+    await waitFor(() => expect(mocked.setSigning).toHaveBeenCalledWith("gpg.program", "C:\\gpg.exe"));
+    await idle();
+
+    fireEvent.click(getByRole("checkbox", { name: "Sign commits" }));
+    await waitFor(() => expect(mocked.setSigning).toHaveBeenCalledWith("commit.gpgsign", "true"));
+    await idle();
+    fireEvent.click(getByRole("checkbox", { name: "Sign annotated tags" }));
+    await waitFor(() => expect(mocked.setSigning).toHaveBeenCalledWith("tag.gpgsign", "true"));
+  });
+
+  it("an emptied field clears the key instead of writing an empty value", async () => {
+    mocked.getSigning.mockResolvedValue(signing({ "user.signingkey": { value: "ABCD1234", local: false } }));
+    const { getByRole } = render(<SettingsDialog onClose={() => {}} />);
+    const key = () => getByRole("textbox", { name: "Signing key" }) as HTMLInputElement;
+    await waitFor(() => expect(key().value).toBe("ABCD1234"));
+    fireEvent.change(key(), { target: { value: "  " } });
+    fireEvent.blur(key());
+    await waitFor(() => expect(mocked.setSigning).toHaveBeenCalledWith("user.signingkey", null));
   });
 });

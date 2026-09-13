@@ -706,7 +706,7 @@ describe("commitStore.commit", () => {
     mocked.commit.mockResolvedValue("1234567890");
     useCommitStore.setState({ summary: "Add lanes", body: "detail" });
     await useCommitStore.getState().commit();
-    expect(mocked.commit).toHaveBeenCalledWith(REPO.id, "Add lanes\n\ndetail\n", false, false);
+    expect(mocked.commit).toHaveBeenCalledWith(REPO.id, "Add lanes\n\ndetail\n", false, false, null);
     expect(useCommitStore.getState()).toMatchObject({ summary: "", body: "", amend: false });
     expect(useToastStore.getState().toasts).toMatchObject([{ kind: "success", title: "Committed", detail: "1234567 Add lanes" }]);
     expect(JSON.parse(localStorage.getItem(`msgHistory:${REPO.id}`)!)).toEqual(["Add lanes\n\ndetail\n"]);
@@ -714,9 +714,9 @@ describe("commitStore.commit", () => {
 
   it("an amend toasts as an amend", async () => {
     mocked.commit.mockResolvedValue("abcdef1234");
-    useCommitStore.setState({ summary: "Fix", body: "", amend: true, signoff: true });
+    useCommitStore.setState({ summary: "Fix", body: "", amend: true, signoff: true, sign: false });
     await useCommitStore.getState().commit();
-    expect(mocked.commit).toHaveBeenCalledWith(REPO.id, "Fix\n", true, true);
+    expect(mocked.commit).toHaveBeenCalledWith(REPO.id, "Fix\n", true, true, false);
     expect(useToastStore.getState().toasts).toMatchObject([{ kind: "success", title: "Amended HEAD" }]);
   });
 

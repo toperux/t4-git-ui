@@ -64,15 +64,8 @@ pub fn default_config() -> Result<Config, GitError> {
         .map_err(map_git2)
 }
 
-/// The file writes go to: "the global/XDG configuration file according to
-/// git's rules" — `~/.gitconfig` unless the user created the XDG file, and
-/// created on the first set. Never a multi-level `set_str`: libgit2 would pick
-/// the highest level present, which may be neither.
-pub fn global_config() -> Result<Config, GitError> {
-    Config::open_default()
-        .and_then(|mut c| c.open_global())
-        .map_err(map_git2)
-}
+/// Moved to [`crate::config::global_config`] — one write path for the whole app.
+pub use crate::config::global_config;
 
 /// The configured tool of `kind`, `None` when no name is selected. `guitool`
 /// wins — GitExtensions sets it for the GUI pick, `tool` is the CLI's.
@@ -493,6 +486,23 @@ pub fn open_diff_tool(
                 blob_in(Some(&from), old_name)?,
                 RightSide::Blob(blob_in(Some(&to), path)?),
             )
+        }
+        // A stash's sides are a commit's, except that `stash -u` keeps the untracked
+        // files in a third parent: a path the stash's own tree has not is one of those.
+        DiffTarget::Stash { oid } => {
+            let commit = repo
+                .find_commit(Oid::from_str(oid).map_err(map_git2)?)
+                .map_err(map_git2)?;
+            let parent = commit.parent(0).ok().and_then(|p| p.tree().ok());
+            let tree = commit.tree().map_err(map_git2)?;
+            let new = match blob_in(Some(&tree), path)? {
+                Some(id) => Some(id),
+                None => match commit.parent(2).ok().and_then(|p| p.tree().ok()) {
+                    Some(untracked) => blob_in(Some(&untracked), path)?,
+                    None => None,
+                },
+            };
+            (blob_in(parent.as_ref(), old_name)?, RightSide::Blob(new))
         }
         DiffTarget::Staged => (
             blob_in(head_tree(repo).as_ref(), old_name)?,

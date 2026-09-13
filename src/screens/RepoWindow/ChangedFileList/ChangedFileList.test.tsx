@@ -89,6 +89,8 @@ describe("ChangedFileList", () => {
     const leaves = getAllByRole("treeitem").filter((r) => !r.hasAttribute("aria-expanded"));
     expect(leaves.map((r) => r.textContent?.replace(/\s+/g, ""))).toEqual(["Acache.rs+88", "Mgraph.rs+42−7", "Rmod.rs"]);
     expect(leaves[0].getAttribute("aria-level")).toBe("2"); // crates/git-core/src/log > cache.rs
+    // Folders are drawn as folders here as in every other tree (`TreeRow`'s `folder`).
+    expect(folders.every((f) => /_folder_/.test(f.className))).toBe(true);
   });
 
   it("←/→ on the tree fold the selected file's own folder", () => {

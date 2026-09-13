@@ -1,5 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Check, File, Folder, FolderTree, Minus, Plus, Rows2 } from "lucide-react";
+import { Check, File, FolderTree, Minus, Plus, Rows2 } from "lucide-react";
 import { memo, useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from "react";
 import type { FileChange, StatusEntry } from "../../../api/types";
 import { Badge } from "../../../components/ui/Badge/Badge";
@@ -446,7 +446,7 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
                     className={s.treeRow}
                     depth={row.depth}
                     expanded={row.expanded}
-                    icon={<Folder size={14} aria-hidden />}
+                    folder
                     /* A compacted chain reads as `a / b / c`, ellipsized at the start like a file row;
                        the tooltip keeps the real path. */
                     label={

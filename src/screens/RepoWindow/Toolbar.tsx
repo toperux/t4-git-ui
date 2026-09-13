@@ -5,6 +5,7 @@ import {
   ArrowUp,
   ChevronDown,
   Cloud,
+  ExternalLink,
   FolderGit2,
   FolderOpen,
   GitBranch,
@@ -12,6 +13,7 @@ import {
   GitMerge,
   History,
   Plus,
+  Power,
   RefreshCw,
   Search,
   Settings,
@@ -33,7 +35,9 @@ import { baseName } from "../../lib/paths";
 import { useRecentsStore, type RecentRepo } from "../../store/recentsStore";
 import { useMerging, useRepoStore } from "../../store/repoStore";
 import { selectChangeCount, useStatusStore } from "../../store/statusStore";
-import { closeRepo, fetchDefault, openCommitPanel, pickAndOpenRepo, refreshAll, stashApply, stashPop, switchRepo } from "./actions";
+import { useTabsStore } from "../../store/tabsStore";
+import { closeTab, detachTab, fetchDefault, openCommitPanel, pickAndOpenRepo, quitApp, refreshAll, stashApply, stashPop, switchRepo } from "./actions";
+import { useTabDrag } from "./useTabDrag";
 import s from "./Toolbar.module.css";
 
 const SEARCH_DEBOUNCE_MS = 250;
@@ -53,6 +57,8 @@ export function Toolbar() {
   const openDialog = useDialogStore((st) => st.open);
   const repo = useRepoStore((st) => st.repo);
   const recents = useRecentsStore((st) => st.recents);
+  const tabCount = useTabsStore((st) => st.tabs.length);
+  const activeTab = useTabsStore((st) => st.tabs.find((t) => t.id === st.active) ?? null);
   const [text, setText] = useState(() => useRepoStore.getState().filter.text ?? "");
   const historyPath = useRepoStore((st) => st.filter.path ?? null);
   const [repoMenu, setRepoMenu] = useState(false);
@@ -62,6 +68,9 @@ export function Toolbar() {
   const branchBtn = useRef<HTMLButtonElement>(null);
   const stashBtn = useRef<HTMLButtonElement>(null);
   const others = recents.filter((r) => r.path !== repo?.path);
+  // The strip is hidden with a single tab, so this button is the only handle that tab has: the same
+  // pointer-capture drag, minus the reorder phase (there is no strip to reorder inside).
+  const tabDrag = useTabDrag({ surface: repoBtn });
 
   // The toolbar outlives a repository switch; the store's filter does not (`openRepo` resets it).
   // The field also follows a filter cleared from elsewhere (`openCommitPanel`).
@@ -121,10 +130,17 @@ export function Toolbar() {
             ref={repoBtn}
             icon={<FolderGit2 size={18} aria-hidden />}
             className={s.repo}
-            title={repo?.path ?? "Repository"}
+            title={`${repo?.path ?? "Repository"} — drag to move this tab to another window`}
             aria-haspopup="menu"
             aria-expanded={repoMenu}
-            onClick={() => setRepoMenu((o) => !o)}
+            onPointerDown={(e) => {
+              if (activeTab) tabDrag.begin(e, activeTab);
+            }}
+            {...tabDrag.handlers}
+            // A press that became a drag ends on this button too; only a real click opens the menu.
+            onClick={() => {
+              if (!tabDrag.dragged()) setRepoMenu((o) => !o);
+            }}
           >
             <span className={s.repoName}>{repo?.name ?? "Repository"}</span>
           </ToolbarButton>
@@ -153,10 +169,25 @@ export function Toolbar() {
           </MenuItem>
         )}
         <MenuSeparator />
-        <MenuItem icon={<X size={16} aria-hidden />} kbd="Ctrl+Shift+W" disabled={running} title={running ? BUSY : undefined} onClick={pick(closeRepo, () => setRepoMenu(false))}>
-          Close repository
+        <MenuItem
+          icon={<ExternalLink size={16} aria-hidden />}
+          kbd="Ctrl+Shift+N"
+          // The last tab is already in a window of its own; moving it out has nowhere to go.
+          disabled={running || tabCount < 2}
+          title={running ? BUSY : tabCount < 2 ? "This tab is the only one in this window" : undefined}
+          onClick={pick(detachTab, () => setRepoMenu(false))}
+        >
+          Move to new window
+        </MenuItem>
+        <MenuItem icon={<X size={16} aria-hidden />} kbd="Ctrl+W" disabled={running} title={running ? BUSY : undefined} onClick={pick(closeTab, () => setRepoMenu(false))}>
+          Close tab
+        </MenuItem>
+        <MenuSeparator />
+        <MenuItem icon={<Power size={16} aria-hidden />} kbd="Ctrl+Q" onClick={pick(quitApp, () => setRepoMenu(false))}>
+          Quit
         </MenuItem>
       </Menu>
+      {tabDrag.ghost}
       <ToolbarSeparator />
       <span className={tb.split}>
         <ToolbarButton
@@ -248,6 +279,10 @@ export function Toolbar() {
           </ToolbarButton>
         }
       >
+        <MenuItem icon={<Archive size={16} aria-hidden />} kbd="Ctrl+Shift+S" onClick={pickDialog({ kind: "stashes" }, () => setStashMenu(false), stashBtn)}>
+          Manage stashes…
+        </MenuItem>
+        <MenuSeparator />
         <MenuItem icon={<Archive size={16} aria-hidden />} disabled={changes === 0} onClick={pickDialog({ kind: "stashPush" }, () => setStashMenu(false), stashBtn)}>
           Stash changes…
         </MenuItem>

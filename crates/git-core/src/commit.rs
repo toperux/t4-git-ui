@@ -6,9 +6,15 @@ use serde::{Deserialize, Serialize};
 use crate::log::types::CommitInfo;
 use crate::{map_git2, GitError};
 
-/// `git commit -F <message_file> [--amend] [--signoff]`.
+/// `git commit -F <message_file> [--amend] [--signoff] [-S | --no-gpg-sign]`.
 /// Run through the CLI so hooks and GPG signing work (libgit2 runs no hooks).
-pub fn commit_args(message_file: &Path, amend: bool, signoff: bool) -> Vec<String> {
+/// `sign` is the commit panel's override; `None` leaves it to `commit.gpgsign`.
+pub fn commit_args(
+    message_file: &Path,
+    amend: bool,
+    signoff: bool,
+    sign: Option<bool>,
+) -> Vec<String> {
     let mut args = vec![
         "commit".to_string(),
         "-F".to_string(),
@@ -19,6 +25,11 @@ pub fn commit_args(message_file: &Path, amend: bool, signoff: bool) -> Vec<Strin
     }
     if signoff {
         args.push("--signoff".to_string());
+    }
+    match sign {
+        Some(true) => args.push("-S".to_string()),
+        Some(false) => args.push("--no-gpg-sign".to_string()),
+        None => {}
     }
     args
 }
@@ -74,6 +85,8 @@ pub struct CommitDetail {
     pub message: String,
     pub committer_name: String,
     pub committer_email: String,
+    /// The commit carries a signature. Presence only — nothing is verified.
+    pub signed: bool,
 }
 
 pub fn get_commit(repo: &Repository, oid: &str) -> Result<CommitDetail, GitError> {
@@ -85,6 +98,7 @@ pub fn get_commit(repo: &Repository, oid: &str) -> Result<CommitDetail, GitError
         message: String::from_utf8_lossy(commit.message_bytes()).into_owned(),
         committer_name: String::from_utf8_lossy(committer.name_bytes()).into_owned(),
         committer_email: String::from_utf8_lossy(committer.email_bytes()).into_owned(),
+        signed: repo.extract_signature(&oid, None).is_ok(),
     })
 }
 
@@ -104,6 +118,7 @@ mod tests {
         assert_eq!(d.info.short, d.info.oid[..7]);
         assert!(!d.info.is_merge);
         assert_eq!(d.committer_email, "test@example.com");
+        assert!(!d.signed);
     }
 
     #[test]
@@ -116,10 +131,17 @@ mod tests {
     #[test]
     fn commit_args_shapes() {
         let f = Path::new("msg.txt");
-        assert_eq!(commit_args(f, false, false), ["commit", "-F", "msg.txt"]);
         assert_eq!(
-            commit_args(f, true, true),
-            ["commit", "-F", "msg.txt", "--amend", "--signoff"]
+            commit_args(f, false, false, None),
+            ["commit", "-F", "msg.txt"]
+        );
+        assert_eq!(
+            commit_args(f, true, true, Some(true)),
+            ["commit", "-F", "msg.txt", "--amend", "--signoff", "-S"]
+        );
+        assert_eq!(
+            commit_args(f, false, false, Some(false)),
+            ["commit", "-F", "msg.txt", "--no-gpg-sign"]
         );
     }
 

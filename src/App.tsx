@@ -1,15 +1,16 @@
 import { open as openFile } from "@tauri-apps/plugin-dialog";
 import { useCallback, useEffect, useState } from "react";
-import { onLogProgress, onOpEvent, onRepoChanged } from "./api/events";
-import { probeGit, setGitPath, toAppError } from "./api/ipc";
+import { onLogProgress, onOpEvent, onRepoChanged, onSettingsChanged, onTabSpawnFailed } from "./api/events";
+import { probeGit, setGitPath, setLayout, spawnWindow, takeLayout, takePending, toAppError } from "./api/ipc";
 import { BusyOverlay } from "./components/ui/BusyOverlay/BusyOverlay";
 import { Spinner } from "./components/ui/Spinner/Spinner";
+import { isMainWindow } from "./lib/appWindow";
 import { kvGet, kvSet } from "./lib/kv";
 import { keepsNativeMenu } from "./lib/nativeMenu";
 import { useWindowTitle } from "./lib/windowTitle";
 import { GitMissingScreen } from "./screens/GitMissingScreen/GitMissingScreen";
-import { closeRepo } from "./screens/RepoWindow/actions";
 import { RepoWindow } from "./screens/RepoWindow/RepoWindow";
+import { listenTabDrags } from "./screens/RepoWindow/TabStrip";
 import { StartScreen } from "./screens/StartScreen/StartScreen";
 import { useCmdHistoryStore } from "./store/cmdHistoryStore";
 import { useOpsStore } from "./store/opsStore";
@@ -17,9 +18,41 @@ import { useRecentsStore } from "./store/recentsStore";
 import { useRepoStore } from "./store/repoStore";
 import { useSettingsStore } from "./store/settingsStore";
 import { useStatusStore } from "./store/statusStore";
+import { useTabsStore } from "./store/tabsStore";
+import { toastError, useToastStore } from "./store/toastStore";
 import { useUpdateStore } from "./store/updateStore";
 
 type Phase = { kind: "probing" } | { kind: "gitMissing"; message: string } | { kind: "ready" };
+
+/**
+ * What this window opens at launch: the tabs it was created with (a torn-off tab, or one of the
+ * windows a layout is being restored into), else — in the main window — the layout the last exit
+ * left, which also spawns the other windows. With neither, the repository `lastOpen` names, which is
+ * what a first launch after the upgrade to tabs has.
+ */
+async function restoreTabs() {
+  const tabs = useTabsStore.getState();
+  const pending = await takePending().catch(() => null);
+  const layout = pending ? [pending] : isMainWindow() ? await takeLayout().catch(() => []) : [];
+  if (layout.length === 0) {
+    const last = useRecentsStore.getState().lastOpen;
+    if (last) await tabs.openTab(last);
+    return;
+  }
+  // The first entry is this window's; every other one gets a window of its own.
+  for (const other of layout.slice(1)) void spawnWindow(other).catch(() => undefined);
+  // Per path: the layout has been taken (the file is gone), so one repository that no longer opens
+  // must not cost every tab after it.
+  for (const path of layout[0].tabs) {
+    try {
+      await tabs.openTab(path);
+    } catch (e) {
+      toastError(toAppError(e), "Couldn't open repository");
+    }
+  }
+  const active = useTabsStore.getState().tabs.find((t) => t.path === layout[0].active);
+  if (active) tabs.activate(active.id);
+}
 
 export default function App() {
   useWindowTitle();
@@ -50,13 +83,12 @@ export default function App() {
     await useSettingsStore.getState().load();
     // Never awaited: an offline or slow GitHub must cost nothing at launch, and the store keeps its
     // own failures — a launch check that fails says so in Settings › Updates or nowhere at all.
-    if (useSettingsStore.getState().autoUpdateCheck) void useUpdateStore.getState().check();
-    // Reopen the repository that was open at last exit; any failure just lands on the start screen.
+    // One window only, or every open window prompts for the same release.
+    if (useSettingsStore.getState().autoUpdateCheck && isMainWindow()) void useUpdateStore.getState().check();
     const recents = useRecentsStore.getState();
     try {
       await recents.load();
-      const last = useRecentsStore.getState().lastOpen;
-      if (last) await useRepoStore.getState().openRepo(last);
+      await restoreTabs();
     } catch {
       recents.setLastOpen(null);
     }
@@ -84,38 +116,56 @@ export default function App() {
 
   useEffect(() => {
     const unlisten = [
-      onLogProgress((p) => useRepoStore.getState().onProgress(p)),
-      onRepoChanged((p) => useStatusStore.getState().onChanged(p)),
+      // An event for a tab that is not the active one only flags it: activating it refreshes.
+      onLogProgress((p) => {
+        useTabsStore.getState().markStale(p.repoId);
+        useRepoStore.getState().onProgress(p);
+      }),
+      onRepoChanged((p) => {
+        useTabsStore.getState().markStale(p.repoId);
+        useStatusStore.getState().onChanged(p);
+      }),
       onOpEvent((e) => useOpsStore.getState().onEvent(e)),
+      // Another window wrote a preference: re-read it, or this one keeps a stale theme / diff default.
+      onSettingsChanged(() => void useSettingsStore.getState().load()),
+      // The window a tab was moved to never opened (the build fails after `spawn_window` returns):
+      // take the tab back rather than lose it.
+      onTabSpawnFailed((paths) => {
+        useToastStore.getState().push({ kind: "error", title: "Couldn't open a new window", detail: paths.join(", ") });
+        // One at a time, like `restoreTabs`: they all land in this window's one `repoStore`.
+        void (async () => {
+          for (const path of paths) {
+            try {
+              await useTabsStore.getState().openTab(path);
+            } catch (e) {
+              toastError(toAppError(e), "Couldn't open repository");
+            }
+          }
+        })();
+      }),
+      // A tab dragged in another window hovering this one, and dropped on it. Here rather than in the
+      // strip, which is not rendered with one tab or none.
+      listenTabDrags(),
     ];
-    // Every successful open lands in recents; `lastOpen` tracks what to reopen next start.
-    const unsubscribe = useRepoStore.subscribe((st, prev) => {
-      if (st.repo === prev.repo) return;
+    // Every open lands in recents, and the backend keeps what this window has open so the next
+    // launch can put every window back (`layout.json`).
+    const unsubscribe = useTabsStore.subscribe((st, prev) => {
+      if (st.tabs === prev.tabs && st.active === prev.active) return;
       const recents = useRecentsStore.getState();
-      if (st.repo) {
-        recents.touch(st.repo.path, st.repo.name);
-        recents.setLastOpen(st.repo.path);
-      } else {
-        recents.setLastOpen(null);
-      }
+      for (const t of st.tabs) if (!prev.tabs.some((p) => p.id === t.id)) recents.touch(t.path, t.name);
+      const active = st.tabs.find((t) => t.id === st.active) ?? null;
+      recents.setLastOpen(active?.path ?? null);
+      void setLayout({ tabs: st.tabs.map((t) => t.path), active: active?.path ?? "" }).catch(() => undefined);
     });
-    // Ctrl+Shift+W closes the repository and returns to the start screen.
-    function onKey(e: KeyboardEvent) {
-      if (!(e.ctrlKey && e.shiftKey && !e.altKey && e.key.toLowerCase() === "w") || !useRepoStore.getState().repo) return;
-      e.preventDefault();
-      closeRepo();
-    }
     // Runs after the app's own context menus (they preventDefault on the way up); see keepsNativeMenu.
     function onContextMenu(e: MouseEvent) {
       const sel = window.getSelection();
       if (!keepsNativeMenu(e.target, !!sel && !sel.isCollapsed)) e.preventDefault();
     }
-    window.addEventListener("keydown", onKey);
     document.addEventListener("contextmenu", onContextMenu);
     return () => {
       unlisten.forEach((fn) => fn());
       unsubscribe();
-      window.removeEventListener("keydown", onKey);
       document.removeEventListener("contextmenu", onContextMenu);
     };
   }, []);

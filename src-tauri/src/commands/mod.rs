@@ -6,3 +6,4 @@ pub mod stage;
 pub mod tools;
 pub mod tree;
 pub mod update;
+pub mod window;

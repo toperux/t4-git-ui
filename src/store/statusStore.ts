@@ -6,6 +6,7 @@ import { toAppError } from "../api/ipc";
 import type { RefsSnapshot, RepoChanged, RevSpec, WorkdirStatus } from "../api/types";
 import { eqDeep } from "../lib/eqDeep";
 import { freshStatus } from "../lib/freshStatus";
+import { pick } from "../lib/pick";
 import { useMerging, useRepoStore } from "./repoStore";
 import { toastError } from "./toastStore";
 
@@ -226,6 +227,13 @@ export const useStatusStore = create<StatusStore>()((_set, get) => ({
     return refsRun;
   },
 }));
+
+/** What a background tab keeps of this store; see `tabsStore`. */
+export type StatusSnapshot = Pick<StatusStore, "status" | "error">;
+
+export const snapshot = (): StatusSnapshot => pick(useStatusStore.getState(), ["status", "error"]);
+
+export const restore = (s: StatusSnapshot) => useStatusStore.setState(s);
 
 /** Clears the module-level debounce timer / sequence guards so tests don't leak state into each other. */
 export function __resetForTests() {

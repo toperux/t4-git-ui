@@ -13,7 +13,8 @@ import { useDialogStore } from "../../store/dialogStore";
 import { useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
 import { useShowWorkingTree, useStatusStore } from "../../store/statusStore";
-import { checkoutBranch, cherryPickAbort, mergeAbort, openCommitPanel, rebaseAbort, rebaseContinue, rebaseSkip, revertAbort } from "./actions";
+import { useTabsStore } from "../../store/tabsStore";
+import { bisectMark, bisectReset, checkoutBranch, cherryPickAbort, mergeAbort, openCommitPanel, rebaseAbort, rebaseContinue, rebaseSkip, revertAbort } from "./actions";
 import { computeBanners, defaultBranch, type BannerAction } from "./banners";
 import { CommitPanel, useCommitSync } from "./CommitPanel/CommitPanel";
 import { DetailsPane } from "./DetailsPane";
@@ -22,6 +23,7 @@ import { OutputDock } from "./OutputDock";
 import s from "./RepoWindow.module.css";
 import { RevisionGrid } from "./RevisionGrid/RevisionGrid";
 import { Sidebar } from "./Sidebar";
+import { TabStrip } from "./TabStrip";
 import { Toolbar } from "./Toolbar";
 import { useShortcuts } from "./useShortcuts";
 
@@ -45,14 +47,20 @@ export function RepoWindow() {
   const showWt = useShowWorkingTree();
   // The commit panel belongs to the working-tree row: it can only show while the grid shows that row.
   const wtSelected = selectedWt && showWt;
+  // A stash preview takes the pane, from the commit panel as from a commit's details.
+  const preview = useRepoStore((st) => st.preview);
   // One status sync serves the panel and the commit dialog (which can open from the toolbar with the panel hidden).
   const commitOpen = useDialogStore((st) => st.dialog?.kind === "commit");
   useCommitSync(wtSelected || commitOpen);
   const dockOpen = useOpsStore((st) => st.open);
+  // With one tab there is nothing to switch to, and the toolbar already names the repository — but a
+  // tab dragged here from another window needs somewhere to show its drop caret.
+  const stripped = useTabsStore((st) => st.tabs.length > 1 || st.caret !== null);
   useShortcuts();
 
   return (
     <div className={s.window}>
+      {stripped && <TabStrip />}
       <Toolbar />
       <Group orientation="vertical" className={s.main}>
         <Panel minSize={200} className={s.panel}>
@@ -70,7 +78,7 @@ export function RepoWindow() {
                 </Panel>
                 <Separator className={s.splitV} aria-label="Resize details" />
                 <Panel minSize={120} className={s.panel}>
-                  {wtSelected ? <CommitPanel /> : <DetailsPane />}
+                  {wtSelected && !preview ? <CommitPanel /> : <DetailsPane />}
                 </Panel>
               </Group>
             </Panel>
@@ -159,6 +167,19 @@ function StateBanners() {
         break;
       case "revertAbort":
         void revertAbort();
+        break;
+      // The bisect buttons all act on HEAD, the commit git checked out for this step.
+      case "bisectGood":
+        void bisectMark("good");
+        break;
+      case "bisectBad":
+        void bisectMark("bad");
+        break;
+      case "bisectSkip":
+        void bisectMark("skip");
+        break;
+      case "bisectReset":
+        void bisectReset();
         break;
       case "commitMerge":
       case "openCommitPanel":

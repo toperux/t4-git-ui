@@ -87,12 +87,24 @@ describe("banners", () => {
     expect(computeBanners(refs({ state: "revert" }), status(1, "revert")).map((x) => x.id)).toEqual(["revert", "conflicts"]);
   });
 
-  it("bisect is the one state left with no action (no backend command for it)", () => {
-    const b = computeBanners(refs({ state: "bisect" }), status(0, "bisect"));
+  it("bisect drives the loop on HEAD, with the counts from refs.bisect", () => {
+    const b = computeBanners(refs({ state: "bisect", bisect: { bad: "cafe", good: ["beef", "f00d"], skip: [] } }), status(0, "bisect"));
     expect(b).toHaveLength(1);
-    expect(b[0]).toMatchObject({ id: "sequencer", kind: "warning", buttons: [] });
-    expect(b[0].text).toContain("Bisect");
-    expect(b[0].text).toContain("in a terminal");
+    expect(b[0]).toMatchObject({ id: "sequencer", kind: "warning" });
+    expect(b[0].text).toBe("Bisecting — testing abcdef0 · 2 good · 1 bad");
+    expect(b[0].buttons.map((x) => x.action)).toEqual(["bisectGood", "bisectBad", "bisectSkip", "bisectReset"]);
+  });
+
+  it("with only one side marked git has not moved HEAD: Reset is the one thing to offer", () => {
+    for (const bisect of [{ bad: "cafe", good: [], skip: [] }, null]) {
+      const b = computeBanners(refs({ state: "bisect", bisect }), status(0, "bisect"));
+      expect(b[0].text).toBe("Bisecting — mark a good commit to begin");
+      expect(b[0].buttons.map((x) => x.label)).toEqual(["Reset"]);
+    }
+    // Good first: a Bad on HEAD would mark that good commit bad.
+    const b = computeBanners(refs({ state: "bisect", bisect: { bad: null, good: ["beef"], skip: [] } }), status(0, "bisect"));
+    expect(b[0].text).toBe("Bisecting — mark a bad commit to begin");
+    expect(b[0].buttons.map((x) => x.label)).toEqual(["Reset"]);
   });
 
   it("a detached HEAD banner is suppressed while a sequencer state is running", () => {

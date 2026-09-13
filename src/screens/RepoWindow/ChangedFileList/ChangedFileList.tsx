@@ -299,7 +299,7 @@ export function ChangedFileList({ autoFocus }: { autoFocus?: boolean }) {
                     data-folder={row.path}
                     depth={row.depth}
                     expanded={row.expanded}
-                    icon={<Folder size={14} aria-hidden />}
+                    folder
                     /* A compacted chain reads as `a / b / c`, ellipsized at the start like a file row;
                        the tooltip keeps the real path. */
                     label={

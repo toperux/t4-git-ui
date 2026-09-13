@@ -5,6 +5,7 @@ import { useDialogStore } from "../../store/dialogStore";
 import { useOpsStore } from "../../store/opsStore";
 import { sortRecents, useRecentsStore, type RecentRepo } from "../../store/recentsStore";
 import { useRepoStore } from "../../store/repoStore";
+import { useTabsStore, type Tab } from "../../store/tabsStore";
 import { Toolbar } from "./Toolbar";
 
 vi.mock("../../api/ipc", async (importOriginal) => {
@@ -18,11 +19,15 @@ vi.mock("../../api/ipc", async (importOriginal) => {
     getLinked: vi.fn(() => Promise.resolve(null)),
     startLog: vi.fn(() => Promise.resolve(1)),
     getLogPage: vi.fn(() => new Promise(() => {})),
+    windowOrigin: vi.fn(() => Promise.resolve({ x: 100, y: 50, scale: 1, exact: true })),
+    dragOver: vi.fn(() => Promise.resolve(null)),
+    dragCancel: vi.fn(() => Promise.resolve()),
+    dropTab: vi.fn(() => Promise.resolve("none")),
   };
 });
 
 import * as ipc from "../../api/ipc";
-const mocked = ipc as unknown as Record<"fetch", ReturnType<typeof vi.fn>>;
+const mocked = ipc as unknown as Record<"fetch" | "dragOver" | "dragCancel" | "dropTab", ReturnType<typeof vi.fn>>;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -30,6 +35,7 @@ beforeEach(() => {
   useOpsStore.setState({ ops: [], open: false, busy: null });
   useDialogStore.setState({ dialog: null });
   useRecentsStore.setState({ recents: [] });
+  useTabsStore.setState({ tabs: [], active: null, caret: null });
 });
 afterEach(cleanup);
 
@@ -188,7 +194,7 @@ describe("Toolbar Repository menu", () => {
     useRecentsStore.setState({ recents: sortRecents([recent("r", 9), recent("a", 4), recent("b", 3), recent("c", 2), recent("d", 1)]) });
     const { getByRole, queryByRole } = render(<Toolbar />);
     fireEvent.click(getByRole("button", { name: "r" }));
-    expect(names(getByRole("menu", { name: "Repository" }))).toEqual(["Commit…", "Add remote…", "Add worktree…", "Run git command…", "Open repository…", "a", "b", "c", "d", "Close repository"]);
+    expect(names(getByRole("menu", { name: "Repository" }))).toEqual(["Commit…", "Add remote…", "Add worktree…", "Run git command…", "Open repository…", "a", "b", "c", "d", "Move to new window", "Close tab", "Quit"]);
     expect(queryByRole("menuitem", { name: "More recent" })).toBeNull();
   });
 
@@ -214,7 +220,9 @@ describe("Toolbar Repository menu", () => {
       "c",
       "d",
       "More recent",
-      "Close repository",
+      "Move to new window",
+      "Close tab",
+      "Quit",
     ]);
 
     fireEvent.click(getByRole("menuitem", { name: "More recent" }));
@@ -223,11 +231,96 @@ describe("Toolbar Repository menu", () => {
     expect(queryByRole("menuitem", { name: "r" })).toBeNull();
   });
 
-  it("groups the items: act on the open repo, switch to another, close", () => {
+  it("groups the items: act on the open repo, switch to another, move / close the tab, quit", () => {
     const { getByRole } = render(<Toolbar />);
     fireEvent.click(getByRole("button", { name: "r" }));
     // The Kbd renders inside the item, so strip the shortcut off the text.
     const items = Array.from(getByRole("menu", { name: "Repository" }).children).map((el) => (el.getAttribute("role") === "separator" ? "---" : el.textContent!.replace(/Ctrl.*$/, "")));
-    expect(items).toEqual(["Commit…", "Add remote…", "Add worktree…", "Run git command…", "---", "Open repository…", "No other recent repositories", "---", "Close repository"]);
+    expect(items).toEqual(["Commit…", "Add remote…", "Add worktree…", "Run git command…", "---", "Open repository…", "No other recent repositories", "---", "Move to new window", "Close tab", "---", "Quit"]);
+  });
+});
+
+describe("Toolbar repository handle", () => {
+  const closeTab = vi.fn(() => Promise.resolve());
+  const tabs = (...names: string[]): Tab[] => names.map((n) => ({ id: `/${n}`, path: `/repos/${n}`, name: n, stale: false }));
+
+  beforeEach(() => {
+    // jsdom has no pointer capture, and the handle takes it for the length of a drag.
+    Element.prototype.setPointerCapture = vi.fn();
+    Element.prototype.releasePointerCapture = vi.fn();
+    Element.prototype.hasPointerCapture = vi.fn(() => false);
+    mocked.dropTab.mockResolvedValue("none");
+    useTabsStore.setState({ tabs: tabs("r"), active: "/r", closeTab: closeTab as never });
+  });
+
+  /** Presses the button and moves past the threshold, letting the origin and the chained calls land. */
+  async function drag(btn: HTMLElement) {
+    await act(async () => {
+      fireEvent.pointerDown(btn, { button: 0, pointerId: 1, clientX: 10, clientY: 10 });
+    });
+    await act(async () => {
+      fireEvent.pointerMove(btn, { pointerId: 1, clientX: 50, clientY: 200 });
+    });
+  }
+  const drop = (btn: HTMLElement) =>
+    act(async () => {
+      fireEvent.pointerUp(btn, { pointerId: 1, clientX: 50, clientY: 200 });
+    });
+
+  it("drags the active tab out, and the only tab is handed over rather than torn off", async () => {
+    mocked.dropTab.mockResolvedValue("adopted");
+    const { getByRole, getByText } = render(<Toolbar />);
+    const btn = getByRole("button", { name: "r" });
+    await drag(btn);
+    // The ghost is the repository's name a second time; origin (100, 50) + client × scale 1.
+    expect(getByText("r", { selector: "div" })).toBeTruthy();
+    expect(mocked.dragOver).toHaveBeenCalledWith(150, 250);
+
+    await drop(btn);
+    expect(mocked.dropTab).toHaveBeenCalledWith(150, 250, "/repos/r", false);
+    expect(closeTab).toHaveBeenCalledWith("/r");
+    // The click that follows the drag is not a click: the menu stays shut.
+    fireEvent.click(btn);
+    expect(btn.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("tears off when the window has another tab to fall back on", async () => {
+    useTabsStore.setState({ tabs: tabs("r", "b") });
+    const { getByRole } = render(<Toolbar />);
+    const btn = getByRole("button", { name: "r" });
+    await drag(btn);
+    await drop(btn);
+    expect(mocked.dropTab).toHaveBeenCalledWith(150, 250, "/repos/r", true);
+    // `none`: nowhere to go, so the tab stays here.
+    expect(closeTab).not.toHaveBeenCalled();
+  });
+
+  it("a press that never passes the threshold still opens the menu", async () => {
+    const { getByRole } = render(<Toolbar />);
+    const btn = getByRole("button", { name: "r" });
+    await act(async () => {
+      fireEvent.pointerDown(btn, { button: 0, pointerId: 1, clientX: 10, clientY: 10 });
+    });
+    await act(async () => {
+      fireEvent.pointerMove(btn, { pointerId: 1, clientX: 12, clientY: 11 });
+      fireEvent.pointerUp(btn, { pointerId: 1, clientX: 12, clientY: 11 });
+    });
+    fireEvent.click(btn);
+    expect(getByRole("menu", { name: "Repository" })).toBeTruthy();
+    expect(mocked.dropTab).not.toHaveBeenCalled();
+  });
+
+  it("Escape mid-drag cancels it: the tab stays and the window showing a caret is told", async () => {
+    const { getByRole } = render(<Toolbar />);
+    const btn = getByRole("button", { name: "r" });
+    await drag(btn);
+    await act(async () => {
+      fireEvent.keyDown(window, { key: "Escape" });
+    });
+    expect(mocked.dragCancel).toHaveBeenCalled();
+
+    await drop(btn);
+    expect(mocked.dropTab).not.toHaveBeenCalled();
+    expect(useTabsStore.getState().tabs.map((t) => t.id)).toEqual(["/r"]);
   });
 });

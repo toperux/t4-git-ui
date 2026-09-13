@@ -37,3 +37,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
 tempfile = "3.27.0"
 tokio-util = "0.7.19"
+
+# Which window a dragged tab is over is a z-order question only the compositor
+# can answer, and Tauri exposes no z-order: `window_at` calls WindowFromPoint.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }

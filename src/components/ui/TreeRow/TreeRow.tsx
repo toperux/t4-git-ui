@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Folder, FolderOpen } from "lucide-react";
 import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from "react";
 import { cx } from "../../../lib/cx";
 import s from "./TreeRow.module.css";
@@ -10,8 +10,10 @@ export interface TreeRowProps extends Omit<ButtonHTMLAttributes<HTMLButtonElemen
   depth?: number;
   /** `undefined` = leaf (empty chevron slot). */
   expanded?: boolean;
-  /** 14px kind icon. */
+  /** 14px kind icon; a `folder` row draws its own. */
   icon?: ReactNode;
+  /** A folder of a tree: its own icon (open when `expanded`), coloured and semibold. */
+  folder?: boolean;
   label: ReactNode;
   /** Right-aligned meta (ahead/behind, badges). */
   meta?: ReactNode;
@@ -20,19 +22,21 @@ export interface TreeRowProps extends Omit<ButtonHTMLAttributes<HTMLButtonElemen
   current?: boolean;
 }
 
-export function TreeRow({ depth = 0, expanded, icon, label, meta, selected, current, className, style, type = "button", ...rest }: TreeRowProps) {
+export function TreeRow({ depth = 0, expanded, icon, folder, label, meta, selected, current, className, style, type = "button", ...rest }: TreeRowProps) {
   const chevron = expanded === undefined ? null : expanded ? <ChevronDown size={12} aria-hidden /> : <ChevronRight size={12} aria-hidden />;
+  // A folder is drawn the same way in every tree: the sidebar, the change lists and the Files tab.
+  const glyph = folder ? (expanded ? <FolderOpen size={14} fill="currentColor" fillOpacity={0.25} aria-hidden /> : <Folder size={14} fill="currentColor" fillOpacity={0.25} aria-hidden />) : icon;
   return (
     <button
       type={type}
-      className={cx(s.row, selected && s.selected, className)}
+      className={cx(s.row, selected && s.selected, folder && s.folder, className)}
       style={{ ...style, "--d": depth } as CSSProperties}
       aria-selected={selected || undefined}
       aria-expanded={expanded}
       {...rest}
     >
       <span className={s.tw}>{chevron}</span>
-      {icon && <span className={s.icon}>{icon}</span>}
+      {glyph && <span className={s.icon}>{glyph}</span>}
       <span className={cx(s.label, current && s.current)}>{label}</span>
       {meta && <span className={s.meta}>{meta}</span>}
     </button>

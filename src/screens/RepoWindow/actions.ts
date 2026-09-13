@@ -3,14 +3,16 @@ import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { ask, open as openFolder } from "@tauri-apps/plugin-dialog";
 import * as ipc from "../../api/ipc";
 import { toAppError } from "../../api/ipc";
-import type { Branch, DiffTarget, Remote, RemoteBranch } from "../../api/types";
+import type { BisectTerm, Branch, DiffTarget, Remote, RemoteBranch } from "../../api/types";
 import { splitArgs } from "../../lib/argv";
 import { useCmdHistoryStore } from "../../store/cmdHistoryStore";
+import { useCommitStore } from "../../store/commitStore";
 import { useDialogStore } from "../../store/dialogStore";
 import { useDiffStore } from "../../store/diffStore";
 import { runOp, selectRunning, useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
 import { useStatusStore } from "../../store/statusStore";
+import { useTabsStore } from "../../store/tabsStore";
 import { toastError, useToastStore } from "../../store/toastStore";
 import { gitCmd } from "./dialogs/gitArgs";
 
@@ -69,6 +71,16 @@ export const rebaseSkip = () => runOp("Skipping the commit…", (id) => ipc.reba
 export const cherryPickAbort = () => runOp("Aborting cherry-pick…", (id) => ipc.cherryPickAbort(id), { success: "Cherry-pick aborted" });
 export const revertAbort = () => runOp("Aborting revert…", (id) => ipc.revertAbort(id), { success: "Revert aborted" });
 
+/**
+ * Marks `oid` — or HEAD from the banner's buttons. The first mark from a commit row starts the
+ * bisect itself, and the backend decides that from the repository's own state: `refs` here can be
+ * null or a refresh behind, and a second `git bisect start` wipes `refs/bisect/*` and the log.
+ */
+export const bisectMark = (term: BisectTerm, oid?: string) =>
+  runOp(`git bisect ${term}…`, (id) => ipc.bisectMark(id, term, oid ?? null), { success: `Marked ${oid ? oid.slice(0, 7) : "HEAD"} ${term}` });
+
+export const bisectReset = () => runOp("Resetting the bisect…", (id) => ipc.bisectReset(id), { success: "Bisect reset" });
+
 export const stashApply = (index: number) => runOp(`Applying stash@{${index}}…`, (id) => ipc.stashApply(id, index), { success: `Applied stash@{${index}}` });
 export const stashPop = (index: number) => runOp(`Popping stash@{${index}}…`, (id) => ipc.stashPop(id, index), { success: `Popped stash@{${index}}` });
 export const worktreePrune = () => runOp("Pruning worktrees…", (id) => ipc.worktreePrune(id), { success: "Worktrees pruned" });
@@ -90,6 +102,22 @@ export async function stashDrop(index: number, message: string) {
   useOpsStore.setState({ busy: null });
   if (!ok) return;
   return runOp(busy, (id) => ipc.stashDrop(id, index), { success: `Dropped stash@{${index}}` });
+}
+
+/** Confirmed like a drop, and named by the count — it is every entry at once. */
+export async function stashClear(count: number) {
+  if (refusedWhileRunning("clearing the stashes")) return;
+  const busy = "Dropping every stash…";
+  useOpsStore.setState({ busy });
+  const ok = await ask(`Drop all ${count} stash${count === 1 ? "" : "es"}? This cannot be undone.`, {
+    title: "Clear stashes",
+    kind: "warning",
+    cancelLabel: "Cancel",
+    okLabel: "Drop all",
+  }).catch(() => false);
+  useOpsStore.setState({ busy: null });
+  if (!ok) return;
+  return runOp(busy, (id) => ipc.stashClear(id), { success: `Dropped ${count} stash${count === 1 ? "" : "es"}` });
 }
 
 /**
@@ -181,22 +209,23 @@ export function openCommitPanel() {
   st.selectWorkingTree();
 }
 
-/** Switches to another repository (toolbar repo menu); failures stay on the current one. */
 /**
  * Leaving the repository while an operation runs against it is refused: the op would finish
- * — and refresh — against a repository that is no longer the open one.
+ * — and refresh — against a repository that is no longer the open one. A commit (and the staging
+ * mutations, which share its `busy`) never touches `opsStore`, so it is checked too.
  */
-function refusedWhileRunning(before: string): boolean {
-  if (!selectRunning(useOpsStore.getState())) return false;
+export function refusedWhileRunning(before: string): boolean {
+  if (!selectRunning(useOpsStore.getState()) && !useCommitStore.getState().busy) return false;
   useToastStore.getState().push({ kind: "info", title: "Operation in progress", detail: `Wait for it to finish before ${before}` });
   return true;
 }
 
+/** Opens another repository in a tab of this window (toolbar repo menu, recents, a worktree row). */
 export function switchRepo(path: string) {
   if (refusedWhileRunning("opening another repository")) return;
-  void useRepoStore
+  void useTabsStore
     .getState()
-    .openRepo(path)
+    .openTab(path)
     .catch((e: unknown) => toastError(toAppError(e), "Couldn't open repository"));
 }
 
@@ -209,16 +238,30 @@ export async function pickAndOpenRepo() {
 }
 
 /**
- * Back to the start screen (repo menu / Ctrl+Shift+W). Refused while a dialog owns the window or an
- * operation is running against the repository.
+ * Closes the active tab (repo menu / Ctrl+W) — the last one leaves the start screen, or closes a
+ * secondary window. Refused while a dialog owns the window or an operation is running.
  */
-export function closeRepo() {
-  if (!useRepoStore.getState().repo || useDialogStore.getState().dialog) return;
-  if (refusedWhileRunning("closing the repository")) return;
-  void useRepoStore
-    .getState()
-    .closeRepo()
-    .catch((e: unknown) => toastError(toAppError(e), "Couldn't close the repository"));
+export function closeTab() {
+  const active = useTabsStore.getState().active;
+  if (!active || useDialogStore.getState().dialog) return;
+  if (refusedWhileRunning("closing the tab")) return;
+  void useTabsStore.getState().closeTab(active);
+}
+
+/**
+ * Quits the app (repo menu / Ctrl+Q): every window closes at once and they all come back next
+ * launch, where closing them one at a time drops each from the saved layout.
+ */
+export function quitApp() {
+  void ipc.quit().catch((e: unknown) => toastError(toAppError(e), "Couldn't quit"));
+}
+
+/** Moves the active tab to a window of its own (repo menu / Ctrl+Shift+N). */
+export function detachTab() {
+  const active = useTabsStore.getState().active;
+  if (!active || useDialogStore.getState().dialog) return;
+  if (refusedWhileRunning("moving the tab to a new window")) return;
+  void useTabsStore.getState().detach(active);
 }
 
 /** Refs + status + a fresh walk (toolbar Refresh / F5). `refresh` / `startLog` report their own errors. */

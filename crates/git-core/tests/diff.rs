@@ -9,6 +9,7 @@ use std::time::{Duration, SystemTime};
 use git_core::diff::{
     changed_files, file_diff, DiffLineKind, DiffOptions, DiffTarget, FileChange, FileStatus,
 };
+use git_core::refs::snapshot;
 use git_core::status::status;
 use git_core::test_util::TempRepo;
 use git_core::GitError;
@@ -671,5 +672,48 @@ fn status_persists_the_refreshed_stat_cache() {
         entry.mtime.seconds() as u64,
         1_000_000_000,
         "stat cache written back"
+    );
+}
+
+#[test]
+fn stash_target_holds_the_staged_unstaged_and_untracked_changes() {
+    let mut t = TempRepo::new();
+    let base = t.commit(&[("a.txt", "a1\n"), ("b.txt", "b1\n")], "A");
+    t.write("a.txt", "a1\na2\n");
+    t.stage(&["a.txt"]);
+    t.write("b.txt", "b1\nb2\n");
+    t.write("c.txt", "c1\n");
+    let sig = t.repo.signature().expect("signature");
+    let oid = t
+        .repo
+        .stash_save2(&sig, Some("wip"), Some(git2::StashFlags::INCLUDE_UNTRACKED))
+        .expect("stash");
+
+    let entry = &snapshot(&mut t.repo).expect("snapshot").stashes[0];
+    assert_eq!((entry.index, entry.oid.as_str()), (0, &*oid.to_string()));
+    assert_eq!(entry.base_oid, base.to_string());
+    assert!(entry.has_untracked);
+    assert!(entry.time > 0, "{entry:?}");
+
+    let target = DiffTarget::Stash {
+        oid: oid.to_string(),
+    };
+    let files = changed_files(&t.repo, &target).expect("changed_files");
+    assert_eq!(paths(&files), vec!["a.txt", "b.txt", "c.txt"]);
+    assert_eq!(find(&files, "a.txt").status, FileStatus::Modified);
+    assert_eq!(find(&files, "b.txt").status, FileStatus::Modified);
+    // The untracked file lives in the third parent, one-sided: an addition.
+    assert_eq!(find(&files, "c.txt").status, FileStatus::Added);
+
+    let d = file_diff(&t.repo, &target, "c.txt", None, &DiffOptions::default()).expect("file_diff");
+    assert_eq!(d.status, FileStatus::Added);
+    assert_eq!(d.hunks[0].header, "@@ -0,0 +1 @@");
+    assert_eq!(
+        d.hunks[0]
+            .lines
+            .iter()
+            .map(|l| (l.kind, l.text.as_str()))
+            .collect::<Vec<_>>(),
+        vec![(DiffLineKind::Add, "c1")]
     );
 }

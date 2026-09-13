@@ -20,6 +20,7 @@ import { cx } from "../../lib/cx";
 import { relativeDate } from "../../lib/relativeDate";
 import { filterRecents, useRecentsStore } from "../../store/recentsStore";
 import { useRepoStore } from "../../store/repoStore";
+import { useTabsStore } from "../../store/tabsStore";
 import { toastError, useToastStore } from "../../store/toastStore";
 import pkg from "../../../package.json";
 import { SettingsDialog } from "../SettingsDialog/SettingsDialog";
@@ -35,7 +36,8 @@ const ERROR_TITLE: Record<string, string> = {
 const openTitle = (err: AppError) => ERROR_TITLE[err.kind] ?? "Couldn't open repository";
 
 export function StartScreen() {
-  const openRepo = useRepoStore((st) => st.openRepo);
+  // Every open is a tab, even the first one: the start screen is what a window with no tabs shows.
+  const openTab = useTabsStore((st) => st.openTab);
   const gitVersion = useRepoStore((st) => st.gitVersion);
   const recents = useRecentsStore((st) => st.recents);
   const lastCloneDir = useRecentsStore((st) => st.lastCloneDir);
@@ -55,7 +57,7 @@ export function StartScreen() {
     if (busy) return;
     setBusy(true);
     try {
-      await openRepo(path);
+      await openTab(path);
     } catch (e) {
       const err = toAppError(e);
       if (!fromRecents) {
@@ -92,7 +94,7 @@ export function StartScreen() {
     setBusy(true);
     try {
       await initRepo(dir);
-      await openRepo(dir);
+      await openTab(dir);
     } catch (e) {
       const err = toAppError(e);
       if (err.kind !== "refused") {
@@ -100,7 +102,7 @@ export function StartScreen() {
       } else {
         // `git init` refused: the folder already holds a repository — just open it.
         try {
-          await openRepo(dir);
+          await openTab(dir);
           useToastStore.getState().push({ kind: "info", title: "Already a repository", detail: dir });
         } catch (e2) {
           const err2 = toAppError(e2);
@@ -134,7 +136,7 @@ export function StartScreen() {
     return () => window.removeEventListener("keydown", onKey);
     // `pick` / `startClone` / `init` are recreated every render; these are the values they actually read.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clone, settings, busy, lastCloneDir, recents, openRepo]);
+  }, [clone, settings, busy, lastCloneDir, recents, openTab]);
 
   /**
    * Shared by the filter input and the listbox: ↑/↓ move, Enter opens, Delete removes. Inside the

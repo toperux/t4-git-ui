@@ -3,20 +3,38 @@
 ```
 src/
   main.tsx                 mounts App; imports fonts.css → tokens.css → base.css; LucideProvider (16px, stroke 1.75)
-  App.tsx                  probe_git → GitMissingScreen | no repo → StartScreen | repo → RepoWindow; loads recents and reopens
-                           `lastOpen` inside one try/catch (a failure lands on the start screen, never on the spinner),
-                           records every open (touch + setLastOpen), Ctrl+Shift+W closes the repo via `actions.closeRepo`
-                           (shared with the toolbar repo menu: no-op while a dialog is open; info toast while an op runs)
+  App.tsx                  probe_git → GitMissingScreen | no repo → StartScreen | repo → RepoWindow; loads recents and restores
+                           this window's tabs inside one try/catch (a failure lands on the start screen, never on the spinner):
+                           `take_pending` (the tabs this window was created with) → else, in `main`, `take_layout` (the windows
+                           of the last exit — the first entry's tabs here, `spawn_window` for each of the others) → else the
+                           old `lastOpen`, which is the migration for a first launch without a `layout.json`;
+                           mirrors `tabsStore` into recents (touch per open, `lastOpen` = the active tab) and reports
+                           `set_layout` on every tab change; an event for a repository that is not the active tab marks that
+                           tab stale; `settings://changed` from another window reloads `settingsStore`; the automatic update
+                           check runs in `main` only; `listenTabDrags` is mounted here, not in the strip, so a window with
+                           one tab or none can still be dropped on
   api/
     types.ts               TS mirror of the Rust IPC contract (serde camelCase) — edit only together with the Rust structs
     ipc.ts                 `call()` (the one `invoke` wrapper) + one typed function per command, including the start-screen
                            cloneRepo {url,dest,recurseSubmodules,depth?} / initRepo {path} → RepoSummary; every
                            rejection is an AppError {kind, message}; isAppError/toAppError
-    events.ts              onLogProgress / onRepoChanged / onOpEvent (cb) → unlisten  (`log://progress`, `repo://changed`, `op://event`);
+    events.ts              onLogProgress / onRepoChanged / onOpEvent / onSettingsChanged (cb) → unlisten  (`log://progress`,
+                           `repo://changed`, `op://event`, `settings://changed` — broadcast by emitSettingsChanged after a
+                           preference is written, so every window re-reads it) and onTabSpawnFailed (`tab-spawn-failed` —
+                           the window some moved tabs were promised never opened, so all of them come back here);
                            onOpEventReady / onUpdateProgressReady (cb) → Promise<unlisten> for callers that must be listening
                            before they invoke (`op://event`, `update://progress` — the update download's percent, `null` until
                            the total size is known)
   store/
+    tabsStore.ts           zustand: tabs [{id, path, name, stale}], active, saved {<RepoId>: Snapshot}; openTab (open_repo first —
+                           the id is what a tab is compared by, and `openElsewhere` means another window has it and was
+                           focused, so nothing happens here), activate (snapshot the active slices, restore the target's,
+                           close the dialog, refreshAll), closeTab (always `close_repo`; the last tab closes a secondary
+                           window and leaves the main one on the start screen), markStale, detach (a no-op with one tab; spawn_window, then close
+                           the tab — never the other way round), reorder, setCaret (the slot a tab dragged from another
+                           window would land in). Snapshot = repoStore (minus gitVersion) +
+                           statusStore + commitStore + diffStore (minus the window-level view settings), each store owning
+                           its own `snapshot()` / `restore()` beside its `reset`
     repoStore.ts           zustand: repo, refs, log {generation,total,complete,error,flat} (a page response never lowers `total`
                            nor clears `complete` — a late page must not undo a newer `log://progress`), sparse rows[], selection (commit index +
                            wtSelected for the working-tree row), reveal,
@@ -195,11 +213,15 @@ src/
                            fills Path (a stale lookup is dropped by a pick counter) and derives Command until the user edits it;
                            Locate… = the same file picker, Suggest re-runs the lookup, Custom adds a free Name (validateRefName);
                            Apply (or Enter in Path / Command) → settingsStore.setTool → git config, toast — None clears it
+                           SigningSection.tsx (Signing): get_signing (no repo → global values, nothing `local`) → gpg.format Select,
+                           user.signingkey, gpg.program / gpg.ssh.program for the matching format, commit.gpgsign / tag.gpgsign
+                           checkboxes; each change → set_signing (global config only), a repo's own entry shown as a hint
     GitMissingScreen/      probe_git failed → "Git not found" + Retry + "Locate git…" (file picker → set_git_path, kept in kv `gitPath`;
                            Settings edits the same key)
     RepoWindow/            RepoWindow (layout: toolbar 40 / sidebar 260 | StateBanners + grid ÷ (DetailsPane | CommitPanel when
                            wtSelected) / dock / statusbar 24 w/ spinner + busy text; hosts DialogHost + useShortcuts)
-                           Toolbar (repo menu = open repository name → folder picker / other recents / close, Fetch = split
+                           Toolbar (repo menu = open repository name → folder picker / other recents / move to new window /
+                           close tab, Fetch = split
                            button: click → default remote w/ prune, ▾ → the Fetch dialog (remote, prune, tags), Pull / Push
                            dialogs + ahead/behind counts, Branch and Stash menus, Commit button
                            = change count, Repository menu › Commit… / Run git command…, ThemeToggle beside the Settings gear
@@ -210,9 +232,21 @@ src/
                            folder rows under Local and under each remote; a `mergedInto` branch (never the current one, nor a protected main / master / remote-default) is muted with a
                            `merged` badge; context menus per ref kind on right-click / Shift+F10, double-click = checkout;
                            flat Worktrees (only past one) and Submodules (only when there are any) sections after Stashes,
-                           whose own headers carry Add worktree… / Prune and Update all),
+                           whose own headers carry Add worktree… / Prune and Update all; Stashes starts collapsed like Tags,
+                           its header carries the stash-browser button, and a stash row previews the entry in the pane
+                           (`repoStore.preview`) — stash commits are never walked, so there is no row to reveal),
+                           TabStrip.tsx (shown above the toolbar with two tabs or more: repo name, path as the title, stale
+                           dot, ×, middle-click closes, + opens a repository, row menu Move to new window · Copy path · Close;
+                           pointer capture drags a tab (`useTabDrag`) — inside the strip it reorders, outside it a ghost follows
+                           the cursor and Rust says which window is under it: `drag_over` draws that window's caret, `drop_tab`
+                           hands the tab over or tears it off into a new one; the same hook makes the toolbar's repository
+                           button a handle for the active tab, with no reorder phase, so the single tab of a window whose strip
+                           is hidden can still be dragged out),
                            actions.ts (fetchDefault / checkout* / stash* / copyText / blameAt / refreshAll / switchRepo / pickAndOpenRepo /
-                           closeRepo / runGit, plus the banner aborts merge/rebase/cherryPick/revertAbort — the git ones through runOp; runGit with `quietFailure`: no toast on a
+                           closeTab / detachTab / quitApp / runGit, plus the banner aborts merge/rebase/cherryPick/revertAbort and
+                           bisectMark(term, oid?) / bisectReset (a mark with no bisect running starts one first — decided in
+                           `bisect_mark` from the repository's own state, two git calls under one op lock) — the git ones
+                           through runOp; runGit with `quietFailure`: no toast on a
                            non-zero exit unless conflicts / auth / non-fast-forward / diverged, the dock's exit line says it;
                            busyLabel cuts the label by code point with a marker runOp keeps;
                            blameAt(oid, path) is every way into blame — Files tab + `selectTreePathAt` + the gutter on, then
@@ -224,10 +258,13 @@ src/
                            nothing conflicted and the status agreeing with refs about which state it was scanned in,
                            the text is the `edit` / exec pause, not "resolve conflicts") |
                            cherryPick | revert (each Abort +
-                           the way forward: Commit for merge / pick / revert, Continue for rebase) | sequencer (bisect,
-                           text only — no backend abort) | conflicts banners),
-                           useShortcuts.ts (Ctrl+Shift+U push, Ctrl+Shift+L pull, Ctrl+Shift+R run git command, Ctrl+B branch,
-                           Ctrl+F5 fetch, F5 refresh; Ctrl+` also inside text fields — it is the only way out of the dock prompt),
+                           the way forward: Commit for merge / pick / revert, Continue for rebase) | sequencer (bisect:
+                           Good · Bad · Skip · Reset, all on HEAD, with the counts from `refs.bisect`; before a good mark
+                           git has not moved HEAD, so that text asks for one and only Reset is offered) | conflicts banners),
+                           useShortcuts.ts (Ctrl+Shift+U push, Ctrl+Shift+L pull, Ctrl+Shift+S stashes, Ctrl+Shift+R run git command, Ctrl+B branch,
+                           Ctrl+F5 fetch, F5 refresh; Ctrl+Tab / Ctrl+Shift+Tab cycle tabs, Ctrl+W (Ctrl+Shift+W) close tab,
+                           Ctrl+T open, Ctrl+1..9 jump, Ctrl+Shift+N move to new window; Ctrl+` and the tab keys also inside
+                           text fields — Ctrl+` is the only way out of the dock prompt),
                            dialogs/ (DialogHost + OpsDialogs Push/Push tag + Delete remote tag (`refs/tags/<name>` with a
                            remote picker, from the sidebar tag menu)/Pull/Fetch/Merge/Rebase — Merge and Rebase take a commit oid as
                            well as a branch, shown as an extra 7-char option; a commit merge defaults to git's
@@ -237,7 +274,13 @@ src/
                            parent Select on a merge commit only (`-m N`)), RefDialogs Checkout picker /
                            Create-Rename-Delete branch / remote branch / tags, RemoteDialogs Add / Rename / Change URL /
                            Remove (a remote itself), WorktreeDialogs Add (where + an existing or a new branch) /
-                           Remove (a refusal re-offers it forced) / Lock, StashDialogs, DiffDialog (the selected commit's / compare's
+                           Remove (a refusal re-offers it forced) / Lock, StashDialogs (Stash changes / one entry's Apply · Pop ·
+                           Drop, plus the `StashPushFields` and `StashMenuItems` the browser and the sidebar row menu share),
+                           StashesDialog (kind `stashes`, the stash browser: push form + entry list | ChangedFileList |
+                           CommitDiff as a full-window dialog, from the Stash menu, the Stashes header button, the preview's
+                           Open browser or Ctrl+Shift+S; header Apply · Pop · Drop… · Clear all…, Delete on the list drops,
+                           ↑/↓ move the preview and its own effect moves it on once an entry is gone),
+                           DiffDialog (the selected commit's / compare's / previewed stash's
                            changed files + diff as a full-window dialog, off the diff header's expand button),
                            RunCommandDialog (one
                            CommandInput; Run → actions `runGit`),
@@ -250,7 +293,9 @@ src/
                            update-ref lines, which a pre-amend ref would otherwise orphan);
                            gitArgs.ts mirrors cli/ops.rs
                            for the footer's "Runs `git …`" preview — that file is the source of truth),
-                           DetailsPane (bottom pane: CommitDetails 340 | ChangedFileList 320 | CommitDiff = DiffViewer, or
+                           DetailsPane (bottom pane: CommitDetails — or CompareDetails / StashDetails (stash@{n} + message,
+                           the base commit, the untracked count, Apply · Pop · Drop… · Open browser; it takes the pane from
+                           the commit panel too) — 340 | ChangedFileList 320 | CommitDiff = DiffViewer, or
                            DiffViewer/FileContent on the Files tab, resizable; the selected row's `path` (§3) rides into
                            `diffStore.load` as the file to preselect, so both tabs open on the file the history is of;
                            an annotated tag pointing at the selected commit adds its own message block under the
@@ -396,8 +441,9 @@ down to HEAD.
 ## Start screen (M5)
 
 `App` probes git, then `recentsStore.load()` (store plugin `recents.json` through `lib/kv`, `localStorage` fallback; a
-corrupt value reads as absent rather than throwing) and reopens `lastOpen` — the repository that was open at the last exit, cleared by `closeRepo` (`Ctrl+Shift+W`). Every
-`repoStore.repo` change touches recents and rewrites `lastOpen`. Recents are stored already sorted (pinned first, then
+corrupt value reads as absent rather than throwing) and restores this window's tabs (see `App.tsx` above; `lastOpen` is the
+fallback on the first launch without a `layout.json`). Every tab change touches recents, rewrites `lastOpen` from the active
+tab and reports the window's tabs with `set_layout`. Recents are stored already sorted (pinned first, then
 `lastOpened` desc) and capped at 20 unpinned entries. Opening a recent that no longer resolves shows an error toast with a
 "Remove from list" action. `CloneDialog` calls `clone_repo` and, while it runs, follows `op://event` with `repoId === null`
 — the subscription is awaited *before* `clone_repo` is invoked, so the `started` event that supplies the `opId` used by

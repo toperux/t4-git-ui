@@ -252,7 +252,7 @@ describe("repoStore walk restarts", () => {
 });
 
 describe("repoStore openRepo", () => {
-  it("closes the repository being left, resets the filter, and keeps the same repo open on a reopen", async () => {
+  it("leaves the previous repository open (tabs own closing) and resets the filter", async () => {
     const other: RepoSummary = { ...REPO, id: "c:\\other", path: "c:\\other", name: "other" };
     mocked.openRepo.mockResolvedValueOnce(other).mockResolvedValueOnce(other);
     mocked.closeRepo.mockResolvedValue(undefined);
@@ -262,12 +262,10 @@ describe("repoStore openRepo", () => {
     useRepoStore.setState({ filter: { text: "fix" } });
 
     await useRepoStore.getState().openRepo("c:\\other");
-    expect(mocked.closeRepo).toHaveBeenCalledWith(REPO.id);
+    // The handle of the repository being left belongs to its tab, which is what closes it.
+    expect(mocked.closeRepo).not.toHaveBeenCalled();
     expect(useRepoStore.getState().repo?.id).toBe(other.id);
     expect(useRepoStore.getState().filter).toEqual({});
-
-    await useRepoStore.getState().openRepo("c:\\other");
-    expect(mocked.closeRepo).toHaveBeenCalledTimes(1);
   });
 
   it("resolves as soon as the log has started; the refs land afterwards", async () => {

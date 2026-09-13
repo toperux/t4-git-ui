@@ -1,10 +1,11 @@
-import { Archive, ArrowDown, Check, Cloud, Copy, Folder, FolderGit2, GitBranch, GitMerge, Link, Lock, LockOpen, Package, Pencil, Plus, RefreshCw, Tag, Trash2 } from "lucide-react";
+import { Archive, ArrowDown, Check, Cloud, Copy, FolderGit2, GitBranch, GitMerge, Link, Lock, LockOpen, Package, Pencil, Plus, RefreshCw, Tag, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import type { Branch, Remote, RemoteBranch, RemoteTag, Stash, Submodule, Tag as TagRef, Worktree } from "../../api/types";
 import { Badge } from "../../components/ui/Badge/Badge";
 import { Button } from "../../components/ui/Button/Button";
 import { ContextMenu, MenuItem, MenuSeparator } from "../../components/ui/Menu/Menu";
 import { EmptyState } from "../../components/ui/EmptyState/EmptyState";
+import { IconButton } from "../../components/ui/IconButton/IconButton";
 import { SectionHeader } from "../../components/ui/SectionHeader/SectionHeader";
 import { AheadBehind, TREE_PANE_CLASS, TreeRow } from "../../components/ui/TreeRow/TreeRow";
 import { cx } from "../../lib/cx";
@@ -23,15 +24,13 @@ import {
   copyText,
   fetchRemote,
   protectedNames,
-  stashApply,
-  stashDrop,
-  stashPop,
   stripRemote,
   submoduleUpdate,
   switchRepo,
   worktreePrune,
   worktreeUnlock,
 } from "./actions";
+import { StashMenuItems } from "./dialogs/StashDialogs";
 import s from "./Sidebar.module.css";
 
 type Section = "local" | "remotes" | "tags" | "stashes" | "worktrees" | "submodules";
@@ -154,13 +153,15 @@ export function Sidebar() {
   const linked = useRepoStore((st) => st.linked);
   const remoteTags = useRepoStore((st) => st.remoteTags);
   const revealOid = useRepoStore((st) => st.revealOid);
+  const previewStash = useRepoStore((st) => st.previewStash);
+  const preview = useRepoStore((st) => st.preview);
   const repoId = useRepoStore((st) => st.repo?.id ?? null);
   // `open` is the section state below, so the dialog opener keeps its own name here.
   const openDialog = useDialogStore((st) => st.open);
   const running = useOpsStore(selectRunning);
   const folderMode = useSettingsStore((st) => st.sidebarFolders);
   const folderMax = useSettingsStore((st) => st.sidebarFoldersMax);
-  const [open, setOpen] = useState<Record<Section, boolean>>({ local: true, remotes: true, tags: false, stashes: true, worktrees: true, submodules: true });
+  const [open, setOpen] = useState<Record<Section, boolean>>({ local: true, remotes: true, tags: false, stashes: false, worktrees: true, submodules: true });
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [menu, setMenu] = useState<{ at: { x: number; y: number }; target: Target; el: HTMLElement } | null>(null);
   /** Folders the setting has already seeded, keyed like `collapsed`: a refresh leaves those to the user. */
@@ -361,8 +362,10 @@ export function Sidebar() {
             aria-level={depth + 1}
             depth={depth}
             expanded={!isCollapsed}
-            icon={<Folder size={14} aria-hidden />}
+            folder
             label={n.name}
+            // The per-folder ref count the auto-collapse rule already holds.
+            meta={trees.counts.get(key)}
             title={n.path}
             onClick={() => toggleFolder(key)}
           />
@@ -468,7 +471,11 @@ export function Sidebar() {
         </Tree>
       )}
 
-      <SectionHeader title="Stashes" count={stashes.length} open={open.stashes} onToggle={() => toggle("stashes")} />
+      <SectionHeader title="Stashes" count={stashes.length} open={open.stashes} onToggle={() => toggle("stashes")}>
+        <IconButton label="Manage stashes" onClick={() => openDialog({ kind: "stashes" })}>
+          <Archive size={16} aria-hidden />
+        </IconButton>
+      </SectionHeader>
       {open.stashes && stashes.length > 0 && (
         <Tree label="Stashes">
           {stashes.map((st) => (
@@ -480,7 +487,9 @@ export function Sidebar() {
               label={st.message}
               title={`stash@{${st.index}}: ${st.message}`}
               meta={<span className={s.mono}>{`stash@{${st.index}}`}</span>}
-              onClick={() => void revealOid(st.oid)}
+              selected={preview?.oid === st.oid}
+              // Stash commits are never walked, so there is no row to reveal: the pane shows it instead.
+              onClick={() => previewStash(st)}
               {...rowMenu({ kind: "stash", stash: st })}
             />
           ))}
@@ -744,19 +753,9 @@ function RefContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number 
             </MenuItem>
           </>
         );
-      case "stash": {
-        const i = target.stash.index;
-        return (
-          <>
-            <MenuItem {...op} onClick={run(() => void stashApply(i))}>Apply</MenuItem>
-            <MenuItem {...op} onClick={run(() => void stashPop(i))}>Pop</MenuItem>
-            <MenuSeparator />
-            <MenuItem icon={<Trash2 size={16} aria-hidden />} danger {...op} onClick={run(() => void stashDrop(i, target.stash.message))}>
-              Drop
-            </MenuItem>
-          </>
-        );
-      }
+      // The browser's row menu is this one: both render `StashMenuItems`.
+      case "stash":
+        return <StashMenuItems stash={target.stash} onPick={onClose} />;
       case "worktree": {
         const wt = target.wt;
         // A gone directory cannot be opened at all, and this window is already on the current one.

@@ -9,17 +9,21 @@ export interface SectionHeaderProps extends Omit<ButtonHTMLAttributes<HTMLButton
   count?: number;
   open: boolean;
   onToggle: () => void;
-  /** Extra controls between the title and the count. */
+  /** Extra controls beside the header, outside its button (a stash browser opener, say). */
   children?: ReactNode;
 }
 
 export function SectionHeader({ title, count, open, onToggle, children, ...rest }: SectionHeaderProps) {
+  // The band is the wrapper, not the button: `children` is a control of its own and a button cannot
+  // nest inside one.
   return (
-    <button type="button" className={s.header} aria-expanded={open} onClick={onToggle} {...rest}>
-      <span className={s.tw}>{open ? <ChevronDown size={12} aria-hidden /> : <ChevronRight size={12} aria-hidden />}</span>
-      <span className={s.title}>{title}</span>
+    <div className={s.wrap}>
+      <button type="button" className={s.header} aria-expanded={open} onClick={onToggle} {...rest}>
+        <span className={s.tw}>{open ? <ChevronDown size={12} aria-hidden /> : <ChevronRight size={12} aria-hidden />}</span>
+        <span className={s.title}>{title}</span>
+        {count !== undefined && <Badge>{count}</Badge>}
+      </button>
       {children}
-      {count !== undefined && <Badge>{count}</Badge>}
-    </button>
+    </div>
   );
 }

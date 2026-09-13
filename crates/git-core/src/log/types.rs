@@ -95,6 +95,8 @@ pub enum RefKind {
     Remote,
     Tag,
     Stash,
+    /// A `refs/bisect/*` mark: the label's name is `good`, `bad` or `skip`.
+    Bisect,
 }
 
 /// A ref chip attached to a row at page time.

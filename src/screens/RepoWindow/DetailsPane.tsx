@@ -1,16 +1,18 @@
-import { Copy, GitCommitHorizontal, GitCompare, Tag as TagIcon } from "lucide-react";
+import { Archive, Copy, GitCommitHorizontal, GitCompare, Tag as TagIcon } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import { getCommit, toAppError } from "../../api/ipc";
-import type { CommitDetail, CommitInfo } from "../../api/types";
+import type { CommitDetail, CommitInfo, Stash } from "../../api/types";
+import { Button } from "../../components/ui/Button/Button";
 import { EmptyState } from "../../components/ui/EmptyState/EmptyState";
 import { IconButton } from "../../components/ui/IconButton/IconButton";
 import { PanelHeader } from "../../components/ui/PanelHeader/PanelHeader";
 import { absoluteDate, relativeDate } from "../../lib/relativeDate";
 import { useDialogStore } from "../../store/dialogStore";
 import { useDiffStore } from "../../store/diffStore";
+import { selectRunning, useOpsStore } from "../../store/opsStore";
 import { selectCompare, selectSelectedOid, useRepoStore } from "../../store/repoStore";
-import { copyText, openInDiffTool } from "./actions";
+import { copyText, openInDiffTool, stashApply, stashDrop, stashPop } from "./actions";
 import { ChangedFileList } from "./ChangedFileList/ChangedFileList";
 import s from "./DetailsPane.module.css";
 import { DiffViewer } from "./DiffViewer/DiffViewer";
@@ -22,16 +24,28 @@ export function DetailsPane() {
   const repoId = useRepoStore((st) => st.repo?.id ?? null);
   const oid = useRepoStore(selectSelectedOid);
   const compare = useRepoStore(selectCompare);
+  const preview = useRepoStore((st) => st.preview);
   const load = useDiffStore((st) => st.load);
   const open = useDialogStore((st) => st.open);
   // Memoised: a fresh object every render would re-run the effect (and re-fetch) on every store touch.
+  // A previewed stash wins over the selection, which stays put behind it.
+  // Keyed on the oid, not the object: `refreshRefs` re-finds the previewed stash in the new refs on
+  // every refresh, and a fresh object would blank the file list and its selection each time.
+  const previewOid = preview?.oid ?? null;
   const target = useMemo(
-    () => (compare ? ({ kind: "commitRange", from: compare.from.oid, to: compare.to.oid } as const) : oid ? ({ kind: "commit", oid } as const) : null),
-    [oid, compare],
+    () =>
+      previewOid
+        ? ({ kind: "stash", oid: previewOid } as const)
+        : compare
+          ? ({ kind: "commitRange", from: compare.from.oid, to: compare.to.oid } as const)
+          : oid
+            ? ({ kind: "commit", oid } as const)
+            : null,
+    [oid, compare, previewOid],
   );
   // Under a history filter the row names the file it was listed for: that is the one both tabs
   // open on. A plain walk carries no path, so this is `null` and the first changed file wins.
-  const rowPath = useRepoStore((st) => (st.wtSelected || st.selectedIndex === null ? null : (st.rows[st.selectedIndex]?.path ?? null)));
+  const rowPath = useRepoStore((st) => (st.wtSelected || st.preview || st.selectedIndex === null ? null : (st.rows[st.selectedIndex]?.path ?? null)));
   useEffect(() => {
     void load(repoId, target, rowPath);
   }, [repoId, target, rowPath, load]);
@@ -39,7 +53,7 @@ export function DetailsPane() {
   return (
     <Group orientation="horizontal" className={s.pane}>
       <Panel defaultSize={340} minSize={240} maxSize={560} className={w.panel}>
-        {compare ? <CompareDetails compare={compare} /> : <CommitDetails />}
+        {preview ? <StashDetails stash={preview} /> : compare ? <CompareDetails compare={compare} /> : <CommitDetails />}
       </Panel>
       <Separator className={w.splitH} aria-label="Resize commit details" />
       {/* 200: the list header (icon, Changes | Files, two toggles) needs 199px before the title gets any. */}
@@ -147,7 +161,20 @@ function CommitDetails() {
               </div>
             ))}
             <div className={s.kv}>
-              <Kv k="Author" v={`${info.authorName} <${info.authorEmail}>`} />
+              <Kv
+                k="Author"
+                v={
+                  <>
+                    {`${info.authorName} <${info.authorEmail}>`}
+                    {/* Presence only: nothing here checks the signature against a key. */}
+                    {detail?.signed && (
+                      <span className={s.signed} title="This commit carries a signature (not verified)">
+                        signed
+                      </span>
+                    )}
+                  </>
+                }
+              />
               {committerDiffers && <Kv k="Committer" v={`${detail.committerName} <${detail.committerEmail}>`} />}
               <Kv k="Date" v={`${absoluteDate(info.authorTime)} (${relativeDate(info.authorTime)})`} />
               <Kv k="SHA" v={<span className={`${s.mono} selectable`}>{info.oid}</span>} />
@@ -184,6 +211,54 @@ function CompareDetails({ compare }: { compare: { from: CommitInfo; to: CommitIn
         <Kv k="From" v={signature(compare.from)} />
         <Kv k="To" v={signature(compare.to)} />
         <div className={s.hint}>Files and diffs are what the {CTRL}+clicked commit changed relative to the selected one. {CTRL}+click either row to leave.</div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A previewed stash: what it holds, on which commit, and the three things that can be done with it.
+ * The grid keeps its own selection behind this — a row click is the way back.
+ */
+function StashDetails({ stash }: { stash: Stash }) {
+  const open = useDialogStore((st) => st.open);
+  const running = useOpsStore(selectRunning);
+  const base = useRepoStore((st) => st.rows.find((r) => r?.row.commit.oid === stash.baseOid)?.row.commit);
+  const op = running ? { disabled: true, title: "Operation in progress" } : {};
+  const ref = `stash@{${stash.index}}`;
+  return (
+    <div className={s.commit}>
+      <PanelHeader icon={<Archive size={14} aria-hidden />} title={ref} />
+      <div className={s.body}>
+        <div className={`${s.summary} selectable`}>{stash.message}</div>
+        <div className={s.actions}>
+          <Button size="sm" {...op} onClick={() => void stashApply(stash.index)}>
+            Apply
+          </Button>
+          <Button size="sm" {...op} onClick={() => void stashPop(stash.index)}>
+            Pop
+          </Button>
+          <Button size="sm" variant="danger" {...op} onClick={() => void stashDrop(stash.index, stash.message)}>
+            Drop…
+          </Button>
+          <Button size="sm" onClick={() => open({ kind: "stashes" })}>
+            Open browser
+          </Button>
+        </div>
+        <div className={s.kv}>
+          <Kv
+            k="On"
+            v={
+              <>
+                <span className={s.mono}>{stash.baseOid.slice(0, 7)}</span>
+                {base ? ` ${base.summary}` : ""}
+              </>
+            }
+          />
+          <Kv k="Date" v={`${absoluteDate(stash.time)} (${relativeDate(stash.time)})`} />
+          {/* Presence only: the list cannot tell an untracked file from a staged new one. */}
+          {stash.hasUntracked && <Kv k="Untracked" v="included, listed as added" />}
+        </div>
       </div>
     </div>
   );

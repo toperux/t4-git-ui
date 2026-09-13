@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LinkedSnapshot, RefsSnapshot } from "../../api/types";
 import { useDialogStore } from "../../store/dialogStore";
@@ -58,6 +58,9 @@ beforeEach(() => {
 
 /** The Tags section starts collapsed. */
 const openTags = (view: ReturnType<typeof render>) => fireEvent.click(view.getByRole("button", { name: /^Tags/ }));
+
+/** The Stashes section starts collapsed too. */
+const openStashes = (view: ReturnType<typeof render>) => fireEvent.click(view.getByRole("button", { name: /^Stashes/ }));
 
 describe("Sidebar section counts", () => {
   it("counts refs in every section — Remotes counts branches, not remotes", () => {
@@ -143,7 +146,7 @@ describe("Sidebar section counts", () => {
   it("nests remote branches in folders like local ones, collapsing per remote", () => {
     const { getAllByRole, queryByRole } = render(<Sidebar />);
     // `feature/panels` (local) and `origin/feature/lanes` each get a `feature` folder.
-    const folders = getAllByRole("treeitem", { name: "feature" });
+    const folders = getAllByRole("treeitem", { name: /^feature/ });
     expect(folders).toHaveLength(2);
     expect(queryByRole("treeitem", { name: "lanes" })).not.toBeNull();
     expect(getAllByRole("treeitem", { name: "lanes" })[0].getAttribute("aria-level")).toBe("3");
@@ -258,7 +261,7 @@ describe("Sidebar tags tree", () => {
     const view = render(<Sidebar />);
     openTags(view);
     expect(view.getByRole("treeitem", { name: "v1.1.1" }).getAttribute("aria-level")).toBe("3");
-    fireEvent.click(view.getByRole("treeitem", { name: "releases" }));
+    fireEvent.click(view.getByRole("treeitem", { name: /^releases/ }));
     expect(view.queryByRole("treeitem", { name: "v1.1.1" })).toBeNull();
   });
 
@@ -333,14 +336,44 @@ describe("Sidebar tags tree", () => {
   });
 });
 
+describe("Sidebar stashes", () => {
+  const STASH = { index: 0, oid: "s0", message: "WIP on main", baseOid: "a", time: 1_700_000_000, hasUntracked: false };
+
+  beforeEach(() => useRepoStore.setState({ refs: { ...REFS, stashes: [STASH] }, preview: null }));
+
+  it("keeps the section shut until its header is clicked", () => {
+    const view = render(<Sidebar />);
+    expect(view.queryAllByRole("treeitem").find((r) => r.title === `stash@{0}: ${STASH.message}`)).toBeUndefined();
+    openStashes(view);
+    expect(view.queryAllByRole("treeitem").find((r) => r.title === `stash@{0}: ${STASH.message}`)).toBeTruthy();
+  });
+
+  it("previews the entry a row click names — stash commits are not in the history to reveal", () => {
+    const view = render(<Sidebar />);
+    openStashes(view);
+    const row = () => view.getAllByRole("treeitem").find((r) => r.title === `stash@{0}: ${STASH.message}`)!;
+    fireEvent.click(row());
+    expect(useRepoStore.getState().preview).toEqual(STASH);
+    expect(row().getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("opens the browser from the header button", () => {
+    const view = render(<Sidebar />);
+    fireEvent.click(view.getByRole("button", { name: "Manage stashes" }));
+    expect(useDialogStore.getState().dialog).toEqual({ kind: "stashes" });
+  });
+});
+
 describe("Sidebar stash menu", () => {
-  const STASH = { index: 2, oid: "s2", message: "WIP on main: fix tests" };
+  const STASH = { index: 2, oid: "s2", message: "WIP on main: fix tests", baseOid: "a", time: 1_700_000_000, hasUntracked: true };
   const dropped = ipc.stashDrop as unknown as ReturnType<typeof vi.fn>;
 
   const clickDrop = () => {
-    const view = render(<Sidebar />);
+    // `clickDrop` runs twice in one test, so the queries stay inside this render's own container.
+    const view = within(render(<Sidebar />).container);
+    fireEvent.click(view.getByRole("button", { name: /^Stashes/ }));
     fireEvent.contextMenu(view.getAllByRole("treeitem").find((r) => r.title === `stash@{2}: ${STASH.message}`)!);
-    fireEvent.click(within(view.getByRole("menu", { name: "Reference actions" })).getByRole("menuitem", { name: "Drop" }));
+    fireEvent.click(within(screen.getByRole("menu", { name: "Reference actions" })).getByRole("menuitem", { name: "Drop" }));
   };
 
   beforeEach(() => {
@@ -382,8 +415,14 @@ describe("Sidebar folder collapse", () => {
   };
   const rule = (sidebarFolders: SidebarFolders, sidebarFoldersMax = DEFAULT_FOLDERS_MAX) => useSettingsStore.setState({ sidebarFolders, sidebarFoldersMax });
   /** `origin` has a `feature` folder too; the Local section renders first, so its row is the first match. */
-  const feature = (view: ReturnType<typeof render>) => view.queryAllByRole("treeitem", { name: "feature" })[0];
+  const feature = (view: ReturnType<typeof render>) => view.queryAllByRole("treeitem", { name: /^feature/ })[0];
   const refresh = (refs: RefsSnapshot) => act(() => useRepoStore.setState({ refs }));
+
+  it("counts the refs under a folder row, in its meta slot", () => {
+    useRepoStore.setState({ refs: NESTED });
+    const view = render(<Sidebar />);
+    expect(feature(view).lastElementChild!.textContent).toBe("4");
+  });
 
   it("leaves every folder expanded by default", () => {
     useRepoStore.setState({ refs: NESTED });
@@ -396,7 +435,7 @@ describe("Sidebar folder collapse", () => {
     useRepoStore.setState({ refs: NESTED });
     rule("collapsed");
     const view = render(<Sidebar />);
-    expect(view.getAllByRole("treeitem", { name: "feature" }).map((r) => r.getAttribute("aria-expanded"))).toEqual(["false", "false"]);
+    expect(view.getAllByRole("treeitem", { name: /^feature/ }).map((r) => r.getAttribute("aria-expanded"))).toEqual(["false", "false"]);
     expect(view.queryByRole("treeitem", { name: "a" })).toBeNull();
     expect(view.queryByRole("treeitem", { name: "lanes" })).toBeNull();
     // The remote's own row is a group, not a folder: the rule never visits it.
@@ -408,11 +447,11 @@ describe("Sidebar folder collapse", () => {
     rule("auto", 3);
     const view = render(<Sidebar />);
     // Four refs under `feature`, one under origin's: only the first is over the threshold.
-    expect(view.getAllByRole("treeitem", { name: "feature" }).map((r) => r.getAttribute("aria-expanded"))).toEqual(["false", "true"]);
+    expect(view.getAllByRole("treeitem", { name: /^feature/ }).map((r) => r.getAttribute("aria-expanded"))).toEqual(["false", "true"]);
 
     fireEvent.click(feature(view));
     // `feature/deep` holds two: under the threshold, so it came up expanded.
-    expect(view.getByRole("treeitem", { name: "deep" }).getAttribute("aria-expanded")).toBe("true");
+    expect(view.getByRole("treeitem", { name: /^deep/ }).getAttribute("aria-expanded")).toBe("true");
     expect(view.getByRole("treeitem", { name: "x" })).toBeTruthy();
   });
 

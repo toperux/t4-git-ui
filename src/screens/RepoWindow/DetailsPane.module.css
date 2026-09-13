@@ -56,6 +56,12 @@
   font-weight: var(--weight-semibold);
   color: var(--fg-muted);
 }
+/* Stash preview: Apply / Pop / Drop / Open browser under the message. */
+.actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
 .kv {
   display: flex;
   flex-direction: column;
@@ -83,6 +89,16 @@
 .mono {
   font-family: var(--font-mono);
   font-size: var(--mono-size);
+}
+/* "signed" beside the author: a chip, but the kinds in components/ui/Chip are all refs. */
+.signed {
+  margin-left: var(--space-3);
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+  background: var(--success-soft);
+  color: var(--success);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
 }
 .link {
   composes: mono;

@@ -11,7 +11,7 @@ import { validateRefName } from "../../../lib/branchName";
 import { runOp } from "../../../store/opsStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { checkoutBranch, checkoutRemoteBranch, checkoutTag, stripRemote } from "../actions";
-import { checkoutArgs, gitCmd, pushArgs } from "./gitArgs";
+import { checkoutArgs, gitCmd, pushArgs, tagAnnotatedArgs } from "./gitArgs";
 import { RemoteField, shortRef, useDefaultRemote, useRemotes } from "./OpsDialogs";
 import s from "./RefDialogs.module.css";
 
@@ -232,7 +232,9 @@ export function CreateTagDialog({ onClose, target: initial }: { onClose: () => v
   const valid = !!name && !error;
   // An oid from the grid is not in the list: keep it as an extra option.
   const targets = known || !initial ? options : [{ value: initial, label: shortRef(initial) }, ...options];
-  const tagCmd = `git tag ${message.trim() ? `-a -m '…' ` : ""}${name || "<name>"} ${target}`;
+  // With a message it is an annotated tag, which is a real `git tag -a` run (so it can be signed);
+  // without one git2 writes the lightweight ref and no command is run.
+  const tagCmd = message.trim() ? gitCmd(tagAnnotatedArgs(name || "<name>", target)) : `git tag ${name || "<name>"} ${target}`;
   // The push half is the real call's own argv, or the preview and the dock disagree.
   const preview = push ? `${tagCmd} && ${gitCmd(pushArgs(remote || "origin", `refs/tags/${name || "<name>"}`, false, false, false))}` : tagCmd;
 
@@ -272,7 +274,7 @@ export function CreateTagDialog({ onClose, target: initial }: { onClose: () => v
           ))}
         </Select>
       </Field>
-      <Field label="Message" help="With a message the tag is annotated (and signed by user.name / user.email)">
+      <Field label="Message" help="With a message the tag is annotated — tagged by user.name / user.email, and signed when tag.gpgsign is on">
         <Input aria-label="Message" value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Optional" />
       </Field>
       {remotes.length > 0 && (

@@ -38,6 +38,19 @@
   background: var(--chip-stash-bg);
   color: var(--chip-stash-fg);
 }
+/* Bisect marks: skip is the plain grey, good and bad take the semantic pair. */
+.bisect {
+  background: var(--chip-remote-bg);
+  color: var(--chip-remote-fg);
+}
+.bisect.good {
+  background: var(--success-soft);
+  color: var(--success);
+}
+.bisect.bad {
+  background: var(--danger-soft);
+  color: var(--danger-text);
+}
 .current {
   box-shadow: inset 0 0 0 1px var(--chip-local-fg);
   font-weight: var(--weight-semibold);

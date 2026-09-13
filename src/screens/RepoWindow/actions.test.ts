@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OpResult } from "../../api/types";
 import { useCmdHistoryStore } from "../../store/cmdHistoryStore";
+import { useCommitStore } from "../../store/commitStore";
 import { useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
 import { useToastStore } from "../../store/toastStore";
-import { busyLabel, checkoutTag, closeRepo, pickAndOpenRepo, runGit, stashDrop, switchRepo } from "./actions";
+import { useTabsStore } from "../../store/tabsStore";
+import { busyLabel, checkoutTag, closeTab, pickAndOpenRepo, runGit, stashDrop, switchRepo } from "./actions";
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(() => Promise.resolve("/elsewhere")), ask: vi.fn(() => Promise.resolve(true)) }));
 vi.mock("@tauri-apps/plugin-clipboard-manager", () => ({ writeText: vi.fn() }));
@@ -27,20 +29,18 @@ import * as ipc from "../../api/ipc";
 
 const mocked = ipc as unknown as Record<"runGit" | "checkout" | "stashDrop", ReturnType<typeof vi.fn>>;
 const asked = ask as unknown as ReturnType<typeof vi.fn>;
-const openRepo = vi.fn(() => Promise.resolve());
-const closeRepoStore = vi.fn(() => Promise.resolve());
+const openTab = vi.fn(() => Promise.resolve());
+const closeTabStore = vi.fn(() => Promise.resolve());
 const toasts = () => useToastStore.getState().toasts;
 
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
-  useRepoStore.setState({
-    repo: { id: "r", name: "r", path: "/r", head: { oid: "a", branch: "main", detached: false } },
-    openRepo: openRepo as never,
-    closeRepo: closeRepoStore as never,
-  });
+  useRepoStore.setState({ repo: { id: "r", name: "r", path: "/r", head: { oid: "a", branch: "main", detached: false } } });
+  useTabsStore.setState({ tabs: [{ id: "r", path: "/r", name: "r", stale: false }], active: "r", openTab: openTab as never, closeTab: closeTabStore as never });
   useToastStore.setState({ toasts: [] });
   useOpsStore.setState({ ops: [], open: false, busy: null });
+  useCommitStore.setState({ busy: false });
   useCmdHistoryStore.setState({ history: [] });
 });
 
@@ -49,23 +49,32 @@ describe("leaving the repository while an operation runs", () => {
     useOpsStore.setState({ busy: "Fetching slow…" });
     switchRepo("/other");
     await pickAndOpenRepo();
-    closeRepo();
-    expect(openRepo).not.toHaveBeenCalled();
-    expect(closeRepoStore).not.toHaveBeenCalled();
+    closeTab();
+    expect(openTab).not.toHaveBeenCalled();
+    expect(closeTabStore).not.toHaveBeenCalled();
     // No picker either: a folder chosen and then refused is worse than no picker.
     expect(openFolder).not.toHaveBeenCalled();
     expect(toasts().map((t) => t.title)).toEqual(["Operation in progress", "Operation in progress", "Operation in progress"]);
     expect(toasts().every((t) => t.kind === "info")).toBe(true);
   });
 
+  it("refuses during a commit too, whose busy flag never reaches the ops store", () => {
+    useCommitStore.setState({ busy: true });
+    switchRepo("/other");
+    closeTab();
+    expect(openTab).not.toHaveBeenCalled();
+    expect(closeTabStore).not.toHaveBeenCalled();
+    expect(toasts().map((t) => t.title)).toEqual(["Operation in progress", "Operation in progress"]);
+  });
+
   it("goes ahead once nothing is running", async () => {
     useOpsStore.setState({ busy: null });
     switchRepo("/other");
-    expect(openRepo).toHaveBeenCalledWith("/other");
+    expect(openTab).toHaveBeenCalledWith("/other");
     await pickAndOpenRepo();
-    expect(openRepo).toHaveBeenCalledWith("/elsewhere");
-    closeRepo();
-    expect(closeRepoStore).toHaveBeenCalled();
+    expect(openTab).toHaveBeenCalledWith("/elsewhere");
+    closeTab();
+    expect(closeTabStore).toHaveBeenCalledWith("r");
     expect(toasts()).toEqual([]);
   });
 });

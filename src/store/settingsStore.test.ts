@@ -51,6 +51,9 @@ describe("clampFoldersMax", () => {
 
 describe("settingsStore.load", () => {
   it("seeds the diff store from the stored preferences", async () => {
+    // The whitespace preference reaches the diff store when it *changes*, so this reads it as the
+    // window would after another one ticked it — not as whatever load ran first in this file.
+    await useSettingsStore.getState().load();
     localStorage.setItem("kv:diffContext", "8");
     localStorage.setItem("kv:ignoreWhitespace", "true");
     localStorage.setItem("kv:gitPath", JSON.stringify("C:\\git\\bin\\git.exe"));
@@ -58,6 +61,15 @@ describe("settingsStore.load", () => {
     expect(useSettingsStore.getState()).toMatchObject({ diffContext: 8, ignoreWhitespace: true, gitPath: "C:\\git\\bin\\git.exe" });
     expect(useDiffStore.getState().context).toBe(8);
     expect(useDiffStore.getState().ignoreWhitespace).toBe(true);
+  });
+
+  it("leaves a session-only whitespace toggle alone when the preference has not moved", async () => {
+    localStorage.setItem("kv:ignoreWhitespace", "true");
+    await useSettingsStore.getState().load();
+    // Toggled off for this diff alone, then an unrelated reload (another window wrote some other key).
+    useDiffStore.setState({ ignoreWhitespace: false });
+    await useSettingsStore.getState().load();
+    expect(useDiffStore.getState().ignoreWhitespace).toBe(false);
   });
 
   it("falls back to 3 context lines and PATH when nothing is stored", async () => {

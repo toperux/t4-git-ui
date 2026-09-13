@@ -5,6 +5,7 @@ import { create } from "zustand";
 import * as ipc from "../api/ipc";
 import { toAppError } from "../api/ipc";
 import type { Blame, DiffTarget, FileChange, FileContent, FileDiff, RepoId, TreeEntry, TreeTarget } from "../api/types";
+import { pick } from "../lib/pick";
 
 export type DiffView = "unified" | "split";
 export type FileListMode = "flat" | "tree";
@@ -99,7 +100,8 @@ function writeSetting(key: string, value: string) {
  */
 export function treeTargetOf(target: DiffTarget | null): TreeTarget | null {
   if (!target) return null;
-  if (target.kind === "commit") return { kind: "commit", oid: target.oid };
+  // A stash commit's tree is the working-tree snapshot it holds: the Files tab reads it as a commit.
+  if (target.kind === "commit" || target.kind === "stash") return { kind: "commit", oid: target.oid };
   if (target.kind === "commitRange") return { kind: "commit", oid: target.to };
   return { kind: "workingTree" };
 }
@@ -388,6 +390,41 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
     loadBlame,
   };
 });
+
+/**
+ * What a background tab keeps of this store. The view settings (`view`, `ignoreWhitespace`,
+ * `context`, `fileListMode`, `blameOn`) are deliberately out: they are the window's, not the
+ * repository's, and restoring an old copy would undo a preference changed from another tab.
+ */
+const SNAPSHOT_KEYS = [
+  "repoId",
+  "target",
+  "files",
+  "filesLoading",
+  "filesError",
+  "selectedPath",
+  "diff",
+  "diffLoading",
+  "diffError",
+  "tab",
+  "tree",
+  "treeLoading",
+  "treeError",
+  "treeFilter",
+  "treeSelectedPath",
+  "content",
+  "contentLoading",
+  "contentError",
+  "blame",
+  "blameLoading",
+  "blameError",
+] as const;
+
+export type DiffSnapshot = Pick<DiffStore, (typeof SNAPSHOT_KEYS)[number]>;
+
+export const snapshot = (): DiffSnapshot => pick(useDiffStore.getState(), SNAPSHOT_KEYS);
+
+export const restore = (s: DiffSnapshot) => useDiffStore.setState(s);
 
 /** Test seam: the module-level listing cache and per-target selection memory. */
 export function __resetTreeCacheForTests() {

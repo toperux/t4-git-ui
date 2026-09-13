@@ -1,0 +1,145 @@
+/* Under the native title bar, above the toolbar. Hidden with a single tab (see `RepoWindow`). */
+.strip {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4) 0;
+  background-color: var(--bg-app);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  flex: none;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  /* The strip is a drag surface; a text cursor and a selection there are both a lie. */
+  user-select: none;
+  max-width: 220px;
+  padding: 0 var(--space-2) 0 var(--space-4);
+  height: 28px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background-color: transparent;
+  color: var(--fg-muted);
+  font: inherit;
+  cursor: default;
+  flex: none;
+  transition: background-color var(--dur) var(--ease);
+}
+.tab:hover {
+  background-color: var(--bg-hover);
+}
+.tab:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.active {
+  background-color: var(--bg-panel);
+  border-color: var(--border);
+  color: var(--fg);
+}
+
+.label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Something changed in this repository while the tab was in the background. */
+.stale {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background-color: var(--accent);
+  flex: none;
+}
+
+.close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background-color: transparent;
+  color: var(--fg-muted);
+  cursor: default;
+  flex: none;
+}
+.close:hover {
+  background-color: var(--bg-hover);
+  color: var(--fg);
+}
+
+/* Being reordered inside the strip: the tab stays put and recedes, the live reorder is the feedback. */
+.dragging {
+  opacity: 0.4;
+}
+
+/* Out of the strip: the slot stays (`visibility`, not `display`, so it keeps its width) and the ghost
+   below takes over as the thing being moved. */
+.detached {
+  visibility: hidden;
+}
+
+.ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
+  /* Must never win a hit test — neither the page's, nor the compositor's when Rust asks which window
+     is under the cursor. */
+  pointer-events: none;
+  max-width: 220px;
+  padding: 0 var(--space-4);
+  height: 28px;
+  line-height: 28px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-elevated);
+  color: var(--fg);
+  box-shadow: var(--shadow-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Where a tab released now would land — drawn in this window even when the drag started in another. */
+.caret {
+  width: 2px;
+  margin: var(--space-2) 0 0;
+  border-radius: var(--radius-pill);
+  background-color: var(--accent);
+  flex: none;
+}
+
+/* Pointer capture keeps the events on the strip, but the cursor is still drawn from whatever sits
+   under it — so the whole document has to agree for the length of a drag. */
+:global(html.dragging-tab),
+:global(html.dragging-tab) * {
+  cursor: grabbing !important;
+}
+
+.add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background-color: transparent;
+  color: var(--fg-muted);
+  cursor: default;
+  flex: none;
+  align-self: center;
+}
+.add:hover {
+  background-color: var(--bg-hover);
+  color: var(--fg);
+}

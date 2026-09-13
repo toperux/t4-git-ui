@@ -1,23 +1,84 @@
-// Stash changes + the Apply / Pop / Drop choice for one stash entry.
+// Stash changes + the Apply / Pop / Drop choice for one stash entry, and the pieces the stash
+// browser (`StashesDialog`) renders too, so the two cannot drift.
 import { useState } from "react";
+import { Trash2 } from "lucide-react";
 import * as ipc from "../../../api/ipc";
+import type { Stash } from "../../../api/types";
 import { Button } from "../../../components/ui/Button/Button";
 import { Checkbox } from "../../../components/ui/Checkbox/Checkbox";
 import { Dialog, DialogText, Field, Mono, Options } from "../../../components/ui/Dialog/Dialog";
 import { Input } from "../../../components/ui/Input/Input";
-import { runOp } from "../../../store/opsStore";
+import { MenuItem, MenuSeparator } from "../../../components/ui/Menu/Menu";
+import { runOp, selectRunning, useOpsStore } from "../../../store/opsStore";
+import { useRepoStore } from "../../../store/repoStore";
 import { stashApply, stashDrop, stashPop } from "../actions";
 import { gitCmd, stashPushArgs } from "./gitArgs";
 
+/** What `git stash push` is about to be run with. */
+export interface StashPushValues {
+  message: string;
+  untracked: boolean;
+  keepIndex: boolean;
+}
+
+export const EMPTY_PUSH: StashPushValues = { message: "", untracked: true, keepIndex: false };
+
+export const stashPushPreview = (v: StashPushValues) => gitCmd(stashPushArgs(v.message.trim() || null, v.untracked, v.keepIndex));
+
+export const stashPushOp = (v: StashPushValues) =>
+  runOp("Stashing changes…", (id) => ipc.stashPush(id, v.message.trim() || null, v.untracked, v.keepIndex), { success: "Stashed changes" });
+
+/** The three fields of a stash push, shared by the dialog and the browser's inline form. */
+export function StashPushFields({ value, onChange, autoFocus }: { value: StashPushValues; onChange: (v: StashPushValues) => void; autoFocus?: boolean }) {
+  return (
+    <>
+      <Field label="Message" help="Shown in the Stashes list; git writes a default one when empty">
+        <Input aria-label="Message" autoFocus={autoFocus} value={value.message} onChange={(e) => onChange({ ...value, message: e.target.value })} placeholder="WIP on…" />
+      </Field>
+      <Options>
+        <Checkbox checked={value.untracked} onChange={(untracked) => onChange({ ...value, untracked })}>
+          Include untracked files
+        </Checkbox>
+        <Checkbox checked={value.keepIndex} onChange={(keepIndex) => onChange({ ...value, keepIndex })} title="Staged changes stay staged in the working tree">
+          Keep the index
+        </Checkbox>
+      </Options>
+    </>
+  );
+}
+
+/** One stash row's menu — the sidebar's and the browser's are the same items. */
+export function StashMenuItems({ stash, onPick }: { stash: Stash; onPick: () => void }) {
+  const previewStash = useRepoStore((st) => st.previewStash);
+  const op = useOpsStore(selectRunning) ? { disabled: true, title: "Operation in progress" } : {};
+  const run = (fn: () => void) => () => {
+    onPick();
+    fn();
+  };
+  return (
+    <>
+      <MenuItem onClick={run(() => previewStash(stash))}>Preview</MenuItem>
+      <MenuSeparator />
+      <MenuItem {...op} onClick={run(() => void stashApply(stash.index))}>
+        Apply
+      </MenuItem>
+      <MenuItem {...op} onClick={run(() => void stashPop(stash.index))}>
+        Pop
+      </MenuItem>
+      <MenuSeparator />
+      <MenuItem icon={<Trash2 size={16} aria-hidden />} danger {...op} onClick={run(() => void stashDrop(stash.index, stash.message))}>
+        Drop
+      </MenuItem>
+    </>
+  );
+}
+
 export function StashPushDialog({ onClose }: { onClose: () => void }) {
-  const [message, setMessage] = useState("");
-  const [untracked, setUntracked] = useState(true);
-  const [keepIndex, setKeepIndex] = useState(false);
-  const preview = gitCmd(stashPushArgs(message.trim() || null, untracked, keepIndex));
+  const [values, setValues] = useState(EMPTY_PUSH);
 
   function submit() {
     onClose();
-    void runOp("Stashing changes…", (id) => ipc.stashPush(id, message.trim() || null, untracked, keepIndex), { success: "Stashed changes" });
+    void stashPushOp(values);
   }
 
   return (
@@ -25,7 +86,7 @@ export function StashPushDialog({ onClose }: { onClose: () => void }) {
       title="Stash changes"
       onClose={onClose}
       onSubmit={submit}
-      preview={preview}
+      preview={stashPushPreview(values)}
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
@@ -35,17 +96,7 @@ export function StashPushDialog({ onClose }: { onClose: () => void }) {
         </>
       }
     >
-      <Field label="Message" help="Shown in the Stashes list; git writes a default one when empty">
-        <Input aria-label="Message" autoFocus value={message} onChange={(e) => setMessage(e.target.value)} placeholder="WIP on…" />
-      </Field>
-      <Options>
-        <Checkbox checked={untracked} onChange={setUntracked}>
-          Include untracked files
-        </Checkbox>
-        <Checkbox checked={keepIndex} onChange={setKeepIndex} title="Staged changes stay staged in the working tree">
-          Keep the index
-        </Checkbox>
-      </Options>
+      <StashPushFields value={values} onChange={setValues} autoFocus />
     </Dialog>
   );
 }

@@ -72,7 +72,17 @@ vi.mock("@tanstack/react-virtual", async (importOriginal) => {
 
 import * as ipc from "../../../api/ipc";
 const mocked = ipc as unknown as Record<
-  "stagePaths" | "unstagePaths" | "getFileDiff" | "getStatus" | "getAuthor" | "recreateConflict" | "resolveConflict" | "discardHunks" | "discardPaths" | "openPath",
+  | "stagePaths"
+  | "unstagePaths"
+  | "getFileDiff"
+  | "getStatus"
+  | "getAuthor"
+  | "recreateConflict"
+  | "resolveConflict"
+  | "discardHunks"
+  | "discardPaths"
+  | "openPath"
+  | "commit",
   ReturnType<typeof vi.fn>
 >;
 
@@ -598,6 +608,29 @@ describe("CommitPanel", () => {
     expect(counter.className).toMatch(/over/);
   });
 
+  it("the sign override is three-state and rides along with the commit", async () => {
+    useCommitStore.setState({ summary: "Fix lanes" });
+    const { getByRole } = renderPanel();
+    const pick = (option: string) => {
+      fireEvent.click(getByRole("combobox", { name: "Sign this commit" }));
+      fireEvent.click(getByRole("option", { name: option }));
+    };
+
+    // Unset by default: git's own `commit.gpgsign` decides.
+    fireEvent.click(getByRole("button", { name: "Commit" }));
+    await waitFor(() => expect(mocked.commit).toHaveBeenCalledWith("r", "Fix lanes\n", false, false, null));
+
+    act(() => useCommitStore.setState({ summary: "Fix lanes" }));
+    pick("Sign this commit");
+    fireEvent.click(getByRole("button", { name: "Commit" }));
+    await waitFor(() => expect(mocked.commit).toHaveBeenCalledWith("r", "Fix lanes\n", false, false, true));
+
+    act(() => useCommitStore.setState({ summary: "Fix lanes" }));
+    pick("Don't sign this commit");
+    fireEvent.click(getByRole("button", { name: "Commit" }));
+    await waitFor(() => expect(mocked.commit).toHaveBeenCalledWith("r", "Fix lanes\n", false, false, false));
+  });
+
   it("Commit & Push names the condition it is waiting on, its title being hoverable while dead", () => {
     const { getByRole } = renderPanel();
     const btn = () => getByRole("button", { name: "Commit & Push" });
@@ -949,6 +982,8 @@ describe("CommitPanel tree view", () => {
     expect(items(tree()).map(text)).toEqual(["src", "lib", "Mb.rs", "Ma.rs", "Mtop.rs"]);
     expect(items(tree()).map((r) => r.getAttribute("aria-level"))).toEqual(["1", "2", "3", "2", "1"]);
     expect(items(tree())[2].getAttribute("title")).toBe("src/lib/b.rs");
+    // Folder rows are drawn as folders here as in every other tree (`TreeRow`'s `folder`).
+    expect(items(tree())[0].className).toMatch(/_folder_/);
     expect(items(getByRole("tree", { name: "Staged files" })).map(text)).toEqual(["src", "Ma.rs"]);
 
     // Collapsing skips the folder's files for ↑/↓ and Shift ranges; the selection is untouched.

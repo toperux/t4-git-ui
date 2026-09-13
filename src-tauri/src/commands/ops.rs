@@ -7,11 +7,13 @@
 //! watcher is suppressed during the op and one synthetic `repo://changed`
 //! (`workdir`, `index`, `refs`) is emitted afterwards.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use git_core::cli::ops::{
-    self as gitops, CloneOpts, FfMode, MergeOpts, OpFailure, PickOpts, PullMode, RemoteTag,
+    self as gitops, BisectTerm, CloneOpts, FfMode, MergeOpts, OpFailure, PickOpts, PullMode,
+    RemoteTag,
 };
 use git_core::cli::rebase::{self, RebaseFlags, RebaseTodo, TodoStep};
 use git_core::cli::{CliEvent, CliOutput};
@@ -20,7 +22,7 @@ use git_core::status::status;
 use git_core::watch::ChangeKind;
 use git_core::{config, refs, GitError, RepoHandle, RepoId};
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, State, Window};
 
 use super::repo::{blocking, open_repo, RepoSummary};
 use super::stage::mutate;
@@ -189,6 +191,16 @@ async fn rebase_in_progress(handle: &Arc<RepoHandle>) -> Result<bool, AppError> 
     .await
 }
 
+/// Whether a bisect is already running, read under the op lock so [`bisect_mark`]
+/// knows whether it has to start one. `BISECT_LOG` is what git itself looks for:
+/// `Repository::state()` reports one state at a time and hides a bisect behind an
+/// open cherry-pick, revert or merge, and a second `git bisect start` would wipe
+/// `refs/bisect/*` and the log.
+async fn bisecting(handle: &Arc<RepoHandle>) -> Result<bool, AppError> {
+    let handle = Arc::clone(handle);
+    blocking(move || Ok(handle.git2.lock().path().join("BISECT_LOG").exists())).await
+}
+
 /// Git's own line for a pause: the `Stopped at` of an `edit` stop, the
 /// `execution failed` of a rejected `exec`, else its last error line.
 fn pause_message(stderr: &str) -> String {
@@ -252,6 +264,17 @@ fn ref_arg(s: &str) -> Result<&str, AppError> {
 /// [`ref_arg`] for an argument that may be absent.
 fn opt_ref(s: Option<&str>) -> Result<Option<&str>, AppError> {
     s.map(ref_arg).transpose()
+}
+
+/// A full commit id (40 hex, or 64 in a sha256 repository). `git bisect` takes
+/// no `--end-of-options`, so its builder's only positional is checked here
+/// instead: nothing that could read as an option — or as a revision expression
+/// — gets past this.
+fn oid_arg(s: &str) -> Result<&str, AppError> {
+    if !matches!(s.len(), 40 | 64) || !s.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err(GitError::Refused(format!("{s:?} is not a commit id")).into());
+    }
+    Ok(s)
 }
 
 // ---- streaming ops ----
@@ -581,6 +604,51 @@ pub async fn revert_abort(
     cli_op(&app, &state, &id, gitops::revert_abort(), false).await
 }
 
+/// Marks `oid` — or HEAD without one. The first mark starts the bisect itself,
+/// decided here and not in the frontend: `git bisect start` on a bisect that is
+/// already running deletes `refs/bisect/*` and the log, and the repository's own
+/// state is the only reading of it fresh enough to rule that out. Both calls run
+/// under the one op lock, so a failed start stops there. The checkout git does
+/// next is what refuses on a dirty tree; its own message is the toast.
+#[tauri::command]
+pub async fn bisect_mark(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: RepoId,
+    term: BisectTerm,
+    oid: Option<String>,
+) -> Result<OpResult, AppError> {
+    let args = gitops::bisect_mark(term, oid.as_deref().map(oid_arg).transpose()?);
+    let app = &app;
+    let state: &AppState = &state;
+    mutate(app, state, &id, ALL_KINDS, |handle| async move {
+        if !bisecting(&handle).await? {
+            let started = run_and_classify(
+                app,
+                state,
+                Arc::clone(&handle),
+                gitops::bisect_start(),
+                false,
+            )
+            .await?;
+            if started.failure.is_some() {
+                return Ok(started);
+            }
+        }
+        run_and_classify(app, state, handle, args, false).await
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn bisect_reset(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: RepoId,
+) -> Result<OpResult, AppError> {
+    cli_op(&app, &state, &id, gitops::bisect_reset(), false).await
+}
+
 #[tauri::command]
 pub async fn checkout(
     app: AppHandle,
@@ -669,6 +737,15 @@ pub async fn stash_drop(
     index: usize,
 ) -> Result<OpResult, AppError> {
     cli_op(&app, &state, &id, gitops::stash_drop(index), false).await
+}
+
+#[tauri::command]
+pub async fn stash_clear(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: RepoId,
+) -> Result<OpResult, AppError> {
+    cli_op(&app, &state, &id, gitops::stash_clear(), false).await
 }
 
 #[tauri::command]
@@ -948,6 +1025,9 @@ pub async fn remove_remote(
     .await
 }
 
+/// A message makes the tag annotated, and annotated tags run through the CLI so
+/// `tag.gpgsign` and the signing config are honoured (git2 never signs, and the
+/// hooks would be skipped too). Lightweight tags stay on git2.
 #[tauri::command]
 pub async fn create_tag(
     app: AppHandle,
@@ -957,8 +1037,65 @@ pub async fn create_tag(
     target: String,
     message: Option<String>,
 ) -> Result<(), AppError> {
-    git2_op(&app, &state, &id, REFS, move |h| {
-        refs::create_tag(&h.git2.lock(), &name, &target, message.as_deref()).map(|_| ())
+    let Some(message) = message else {
+        return git2_op(&app, &state, &id, REFS, move |h| {
+            refs::create_tag(&h.git2.lock(), &name, &target).map(|_| ())
+        })
+        .await;
+    };
+    // Peeled like the lightweight path: `git tag -a v2 v1` on an annotated `v1`
+    // would hang the new tag off the tag object rather than off its commit.
+    let handle = state.repo(&id)?;
+    let target = blocking(move || {
+        Ok(refs::peel_to_commit(&handle.git2.lock(), &target)?
+            .id()
+            .to_string())
+    })
+    .await?;
+    // Kept alive until git has read it.
+    let file = tempfile::Builder::new()
+        .prefix("t4-tag-msg-")
+        .suffix(".txt")
+        .tempfile()
+        .and_then(|f| std::fs::write(f.path(), message.as_bytes()).map(|_| f))
+        .map_err(GitError::from)?;
+    let args = gitops::tag_annotated(&name, &target, file.path());
+    let result = cli_op(&app, &state, &id, args, false).await;
+    drop(file);
+    let result = result?;
+    match result.failure {
+        None => Ok(()),
+        Some(f) => Err(cli_failure("git tag -a", result.code, &f)),
+    }
+}
+
+/// The signing keys the Settings dialog shows, as `id` sees them; without a
+/// repository (the start screen) the effective config answers on its own.
+#[tauri::command]
+pub async fn get_signing(
+    state: State<'_, AppState>,
+    id: Option<RepoId>,
+) -> Result<BTreeMap<String, config::SigningEntry>, AppError> {
+    let handle = id.map(|id| state.repo(&id)).transpose()?;
+    blocking(move || {
+        Ok(match &handle {
+            Some(h) => config::signing(Some(&h.git2.lock()))?,
+            None => config::signing(None)?,
+        })
+    })
+    .await
+}
+
+/// Writes one signing key to the global config (`None` clears it). Global like
+/// the tool settings: there is no per-repository signing UI.
+#[tauri::command]
+pub async fn set_signing(key: String, value: Option<String>) -> Result<(), AppError> {
+    if !config::SIGNING_KEYS.contains(&key.as_str()) {
+        return Err(GitError::Refused(format!("{key} is not a signing setting")).into());
+    }
+    blocking(move || match value {
+        Some(v) => Ok(config::set_global(&key, &v)?),
+        None => Ok(config::unset_global(&key)?),
     })
     .await
 }
@@ -1044,6 +1181,7 @@ fn remote_tags_of(out: &CliOutput) -> Result<Vec<RemoteTag>, AppError> {
 #[tauri::command]
 pub async fn clone_repo(
     app: AppHandle,
+    window: Window,
     state: State<'_, AppState>,
     url: String,
     dest: String,
@@ -1083,7 +1221,7 @@ pub async fn clone_repo(
         .check(&format!("git clone {url}"))
         .map_err(|e| cleanup(AppError::from(e)))?;
     tracing::info!(%url, %dest, "cloned");
-    open_repo(app, state, dest).await
+    open_repo(app, window, state, dest).await
 }
 
 /// `git init <path>` (initial branch from `init.defaultBranch`, else `main`),
@@ -1091,18 +1229,19 @@ pub async fn clone_repo(
 #[tauri::command]
 pub async fn init_repo(
     app: AppHandle,
+    window: Window,
     state: State<'_, AppState>,
     path: String,
 ) -> Result<RepoSummary, AppError> {
     let p = path.clone();
     blocking(move || Ok(git_core::repo::init_repo(&p)?)).await?;
     tracing::info!(%path, "initialized repo");
-    open_repo(app, state, path).await
+    open_repo(app, window, state, path).await
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{is_rebase, opt_ref, pause_message, ref_arg, remote_tags_of};
+    use super::{is_rebase, oid_arg, opt_ref, pause_message, ref_arg, remote_tags_of};
     use crate::AppError;
     use git_core::cli::CliOutput;
     use git_core::GitError;
@@ -1181,5 +1320,18 @@ mod tests {
             assert_eq!(ref_arg(ok).unwrap(), ok, "{ok}");
         }
         assert_eq!(opt_ref(None).unwrap(), None);
+    }
+
+    #[test]
+    fn only_a_full_commit_id_reaches_a_bisect_mark() {
+        let full = "0123456789abcdef0123456789abcdef01234567";
+        assert_eq!(oid_arg(full).unwrap(), full);
+        // `git bisect` takes no `--end-of-options`, so a revision expression is out too.
+        for bad in ["-x", "--exec=sh", "HEAD~2", "main", "0123456", ""] {
+            assert!(
+                matches!(oid_arg(bad), Err(AppError::Git(GitError::Refused(_)))),
+                "{bad}"
+            );
+        }
     }
 }

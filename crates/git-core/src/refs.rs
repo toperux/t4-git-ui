@@ -2,11 +2,10 @@ use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
 use git2::{
-    BranchType, ErrorCode, ObjectType, Oid, ReferenceType, Repository, RepositoryState, Signature,
+    BranchType, ErrorCode, Object, ObjectType, Oid, ReferenceType, Repository, RepositoryState,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::config::user_identity;
 use crate::log::types::{RefKind, RefLabel};
 use crate::{map_git2, GitError};
 
@@ -82,6 +81,12 @@ pub struct Stash {
     pub index: usize,
     pub oid: String,
     pub message: String,
+    /// First parent: the commit the changes were stashed off.
+    pub base_oid: String,
+    /// Committer time of the stash commit (seconds), for the age in the list.
+    pub time: i64,
+    /// `stash -u` / `-a`: the untracked files are kept in a third parent.
+    pub has_untracked: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -126,6 +131,19 @@ pub struct ConflictSides {
     pub theirs: String,
 }
 
+/// The marks a bisect has collected, read from `refs/bisect/*`. The banner
+/// counts them; [`label_map`] turns them into chips.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BisectRefs {
+    /// `refs/bisect/bad` — `None` until a bad commit is marked.
+    pub bad: Option<String>,
+    /// `refs/bisect/good-<oid>`.
+    pub good: Vec<String>,
+    /// `refs/bisect/skip-<oid>`.
+    pub skip: Vec<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RefsSnapshot {
@@ -138,6 +156,8 @@ pub struct RefsSnapshot {
     pub remotes: Vec<Remote>,
     pub tags: Vec<Tag>,
     pub stashes: Vec<Stash>,
+    /// Set while a bisect is running (or while its refs are still around).
+    pub bisect: Option<BisectRefs>,
 }
 
 /// Orders ref names the way people read them: case-insensitive, and a run of
@@ -768,18 +788,32 @@ fn collect(
     }
     tags.sort_by(|a, b| natural_cmp(&a.name, &b.name));
 
-    let mut stashes = Vec::new();
+    // `stash_foreach` borrows the repository mutably, so the commits behind the
+    // entries are read afterwards, not inside the callback.
+    let mut listed = Vec::new();
     repo.stash_foreach(|index, message, oid| {
-        stashes.push(Stash {
-            index,
-            oid: oid.to_string(),
-            message: message.to_string(),
-        });
+        listed.push((index, message.to_string(), *oid));
         true
     })
     .map_err(map_git2)?;
+    let mut stashes = Vec::with_capacity(listed.len());
+    for (index, message, oid) in listed {
+        let commit = repo.find_commit(oid).map_err(map_git2)?;
+        stashes.push(Stash {
+            index,
+            oid: oid.to_string(),
+            message,
+            base_oid: commit
+                .parent_id(0)
+                .map(|p| p.to_string())
+                .unwrap_or_default(),
+            time: commit.time().seconds(),
+            has_untracked: commit.parent_id(2).is_ok(),
+        });
+    }
 
     let conflict_sides = conflict_sides(repo, state, &head, &local, &remotes);
+    let bisect = bisect_refs(repo, state);
 
     Ok(RefsSnapshot {
         head,
@@ -789,7 +823,42 @@ fn collect(
         remotes,
         tags,
         stashes,
+        bisect,
     })
+}
+
+/// The bisect marks: `refs/bisect/bad`, `refs/bisect/good-<oid>` and
+/// `refs/bisect/skip-<oid>`. `None` when neither a bisect is running nor a
+/// leftover ref is there to report.
+fn bisect_refs(repo: &Repository, state: RepoState) -> Option<BisectRefs> {
+    let mut out = BisectRefs {
+        bad: None,
+        good: Vec::new(),
+        skip: Vec::new(),
+    };
+    let mut found = false;
+    if let Ok(refs) = repo.references_glob("refs/bisect/*") {
+        for r in refs.flatten() {
+            let Some(name) = r.name().ok().and_then(|n| n.strip_prefix("refs/bisect/")) else {
+                continue;
+            };
+            let Ok(commit) = r.peel_to_commit() else {
+                continue;
+            };
+            let oid = commit.id().to_string();
+            match name {
+                "bad" => out.bad = Some(oid),
+                n if n.starts_with("good-") => out.good.push(oid),
+                n if n.starts_with("skip-") => out.skip.push(oid),
+                _ => continue,
+            }
+            found = true;
+        }
+    }
+    // `references_glob` has no defined order; the counts and chips must not flap.
+    out.good.sort();
+    out.skip.sort();
+    (found || state == RepoState::Bisect).then_some(out)
 }
 
 /// Labels per commit oid, ordered HEAD → current local → local → remote → tag.
@@ -888,6 +957,26 @@ pub fn label_map(snap: &RefsSnapshot) -> HashMap<String, Vec<RefLabel>> {
                 remote: None,
             },
         );
+    }
+
+    if let Some(b) = &snap.bisect {
+        let marks = b
+            .bad
+            .iter()
+            .map(|o| (o, "bad"))
+            .chain(b.good.iter().map(|o| (o, "good")))
+            .chain(b.skip.iter().map(|o| (o, "skip")));
+        for (oid, name) in marks {
+            push(
+                oid,
+                RefLabel {
+                    name: name.to_string(),
+                    kind: RefKind::Bisect,
+                    is_current: false,
+                    remote: None,
+                },
+            );
+        }
     }
 
     map
@@ -1003,36 +1092,27 @@ pub fn remove_remote(repo: &Repository, name: &str) -> Result<(), GitError> {
     repo.remote_delete(name).map_err(map_git2)
 }
 
-/// Creates tag `name` at `target`: lightweight without `message`, annotated
-/// (signed with `user.name`/`user.email`) with one. Fails if the tag exists.
-pub fn create_tag(
-    repo: &Repository,
-    name: &str,
-    target: &str,
-    message: Option<&str>,
-) -> Result<Tag, GitError> {
+/// The commit `target` names: a revision, a branch, or a tag — an annotated one
+/// peels to its commit, so tagging `v1.0` cannot nest a tag on a tag.
+pub fn peel_to_commit<'a>(repo: &'a Repository, target: &str) -> Result<Object<'a>, GitError> {
+    repo.revparse_single(target)
+        .and_then(|o| o.peel(ObjectType::Commit))
+        .map_err(map_git2)
+}
+
+/// Creates the lightweight tag `name` at `target`. Fails if the tag exists.
+/// Annotated tags go through the CLI ([`crate::cli::ops::tag_annotated`]): git2
+/// never signs one, so `tag.gpgsign` would be a setting the app ignored.
+pub fn create_tag(repo: &Repository, name: &str, target: &str) -> Result<Tag, GitError> {
     // Tag the commit, not whatever `target` names: `git tag x v1.0` on an
     // annotated `v1.0` tags the commit too, never the tag object.
-    let commit = repo
-        .revparse_single(target)
-        .and_then(|o| o.peel(ObjectType::Commit))
+    let commit = peel_to_commit(repo, target)?;
+    repo.tag_lightweight(name, &commit, false)
         .map_err(map_git2)?;
-    match message {
-        Some(msg) => {
-            let (user, email) = user_identity(repo)?;
-            let sig = Signature::now(&user, &email).map_err(map_git2)?;
-            repo.tag(name, &commit, &sig, msg, false)
-                .map_err(map_git2)?;
-        }
-        None => {
-            repo.tag_lightweight(name, &commit, false)
-                .map_err(map_git2)?;
-        }
-    }
     Ok(Tag {
         name: name.to_string(),
         oid: commit.id().to_string(),
-        message: message.map(str::to_string),
+        message: None,
     })
 }
 
@@ -1042,7 +1122,9 @@ pub fn delete_tag(repo: &Repository, name: &str) -> Result<(), GitError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{children_first, natural_cmp, snapshot, ConflictSides, RepoState};
+    use super::{
+        children_first, label_map, natural_cmp, snapshot, ConflictSides, RefKind, RepoState,
+    };
     use crate::test_util::TempRepo;
 
     #[test]
@@ -1252,6 +1334,32 @@ mod tests {
         let snap = snapshot(&mut t.repo).unwrap();
         assert_eq!(snap.state, RepoState::Bisect);
         assert_eq!(snap.conflict_sides, None);
+    }
+
+    #[test]
+    fn bisect_marks_are_read_and_labelled() {
+        let (mut t, master, feature) = two_branches();
+        let (bad, good) = (master.to_string(), feature.to_string());
+        t.write_ref("BISECT_LOG", "git bisect start");
+        t.write_ref("refs/bisect/bad", &bad);
+        t.write_ref(&format!("refs/bisect/good-{good}"), &good);
+        let snap = snapshot(&mut t.repo).unwrap();
+        let b = snap.bisect.clone().expect("bisect refs");
+        assert_eq!(b.bad, Some(bad.clone()));
+        assert_eq!(b.good, vec![good.clone()]);
+        assert!(b.skip.is_empty());
+        let labels = label_map(&snap);
+        for (oid, name) in [(&bad, "bad"), (&good, "good")] {
+            assert!(
+                labels[oid]
+                    .iter()
+                    .any(|l| l.kind == RefKind::Bisect && l.name == name),
+                "{name} chip"
+            );
+        }
+        // No bisect, no refs: nothing to report.
+        let (mut clean, _, _) = two_branches();
+        assert_eq!(snapshot(&mut clean.repo).unwrap().bisect, None);
     }
 
     #[test]

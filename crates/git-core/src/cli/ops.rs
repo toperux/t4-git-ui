@@ -56,6 +56,15 @@ pub struct PickOpts {
     pub mainline: Option<u32>,
 }
 
+/// Which end of the range a `git bisect` mark names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum BisectTerm {
+    Good,
+    Bad,
+    Skip,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct CloneOpts {
@@ -267,6 +276,34 @@ pub fn revert_abort() -> Vec<String> {
     args(["revert", "--abort"])
 }
 
+/// `bisect start` — the marks come after it, so it needs no revisions.
+pub fn bisect_start() -> Vec<String> {
+    args(["bisect", "start"])
+}
+
+/// `bisect (good | bad | skip) [<oid>]` — HEAD when no oid is given. No
+/// `--end-of-options`: `git bisect` does not accept it, so the oid is checked
+/// at the command boundary instead.
+pub fn bisect_mark(term: BisectTerm, oid: Option<&str>) -> Vec<String> {
+    let mut a = args([
+        "bisect",
+        match term {
+            BisectTerm::Good => "good",
+            BisectTerm::Bad => "bad",
+            BisectTerm::Skip => "skip",
+        },
+    ]);
+    if let Some(oid) = oid {
+        a.push(oid.into());
+    }
+    a
+}
+
+/// `bisect reset` — ends the bisect and checks the starting branch back out.
+pub fn bisect_reset() -> Vec<String> {
+    args(["bisect", "reset"])
+}
+
 /// `checkout [--track] [-b <name>] [--detach] --end-of-options <target>`; `track` only applies
 /// with `-b`, `detach` only without it. Without `--detach` a name that is both
 /// a tag and a branch resolves to the branch, leaving HEAD attached.
@@ -373,6 +410,19 @@ pub fn parse_ls_remote_tags(stdout: &str) -> Vec<RemoteTag> {
         .collect()
 }
 
+/// `tag -a -F <message_file> --end-of-options <name> <target>`. Annotated tags
+/// go through the CLI so `tag.gpgsign` and the signing config are honoured —
+/// git2's `repo.tag` never signs. Lightweight tags stay on git2. The message
+/// travels in a file, like `commit`'s, so a `-` or a newline in it is text.
+pub fn tag_annotated(name: &str, target: &str, message_file: &std::path::Path) -> Vec<String> {
+    let mut a = args(["tag", "-a", "-F"]);
+    a.push(message_file.to_string_lossy().into_owned());
+    a.push(END.into());
+    a.push(name.into());
+    a.push(target.into());
+    a
+}
+
 /// `stash push [-u] [-k] [-m <msg>]`
 pub fn stash_push(message: Option<&str>, include_untracked: bool, keep_index: bool) -> Vec<String> {
     let mut a = args(["stash", "push"]);
@@ -403,6 +453,11 @@ pub fn stash_pop(index: usize) -> Vec<String> {
 
 pub fn stash_drop(index: usize) -> Vec<String> {
     vec!["stash".into(), "drop".into(), stash_ref(index)]
+}
+
+/// `stash clear` — drops every entry at once.
+pub fn stash_clear() -> Vec<String> {
+    vec!["stash".into(), "clear".into()]
 }
 
 /// `clone --progress [--recurse-submodules] [--depth <n>] --end-of-options <url> <dest>`
@@ -705,6 +760,22 @@ mod tests {
     }
 
     #[test]
+    fn tag_annotated_args() {
+        assert_eq!(
+            tag_annotated("v1.0", "HEAD", std::path::Path::new("msg.txt")),
+            [
+                "tag",
+                "-a",
+                "-F",
+                "msg.txt",
+                "--end-of-options",
+                "v1.0",
+                "HEAD"
+            ]
+        );
+    }
+
+    #[test]
     fn pull_args() {
         assert_eq!(
             pull(None, Some("ignored"), PullMode::Merge),
@@ -896,6 +967,20 @@ mod tests {
     }
 
     #[test]
+    fn bisect_args() {
+        assert_eq!(bisect_start(), ["bisect", "start"]);
+        assert_eq!(bisect_reset(), ["bisect", "reset"]);
+        // No oid = HEAD, which is what the banner's buttons send.
+        assert_eq!(bisect_mark(BisectTerm::Good, None), ["bisect", "good"]);
+        assert_eq!(bisect_mark(BisectTerm::Skip, None), ["bisect", "skip"]);
+        // No `--end-of-options`: `git bisect` rejects it.
+        assert_eq!(
+            bisect_mark(BisectTerm::Bad, Some("abc1234")),
+            ["bisect", "bad", "abc1234"]
+        );
+    }
+
+    #[test]
     fn checkout_and_branch_args() {
         assert_eq!(
             checkout("main", None, true, false),
@@ -941,6 +1026,7 @@ mod tests {
         assert_eq!(stash_apply(2), ["stash", "apply", "stash@{2}"]);
         assert_eq!(stash_pop(0), ["stash", "pop", "stash@{0}"]);
         assert_eq!(stash_drop(1), ["stash", "drop", "stash@{1}"]);
+        assert_eq!(stash_clear(), ["stash", "clear"]);
         assert_eq!(
             clone("u", "d", &CloneOpts::default()),
             ["clone", "--progress", "--end-of-options", "u", "d"]

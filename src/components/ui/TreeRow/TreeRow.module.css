@@ -49,6 +49,14 @@
 .selected .icon {
   color: var(--fg);
 }
+/* Folder rows: an amber icon and a semibold label, so `feature/` never reads as a branch.
+   Hover / selected keep the shared icon rule — the colour is the resting state. */
+.folder .icon {
+  color: var(--folder-fg);
+}
+.folder .label {
+  font-weight: var(--weight-semibold);
+}
 .label {
   flex: 1;
   min-width: 0;

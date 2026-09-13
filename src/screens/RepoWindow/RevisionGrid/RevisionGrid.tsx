@@ -1,5 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Cherry, ChevronDown, Copy, GitBranch, GitCommitHorizontal, GitMerge, History, ListRestart, Pencil, Plus, RotateCcw, Search, Tag, Trash2, Undo2 } from "lucide-react";
+import { Bug, Cherry, ChevronDown, Copy, GitBranch, GitCommitHorizontal, GitMerge, History, ListRestart, Pencil, Plus, RotateCcw, Search, Tag, Trash2, Undo2 } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import type { CommitInfo } from "../../../api/types";
 import { Button } from "../../../components/ui/Button/Button";
@@ -8,7 +8,7 @@ import { ContextMenu, MenuItem, MenuRef, MenuSeparator } from "../../../componen
 import { Progress } from "../../../components/ui/Progress/Progress";
 import { useDialogStore, type DialogSpec } from "../../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../../store/opsStore";
-import { checkoutBranch, checkoutDetached, checkoutRemoteBranch, copyText } from "../actions";
+import { bisectMark, checkoutBranch, checkoutDetached, checkoutRemoteBranch, copyText } from "../actions";
 import { cx } from "../../../lib/cx";
 import { useMerging, useRepoStore } from "../../../store/repoStore";
 import { selectChangeCount, useShowWorkingTree, useStatusStore } from "../../../store/statusStore";
@@ -383,6 +383,17 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
             Revert <MenuRef>{short}</MenuRef>…
           </span>
         </MenuItem>
+      )}
+      {/* The first mark starts the bisect; from then on the banner's buttons drive it on HEAD. */}
+      {!branches.unborn && (
+        <>
+          <MenuItem icon={<Bug size={16} aria-hidden />} title={`Mark ${short} good`} {...op} onClick={run(() => void bisectMark("good", oid))}>
+            Bisect: mark good
+          </MenuItem>
+          <MenuItem icon={<Bug size={16} aria-hidden />} title={`Mark ${short} bad`} {...op} onClick={run(() => void bisectMark("bad", oid))}>
+            Bisect: mark bad
+          </MenuItem>
+        </>
       )}
       {branches.reset.map((r) => (
         <MenuItem

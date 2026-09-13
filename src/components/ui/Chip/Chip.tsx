@@ -1,4 +1,4 @@
-import { Archive, Cloud, GitBranch, Tag } from "lucide-react";
+import { Archive, Bug, Cloud, GitBranch, Tag } from "lucide-react";
 import type { RefKind } from "../../../api/types";
 import { cx } from "../../../lib/cx";
 import s from "./Chip.module.css";
@@ -19,12 +19,14 @@ const ICONS: Partial<Record<RefKind, typeof GitBranch>> = {
   remote: Cloud,
   tag: Tag,
   stash: Archive,
+  bisect: Bug,
 };
 
 export function Chip({ kind, name, remote, current, title, className }: ChipProps) {
   const Icon = ICONS[kind];
   return (
-    <span className={cx(s.chip, s[kind], current && s.current, className)} title={title ?? name}>
+    // A bisect chip's name *is* its state (`good` / `bad` / `skip`), which is what colours it.
+    <span className={cx(s.chip, s[kind], kind === "bisect" && s[name], current && s.current, className)} title={title ?? name}>
       {Icon && <Icon size={11} aria-hidden />}
       {name}
       {remote && (

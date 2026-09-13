@@ -1,14 +1,28 @@
 /* base.css .section-header */
+/* The band: a header must read heavier than the rows under it, and stay put while they scroll
+   (every one of them is a direct child of the sidebar scroller). */
+.wrap {
+  display: flex;
+  align-items: center;
+  padding-right: var(--space-3);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  flex: none;
+}
 .header {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   height: var(--section-h);
   padding: 0 var(--space-4);
   border: 0;
   background: transparent;
-  color: var(--fg-muted);
+  color: var(--fg);
   font: inherit;
   font-size: var(--text-xs);
   line-height: var(--lh-xs);
@@ -17,7 +31,6 @@
   text-transform: uppercase;
   text-align: left;
   cursor: default;
-  flex: none;
   transition:
     background-color var(--dur) var(--ease),
     color var(--dur) var(--ease);
@@ -35,7 +48,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--fg-muted);
+  color: var(--fg);
   flex: none;
 }
 .header:hover .tw {

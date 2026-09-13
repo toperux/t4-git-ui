@@ -6,8 +6,9 @@ import { CommitDiff } from "../DetailsPane";
 import s from "../DetailsPane.module.css";
 import w from "../RepoWindow.module.css";
 
-/** `Diff — <short> <summary>` for a commit, `Diff — <from>…<to>` for a compare. */
+/** `Diff — <short> <summary>` for a commit, `Diff — <from>…<to>` for a compare, `Diff — stash@{n}` for a preview. */
 function diffTitle(st: RepoStore): string {
+  if (st.preview) return `Diff — stash@{${st.preview.index}}`;
   const compare = selectCompare(st);
   if (compare) return `Diff — ${compare.from.short}…${compare.to.short}`;
   const commit = st.selectedIndex === null ? undefined : st.rows[st.selectedIndex]?.row.commit;

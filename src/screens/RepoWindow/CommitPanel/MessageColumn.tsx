@@ -3,6 +3,7 @@ import { useEffect, useState, type KeyboardEvent } from "react";
 import { Button } from "../../../components/ui/Button/Button";
 import { Checkbox } from "../../../components/ui/Checkbox/Checkbox";
 import { IconButton } from "../../../components/ui/IconButton/IconButton";
+import { Select } from "../../../components/ui/Input/Input";
 import { Menu, MenuItem } from "../../../components/ui/Menu/Menu";
 import { PanelHeader } from "../../../components/ui/PanelHeader/PanelHeader";
 import { cx } from "../../../lib/cx";
@@ -35,11 +36,13 @@ export function MessageColumn({ onExpand, onCommitted, autoFocus }: MessageColum
   const body = useCommitStore((st) => st.body);
   const amend = useCommitStore((st) => st.amend);
   const signoff = useCommitStore((st) => st.signoff);
+  const sign = useCommitStore((st) => st.sign);
   const busy = useCommitStore((st) => st.busy);
   const running = useOpsStore(selectRunning);
   const setSummary = useCommitStore((st) => st.setSummary);
   const setBody = useCommitStore((st) => st.setBody);
   const setSignoff = useCommitStore((st) => st.setSignoff);
+  const setSign = useCommitStore((st) => st.setSign);
   const setAmend = useCommitStore((st) => st.setAmend);
   const useMessage = useCommitStore((st) => st.useMessage);
   const commit = useCommitStore((st) => st.commit);
@@ -163,6 +166,17 @@ export function MessageColumn({ onExpand, onCommitted, autoFocus }: MessageColum
           <Checkbox checked={signoff} onChange={setSignoff} disabled={busy}>
             Add Signed-off-by
           </Checkbox>
+          {/* Three states, because "leave it to `commit.gpgsign`" is not the same answer as "no". */}
+          <Select
+            aria-label="Sign this commit"
+            value={sign === null ? "" : sign ? "on" : "off"}
+            onChange={(e) => setSign(e.target.value === "" ? null : e.target.value === "on")}
+            disabled={busy}
+          >
+            <option value="">Sign: as configured</option>
+            <option value="on">Sign this commit</option>
+            <option value="off">Don't sign this commit</option>
+          </Select>
         </div>
         {noIdentity ? (
           <div className={cx(s.author, s.warn)} role="alert">

@@ -25,6 +25,7 @@ const DETAIL: CommitDetail = {
   message: "Ship it\n",
   committerName: "Ada",
   committerEmail: "ada@x",
+  signed: false,
 };
 
 vi.mock("../../api/ipc", async (importOriginal) => {
@@ -32,11 +33,19 @@ vi.mock("../../api/ipc", async (importOriginal) => {
   return {
     ...actual,
     getCommit: vi.fn(() => Promise.resolve(DETAIL)),
+    getRefs: vi.fn(() => new Promise(() => {})),
+    getLinked: vi.fn(() => Promise.resolve(null)),
+    stashApply: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
+    stashPop: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
+    stashDrop: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     getChangedFiles: vi.fn(() => Promise.resolve([])),
     getFileDiff: vi.fn(() => new Promise(() => {})),
     openDiffTool: vi.fn(() => Promise.resolve("BComp")),
   };
 });
+const ask = vi.hoisted(() => vi.fn((_message: string, _options?: unknown) => Promise.resolve(true)));
+// `open` is the folder picker `actions.ts` imports; the stash buttons pull that module in.
+vi.mock("@tauri-apps/plugin-dialog", () => ({ ask, open: vi.fn() }));
 // jsdom has no ResizeObserver: flatten the resizable layout.
 vi.mock("react-resizable-panels", () => ({
   Group: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -102,6 +111,18 @@ describe("CommitDetails", () => {
     await waitFor(() => expect(queryByText("lw")).toBeNull());
   });
 
+  it("marks a signed commit beside its author, and an unsigned one not at all", async () => {
+    const getCommit = ipc.getCommit as unknown as ReturnType<typeof vi.fn>;
+    const plain = render(<DetailsPane />);
+    await plain.findByText("Ship it");
+    expect(plain.queryByText("signed")).toBeNull();
+    cleanup();
+
+    getCommit.mockResolvedValueOnce({ ...DETAIL, signed: true });
+    const { findByText } = render(<DetailsPane />);
+    expect(await findByText("signed")).toBeTruthy();
+  });
+
   it("clears a failed commit's error once another commit is selected", async () => {
     const later: CommitInfo = { ...DETAIL.info, oid: "b", short: "b", summary: "Later work" };
     useRepoStore.setState({ rows: [ROW, { row: { ...ROW.row, commit: later }, labels: [] }] });
@@ -143,6 +164,55 @@ describe("CompareDetails", () => {
     // Both commits: short SHA and summary, oldest first.
     for (const text of ["b0b0b0b", "Earlier work", "a1a1a1a", "Ship it"]) expect(container.textContent).toContain(text);
     await waitFor(() => expect(ipc.getChangedFiles).toHaveBeenLastCalledWith("r", { kind: "commitRange", from: "b0b0b0b", to: "a1a1a1a" }));
+  });
+});
+
+describe("StashDetails", () => {
+  const STASH = { index: 1, oid: "5tash", message: "WIP on main: panels", baseOid: "a", time: 1_700_000_000, hasUntracked: true };
+
+  it("takes the pane for the previewed stash and loads its own diff target", async () => {
+    (ipc.getChangedFiles as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { path: "new.ts", oldPath: null, status: "added", additions: 1, deletions: 0, binary: false },
+    ]);
+    useRepoStore.setState({ preview: STASH });
+    const { container, findByText, queryByText } = render(<DetailsPane />);
+    expect(await findByText("stash@{1}")).toBeTruthy();
+    expect(queryByText("Commit")).toBeNull();
+    expect(container.textContent).toContain("WIP on main: panels");
+    // The base commit it was stashed off, and the untracked half it carries.
+    expect(container.textContent).toContain("On");
+    expect(container.textContent).toContain("Untrackedincluded");
+    await waitFor(() => expect(ipc.getChangedFiles).toHaveBeenLastCalledWith("r", { kind: "stash", oid: "5tash" }));
+  });
+
+  it("applies, pops and drops the entry it is showing", async () => {
+    useRepoStore.setState({ preview: STASH });
+    const { findByRole, getByRole } = render(<DetailsPane />);
+    fireEvent.click(await findByRole("button", { name: "Apply" }));
+    await waitFor(() => expect(ipc.stashApply).toHaveBeenCalledWith("r", 1));
+    fireEvent.click(getByRole("button", { name: "Pop" }));
+    await waitFor(() => expect(ipc.stashPop).toHaveBeenCalledWith("r", 1));
+    fireEvent.click(getByRole("button", { name: "Drop…" }));
+    await waitFor(() => expect(ask).toHaveBeenCalledWith(expect.stringContaining("Drop stash@{1}"), expect.objectContaining({ title: "Drop stash" })));
+  });
+
+  it("opens the browser from its header", async () => {
+    useRepoStore.setState({ preview: STASH });
+    const { findByRole } = render(<DetailsPane />);
+    fireEvent.click(await findByRole("button", { name: "Open browser" }));
+    expect(useDialogStore.getState().dialog).toEqual({ kind: "stashes" });
+  });
+
+  it("keeps the preview across a refresh that still has the entry, and drops it once it is gone", async () => {
+    useRepoStore.setState({ preview: STASH, repo: { id: "r", name: "r", path: "/r", head: { oid: "a", branch: "main", detached: false } } });
+    const moved = { ...STASH, index: 0 };
+    (ipc.getRefs as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ...refs([]), stashes: [moved] });
+    await act(() => useRepoStore.getState().refreshRefs());
+    expect(useRepoStore.getState().preview).toEqual(moved);
+
+    (ipc.getRefs as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ...refs([]), stashes: [] });
+    await act(() => useRepoStore.getState().refreshRefs());
+    expect(useRepoStore.getState().preview).toBeNull();
   });
 });
 

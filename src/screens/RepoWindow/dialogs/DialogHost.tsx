@@ -20,6 +20,7 @@ import {
 import { AddRemoteDialog, RemoveRemoteDialog, RenameRemoteDialog, SetRemoteUrlDialog } from "./RemoteDialogs";
 import { RunCommandDialog } from "./RunCommandDialog";
 import { StashDialog, StashPushDialog } from "./StashDialogs";
+import { StashesDialog } from "./StashesDialog";
 import { AddWorktreeDialog, LockWorktreeDialog, RemoveWorktreeDialog } from "./WorktreeDialogs";
 
 export function DialogHost() {
@@ -102,6 +103,8 @@ function renderDialog(dialog: DialogSpec, close: () => void): ReactNode {
       return <StashPushDialog onClose={close} />;
     case "stash":
       return <StashDialog onClose={close} index={dialog.index} message={dialog.message} />;
+    case "stashes":
+      return <StashesDialog onClose={close} />;
     case "checkout":
       return <CheckoutDialog onClose={close} />;
   }

@@ -11,6 +11,9 @@ import { RevisionGrid } from "./RevisionGrid";
 vi.mock("../../../api/ipc", () => ({
   getLogPage: vi.fn(() => new Promise(() => {})),
   getStatus: vi.fn(() => new Promise(() => {})),
+  // The row menus reach `actions`, which reaches `commitStore`: a repo state of "merge" prefills the
+  // editor from git's own message, and that asks for it.
+  getMergeMessage: vi.fn(() => Promise.resolve(null)),
   toAppError: (e: unknown) => ({ kind: "unknown", message: String(e) }),
 }));
 
@@ -211,6 +214,23 @@ describe("RevisionGrid", () => {
     expect(useRepoStore.getState().wtSelected).toBe(false);
   });
 
+  it("draws a bisect mark as its own chip, coloured by the mark", () => {
+    const labels: LogRow["labels"] = (["bad", "skip"] as const).map((name) => ({ name, kind: "bisect" as const, isCurrent: false, remote: null }));
+    useRepoStore.setState({
+      repo: { id: "r", name: "r", path: "r", head: { oid: "oid0", branch: "main", detached: false } },
+      refs: null,
+      log: { generation: 1, total: 1, complete: true, error: null, flat: false },
+      rows: [row(0, "Under test", labels)],
+      selectedIndex: 0,
+    });
+
+    const { getByText } = render(<RevisionGrid />);
+    // The name is the state, so it carries the colour class as well as the kind's (CSS-module hashed).
+    expect(getByText("bad").className).toMatch(/_bisect_/);
+    expect(getByText("bad").className).toMatch(/_bad_/);
+    expect(getByText("skip").className).not.toMatch(/_bad_|_good_/);
+  });
+
   it("shows the working-tree pseudo-row first while the tree is dirty; commits shift by one", () => {
     useRepoStore.setState({
       repo: { id: "r", name: "r", path: "r", head: { oid: "oid0", branch: "main", detached: false } },
@@ -274,6 +294,8 @@ describe("RevisionGrid", () => {
       "Rebase main onto feature…",
       "Cherry-pick oid1…",
       "Revert oid1…",
+      "Bisect: mark good",
+      "Bisect: mark bad",
       "Reset main to origin/main…",
       "Reset stale to origin/renamed…",
       "Create branch here…",
@@ -316,6 +338,8 @@ describe("RevisionGrid", () => {
       "Rebase main onto origin/new…",
       "Cherry-pick oid2…",
       "Revert oid2…",
+      "Bisect: mark good",
+      "Bisect: mark bad",
       "Create branch here…",
       "Create tag here…",
       "Copy SHA",

@@ -466,6 +466,7 @@ pub async fn commit(
     message: String,
     amend: bool,
     signoff: bool,
+    sign: Option<bool>,
 ) -> Result<String, AppError> {
     let (app, state) = (&app, state.inner());
     mutate(
@@ -485,7 +486,7 @@ pub async fn commit(
                 .tempfile()
                 .and_then(|f| std::fs::write(f.path(), message.as_bytes()).map(|_| f))
                 .map_err(GitError::from)?;
-            let args = commit::commit_args(file.path(), amend, signoff);
+            let args = commit::commit_args(file.path(), amend, signoff, sign);
             let args: Vec<&str> = args.iter().map(String::as_str).collect();
             let run = run_git_op(
                 app,

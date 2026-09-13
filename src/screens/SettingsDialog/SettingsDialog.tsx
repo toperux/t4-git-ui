@@ -19,6 +19,7 @@ import { toastError } from "../../store/toastStore";
 import { useUpdateStore } from "../../store/updateStore";
 import pkg from "../../../package.json";
 import s from "./SettingsDialog.module.css";
+import { SigningSection } from "./SigningSection";
 import { ToolSection } from "./ToolSection";
 
 export function SettingsDialog({ onClose }: { onClose: () => void }) {
@@ -233,6 +234,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
 
       <ToolSection kind="diff" />
       <ToolSection kind="merge" />
+      <SigningSection />
 
       <section className={s.section}>
         <h3 className={s.head}>Updates</h3>

@@ -3,9 +3,10 @@
 import { create } from "zustand";
 import * as ipc from "../api/ipc";
 import { toAppError } from "../api/ipc";
-import type { CommitInfo, LinkedSnapshot, LogFilter, LogProgress, LogRow, RefsSnapshot, RemoteTag, RepoSummary, RevSpec } from "../api/types";
+import type { CommitInfo, LinkedSnapshot, LogFilter, LogProgress, LogRow, RefsSnapshot, RemoteTag, RepoSummary, RevSpec, Stash } from "../api/types";
 import { kvGet, kvSet } from "../lib/kv";
 import { baseName } from "../lib/paths";
+import { pick } from "../lib/pick";
 import { toastError, useToastStore } from "./toastStore";
 
 export const PAGE_SIZE = 500;
@@ -48,6 +49,12 @@ export interface RepoStore {
    * indexes: a walk restart re-finds the anchor by oid and may move indexes, the oids stay valid.
    */
   compare: { from: CommitInfo; to: CommitInfo } | null;
+  /**
+   * The stash the details pane is showing instead of the selected commit, exclusive with `compare`
+   * the way `compare` is with the plain selection. A refs refresh re-finds it by oid (a drop shifts
+   * every index) and clears it once the entry is gone.
+   */
+  preview: Stash | null;
   /** Scroll request for the grid; `seq` bumps so the same index can be revealed twice. */
   reveal: { index: number; seq: number } | null;
 
@@ -70,6 +77,8 @@ export interface RepoStore {
   /** Ctrl+click on a row: the second commit of a compare, or off again; a plain select when there is nothing to compare with. */
   compareWith(index: number): void;
   selectWorkingTree(on?: boolean): void;
+  /** Shows `stash` in the details pane (`null` = back to the selected row). */
+  previewStash(stash: Stash | null): void;
   /**
    * Selects the row for `oid` (loading pages as needed) and asks the grid to scroll to it;
    * `false` when the current walk has no such row (filtered out, or never fetched).
@@ -253,6 +262,7 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
     selectedIndex: null,
     wtSelected: false,
     compare: null,
+    preview: null,
     reveal: null,
 
     setGitVersion: (gitVersion) => set({ gitVersion }),
@@ -261,7 +271,6 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
       set({ opening: baseName(path) });
       try {
         const repo = await ipc.openRepo(path);
-        const prev = get().repo;
         startSeq++;
         resetPages();
         pendingSelect = null;
@@ -277,11 +286,9 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
           selectedIndex: null,
           wtSelected: false,
           compare: null,
+          preview: null,
           reveal: null,
         });
-        // One repository at a time: the backend keeps a handle and a watcher per open repo, so the
-        // one being left is closed (its events were filtered out by id anyway).
-        if (prev && prev.id !== repo.id) ipc.closeRepo(prev.id).catch(() => undefined);
         // The spinner waits for the grid only: on a large repository the refs snapshot queues
         // behind the status scan, and the sidebar tolerates `refs === null` (it says so).
         await get().startLog({ kind: "all" }, {});
@@ -304,7 +311,7 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
       startSeq++;
       resetPages();
       pendingSelect = null;
-      set({ repo: null, refs: null, linked: null, remoteTags: {}, log: EMPTY_LOG, rows: [], selectedIndex: null, wtSelected: false, compare: null, reveal: null });
+      set({ repo: null, refs: null, linked: null, remoteTags: {}, log: EMPTY_LOG, rows: [], selectedIndex: null, wtSelected: false, compare: null, preview: null, reveal: null });
       await ipc.closeRepo(repo.id);
     },
 
@@ -312,7 +319,12 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
       const { repo } = get();
       if (!repo) return;
       const refs = await ipc.getRefs(repo.id);
-      if (get().repo?.id === repo.id) set({ refs });
+      // The previewed stash is re-found by oid — a drop (here or in a terminal) shifts every index —
+      // and the preview goes only when the entry itself is gone.
+      if (get().repo?.id === repo.id) {
+        const preview = get().preview;
+        set({ refs, ...(preview ? { preview: refs.stashes.find((st) => st.oid === preview.oid) ?? null } : {}) });
+      }
       // Not awaited: it opens a repository per worktree, and neither that wait nor a broken
       // worktree link may hold up (or fail) the branch list.
       void ipc
@@ -419,21 +431,25 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
     },
 
     // The anchor is always one of the compared commits, so every write that moves it drops the pair.
-    select: (selectedIndex) => set({ selectedIndex, wtSelected: false, compare: null }),
+    // Picking a row is also the way back out of a stash preview.
+    select: (selectedIndex) => set({ selectedIndex, wtSelected: false, compare: null, preview: null }),
 
     compareWith: (index) =>
       set((s) => {
         const ai = s.wtSelected ? null : s.selectedIndex;
         const other = s.rows[index]?.row.commit;
         const anchor = ai === null ? undefined : s.rows[ai]?.row.commit;
-        if (!other || !anchor || ai === null) return { selectedIndex: index, wtSelected: false, compare: null };
-        if (other.oid === anchor.oid || s.compare?.from.oid === other.oid || s.compare?.to.oid === other.oid) return { compare: null };
+        if (!other || !anchor || ai === null) return { selectedIndex: index, wtSelected: false, compare: null, preview: null };
+        if (other.oid === anchor.oid || s.compare?.from.oid === other.oid || s.compare?.to.oid === other.oid) return { compare: null, preview: null };
         // A third commit replaces the pair. The selected commit is the base: the diff is what the
         // Ctrl+clicked one changed relative to it, whichever of the two is older.
-        return { compare: { from: anchor, to: other } };
+        return { compare: { from: anchor, to: other }, preview: null };
       }),
 
-    selectWorkingTree: (on = true) => set({ wtSelected: on, compare: null }),
+    selectWorkingTree: (on = true) => set({ wtSelected: on, compare: null, preview: null }),
+
+    // Exclusive with a compare pair, which would otherwise come back when the preview clears.
+    previewStash: (preview) => set(preview ? { preview, compare: null } : { preview }),
 
     async revealOid(oid) {
       // Two passes at most: a `startLog` during the page fetch leaves the index pointing into a walk
@@ -449,7 +465,7 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
         if (after.repo?.id !== repo.id) return false;
         if (after.log.generation !== log.generation) continue;
         // Revealing a commit moves the selection off the working-tree row (and out of the commit panel).
-        set((st) => ({ selectedIndex: index, wtSelected: false, compare: null, reveal: { index, seq: (st.reveal?.seq ?? 0) + 1 } }));
+        set((st) => ({ selectedIndex: index, wtSelected: false, compare: null, preview: null, reveal: { index, seq: (st.reveal?.seq ?? 0) + 1 } }));
         return true;
       }
       return false;
@@ -468,6 +484,24 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
     },
   };
 });
+
+/**
+ * What a background tab keeps of this store: everything but `gitVersion`, which belongs to the app
+ * rather than to a repository. One list, beside the fields themselves — see `tabsStore`.
+ */
+const SNAPSHOT_KEYS = ["repo", "refs", "linked", "remoteTags", "spec", "filter", "log", "rows", "selectedIndex", "wtSelected", "compare", "preview", "reveal"] as const;
+
+export type RepoSnapshot = Pick<RepoStore, (typeof SNAPSHOT_KEYS)[number]>;
+
+export const snapshot = (): RepoSnapshot => pick(useRepoStore.getState(), SNAPSHOT_KEYS);
+
+export function restore(s: RepoSnapshot) {
+  // The page bookkeeping describes the tab being left; activation restarts the walk (`refreshAll`),
+  // which is what fills the pages again.
+  resetPages();
+  pendingSelect = null;
+  useRepoStore.setState(s);
+}
 
 /** Clears the module-level page bookkeeping so tests don't leak state into each other. */
 export function __resetForTests() {
@@ -490,6 +524,7 @@ export function __resetForTests() {
     selectedIndex: null,
     wtSelected: false,
     compare: null,
+    preview: null,
     reveal: null,
   });
 }

@@ -3,6 +3,7 @@
 // The live state stays where it already lives — the diff defaults are pushed into `diffStore`, and
 // the theme is read/written through `theme/theme.ts`, so it is deliberately absent here.
 import { create } from "zustand";
+import { emitSettingsChanged } from "../api/events";
 import * as ipc from "../api/ipc";
 import { toAppError } from "../api/ipc";
 import type { Tool, ToolKind, Tools } from "../api/types";
@@ -23,6 +24,9 @@ export type SidebarFolders = "expanded" | "collapsed" | "auto";
 
 /** Anything but the three modes (a corrupt kv value) reads as today's behaviour. */
 const asFolders = (v: unknown): SidebarFolders => (v === "collapsed" || v === "auto" ? v : "expanded");
+
+/** The stored whitespace preference the last `load()` read, so a reload can be told from a change. */
+let lastSeen: boolean | null = null;
 
 /** A folder with no refs is still a folder: the threshold starts at 1. */
 export const clampFoldersMax = (n: number): number => (Number.isFinite(n) ? Math.min(MAX_FOLDERS_MAX, Math.max(1, Math.round(n))) : DEFAULT_FOLDERS_MAX);
@@ -58,7 +62,11 @@ export interface SettingsStore {
   clearGitError(): void;
 }
 
-const persist = (key: string, value: unknown) => kvSet(key, value).catch((e: unknown) => console.warn(`kv: could not persist "${key}"`, e));
+// Written, then announced: a window told before the store landed would read the old value.
+const persist = (key: string, value: unknown) =>
+  kvSet(key, value)
+    .then(emitSettingsChanged)
+    .catch((e: unknown) => console.warn(`kv: could not persist "${key}"`, e));
 
 export const useSettingsStore = create<SettingsStore>()((set) => ({
   diffContext: DEFAULT_CONTEXT,
@@ -98,7 +106,13 @@ export const useSettingsStore = create<SettingsStore>()((set) => ({
     });
     // Nothing is loaded yet at startup, so seeding the diff store needs no reload.
     useDiffStore.getState().setContext(diffContext);
-    useDiffStore.setState({ ignoreWhitespace });
+    // `settings://changed` reloads this in every window after any kv write, and the open diff may
+    // have been toggled for this session alone — that toggle survives a reload that changed nothing.
+    // A preference that really moved (in this window or another) is what reaches the diff.
+    if (lastSeen !== ignoreWhitespace) {
+      lastSeen = ignoreWhitespace;
+      useDiffStore.setState({ ignoreWhitespace });
+    }
   },
 
   setDiffContext(n) {
@@ -152,6 +166,8 @@ export const useSettingsStore = create<SettingsStore>()((set) => ({
   async setTool(kind, tool) {
     await ipc.setTool(kind, tool);
     set((st) => ({ tools: { ...st.tools, [kind]: tool } }));
+    // The tools live in the global git config rather than the kv store, so they announce themselves.
+    emitSettingsChanged();
   },
 
   clearGitError: () => set({ gitError: null }),

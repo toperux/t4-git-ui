@@ -5,9 +5,10 @@ mod state;
 pub use error::AppError;
 pub use state::AppState;
 
+use std::sync::atomic::Ordering;
 use std::sync::Mutex;
 
-use tauri::{Manager, RunEvent};
+use tauri::{AppHandle, Manager, RunEvent, WindowEvent};
 use tauri_plugin_store::StoreExt;
 use tauri_plugin_window_state::StateFlags;
 use tracing_subscriber::EnvFilter;
@@ -72,15 +73,22 @@ fn shutdown_logging(app: &tauri::AppHandle) {
 /// localStorage.
 const KV_STORE: &str = "recents.json";
 
-/// Match the native window background to the theme before first paint so a
-/// light-theme user doesn't see a dark flash (the window starts hidden, see
-/// `visible: false` in `tauri.conf.json`, and is shown once the color is set).
-/// The stored preference wins, as in `index.html`; else the OS theme.
+/// Window title before a repository is open; `useWindowTitle` owns it after that.
+pub(crate) const APP_TITLE: &str = "T4 Git";
+
 fn init_window_background(app: &tauri::App) {
+    if let Some(win) = app.get_webview_window("main") {
+        show_with_theme(&app.handle().clone(), &win);
+    }
+}
+
+/// Match the native window background to the theme before first paint so a
+/// light-theme user doesn't see a dark flash (a window starts hidden, see
+/// `visible: false` in `tauri.conf.json` and in `spawn_window`, and is shown
+/// once the color is set). The stored preference wins, as in `index.html`; else
+/// the OS theme.
+pub(crate) fn show_with_theme(app: &AppHandle, win: &tauri::WebviewWindow) {
     use tauri::window::Color;
-    let Some(win) = app.get_webview_window("main") else {
-        return;
-    };
     // Missing / unreadable store or no preference: follow the OS.
     let stored = app
         .store(KV_STORE)
@@ -102,7 +110,29 @@ fn init_window_background(app: &tauri::App) {
         tracing::warn!(error = %e, "failed to set window background color");
     }
     if let Err(e) = win.show() {
-        tracing::warn!(error = %e, "failed to show main window");
+        tracing::warn!(label = win.label(), error = %e, "failed to show the window");
+    }
+}
+
+/// A window has gone: it takes its tabs' claims on the open repositories with
+/// it (so a closed or crashed window never leaks a handle or a watcher), and
+/// its layout entry — unless the app is quitting, when every window is being
+/// closed and all of them are to come back next launch.
+fn on_window_destroyed(app: &AppHandle, label: &str) {
+    let state = app.state::<AppState>();
+    state.pending().remove(label);
+    for id in state.release_all(label) {
+        commands::repo::drop_repo(&state, &id);
+    }
+    if state.exiting.load(Ordering::Relaxed) {
+        return;
+    }
+    let mut layouts = state.layouts();
+    layouts.remove(label);
+    // The last window closing *is* the quit, and `ExitRequested` only comes
+    // after this: leave the file as that window last wrote it.
+    if app.webview_windows().keys().any(|l| l != label) {
+        commands::window::write_layouts(&commands::window::layout_file(app), &layouts);
     }
 }
 
@@ -114,9 +144,13 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         // Don't let window-state re-show the window before `init_window_background` runs
         // (the window starts hidden; a restored VISIBLE flag would cause a theme flash).
+        // `main` only: the plugin restores a frame on *creation*, which would
+        // snap a torn-off window to wherever that label last stood instead of
+        // leaving it where `spawn_window` put it.
         .plugin(
             tauri_plugin_window_state::Builder::new()
                 .with_state_flags(StateFlags::all() & !StateFlags::VISIBLE)
+                .with_filter(|label| label == "main")
                 .build(),
         )
         .plugin(tauri_plugin_clipboard_manager::init())
@@ -139,6 +173,15 @@ pub fn run() {
             commands::app::set_git_path,
             commands::update::check_for_update,
             commands::update::install_update,
+            commands::window::spawn_window,
+            commands::window::take_pending,
+            commands::window::set_layout,
+            commands::window::take_layout,
+            commands::window::quit,
+            commands::window::window_origin,
+            commands::window::drag_over,
+            commands::window::drag_cancel,
+            commands::window::drop_tab,
             commands::repo::open_repo,
             commands::repo::close_repo,
             commands::repo::get_refs,
@@ -190,6 +233,8 @@ pub fn run() {
             commands::ops::revert,
             commands::ops::cherry_pick_abort,
             commands::ops::revert_abort,
+            commands::ops::bisect_mark,
+            commands::ops::bisect_reset,
             commands::ops::checkout,
             commands::ops::reset,
             commands::ops::reset_branch,
@@ -197,6 +242,7 @@ pub fn run() {
             commands::ops::stash_apply,
             commands::ops::stash_pop,
             commands::ops::stash_drop,
+            commands::ops::stash_clear,
             commands::ops::delete_remote_branch,
             commands::ops::run_git,
             commands::ops::create_branch,
@@ -216,16 +262,28 @@ pub fn run() {
             commands::ops::delete_tag,
             commands::ops::get_config,
             commands::ops::set_config,
+            commands::ops::get_signing,
+            commands::ops::set_signing,
             commands::ops::get_default_remote,
             commands::ops::remote_tags,
             commands::ops::clone_repo,
             commands::ops::init_repo
         ])
+        .on_window_event(|window, event| {
+            if let WindowEvent::Destroyed = event {
+                on_window_destroyed(&window.app_handle().clone(), window.label());
+            }
+        })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|app, event| {
-            if let RunEvent::Exit = event {
-                shutdown_logging(app);
-            }
+        .run(|app, event| match event {
+            // Quitting with windows still open: they are all to come back, so
+            // their `Destroyed` events must not take them off the layout.
+            RunEvent::ExitRequested { .. } => app
+                .state::<AppState>()
+                .exiting
+                .store(true, Ordering::Relaxed),
+            RunEvent::Exit => shutdown_logging(app),
+            _ => {}
         });
 }

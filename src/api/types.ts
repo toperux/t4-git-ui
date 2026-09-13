@@ -25,8 +25,25 @@ export type AppErrorKind =
   | "staleGeneration"
   /** The repo id names no open repository (normal after a close). */
   | "notOpen"
+  /** Another window has the repository open; it was focused, so the caller does nothing. */
+  | "openElsewhere"
   | "internal"
   | "unknown";
+
+/** What one window has open (`src-tauri/src/commands/window.rs`): repository paths, and the active one. */
+export interface Layout {
+  tabs: string[];
+  active: string;
+}
+
+/** Where this window's content starts on the virtual screen, for turning a pointer position into a screen point. */
+export interface WindowOrigin {
+  x: number;
+  y: number;
+  scale: number;
+  /** False when the platform won't say where the window is (Wayland): dropping a tab on another window is off there. */
+  exact: boolean;
+}
 
 export interface AppError {
   kind: AppErrorKind | string;
@@ -76,7 +93,7 @@ export interface GraphRow {
   maxLane: number;
 }
 
-export type RefKind = "head" | "local" | "remote" | "tag" | "stash";
+export type RefKind = "head" | "local" | "remote" | "tag" | "stash" | "bisect";
 
 export interface RefLabel {
   /** Short name (`main`, `origin/main`, `v1.0`, `stash@{0}`, `HEAD`). */
@@ -170,6 +187,12 @@ export interface Stash {
   index: number;
   oid: string;
   message: string;
+  /** First parent: the commit the changes were stashed off. */
+  baseOid: string;
+  /** Committer time of the stash commit (seconds). */
+  time: number;
+  /** `stash -u` / `-a`: the untracked files are kept in a third parent. */
+  hasUntracked: boolean;
 }
 
 export type RepoState = "clean" | "merge" | "rebase" | "cherryPick" | "revert" | "bisect";
@@ -187,6 +210,17 @@ export interface ConflictSides {
   theirs: string;
 }
 
+/** Which end of the range a `git bisect` mark names. */
+export type BisectTerm = "good" | "bad" | "skip";
+
+/** The marks a bisect has collected (`refs/bisect/*`): the banner's counts, and the grid's chips. */
+export interface BisectRefs {
+  /** `null` until a bad commit is marked. */
+  bad: string | null;
+  good: string[];
+  skip: string[];
+}
+
 export interface RefsSnapshot {
   head: HeadInfo;
   state: RepoState;
@@ -196,6 +230,8 @@ export interface RefsSnapshot {
   remotes: Remote[];
   tags: Tag[];
   stashes: Stash[];
+  /** Set while a bisect is running. Optional for the same reason as `conflictSides`. */
+  bisect?: BisectRefs | null;
 }
 
 // --- linked.rs ---
@@ -239,7 +275,24 @@ export interface CommitDetail {
   message: string;
   committerName: string;
   committerEmail: string;
+  /** The commit carries a signature. Presence only — nothing is verified. */
+  signed: boolean;
 }
+
+// --- config.rs ---
+
+/** The six keys of `config::SIGNING_KEYS`, in the order the Signing section shows them. */
+export const SIGNING_KEYS = ["gpg.format", "user.signingkey", "commit.gpgsign", "tag.gpgsign", "gpg.program", "gpg.ssh.program"] as const;
+
+export type SigningKey = (typeof SIGNING_KEYS)[number];
+
+/** One signing key: its effective value, and whether the repository's own config is what sets it. */
+export interface SigningEntry {
+  value: string | null;
+  local: boolean;
+}
+
+export type SigningConfig = Record<SigningKey, SigningEntry>;
 
 // --- src-tauri/src/commands/app.rs ---
 
@@ -308,7 +361,9 @@ export type DiffTarget =
   | { kind: "commitRange"; from: string; to: string }
   | { kind: "staged" }
   | { kind: "unstaged" }
-  | { kind: "workdir" };
+  | { kind: "workdir" }
+  /** What a stash commit holds, its untracked files (`stash -u`) included. */
+  | { kind: "stash"; oid: string };
 
 export type DiffLineKind = "context" | "add" | "del";
 
