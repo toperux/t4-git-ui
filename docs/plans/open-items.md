@@ -39,6 +39,20 @@ the README's "Next" line (review item H4). Nothing here is scheduled yet — pic
   sidebar-folder collapse setting (#2), issue forms (#1) and the toast focus return; review
   pass 3 over the new code (18 fixes, 4 residuals). Record:
   `docs/archive/plans/2026-09-12-files-blame-history.md`; blame and file history leave §C.
+- Shipped 2026-09-13, after v0.7.0 (`647d7f1..`, plan `docs/archive/plans/2026-09-13-linked-checkouts.md`):
+  **worktrees and submodules** as two sidebar sections — list / Open-in-this-window / Add / Remove
+  with a force re-offer / Prune / Lock / Unlock, "Create worktree here…" on a branch row; Open /
+  Update for submodules, and status no longer excludes them, so a moved pointer is a change (Discard
+  is disabled for it). Walked 2026-09-13 as groups AO / AP against
+  `docs/smoke/fixtures/linked-fixture.sh`, all rows passed (one Discard-beside-a-file row left for a
+  hand walk); four review passes over the batch closed thirty-seven findings (`7bdda90`, `b4245c0`,
+  `ffb59d8`, `418e313` — the last a scoped pass over the third), re-walked, plus the `.gitmodules`
+  watcher gap (`81ee1f1`); Linux gates green under WSL. Known limits: an app-side rewrite of
+  `.gitmodules` (discarding it) leaves the Submodules list until the next refs event (`watch.rs`
+  ponytail note); a conflicted gitlink's diff pane reports *a submodule pointer has no file to
+  compare* rather than the two pointers (its ours / theirs items still resolve it); the other
+  dialogs still close on `runOp`'s busy short-circuit (a `ran` flag on `runOp` is the fix if it
+  ever bites). Both leave §C.
 - Sources this list replaces: `docs/archive/plans/2026-08-31-git-ui-v1-plan.md` › Known gaps (kept there as the v1
   record, not updated further), `docs/archive/reviews/2026-09-01-codebase-review.md` › Triage rows marked
   defer/later, README › Status / roadmap.
@@ -123,9 +137,11 @@ The rest needs machines we do not have:
   Revisit only if Tauri's pin starts carrying something this app does call.
 
 ## C. Roadmap — v1 out-of-scope, unchanged, unscheduled
-Submodules · worktrees · bisect · GPG config UI · custom
-titlebar (revisited in M6, native kept) · multi-repo tabs (state is already keyed by `RepoId`) ·
-i18n · plugins.
+Bisect (`RepoState::Bisect` and a button-less banner already exist) · GPG config UI (signing
+already works — commits run through the CLI; this is only a Settings section over `config.rs`) ·
+custom titlebar (revisited in M6, native kept) · multi-repo tabs (state is already keyed by
+`RepoId`; a worktree's or submodule's **Open** becomes "open in a tab" then) · i18n · plugins.
+~~Submodules · worktrees~~ — shipped 2026-09-13, see the Context bullet.
 
 ## D. Small UI observations from the 2026-09-05 walks — done 2026-09-05
 Collected in `docs/archive/walks/2026-09-05-v1-smoke-rewalk.md` (Observations) and the re-walk chat. All

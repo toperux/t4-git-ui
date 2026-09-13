@@ -15,6 +15,8 @@ the script now also makes the `conflict` branch (H), `topic/nested` and `origin/
 working tree with `src/a.txt` + `src/lib/b.txt` edited, `deep/one/two/z.txt` untracked, `gone.txt`
 deleted and a CRLF hunk in `crlf-hunks.txt` (E, F, G). Tick as you go; note anything surprising
 with the group letter and bullet number. `docs/smoke/smoke-cdp.md` is how the walks were scripted.
+Groups AO and AP use their own repository, `C:\tmp\t4\linked`, built by
+`docs/smoke/fixtures/linked-fixture.sh` (worktrees beside it under `linked-wt\`, two submodules).
 
 ---
 
@@ -1365,6 +1367,166 @@ covered by their tests; these are the ones only a window shows._
       *Preselect on both tabs* and *Chip × keeps the selection* pass on `5b024f9`; F16 in a window
       (path + a search that matches nothing → *No matching commits*); the diff viewer's region
       Shift+Tabs out to **Ignore whitespace**; the diff dialog's file list stops at 200px, header inside
+
+## AO. Worktrees (main §2)
+_Fixture: `docs/smoke/fixtures/linked-fixture.sh` → open `C:\tmp\t4\linked`. It has four linked
+worktrees under `C:\tmp\t4\linked-wt\`: `feature` (dirty), `newbr`, `locked` (on `topic`, reason
+"keep for the walk") and `gone` (on `spare`, directory deleted). The sidebar shows the section
+only when a repository has more than one worktree, so `work` never shows it.
+Walked 2026-09-13 over CDP on a `--no-bundle` release build of `027cb59`; every row below passed,
+four were reworded to what the app does (marked ※). The review fixes (`7bdda90`) changed the rows
+marked † — re-walked 2026-09-13 on a release build of `7bdda90`; all pass. A second review pass
+(`b4245c0`) added the rows marked ‡, walked 2026-09-13 on a release build of `81ee1f1`._
+
+- [x] **The section**: sidebar › **Worktrees (5)** after Stashes; rows `linked` with `main` and
+      `current` badges (selected), then `feature`, `gone` (`spare`, `prunable` — the branch comes from its admin HEAD, the directory is gone †), `locked` (`topic`, `locked` — hover
+      the badge for the reason), `newbr`; each row's meta is its branch; hover a row → the full path
+- [x] **Row click** on `feature` → the grid reveals `feature`'s tip; click on `linked` → nothing
+- [x] **Open**: right-click `newbr` → **Open** → the window switches to `C:\tmp\t4\linked-wt\newbr`
+      (title `T4 Git - newbr`), the section now marks `newbr` as `current`, `linked` keeps `main`;
+      Repository › the recents list has `newbr`; **Open** on the current row and on `gone` is disabled
+      with the reason in the tooltip. Open `linked` again from the row (or recents) before going on
+- [x] **Create worktree here…** on branch row `feature` → disabled, *Already checked out in a
+      worktree*; after Prune (below) drops `gone`: right-click `spare` → **Create worktree here…** →
+      the Add dialog opens with Branch `spare` preselected, Folder name `linked-spare`, preview
+      `git worktree add --end-of-options c:\tmp\t4\linked-spare spare`; Cancel
+- [x] **Add worktree (new branch)** †: Repository › **Add worktree…** → Parent folder is
+      `c:\tmp\t4`, Branch is empty — every branch is out somewhere (`spare` in the gone `gone`
+      included) — with *Every branch is already checked out somewhere — create a new one*, so the
+      dialog opens on **Create a new branch**; clear Parent folder → it turns invalid and **Add**
+      greys; restore it; New branch `fix`, Start point `HEAD`, Folder name follows: `linked-fix`,
+      help *Adds c:\tmp\t4\linked-fix*; preview
+      `git worktree add -b fix --end-of-options c:\tmp\t4\linked-fix HEAD`; **Add** → toast
+      *Worktree added*, row `linked-fix` on `fix` appears without a refresh
+      **Create a new branch** → New branch `fix`, Start point `HEAD`, Folder name follows:
+      `linked-fix`, help *Adds C:\tmp\t4\linked-fix*; preview
+      `git worktree add -b fix --end-of-options C:\tmp\t4\linked-fix HEAD`; **Add** → toast
+      *Worktree added*, row `linked-fix` on `fix` appears without a refresh
+- [x] **Add without checkout**: same dialog, untick **Check out the files** → preview gains
+      `--no-checkout` right after `add`; Cancel
+- [x] **Remove refused, then forced**: right-click `feature` → **Remove…** → text names the path
+      and says the branch stays; **Remove** → the dialog comes back with git's reason (`contains
+      modified or untracked files`) and the button reads **Force remove**, preview
+      `git worktree remove --force …`; **Force remove** → toast, the row is gone, branch `feature`
+      still in the Branches section
+- [x] **Remove disabled** † on `linked` (*The main working tree stays*), on the current row, and on
+      `locked` (*Unlock it first*) — Unlock sits one item above
+- [x] **Lock / Unlock**: right-click `newbr` → **Lock…** → Reason `on a USB stick` → preview
+      `git worktree lock --reason 'on a USB stick' --end-of-options …` → **Lock** → row gains
+      `locked`, tooltip shows the reason, its **Remove…** is now disabled †; right-click → **Unlock**
+      → badge gone. `locked` → **Unlock** → gone; **Lock…** with an empty reason → preview without
+      `--reason`
+- [x] **Prune**: right-click the **Worktrees** header (or Shift+F10 on it) → **Prune** → output
+      dock shows `Removing worktrees/gone: gitdir file points to non-existent location`, toast
+      *Worktrees pruned*, the `gone` row disappears
+- [x] **Branch checked out elsewhere**: Branches › right-click `topic` (out in `locked`) → **Delete…**
+      → error toast *Deleting topic failed — Cannot delete branch 'refs/heads/topic' as it is the
+      current HEAD of a linked repository*, the branch stays. (The Delete dialog stays open behind the
+      toast on a non-`refused` failure — pre-existing, not this batch.)
+- [x] **From a linked worktree** ※: **Open** on `newbr` → title `T4 Git - newbr`, the section
+      still lists `linked` (`main`, no longer `current`) and every sibling, `newbr` is `current`;
+      Submodules shows both as `not initialized` (a fresh worktree has the gitlinks, no checkouts);
+      status bar `Clean`; **Open** on the `linked` row brings the window back
+- [x] **Terminal add**: with `linked` open, add a worktree from a terminal
+      (`git -C C:/tmp/t4/linked worktree add -b tmp C:/tmp/t4/linked-wt/tmp`) → the row appears
+      within a second (the watcher sees `.git/worktrees`); remove it the same way → the row goes
+- [x] **Detached and prunable** ‡: write `spare`'s oid into `.git\worktrees\gone\HEAD` (no `ref:`
+      line) → the `gone` row reads `detached` + `prunable`; clicking it (or the branch form of the
+      row) still selects the commit in the graph — the branch is resolved through the shared refdb
+- [x] **Force that still fails** ‡: **Remove…** on `feature` → refused → before **Force remove**,
+      lock it from a terminal (`git worktree lock …/feature`) → **Force remove** → the dialog closes,
+      error toast *Removing the worktree failed — fatal: cannot remove a locked working tree, lock
+      reason: …*, the row now shows `locked`. (A lock + unlock inside one second from a terminal
+      leaves no event for the watcher — nothing to show either.)
+- [x] **Broken `.gitmodules`** ‡: make it unparsable (`[submodule "sub"` without the `]`) → on
+      the next refs event the Worktrees section is unchanged, the Submodules section is gone, no
+      toast (one `WARN` in the log); status still runs. Restore the file → the section is back
+      within a second (`81ee1f1`: a `.gitmodules` edit counts as a refs change)
+
+## AP. Submodules (main §2, §4)
+_Same fixture. `sub` is checked out one commit behind the recorded pointer with `dirty.txt`
+untracked inside it; `sub2` is registered in `.gitmodules` but its checkout was removed
+(`git submodule deinit`), its module directory kept — on git ≥ 2.38.1 a **file-path** submodule
+that was never cloned cannot be cloned by Update at all (`transport 'file' not allowed`; the clone
+runs in a child that reads no config), which is a git default, not an app limit. Real ones use
+https / ssh. Walked 2026-09-13 with AO._
+
+- [x] **The section**: sidebar › **Submodules (2)** after Worktrees; `sub` with its recorded
+      pointer (`f5fb488`-style short oid) and `sub2` with the same plus a `not initialized` badge;
+      hover a row → the source url
+- [x] **In the change list**: `sub` sits in Unstaged as **modified**; select it → the diff is one
+      hunk, `-Subproject commit <recorded>` / `+Subproject commit <checkout>-dirty`; the Files tab
+      shows `sub` as a submodule row (mode `160000`, one-line content)
+- [x] **Stage / unstage the pointer** ※: stage `sub` → it appears in Staged (diff: the same two
+      lines without `-dirty`) **and stays in Unstaged**, because the checkout is still dirty — git's
+      *modified content*; unstage → Staged empties. `dirty.txt` inside `sub` never appears in
+      `linked`'s list — it is `sub`'s own change
+- [x] **No Discard on it** †: right-click `sub` in Unstaged → **Discard…** is disabled, tooltip
+      *A conflict is resolved by keeping a side and a submodule by updating it, not discarded* — the
+      same treatment a conflicted row gets; the Delete key does nothing either (no prompt); the diff
+      shows no Stage / Discard hunk or line buttons on the `Subproject commit` hunk
+- [x] **Discard beside a file** ※: select `sub` together with an edited `a.txt` → right-click →
+      **Discard 2 files…** with the tooltip *… not discarded (1 skipped)* — the label counts the
+      selection, the tooltip what is skipped, the same as a conflicted row in the group; the native
+      *Delete files* prompt → **Discard** → `a.txt` reverts, `sub` stays modified. **Stage 2 files**
+      beside it carries *Content changed inside the submodule … (1 skipped)* when `sub` is
+      dirty-only
+- [x] **Dirty only** † (reached through Update below, which puts the pointer back while
+      `dirty.txt` stays): `sub` still shows **modified** with a `content` tag, diff
+      `-Subproject commit <same>` / `+Subproject commit <same>-dirty`; right-click → **Stage** is
+      disabled, *Content changed inside the submodule — commit there, or Update it*; Enter and
+      **Stage all** walk past it — git's *modified content*, which `git add` cannot stage either
+- [x] **Update one** ※: right-click `sub` → **Update** → toast *Updated sub*, output dock
+      `git submodule update --init --recursive --progress -- sub` / *checked out '6104eaf…'*; the
+      pointer is back on the recorded commit — `sub` stays listed only because `dirty.txt` is
+      untouched (its diff is now the dirty-only one above)
+- [x] **Update all**: right-click the **Submodules** header → **Update all** → toast *Submodules
+      updated*, `sub2` is checked out from its kept module directory and its `not initialized`
+      badge goes
+- [x] **Open**: right-click `sub` → **Open** → title `T4 Git - sub`, a detached-HEAD banner at
+      `6104eaf` with *Checkout main*, `origin` under Remotes, no Worktrees / Submodules sections;
+      Repository › `linked` brings the window back. (**Open** disabled on a `not initialized` row —
+      *update it first* — is by the same `disabled`/`title` pair as the worktree rows; not clicked)
+- [x] **Pointer staged, checkout dirty** ‡: stage the moved `sub` → Staged has `sub` (the pointer
+      move, `+1 −1`, no `content` tag, its **−** live); Unstaged still has `sub` with `content` and
+      its own **+** disabled with the dirty-only tooltip; neither row's diff header offers **Open in
+      diff tool** (a gitlink is a directory)
+- [x] **Mixed skip wording** ‡: with a conflicted `c.txt` (a merge in progress) beside it, **Stage
+      all** reads *Conflicted files are staged one by one, once resolved (1 skipped)* while `sub`'s
+      pointer is stageable, *Conflicted files and submodules with unmoved pointers are skipped (2
+      skipped)* once the pointer is staged, and *Every file here is either conflicted or a
+      submodule with an unmoved pointer* (disabled) when those two are all that is left
+- [x] **Nested path** ‡: a `vendor/lib` submodule → row `vendor/lib`; **Open** → title
+      `T4 Git - lib`, recents holds `c:\tmp\t4\linked\vendor\lib` (the repo's separator, not the
+      `.gitmodules` slash); Repository › `linked` brings the window back
+- [x] **Junction discard** ‡ (main §4): `mklink /J link C:\tmp\t4\linked-src` inside `linked` → one
+      untracked row `link` (not its contents); Delete → prompt → **Delete** → the link is gone and
+      `linked-src` untouched (`remove_dir` on the reparse point)
+- [x] **Ordinary repositories unchanged**: `t4-git-ui` itself at launch → Local / Remotes / Tags /
+      Stashes only, no Worktrees or Submodules section; its change list as before. E/F/G core
+      re-walked on `work` 2026-09-13 (`81ee1f1`): tree toggle + folder collapse, folder / row
+      **+** and **−**, the unstaged and staged row menus, **Discard hunk** and a two-line **Delete**
+      through the native prompt (the CRLF file keeps every CR), staged side offers only
+      **Unstage hunk** — all as before
+- [x] **Big submodule** ‡: a 15k-file initialized submodule with a moved pointer and a dirty file
+      (`c:\tmp\t4\perf`) → status ≈30 ms warm, the linked read ≈6 ms; nothing near the 250 ms
+      `slow status` line
+- [x] **Nested Update** ‡: right-click `vendor/lib` → **Update** → toast *Updated vendor/lib*, dock
+      `git submodule update --init --recursive --progress -- vendor/lib`
+- [x] **UNC and long paths** ‡ (AO Add): Parent folder `\\localhost\c$\tmp\t4` → preview and
+      **Add** work, the row's tooltip is `//localhost/c$/tmp/t4/linked-clash`, **Open** on it lands
+      there with the row `current` (the id normalizes the share too), **Remove…** from `linked`
+      drops it; a 306-character parent → git's own *fatal: could not create leading directories*
+      as a toast, the dialog closes, nothing added
+- [x] **`--separate-git-dir` main** ‡: open the linked worktree of a repo whose `.git` is a
+      `gitdir:` file → no Worktrees section (the main cannot be derived from the common dir, so it
+      is skipped and the list is one row), no toast
+- [x] **Stale recent** ‡: Repository › a removed worktree still in More recent → toast *Couldn't
+      open repository — not a git repository: …*, the window stays where it was
+- [x] **Linux gates** ‡: the whole batch under WSL Ubuntu — fmt, clippy `-D warnings`, cargo
+      (154 in git-core, the unix-only stage tests included), tsc, vitest 753 — all green; the
+      WebKitGTK build links. Not walked in the Linux app: the WSLg window sat behind the live
+      desktop and the driver sends input to whatever is focused (see `smoke-cdp.md`)
 
 ## Reporting
 

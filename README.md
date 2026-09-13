@@ -121,8 +121,10 @@ Since then: seven releases (v0.1.0 through **v0.7.0**), cherry-pick / revert and
 from a commit row, in-app updates — the app checks GitHub for a newer release and installs it on
 Windows, macOS and the AppImage, pointing `.deb` and `.rpm` users at their package manager instead —
 and, in 0.7.0, a Files tab listing the whole revision with a content view, line blame and a
-file-history filter on the graph.
+file-history filter on the graph. Since 0.7.0: worktrees and submodules in the sidebar — open one
+in the window, add / remove / lock a worktree, update a submodule — and a moved submodule pointer
+shows as a change.
 
 What is still open — deferred features, verification that needs other machines, the three
-suggestions filed as issues (all three shipped in 0.7.0), and the longer roadmap (submodules,
-worktrees, multi-repo tabs, …) — is listed in one place: `docs/plans/open-items.md`.
+suggestions filed as issues (all three shipped in 0.7.0), and the longer roadmap (bisect, multi-repo
+tabs, …) — is listed in one place: `docs/plans/open-items.md`.

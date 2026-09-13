@@ -1,5 +1,7 @@
 # Plan: linked checkouts — worktrees + submodules
 
+**Executed and walked 2026-09-13** (`647d7f1`, `45cc34e`, `85ae7fd`, `027cb59`; smoke groups AO / AP).
+
 ## Context
 
 Two roadmap rows from `docs/plans/open-items.md` §C share one shape (a list of other checkouts

@@ -51,8 +51,11 @@ while the app is closed.
 - Run git command: `input[aria-label="Git command"]`, `[role="listbox"][aria-label="Completions"]`;
   the dock is `input[aria-label="Run git command"]` + `[role="log"][aria-label="Command output"]`.
 - Toasts: `[role="alert"]` (errors) / `[role="status"]` (the rest) with `Dismiss` / `Remove from
-  list` buttons. A toast can cover what you want to click — dismiss first. The status bar is a
-  `[role="status"]` too — match toasts by their text, not by role alone.
+  list` buttons. A toast can cover what you want to click — dismiss first, through its own button
+  or by waiting it out. Never `el.remove()` a toast: React still owns the node, and its later
+  unmount throws `removeChild` on a node that is gone, which blanks the whole window (seen
+  2026-09-13; a reload recovers). The status bar is a `[role="status"]` too — match toasts by
+  their text, not by role alone.
 - Clipboard: never `navigator.clipboard.readText()` from the script — WebView2 raises a permission
   prompt in a second tab that CDP can neither answer nor close, and the call hangs. The `Copied …`
   toast carries the copied text as its detail; read that instead.
