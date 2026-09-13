@@ -11,9 +11,9 @@
 # dirty-but-clean-merging as a CONTROL row (proves the refusal is about the
 # selection, not the whole list).
 #
-# Undo with docs/ad7-teardown.sh. Everything it creates is deleted there.
+# Undo with docs/smoke/fixtures/ad7-teardown.sh. Everything it creates is deleted there.
 #
-# Unlike docs/irebase-fixture.sh this does NOT set a repo-local identity: it
+# Unlike docs/smoke/fixtures/irebase-fixture.sh this does NOT set a repo-local identity: it
 # commits into `work`, which smoke-fixtures.ps1 already built with one. If those
 # commits ever fail asking for user.email, that is why -- set it on the repo, not
 # globally.
@@ -80,5 +80,5 @@ Walk:
        git -C C:/tmp/t4/work diff --cached --name-only
        git -C C:/tmp/t4/work ls-files -u      # the 2 must still show 3 stages each
 
-Teardown: bash docs/ad7-teardown.sh
+Teardown: bash docs/smoke/fixtures/ad7-teardown.sh
 NOTE

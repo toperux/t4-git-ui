@@ -1,6 +1,6 @@
 # Smoke test — features shipped after v1 acceptance
 
-Companion to `docs/smoke-test.md` (the v1 walkthrough, accepted 2026-09-01). Every check below is a
+Companion to `docs/smoke/smoke-test.md` (the v1 walkthrough, accepted 2026-09-01). Every check below is a
 feature that landed afterwards. The ticks are the record, as in the main doc: ticked = walked and
 passed in its last walk (the 2026-09-05 CDP walks; G2 under WSLg), unticked = never walked here or
 changed since and needs a retest. Each group
@@ -8,13 +8,13 @@ names the section of the main walkthrough it belongs to, so it can be run on its
 (B, C and H check out / merge / rebase, which the fixture's dirty tree refuses: start them with
 `git stash -u`, or walk E/F/G first and discard).
 
-Same setup as the main doc: the `docs/smoke-fixtures.ps1` repos under `C:\tmp\t4` (§0 there), a
+Same setup as the main doc: the `docs/smoke/fixtures/smoke-fixtures.ps1` repos under `C:\tmp\t4` (§0 there), a
 dev run or the installed release. Rebuild the fixture with `-Force` if yours predates 2026-09-03:
 the script now also makes the `conflict` branch (H), `topic/nested` and `origin/topic/on-origin`
 (A), the `nested folders` commit with `examples/exclude/schema/` and `src/` (E), and leaves the
 working tree with `src/a.txt` + `src/lib/b.txt` edited, `deep/one/two/z.txt` untracked, `gone.txt`
 deleted and a CRLF hunk in `crlf-hunks.txt` (E, F, G). Tick as you go; note anything surprising
-with the group letter and bullet number. `docs/smoke-cdp.md` is how the walks were scripted.
+with the group letter and bullet number. `docs/smoke/smoke-cdp.md` is how the walks were scripted.
 
 ---
 
@@ -199,7 +199,7 @@ _Shipped 2026-09-02: `8b8102a`._
       relaunch → every value survives
 
 ## K. Review fixes of 2026-09-06 (main §2, §4, §5, §6)
-_Shipped 2026-09-06: `a5a0a6b` (`docs/reviews/2026-09-06-codebase-review.md`). K5, K9 and K10 need
+_Shipped 2026-09-06: `a5a0a6b` (`docs/archive/reviews/2026-09-06-codebase-review.md`). K5, K9 and K10 need
 a merge in progress: run them right after H1's merge, before its abort. K3 to K8 start from the
 dirty fixture tree. K13 last: it leaves the fixture needing a `-Force` rebuild; K14 is order-free. `git config
 core.commentChar` is set and unset inside K10 alone._
@@ -396,7 +396,7 @@ _Shipped 2026-09-06 (this commit); walked the same day over CDP._
       opens a diff window; the no-target case is unit-tested, the grid always selects a row on load)
 
 ## R. External diff and merge tools (main §5, §6)
-_Shipped 2026-09-06 (this commit); walked the same day over CDP (Locate… is the native picker — the path was typed instead; KDiff3 is not installed here, so its merge entry pointed at BComp.exe). The Linux sentence in the first step was walked on a WebKitGTK build under WSLg the same day (`docs/plans/2026-09-05-full-rewalk.md` has the setup): a Custom tool whose command is `cat "$LOCAL" "$REMOTE" > /tmp/out && echo done >> /tmp/out` ran through sh, the temp dir carried the uid, no zombie was left, and a missing program toasted `t4-nope not found`._
+_Shipped 2026-09-06 (this commit); walked the same day over CDP (Locate… is the native picker — the path was typed instead; KDiff3 is not installed here, so its merge entry pointed at BComp.exe). The Linux sentence in the first step was walked on a WebKitGTK build under WSLg the same day (`docs/archive/walks/2026-09-05-full-rewalk.md` has the setup): a Custom tool whose command is `cat "$LOCAL" "$REMOTE" > /tmp/out && echo done >> /tmp/out` ran through sh, the temp dir carried the uid, no zombie was left, and a missing program toasted `t4-nope not found`._
 
 - [x] **Pick a diff tool** (§6): Settings (toolbar gear) → **Diff tool** → the Select offers None,
       the ten templates and Custom; pick **Beyond Compare** → the path fills with
@@ -794,12 +794,12 @@ header jog, last bullet) and one check that this fixture cannot reach (second-to
       are *all* conflicted. `git merge conflict` yields exactly one (`conflict.txt`) — confirm with
       `git merge-tree --write-tree HEAD conflict` before trying — so the stock fixture cannot reach
       it. Rather than reshape the fixture's history, build two throwaway branches off `main` that
-      change the **same two files** differently and merge them: **`docs/ad7-setup.sh`** does it
-      (`tc-a`, `tc-b` → `hunks.txt` + `nonl.txt` both `UU`), and **`docs/ad7-teardown.sh`** puts
+      change the **same two files** differently and merge them: **`docs/smoke/fixtures/ad7-setup.sh`** does it
+      (`tc-a`, `tc-b` → `hunks.txt` + `nonl.txt` both `UU`), and **`docs/smoke/fixtures/ad7-teardown.sh`** puts
       `work` back to `A decoy.txt` on `reset-me`. Both guard before they act — the setup refuses
       unless `work` is at its resting state, the teardown is safe to run twice and from a
       half-finished setup. (They were written in a session scratchpad on 2026-09-11 and committed on
-      2026-09-12, for the reason `docs/irebase-fixture.sh` exists: a fixture recipe that lives only
+      2026-09-12, for the reason `docs/smoke/fixtures/irebase-fixture.sh` exists: a fixture recipe that lives only
       in a scratchpad is gone by the next walk.) Walked 2026-09-11:
       selecting only the two conflicted rows flipped the header to **Stage selected**,
       `disabled: true`, titled "Every file here is conflicted — a conflict is staged on its own, once
@@ -809,7 +809,7 @@ header jog, last bullet) and one check that this fixture cannot reach (second-to
       case: the selection is refused while the list around it still holds stageable files. This
       scenario now reads "Every file **you selected** is conflicted — …", and "here" survives only
       for a whole list with nothing stageable in it — which has no cover at all, unit or smoke (see
-      R5 in `docs/plans/2026-09-12-review-findings.md`). Everything else this box asserts — the
+      R5 in `docs/archive/plans/2026-09-12-review-findings.md`). Everything else this box asserts — the
       refusal, the `(2 skipped)` re-enable, the untracked control — is unaffected by that commit and
       still stands. Re-walk the tooltip half on the next build that reaches this fixture. Then adding `crlf.txt` to the selection re-enabled it with the
       "(2 skipped)" title, and clicking it staged `crlf.txt` **only**: `git diff --cached --stat`
@@ -832,7 +832,7 @@ header jog, last bullet) and one check that this fixture cannot reach (second-to
       padding one. No test can stand in for this: jsdom has no layout, so the suite cannot see a
       `min-width` — it has to be measured in a real build.
       **The floor has since been found to have two costs this measurement could not see** (2026-09-12
-      review, R2 and R3 in `docs/plans/2026-09-12-review-findings.md`). It is paid entirely by the
+      review, R2 and R3 in `docs/archive/plans/2026-09-12-review-findings.md`). It is paid entirely by the
       panel title, which is the only flexible item in the header, and it is paid *most* in the resting
       `Stage all` state — 112px against a 63px label — so the title ellipsizes first at a narrow
       panel. And while the button is disabled-and-titled it is wrapped by `DisabledHint`, whose
@@ -1022,7 +1022,7 @@ _**Fixture first.** These want `c:/tmp/t4/irebase` in the shape group Z's preamb
 it — that is the point of it — so it is drifted more often than not: the 2026-09-07 walk left
 `add e (reworded)` and `e and s1 together (rewalk reword)` behind, and this one consumed it twice
 more. `smoke-fixtures.ps1` builds `work` only and never touched this one, so 2026-09-11 added
-**`docs/irebase-fixture.sh`**: it wipes and rebuilds the whole shape, including `mid` / `side` /
+**`docs/smoke/fixtures/irebase-fixture.sh`**: it wipes and rebuilds the whole shape, including `mid` / `side` /
 `other` and the resting dirty state (` M a.txt`, `A dirty.txt`), with a repo-local identity so
 `~/.gitconfig` is never involved. Run it before the group and again between boxes that rewrite
 history. It opens with `rm -rf`, so **point the app at another repository first** — a wipe under an
@@ -1135,7 +1135,7 @@ _**Why this needs a walk at all.** The unit tests already cover the rule (`lib/f
 the no-drop / no-re-walk / row-stays case (`statusStore.test.ts`) and the stale autostash
 (`dialogs.test.tsx`). What they cannot cover is the thing that made this worth holding back from the
 review fixes: the two `statusStore` callers decide **when the walk restarts** and **when a selection
-is dropped**, in a real app, against a real status arriving late. Fixture: `docs/irebase-fixture.sh`
+is dropped**, in a real app, against a real status arriving late. Fixture: `docs/smoke/fixtures/irebase-fixture.sh`
 for the conflicting-rebase path — it opens with `rm -rf`, so point the app at another repository
 first._
 
@@ -1346,7 +1346,7 @@ a text filter even when the file is modified (plan §3's edge case, not kept in 
 
 ## AN. Review pass 3 fixes (main §2, §3)
 _Walked 2026-09-13 over CDP in `c:/tmp/t4/work` on a release build of `5b024f9`, after the pass-3
-fixes (`docs/plans/2026-09-12-consolidated-findings.md`, F1–F18). The store and backend rows are
+fixes (`docs/archive/plans/2026-09-12-consolidated-findings.md`, F1–F18). The store and backend rows are
 covered by their tests; these are the ones only a window shows._
 
 - [x] **Blame toggle on a truncated file** (F8): blame on → `big diff` → Files → `big.txt` (note

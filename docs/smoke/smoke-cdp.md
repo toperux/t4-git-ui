@@ -81,11 +81,11 @@ focus the target the way a real mouse does, so focus checks are meaningful; jsdo
 ## Native dialogs
 
 `ask()` boxes (Discard, Resolve conflict, Abort merge…) are Win32 message boxes the page cannot
-see. `docs/smoke-dialog.ps1` lists them and clicks a button by label:
+see. `docs/smoke/fixtures/smoke-dialog.ps1` lists them and clicks a button by label:
 
 ```powershell
-pwsh -File docs/smoke-dialog.ps1                                      # what is open
-pwsh -File docs/smoke-dialog.ps1 -Title "Resolve conflict" -Button Replace
+pwsh -File docs/smoke/fixtures/smoke-dialog.ps1                                      # what is open
+pwsh -File docs/smoke/fixtures/smoke-dialog.ps1 -Title "Resolve conflict" -Button Replace
 ```
 
 Poll for the box rather than assume timing: start a loop that retries the script every half
@@ -95,10 +95,10 @@ reliable for this — the keys reported as sent and the box stayed; `BM_CLICK` o
 
 ## Fixture and cleanup
 
-`docs/smoke-fixtures.ps1 -Force` rebuilds `C:\tmp\t4\{bare.git,work,other}`; the app follows the
+`docs/smoke/fixtures/smoke-fixtures.ps1 -Force` rebuilds `C:\tmp\t4\{bare.git,work,other}`; the app follows the
 rebuild through its watcher, but close it first if the rebuild hangs on a locked file. Delete any
 `.playwright-mcp/` directory the MCP server leaves in the repo before committing. Steps that pass
-are ticked in the two smoke docs; findings go into a dated file under `docs/plans/`.
+are ticked in the two smoke docs; findings go into a dated file under `docs/archive/walks/`.
 
 The Linux-only steps were walked on a WebKitGTK build under WSLg — see the "Not walked" section of
-`docs/plans/2026-09-05-full-rewalk.md` for that setup.
+`docs/archive/walks/2026-09-05-full-rewalk.md` for that setup.

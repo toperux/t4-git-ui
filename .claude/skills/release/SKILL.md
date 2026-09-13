@@ -62,7 +62,7 @@ run instead of a version number.
    ```
 
 2. **Bump.** Edit `Cargo.toml` and `package.json`, then `cargo check` and `npm install` to
-   pull the two lock files along. Update the version in `docs/smoke-test.md` too — it names
+   pull the two lock files along. Update the version in `docs/smoke/smoke-test.md` too — it names
    the installer path and the start-screen header.
 
 3. **Commit the bump alone**, subject `Bump the version to x.y.z`, body summarising what
@@ -122,7 +122,7 @@ run instead of a version number.
   resets every Mac user's folder grants. Fix and re-run the macOS job; the tag stays.
 - **`Stage the artifacts` says `no bundle matched`.** The bundle path moved. Add a `find`
   step above it, read the real path off the log, and fix `bundle_dir` in the matrix and in
-  `docs/plans/ci-alignment.md`.
+  `docs/archive/plans/ci-alignment.md`.
 
 ## Checking the packaging without spending a version
 

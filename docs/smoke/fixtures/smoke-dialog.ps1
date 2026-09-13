@@ -3,8 +3,8 @@
 # button by its label with BM_CLICK. Sending keys with WScript.Shell is unreliable here — the dialog
 # is up while the page's click is still being dispatched — so click the button directly.
 #
-#   pwsh -File docs/smoke-dialog.ps1                                  # list open dialogs
-#   pwsh -File docs/smoke-dialog.ps1 -Title "Resolve conflict" -Button Replace
+#   pwsh -File docs/smoke/fixtures/smoke-dialog.ps1                                  # list open dialogs
+#   pwsh -File docs/smoke/fixtures/smoke-dialog.ps1 -Title "Resolve conflict" -Button Replace
 param([string]$Title = "", [string]$Button = "")
 Add-Type @'
 using System; using System.Text; using System.Runtime.InteropServices; using System.Collections.Generic;

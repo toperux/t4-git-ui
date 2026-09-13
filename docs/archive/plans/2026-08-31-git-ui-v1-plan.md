@@ -166,7 +166,7 @@ From the real-window walkthrough: opening a large repo showed only the 14px stat
 - **Right-click outside a custom menu showed the webview's own menu** (Reload / Save as / Print — browser chrome in an app window). Suppressed app-wide from `App` via `lib/nativeMenu.ts`, except in editable fields and on selected `.selectable` text, where it is the only mouse route to cut/copy/paste. Tauri 2.11 exposes no switch for this: wry has `with_default_context_menus`, but tauri-runtime-wry never calls it — and the JS rule is better anyway, since it can be selective and also covers WebKitGTK/macOS. File rows still have no menu of their own (Stage/Discard/Copy path would be the natural set) — noted, not done.
 
 ### Known gaps / deferred (v1 ships with these)
-_Kept as the v1 record. The live list of open items is `2026-09-02-next-plan.md`._
+_Kept as the v1 record. The live list of open items is `open-items.md`._
 
 **Not implemented — needs a new backend command**
 - Hunk-/line-level **Discard**: needs reverse-apply-to-workdir; only file-level `discard_paths` exists. No button is rendered for it (the disabled placeholders were removed in the review pass).
@@ -180,7 +180,7 @@ _Kept as the v1 record. The live list of open items is `2026-09-02-next-plan.md`
 - Linux watcher: the workdir is watched recursively including ignored dirs (filtered at debounce time), so `max_user_watches` can bite on huge trees; watcher failure degrades to a warning + manual refresh.
 
 **v1 accepted (2026-09-01)**
-- ~~The smoke test is still the gate.~~ `docs/smoke-test.md` §0–§7 was walked end to end on Windows against the `docs/smoke-fixtures.ps1` fixture, finishing at `397efa2`. Every finding from it is fixed and folded into the sections above (tag target, tag annotations, push / delete-on-remote tag ops, Fetch split button, repo-menu guard while an op runs, dock height, …).
+- ~~The smoke test is still the gate.~~ `docs/smoke/smoke-test.md` §0–§7 was walked end to end on Windows against the `docs/smoke/fixtures/smoke-fixtures.ps1` fixture, finishing at `397efa2`. Every finding from it is fixed and folded into the sections above (tag target, tag annotations, push / delete-on-remote tag ops, Fetch split button, repo-menu guard while an op runs, dock height, …).
 - ~~`.github/workflows/{ci,release}.yml` have never executed.~~ The repo is on GitHub (`toperux/t4-git-ui`, private); `ci.yml` is green on ubuntu / windows / macos since `4ebfb60`, after three real fixes it forced (`cargo fmt`, inotify `Access` events leaking through the watcher, `core.autocrlf=true` breaking byte-comparing tests on Windows). `release.yml` has not run yet — no `v*` tag pushed.
 - ~~The two published design canvases are one palette behind~~ — republished 2026-08-31 from the post-M6 artboards (`--syn-*` tokens included); both keep their original URLs (see A1/A2 above).
 

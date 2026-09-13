@@ -275,7 +275,7 @@ every row are in the sections below, keyed by the same id.
       `FilesColumn.tsx:56-58,102`. *X8*: after a partial "Stage selected" (3 conflicted of 5), the
       surviving conflicted selection keeps the header in selected mode with `target = []` — "Stage
       selected" disabled, "Every file you selected is conflicted" — while stageable files remain and
-      the whole-list action is unreachable until a single click. `docs/smoke-test-post-v1.md:772`'s
+      the whole-list action is unreachable until a single click. `docs/smoke/smoke-test-post-v1.md:772`'s
       claim that the re-seed restores the label is false when survivors remain. *R10*: the inverse —
       a selection shrinking to 1 silently promotes the button to "Stage all" with the whole tree as
       payload. **Decide one rule** (e.g. drop the conflicted survivors from the selection after a

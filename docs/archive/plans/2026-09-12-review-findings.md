@@ -119,7 +119,7 @@ passing. That is the point of several of these findings — **green gates are wh
       **Reachability:** needs an operation to start while the menu is already open, then an item
       click. Settle it by starting a slow fetch with the Branch menu open and clicking an item.
       **Worth fixing regardless of the race:** this is the same class of bug as the
-      `> button:first-of-type` selector that resolved to Pull (see `docs/smoke-cdp.md`) — naming an
+      `> button:first-of-type` selector that resolved to Pull (see `docs/smoke/smoke-cdp.md`) — naming an
       element by position when a wrapper can appear between. Hold a ref instead.
 
 - [x] **R7 — The staged side's missing conflict filter is defended by unsound reasoning.** CONFIRMED.

@@ -1,7 +1,7 @@
 # Plan: commit panel ↔ commit window parity
 
 Executed and walked 2026-09-12 (results at the end). Findings are from reading the code; the "verify" column
-says what to confirm in the running app before/while fixing (CDP recipe, `docs/smoke-cdp.md`,
+says what to confirm in the running app before/while fixing (CDP recipe, `docs/smoke/smoke-cdp.md`,
 needs the app relaunched with the debug port).
 
 ## How the two surfaces relate

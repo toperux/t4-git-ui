@@ -1,4 +1,4 @@
-// Interactive rebase: git writes the todo, this dialog edits it, git replays it (docs/plans/2026-09-07-interactive-rebase.md).
+// Interactive rebase: git writes the todo, this dialog edits it, git replays it (docs/archive/plans/2026-09-07-interactive-rebase.md).
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { useEffect, useState, type KeyboardEvent } from "react";
 import * as ipc from "../../../api/ipc";

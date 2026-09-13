@@ -1,6 +1,6 @@
 # Plan: interactive rebase — reorder, reword, squash, fixup, drop, edit, in a dialog
 
-_Status: shipped 2026-09-07 as planned; smoke group Z in `docs/smoke-test-post-v1.md` is the walk record._
+_Status: shipped 2026-09-07 as planned; smoke group Z in `docs/smoke/smoke-test-post-v1.md` is the walk record._
 
 ## Decisions taken (2026-09-07)
 
@@ -174,11 +174,11 @@ after any rebase-family op the backend checks the repository state, not just the
      with amend placement, update-ref stripping), `dialogs.test.tsx` (dirty notice → read call
      with autostash; Flatten re-reads; submit payload), `banners.test.ts`, `RevisionGrid.test.tsx`
      (item present / hidden for a root commit and off a clean state), `opsStore.test.ts` (paused toast).
-6. **Docs**: `docs/smoke-test-post-v1.md` group **Z** (reorder + reword + squash + drop on `work`,
+6. **Docs**: `docs/smoke/smoke-test-post-v1.md` group **Z** (reorder + reword + squash + drop on `work`,
    an `edit` stop → amend in the commit panel → Continue, a conflict → resolve → Continue, Skip,
    Abort, dirty tree with the notice, a merge in range kept vs flattened, `--update-refs` moving a
    side branch, the branch path through the Rebase dialog); `docs/design/style-guide.md` dialog
-   list; `src/README.md` dialog + store notes; `docs/plans/2026-09-02-next-plan.md` roadmap line.
+   list; `src/README.md` dialog + store notes; `docs/plans/open-items.md` roadmap line.
 
 ## Not in this change
 

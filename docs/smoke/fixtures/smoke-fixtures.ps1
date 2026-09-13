@@ -1,9 +1,9 @@
-# Builds the repositories docs/smoke-test.md section 0 needs, in one command:
+# Builds the repositories docs/smoke/smoke-test.md section 0 needs, in one command:
 #
-#   pwsh -File docs/smoke-fixtures.ps1            # into C:\tmp\t4
-#   pwsh -File docs/smoke-fixtures.ps1 -Force     # rebuild it from scratch
-#   pwsh -File docs/smoke-fixtures.ps1 D:\t4      # somewhere else
-#   pwsh -File docs/smoke-fixtures.ps1 -RemotesOnly   # add the extra remotes to a fixture that
+#   pwsh -File docs/smoke/fixtures/smoke-fixtures.ps1            # into C:\tmp\t4
+#   pwsh -File docs/smoke/fixtures/smoke-fixtures.ps1 -Force     # rebuild it from scratch
+#   pwsh -File docs/smoke/fixtures/smoke-fixtures.ps1 D:\t4      # somewhere else
+#   pwsh -File docs/smoke/fixtures/smoke-fixtures.ps1 -RemotesOnly   # add the extra remotes to a fixture that
 #                                                     # predates them, keeping everything else
 #
 # It makes three things:
@@ -14,7 +14,7 @@
 #             300-file commit for the section 7 checks, branches sitting on commits
 #             for the section 5 context-menu checks, hunks.txt modified in the
 #             working tree, in three hunks, for the staging checks, and the data the
-#             post-v1 checklist (docs/smoke-test-post-v1.md) names: a `conflict`
+#             post-v1 checklist (docs/smoke/smoke-test-post-v1.md) names: a `conflict`
 #             branch, nested branch names, a folder-chain commit, a CRLF file with a
 #             working-tree hunk, a deleted and an untracked file
 #   other     a second clone of bare.git, for the divergence checks in section 5
@@ -203,7 +203,7 @@ Invoke-Git -C $work push -q origin solo
 Invoke-Git -C $work switch -q main
 Invoke-Git -C $work branch --delete --force solo | Out-Null
 
-# docs/smoke-test-post-v1.md needs a few more things:
+# docs/smoke/smoke-test-post-v1.md needs a few more things:
 #   conflict              changes conflict.txt one way while main changes it the other, so merging
 #                         it conflicts (group H and section 5's merge) and so does rebasing it onto
 #                         main - the ours / theirs labels are checked in both directions

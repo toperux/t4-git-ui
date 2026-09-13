@@ -1,6 +1,6 @@
 # v1 smoke test re-walk (2026-09-05)
 
-`docs/smoke-test.md` §1–§7 walked again in the installed build that carries the post-v1 fixes
+`docs/smoke/smoke-test.md` §1–§7 walked again in the installed build that carries the post-v1 fixes
 (`33eb514`, `306109a`), on a fresh fixture, driven over CDP. Nothing here is fixed yet; the list is
 for a go/no-go on each item.
 
@@ -96,6 +96,6 @@ progress line was never visible either), and the two large-repo performance chec
 
 ## Cleanup done
 
-Fixture rebuilt with `pwsh -File docs/smoke-fixtures.ps1 -Force`; `C:\tmp\t4\clones` and
+Fixture rebuilt with `pwsh -File docs/smoke/fixtures/smoke-fixtures.ps1 -Force`; `C:\tmp\t4\clones` and
 `.playwright-mcp/` deleted; `work` unpinned again. The walk removed the `other` entry from the
 recents list (the renamed-folder check) — it comes back the next time it is opened.

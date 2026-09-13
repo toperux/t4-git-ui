@@ -5,7 +5,7 @@ it folds together the v1 plan's "Known gaps", the 2026-09-01 codebase review's d
 the README's "Next" line (review item H4). Nothing here is scheduled yet — pick from it._
 
 ## Context
-- v1 is accepted on Windows (`docs/smoke-test.md` walked end to end on 2026-09-01), CI green on
+- v1 is accepted on Windows (`docs/smoke/smoke-test.md` walked end to end on 2026-09-01), CI green on
   three OSes, everything the walkthrough and the review found is fixed.
 - Since acceptance (2026-09-02): commit context-menu checkout/reset, graph column sized to the
   rows in view, remote branch folders, `merged` badges, branch names set apart in the commit menu,
@@ -21,14 +21,14 @@ the README's "Next" line (review item H4). Nothing here is scheduled yet — pic
   the open path: the watcher's file-id cache dropped (§A P4, gone from the list — the seed walk cost
   2.7 s on a 61k-file tree), labels off a history-free ref snapshot on their own `Repository`, the
   spinner waiting for the grid instead of the sidebar, and INFO timing lines on the five phases.
-  Also 2026-09-07: interactive rebase (`docs/plans/2026-09-07-interactive-rebase.md`) — git
+  Also 2026-09-07: interactive rebase (`docs/archive/plans/2026-09-07-interactive-rebase.md`) — git
   generates the todo, a dialog edits it, messages go through `exec git commit --amend -F`;
   dropped from §C below.
 - Shipped 2026-09-08 → 09-10, after this list was last accurate: **v0.1.4** carried the interactive
   rebase work and twelve review fixes. Then **in-app updates** (`954830a`, released as **0.5.0**) —
   `tauri-plugin-updater` behind two app commands, a `latest.json` manifest the `publish` job writes
   from the per-platform `.sig` files, an Update badge on the start screen and toolbar, and an Updates
-  section in Settings; walked as group AC in `docs/smoke-test-post-v1.md`. Alongside it: a security
+  section in Settings; walked as group AC in `docs/smoke/smoke-test-post-v1.md`. Alongside it: a security
   policy (`SECURITY.md`), third-party actions pinned to commits, and `release.yml` defaulted to
   read-only with `publish` the only job granted write. Five releases are published (v0.1.0, v0.1.2,
   v0.1.3, v0.1.4, v0.5.0) and the procedure now lives in `.claude/skills/release/SKILL.md`, so §B's
@@ -38,9 +38,9 @@ the README's "Next" line (review item H4). Nothing here is scheduled yet — pic
   history** as a path filter on the grid (`git log --follow`), the recents submenu (#3), the
   sidebar-folder collapse setting (#2), issue forms (#1) and the toast focus return; review
   pass 3 over the new code (18 fixes, 4 residuals). Record:
-  `docs/plans/2026-09-12-files-blame-history.md`; blame and file history leave §C.
-- Sources this list replaces: `2026-08-31-git-ui-v1-plan.md` › Known gaps (kept there as the v1
-  record, not updated further), `docs/reviews/2026-09-01-codebase-review.md` › Triage rows marked
+  `docs/archive/plans/2026-09-12-files-blame-history.md`; blame and file history leave §C.
+- Sources this list replaces: `docs/archive/plans/2026-08-31-git-ui-v1-plan.md` › Known gaps (kept there as the v1
+  record, not updated further), `docs/archive/reviews/2026-09-01-codebase-review.md` › Triage rows marked
   defer/later, README › Status / roadmap.
 
 ## A. Performance — measure before touching
@@ -75,17 +75,17 @@ the README's "Next" line (review item H4). Nothing here is scheduled yet — pic
   scans that looked like this were the stale stat cache above, not the tree size.)
 
 ## B. Verification and release
-- **Walk `docs/smoke-test-post-v1.md`** (this machine): every feature shipped on 2026-09-02 —
-  ten groups, A–J — walked 2026-09-05/06, see docs/plans/2026-09-05-full-rewalk.md. Group K (the
+- **Walk `docs/smoke/smoke-test-post-v1.md`** (this machine): every feature shipped on 2026-09-02 —
+  ten groups, A–J — walked 2026-09-05/06, see docs/archive/walks/2026-09-05-full-rewalk.md. Group K (the
   2026-09-06 review fixes) and the reworded F1 / H2 walked 2026-09-06 over CDP, six findings fixed
-  (`docs/plans/2026-09-06-group-k-walk.md`); K12 walked under WSLg the same day.
+  (`docs/archive/walks/2026-09-06-group-k-walk.md`); K12 walked under WSLg the same day.
   Group G's mode check needs WSL or a Unix box — done 2026-09-05 under WSLg, see the full-rewalk plan.
 - **Smoke steps no CDP walk can reach** (this machine, by hand): most walked on 2026-09-06 (by hand:
   folder pickers, clone Cancel, theme flash / switch / first frame, the large-repo checks; over CDP:
   "Git not found", I's tag push; Resolve in editor ×2 over CDP with VSCodium). Left: **six** unticked
   lines across the two smoke docs (recounted 2026-09-11), of which **four** are work still owed, all
-  waiting on hardware or a network — a DPI change (`smoke-test.md:281`), plus group AC's three update
-  boxes (`smoke-test-post-v1.md:743` a failed check, `:746` a failed install, `:749` deb / rpm),
+  waiting on hardware or a network — a DPI change (`docs/smoke/smoke-test.md:281`), plus group AC's three update
+  boxes (`docs/smoke/smoke-test-post-v1.md:743` a failed check, `:746` a failed install, `:749` deb / rpm),
   which landed later with in-app updates and need a pullable network and a Linux package. The other
   two are group AG's (`:1112`, `:1123`): deliberate records, not work — one box's recipe is
   unachievable, and one cannot be decided by what it observes. So a grep for `- [ ]` finds six and
@@ -128,8 +128,8 @@ titlebar (revisited in M6, native kept) · multi-repo tabs (state is already key
 i18n · plugins.
 
 ## D. Small UI observations from the 2026-09-05 walks — done 2026-09-05
-Collected in `docs/plans/2026-09-05-v1-smoke-rewalk.md` (Observations) and the re-walk chat. All
-taken in one pass with the full re-walk's six findings (`2026-09-05-full-rewalk.md`, "Applied"):
+Collected in `docs/archive/walks/2026-09-05-v1-smoke-rewalk.md` (Observations) and the re-walk chat. All
+taken in one pass with the full re-walk's six findings (`docs/archive/walks/2026-09-05-full-rewalk.md`, "Applied"):
 the menu focus restore now yields to a dialog's own field, the lists and the diff reclaim the
 focus after Enter-staging, Shift+↑/↓ clamps at the hunk edge, the renamed-folder toast detail is
 the path alone. Kept here as the record of what was seen.
@@ -148,7 +148,7 @@ the path alone. Kept here as the record of what was seen.
 - **Shift+↑ across a hunk boundary** restarts the selection in the other hunk instead of stopping
   at the edge. Probably right (a range cannot span hunks); decide, and either document it in the
   style guide or clamp the cursor.
-- The full re-walk of both checklists on 2026-09-05 (`2026-09-05-full-rewalk.md`) adds six small
+- The full re-walk of both checklists on 2026-09-05 (`docs/archive/walks/2026-09-05-full-rewalk.md`) adds six small
   findings and a few more observations of this size; the push / pull toast item above is retracted
   there (the toasts do appear).
 
@@ -161,7 +161,7 @@ the path alone. Kept here as the record of what was seen.
   glibc reason never applied there; its comment claimed it anyway until corrected on 2026-09-11.
   Either way **do not switch to `ubuntu-latest`**: the replacement (a `container: ubuntu:22.04` job,
   or `cargo-zigbuild`) has to be picked once for all three t4 repos. Recorded in
-  `docs/plans/ci-alignment-round-2.md` §5; nothing breaks on the deprecation date itself.
+  `docs/archive/plans/ci-alignment-round-2.md` §5; nothing breaks on the deprecation date itself.
 - **Three open issues**, all filed 2026-09-10 by someone outside the project, none answered:
   **#3** nest recent repositories under an `Open recent >` submenu instead of listing them flat;
   **#2** collapse branch folders by default rather than expanded; **#1** add issue form templates so
@@ -244,7 +244,7 @@ the path alone. Kept here as the record of what was seen.
 
 ## F. Added 2026-09-12 — the unpushed range finally got a review
 
-- **13 findings, in `docs/plans/2026-09-12-review-findings.md`.** The 12 unpushed commits had never
+- **13 findings, in `docs/archive/plans/2026-09-12-review-findings.md`.** The 12 unpushed commits had never
   had a review pass over what *shipped*: the reviews on record either produced them or predate them.
   Four read-only reviewers, split by dimension, every claim re-traced by hand before it was written
   down. **Seven to fix before push** (R1–R7), six recorded and deliberately not fixed (R8–R13).
@@ -258,7 +258,7 @@ the path alone. Kept here as the record of what was seen.
 
 ## G. Added 2026-09-12 — full codebase review, consolidated
 
-- **61 items, in `docs/plans/2026-09-12-consolidated-findings.md`.** Six blind area reviewers over
+- **61 items, in `docs/archive/plans/2026-09-12-consolidated-findings.md`.** Six blind area reviewers over
   the whole tree (git-core, cli+log, Tauri commands, stores, RepoWindow, dialogs/ui) plus a second
   diff pass; every high/med re-traced by hand. It supersedes §F's fix list — R1–R13 are folded in.
   **8 P0** (security or data integrity): ref names starting `--` reach git as options and

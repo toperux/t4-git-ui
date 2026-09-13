@@ -1,6 +1,6 @@
 # Post-v1 smoke test findings (2026-09-05)
 
-Issues found walking `docs/smoke-test-post-v1.md`. Collected here as they come in; fixed in
+Issues found walking `docs/smoke/smoke-test-post-v1.md`. Collected here as they come in; fixed in
 one pass after the walk, not one at a time. Installer under test:
 `target/release/bundle/nsis/t4-git-ui_0.1.0_x64-setup.exe` (built 2026-09-03, predates
 `7d9cfe1`/`a3e1b5c`, neither of which changes anything user-visible).
@@ -67,11 +67,11 @@ Order: code fixes with tests first (1, 5, 8), then the one-liners (2, 7, 9, 4, 6
 8. **#6 Ctrl+A with a focused folder** — `FilesColumn.tsx:242` `case "a"`: after selecting all,
    move focus to the list container so Enter acts on the selection. Extend the existing E3-style
    test.
-9. **#3 doc** — `docs/smoke-test-post-v1.md`: header of B, C, H, I gets "start with
+9. **#3 doc** — `docs/smoke/smoke-test-post-v1.md`: header of B, C, H, I gets "start with
    `git stash -u`" (or walk E/F/G first); F's "conflicted file" clause stays (it becomes true
    with #8); G notes Open / Reveal are manual.
 
 Cleanup done with the walk: `.playwright-mcp/`, `menu-long-branch.png`, `toast-overlap.png`
 deleted from the repo; `C:\tmp\t4\work\untracked.txt` deleted. The fixture otherwise carries the
 walk's residue (tags `smoke-push` / `smoke-nowhere`, commit `d0b5364` on `main`, staged hunk):
-`pwsh -File docs/smoke-fixtures.ps1 -Force` before the next walk.
+`pwsh -File docs/smoke/fixtures/smoke-fixtures.ps1 -Force` before the next walk.

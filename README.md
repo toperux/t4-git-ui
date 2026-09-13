@@ -80,7 +80,7 @@ build` are unaffected.
 
 Layout: `crates/git-core` (pure Rust, no Tauri) · `src-tauri` (IPC glue) · `src` (React; see [`src/README.md`](src/README.md)).
 Design: [`docs/design/style-guide.md`](docs/design/style-guide.md) is the token source of truth; `node docs/design/canvases/build/build.mjs` regenerates `src/theme/tokens.css` and the canvases, `node docs/design/canvases/build/contrast.mjs` audits contrast.
-Plan and milestone log: [`docs/plans/2026-08-31-git-ui-v1-plan.md`](docs/plans/2026-08-31-git-ui-v1-plan.md).
+Plan and milestone log: [`docs/archive/plans/2026-08-31-git-ui-v1-plan.md`](docs/archive/plans/2026-08-31-git-ui-v1-plan.md).
 
 ## Keyboard shortcuts
 
@@ -109,13 +109,13 @@ Ctrl is ⌘ on macOS.
 
 v1 is feature-complete, covered by `cargo test --workspace`, `npm test` and
 `cargo clippy --workspace --all-targets -- -D warnings`, and **accepted on Windows**:
-the `docs/smoke-test.md` walkthrough was completed end to end on 2026-09-01 apart from the three
+the `docs/smoke/smoke-test.md` walkthrough was completed end to end on 2026-09-01 apart from the three
 steps this machine cannot reach (Resolve in editor ×2, DPI change), and everything it found is
 fixed. CI is green on Linux, Windows and macOS; macOS is compiled there only (no rendering check,
 signed after v0.5.0 but never notarized) — Linux rendering was walked under WSLg
-(`docs/plans/2026-09-05-full-rewalk.md`) — and the installer has not been tried on a
+(`docs/archive/walks/2026-09-05-full-rewalk.md`) — and the installer has not been tried on a
 clean Windows machine. Deliberate v1 omissions are listed in
-`docs/plans/2026-08-31-git-ui-v1-plan.md` › Known gaps.
+`docs/archive/plans/2026-08-31-git-ui-v1-plan.md` › Known gaps.
 
 Since then: seven releases (v0.1.0 through **v0.7.0**), cherry-pick / revert and interactive rebase
 from a commit row, in-app updates — the app checks GitHub for a newer release and installs it on
@@ -125,4 +125,4 @@ file-history filter on the graph.
 
 What is still open — deferred features, verification that needs other machines, the three
 suggestions filed as issues (all three shipped in 0.7.0), and the longer roadmap (submodules,
-worktrees, multi-repo tabs, …) — is listed in one place: `docs/plans/2026-09-02-next-plan.md`.
+worktrees, multi-repo tabs, …) — is listed in one place: `docs/plans/open-items.md`.

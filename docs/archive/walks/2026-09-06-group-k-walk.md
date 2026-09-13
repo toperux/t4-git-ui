@@ -1,9 +1,9 @@
 # Group K walk — 2026-09-06
 
-`docs/smoke-test-post-v1.md` group K (the 2026-09-06 review fixes), the reworded F1 and H2, and the
-three "Unverified" probes of `docs/reviews/2026-09-06-codebase-review.md`, driven over CDP
-(`docs/smoke-cdp.md`) in the installed build of `a5a0a6b` against a fresh fixture. Native confirm
-boxes were answered by a loop around `docs/smoke-dialog.ps1` (Discard → **Discard**, Resolve
+`docs/smoke/smoke-test-post-v1.md` group K (the 2026-09-06 review fixes), the reworded F1 and H2, and the
+three "Unverified" probes of `docs/archive/reviews/2026-09-06-codebase-review.md`, driven over CDP
+(`docs/smoke/smoke-cdp.md`) in the installed build of `a5a0a6b` against a fresh fixture. Native confirm
+boxes were answered by a loop around `docs/smoke/fixtures/smoke-dialog.ps1` (Discard → **Discard**, Resolve
 conflict → **Replace**; the banner's Abort has no box). K12 is Linux-only and was not walked.
 
 ## Results
@@ -65,7 +65,7 @@ conflict → **Replace**; the banner's Abort has no box). K12 is Linux-only and 
   orphan branch point at that commit. Unlike the merge item (review M4) the label says what it
   does; left as is.
 - Tree mode was on from an earlier walk: the file lists were `tree` / `treeitem`, so a walk script
-  should accept both forms (`docs/smoke-cdp.md` says so since L11).
+  should accept both forms (`docs/smoke/smoke-cdp.md` says so since L11).
 - Tab from the Unstaged list goes to the Staged list, then the "Resize file lists" separator; the
   diff's cursor row is what `Tab` eventually reaches. Focusing `[data-cursor]` directly is the
   shortcut a script can take.
@@ -89,7 +89,7 @@ puts the focus back on the list and `↓` moves; the dock reopened at 300 after 
 - **Save from the editor**: the resolved file was written by a script instead of the editor — the
   same outside write. The diff lost its markers on its own within a second, the row stayed `C`
   and the Resolve button stayed until the file is staged. Pass.
-- **K12 POSIX `file://`** on the WebKitGTK build under WSLg (`docs/plans/…`, recipe in memory):
+- **K12 POSIX `file://`** on the WebKitGTK build under WSLg (`docs/archive/walks/…`, recipe in memory):
   Clone… from `file:///home/toperux/bare.git` into `/home/toperux/clones` → statusbar
   `origin · /home/toperux/bare`, leading slash kept; the Windows app cloning
   `file:///C:/tmp/t4/bare.git` reads `origin · C:/tmp/t4/bare`. Pass. Along the way the Linux

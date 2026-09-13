@@ -1,6 +1,6 @@
 # Full smoke re-walk: v1 §1–§7 and post-v1 A–J (2026-09-05)
 
-Both checklists (`docs/smoke-test.md`, `docs/smoke-test-post-v1.md`) walked again in the installed
+Both checklists (`docs/smoke/smoke-test.md`, `docs/smoke/smoke-test-post-v1.md`) walked again in the installed
 build made from `b962ba8` (the build that carries every fix from the two earlier 2026-09-05 walks),
 on a fresh fixture, driven over CDP. Nothing here is fixed; the list is for a go/no-go on each item.
 
@@ -30,7 +30,7 @@ the diff reclaim the focus after the row it sat on unmounts (`held` ref); Shift+
 hunk edge; the renamed-folder toast detail is the path alone; Tab on a history row appends the
 space like every other completion._
 
-## Observations (no action proposed — extends `2026-09-02-next-plan.md` §D)
+## Observations (no action proposed — extends `open-items.md` §D)
 
 - **Dialog focus on the Close icon** also happens for the commit window opened from Repository menu ›
   Commit…, Create tag from a commit-row menu, and the Stash dialog; the toolbar and `Ctrl+B` paths
@@ -144,7 +144,7 @@ Seen on the way: launching the app while an instance was already running left a 
 WebView2 browser arguments differ from the browser process already running on the shared user-data
 folder — the walks' `--remote-debugging-port` flag on one side and not the other. WebView2 then
 never finishes creating the webview and the process waits on it. Two plain launches open two
-windows; two launches both with the flag do too. Not a product bug; `docs/smoke-cdp.md` says to
+windows; two launches both with the flag do too. Not a product bug; `docs/smoke/smoke-cdp.md` says to
 close every other instance before launching with the flag.
 
 G2 exec bit was walked later the same day on a Linux build of `9f53aff` under WSLg (Ubuntu 24.04,
@@ -201,7 +201,7 @@ key paths were re-run afterwards and remove only the highlighted row. Restored b
 
 ## Cleanup done
 
-Fixture rebuilt with `pwsh -File docs/smoke-fixtures.ps1 -Force` (twice: the stash re-check
+Fixture rebuilt with `pwsh -File docs/smoke/fixtures/smoke-fixtures.ps1 -Force` (twice: the stash re-check
 afterwards stashed and dropped the fixture's edits); `C:\tmp\t4\clones` and
 `.playwright-mcp/` deleted; `work` unpinned; Settings back to Follow system / 3 context lines /
 whitespace default off; details pane back to Flat list + Unified view, commit panel back to list
