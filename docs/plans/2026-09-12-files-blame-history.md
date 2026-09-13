@@ -2,7 +2,7 @@
 
 Three features built in order because each stands on the one before, plus four independent small items (§4, §5). Decisions were taken
 with the user on 2026-09-12 (recorded inline as **decided**); the rest is design for the refine
-pass. Nothing here is executed.
+pass. **Shipped in v0.7.0 (2026-09-13)**; the status block in §6 records what landed per section.
 
 ## 0. What exists, and the shape everything reuses
 

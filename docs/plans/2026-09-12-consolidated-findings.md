@@ -102,7 +102,7 @@ every row are in the sections below, keyed by the same id.
 
 ## P0 — security or data integrity. Fix before push.
 
-- [ ] **P0-1 · B1 — Ref names beginning with `--` are parsed as git options; `git rebase
+- [x] **P0-1 · B1 — Ref names beginning with `--` are parsed as git options; `git rebase
       --exec=<cmd>` runs a shell command.** CONFIRMED (reviewer reproduced end to end: a branch
       named `--exec=touch$IFS'pwned.txt'` offered in the Rebase *Onto* list created the file).
       `crates/git-core/src/cli/ops.rs:184` — `rebase(onto)` pushes the ref bare; same in `merge`,
@@ -115,7 +115,7 @@ every row are in the sections below, keyed by the same id.
       **Test:** `tests/ops.rs` — create `refs/heads/--exec=touch$IFS'x'`, run `gitops::rebase(name)`
       through `GitCli::run`, assert `x` was not created. Today it is.
 
-- [ ] **P0-2 · C1 = A3 — A status scan can write a pre-mutation index back over a CLI-backed stage
+- [x] **P0-2 · C1 = A3 — A status scan can write a pre-mutation index back over a CLI-backed stage
       or commit.** CONFIRMED lock claim; the clobber step is PLAUSIBLE (libgit2's `git_index_write`
       after `GIT_DIFF_UPDATE_INDEX` does no on-disk freshness check — from reading, not from a repro).
       `src-tauri/src/commands/diff.rs:83-98` holds only `handle.git2` (std `Mutex<Repository>`);
@@ -136,7 +136,7 @@ every row are in the sections below, keyed by the same id.
       **Test:** stall a `status()` with a big tree while `git apply --cached` stages a hunk on
       another thread; assert the hunk is still staged afterwards.
 
-- [ ] **P0-3 · E1 — During a diff load the body shows the previous file while every button acts
+- [x] **P0-3 · E1 — During a diff load the body shows the previous file while every button acts
       on the newly selected one.** CONFIRMED. `src/store/commitStore.ts:161` sets `diffPath` to the
       new anchor synchronously and leaves `diff` as the old file's until the IPC resolves;
       `DiffViewer.tsx:211` computes `path = diff?.path ?? selectedPath` so the header and hunks are
@@ -154,7 +154,7 @@ every row are in the sections below, keyed by the same id.
       **Test:** with `getFileDiff` pending, select b.ts after a.ts loaded → `getState().diff` is
       null (today it is a.ts's diff).
 
-- [ ] **P0-4 · A1 — Discarding a working-tree rename deletes the new file and never restores the
+- [x] **P0-4 · A1 — Discarding a working-tree rename deletes the new file and never restores the
       old one.** CONFIRMED; severity med rather than high because the committed content is in HEAD
       and the user asked to discard the edits — but the end state is wrong and surprising.
       `crates/git-core/src/stage.rs:103-125`. `status()` pairs `old.txt`(WT_DELETED) +
@@ -169,7 +169,7 @@ every row are in the sections below, keyed by the same id.
       **Test:** commit `old.txt`, `fs::rename` → `new.txt`, edit, `discard_paths(["new.txt"])` →
       `old.txt` exists with committed content, `new.txt` gone.
 
-- [ ] **P0-5 · A4 — Discarding one hunk of a renamed file renames it back.** CONFIRMED.
+- [x] **P0-5 · A4 — Discarding one hunk of a renamed file renames it back.** CONFIRMED.
       `crates/git-core/src/patch.rs:205-209` emits `rename from`/`rename to` whenever
       `status == Renamed`, regardless of whether the hunks cover the file. For `PatchOp::Discard`
       that patch goes to `git apply -R` against the working tree, and `-R` reverses the rename with
@@ -181,7 +181,7 @@ every row are in the sections below, keyed by the same id.
       **Test:** rename + two edits, `discard_hunks([0])` → file still at the new path, second edit
       intact.
 
-- [ ] **P0-6 · A2 — `unstage_paths` has no rollback on a failed index write.** CONFIRMED.
+- [x] **P0-6 · A2 — `unstage_paths` has no rollback on a failed index write.** CONFIRMED.
       `crates/git-core/src/stage.rs:81-93`. `reset_default` mutates libgit2's cached index entry by
       entry and then `git_index_write`s; on `index.lock` held by another process the write fails,
       the cache stays mutated, and the next `status()` (`git_index_read_safely` is a no-op — disk
@@ -192,7 +192,7 @@ every row are in the sections below, keyed by the same id.
       **Test:** copy that test for unstage: stage `f.txt`, plant `.git/index.lock`, `unstage_paths`
       → `IndexLocked`, assert the entry is still `index: Some(Modified)`.
 
-- [ ] **P0-7 · E3 — Stash *Drop* runs with no confirmation.** CONFIRMED. `Sidebar.tsx:588` →
+- [x] **P0-7 · E3 — Stash *Drop* runs with no confirmation.** CONFIRMED. `Sidebar.tsx:588` →
       `actions.ts:73` `stashDrop` → `runOp` → `ipc.stashDrop`. Every comparable destructive action
       (delete branch/tag/remote, discard files/hunks/lines, reset --hard) confirms; Drop sits one
       row under Pop in the context menu. No undo in the UI.
@@ -200,7 +200,7 @@ every row are in the sections below, keyed by the same id.
       does) naming `stash@{n}` and its message.
       **Test:** `Sidebar.test.tsx` — Drop → `ipc.stashDrop` not called until accepted.
 
-- [ ] **P0-8 · R1 — Opening a dirty repository leaves the walk unseeded.** CONFIRMED regression in
+- [x] **P0-8 · R1 — Opening a dirty repository leaves the walk unseeded.** CONFIRMED regression in
       the unpushed range; full trace in `2026-09-12-review-findings.md`. Fix: `syncWalkSeed()` in
       the store subscription's refs branch beside `dropWorkingTreeIfClean()` (`statusStore.ts:245`).
       Test: open with `refs: null`, resolve a dirty status, then set refs → `startLog` called with
@@ -319,7 +319,7 @@ every row are in the sections below, keyed by the same id.
       an empty history instead of the failure. Fix: return `error` from `get_log_page` alongside
       `complete`, or buffer the last progress per generation.
 
-- [ ] **P1-14 · E5 — The unstaged→staged selection-carry guard can never fire.** PLAUSIBLE.
+- [x] **P1-14 · E5 — The unstaged→staged selection-carry guard can never fire.** PLAUSIBLE.
       `DiffViewer.tsx:112` keys `loadedTarget` on `diff` identity, but `commitStore.loadDiff`
       keeps the old object when path + hunks match and never compares the target. Same file in both
       lists with identical hunks → the line selection survives into the staged diff and the bar
@@ -614,3 +614,6 @@ decision (c) and the §3 working-tree-row edge case are closed in the feature pl
 | S3 | low | CONFIRMED | history | `path_history` fails on `CliOutput::truncated`, which also fires for a 4 MB *stderr* | to revisit — contrived; split the flag if it ever bites | — |
 | S4 | low | CONFIRMED | actions | `blameAt` switches tab / seeds / turns blame on before the reveal is known to hit | to revisit — reordering races the details-pane effect; toast only | — |
 | S5 | low | CONFIRMED | FileRowMenu | No Blame on a working-tree target while the commit panel offers it | to revisit — moot under the §1 (c) decision (no working-tree Files surface) | — |
+
+The `to revisit` rows above (S1–S5, E6, B3, C6, R10, R12, R13) are carried by
+`docs/plans/open-items.md` §I; this file is the record.

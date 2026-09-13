@@ -117,10 +117,12 @@ signed after v0.5.0 but never notarized) — Linux rendering was walked under WS
 clean Windows machine. Deliberate v1 omissions are listed in
 `docs/plans/2026-08-31-git-ui-v1-plan.md` › Known gaps.
 
-Since then: five releases (v0.1.0 through **v0.5.0**), cherry-pick / revert and interactive rebase
-from a commit row, and in-app updates — the app checks GitHub for a newer release and installs it on
-Windows, macOS and the AppImage, pointing `.deb` and `.rpm` users at their package manager instead.
+Since then: seven releases (v0.1.0 through **v0.7.0**), cherry-pick / revert and interactive rebase
+from a commit row, in-app updates — the app checks GitHub for a newer release and installs it on
+Windows, macOS and the AppImage, pointing `.deb` and `.rpm` users at their package manager instead —
+and, in 0.7.0, a Files tab listing the whole revision with a content view, line blame and a
+file-history filter on the graph.
 
 What is still open — deferred features, verification that needs other machines, the three
-suggestions filed as issues, and the longer roadmap (blame, submodules, multi-repo tabs, …) — is
-listed in one place: `docs/plans/2026-09-02-next-plan.md`.
+suggestions filed as issues (all three shipped in 0.7.0), and the longer roadmap (submodules,
+worktrees, multi-repo tabs, …) — is listed in one place: `docs/plans/2026-09-02-next-plan.md`.

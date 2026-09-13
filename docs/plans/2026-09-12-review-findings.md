@@ -25,7 +25,7 @@ passing. That is the point of several of these findings — **green gates are wh
 
 ## Fix before push
 
-- [ ] **R1 — Opening a dirty repository leaves the walk unseeded.** CONFIRMED. A regression from
+- [x] **R1 — Opening a dirty repository leaves the walk unseeded.** CONFIRMED. A regression from
       `2c1b498`, introduced by me. `openRepo` sets `refs: null` and `filter: {}`
       (`src/store/repoStore.ts:247,250`); the status lands first (the refs snapshot queues behind the
       scan, as `repoStore.ts:261` says), so `freshStatus(status, undefined)` returns `null`,
@@ -56,7 +56,7 @@ passing. That is the point of several of these findings — **green gates are wh
       `filter: { workingTree: true }`, with a comment noting that is already what the dirty status
       wants, so nothing re-walks.
 
-- [ ] **R2 — `min-width: 112px` on `.headerBtn` permanently steals the header title's width.**
+- [x] **R2 — `min-width: 112px` on `.headerBtn` permanently steals the header title's width.**
       CONFIRMED mechanism, exact crossover PLAUSIBLE.
       `src/screens/RepoWindow/CommitPanel/CommitPanel.module.css:30`. `.title` is the only flexible
       item in the header (`flex: 1; min-width: 0; text-overflow: ellipsis`, PanelHeader.module.css);
@@ -67,7 +67,7 @@ passing. That is the point of several of these findings — **green gates are wh
       the time. The files panel's floor is reachable (`CommitPanel.tsx:38`, `minSize={220}`).
       **Needs a decision, see the bottom of this file.**
 
-- [ ] **R3 — `DisabledHint`'s wrapper cancels the control's own flex sizing.** CONFIRMED mechanism,
+- [x] **R3 — `DisabledHint`'s wrapper cancels the control's own flex sizing.** CONFIRMED mechanism,
       visible magnitude unmeasured. `src/components/ui/DisabledHint/DisabledHint.module.css:6-11`:
       `.wrap { display: inline-flex; min-width: 0 }` becomes the flex item in the control's place,
       but carries none of the control's own sizing and explicitly permits shrinking below content.
@@ -90,7 +90,7 @@ passing. That is the point of several of these findings — **green gates are wh
       before vs. during `busy`, with the pane dragged narrow. The AE walk measured only the
       unconstrained case, which cannot see this.
 
-- [ ] **R4 — The `Unstage selected` test is vacuous.** CONFIRMED.
+- [x] **R4 — The `Unstage selected` test is vacuous.** CONFIRMED.
       `src/screens/RepoWindow/CommitPanel/CommitPanel.test.tsx:482-491`. The fixture's staged list is
       exactly `["both.rs", "new.rs"]` — the only two entries with `index !== null` (`:76`, `:78`) —
       and the test selects both, so its expected payload is byte-identical to what whole-list mode
@@ -99,7 +99,7 @@ passing. That is the point of several of these findings — **green gates are wh
       filter** to fall back on, and it has zero payload cover.
       **Fix:** add a third staged entry to the fixture so a selection of two is a proper subset.
 
-- [ ] **R5 — The `entries` ∩ `selected` intersection is untested.** CONFIRMED.
+- [x] **R5 — The `entries` ∩ `selected` intersection is untested.** CONFIRMED.
       `src/screens/RepoWindow/CommitPanel/FilesColumn.tsx:56-57`. Delete the `inList` filter — the
       exact guard the commit message says `useSelectedTarget` exists for — and **every test in the
       file still passes**. No test renders a header while `commitStore.selected` names a path absent
@@ -108,7 +108,7 @@ passing. That is the point of several of these findings — **green gates are wh
       Same shape: the `"here"` branch of the refusal string (`FilesColumn.tsx:83`) has neither a unit
       test nor smoke cover — and `e57945d` is precisely a commit that edited that string.
 
-- [ ] **R6 — `Toolbar.tsx:90` names the menu's trigger by DOM position, which a wrapper breaks.**
+- [x] **R6 — `Toolbar.tsx:90` names the menu's trigger by DOM position, which a wrapper breaks.**
       Mechanism CONFIRMED, race PLAUSIBLE.
       `closest('[role="menu"]')?.previousElementSibling` is meant to reach the anchor `<button>`, and
       `Menu.tsx:98-106` does render `{anchor}` and the `role="menu"` div as siblings. But the Branch
@@ -122,7 +122,7 @@ passing. That is the point of several of these findings — **green gates are wh
       `> button:first-of-type` selector that resolved to Pull (see `docs/smoke-cdp.md`) — naming an
       element by position when a wrapper can appear between. Hold a ref instead.
 
-- [ ] **R7 — The staged side's missing conflict filter is defended by unsound reasoning.** CONFIRMED.
+- [x] **R7 — The staged side's missing conflict filter is defended by unsound reasoning.** CONFIRMED.
       `src/screens/RepoWindow/CommitPanel/FilesColumn.tsx:122-125` argues that `splitStatus` can put
       a file in both lists "when it has an index change and a conflict". That conflates the real
       both-lists case (`both.rs`: index **and** workdir, not conflicted) with a conflicted-and-staged
