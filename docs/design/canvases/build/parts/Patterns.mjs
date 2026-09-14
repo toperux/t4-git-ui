@@ -68,7 +68,7 @@ function graphAnatomy(t) {
 function sidebar() {
   const t = (d, s, tw, ic, txt, extra = '') => `<div class="row ${s}" style="--d: ${d};"><span class="tw">${tw ? icon(tw, 12) : ''}</span>${icon(ic, 14)}<span class="label">${txt}</span>${extra}</div>`;
   const head = (open, title, count, children = '') => `<div class="section-header"><span class="tw">${icon(open ? 'chevron-down' : 'chevron-right', 12)}</span><span class="grow">${title}</span><span class="badge">${count}</span>${children}</div>`;
-  return section('Sidebar', '260px default, resizable 180–560 · --bg-app, with each section header in its own sticky --bg-panel band · sections Local / Remotes / Tags / Stashes, then Worktrees (only past one) and Submodules (only when there are any) · tree by “/” · a badge counts refs, never the grouping rows (Remotes counts remote branches) · folder rows amber + 600 with their ref count in meta · the checked-out branch swaps its glyph for an accent check',
+  return section('Sidebar', '260px default, resizable 180–560 · --bg-app, with each section header in its own sticky --bg-panel band · sections Local / Remotes / Tags / Stashes, then Worktrees (only past one) and Submodules (only when there are any) · tree by “/” · a badge counts refs, never the grouping rows (Remotes counts remote branches) · folder rows amber + 600 with their ref count in meta · the checked-out branch swaps its glyph for an accent check; rows whose ref is the grid’s selected commit take the selected tint',
     `<div class="list tree" style="width: 260px; background: var(--bg-app); padding-bottom: 4px;">
       ${head(true, 'Local', 4)}
       ${t(0, 'current is-selected', '', 'check', 'main', `<span class="ab">${icon('arrow-up', 12)}2 ${icon('arrow-down', 12)}5</span>`)}

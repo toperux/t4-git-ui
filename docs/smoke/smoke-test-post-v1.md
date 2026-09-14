@@ -1673,7 +1673,7 @@ Walked 2026-09-14 over CDP on a local release build of `1cc7691` — see
 `docs/archive/walks/2026-09-14-group-au-walk.md`. Its two findings (3: the row's double-click; 9: the
 toolbar overflows with the badge) were fixed and 3 + 9 re-walked the same day.
 
-1. - [x] The toolbar shows `History | Changes 2` where Commit was; History is pressed. Click Changes → `Changes on <branch> · 1 unstaged · 1 staged` over the commit panel; the search box and branch filter are gone from the toolbar; the sidebar is unchanged.
+1. - [x] The toolbar shows `History | Changes 2` where Commit was; History is pressed. Click Changes → `Changes on <branch> · 1 unstaged · 1 staged` over the commit panel; the search box and branch filter are gone from the toolbar; the sidebar is unchanged; `Stash…` sits beside the counts and the × at the bar's right returns to History.
 2. - [x] Click a branch in the sidebar while in Changes → still Changes. Alt+1 → History with that branch's commit selected and scrolled into view.
 3. - [x] The working-tree row reads `Working tree · 2 changes … Open changes →` (hint muted, lit when selected; no hover needed). Click the row → Changes (after the double-click interval). Alt+1, click the (still selected) row again → Changes. Alt+1, ArrowUp / Home onto the row → still History (details: `No commit selected`); Enter → Changes. Double-click it → the commit dialog over History; Esc → still History, focus back on the grid.
 4. - [x] `git stash` in a terminal → Changes shows `Working tree clean` beside the message column; Stash… is disabled with `Nothing to stash`; Amend still works.
@@ -1683,6 +1683,22 @@ toolbar overflows with the badge) were fixed and 3 + 9 re-walked the same day.
 8. - [x] Ctrl+K from the grid, from the commit summary field, from the dock prompt → the palette. `st` → Stash rows first; ↓ ↵ → the dialog opens, the palette closes; Ctrl+K again → that command under Recent; Ctrl+K again → closed. `origin/` → Go to branch rows; ↵ while in Changes → still Changes, Alt+1 → the row is selected and visible. Start a fetch (Ctrl+F5) → Ctrl+K → Push… greyed with `Operation in progress`. Click outside → closed.
 9. - [x] Update badge present (Settings › Updates against a newer release, or fake it): at 1280 the repo name does not wrap; the search box narrows instead. *(Walked with a same-size stand-in element: search 240 → 192, Settings stays inside the window.)*
 10. - [x] Dark theme: switch, rail, flyout, palette, changes bar, search popover, collapsed details header all use the tokens — no light patches.
+
+## AV. Changes bar close, sidebar echoes the selected commit, stash surfaces show the working tree (0.10.x fixes)
+
+Fixture: `c:/tmp/t4/irebase` in its resting state (`a.txt` edited, `dirty.txt` staged) plus an
+untracked `new.txt`; `origin` added for the `origin/main` row; window 1280 × 800.
+
+Walked 2026-09-15 over CDP on a local release build — see
+`docs/archive/walks/2026-09-15-group-av-walk.md`. Its one finding (5: popping the last stash left
+nothing selected) was fixed and re-walked the same day.
+
+1. - [x] Changes view: the bar reads `Changes on <branch> · 1 unstaged · 1 staged`, `Stash…` right beside the counts, and the × alone at the bar's right edge (tooltip `Close (Alt+1)`) — no History button. Click × → History with the grid visible. At 700 wide both are still in the bar, the × at the edge; a long branch name truncates with an ellipsis before the buttons move.
+2. - [x] Click `main`'s commit in the grid → the sidebar tints the `main` row and the `origin/main` row (unfocused tint while the grid holds focus; the check on `main` is unchanged, and it is the only mark of the checkout). Click another commit → both cleared; click the working-tree row → cleared. Click the tinted `main` row itself → the tint turns to the focused colour.
+3. - [x] Create `feature/x` on the selected commit (Ctrl+B), set Settings › Sidebar to always collapsed → with that commit selected the `feature` folder row is tinted; open the folder → the folder loses it and `feature/x` carries it. Tag the commit → the tag row is tinted too. Delete the branch and the tag afterwards.
+4. - [x] Repository › Stash changes… → under the checkboxes a `Files to stash` list: `M a.txt`, `dirty.txt` with its staged glyph, `U new.txt`; the button reads `Stash 3 files`. Untick `Include untracked files` → `new.txt` gone, `Stash 2 files`; tick it back. Stash → the sidebar shows the new stash. Pop it (sidebar row menu) to restore the fixture. On a clean tree the dialog says `Nothing to stash` and the button is `Stash`, disabled.
+5. - [x] Ctrl+Shift+S with the changes present → the browser opens on `Working tree · 3 changes` (first row, italic); above the list the push form with the mono preview and a full-width `Stash 3 files`; the middle panel is the Changes view's Unstaged / Staged lists with `a.txt` / `new.txt` and `dirty.txt`, the diff of the focused file at the right with its hunk actions. Stage `a.txt` from here → the status bar count follows. Click a stash → Apply / Pop / Drop… / Clear all… and that stash's files; ArrowUp on the list → back on the working tree. Stash from the form → the new stash is selected and the working-tree row reads `No changes`. Reopen on the clean tree → it opens on stash@{0}; click the Working tree row → `Stash` disabled with `No changes`, empty lists. Pop the stash and unstage `a.txt` afterwards. *(Walked with the push landing on the new entry and its Pop landing back on the working tree; the clean-tree open is a unit test.)*
+6. - [x] Dark theme: the ×, the sidebar tints, the files-to-stash list border and muted line, the working-tree row all read the tokens.
 
 ## Reporting
 

@@ -241,14 +241,16 @@ src/
                            ViewSwitch.tsx (the `History | Changes` segmented control over `viewStore.view`, Changes carrying
                            the working-tree change count; `compact` = icons only, for the toolbar's `icons` tier),
                            ChangesView.tsx (the Changes view: ChangesBar — `Changes on <branch> · N unstaged · M staged
-                           [· K conflicted]`, or `· nothing to commit`, with Stash… and History at its right — over the
+                           [· K conflicted]`, or `· nothing to commit`, with Stash… beside the counts and a close (×) button at its right — over the
                            CommitPanel, or over the "Working tree clean" EmptyState beside the MessageColumn on a clean,
                            un-merging tree),
                            SearchPopover.tsx (the `icons` tier's search: an IconButton and, portalled under it, the search
                            Input + branch filter Select + the file-history chip; Esc or a click outside closes it),
                            Sidebar (one `role="tree"` per section with a roving tabIndex; branches with `/` nest in
                            folder rows under Local and under each remote; a `mergedInto` branch (never the current one, nor a protected main / master / remote-default) is muted with a
-                           `merged` badge; context menus per ref kind on right-click / Shift+F10, double-click = checkout;
+                           `merged` badge; rows whose ref is the selected commit are tinted (`selectSelectedOid`; collapsed
+                           folders holding one too), the checked-out branch being the check + semibold only;
+                           context menus per ref kind on right-click / Shift+F10, double-click = checkout;
                            flat Worktrees (only past one) and Submodules (only when there are any) sections after Stashes,
                            whose own headers carry Add worktree… / Prune and Update all; Stashes starts collapsed like Tags,
                            its header carries the stash-browser button, and a stash row previews the entry in the pane
@@ -306,12 +308,19 @@ src/
                            parent Select on a merge commit only (`-m N`)), RefDialogs Checkout picker /
                            Create-Rename-Delete branch / remote branch / tags, RemoteDialogs Add / Rename / Change URL /
                            Remove (a remote itself), WorktreeDialogs Add (where + an existing or a new branch) /
-                           Remove (a refusal re-offers it forced) / Lock, StashDialogs (Stash changes / one entry's Apply · Pop ·
-                           Drop, plus the `StashPushFields` and `StashMenuItems` the browser and the sidebar row menu share),
-                           StashesDialog (kind `stashes`, the stash browser: push form + entry list | ChangedFileList |
-                           CommitDiff as a full-window dialog, from the Stash menu, the Stashes header button, the preview's
-                           Open browser or Ctrl+Shift+S; header Apply · Pop · Drop… · Clear all…, Delete on the list drops,
-                           ↑/↓ move the preview and its own effect moves it on once an entry is gone),
+                           Remove (a refusal re-offers it forced) / Lock, StashDialogs (Stash changes — the fields over the
+                           list of files the push will take, `useStashFiles`: tracked changes, untracked while the box is
+                           on, nothing during a conflict since git refuses; the button reads `Stash N files` and is
+                           disabled on nothing — / one entry's
+                           Apply · Pop · Drop, plus the `StashPushFields` and `StashMenuItems` the browser and the sidebar
+                           row menu share), StashesDialog (kind `stashes`, the stash browser as a full-window dialog, from
+                           the Stash menu, the Stashes header button, the preview's Open browser or Ctrl+Shift+S: a list
+                           that starts with a Working tree row — selected, the strip above the list is the push form with
+                           a full-width `Stash N files` and the two right panels are the commit panel's FilesColumn |
+                           DiffColumn; a stash row brings Apply · Pop · Drop… · Clear all… and ChangedFileList | CommitDiff;
+                           a dirty tree opens on the working tree, a clean one on stash@{0}, a push of ours lands on the
+                           stash it made; Delete on a stash row drops, ↑/↓ move across the working tree and the entries,
+                           and its own effect moves the preview on once an entry is gone),
                            DiffDialog (the selected commit's / compare's / previewed stash's
                            changed files + diff as a full-window dialog, off the diff header's expand button),
                            RunCommandDialog (one

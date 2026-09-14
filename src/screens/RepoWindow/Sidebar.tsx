@@ -14,7 +14,7 @@ import { relativeDate } from "../../lib/relativeDate";
 import { takenBranches } from "../../lib/takenBranches";
 import { useDialogStore, type DialogSpec } from "../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../store/opsStore";
-import { useRepoStore } from "../../store/repoStore";
+import { selectSelectedOid, useRepoStore } from "../../store/repoStore";
 import { useSettingsStore } from "../../store/settingsStore";
 import { useToastStore } from "../../store/toastStore";
 import {
@@ -99,6 +99,11 @@ function countFolders<T>(nodes: TreeNode<T>[], folderKey: (path: string) => stri
   return refs;
 }
 
+/** Does any ref under these nodes sit on `oid`? — what tints a collapsed folder. */
+function hasOid<T>(nodes: TreeNode<T>[], oidOf: (leaf: T) => string, oid: string): boolean {
+  return nodes.some((n) => (n.leaf !== undefined && oidOf(n.leaf) === oid) || hasOid(n.children, oidOf, oid));
+}
+
 const ITEMS = '[role="treeitem"]';
 
 /**
@@ -156,6 +161,7 @@ export function Sidebar({ only, onCollapse }: { only?: Section; onCollapse?: () 
   const previewStash = useRepoStore((st) => st.previewStash);
   const preview = useRepoStore((st) => st.preview);
   const repoId = useRepoStore((st) => st.repo?.id ?? null);
+  const selectedOid = useRepoStore(selectSelectedOid);
   // `open` is the section state below, so the dialog opener keeps its own name here.
   const openDialog = useDialogStore((st) => st.open);
   const running = useOpsStore(selectRunning);
@@ -280,7 +286,7 @@ export function Sidebar({ only, onCollapse }: { only?: Section; onCollapse?: () 
         title={mergedTitle(b.name, mergedInto)}
         current={b.isHead}
         aria-current={b.isHead || undefined}
-        selected={b.isHead}
+        selected={b.oid === selectedOid}
         meta={
           <>
             <AheadBehind ahead={b.ahead} behind={b.behind} />
@@ -306,6 +312,7 @@ export function Sidebar({ only, onCollapse }: { only?: Section; onCollapse?: () 
         icon={<GitBranch size={14} aria-hidden />}
         label={mergedLabel(label, mergedInto)}
         title={mergedTitle(rb.name, mergedInto)}
+        selected={rb.oid === selectedOid}
         meta={mergedBadge(mergedInto)}
         onClick={() => void revealOid(rb.oid)}
         onDoubleClick={() => void checkoutRemoteBranch(rb, remote)}
@@ -331,6 +338,7 @@ export function Sidebar({ only, onCollapse }: { only?: Section; onCollapse?: () 
       icon={<Tag size={14} aria-hidden />}
       label={label}
       title={t.name}
+      selected={t.oid === selectedOid}
       meta={cachedRemotes.length > 0 && !onRemote.has(t.name) && <Badge title={badgeTitle}>local</Badge>}
       onClick={() => void revealTag(t.oid)}
       {...rowMenu({ kind: "tag", name: t.name, oid: t.oid })}
@@ -346,13 +354,14 @@ export function Sidebar({ only, onCollapse }: { only?: Section; onCollapse?: () 
       icon={<Tag size={14} aria-hidden />}
       label={label}
       title={t.name}
+      selected={t.oid === selectedOid}
       onClick={() => void revealTag(t.oid)}
       {...rowMenu({ kind: "remoteTag", remote, name: t.name })}
     />
   );
 
   /** Leaves render through `row` with their last segment as the label; folders collapse under `folderKey(path)`. */
-  function renderTree<T>(nodes: TreeNode<T>[], depth: number, row: (leaf: T, label: string, depth: number) => ReactNode, folderKey: (path: string) => string): ReactNode {
+  function renderTree<T>(nodes: TreeNode<T>[], depth: number, row: (leaf: T, label: string, depth: number) => ReactNode, folderKey: (path: string) => string, oidOf: (leaf: T) => string): ReactNode {
     return nodes.map((n) => {
       if (n.children.length === 0 && n.leaf !== undefined) return row(n.leaf, n.name, depth);
       const key = folderKey(n.path);
@@ -369,12 +378,14 @@ export function Sidebar({ only, onCollapse }: { only?: Section; onCollapse?: () 
             // The per-folder ref count the auto-collapse rule already holds.
             meta={trees.counts.get(key)}
             title={n.path}
+            // Shut, it stands in for the refs under it; open, they carry the tint themselves.
+            selected={isCollapsed && selectedOid !== null && hasOid([n], oidOf, selectedOid)}
             onClick={() => toggleFolder(key)}
           />
           {!isCollapsed && (
             <div role="group" className={s.tree}>
               {n.leaf !== undefined && row(n.leaf, n.name, depth + 1)}
-              {renderTree(n.children, depth + 1, row, folderKey)}
+              {renderTree(n.children, depth + 1, row, folderKey, oidOf)}
             </div>
           )}
         </div>
@@ -406,7 +417,7 @@ export function Sidebar({ only, onCollapse }: { only?: Section; onCollapse?: () 
             (local.length === 0 ? (
               <EmptyState className={s.empty} icon={<GitBranch size={20} aria-hidden />} title="No branches yet" />
             ) : (
-              <Tree label="Local branches">{renderTree(trees.local.nodes, 0, branchRow, trees.local.folderKey)}</Tree>
+              <Tree label="Local branches">{renderTree(trees.local.nodes, 0, branchRow, trees.local.folderKey, (b) => b.oid)}</Tree>
             ))}
         </>
       )}
@@ -441,12 +452,13 @@ export function Sidebar({ only, onCollapse }: { only?: Section; onCollapse?: () 
                       icon={<Cloud size={14} aria-hidden />}
                       label={r.name}
                       title={r.url ?? r.name}
+                      selected={isCollapsed && selectedOid !== null && hasOid(tree.nodes, (rb) => rb.oid, selectedOid)}
                       onClick={() => toggleFolder(`remote:${r.name}`)}
                       {...rowMenu({ kind: "remoteGroup", remote: r })}
                     />
                     {!isCollapsed && (
                       <div role="group" className={s.tree}>
-                        {renderTree(tree.nodes, 1, remoteRow(r.name), tree.folderKey)}
+                        {renderTree(tree.nodes, 1, remoteRow(r.name), tree.folderKey, (rb) => rb.oid)}
                       </div>
                     )}
                   </div>
@@ -463,7 +475,7 @@ export function Sidebar({ only, onCollapse }: { only?: Section; onCollapse?: () 
           <SectionHeader title="Tags" count={tags.length} open={open.tags} onToggle={() => toggle("tags")} />
           {open.tags && (tags.length > 0 || cachedRemotes.length > 0) && (
             <Tree label="Tags">
-              {renderTree(trees.tags.nodes, 0, tagRow, trees.tags.folderKey)}
+              {renderTree(trees.tags.nodes, 0, tagRow, trees.tags.folderKey, (t) => t.oid)}
               {/* One folder per remote that answered, holding the tags it has — a tag can be in several. */}
               {trees.remoteTags.map(([remote, entry, tree]) => {
                 const isCollapsed = collapsed.has(`tag:${remote}`);
@@ -477,11 +489,12 @@ export function Sidebar({ only, onCollapse }: { only?: Section; onCollapse?: () 
                       icon={<Cloud size={14} aria-hidden />}
                       label={remote}
                       title={`Checked ${relativeDate(entry.at / 1000)}`}
+                      selected={isCollapsed && selectedOid !== null && hasOid(tree.nodes, (t) => t.oid, selectedOid)}
                       onClick={() => toggleFolder(`tag:${remote}`)}
                     />
                     {!isCollapsed && (
                       <div role="group" className={s.tree}>
-                        {renderTree(tree.nodes, 1, remoteTagRow(remote), tree.folderKey)}
+                        {renderTree(tree.nodes, 1, remoteTagRow(remote), tree.folderKey, (t) => t.oid)}
                       </div>
                     )}
                   </div>

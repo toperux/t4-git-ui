@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { LinkedSnapshot, RefsSnapshot } from "../../api/types";
+import type { LinkedSnapshot, LogRow, RefsSnapshot } from "../../api/types";
 import { useDialogStore } from "../../store/dialogStore";
 import { useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
@@ -28,6 +28,12 @@ import * as ipc from "../../api/ipc";
 
 const branch = (name: string, isHead = false) => ({ name, oid: name, upstream: null, gone: false, mergedInto: null, ahead: 0, behind: 0, isHead });
 
+/** A grid row: the sidebar only ever reads the commit's oid off the selected one. */
+const rowAt = (oid: string): LogRow => ({
+  row: { commit: { oid, short: oid, summary: "", authorName: "Ada", authorEmail: "a@b", authorTime: 0, committerTime: 0, parents: [], isMerge: false }, lane: 0, color: 0, lines: [], maxLane: 0 },
+  labels: [],
+});
+
 const REFS: RefsSnapshot = {
   head: { oid: "a", branch: "main", detached: false },
   state: "clean",
@@ -50,7 +56,7 @@ const REFS: RefsSnapshot = {
 
 afterEach(cleanup);
 beforeEach(() => {
-  useRepoStore.setState({ refs: REFS, linked: null, remoteTags: {} });
+  useRepoStore.setState({ refs: REFS, linked: null, remoteTags: {}, rows: [], selectedIndex: null, wtSelected: false });
   useDialogStore.setState({ dialog: null });
   useToastStore.setState({ toasts: [] });
   useSettingsStore.setState({ sidebarFolders: "expanded", sidebarFoldersMax: DEFAULT_FOLDERS_MAX });
@@ -203,6 +209,46 @@ describe("Sidebar section counts", () => {
     expect(items("fork/main")).not.toContain("Delete on remote…");
     expect(items("origin/feature/lanes")).toContain("Delete on remote…");
     expect(menu("origin/feature/lanes").queryAllByRole("separator")).toHaveLength(4);
+  });
+});
+
+describe("Sidebar selected commit", () => {
+  const tint = (view: ReturnType<typeof render>, title: string) => view.getAllByRole("treeitem").find((r) => r.title === title)!.getAttribute("aria-selected");
+
+  it("tints every ref on the selected commit, not the checked-out branch", () => {
+    // The fixture gives a local branch its own name as its oid; `origin/main` and the tag sit at `a`.
+    useRepoStore.setState({ rows: [rowAt("main"), rowAt("a")], selectedIndex: 0 });
+    const view = render(<Sidebar />);
+    expect(tint(view, "main")).toBe("true");
+    expect(tint(view, "origin/main")).toBeNull();
+    expect(tint(view, "feature/panels")).toBeNull();
+
+    act(() => useRepoStore.setState({ selectedIndex: 1 }));
+    // `main` is HEAD and still loses the tint: the check alone marks the checkout.
+    expect(tint(view, "main")).toBeNull();
+    expect(tint(view, "origin/main")).toBe("true");
+
+    act(() => useRepoStore.setState({ wtSelected: true }));
+    expect(tint(view, "origin/main")).toBeNull();
+  });
+
+  it("tints a tag on the selected commit", () => {
+    useRepoStore.setState({ rows: [rowAt("a")], selectedIndex: 0 });
+    const view = render(<Sidebar />);
+    openTags(view);
+    expect(tint(view, "v0.1.0")).toBe("true");
+  });
+
+  it("tints a collapsed folder holding a ref on the selected commit, the row itself once it opens", () => {
+    useSettingsStore.setState({ sidebarFolders: "collapsed" });
+    useRepoStore.setState({ rows: [rowAt("feature/panels")], selectedIndex: 0 });
+    const view = render(<Sidebar />);
+    const folder = () => view.getAllByRole("treeitem", { name: /^feature/ })[0];
+    expect(folder().getAttribute("aria-selected")).toBe("true");
+
+    fireEvent.click(folder());
+    expect(folder().getAttribute("aria-selected")).toBeNull();
+    expect(tint(view, "feature/panels")).toBe("true");
   });
 });
 

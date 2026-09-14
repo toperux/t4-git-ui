@@ -235,8 +235,10 @@ const details1 = () => `<div style="display: flex; flex-direction: column; flex:
 const gridH = (n) => 24 + n * 26;
 
 /** The Changes view's own header bar, in place of the grid. */
-const changesBar = (w, { text = 'Changes on <span class="mono" style="font-size: 12px;">main</span> <span class="muted" style="font-weight: 400;">· 4 unstaged · 2 staged</span>', stash = true } = {}) =>
-  `<div class="panel-header" style="flex: none; height: 32px; gap: 8px;">${icon('git-commit', 14)}<span class="grow" style="color: var(--fg); font-weight: 500;">${text}</span>${w > 800 && stash ? `<span class="btn ghost sm">${icon('archive', 14)}Stash…</span>` : ''}<span class="btn ghost sm">${icon('history', 14)}History</span></div>`;
+const changesBar = ({ text = 'Changes on <span class="mono" style="font-size: 12px;">main</span> <span class="muted" style="font-weight: 400;">· 4 unstaged · 2 staged</span>', stash = true } = {}) =>
+  // Stash… sits beside the counts at every width — disabled, not hidden, on a clean tree — and the
+  // title shrinks first so the close button stays at the right edge.
+  `<div class="panel-header" style="flex: none; height: 32px; gap: 8px;">${icon('git-commit', 14)}<span style="color: var(--fg); font-weight: 500; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${text}</span><span class="btn ghost sm${stash ? '' : ' is-disabled'}">${icon('archive', 14)}Stash…</span><div style="flex: 1;"></div><span class="icon-btn">${icon('x', 14)}</span></div>`;
 
 // ---------- palette ----------
 /** Ctrl+K. Typing filters across groups; an empty query leads with Recent. */
@@ -316,7 +318,7 @@ out.Main = F(1280, 800, `${toolbarB('full', 'history', { update: true })}
 // Changes: the commit panel gets the whole content area.
 out.Changes = F(1280, 800, `${toolbarB('full', 'changes')}
   <div style="display: flex; flex: 1; min-height: 0;">${sidebarFull({ collapseBtn: true })}${splitH()}
-    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${changesBar(1280)}${commit3(340, 360)}</div>
+    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${changesBar()}${commit3(340, 360)}</div>
   </div>${dock({ open: false })}${statusbar({ counts: '4 unstaged · 2 staged' })}`);
 
 const historyBody = (rows = 14) => `${toolbarB('full', 'history')}
@@ -343,7 +345,7 @@ out.History1000 = F(1000, 680, h1000({}));
 // Changes still fits three columns at 1000.
 out.Changes1000 = F(1000, 680, `${toolbarB('tight', 'changes')}
   <div style="display: flex; flex: 1; min-height: 0;">${rail()}
-    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${changesBar(1000)}${commit3(300, 320)}</div>
+    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${changesBar()}${commit3(300, 320)}</div>
   </div>${dock({ open: false })}${statusbar({ counts: '4 unstaged · 2 staged' })}`);
 
 // A rail button opens its section as a flyout over the content.
@@ -352,7 +354,7 @@ out.Flyout1000 = F(1000, 680, h1000({ on: 'local' }, railFlyout(4)));
 // The dock hangs under either view; the commit panel shrinks above it.
 out.Dock1000 = F(1000, 680, `${toolbarB('tight', 'changes')}
   <div style="display: flex; flex: 1; min-height: 0;">${rail()}
-    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${changesBar(1000)}${commit3(300, 320)}</div>
+    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${changesBar()}${commit3(300, 320)}</div>
   </div>${dock({ open: true })}${statusbar({ busy: 'Pushing…', counts: '4 unstaged · 2 staged' })}`);
 
 // --- Row 3 · 720×540 ----------------------------------------------------------
@@ -363,7 +365,7 @@ const h720 = `${toolbarB('icons', 'history')}
   </div>${dock({ open: false })}${statusbar({ counts: '4 unstaged · 2 staged' })}`;
 const c720 = `${toolbarB('icons', 'changes')}
   <div style="display: flex; flex: 1; min-height: 0;">${rail()}
-    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${changesBar(720)}${commit2(280)}</div>
+    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${changesBar()}${commit2(280)}</div>
   </div>${dock({ open: false })}${statusbar({ counts: '4 unstaged · 2 staged' })}`;
 
 out.History720 = F(720, 540, h720);
@@ -385,7 +387,7 @@ out.ChangesMerge = F(1280, 800, `${toolbarB('full', 'changes')}
   ${banner('warning', 'Merge in progress — resolve conflicts, then commit to finish', sec('Abort') + pri('Commit merge'))}
   ${banner('danger', '1 file has conflicts — resolve, then stage it', '')}
   <div style="display: flex; flex: 1; min-height: 0;">${sidebarFull({ collapseBtn: true })}${splitH()}
-    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${changesBar(1280, { text: 'Changes on <span class="mono" style="font-size: 12px;">main</span> <span class="muted" style="font-weight: 400;">· 4 unstaged · 2 staged · 1 conflicted</span>' })}${commit3(260, 280, {
+    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${changesBar({ text: 'Changes on <span class="mono" style="font-size: 12px;">main</span> <span class="muted" style="font-weight: 400;">· 4 unstaged · 2 staged · 1 conflicted</span>' })}${commit3(260, 280, {
       conflict: true, extraBar: false,
       header: diffHeader({ path: 'src/log/graph.rs', add: 0, del: 0, note: 'conflict markers', resolve: true, staging: true }),
     })}</div>
@@ -416,7 +418,7 @@ out.StashPreview = F(1280, 800, `${toolbarB('full', 'history')}
 // A clean tree in Changes is an empty state, not an empty list.
 out.ChangesEmpty = F(1280, 800, `${toolbarB('full', 'changes', { count: 0 })}
   <div style="display: flex; flex: 1; min-height: 0;">${sidebarFull({ collapseBtn: true })}${splitH()}
-    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${changesBar(1280, { text: 'Changes on <span class="mono" style="font-size: 12px;">main</span> <span class="muted" style="font-weight: 400;">· nothing to commit</span>', stash: false })}
+    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${changesBar({ text: 'Changes on <span class="mono" style="font-size: 12px;">main</span> <span class="muted" style="font-weight: 400;">· nothing to commit</span>', stash: false })}
       <div style="display: flex; flex: 1; min-height: 0;">
         <div class="empty" style="flex: 1; background: var(--bg-panel);">${icon('check-circle', 24)}<div class="t">Working tree clean</div><div class="hint">Edit files, or amend the last commit.</div><span class="btn secondary sm" style="margin-top: 6px;">Amend last commit…</span></div>
         ${message({ width: 360, empty: true })}

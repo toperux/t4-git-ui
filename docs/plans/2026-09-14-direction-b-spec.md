@@ -17,7 +17,7 @@ before labels wrap, the sidebar (min 180) plus the commit panel's three columns 
    - *History* = revision grid over the details pane, full height, as today.
    - *Changes* = the commit panel (Unstaged / Staged | diff | message) over the whole content
      area, under a one-line *Changes bar*: `Changes on <branch> · N unstaged · M staged
-     [· K conflicted]`, with `Stash…` and `History` buttons at its right.
+     [· K conflicted]`, with `Stash…` beside the counts and a close (×) button at its right.
    - Selecting the working-tree row in the grid switches to Changes (a click does that today by
      swapping the pane); the row carries an always-visible muted `Open changes →` hint at its
      right (no hover needed); double-click keeps opening the full-window commit dialog. `Alt+1` /

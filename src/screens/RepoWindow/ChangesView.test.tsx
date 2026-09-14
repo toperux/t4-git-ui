@@ -52,13 +52,13 @@ describe("ChangesBar", () => {
     expect(getByText("· nothing to commit")).toBeTruthy();
     expect(getByRole("button", { name: "Stash…" }).hasAttribute("disabled")).toBe(true);
   });
-  it("Stash… opens the stash dialog, History switches the view", () => {
+  it("Stash… opens the stash dialog, Close returns to History", () => {
     useStatusStore.setState({ status: status({ unstaged: 1 }) });
     useViewStore.getState().setView("changes");
     const { getByRole } = render(<ChangesBar />);
     fireEvent.click(getByRole("button", { name: "Stash…" }));
     expect(useDialogStore.getState().dialog).toEqual({ kind: "stashPush" });
-    fireEvent.click(getByRole("button", { name: "History" }));
+    fireEvent.click(getByRole("button", { name: "Close" }));
     expect(useViewStore.getState().view).toBe("history");
   });
 });

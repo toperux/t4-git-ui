@@ -1,5 +1,5 @@
-// The stash browser: push form + entry list beside the previewed stash's files and diffs.
-import { Archive } from "lucide-react";
+// The stash browser: the working tree and every stash in one list, beside what the selected one holds.
+import { Archive, GitCommitHorizontal } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import type { Stash } from "../../../api/types";
@@ -12,29 +12,35 @@ import { cx } from "../../../lib/cx";
 import { relativeDate } from "../../../lib/relativeDate";
 import { selectRunning, useOpsStore } from "../../../store/opsStore";
 import { useRepoStore } from "../../../store/repoStore";
-import { selectChangeCount, useStatusStore } from "../../../store/statusStore";
+import { useStatusStore } from "../../../store/statusStore";
 import { stashApply, stashClear, stashDrop, stashPop } from "../actions";
 import { ChangedFileList } from "../ChangedFileList/ChangedFileList";
+import { DiffColumn } from "../CommitPanel/CommitPanel";
+import { FilesColumn } from "../CommitPanel/FilesColumn";
 import { CommitDiff } from "../DetailsPane";
 import d from "../DetailsPane.module.css";
 import w from "../RepoWindow.module.css";
 import { gitCmd, stashClearArgs } from "./gitArgs";
-import { EMPTY_PUSH, StashMenuItems, StashPushFields, stashPushOp, stashPushPreview } from "./StashDialogs";
+import { EMPTY_PUSH, StashMenuItems, StashPushFields, stashBlocker, stashFiles, stashLabel, stashPushOp, stashPushPreview, useStashFiles } from "./StashDialogs";
 import s from "./StashesDialog.module.css";
 
 const NO_STASHES: Stash[] = [];
 
 /**
- * Every stash at once: the inline push form and the list on the left, the previewed entry's changed
- * files and diff on the right — the same stores as the pane behind the scrim, so both show one stash.
+ * Every stash at once, with the working tree above them: the list on the left, and on the right what
+ * the selected row holds — the commit panel's own columns for the tree, the previewed entry's changed
+ * files and diff for a stash (the same stores as the pane behind the scrim, so both show one stash).
  */
 export function StashesDialog({ onClose }: { onClose: () => void }) {
   const stashes = useRepoStore((st) => st.refs?.stashes ?? NO_STASHES);
   const preview = useRepoStore((st) => st.preview);
   const previewStash = useRepoStore((st) => st.previewStash);
   const running = useOpsStore(selectRunning);
-  const changes = useStatusStore(selectChangeCount);
   const [push, setPush] = useState(EMPTY_PUSH);
+  /** The Working tree row is selected. A dirty tree opens on it: that is what the user came to stash. */
+  const [wt, setWt] = useState(() => stashFiles(useStatusStore.getState().status, EMPTY_PUSH.untracked).length > 0);
+  const files = useStashFiles(push.untracked);
+  const empty = useStatusStore((st) => stashBlocker(st.status) ?? "No changes");
   const [menu, setMenu] = useState<{ at: { x: number; y: number }; stash: Stash } | null>(null);
   /** Where the preview last was, so a pop / drop moves to the entry that took its place. */
   const lastIndex = useRef(0);
@@ -45,11 +51,13 @@ export function StashesDialog({ onClose }: { onClose: () => void }) {
     if (preview) lastIndex.current = preview.index;
   }, [preview]);
   // Opening with nothing previewed lands on stash@{0}; losing the preview (pop / drop / clear here
-  // or in a terminal) lands on whatever now sits where it was. The pane behind keeps the plain clear.
+  // or in a terminal) lands on whatever now sits where it was, or on the working tree once the
+  // list is empty. The pane behind keeps the plain clear.
   useEffect(() => {
-    if (preview || stashes.length === 0) return;
-    previewStash(stashes[Math.min(lastIndex.current, stashes.length - 1)]);
-  }, [preview, stashes, previewStash]);
+    if (wt || preview) return;
+    if (stashes.length === 0) setWt(true);
+    else previewStash(stashes[Math.min(lastIndex.current, stashes.length - 1)]);
+  }, [wt, preview, stashes, previewStash]);
 
   // The stash a push of ours just made, as soon as the refs refresh brings it: that is what the
   // user asked to see.
@@ -58,6 +66,9 @@ export function StashesDialog({ onClose }: { onClose: () => void }) {
     if (!pushed.current || !top || top.oid === pushed.current.from) return;
     pushed.current = null;
     previewStash(top);
+    // Leaving the working tree here, not when the push resolves: until the refs bring the entry
+    // the list can still be empty, and an empty list lands back on the tree.
+    setWt(false);
   }, [stashes, previewStash]);
 
   /** Every header button acts on the previewed entry. */
@@ -65,28 +76,38 @@ export function StashesDialog({ onClose }: { onClose: () => void }) {
     if (preview) void fn(preview);
   };
   const busy = running ? "Operation in progress" : undefined;
+  /** Picking a stash row always leaves the working tree. */
+  const select = (st: Stash) => {
+    previewStash(st);
+    setWt(false);
+  };
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
-    if (stashes.length === 0) return;
-    if (e.key === "Delete" && preview) {
+    if (e.key === "Delete") {
+      if (wt || !preview) return;
       e.preventDefault();
       void stashDrop(preview.index, preview.message);
       return;
     }
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
     e.preventDefault();
-    const at = preview ? stashes.findIndex((st) => st.oid === preview.oid) : -1;
-    const next = Math.min(stashes.length - 1, Math.max(0, at + (e.key === "ArrowDown" ? 1 : -1)));
-    previewStash(stashes[next]);
+    // The working tree is index -1, above stash@{0}.
+    const at = wt ? -1 : preview ? stashes.findIndex((st) => st.oid === preview.oid) : -1;
+    const next = Math.min(stashes.length - 1, Math.max(-1, at + (e.key === "ArrowDown" ? 1 : -1)));
+    if (next < 0) setWt(true);
+    else select(stashes[next]);
   }
 
-  const canPush = changes > 0 && !running;
+  const canPush = files.length > 0 && !running;
   function submitPush() {
     if (!canPush) return;
     pushed.current = { from: stashes[0]?.oid ?? null };
     void stashPushOp(push).then((out) => {
-      if (out.ok) setPush(EMPTY_PUSH);
-      else pushed.current = null;
+      if (!out.ok) {
+        pushed.current = null;
+        return;
+      }
+      setPush(EMPTY_PUSH);
     });
   }
 
@@ -95,67 +116,77 @@ export function StashesDialog({ onClose }: { onClose: () => void }) {
       <Group orientation="horizontal" className={d.pane}>
         <Panel defaultSize={280} minSize={220} maxSize={420} className={w.panel}>
           <div className={s.side}>
-            <div className={s.form}>
-              <StashPushFields value={push} onChange={setPush} />
-              <div className={s.formFoot}>
+            {wt ? (
+              <div className={s.controls}>
+                <StashPushFields value={push} onChange={setPush} />
                 <span className={s.preview}>{stashPushPreview(push)}</span>
-                <Button size="sm" variant="primary" disabled={!canPush} title={changes === 0 ? "No changes" : running ? "Operation in progress" : undefined} onClick={submitPush}>
-                  Stash
+                <Button className={s.push} variant="primary" disabled={!canPush} title={files.length === 0 ? empty : busy} onClick={submitPush}>
+                  {stashLabel(files.length)}
                 </Button>
               </div>
-            </div>
-            <div className={s.bar}>
-              <Button size="sm" disabled={!preview || running} title={busy} onClick={on((st) => stashApply(st.index))}>
-                Apply
-              </Button>
-              <Button size="sm" disabled={!preview || running} title={busy} onClick={on((st) => stashPop(st.index))}>
-                Pop
-              </Button>
-              <Button size="sm" variant="danger" disabled={!preview || running} title={busy} onClick={on((st) => stashDrop(st.index, st.message))}>
-                Drop…
-              </Button>
-              <Button size="sm" variant="danger" disabled={stashes.length === 0 || running} title={busy ?? gitCmd(stashClearArgs())} onClick={() => void stashClear(stashes.length)}>
-                Clear all…
-              </Button>
-            </div>
-            {stashes.length === 0 ? (
-              <EmptyState icon={<Archive size={24} aria-hidden />} title="No stashes" />
             ) : (
-              <div className={cx(s.list, TREE_PANE_CLASS)} role="listbox" aria-label="Stashes" tabIndex={0} onKeyDown={onKeyDown}>
-                {stashes.map((st) => (
+              <div className={s.bar}>
+                <Button size="sm" disabled={!preview || running} title={busy} onClick={on((st) => stashApply(st.index))}>
+                  Apply
+                </Button>
+                <Button size="sm" disabled={!preview || running} title={busy} onClick={on((st) => stashPop(st.index))}>
+                  Pop
+                </Button>
+                <Button size="sm" variant="danger" disabled={!preview || running} title={busy} onClick={on((st) => stashDrop(st.index, st.message))}>
+                  Drop…
+                </Button>
+                <Button size="sm" variant="danger" disabled={stashes.length === 0 || running} title={busy ?? gitCmd(stashClearArgs())} onClick={() => void stashClear(stashes.length)}>
+                  Clear all…
+                </Button>
+              </div>
+            )}
+            <div className={cx(s.list, TREE_PANE_CLASS)} role="listbox" aria-label="Stashes" tabIndex={0} onKeyDown={onKeyDown}>
+              <TreeRow
+                role="option"
+                icon={<GitCommitHorizontal size={14} aria-hidden />}
+                /* The span, not the row's `className`: that would tint the meta too. */
+                label={<span className={s.wt}>Working tree</span>}
+                selected={wt}
+                meta={files.length === 0 ? empty : `${files.length} changes`}
+                onClick={() => setWt(true)}
+              />
+              {stashes.length === 0 ? (
+                <EmptyState icon={<Archive size={24} aria-hidden />} title="No stashes" />
+              ) : (
+                stashes.map((st) => (
                   <TreeRow
                     key={st.oid}
                     role="option"
                     icon={<Archive size={14} aria-hidden />}
                     label={st.message}
                     title={`stash@{${st.index}}: ${st.message}`}
-                    selected={preview?.oid === st.oid}
+                    selected={!wt && preview?.oid === st.oid}
                     meta={
                       <>
                         {st.hasUntracked && <span className={s.dot} title="Includes untracked files" />}
                         {relativeDate(st.time)}
                       </>
                     }
-                    onClick={() => previewStash(st)}
+                    onClick={() => select(st)}
                     onContextMenu={(e: MouseEvent<HTMLElement>) => {
                       e.preventDefault();
-                      previewStash(st);
+                      select(st);
                       setMenu({ at: { x: e.clientX, y: e.clientY }, stash: st });
                     }}
                   />
-                ))}
-              </div>
-            )}
+                ))
+              )}
+            </div>
           </div>
         </Panel>
         <Separator className={w.splitH} aria-label="Resize stash list" />
         {/* 200, as in the pane: the list header needs 199px before the title gets any. */}
         <Panel defaultSize={320} minSize={200} maxSize={640} className={w.panel}>
-          <ChangedFileList />
+          {wt ? <FilesColumn /> : <ChangedFileList />}
         </Panel>
         <Separator className={w.splitH} aria-label="Resize file list" />
         <Panel minSize={200} className={w.panel}>
-          <CommitDiff />
+          {wt ? <DiffColumn /> : <CommitDiff />}
         </Panel>
       </Group>
       {menu && (

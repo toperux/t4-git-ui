@@ -1,4 +1,4 @@
-/* Stash browser, left panel: push form · action bar · entry list (the other two panels are the pane's). */
+/* Stash browser, left panel: the selected row's controls over the list (the other two panels are the pane's). */
 .side {
   display: flex;
   flex-direction: column;
@@ -6,7 +6,8 @@
   min-height: 0;
   background: var(--bg-panel);
 }
-.form {
+/* The strip above the list: the push form while the working tree is selected, `.bar` otherwise. */
+.controls {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -14,10 +15,8 @@
   border-bottom: 1px solid var(--border);
   flex: none;
 }
-.formFoot {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
+.push {
+  width: 100%;
 }
 .preview {
   flex: 1;
@@ -42,6 +41,11 @@
   min-height: 0;
   overflow: auto;
   padding: var(--space-2) 0;
+}
+/* The working-tree row's label, like the grid's own (RevisionGrid.module.css `.wt`). */
+.wt {
+  color: var(--fg-muted);
+  font-style: italic;
 }
 /* `stash -u`: the entry carries untracked files too. */
 .dot {

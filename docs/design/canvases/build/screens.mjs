@@ -98,7 +98,7 @@ export function sidebar({ width = 260, empty = false, detached = false, loading 
        ${sh(true, 'Remotes', 0)}<div class="empty" style="padding: 16px 12px;">${icon('cloud', 20)}<div class="sm">No remotes</div><span class="btn secondary sm">Add remote…</span></div>
        ${sh(false, 'Tags', 0)}${sh(false, 'Stashes', 0)}`
     : `${sh(true, 'Local', 4)}
-      ${tr(0, detached ? '' : 'current is-selected', '', accentIcon('check'), 'main', `<span class="ab">${icon('arrow-up', 12)}2 ${icon('arrow-down', 12)}5</span>`)}
+      ${tr(0, detached ? '' : 'current', '', accentIcon('check'), 'main', `<span class="ab">${icon('arrow-up', 12)}2 ${icon('arrow-down', 12)}5</span>`)}
       ${tr(0, 'folder', 'chevron-down', folderIcon(true), 'feature', '2')}
       ${tr(1, '', '', icon('git-branch', 14), 'lane-graph', `<span class="ab">${icon('arrow-up', 12)}2</span>`)}
       ${tr(1, '', '', icon('git-branch', 14), 'diff-viewer', badge('gone', 'Upstream is gone'))}

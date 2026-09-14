@@ -54,9 +54,11 @@ export function RepoWindow() {
   const railOverride = useViewStore((st) => st.railOverride);
   const toggleRail = useViewStore((st) => st.toggleRail);
   const rail = railOverride ?? railAuto;
-  // One status sync serves the panel and the commit dialog (which can open from the toolbar with the panel hidden).
+  // One status sync serves the panel, the commit dialog (which can open from the toolbar with the
+  // panel hidden) and the stash browser's working-tree row, which shows the same two lists.
   const commitOpen = useDialogStore((st) => st.dialog?.kind === "commit");
-  useCommitSync(view === "changes" || commitOpen);
+  const stashesOpen = useDialogStore((st) => st.dialog?.kind === "stashes");
+  useCommitSync(view === "changes" || commitOpen || stashesOpen);
   const dockOpen = useOpsStore((st) => st.open);
   // With one tab there is nothing to switch to, and the toolbar already names the repository — but a
   // tab dragged here from another window needs somewhere to show its drop caret.

@@ -1,7 +1,8 @@
-import { Archive, CircleCheck, GitCommitHorizontal, History } from "lucide-react";
+import { Archive, CircleCheck, GitCommitHorizontal, X } from "lucide-react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import { Button } from "../../components/ui/Button/Button";
 import { EmptyState } from "../../components/ui/EmptyState/EmptyState";
+import { IconButton } from "../../components/ui/IconButton/IconButton";
 import { useDialogStore } from "../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../store/opsStore";
 import { useMerging, useRepoStore } from "../../store/repoStore";
@@ -12,7 +13,7 @@ import { CommitPanel } from "./CommitPanel/CommitPanel";
 import { MessageColumn } from "./CommitPanel/MessageColumn";
 import w from "./RepoWindow.module.css";
 
-/** `Changes on <branch> · N unstaged · M staged [· K conflicted]`, with Stash… and History at the right. */
+/** `Changes on <branch> · N unstaged · M staged [· K conflicted]`, with `Stash…` beside the counts and a close button at its right. */
 export function ChangesBar() {
   const head = useRepoStore((st) => st.refs?.head ?? null);
   const status = useStatusStore((st) => st.status);
@@ -42,9 +43,10 @@ export function ChangesBar() {
       >
         Stash…
       </Button>
-      <Button variant="ghost" size="sm" icon={<History size={14} aria-hidden />} title="History (Alt+1)" onClick={() => setView("history")}>
-        History
-      </Button>
+      <div className={s.grow} />
+      <IconButton label="Close" title="Close (Alt+1)" onClick={() => setView("history")}>
+        <X size={14} aria-hidden />
+      </IconButton>
     </div>
   );
 }

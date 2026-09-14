@@ -366,9 +366,11 @@ canvases under `docs/design/` once it lands. Two items parked while deciding it,
 building it:
 - **Palette search prefixes** — `#` searches commits (subject / SHA), `/` opens a file in the Files
   tab. The first palette ships with actions, views, go-to-branch and recent repositories only.
-- **Stash dialog shows nothing of what it stashes.** `Stash changes…` takes a message and two
-  checkboxes but never lists the working tree it is about to push; the user stashes blind. Show
-  the unstaged / staged files (and untracked when included) in the dialog.
+- ~~**Stash dialog shows nothing of what it stashes.**~~ `Stash changes…` took a message and two
+  checkboxes but never listed the working tree it was about to push; the user stashed blind. The
+  dialog now lists the files the push will take and its button reads `Stash N files`, and the
+  Stashes browser's list opens with a Working tree row carrying the same form and the Changes
+  panels. Done 2026-09-15 (this commit).
 - **Per-view sidebar state** (Direction B follow-up): many will hide the sidebar while staging and want it back in History. One `railOverride` per view is a ten-line change in `viewStore` if the first weeks say so.
 
 ## Suggested order, if nothing else decides it

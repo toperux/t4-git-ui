@@ -19,7 +19,7 @@
   flex: none;
 }
 .title {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -34,6 +34,10 @@
 .counts {
   color: var(--fg-muted);
   font-weight: var(--weight-regular);
+}
+/* Pushes the close button to the bar's right edge. */
+.grow {
+  flex: 1;
 }
 .pane {
   flex: 1;
