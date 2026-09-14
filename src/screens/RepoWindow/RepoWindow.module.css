@@ -7,6 +7,14 @@
 }
 .main {
   flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+/* The rail sits beside the horizontal group, outside it: only the sidebar panel is resizable. */
+.row {
+  display: flex;
+  flex: 1;
+  min-width: 0;
   min-height: 0;
 }
 .content {

@@ -6,6 +6,8 @@ import { useOpsStore } from "../../store/opsStore";
 import { sortRecents, useRecentsStore, type RecentRepo } from "../../store/recentsStore";
 import { useRepoStore } from "../../store/repoStore";
 import { useTabsStore, type Tab } from "../../store/tabsStore";
+import { useViewStore } from "../../store/viewStore";
+import { openCommitPanel } from "./actions";
 import { Toolbar } from "./Toolbar";
 
 vi.mock("../../api/ipc", async (importOriginal) => {
@@ -31,6 +33,8 @@ const mocked = ipc as unknown as Record<"fetch" | "dragOver" | "dragCancel" | "d
 
 beforeEach(() => {
   vi.clearAllMocks();
+  window.innerWidth = 1280;
+  useViewStore.getState().__resetForTests();
   useRepoStore.setState({ repo: { id: "r", name: "r", path: "/r", head: { oid: "a", branch: "main", detached: false } }, refs: null });
   useOpsStore.setState({ ops: [], open: false, busy: null });
   useDialogStore.setState({ dialog: null });
@@ -59,31 +63,28 @@ describe("Toolbar settings", () => {
   });
 });
 
-describe("Toolbar Commit", () => {
-  it("is disabled with no changes, but a merge still to be committed enables it", () => {
-    const { getByRole, rerender } = render(<Toolbar />);
-    expect(getByRole("button", { name: "Commit" }).hasAttribute("disabled")).toBe(true);
-    // "Keep main's version" on the only conflict: MERGE_HEAD is there, the status is empty.
-    useRepoStore.setState({ refs: { head: { oid: "a", branch: "main", detached: false }, state: "merge", local: [], remotes: [], tags: [], stashes: [] } });
-    rerender(<Toolbar />);
-    expect(getByRole("button", { name: "Commit" }).hasAttribute("disabled")).toBe(false);
-  });
-
-  it("clears the search filter first — the pseudo-row that mounts the panel is hidden while it flattens the walk", () => {
+describe("openCommitPanel", () => {
+  it("clears the search and path filters first — a filtered walk has no working-tree row to select — and switches to Changes", () => {
     useRepoStore.setState({
       refs: { head: { oid: "a", branch: "main", detached: false }, state: "merge", local: [], remotes: [], tags: [], stashes: [] },
-      filter: { text: "lane" },
+      filter: { text: "lane", path: "a.txt" },
       log: { generation: 1, total: 1, complete: true, error: null, flat: true },
       wtSelected: false,
     });
-    const { getByRole, getByLabelText } = render(<Toolbar />);
-    expect((getByLabelText("Search commits") as HTMLInputElement).value).toBe("lane");
-
-    fireEvent.click(getByRole("button", { name: "Commit" }));
+    act(() => openCommitPanel());
     expect(useRepoStore.getState().filter.text).toBeNull();
+    expect(useRepoStore.getState().filter.path).toBeNull();
     expect(useRepoStore.getState().wtSelected).toBe(true);
-    // The field follows the store, so it doesn't keep showing a filter that is no longer applied.
-    expect((getByLabelText("Search commits") as HTMLInputElement).value).toBe("");
+    expect(useViewStore.getState().view).toBe("changes");
+  });
+});
+
+describe("Toolbar view switch", () => {
+  it("replaces the Commit button: Changes switches the view and is never disabled", () => {
+    const { getByRole } = render(<Toolbar />);
+    fireEvent.click(getByRole("button", { name: /^Changes/ }));
+    expect(useViewStore.getState().view).toBe("changes");
+    expect(getByRole("button", { name: /^Changes/ }).hasAttribute("disabled")).toBe(false);
   });
 });
 
@@ -103,20 +104,6 @@ describe("Toolbar history chip", () => {
     useRepoStore.setState({ filter: {} });
     const { queryByText } = render(<Toolbar />);
     expect(queryByText(/^History:/)).toBeNull();
-  });
-
-  it("Commit clears the path filter too — it flattens the walk just as the search does", () => {
-    useRepoStore.setState({
-      refs: { head: { oid: "a", branch: "main", detached: false }, state: "merge", local: [], remotes: [], tags: [], stashes: [] },
-      filter: { path: "a.txt" },
-      log: { generation: 1, total: 1, complete: true, error: null, flat: true },
-      wtSelected: false,
-    });
-    const { getByRole } = render(<Toolbar />);
-    fireEvent.click(getByRole("button", { name: "Commit" }));
-    expect(useRepoStore.getState().filter.path).toBeNull();
-    expect(useRepoStore.getState().filter.text).toBeNull();
-    expect(useRepoStore.getState().wtSelected).toBe(true);
   });
 });
 
@@ -322,5 +309,59 @@ describe("Toolbar repository handle", () => {
     await drop(btn);
     expect(mocked.dropTab).not.toHaveBeenCalled();
     expect(useTabsStore.getState().tabs.map((t) => t.id)).toEqual(["/r"]);
+  });
+});
+
+function setWidth(w: number) {
+  act(() => {
+    window.innerWidth = w;
+    window.dispatchEvent(new Event("resize"));
+  });
+}
+
+describe("Toolbar tiers", () => {
+  it("full: search and filter inline, no overflow menu", () => {
+    const { getByRole, queryByRole } = render(<Toolbar />);
+    expect(getByRole("searchbox", { name: "Search commits" })).toBeTruthy();
+    expect(getByRole("combobox", { name: "Branch filter" })).toBeTruthy();
+    expect(queryByRole("button", { name: "More" })).toBeNull();
+    expect(getByRole("toolbar").className).not.toMatch(/tight|icons/);
+  });
+  it("tight: the toolbar carries the tier class and the buttons keep their names", () => {
+    window.innerWidth = 1000;
+    const { getByRole } = render(<Toolbar />);
+    expect(getByRole("toolbar").className).toMatch(/tight/);
+    expect(getByRole("button", { name: "Pull" }).querySelector("[data-label]")).toBeTruthy();
+    expect(getByRole("button", { name: "Branch" })).toBeTruthy();
+  });
+  it("icons: search is a button opening a popover; Branch, Stash, Refresh, theme, Settings and the palette fold into More", () => {
+    window.innerWidth = 720;
+    const { getByRole, queryByRole } = render(<Toolbar />);
+    expect(getByRole("toolbar").className).toMatch(/icons/);
+    expect(queryByRole("searchbox")).toBeNull();
+    expect(queryByRole("button", { name: "Branch" })).toBeNull();
+    expect(queryByRole("button", { name: "Settings" })).toBeNull();
+    fireEvent.click(getByRole("button", { name: "Search commits" }));
+    expect(getByRole("searchbox", { name: "Search commits" })).toBeTruthy();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(queryByRole("searchbox")).toBeNull();
+    fireEvent.click(getByRole("button", { name: "More" }));
+    for (const name of ["Branch", "Stash…", "Refresh", "Switch to dark theme", "Settings", "Command palette"]) {
+      expect(getByRole("menuitem", { name: new RegExp(`^${name.replace("…", "\\…")}`) })).toBeTruthy();
+    }
+    fireEvent.click(getByRole("menuitem", { name: /^Settings/ }));
+    expect(useDialogStore.getState().dialog).toEqual({ kind: "settings" });
+  });
+  it("re-lays out on resize", () => {
+    const { getByRole, queryByRole } = render(<Toolbar />);
+    expect(queryByRole("button", { name: "More" })).toBeNull();
+    setWidth(720);
+    expect(getByRole("button", { name: "More" })).toBeTruthy();
+  });
+  it("Changes view: no search box or filter in the toolbar", () => {
+    useViewStore.getState().setView("changes");
+    const { queryByRole } = render(<Toolbar />);
+    expect(queryByRole("searchbox")).toBeNull();
+    expect(queryByRole("combobox", { name: "Branch filter" })).toBeNull();
   });
 });

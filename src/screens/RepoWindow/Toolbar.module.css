@@ -26,6 +26,9 @@
 /* Main.mjs draws the compact control (240×26 / 150×26): the token for it is --control-h-sm. */
 .search {
   width: 240px;
+  /* The one control that gives way (spec §3): without this the wrap stops at the input's intrinsic
+   * ~178px and the Update badge pushes Settings past the window edge at 1280. */
+  min-width: 120px;
   height: var(--control-h-sm);
 }
 .filter {
@@ -57,4 +60,35 @@
   flex: none;
   width: 18px;
   height: 18px;
+}
+/* Tight (< 1100): the operation buttons keep icon + count; the search gives way first. */
+.tight .op [data-label] {
+  display: none;
+}
+.tight .search {
+  width: 140px;
+}
+.tight .filter {
+  min-width: 110px;
+}
+/* Icons (< 800): repo icon only, no inline search; the rest is in the More menu. */
+.icons .op [data-label],
+.icons .repoName {
+  display: none;
+}
+.searchPopover {
+  position: fixed;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 320px;
+  padding: var(--space-3);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+}
+.searchPopover .history {
+  max-width: none;
 }

@@ -6,6 +6,7 @@ import { useDialogStore } from "../../../store/dialogStore";
 import { useOpsStore } from "../../../store/opsStore";
 import { __resetForTests as resetRepo, useRepoStore } from "../../../store/repoStore";
 import { __resetForTests as resetStatus, useStatusStore } from "../../../store/statusStore";
+import { useViewStore } from "../../../store/viewStore";
 import { RevisionGrid } from "./RevisionGrid";
 
 vi.mock("../../../api/ipc", () => ({
@@ -250,7 +251,7 @@ describe("RevisionGrid", () => {
     expect(rows).toHaveLength(3);
     // The header is row 1 and counts towards `aria-rowcount`: the pseudo-row is row 2.
     expect(getByRole("grid").getAttribute("aria-rowcount")).toBe("4");
-    expect(rows[0].textContent?.trim()).toBe("Working tree · 3 changes");
+    expect(rows[0].textContent?.trim()).toBe("Working tree · 3 changesOpen changes →");
     expect(rows[0].getAttribute("aria-rowindex")).toBe("2");
     expect(rows[1].getAttribute("aria-rowindex")).toBe("3");
     expect(rows[1].textContent).toContain("Top");
@@ -259,11 +260,23 @@ describe("RevisionGrid", () => {
     expect(rows[1].getAttribute("aria-selected")).toBe("true");
     fireEvent.mouseDown(rows[0]);
     expect(useRepoStore.getState().wtSelected).toBe(true);
-    // A double-click opens the full-window commit dialog.
+    // A single click switches to Changes only after the double-click interval, so a second click
+    // inside it opens the full-window commit dialog instead (walk AU-1).
+    vi.useFakeTimers();
     useDialogStore.setState({ dialog: null });
+    useViewStore.getState().setView("history");
+    fireEvent.click(rows[0], { detail: 1 });
     fireEvent.doubleClick(rows[0]);
+    vi.runAllTimers();
     expect(useDialogStore.getState().dialog).toEqual({ kind: "commit" });
+    expect(useViewStore.getState().view).toBe("history");
     useDialogStore.setState({ dialog: null });
+    fireEvent.click(rows[0], { detail: 1 });
+    expect(useViewStore.getState().view).toBe("history");
+    vi.runAllTimers();
+    expect(useViewStore.getState().view).toBe("changes");
+    vi.useRealTimers();
+    useViewStore.getState().setView("history");
     // ArrowDown from the pseudo-row lands on the first commit.
     fireEvent.keyDown(getByRole("grid"), { key: "ArrowDown" });
     expect(useRepoStore.getState()).toMatchObject({ wtSelected: false, selectedIndex: 0 });
@@ -481,7 +494,7 @@ describe("RevisionGrid", () => {
     });
     useStatusStore.setState({ status: { entries: [], staged: 0, unstaged: 0, untracked: 0, conflicted: 0, state: "merge" } });
     const { container } = render(<RevisionGrid />);
-    expect(container.querySelectorAll(ROWS)[0].textContent?.trim()).toBe("Working tree · merge to commit");
+    expect(container.querySelectorAll(ROWS)[0].textContent?.trim()).toBe("Working tree · merge to commitOpen changes →");
   });
 
   it("greys every item but Copy SHA while an operation runs", () => {

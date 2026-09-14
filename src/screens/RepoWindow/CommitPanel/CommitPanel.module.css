@@ -12,7 +12,9 @@
   display: flex;
   flex-direction: column;
   background: var(--bg-panel);
-  overflow: hidden;
+  /* Scrolls, not clips: below 800 the message column can be squeezed to 160px and its Commit
+     buttons would otherwise be cut off with no way to reach them. */
+  overflow: auto;
 }
 
 /* --- file lists --- */
@@ -193,7 +195,9 @@
 /* Editor box: inset bg; focus = accent border + 3px soft halo (Input focus anatomy) */
 .editor {
   flex: 1;
-  min-height: 0;
+  /* The summary row and three body lines. Below that the column scrolls (`.col`) rather than
+     the box collapsing and its fields painting under the checkbox rows (720 × 540, two columns). */
+  min-height: 108px;
   display: flex;
   flex-direction: column;
   background: var(--bg-inset);

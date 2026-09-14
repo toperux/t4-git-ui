@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDialogStore } from "../../store/dialogStore";
 import { useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
+import { useViewStore } from "../../store/viewStore";
+import { usePaletteStore } from "./CommandPalette/paletteStore";
 import { useShortcuts } from "./useShortcuts";
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
@@ -12,6 +14,8 @@ beforeEach(() => {
   useRepoStore.setState({ repo: { id: "r", name: "r", path: "/r", head: { oid: "a", branch: "main", detached: false } } });
   useDialogStore.setState({ dialog: null });
   useOpsStore.setState({ ops: [], open: false, busy: null });
+  useViewStore.getState().__resetForTests();
+  usePaletteStore.getState().__resetForTests();
 });
 afterEach(cleanup);
 
@@ -36,6 +40,37 @@ describe("useShortcuts", () => {
     expect(useDialogStore.getState().dialog).toBeNull();
     fireEvent.keyDown(input, { key: "`", ctrlKey: true });
     expect(useOpsStore.getState().open).toBe(false);
+    input.remove();
+  });
+
+  it("Alt+1 / Alt+2 switch the view; Ctrl+2 still means the second tab", () => {
+    renderHook(() => useShortcuts());
+    fireEvent.keyDown(window, { key: "2", code: "Digit2", altKey: true });
+    expect(useViewStore.getState().view).toBe("changes");
+    fireEvent.keyDown(window, { key: "¡", code: "Digit1", altKey: true }); // Option+1 on a Mac keyboard
+    expect(useViewStore.getState().view).toBe("history");
+    fireEvent.keyDown(window, { key: "2", code: "Digit2", ctrlKey: true });
+    expect(useViewStore.getState().view).toBe("history");
+  });
+
+  it("Alt+0 toggles the sidebar rail, even from a text field", () => {
+    window.innerWidth = 1280;
+    renderHook(() => useShortcuts());
+    const input = document.body.appendChild(document.createElement("input"));
+    fireEvent.keyDown(input, { key: "0", code: "Digit0", altKey: true });
+    expect(useViewStore.getState().railOverride).toBe(true);
+    input.remove();
+  });
+
+  it("Ctrl+K toggles the palette, even from a text field; other shortcuts sleep while it is open", () => {
+    renderHook(() => useShortcuts());
+    const input = document.body.appendChild(document.createElement("input"));
+    fireEvent.keyDown(input, { key: "k", ctrlKey: true });
+    expect(usePaletteStore.getState().open).toBe(true);
+    fireEvent.keyDown(window, { key: "2", code: "Digit2", altKey: true });
+    expect(useViewStore.getState().view).toBe("history");
+    fireEvent.keyDown(input, { key: "k", ctrlKey: true });
+    expect(usePaletteStore.getState().open).toBe(false);
     input.remove();
   });
 });

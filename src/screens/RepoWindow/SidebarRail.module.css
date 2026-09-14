@@ -1,0 +1,76 @@
+/* 36px rail, the `.rail-btn` from the canvas */
+.wrap {
+  position: relative;
+  display: flex;
+  flex: none;
+  height: 100%;
+}
+.rail {
+  width: 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) 0;
+  background: var(--bg-app);
+  border-right: 1px solid var(--border);
+}
+.btn {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+}
+.btn:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.on {
+  background: var(--bg-active);
+  color: var(--fg);
+}
+.n {
+  position: absolute;
+  top: -2px;
+  right: -3px;
+  height: 13px;
+  min-width: 13px;
+  padding: 0 3px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-inset);
+  color: var(--fg-muted);
+  font-size: 9px;
+  line-height: 13px;
+  font-weight: var(--weight-semibold);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.grow {
+  flex: 1;
+}
+/* Elevated over the content; the Sidebar inside draws its own tree on this surface. */
+.flyout {
+  position: absolute;
+  left: 40px;
+  top: var(--space-2);
+  width: 260px;
+  max-height: calc(100% - var(--space-2) * 2);
+  display: flex;
+  z-index: 20;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
+}

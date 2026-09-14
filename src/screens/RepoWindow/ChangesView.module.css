@@ -1,0 +1,47 @@
+.view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+/* A PanelHeader-shaped band: the view's one title line. */
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 32px;
+  padding: 0 var(--space-4);
+  background: var(--bg-app);
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  flex: none;
+}
+.title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg);
+  font-weight: var(--weight-medium);
+}
+.branch {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+.counts {
+  color: var(--fg-muted);
+  font-weight: var(--weight-regular);
+}
+.pane {
+  flex: 1;
+  min-height: 0;
+  background: var(--bg-panel);
+}
+.empty {
+  flex: 1;
+  align-self: stretch;
+  justify-content: center;
+}

@@ -14,6 +14,7 @@ import { useRepoStore } from "../../store/repoStore";
 import { useStatusStore } from "../../store/statusStore";
 import { useTabsStore } from "../../store/tabsStore";
 import { toastError, useToastStore } from "../../store/toastStore";
+import { useViewStore } from "../../store/viewStore";
 import { gitCmd } from "./dialogs/gitArgs";
 
 export const currentBranch = (): Branch | null => useRepoStore.getState().refs?.local.find((b) => b.isHead) ?? null;
@@ -199,14 +200,15 @@ export function copyText(text: string, what: string) {
 }
 
 /**
- * Toolbar Commit, "Commit merge", "Open commit panel". Any filter flattens the walk, and the
- * pseudo-row (the only thing that mounts the panel) is suppressed while it does: clear them first,
- * or the click does nothing at all.
+ * Into the Changes view with the working-tree row selected: the grid's row and its keyboard nav,
+ * the empty-repo button, the banners, the palette. A filtered walk has no working-tree row to
+ * select, so the filter is cleared first (the search box follows the store).
  */
 export function openCommitPanel() {
   const st = useRepoStore.getState();
   if (st.log.flat) void st.startLog(st.spec, { ...st.filter, text: null, path: null });
   st.selectWorkingTree();
+  useViewStore.getState().setView("changes");
 }
 
 /**

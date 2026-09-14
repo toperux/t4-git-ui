@@ -12,17 +12,22 @@ import { prettyUrl } from "../../lib/paths";
 import { useDialogStore } from "../../store/dialogStore";
 import { useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
-import { useShowWorkingTree, useStatusStore } from "../../store/statusStore";
+import { useStatusStore } from "../../store/statusStore";
 import { useTabsStore } from "../../store/tabsStore";
+import { useViewStore } from "../../store/viewStore";
 import { bisectMark, bisectReset, checkoutBranch, cherryPickAbort, mergeAbort, openCommitPanel, rebaseAbort, rebaseContinue, rebaseSkip, revertAbort } from "./actions";
 import { computeBanners, defaultBranch, type BannerAction } from "./banners";
-import { CommitPanel, useCommitSync } from "./CommitPanel/CommitPanel";
+import { ChangesView } from "./ChangesView";
+import { CommandPalette } from "./CommandPalette/CommandPalette";
+import { useCommitSync } from "./CommitPanel/CommitPanel";
 import { DetailsPane } from "./DetailsPane";
 import { DialogHost } from "./dialogs/DialogHost";
+import { useLayout } from "./layout";
 import { OutputDock } from "./OutputDock";
 import s from "./RepoWindow.module.css";
 import { RevisionGrid } from "./RevisionGrid/RevisionGrid";
 import { Sidebar } from "./Sidebar";
+import { SidebarRail } from "./SidebarRail";
 import { TabStrip } from "./TabStrip";
 import { Toolbar } from "./Toolbar";
 import { useShortcuts } from "./useShortcuts";
@@ -43,15 +48,15 @@ const DOCK_MAX_H = 320;
 const DOCK_DEFAULT_H = 200;
 
 export function RepoWindow() {
-  const selectedWt = useRepoStore((st) => st.wtSelected);
-  const showWt = useShowWorkingTree();
-  // The commit panel belongs to the working-tree row: it can only show while the grid shows that row.
-  const wtSelected = selectedWt && showWt;
-  // A stash preview takes the pane, from the commit panel as from a commit's details.
-  const preview = useRepoStore((st) => st.preview);
+  const view = useViewStore((st) => st.view);
+  // The width decides the sidebar unless the user said otherwise with Alt+0 (spec §2).
+  const railAuto = useLayout().railAuto;
+  const railOverride = useViewStore((st) => st.railOverride);
+  const toggleRail = useViewStore((st) => st.toggleRail);
+  const rail = railOverride ?? railAuto;
   // One status sync serves the panel and the commit dialog (which can open from the toolbar with the panel hidden).
   const commitOpen = useDialogStore((st) => st.dialog?.kind === "commit");
-  useCommitSync(wtSelected || commitOpen);
+  useCommitSync(view === "changes" || commitOpen);
   const dockOpen = useOpsStore((st) => st.open);
   // With one tab there is nothing to switch to, and the toolbar already names the repository — but a
   // tab dragged here from another window needs somewhere to show its drop caret.
@@ -64,25 +69,40 @@ export function RepoWindow() {
       <Toolbar />
       <Group orientation="vertical" className={s.main}>
         <Panel minSize={200} className={s.panel}>
-          <Group orientation="horizontal" className={s.main}>
-            {/* 260 is the design width; the range is wide enough that dragging visibly does something. */}
-            <Panel defaultSize={260} minSize={180} maxSize={560} className={s.panel}>
-              <Sidebar />
-            </Panel>
-            <Separator className={s.splitH} aria-label="Resize sidebar" />
-            <Panel className={s.content}>
-              <StateBanners />
-              <Group orientation="vertical" className={s.rows}>
-                <Panel defaultSize="60%" minSize={120} className={s.panel}>
-                  <RevisionGrid />
-                </Panel>
-                <Separator className={s.splitV} aria-label="Resize details" />
-                <Panel minSize={120} className={s.panel}>
-                  {wtSelected && !preview ? <CommitPanel /> : <DetailsPane />}
-                </Panel>
-              </Group>
-            </Panel>
-          </Group>
+          <div className={s.row}>
+            {rail && <SidebarRail />}
+            <Group orientation="horizontal" className={s.main}>
+              {/* The group itself never remounts: a remount would throw away the grid's scroll position
+                  and the details pane every time Alt+0 is pressed or the width crosses the breakpoint. */}
+              {!rail && (
+                <>
+                  {/* 260 is the design width; the range is wide enough that dragging visibly does something. */}
+                  <Panel defaultSize={260} minSize={180} maxSize={560} className={s.panel}>
+                    <Sidebar onCollapse={() => toggleRail(railAuto)} />
+                  </Panel>
+                  <Separator className={s.splitH} aria-label="Resize sidebar" />
+                </>
+              )}
+              <Panel className={s.content}>
+                <StateBanners />
+                {/* One view at a time (spec §1). History unmounts while Changes shows: the selection and
+                    the reveal request live in the store, and the grid scrolls to them when it comes back. */}
+                {view === "changes" ? (
+                  <ChangesView />
+                ) : (
+                  <Group orientation="vertical" className={s.rows}>
+                    <Panel defaultSize="60%" minSize={120} className={s.panel}>
+                      <RevisionGrid />
+                    </Panel>
+                    <Separator className={s.splitV} aria-label="Resize details" />
+                    <Panel minSize={120} className={s.panel}>
+                      <DetailsPane />
+                    </Panel>
+                  </Group>
+                )}
+              </Panel>
+            </Group>
+          </div>
         </Panel>
         {/* Nothing to resize while the dock is collapsed to its header bar. */}
         <Separator className={s.splitV} aria-label="Resize output" disabled={!dockOpen} />
@@ -90,6 +110,7 @@ export function RepoWindow() {
       </Group>
       <RepoStatusBar />
       <DialogHost />
+      <CommandPalette />
       <ToastStack />
     </div>
   );

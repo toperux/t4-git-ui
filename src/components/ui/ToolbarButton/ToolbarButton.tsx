@@ -19,7 +19,7 @@ export function ToolbarButton({ icon, count, className, children, type = "button
     <DisabledHint disabled={rest.disabled} title={rest.title}>
       <button type={type} className={cx(s.btn, className)} {...rest}>
         <span className={s.icon}>{icon}</span>
-        {children}
+        {children != null && <span data-label>{children}</span>}
         {count ? <span className={s.cnt}>{count}</span> : null}
       </button>
     </DisabledHint>

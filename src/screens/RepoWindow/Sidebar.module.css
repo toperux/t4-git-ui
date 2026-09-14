@@ -41,3 +41,13 @@
 .check {
   color: var(--accent);
 }
+/* Inside the rail's flyout the panel around it draws the surface. */
+.flyout {
+  background: transparent;
+  border-right: 0;
+}
+.collapseRow {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-1) var(--space-3) 0;
+}

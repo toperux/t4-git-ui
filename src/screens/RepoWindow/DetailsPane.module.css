@@ -122,3 +122,49 @@
   font-size: var(--text-xs);
   line-height: var(--lh-xs);
 }
+/* Narrow (spec §5): the collapsed details header over the file list, both in one side column. */
+.narrowCol {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.collapsedHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--section-h);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-app);
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  text-align: left;
+  cursor: default;
+  flex: none;
+}
+.collapsedHead:hover {
+  background: var(--bg-hover);
+}
+.collapsedHead:focus-visible {
+  outline: none;
+  box-shadow: inset var(--focus-ring);
+}
+.collapsedSubject {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.narrowDetails {
+  display: flex;
+  max-height: 50%;
+  border-bottom: 1px solid var(--border);
+  overflow: auto;
+  flex: none;
+}

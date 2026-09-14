@@ -612,3 +612,15 @@ describe("Sidebar linked checkouts", () => {
     expect(useDialogStore.getState().dialog).toEqual({ kind: "addWorktree", branch: "feature/panels" });
   });
 });
+
+describe("Sidebar only", () => {
+  it("renders that one section, open, and a collapse button when asked", () => {
+    const onCollapse = vi.fn();
+    const { getByRole, queryByRole } = render(<Sidebar only="remotes" onCollapse={onCollapse} />);
+    expect(getByRole("tree", { name: "Remote branches" })).toBeTruthy();
+    expect(queryByRole("tree", { name: "Local branches" })).toBeNull();
+    expect(queryByRole("button", { name: /^Tags/ })).toBeNull();
+    fireEvent.click(getByRole("button", { name: "Collapse sidebar" }));
+    expect(onCollapse).toHaveBeenCalled();
+  });
+});

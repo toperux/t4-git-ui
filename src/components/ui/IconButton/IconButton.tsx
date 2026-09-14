@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes } from "react";
+import type { ButtonHTMLAttributes, Ref } from "react";
 import { cx } from "../../../lib/cx";
 import { DisabledHint } from "../DisabledHint/DisabledHint";
 import s from "./IconButton.module.css";
@@ -8,6 +8,8 @@ export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>
   label: string;
   /** Toggled state. */
   on?: boolean;
+  /** The `<button>` itself — a `DisabledHint` wrapper makes it unfindable from the DOM around it. */
+  ref?: Ref<HTMLButtonElement>;
 }
 
 export function IconButton({ label, on, className, title, type = "button", children, ...rest }: IconButtonProps) {

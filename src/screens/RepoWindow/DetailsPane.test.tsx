@@ -50,7 +50,7 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({ ask, open: vi.fn() }));
 vi.mock("react-resizable-panels", () => ({
   Group: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Panel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  Separator: () => null,
+  Separator: ({ "aria-label": label }: { "aria-label"?: string }) => <div role="separator" aria-label={label} />,
 }));
 
 const ROW: LogRow = {
@@ -325,5 +325,35 @@ describe("DiffDialog", () => {
     seedDiff();
     const { getByRole } = render(<DiffDialog onClose={vi.fn()} />);
     expect(getByRole("dialog", { name: "Diff — b0b0b0b…a1a1a1a" })).toBeTruthy();
+  });
+});
+
+describe("DetailsPane tiers", () => {
+  it("three columns wide, details over files at 1000, files beside the diff with a collapsed header at 720", async () => {
+    window.innerWidth = 1280;
+    const { getByRole, queryByRole, findByText, queryByText, rerender } = render(<DetailsPane />);
+    await findByText("Ship it");
+    expect(getByRole("separator", { name: "Resize commit details" })).toBeTruthy();
+    expect(getByRole("separator", { name: "Resize file list" })).toBeTruthy();
+
+    act(() => {
+      window.innerWidth = 1000;
+      window.dispatchEvent(new Event("resize"));
+    });
+    rerender(<DetailsPane />);
+    expect(getByRole("separator", { name: "Resize commit details" })).toBeTruthy();
+    expect(getByRole("separator", { name: "Resize side column" })).toBeTruthy();
+    expect(queryByRole("separator", { name: "Resize file list" })).toBeNull();
+
+    act(() => {
+      window.innerWidth = 720;
+      window.dispatchEvent(new Event("resize"));
+    });
+    rerender(<DetailsPane />);
+    expect(queryByRole("separator", { name: "Resize commit details" })).toBeNull();
+    expect(queryByText(/Ada <ada@x>/)).toBeNull();
+    fireEvent.click(getByRole("button", { name: "Show commit details: Ship it" }));
+    await findByText(/Ada <ada@x>/);
+    expect(getByRole("button", { name: "Hide commit details: Ship it" })).toBeTruthy();
   });
 });

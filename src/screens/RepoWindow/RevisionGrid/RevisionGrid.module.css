@@ -161,6 +161,14 @@
   color: var(--fg-muted);
   font-style: italic;
 }
+/* The working-tree row's right-hand hint: where a click goes (spec §1). Muted like the subject; the selected row lifts it. */
+.wtHint {
+  font-style: italic;
+  white-space: nowrap;
+}
+.selected .wtHint {
+  color: var(--fg);
+}
 .col,
 .meta {
   flex: none;

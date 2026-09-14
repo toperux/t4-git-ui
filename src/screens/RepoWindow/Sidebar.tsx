@@ -1,4 +1,4 @@
-import { Archive, ArrowDown, Check, Cloud, Copy, FolderGit2, GitBranch, GitMerge, Link, Lock, LockOpen, Package, Pencil, Plus, RefreshCw, Tag, Trash2 } from "lucide-react";
+import { Archive, ArrowDown, Check, Cloud, Copy, FolderGit2, GitBranch, GitMerge, Link, Lock, LockOpen, Package, PanelLeft, Pencil, Plus, RefreshCw, Tag, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import type { Branch, Remote, RemoteBranch, RemoteTag, Stash, Submodule, Tag as TagRef, Worktree } from "../../api/types";
 import { Badge } from "../../components/ui/Badge/Badge";
@@ -33,7 +33,7 @@ import {
 import { StashMenuItems } from "./dialogs/StashDialogs";
 import s from "./Sidebar.module.css";
 
-type Section = "local" | "remotes" | "tags" | "stashes" | "worktrees" | "submodules";
+export type Section = "local" | "remotes" | "tags" | "stashes" | "worktrees" | "submodules";
 
 /** Which row the context menu belongs to. */
 type Target =
@@ -148,7 +148,7 @@ function Tree({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-export function Sidebar() {
+export function Sidebar({ only, onCollapse }: { only?: Section; onCollapse?: () => void } = {}) {
   const refs = useRepoStore((st) => st.refs);
   const linked = useRepoStore((st) => st.linked);
   const remoteTags = useRepoStore((st) => st.remoteTags);
@@ -161,13 +161,15 @@ export function Sidebar() {
   const running = useOpsStore(selectRunning);
   const folderMode = useSettingsStore((st) => st.sidebarFolders);
   const folderMax = useSettingsStore((st) => st.sidebarFoldersMax);
-  const [open, setOpen] = useState<Record<Section, boolean>>({ local: true, remotes: true, tags: false, stashes: false, worktrees: true, submodules: true });
+  const [open, setOpen] = useState<Record<Section, boolean>>(() => ({ local: true, remotes: true, tags: false, stashes: false, worktrees: true, submodules: true, ...(only ? { [only]: true } : {}) }));
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [menu, setMenu] = useState<{ at: { x: number; y: number }; target: Target; el: HTMLElement } | null>(null);
   /** Folders the setting has already seeded, keyed like `collapsed`: a refresh leaves those to the user. */
   const seeded = useRef<Set<string>>(new Set());
 
   const toggle = (k: Section) => setOpen((o) => ({ ...o, [k]: !o[k] }));
+  /** The rail's flyout asks for one section; the sidebar proper shows them all. */
+  const show = (k: Section) => !only || only === k;
   const toggleFolder = (path: string) =>
     setCollapsed((c) => {
       const next = new Set(c);
@@ -383,120 +385,143 @@ export function Sidebar() {
   // Refs land after the grid on open: one line beats four sections that all say zero.
   if (!refs)
     return (
-      <nav className={cx(s.sidebar, TREE_PANE_CLASS)} aria-label="References">
+      <nav className={cx(s.sidebar, only && s.flyout, TREE_PANE_CLASS)} aria-label="References">
         <p className={s.loading}>Loading branches…</p>
       </nav>
     );
 
   return (
-    <nav className={cx(s.sidebar, TREE_PANE_CLASS)} aria-label="References">
-      <SectionHeader title="Local" count={local.length} open={open.local} onToggle={() => toggle("local")} />
-      {open.local &&
-        (local.length === 0 ? (
-          <EmptyState className={s.empty} icon={<GitBranch size={20} aria-hidden />} title="No branches yet" />
-        ) : (
-          <Tree label="Local branches">{renderTree(trees.local.nodes, 0, branchRow, trees.local.folderKey)}</Tree>
-        ))}
-
-      {/* Branches, not remotes: every other section counts refs, and the remotes are right there to count by eye. */}
-      <SectionHeader title="Remotes" count={remotes.reduce((n, r) => n + r.branches.length, 0)} open={open.remotes} onToggle={() => toggle("remotes")} />
-      {open.remotes && remotes.length === 0 && (
-        <EmptyState
-          className={s.empty}
-          icon={<Cloud size={20} aria-hidden />}
-          title="No remotes"
-          action={
-            <Button size="sm" disabled={running} title={running ? "Operation in progress" : undefined} onClick={() => openDialog({ kind: "addRemote" })}>
-              Add remote…
-            </Button>
-          }
-        />
+    <nav className={cx(s.sidebar, only && s.flyout, TREE_PANE_CLASS)} aria-label="References">
+      {onCollapse && (
+        <div className={s.collapseRow}>
+          <IconButton label="Collapse sidebar" title="Collapse sidebar (Alt+0)" onClick={onCollapse}>
+            <PanelLeft size={14} aria-hidden />
+          </IconButton>
+        </div>
       )}
-      {open.remotes && remotes.length > 0 && (
-        <Tree label="Remote branches">
-          {trees.remotes.map(([r, tree]) => {
-            const isCollapsed = collapsed.has(`remote:${r.name}`);
-            return (
-              <div key={r.name} className={s.tree}>
-                <TreeRow
-                  role="treeitem"
-                  aria-level={1}
-                  depth={0}
-                  expanded={!isCollapsed}
-                  icon={<Cloud size={14} aria-hidden />}
-                  label={r.name}
-                  title={r.url ?? r.name}
-                  onClick={() => toggleFolder(`remote:${r.name}`)}
-                  {...rowMenu({ kind: "remoteGroup", remote: r })}
-                />
-                {!isCollapsed && (
-                  <div role="group" className={s.tree}>
-                    {renderTree(tree.nodes, 1, remoteRow(r.name), tree.folderKey)}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </Tree>
+      {show("local") && (
+        <>
+          <SectionHeader title="Local" count={local.length} open={open.local} onToggle={() => toggle("local")} />
+          {open.local &&
+            (local.length === 0 ? (
+              <EmptyState className={s.empty} icon={<GitBranch size={20} aria-hidden />} title="No branches yet" />
+            ) : (
+              <Tree label="Local branches">{renderTree(trees.local.nodes, 0, branchRow, trees.local.folderKey)}</Tree>
+            ))}
+        </>
       )}
 
-      {/* The count is the local tags, like Remotes counts branches: the remote folders are visible rows. */}
-      <SectionHeader title="Tags" count={tags.length} open={open.tags} onToggle={() => toggle("tags")} />
-      {open.tags && (tags.length > 0 || cachedRemotes.length > 0) && (
-        <Tree label="Tags">
-          {renderTree(trees.tags.nodes, 0, tagRow, trees.tags.folderKey)}
-          {/* One folder per remote that answered, holding the tags it has — a tag can be in several. */}
-          {trees.remoteTags.map(([remote, entry, tree]) => {
-            const isCollapsed = collapsed.has(`tag:${remote}`);
-            return (
-              <div key={`tag:${remote}`} className={s.tree}>
-                <TreeRow
-                  role="treeitem"
-                  aria-level={1}
-                  depth={0}
-                  expanded={!isCollapsed}
-                  icon={<Cloud size={14} aria-hidden />}
-                  label={remote}
-                  title={`Checked ${relativeDate(entry.at / 1000)}`}
-                  onClick={() => toggleFolder(`tag:${remote}`)}
-                />
-                {!isCollapsed && (
-                  <div role="group" className={s.tree}>
-                    {renderTree(tree.nodes, 1, remoteTagRow(remote), tree.folderKey)}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </Tree>
-      )}
-
-      <SectionHeader title="Stashes" count={stashes.length} open={open.stashes} onToggle={() => toggle("stashes")}>
-        <IconButton label="Manage stashes" onClick={() => openDialog({ kind: "stashes" })}>
-          <Archive size={16} aria-hidden />
-        </IconButton>
-      </SectionHeader>
-      {open.stashes && stashes.length > 0 && (
-        <Tree label="Stashes">
-          {stashes.map((st) => (
-            <TreeRow
-              key={st.index}
-              role="treeitem"
-              aria-level={1}
-              icon={<Archive size={14} aria-hidden />}
-              label={st.message}
-              title={`stash@{${st.index}}: ${st.message}`}
-              meta={<span className={s.mono}>{`stash@{${st.index}}`}</span>}
-              selected={preview?.oid === st.oid}
-              // Stash commits are never walked, so there is no row to reveal: the pane shows it instead.
-              onClick={() => previewStash(st)}
-              {...rowMenu({ kind: "stash", stash: st })}
+      {show("remotes") && (
+        <>
+          {/* Branches, not remotes: every other section counts refs, and the remotes are right there to count by eye. */}
+          <SectionHeader title="Remotes" count={remotes.reduce((n, r) => n + r.branches.length, 0)} open={open.remotes} onToggle={() => toggle("remotes")} />
+          {open.remotes && remotes.length === 0 && (
+            <EmptyState
+              className={s.empty}
+              icon={<Cloud size={20} aria-hidden />}
+              title="No remotes"
+              action={
+                <Button size="sm" disabled={running} title={running ? "Operation in progress" : undefined} onClick={() => openDialog({ kind: "addRemote" })}>
+                  Add remote…
+                </Button>
+              }
             />
-          ))}
-        </Tree>
+          )}
+          {open.remotes && remotes.length > 0 && (
+            <Tree label="Remote branches">
+              {trees.remotes.map(([r, tree]) => {
+                const isCollapsed = collapsed.has(`remote:${r.name}`);
+                return (
+                  <div key={r.name} className={s.tree}>
+                    <TreeRow
+                      role="treeitem"
+                      aria-level={1}
+                      depth={0}
+                      expanded={!isCollapsed}
+                      icon={<Cloud size={14} aria-hidden />}
+                      label={r.name}
+                      title={r.url ?? r.name}
+                      onClick={() => toggleFolder(`remote:${r.name}`)}
+                      {...rowMenu({ kind: "remoteGroup", remote: r })}
+                    />
+                    {!isCollapsed && (
+                      <div role="group" className={s.tree}>
+                        {renderTree(tree.nodes, 1, remoteRow(r.name), tree.folderKey)}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </Tree>
+          )}
+        </>
       )}
 
-      {worktrees.length > 1 && (
+      {show("tags") && (
+        <>
+          {/* The count is the local tags, like Remotes counts branches: the remote folders are visible rows. */}
+          <SectionHeader title="Tags" count={tags.length} open={open.tags} onToggle={() => toggle("tags")} />
+          {open.tags && (tags.length > 0 || cachedRemotes.length > 0) && (
+            <Tree label="Tags">
+              {renderTree(trees.tags.nodes, 0, tagRow, trees.tags.folderKey)}
+              {/* One folder per remote that answered, holding the tags it has — a tag can be in several. */}
+              {trees.remoteTags.map(([remote, entry, tree]) => {
+                const isCollapsed = collapsed.has(`tag:${remote}`);
+                return (
+                  <div key={`tag:${remote}`} className={s.tree}>
+                    <TreeRow
+                      role="treeitem"
+                      aria-level={1}
+                      depth={0}
+                      expanded={!isCollapsed}
+                      icon={<Cloud size={14} aria-hidden />}
+                      label={remote}
+                      title={`Checked ${relativeDate(entry.at / 1000)}`}
+                      onClick={() => toggleFolder(`tag:${remote}`)}
+                    />
+                    {!isCollapsed && (
+                      <div role="group" className={s.tree}>
+                        {renderTree(tree.nodes, 1, remoteTagRow(remote), tree.folderKey)}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </Tree>
+          )}
+        </>
+      )}
+
+      {show("stashes") && (
+        <>
+          <SectionHeader title="Stashes" count={stashes.length} open={open.stashes} onToggle={() => toggle("stashes")}>
+            <IconButton label="Manage stashes" onClick={() => openDialog({ kind: "stashes" })}>
+              <Archive size={16} aria-hidden />
+            </IconButton>
+          </SectionHeader>
+          {open.stashes && stashes.length > 0 && (
+            <Tree label="Stashes">
+              {stashes.map((st) => (
+                <TreeRow
+                  key={st.index}
+                  role="treeitem"
+                  aria-level={1}
+                  icon={<Archive size={14} aria-hidden />}
+                  label={st.message}
+                  title={`stash@{${st.index}}: ${st.message}`}
+                  meta={<span className={s.mono}>{`stash@{${st.index}}`}</span>}
+                  selected={preview?.oid === st.oid}
+                  // Stash commits are never walked, so there is no row to reveal: the pane shows it instead.
+                  onClick={() => previewStash(st)}
+                  {...rowMenu({ kind: "stash", stash: st })}
+                />
+              ))}
+            </Tree>
+          )}
+        </>
+      )}
+
+      {show("worktrees") && worktrees.length > 1 && (
         <>
           <SectionHeader title="Worktrees" count={worktrees.length} open={open.worktrees} onToggle={() => toggle("worktrees")} {...rowMenu({ kind: "worktreeSection" })} />
           {open.worktrees && (
@@ -533,7 +558,7 @@ export function Sidebar() {
         </>
       )}
 
-      {submodules.length > 0 && (
+      {show("submodules") && submodules.length > 0 && (
         <>
           <SectionHeader title="Submodules" count={submodules.length} open={open.submodules} onToggle={() => toggle("submodules")} {...rowMenu({ kind: "submoduleSection" })} />
           {open.submodules && (

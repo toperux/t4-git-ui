@@ -5,6 +5,8 @@ import {
   ArrowUp,
   ChevronDown,
   Cloud,
+  Command,
+  Ellipsis,
   ExternalLink,
   FolderGit2,
   FolderOpen,
@@ -12,11 +14,13 @@ import {
   GitCommitHorizontal,
   GitMerge,
   History,
+  Moon,
   Plus,
   Power,
   RefreshCw,
   Search,
   Settings,
+  Sun,
   Terminal,
   X,
 } from "lucide-react";
@@ -31,13 +35,20 @@ import { UpdateBadge } from "../../components/ui/UpdateBadge/UpdateBadge";
 import tb from "../../components/ui/ToolbarButton/ToolbarButton.module.css";
 import { useDialogStore, type DialogSpec } from "../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../store/opsStore";
+import { cx } from "../../lib/cx";
 import { baseName } from "../../lib/paths";
 import { useRecentsStore, type RecentRepo } from "../../store/recentsStore";
-import { useMerging, useRepoStore } from "../../store/repoStore";
+import { useRepoStore } from "../../store/repoStore";
 import { selectChangeCount, useStatusStore } from "../../store/statusStore";
 import { useTabsStore } from "../../store/tabsStore";
-import { closeTab, detachTab, fetchDefault, openCommitPanel, pickAndOpenRepo, quitApp, refreshAll, stashApply, stashPop, switchRepo } from "./actions";
+import { useViewStore } from "../../store/viewStore";
+import { toggleTheme, useTheme } from "../../theme/theme";
+import { closeTab, detachTab, fetchDefault, pickAndOpenRepo, quitApp, refreshAll, stashApply, stashPop, switchRepo } from "./actions";
+import { usePaletteStore } from "./CommandPalette/paletteStore";
+import { useLayout } from "./layout";
+import { SearchPopover } from "./SearchPopover";
 import { useTabDrag } from "./useTabDrag";
+import { ViewSwitch } from "./ViewSwitch";
 import s from "./Toolbar.module.css";
 
 const SEARCH_DEBOUNCE_MS = 250;
@@ -47,12 +58,14 @@ const NO_STASHES: Stash[] = [];
 const INLINE_RECENTS = 5;
 
 export function Toolbar() {
+  const tier = useLayout().toolbar;
+  const view = useViewStore((st) => st.view);
+  const theme = useTheme();
   const specKind = useRepoStore((st) => st.spec.kind);
   const startLog = useRepoStore((st) => st.startLog);
   const stashes = useRepoStore((st) => st.refs?.stashes ?? NO_STASHES);
   const head = useRepoStore((st) => st.refs?.local.find((b) => b.isHead) ?? null);
   const changes = useStatusStore(selectChangeCount);
-  const merging = useMerging();
   const running = useOpsStore(selectRunning);
   const openDialog = useDialogStore((st) => st.open);
   const repo = useRepoStore((st) => st.repo);
@@ -64,9 +77,11 @@ export function Toolbar() {
   const [repoMenu, setRepoMenu] = useState(false);
   const [branchMenu, setBranchMenu] = useState(false);
   const [stashMenu, setStashMenu] = useState(false);
+  const [more, setMore] = useState(false);
   const repoBtn = useRef<HTMLButtonElement>(null);
   const branchBtn = useRef<HTMLButtonElement>(null);
   const stashBtn = useRef<HTMLButtonElement>(null);
+  const moreBtn = useRef<HTMLButtonElement>(null);
   const others = recents.filter((r) => r.path !== repo?.path);
   // The strip is hidden with a single tab, so this button is the only handle that tab has: the same
   // pointer-capture drag, minus the reorder phase (there is no strip to reorder inside).
@@ -117,9 +132,43 @@ export function Toolbar() {
       {r.name}
     </MenuItem>
   );
+  /** The same four rows, whether they hang off the Branch button or the overflow's submenu. */
+  const branchItems = (close: () => void, trigger: RefObject<HTMLButtonElement | null>) => (
+    <>
+      <MenuItem icon={<Plus size={16} aria-hidden />} kbd="Ctrl+B" onClick={pickDialog({ kind: "createBranch" }, close, trigger)}>
+        Create branch…
+      </MenuItem>
+      <MenuItem icon={<GitBranch size={16} aria-hidden />} onClick={pickDialog({ kind: "checkout" }, close, trigger)}>
+        Checkout…
+      </MenuItem>
+      <MenuItem icon={<GitMerge size={16} aria-hidden />} onClick={pickDialog({ kind: "merge" }, close, trigger)}>
+        Merge…
+      </MenuItem>
+      <MenuItem icon={<GitMerge size={16} aria-hidden />} onClick={pickDialog({ kind: "rebase" }, close, trigger)}>
+        Rebase…
+      </MenuItem>
+    </>
+  );
+  /* File history (§3): its own filter, so `×` clears it and leaves the search text alone. */
+  const historyChip = historyPath ? (
+    <span className={s.history} title={historyPath}>
+      <History size={13} aria-hidden />
+      <span className={s.historyPath}>History: {baseName(historyPath)}</span>
+      <IconButton
+        className={s.historyClear}
+        label="Clear the file history filter"
+        onClick={() => {
+          const st = useRepoStore.getState();
+          void startLog(st.spec, { ...st.filter, path: null });
+        }}
+      >
+        <X size={13} aria-hidden />
+      </IconButton>
+    </span>
+  ) : null;
 
   return (
-    <div className={s.toolbar} role="toolbar" aria-label="Repository">
+    <div className={cx(s.toolbar, tier === "tight" && s.tight, tier === "icons" && s.icons)} role="toolbar" aria-label="Repository">
       <Menu
         open={repoMenu}
         onClose={() => setRepoMenu(false)}
@@ -131,6 +180,8 @@ export function Toolbar() {
             icon={<FolderGit2 size={18} aria-hidden />}
             className={s.repo}
             title={`${repo?.path ?? "Repository"} — drag to move this tab to another window`}
+            // The `icons` tier hides the name, so the button carries it itself.
+            aria-label={repo?.name ?? "Repository"}
             aria-haspopup="menu"
             aria-expanded={repoMenu}
             onPointerDown={(e) => {
@@ -192,7 +243,7 @@ export function Toolbar() {
       <span className={tb.split}>
         <ToolbarButton
           icon={<ArrowDown size={18} aria-hidden />}
-          className={tb.splitMain}
+          className={cx(tb.splitMain, s.op)}
           disabled={running}
           title={opTitle("Fetch from the default remote", "Ctrl+F5")}
           onClick={() => void fetchDefault()}
@@ -210,6 +261,7 @@ export function Toolbar() {
       </span>
       <ToolbarButton
         icon={<ArrowDownUp size={18} aria-hidden />}
+        className={s.op}
         count={head?.behind}
         disabled={running}
         title={opTitle("Pull", "Ctrl+Shift+L")}
@@ -219,6 +271,7 @@ export function Toolbar() {
       </ToolbarButton>
       <ToolbarButton
         icon={<ArrowUp size={18} aria-hidden />}
+        className={s.op}
         count={head?.ahead}
         disabled={running}
         title={opTitle("Push", "Ctrl+Shift+U")}
@@ -227,137 +280,159 @@ export function Toolbar() {
         Push
       </ToolbarButton>
       <ToolbarSeparator />
-      <Menu
-        open={branchMenu}
-        onClose={() => setBranchMenu(false)}
-        label="Branch"
-        align="left"
-        anchor={
-          <ToolbarButton
-            ref={branchBtn}
-            icon={<GitBranch size={18} aria-hidden />}
-            disabled={running}
-            title={opTitle("Branch operations")}
-            aria-haspopup="menu"
-            aria-expanded={branchMenu}
-            onClick={() => setBranchMenu((o) => !o)}
-          >
-            Branch
-          </ToolbarButton>
-        }
-      >
-        <MenuItem icon={<Plus size={16} aria-hidden />} kbd="Ctrl+B" onClick={pickDialog({ kind: "createBranch" }, () => setBranchMenu(false), branchBtn)}>
-          Create branch…
-        </MenuItem>
-        <MenuItem icon={<GitBranch size={16} aria-hidden />} onClick={pickDialog({ kind: "checkout" }, () => setBranchMenu(false), branchBtn)}>
-          Checkout…
-        </MenuItem>
-        <MenuItem icon={<GitMerge size={16} aria-hidden />} onClick={pickDialog({ kind: "merge" }, () => setBranchMenu(false), branchBtn)}>
-          Merge…
-        </MenuItem>
-        <MenuItem icon={<GitMerge size={16} aria-hidden />} onClick={pickDialog({ kind: "rebase" }, () => setBranchMenu(false), branchBtn)}>
-          Rebase…
-        </MenuItem>
-      </Menu>
-      <Menu
-        open={stashMenu}
-        onClose={() => setStashMenu(false)}
-        label="Stash"
-        align="left"
-        anchor={
-          <ToolbarButton
-            ref={stashBtn}
-            icon={<Archive size={18} aria-hidden />}
-            count={stashes.length}
-            disabled={running}
-            title={opTitle("Stash operations")}
-            aria-haspopup="menu"
-            aria-expanded={stashMenu}
-            onClick={() => setStashMenu((o) => !o)}
-          >
-            Stash
-          </ToolbarButton>
-        }
-      >
-        <MenuItem icon={<Archive size={16} aria-hidden />} kbd="Ctrl+Shift+S" onClick={pickDialog({ kind: "stashes" }, () => setStashMenu(false), stashBtn)}>
-          Manage stashes…
-        </MenuItem>
-        <MenuSeparator />
-        <MenuItem icon={<Archive size={16} aria-hidden />} disabled={changes === 0} onClick={pickDialog({ kind: "stashPush" }, () => setStashMenu(false), stashBtn)}>
-          Stash changes…
-        </MenuItem>
-        <MenuItem disabled={stashes.length === 0} onClick={pick(() => void stashPop(0), () => setStashMenu(false))}>
-          Pop latest
-        </MenuItem>
-        <MenuItem disabled={stashes.length === 0} onClick={pick(() => void stashApply(0), () => setStashMenu(false))}>
-          Apply latest
-        </MenuItem>
-        <MenuSeparator />
-        {stashes.length === 0 ? (
-          <MenuItem disabled>No stashes</MenuItem>
-        ) : (
-          stashes.map((st) => (
-            <MenuItem
-              key={st.index}
-              title={`stash@{${st.index}}: ${st.message}`}
-              onClick={pickDialog({ kind: "stash", index: st.index, message: st.message }, () => setStashMenu(false), stashBtn)}
+      {tier !== "icons" && (
+        <Menu
+          open={branchMenu}
+          onClose={() => setBranchMenu(false)}
+          label="Branch"
+          align="left"
+          anchor={
+            <ToolbarButton
+              ref={branchBtn}
+              icon={<GitBranch size={18} aria-hidden />}
+              className={s.op}
+              disabled={running}
+              title={opTitle("Branch operations")}
+              aria-haspopup="menu"
+              aria-expanded={branchMenu}
+              onClick={() => setBranchMenu((o) => !o)}
             >
-              {st.message}
-            </MenuItem>
-          ))
-        )}
-      </Menu>
-      <ToolbarSeparator />
-      <ToolbarButton
-        icon={<GitCommitHorizontal size={18} aria-hidden />}
-        count={changes}
-        disabled={changes === 0 && !merging}
-        title={changes === 0 ? (merging ? "Merge to commit" : "No changes") : `${changes} change${changes === 1 ? "" : "s"}`}
-        onClick={openCommitPanel}
-      >
-        Commit
-      </ToolbarButton>
-      <div className={s.grow} />
-      {/* File history (§3): its own filter, so `×` clears it and leaves the search text alone. */}
-      {historyPath && (
-        <span className={s.history} title={historyPath}>
-          <History size={13} aria-hidden />
-          <span className={s.historyPath}>History: {baseName(historyPath)}</span>
-          <IconButton
-            className={s.historyClear}
-            label="Clear the file history filter"
-            onClick={() => {
-              const st = useRepoStore.getState();
-              void startLog(st.spec, { ...st.filter, path: null });
-            }}
-          >
-            <X size={13} aria-hidden />
-          </IconButton>
-        </span>
+              Branch
+            </ToolbarButton>
+          }
+        >
+          {branchItems(() => setBranchMenu(false), branchBtn)}
+        </Menu>
       )}
-      <Input
-        className={s.search}
-        icon={<Search size={14} aria-hidden />}
-        type="search"
-        placeholder="Search commits"
-        aria-label="Search commits"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        spellCheck={false}
-      />
-      <Select className={s.filter} aria-label="Branch filter" value={specKind === "head" ? "head" : "all"} onChange={(e) => onSpecChange(e.target.value)}>
-        <option value="all">All branches</option>
-        <option value="head">HEAD</option>
-      </Select>
+      {tier !== "icons" && (
+        <Menu
+          open={stashMenu}
+          onClose={() => setStashMenu(false)}
+          label="Stash"
+          align="left"
+          anchor={
+            <ToolbarButton
+              ref={stashBtn}
+              icon={<Archive size={18} aria-hidden />}
+              className={s.op}
+              count={stashes.length}
+              disabled={running}
+              title={opTitle("Stash operations")}
+              aria-haspopup="menu"
+              aria-expanded={stashMenu}
+              onClick={() => setStashMenu((o) => !o)}
+            >
+              Stash
+            </ToolbarButton>
+          }
+        >
+          <MenuItem icon={<Archive size={16} aria-hidden />} kbd="Ctrl+Shift+S" onClick={pickDialog({ kind: "stashes" }, () => setStashMenu(false), stashBtn)}>
+            Manage stashes…
+          </MenuItem>
+          <MenuSeparator />
+          <MenuItem icon={<Archive size={16} aria-hidden />} disabled={changes === 0} onClick={pickDialog({ kind: "stashPush" }, () => setStashMenu(false), stashBtn)}>
+            Stash changes…
+          </MenuItem>
+          <MenuItem disabled={stashes.length === 0} onClick={pick(() => void stashPop(0), () => setStashMenu(false))}>
+            Pop latest
+          </MenuItem>
+          <MenuItem disabled={stashes.length === 0} onClick={pick(() => void stashApply(0), () => setStashMenu(false))}>
+            Apply latest
+          </MenuItem>
+          <MenuSeparator />
+          {stashes.length === 0 ? (
+            <MenuItem disabled>No stashes</MenuItem>
+          ) : (
+            stashes.map((st) => (
+              <MenuItem
+                key={st.index}
+                title={`stash@{${st.index}}: ${st.message}`}
+                onClick={pickDialog({ kind: "stash", index: st.index, message: st.message }, () => setStashMenu(false), stashBtn)}
+              >
+                {st.message}
+              </MenuItem>
+            ))
+          )}
+        </Menu>
+      )}
       <ToolbarSeparator />
-      <IconButton label="Refresh" title="Refresh (F5)" onClick={refreshAll}>
-        <RefreshCw size={16} aria-hidden />
+      <ViewSwitch compact={tier === "icons"} />
+      <div className={s.grow} />
+      {view === "history" &&
+        (tier === "icons" ? (
+          <SearchPopover text={text} onText={setText} spec={specKind === "head" ? "head" : "all"} onSpec={onSpecChange}>
+            {historyChip}
+          </SearchPopover>
+        ) : (
+          <>
+            {historyChip}
+            <Input
+              className={s.search}
+              icon={<Search size={14} aria-hidden />}
+              type="search"
+              placeholder="Search commits"
+              aria-label="Search commits"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              spellCheck={false}
+            />
+            <Select className={s.filter} aria-label="Branch filter" value={specKind === "head" ? "head" : "all"} onChange={(e) => onSpecChange(e.target.value)}>
+              <option value="all">All branches</option>
+              <option value="head">HEAD</option>
+            </Select>
+          </>
+        ))}
+      <ToolbarSeparator />
+      <IconButton label="Command palette" title="Command palette (Ctrl+K)" onClick={() => usePaletteStore.getState().setOpen(true)}>
+        <Command size={16} aria-hidden />
       </IconButton>
-      <ThemeToggle />
-      <UpdateBadge onClick={() => openDialog({ kind: "settings" })} />
-      <IconButton label="Settings" onClick={() => openDialog({ kind: "settings" })}>
-        <Settings size={16} aria-hidden />
-      </IconButton>
+      {tier !== "icons" ? (
+        <>
+          <IconButton label="Refresh" title="Refresh (F5)" onClick={refreshAll}>
+            <RefreshCw size={16} aria-hidden />
+          </IconButton>
+          <ThemeToggle />
+          <UpdateBadge onClick={() => openDialog({ kind: "settings" })} />
+          <IconButton label="Settings" onClick={() => openDialog({ kind: "settings" })}>
+            <Settings size={16} aria-hidden />
+          </IconButton>
+        </>
+      ) : (
+        <>
+          <UpdateBadge onClick={() => openDialog({ kind: "settings" })} />
+          <Menu
+            open={more}
+            onClose={() => setMore(false)}
+            label="More"
+            anchor={
+              <IconButton ref={moreBtn} label="More" on={more} aria-haspopup="menu" aria-expanded={more} onClick={() => setMore((o) => !o)}>
+                <Ellipsis size={16} aria-hidden />
+              </IconButton>
+            }
+          >
+            <MenuItem icon={<GitBranch size={16} aria-hidden />} disabled={running} title={running ? BUSY : undefined} submenu={branchItems(() => setMore(false), moreBtn)}>
+              Branch
+            </MenuItem>
+            <MenuItem icon={<Archive size={16} aria-hidden />} kbd="Ctrl+Shift+S" onClick={pickDialog({ kind: "stashes" }, () => setMore(false), moreBtn)}>
+              Stash…
+            </MenuItem>
+            <MenuSeparator />
+            <MenuItem icon={<RefreshCw size={16} aria-hidden />} kbd="F5" onClick={pick(refreshAll, () => setMore(false))}>
+              Refresh
+            </MenuItem>
+            <MenuItem icon={theme === "dark" ? <Sun size={16} aria-hidden /> : <Moon size={16} aria-hidden />} onClick={pick(toggleTheme, () => setMore(false))}>
+              {theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+            </MenuItem>
+            <MenuItem icon={<Settings size={16} aria-hidden />} onClick={pickDialog({ kind: "settings" }, () => setMore(false), moreBtn)}>
+              Settings
+            </MenuItem>
+            <MenuSeparator />
+            <MenuItem icon={<Command size={16} aria-hidden />} kbd="Ctrl+K" onClick={pick(() => usePaletteStore.getState().setOpen(true), () => setMore(false))}>
+              Command palette
+            </MenuItem>
+          </Menu>
+        </>
+      )}
     </div>
   );
 }

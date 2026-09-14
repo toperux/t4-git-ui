@@ -2,12 +2,17 @@
 // is in a text field or a dialog is open — those own their own keys. Ctrl+` is the exception: it has
 // no meaning in a field, and the dock prompt (the field most likely to have focus) lives in the dock
 // it collapses; the tab and window keys (Ctrl+Tab, Ctrl+W, Ctrl+T, Ctrl+Shift+N, Ctrl+Q, Ctrl+1..9)
-// are the same case.
+// and Alt+0 (the sidebar rail) are the same case. Alt+1 / Alt+2 pick the History | Changes view
+// (spec §1). Ctrl+K opens the command palette, which then owns the keyboard until Ctrl+K (or Esc)
+// closes it again (spec §4).
 import { useEffect } from "react";
 import { useDialogStore } from "../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../store/opsStore";
 import { useTabsStore } from "../../store/tabsStore";
+import { useViewStore } from "../../store/viewStore";
 import { closeTab, detachTab, fetchDefault, pickAndOpenRepo, quitApp, refreshAll } from "./actions";
+import { usePaletteStore } from "./CommandPalette/paletteStore";
+import { layoutFor } from "./layout";
 
 /** Ctrl+Tab / Ctrl+Shift+Tab: the next (or previous) tab, wrapping. */
 function cycleTab(back: boolean) {
@@ -30,6 +35,14 @@ export function useShortcuts() {
     function onKey(e: KeyboardEvent) {
       if (e.defaultPrevented || useDialogStore.getState().dialog) return;
       const ctrl = e.ctrlKey || e.metaKey;
+      const palette = usePaletteStore.getState();
+      // The palette owns the keyboard while it is open; Ctrl+K is the way in and out.
+      if (ctrl && !e.shiftKey && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        palette.setOpen(!palette.open);
+        return;
+      }
+      if (palette.open) return;
       if (ctrl && !e.shiftKey && e.key === "`") {
         e.preventDefault();
         useOpsStore.getState().setOpen(!useOpsStore.getState().open);
@@ -68,12 +81,26 @@ export function useShortcuts() {
         if (tab) useTabsStore.getState().activate(tab.id);
         return;
       }
+      // Alt+digit types nothing into a field, and the rail is a window-level thing like the tab keys.
+      if (e.altKey && !ctrl && !e.shiftKey && e.code === "Digit0") {
+        e.preventDefault();
+        useViewStore.getState().toggleRail(layoutFor(window.innerWidth).railAuto);
+        return;
+      }
       if (inTextField(e.target)) return;
       const open = useDialogStore.getState().open;
       const busy = selectRunning(useOpsStore.getState());
       const key = e.key.toLowerCase();
 
-      if (e.key === "F5" && !ctrl) {
+      // `code`, not `key`: Option+1 on a Mac keyboard types `¡`.
+      const alt = e.altKey && !ctrl && !e.shiftKey;
+      if (alt && e.code === "Digit1") {
+        e.preventDefault();
+        useViewStore.getState().setView("history");
+      } else if (alt && e.code === "Digit2") {
+        e.preventDefault();
+        useViewStore.getState().setView("changes");
+      } else if (e.key === "F5" && !ctrl) {
         e.preventDefault();
         refreshAll();
       } else if (ctrl && e.key === "F5") {

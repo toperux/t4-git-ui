@@ -51,7 +51,7 @@ vi.mock("@tauri-apps/plugin-clipboard-manager", () => ({ writeText }));
 vi.mock("react-resizable-panels", () => ({
   Group: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Panel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  Separator: () => null,
+  Separator: ({ "aria-label": label }: { "aria-label"?: string }) => <div role="separator" aria-label={label} />,
 }));
 // jsdom has no layout: give the virtualizer a viewport so it renders rows.
 vi.mock("@tanstack/react-virtual", async (importOriginal) => {
@@ -1249,5 +1249,21 @@ describe("CommitDialog", () => {
     await waitFor(() => expect(useDialogStore.getState().dialog).toEqual({ kind: "push" }));
     expect(useDialogStore.getState().returnFocus).toBe(opener);
     opener.remove();
+  });
+});
+
+describe("CommitPanel columns", () => {
+  it("is three columns wide and two below 800", () => {
+    window.innerWidth = 1280;
+    const { getByRole, queryByRole, rerender } = render(<CommitPanel />);
+    expect(getByRole("separator", { name: "Resize commit message" })).toBeTruthy();
+    expect(queryByRole("separator", { name: "Resize message row" })).toBeNull();
+    act(() => {
+      window.innerWidth = 720;
+      window.dispatchEvent(new Event("resize"));
+    });
+    rerender(<CommitPanel />);
+    expect(getByRole("separator", { name: "Resize message row" })).toBeTruthy();
+    expect(queryByRole("separator", { name: "Resize commit message" })).toBeNull();
   });
 });

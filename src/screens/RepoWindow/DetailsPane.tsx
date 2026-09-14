@@ -1,4 +1,4 @@
-import { Archive, Copy, GitCommitHorizontal, GitCompare, Tag as TagIcon } from "lucide-react";
+import { Archive, ChevronDown, ChevronRight, Copy, GitCommitHorizontal, GitCompare, Tag as TagIcon } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import { getCommit, toAppError } from "../../api/ipc";
@@ -17,6 +17,7 @@ import { ChangedFileList } from "./ChangedFileList/ChangedFileList";
 import s from "./DetailsPane.module.css";
 import { DiffViewer } from "./DiffViewer/DiffViewer";
 import { FileContent } from "./DiffViewer/FileContent";
+import { useLayout } from "./layout";
 import w from "./RepoWindow.module.css";
 import { RefChips } from "./RevisionGrid/RefChips";
 
@@ -50,21 +51,80 @@ export function DetailsPane() {
     void load(repoId, target, rowPath);
   }, [repoId, target, rowPath, load]);
 
+  const tier = useLayout().details;
+  const [expanded, setExpanded] = useState(false);
+  const details = preview ? <StashDetails stash={preview} /> : compare ? <CompareDetails compare={compare} /> : <CommitDetails />;
+  const diff = <CommitDiff onExpand={target ? (opener) => open({ kind: "diff" }, { returnFocusTo: opener }) : undefined} />;
+
+  if (tier === "3col")
+    return (
+      <Group orientation="horizontal" className={s.pane}>
+        <Panel defaultSize={340} minSize={240} maxSize={560} className={w.panel}>
+          {details}
+        </Panel>
+        <Separator className={w.splitH} aria-label="Resize commit details" />
+        {/* 200: the list header (icon, Changes | Files, two toggles) needs 199px before the title gets any. */}
+        <Panel defaultSize={320} minSize={200} maxSize={640} className={w.panel}>
+          <ChangedFileList />
+        </Panel>
+        <Separator className={w.splitH} aria-label="Resize file list" />
+        <Panel minSize={200} className={w.panel}>
+          {diff}
+        </Panel>
+      </Group>
+    );
+  if (tier === "2col")
+    return (
+      <Group orientation="horizontal" className={s.pane}>
+        <Panel defaultSize={300} minSize={240} maxSize={560} className={w.panel}>
+          <Group orientation="vertical" className={s.pane}>
+            <Panel defaultSize="50%" minSize={80} className={w.panel}>
+              {details}
+            </Panel>
+            <Separator className={w.splitV} aria-label="Resize commit details" />
+            <Panel minSize={80} className={w.panel}>
+              <ChangedFileList />
+            </Panel>
+          </Group>
+        </Panel>
+        <Separator className={w.splitH} aria-label="Resize side column" />
+        <Panel minSize={200} className={w.panel}>
+          {diff}
+        </Panel>
+      </Group>
+    );
+  // narrow (spec §5): the file list beside the diff, the details folded to one line above it.
   return (
     <Group orientation="horizontal" className={s.pane}>
-      <Panel defaultSize={340} minSize={240} maxSize={560} className={w.panel}>
-        {preview ? <StashDetails stash={preview} /> : compare ? <CompareDetails compare={compare} /> : <CommitDetails />}
+      <Panel defaultSize={220} minSize={200} maxSize={480} className={w.panel}>
+        <div className={s.narrowCol}>
+          <DetailsHeaderCollapsed expanded={expanded} onToggle={() => setExpanded((e) => !e)} />
+          {expanded && <div className={s.narrowDetails}>{details}</div>}
+          <ChangedFileList />
+        </div>
       </Panel>
-      <Separator className={w.splitH} aria-label="Resize commit details" />
-      {/* 200: the list header (icon, Changes | Files, two toggles) needs 199px before the title gets any. */}
-      <Panel defaultSize={320} minSize={200} maxSize={640} className={w.panel}>
-        <ChangedFileList />
-      </Panel>
-      <Separator className={w.splitH} aria-label="Resize file list" />
+      <Separator className={w.splitH} aria-label="Resize side column" />
       <Panel minSize={200} className={w.panel}>
-        <CommitDiff onExpand={target ? (opener) => open({ kind: "diff" }, { returnFocusTo: opener }) : undefined} />
+        {diff}
       </Panel>
     </Group>
+  );
+}
+
+/** `> <subject> <sha>` — the commit details folded to one line; a click shows them over the file list. */
+function DetailsHeaderCollapsed({ expanded, onToggle }: { expanded: boolean; onToggle: () => void }) {
+  // `selectWorkingTree` keeps `selectedIndex`, so the working-tree row must blank this like `selectSelectedOid` does.
+  const commit = useRepoStore((st) => (st.wtSelected || st.selectedIndex === null ? null : (st.rows[st.selectedIndex]?.row.commit ?? null)));
+  const preview = useRepoStore((st) => st.preview);
+  const compare = useRepoStore(selectCompare);
+  const subject = preview ? preview.message : compare ? "Compare" : (commit?.summary ?? "No commit selected");
+  const sha = preview ? `stash@{${preview.index}}` : compare ? `${compare.from.short}..${compare.to.short}` : (commit?.short ?? "");
+  return (
+    <button type="button" className={s.collapsedHead} aria-expanded={expanded} aria-label={`${expanded ? "Hide" : "Show"} commit details: ${subject}`} onClick={onToggle}>
+      {expanded ? <ChevronDown size={12} aria-hidden /> : <ChevronRight size={12} aria-hidden />}
+      <span className={s.collapsedSubject}>{subject}</span>
+      <span className={w.mono}>{sha}</span>
+    </button>
   );
 }
 

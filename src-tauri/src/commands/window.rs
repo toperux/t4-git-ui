@@ -26,8 +26,8 @@ const LAYOUT_FILE: &str = "layout.json";
 
 /// The window sizes `tauri.conf.json` gives `main`; a spawned window has no
 /// entry there, so the floor is repeated rather than left at the OS default.
-const MIN_W: f64 = 900.0;
-const MIN_H: f64 = 600.0;
+const MIN_W: f64 = 700.0;
+const MIN_H: f64 = 500.0;
 
 /// Brings `label` forward: the window that already has a repository open
 /// ([`super::repo::open_repo`]) rather than opening it twice.

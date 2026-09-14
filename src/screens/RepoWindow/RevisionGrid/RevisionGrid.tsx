@@ -8,7 +8,7 @@ import { ContextMenu, MenuItem, MenuRef, MenuSeparator } from "../../../componen
 import { Progress } from "../../../components/ui/Progress/Progress";
 import { useDialogStore, type DialogSpec } from "../../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../../store/opsStore";
-import { bisectMark, checkoutBranch, checkoutDetached, checkoutRemoteBranch, copyText } from "../actions";
+import { bisectMark, checkoutBranch, checkoutDetached, checkoutRemoteBranch, copyText, openCommitPanel } from "../actions";
 import { cx } from "../../../lib/cx";
 import { useMerging, useRepoStore } from "../../../store/repoStore";
 import { selectChangeCount, useShowWorkingTree, useStatusStore } from "../../../store/statusStore";
@@ -102,6 +102,12 @@ export function RevisionGrid() {
       setMenu({ at: { x: (r?.left ?? 0) + 24, y }, commit, el: e.currentTarget });
       return;
     }
+    // Enter on the working-tree row is the keyboard's click: into Changes.
+    if (e.key === "Enter" && cur === 0 && hasWt) {
+      e.preventDefault();
+      openCommitPanel();
+      return;
+    }
     let next: number | null = null;
     switch (e.key) {
       case "ArrowDown":
@@ -190,7 +196,7 @@ export function RevisionGrid() {
               )
             }
             action={
-              <Button variant="primary" icon={<GitCommitHorizontal size={14} aria-hidden />} onClick={() => selectWorkingTree()}>
+              <Button variant="primary" icon={<GitCommitHorizontal size={14} aria-hidden />} onClick={openCommitPanel}>
                 Open commit panel
               </Button>
             }
