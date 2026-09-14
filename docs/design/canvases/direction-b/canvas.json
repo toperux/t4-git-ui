@@ -1,0 +1,393 @@
+{
+  "pages": [
+    {
+      "id": "page-1",
+      "name": "Light"
+    },
+    {
+      "id": "page-2",
+      "name": "Dark"
+    }
+  ],
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "title": "History · 1280",
+      "x": 0,
+      "y": 0,
+      "w": 1280,
+      "h": 800,
+      "page": "page-1"
+    },
+    {
+      "file": "Changes.dc.html",
+      "title": "Changes · 1280",
+      "x": 1380,
+      "y": 0,
+      "w": 1280,
+      "h": 800,
+      "page": "page-1"
+    },
+    {
+      "file": "Palette.dc.html",
+      "title": "Palette · query",
+      "x": 2760,
+      "y": 0,
+      "w": 1280,
+      "h": 800,
+      "page": "page-1"
+    },
+    {
+      "file": "PaletteEmpty.dc.html",
+      "title": "Palette · empty",
+      "x": 4140,
+      "y": 0,
+      "w": 1280,
+      "h": 800,
+      "page": "page-1"
+    },
+    {
+      "file": "History1000.dc.html",
+      "title": "History · 1000",
+      "x": 0,
+      "y": 1080,
+      "w": 1000,
+      "h": 680,
+      "page": "page-1"
+    },
+    {
+      "file": "Changes1000.dc.html",
+      "title": "Changes · 1000",
+      "x": 1100,
+      "y": 1080,
+      "w": 1000,
+      "h": 680,
+      "page": "page-1"
+    },
+    {
+      "file": "Flyout1000.dc.html",
+      "title": "Rail flyout · 1000",
+      "x": 2200,
+      "y": 1080,
+      "w": 1000,
+      "h": 680,
+      "page": "page-1"
+    },
+    {
+      "file": "Dock1000.dc.html",
+      "title": "Dock open · 1000",
+      "x": 3300,
+      "y": 1080,
+      "w": 1000,
+      "h": 680,
+      "page": "page-1"
+    },
+    {
+      "file": "History720.dc.html",
+      "title": "History · 720",
+      "x": 0,
+      "y": 1960,
+      "w": 720,
+      "h": 540,
+      "page": "page-1"
+    },
+    {
+      "file": "Changes720.dc.html",
+      "title": "Changes · 720",
+      "x": 820,
+      "y": 1960,
+      "w": 720,
+      "h": 540,
+      "page": "page-1"
+    },
+    {
+      "file": "Overflow720.dc.html",
+      "title": "Overflow menu · 720",
+      "x": 1640,
+      "y": 1960,
+      "w": 720,
+      "h": 540,
+      "page": "page-1"
+    },
+    {
+      "file": "Palette720.dc.html",
+      "title": "Palette · 720",
+      "x": 2460,
+      "y": 1960,
+      "w": 720,
+      "h": 540,
+      "page": "page-1"
+    },
+    {
+      "file": "ChangesMerge.dc.html",
+      "title": "Merge in progress",
+      "x": 0,
+      "y": 2700,
+      "w": 1280,
+      "h": 800,
+      "page": "page-1"
+    },
+    {
+      "file": "HistoryDirty.dc.html",
+      "title": "Working tree row",
+      "x": 1380,
+      "y": 2700,
+      "w": 1280,
+      "h": 800,
+      "page": "page-1"
+    },
+    {
+      "file": "StashPreview.dc.html",
+      "title": "Stash preview",
+      "x": 2760,
+      "y": 2700,
+      "w": 1280,
+      "h": 800,
+      "page": "page-1"
+    },
+    {
+      "file": "ChangesEmpty.dc.html",
+      "title": "Clean tree",
+      "x": 4140,
+      "y": 2700,
+      "w": 1280,
+      "h": 800,
+      "page": "page-1"
+    },
+    {
+      "file": "CommitDialog.dc.html",
+      "title": "Commit dialog",
+      "x": 0,
+      "y": 3700,
+      "w": 1280,
+      "h": 800,
+      "page": "page-1"
+    },
+    {
+      "file": "DiffWindow.dc.html",
+      "title": "Diff window",
+      "x": 1380,
+      "y": 3700,
+      "w": 1280,
+      "h": 800,
+      "page": "page-1"
+    },
+    {
+      "file": "MainDark.dc.html",
+      "title": "History · 1280 · dark",
+      "x": 0,
+      "y": 0,
+      "w": 1280,
+      "h": 800,
+      "page": "page-2"
+    },
+    {
+      "file": "ChangesDark.dc.html",
+      "title": "Changes · 1280 · dark",
+      "x": 1380,
+      "y": 0,
+      "w": 1280,
+      "h": 800,
+      "page": "page-2"
+    },
+    {
+      "file": "PaletteDark.dc.html",
+      "title": "Palette · query · dark",
+      "x": 2760,
+      "y": 0,
+      "w": 1280,
+      "h": 800,
+      "page": "page-2"
+    },
+    {
+      "file": "PaletteEmptyDark.dc.html",
+      "title": "Palette · empty · dark",
+      "x": 4140,
+      "y": 0,
+      "w": 1280,
+      "h": 800,
+      "page": "page-2"
+    },
+    {
+      "file": "History1000Dark.dc.html",
+      "title": "History · 1000 · dark",
+      "x": 0,
+      "y": 1080,
+      "w": 1000,
+      "h": 680,
+      "page": "page-2"
+    },
+    {
+      "file": "Changes1000Dark.dc.html",
+      "title": "Changes · 1000 · dark",
+      "x": 1100,
+      "y": 1080,
+      "w": 1000,
+      "h": 680,
+      "page": "page-2"
+    },
+    {
+      "file": "Flyout1000Dark.dc.html",
+      "title": "Rail flyout · 1000 · dark",
+      "x": 2200,
+      "y": 1080,
+      "w": 1000,
+      "h": 680,
+      "page": "page-2"
+    },
+    {
+      "file": "Dock1000Dark.dc.html",
+      "title": "Dock open · 1000 · dark",
+      "x": 3300,
+      "y": 1080,
+      "w": 1000,
+      "h": 680,
+      "page": "page-2"
+    },
+    {
+      "file": "History720Dark.dc.html",
+      "title": "History · 720 · dark",
+      "x": 0,
+      "y": 1960,
+      "w": 720,
+      "h": 540,
+      "page": "page-2"
+    },
+    {
+      "file": "Changes720Dark.dc.html",
+      "title": "Changes · 720 · dark",
+      "x": 820,
+      "y": 1960,
+      "w": 720,
+      "h": 540,
+      "page": "page-2"
+    },
+    {
+      "file": "Overflow720Dark.dc.html",
+      "title": "Overflow menu · 720 · dark",
+      "x": 1640,
+      "y": 1960,
+      "w": 720,
+      "h": 540,
+      "page": "page-2"
+    },
+    {
+      "file": "Palette720Dark.dc.html",
+      "title": "Palette · 720 · dark",
+      "x": 2460,
+      "y": 1960,
+      "w": 720,
+      "h": 540,
+      "page": "page-2"
+    },
+    {
+      "file": "ChangesMergeDark.dc.html",
+      "title": "Merge in progress · dark",
+      "x": 0,
+      "y": 2700,
+      "w": 1280,
+      "h": 800,
+      "page": "page-2"
+    },
+    {
+      "file": "HistoryDirtyDark.dc.html",
+      "title": "Working tree row · dark",
+      "x": 1380,
+      "y": 2700,
+      "w": 1280,
+      "h": 800,
+      "page": "page-2"
+    },
+    {
+      "file": "StashPreviewDark.dc.html",
+      "title": "Stash preview · dark",
+      "x": 2760,
+      "y": 2700,
+      "w": 1280,
+      "h": 800,
+      "page": "page-2"
+    },
+    {
+      "file": "ChangesEmptyDark.dc.html",
+      "title": "Clean tree · dark",
+      "x": 4140,
+      "y": 2700,
+      "w": 1280,
+      "h": 800,
+      "page": "page-2"
+    },
+    {
+      "file": "CommitDialogDark.dc.html",
+      "title": "Commit dialog · dark",
+      "x": 0,
+      "y": 3700,
+      "w": 1280,
+      "h": 800,
+      "page": "page-2"
+    },
+    {
+      "file": "DiffWindowDark.dc.html",
+      "title": "Diff window · dark",
+      "x": 1380,
+      "y": 3700,
+      "w": 1280,
+      "h": 800,
+      "page": "page-2"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "row-1",
+      "x": 0,
+      "y": -220,
+      "w": 620,
+      "text": "DIRECTION B + PALETTE — one content view at a time\n• The toolbar keeps today's buttons (Branch and Stash stay); the Commit button becomes the History | Changes switch (Alt+1 / Alt+2). Changes carries the working-tree count.\n• History = grid + details, full height. Changes = the commit panel, full content area — three columns still fit at 1000.\n• Search + branch filter belong to History and leave the toolbar in Changes.\n• Ctrl+K opens the palette from anywhere: every action, view switch, go-to-branch, recent repos. Same items the menus have; searchable.\n• The full-window commit dialog and diff window stay, whatever the window size."
+    },
+    {
+      "id": "row-1-palette",
+      "x": 2760,
+      "y": -220,
+      "w": 520,
+      "text": "PALETTE — commands, views, go-to. Typing filters across groups; empty shows Recent first. Commit search stays in the toolbar (History only)."
+    },
+    {
+      "id": "row-2",
+      "x": 0,
+      "y": 860,
+      "w": 620,
+      "text": "1000 WIDE — sidebar becomes the 36px rail (or Alt+0 any time); a rail icon opens the section as a flyout. Details pane goes to two columns (commit + files over | diff) so the changed files stay browsable beside the diff. Changes keeps three columns. The dock still hangs under either view."
+    },
+    {
+      "id": "row-3",
+      "x": 0,
+      "y": 1740,
+      "w": 620,
+      "text": "720 WIDE — icons-only toolbar with ⋯ overflow. Details pane keeps two columns: a files-only 220px column (paths shown relative to their common folder) beside the diff, with the commit details collapsed to a one-line header that expands over the file list. Changes goes two columns (files over message | diff). Window minimum 700×500."
+    },
+    {
+      "id": "row-4",
+      "x": 0,
+      "y": 2480,
+      "w": 620,
+      "text": "STATES — banners sit above whichever view is showing. The working-tree row in History is the door to Changes (click or Enter → Changes, with an always-visible `Open changes →` hint at the row's right; double-click → the commit dialog). Selecting a commit or a branch while in Changes stays in Changes; the selection is there when you return with Alt+1. A selected stash takes the details pane as it does today. A clean tree in Changes is an empty state, not an empty list."
+    },
+    {
+      "id": "row-5",
+      "x": 0,
+      "y": 3480,
+      "w": 620,
+      "text": "FULL-WINDOW DIALOGS — unchanged by B. The commit dialog and the diff window stay reachable at every window size (Repository › Commit…, double-click the working-tree row; the expand button in any diff header). They sit over whichever view is showing."
+    },
+    {
+      "id": "decided",
+      "x": 5520,
+      "y": 0,
+      "w": 520,
+      "text": "DECIDED 2026-09-14\n1. Branch and Stash keep their toolbar buttons.\n2. Alt+1 History · Alt+2 Changes · Alt+0 sidebar (Ctrl+digit is the repository tabs).\n3. Details pane: three columns → two columns (commit + files | diff) → tabs. Revised once: tabs alone lose the file list next to the diff.\n4. Selecting a commit while in Changes stays in Changes.\n5. Palette = actions + views + branches + recent repos. Commit / file search by prefix → roadmap.\n6. Full-window commit dialog stays.\n\nROADMAP\n• Palette `#` commits / `/` files.\n• Stash dialog does not show the working tree it is about to stash."
+    }
+  ],
+  "launch": {
+    "view": "canvas",
+    "page": "page-1"
+  }
+}

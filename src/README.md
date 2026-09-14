@@ -218,16 +218,34 @@ src/
                            checkboxes; each change → set_signing (global config only), a repo's own entry shown as a hint
     GitMissingScreen/      probe_git failed → "Git not found" + Retry + "Locate git…" (file picker → set_git_path, kept in kv `gitPath`;
                            Settings edits the same key)
-    RepoWindow/            RepoWindow (layout: toolbar 40 / sidebar 260 | StateBanners + grid ÷ (DetailsPane | CommitPanel when
-                           wtSelected) / dock / statusbar 24 w/ spinner + busy text; hosts DialogHost + useShortcuts)
+    RepoWindow/            RepoWindow (layout: [TabStrip] / toolbar 40 / sidebar 260 or rail 36 | StateBanners + (History: grid ÷
+                           DetailsPane | Changes: ChangesBar + CommitPanel) / dock / statusbar 24; viewStore picks the view,
+                           layout.ts the tiers from the window width; hosts DialogHost, CommandPalette, useShortcuts),
+                           layout.ts (pure `layoutFor(width)` + the `useWindowWidth` / `useLayout` hooks behind it: the
+                           `RAIL_BELOW 1000` / `TIGHT_BELOW 1100` / `ICONS_BELOW 800` breakpoints turned into
+                           `{toolbar: full|tight|icons, details: 3col|2col|narrow, commit: 3col|2col, railAuto}` — the one place
+                           a breakpoint number appears, memoised so the object is stable per width),
                            Toolbar (repo menu = open repository name → folder picker / other recents / move to new window /
                            close tab, Fetch = split
                            button: click → default remote w/ prune, ▾ → the Fetch dialog (remote, prune, tags), Pull / Push
-                           dialogs + ahead/behind counts, Branch and Stash menus, Commit button
-                           = change count, Repository menu › Commit… / Run git command…, ThemeToggle beside the Settings gear
+                           dialogs + ahead/behind counts, Branch and Stash menus, the ViewSwitch where the Commit button was,
+                           Repository menu › Commit… / Run git command…, a Command palette IconButton (Ctrl+K) and ThemeToggle
+                           beside the Settings gear
                            (dialogStore kind `settings`); the file-history chip (§3) sits left of the search box at the same
                            height — "History: <basename>", the full path as its title, × clears `filter.path` and nothing else;
+                           `useLayout().toolbar` tiers it — `tight` drops the operation labels (icon + count) and narrows the
+                           search, `icons` shows the repo icon alone, compacts the switch, swaps the search for SearchPopover
+                           and folds Branch ▸ / Stash… / Refresh / theme / Settings / Command palette into a `⋯` Menu, the
+                           palette button staying out of it;
                            every op button disabled while one runs),
+                           ViewSwitch.tsx (the `History | Changes` segmented control over `viewStore.view`, Changes carrying
+                           the working-tree change count; `compact` = icons only, for the toolbar's `icons` tier),
+                           ChangesView.tsx (the Changes view: ChangesBar — `Changes on <branch> · N unstaged · M staged
+                           [· K conflicted]`, or `· nothing to commit`, with Stash… and History at its right — over the
+                           CommitPanel, or over the "Working tree clean" EmptyState beside the MessageColumn on a clean,
+                           un-merging tree),
+                           SearchPopover.tsx (the `icons` tier's search: an IconButton and, portalled under it, the search
+                           Input + branch filter Select + the file-history chip; Esc or a click outside closes it),
                            Sidebar (one `role="tree"` per section with a roving tabIndex; branches with `/` nest in
                            folder rows under Local and under each remote; a `mergedInto` branch (never the current one, nor a protected main / master / remote-default) is muted with a
                            `merged` badge; context menus per ref kind on right-click / Shift+F10, double-click = checkout;
@@ -235,6 +253,10 @@ src/
                            whose own headers carry Add worktree… / Prune and Update all; Stashes starts collapsed like Tags,
                            its header carries the stash-browser button, and a stash row previews the entry in the pane
                            (`repoStore.preview`) — stash commits are never walked, so there is no row to reveal),
+                           SidebarRail.tsx (the sidebar below 1000px, or whenever Alt+0 says so: a 36px `nav` of one button
+                           per section with its count — Worktrees and Submodules only when there are any — where a click opens
+                           that section as a 260px flyout holding `<Sidebar only={section} />`, closed by Esc or a click
+                           outside, and the last button hands the full sidebar back),
                            TabStrip.tsx (shown above the toolbar with two tabs or more: repo name, path as the title, stale
                            dot, ×, middle-click closes, + opens a repository, row menu Move to new window · Copy path · Close;
                            pointer capture drags a tab (`useTabDrag`) — inside the strip it reorders, outside it a ghost follows
@@ -264,7 +286,17 @@ src/
                            useShortcuts.ts (Ctrl+Shift+U push, Ctrl+Shift+L pull, Ctrl+Shift+S stashes, Ctrl+Shift+R run git command, Ctrl+B branch,
                            Ctrl+F5 fetch, F5 refresh; Ctrl+Tab / Ctrl+Shift+Tab cycle tabs, Ctrl+W (Ctrl+Shift+W) close tab,
                            Ctrl+T open, Ctrl+1..9 jump, Ctrl+Shift+N move to new window; Ctrl+` and the tab keys also inside
-                           text fields — Ctrl+` is the only way out of the dock prompt),
+                           text fields — Ctrl+` is the only way out of the dock prompt; Alt+1 / Alt+2 History | Changes,
+                           Alt+0 sidebar rail ↔ full, Ctrl+K command palette (toggles; every other shortcut sleeps while it
+                           is open); Alt+0 and Ctrl+K also work inside text fields),
+                           CommandPalette/ (Ctrl+K: commands.tsx builds every Command — Views, Repository, Branch, Stash,
+                           Network, Go to branch, Repositories, Window — from a context the panel gathers off the stores, each
+                           with the id Recent remembers and the same disabled reason the toolbar gives; rank.ts scores a query
+                           per label (prefix 3 / word start 2 / subsequence 1), orders groups by their best row and rows
+                           within a group best first, so a group stays under one label; an empty query
+                           leading with Recent; paletteStore.ts holds `open` + the last three ids (localStorage
+                           `paletteRecent`); CommandPalette.tsx is the scrim + panel — input, grouped options with
+                           aria-activedescendant, ↑/↓ Enter Esc — which hands the focus back where it found it on close),
                            dialogs/ (DialogHost + OpsDialogs Push/Push tag + Delete remote tag (`refs/tags/<name>` with a
                            remote picker, from the sidebar tag menu)/Pull/Fetch/Merge/Rebase — Merge and Rebase take a commit oid as
                            well as a branch, shown as an extra 7-char option; a commit merge defaults to git's

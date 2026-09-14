@@ -360,6 +360,17 @@ condition that reopens it.
   width stands in) and `log/walker.rs` (a `Refs` spec that never reaches HEAD leaves the
   working-tree column open).
 
+## J. Added 2026-09-14 — from the UI direction B review
+Direction B (History | Changes view switch + Ctrl+K palette) is the chosen small-window layout;
+canvases under `docs/design/` once it lands. Two items parked while deciding it, and one left by
+building it:
+- **Palette search prefixes** — `#` searches commits (subject / SHA), `/` opens a file in the Files
+  tab. The first palette ships with actions, views, go-to-branch and recent repositories only.
+- **Stash dialog shows nothing of what it stashes.** `Stash changes…` takes a message and two
+  checkboxes but never lists the working tree it is about to push; the user stashes blind. Show
+  the unstaged / staged files (and untracked when included) in the dialog.
+- **Per-view sidebar state** (Direction B follow-up): many will hide the sidebar while staging and want it back in History. One `railOverride` per view is a ten-line change in `viewStore` if the first weeks say so.
+
 ## Suggested order, if nothing else decides it
 
 Most time-pressed is the `ubuntu-22.04` decision in §E (deprecated from 2026-09-17), and it is
