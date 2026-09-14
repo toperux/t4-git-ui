@@ -31,8 +31,8 @@ function graphSvg(t, { selectedLane = 0 } = {}) {
 
 function gridRows(t) {
   const subj = (s, txt, chips = '', author = 'Topher M.', date = '2h ago', sha = 'a1b2c3d', italic = false) =>
-    `<div class="row ${s}" style="padding-left: 0; padding-right: 8px; gap: 8px;"><span class="grow" style="display: flex; align-items: center; gap: 6px; ${italic ? 'color: var(--fg-muted); font-style: italic;' : ''}">${chips ? `<span style="display: inline-flex; gap: 4px; flex: none;">${chips}</span>` : ''}<span style="overflow: hidden; text-overflow: ellipsis;">${txt}</span></span><span class="meta" style="width: 84px;">${author}</span><span class="meta" style="width: 60px;">${date}</span><span class="meta mono" style="width: 56px;">${sha}</span></div>`;
-  return section('Revision grid row', 'graph column 13px/lane · row 26px · ref chips first (HEAD, current, local, remote, tag, stash; max 3 then “+N”), then subject · local + tracking remote on the same commit collapse into one chip (rows 4, 6) · author 84 · date 60 · sha 56 mono · working-tree pseudo-row italic on top',
+    `<div class="row ${s}" style="padding-left: 0; padding-right: 8px; gap: 8px;"><span class="grow" style="display: flex; align-items: center; gap: 6px; ${italic ? 'color: var(--fg-muted); font-style: italic;' : ''}">${chips ? `<span style="display: inline-flex; gap: 4px; flex: none;">${chips}</span>` : ''}<span style="overflow: hidden; text-overflow: ellipsis;">${txt}</span></span><span class="meta" style="width: 110px;">${author}</span><span class="meta" style="width: 80px;">${date}</span><span class="meta mono" style="width: 64px;">${sha}</span></div>`;
+  return section('Revision grid row', 'graph column 13px/lane, width animating to the lanes in view (gone under a text filter) · row 26px · ref chips first (HEAD, current, local, remote, tag, stash, bisect; max 3 then a “+N” button that opens a popover of the rest), then subject · local + tracking remote on the same commit collapse into one chip (rows 4, 6) · author 110 · date 80 · sha 64 mono · working-tree pseudo-row italic on top (“Working tree · 4 changes”, or “Working tree · merge to commit” mid-operation) · Ctrl+click a second row for a compare, tinting both · pages not yet arrived draw “—” in --fg-faint',
     `<div class="list" style="display: flex; padding-left: 4px;">
       ${graphSvg(t)}
       <div style="flex: 1; min-width: 0;">
@@ -40,9 +40,10 @@ function gridRows(t) {
         ${subj('is-selected', 'Dedupe lanes when parent already expected', `<span class="chip head">HEAD</span><span class="chip local current">${icon('git-branch', 11)}main</span>`)}
         ${subj('', 'Merge branch ‘feature/lane-graph’', `<span class="chip remote">${icon('cloud', 11)}origin/main</span>`, 'Topher M.', '3h ago', '9f8e7d6')}
         ${subj('', 'Emit MergeInto lines for octopus parents', `<span class="chip local">${icon('git-branch', 11)}feature/lane-graph<span class="rem">${icon('cloud', 11)}origin</span></span><span class="chip stash">${icon('archive', 11)}stash@{0}</span>`, 'Topher M.', 'Yesterday', '5c4b3a2')}
-        ${subj('is-hover', 'Cache log pages by generation', '', 'Ada L.', 'Yesterday', '1e2d3c4')}
+        ${subj('is-hover', 'Cache log pages by generation', `<span class="chip bisect bad">${icon('bug', 11)}bad</span>`, 'Ada L.', 'Yesterday', '1e2d3c4')}
         ${subj('', 'Hotfix: index lock retry', `<span class="chip local">${icon('git-branch', 11)}hotfix-index-lock<span class="rem">${icon('cloud', 11)}origin</span></span><span class="chip tag">${icon('tag', 11)}v0.1.1</span><span class="chip remote">${icon('cloud', 11)}upstream/hotfix</span><span class="chip remote">+2</span>`, 'Ada L.', 'Aug 28', 'b7a6c5d')}
-        ${subj('', 'Initial workspace', `<span class="chip tag">${icon('tag', 11)}v0.1.0</span>`, 'Topher M.', 'Aug 20', '0a1b2c3')}
+        ${subj('', 'Initial workspace', `<span class="chip tag">${icon('tag', 11)}v0.1.0</span><span class="chip bisect good">${icon('bug', 11)}good</span>`, 'Topher M.', 'Aug 20', '0a1b2c3')}
+        ${subj('', '<span class="faint">—</span>', '', '<span class="faint">—</span>', '<span class="faint">—</span>', '<span class="faint">—</span>')}
       </div>
     </div>`);
 }
@@ -65,53 +66,71 @@ function graphAnatomy(t) {
 }
 
 function sidebar() {
-  const t = (d, s, tw, ic, txt, extra = '') => `<div class="row ${s}" style="--d: ${d};"><span class="tw">${tw ? icon(tw, 12) : ''}</span>${icon(ic, 14, 'muted')}<span class="grow">${txt}</span>${extra}</div>`;
-  return section('Sidebar', '220–320px · sections collapsible · tree by “/” · counts as badges · HEAD branch bold',
+  const t = (d, s, tw, ic, txt, extra = '') => `<div class="row ${s}" style="--d: ${d};"><span class="tw">${tw ? icon(tw, 12) : ''}</span>${icon(ic, 14)}<span class="label">${txt}</span>${extra}</div>`;
+  const head = (open, title, count, children = '') => `<div class="section-header"><span class="tw">${icon(open ? 'chevron-down' : 'chevron-right', 12)}</span><span class="grow">${title}</span><span class="badge">${count}</span>${children}</div>`;
+  return section('Sidebar', '260px default, resizable 180–560 · --bg-app, with each section header in its own sticky --bg-panel band · sections Local / Remotes / Tags / Stashes, then Worktrees (only past one) and Submodules (only when there are any) · tree by “/” · a badge counts refs, never the grouping rows (Remotes counts remote branches) · folder rows amber + 600 with their ref count in meta · the checked-out branch swaps its glyph for an accent check',
     `<div class="list tree" style="width: 260px; background: var(--bg-app); padding-bottom: 4px;">
-      <div class="section-header"><span class="tw">${icon('chevron-down', 12)}</span><span class="grow">Local</span><span class="badge">4</span></div>
-      ${t(0, 'is-selected', '', 'git-branch', '<span style="font-weight: 600;">main</span>', `<span class="ab">${icon('arrow-up', 12)}2 ${icon('arrow-down', 12)}5</span>`)}
-      ${t(0, '', 'chevron-down', 'folder', 'feature')}
+      ${head(true, 'Local', 4)}
+      ${t(0, 'current is-selected', '', 'check', 'main', `<span class="ab">${icon('arrow-up', 12)}2 ${icon('arrow-down', 12)}5</span>`)}
+      ${t(0, 'folder', 'chevron-down', 'folder', 'feature', `<span class="meta">2</span>`)}
       ${t(1, '', '', 'git-branch', 'lane-graph', `<span class="ab">${icon('arrow-up', 12)}2</span>`)}
-      ${t(1, '', '', 'git-branch', 'diff-viewer')}
-      ${t(0, '', '', 'git-branch', 'hotfix-index-lock')}
-      <div class="section-header"><span class="tw">${icon('chevron-down', 12)}</span><span class="grow">Remotes</span><span class="badge">1</span></div>
-      ${t(0, '', 'chevron-right', 'cloud', 'origin')}
-      <div class="section-header"><span class="tw">${icon('chevron-right', 12)}</span><span class="grow">Tags</span><span class="badge">12</span></div>
-      <div class="section-header"><span class="tw">${icon('chevron-down', 12)}</span><span class="grow">Stashes</span><span class="badge">1</span></div>
-      ${t(0, '', '', 'archive', 'WIP on main: lane colors')}
-    </div>`);
+      ${t(1, '', '', 'git-branch', 'diff-viewer', `<span class="meta"><span class="badge" title="Its upstream is gone">gone</span></span>`)}
+      ${t(0, '', '', 'git-branch', '<span class="muted">hotfix-index-lock</span>', `<span class="meta"><span class="badge" title="Already in main">merged</span></span>`)}
+      ${head(true, 'Remotes', 31)}
+      ${t(0, 'folder', 'chevron-right', 'cloud', 'origin', `<span class="meta">29</span>`)}
+      ${t(0, 'folder', 'chevron-right', 'cloud', 'mirror', `<span class="meta">2</span>`)}
+      ${head(true, 'Tags', 12)}
+      ${t(0, '', '', 'tag', 'v0.9.0', `<span class="meta"><span class="badge" title="Not on origin (as of 5m ago)">local</span></span>`)}
+      ${t(0, 'folder', 'chevron-right', 'cloud', 'origin', `<span class="meta">11</span>`)}
+      ${head(true, 'Stashes', 1, `<span class="icon-btn">${icon('archive', 14)}</span>`)}
+      ${t(0, '', '', 'archive', 'WIP on main: lane colors', `<span class="meta mono">stash@{0}</span>`)}
+      ${head(true, 'Worktrees', 2)}
+      ${t(0, 'current', '', 'folder-git-2', 't4-git-ui', `<span class="meta"><span class="mono">main</span><span class="badge">main</span><span class="badge">current</span></span>`)}
+      ${t(0, '', '', 'folder-git-2', 'wt-release', `<span class="meta"><span class="mono">release/0.9</span><span class="badge">locked</span></span>`)}
+      ${head(true, 'Submodules', 1)}
+      ${t(0, '', '', 'package', 'vendor/libgit2', `<span class="meta"><span class="mono">a1b2c3d</span><span class="badge">not initialized</span></span>`)}
+    </div>
+    <div class="xs muted">Tags are a tree like the branches: the local ones nested by “/” (the count is those), then one cloud folder per remote that answered, holding the tags that remote has. A tag on none of them carries a <span class="badge">local</span> badge. Header menus: Worktrees → Add worktree… · Prune; Submodules → Update all; a remote’s folder row → fetch · copy URL · rename, change URL · remove. No remotes at all → an EmptyState with <span class="mono">Add remote…</span>; refs not in yet → a “Loading branches…” line.</div>`);
 }
 
 function diffAnatomy() {
   const line = (cls, o, n, sg, tx) => `<div class="dl ${cls}"><span class="no">${o}</span><span class="no">${n}</span><span class="sg">${sg}</span><span class="tx">${tx}</span></div>`;
-  return section('Diff line · Hunk header · Line selection', 'gutters 40+40 · sign 14 · 20px lines · hunk header 24px with actions on hover · selected lines get accent sign column + “Stage N lines”',
+  const bl = (age, label) => `<span class="bl" style="--age: ${age}; width: 120px;"><span class="grow">${label}</span></span>`;
+  return section('Diff line · Hunk header · Line selection · Blame', 'gutters 40+40 · sign 14 · 20px lines · hunk header 24px with 24px buttons on hover · selected lines get accent sign column + inset ring and a sticky “N lines selected” bar · syntax highlighting per --syn-* · the Files tab adds a 180px blame gutter tinted by hunk age',
     `<div style="display: flex; flex-direction: column; gap: 12px;">
       <div class="diff">
         <div class="hunk"><span class="grow">@@ -12,6 +12,8 @@ pub fn walk()</span><span class="btn secondary">Discard</span><span class="btn primary">Stage hunk</span></div>
-        ${line('', 12, 12, ' ', 'let mut walk = repo.revwalk()?;')}
-        ${line('add is-selected', '', 13, '+', 'walk.push_head()?;')}
-        ${line('add is-selected', '', 14, '+', 'walk.push_glob("heads/*")?;')}
-        ${line('del', 13, '', '−', 'walk.push_glob("refs/*")?;')}
-        ${line('', 14, 15, ' ', 'walk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;')}
-        <div class="hunk" style="background: var(--accent-soft); color: var(--fg);"><span class="grow">2 lines selected</span><span class="btn primary">Stage 2 lines</span></div>
+        ${line('', 12, 12, ' ', '<span class="syn-keyword">let</span> <span class="syn-keyword">mut</span> walk = repo.<span class="syn-function">revwalk</span>()?;')}
+        ${line('add is-selected', '', 13, '+', 'walk.<span class="syn-function">push_head</span>()?;')}
+        ${line('add is-selected', '', 14, '+', 'walk.<span class="syn-function">push_glob</span>(<span class="syn-string">"heads/*"</span>)?;')}
+        ${line('del', 13, '', '−', 'walk.<span class="syn-function">push_glob</span>(<span class="syn-string">"refs/*"</span>)?; <span class="syn-comment">// all refs</span>')}
+        ${line('', 14, 15, ' ', 'walk.<span class="syn-function">set_sorting</span>(<span class="syn-type">Sort</span><span class="syn-punct">::</span>TOPOLOGICAL)?;')}
+        <div class="diff-bar"><span class="grow">2 lines selected</span><span class="btn secondary">Discard 2 lines</span><span class="btn primary">Stage 2 lines</span></div>
       </div>
       <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 6px; overflow: hidden;">
-        <div class="diff" style="border: 0; border-radius: 0;">${line('', 12, '', ' ', 'let mut walk = …')}${line('del', 13, '', '−', 'walk.push_glob(<span class="w">"refs/*"</span>)?;')}${line('', '', '', '', '')}${line('', 14, '', ' ', 'walk.set_sorting(…')}</div>
-        <div class="diff" style="border: 0; border-radius: 0;">${line('', '', 12, ' ', 'let mut walk = …')}${line('add', '', 13, '+', 'walk.push_head()?;')}${line('add', '', 14, '+', 'walk.push_glob(<span class="w">"heads/*"</span>)?;')}${line('', '', 15, ' ', 'walk.set_sorting(…')}</div>
+        <div class="diff" style="border: 0; border-radius: 0;">${line('', 12, '', ' ', 'let mut walk = …')}${line('del', 13, '', '−', 'walk.push_glob(<span class="emph">"refs/*"</span>)?;')}<div class="dl filler"></div>${line('', 14, '', ' ', 'walk.set_sorting(…')}</div>
+        <div class="diff" style="border: 0; border-radius: 0;">${line('', '', 12, ' ', 'let mut walk = …')}${line('add', '', 13, '+', 'walk.push_head()?;')}${line('add', '', 14, '+', 'walk.push_glob(<span class="emph">"heads/*"</span>)?;')}${line('', '', 15, ' ', 'walk.set_sorting(…')}</div>
       </div>
-      <div class="xs muted">Side-by-side pairs consecutive −/+ runs; unpaired side shows an empty 20px filler row. Long lines wrap only when the “wrap” toggle is on.</div>
+      <div class="diff">
+        <div class="dl">${bl(5, 'Topher M. · 2h')}<span class="no">12</span><span class="tx">pub fn walk(repo: &Repository) {</span></div>
+        <div class="dl">${bl(5, '')}<span class="no">13</span><span class="tx">    let mut walk = repo.revwalk()?;</span></div>
+        <div class="dl">${bl(2, 'Ada L. · Aug 28')}<span class="no">14</span><span class="tx">    walk.set_sorting(Sort::TIME)?;</span></div>
+        <div class="dl">${bl(1, 'Topher M. · Aug 20')}<span class="no">15</span><span class="tx">}<span class="nonl">\\ No newline at end of file</span></span></div>
+      </div>
+      <div class="xs muted">Side-by-side pairs consecutive −/+ runs; the unpaired side shows an empty 20px filler row. The blame label sits on a hunk’s first row and the tint alone on the rest — <span class="mono">--accent</span> at <span class="mono">--age × 4%</span>, five steps, oldest to newest.</div>
     </div>`);
 }
 
 function outputDock() {
-  return section('Output dock', 'bottom, 160–320px, collapsible · header shows running op + elapsed + Cancel · mono body auto-scrolls · exit line colored',
+  return section('Output dock', 'bottom, 160–320px, collapsible · header shows the running op + elapsed + Cancel · mono body on --bg-inset auto-scrolls, stderr italic · exit line coloured, with a 12px Check / X · a “$ git” prompt row sits under the log, outside it · no progress bar in the dock',
     `<div class="list" style="overflow: hidden;">
-      <div class="panel-header">${icon('terminal', 14)}<span class="grow">git push origin main</span><span class="xs muted">4.2s</span><span class="spinner" style="width: 10px; height: 10px; border-width: 1.5px;"></span><span class="btn secondary sm">Cancel</span><span class="icon-btn">${icon('chevron-down', 14)}</span></div>
-      <div class="output" style="border-radius: 0;"><div class="cmd">$ git push --progress origin main</div><div>Enumerating objects: 12, done.</div><div>Counting objects: 100% (12/12), done.</div><div>Writing objects:  58% (7/12), 1.2 MiB | 600 KiB/s</div></div>
-      <div class="progress" style="border-radius: 0; height: 3px;"><div style="width: 58%;"></div></div>
+      <div class="panel-header">${icon('terminal', 14)}<span class="grow">git push origin main</span><span class="xs muted">4.2s</span><span class="spinner sm"></span><span class="btn secondary sm">Cancel</span><span class="icon-btn">${icon('chevron-down', 14)}</span></div>
+      <div class="output" style="border-radius: 0;"><div class="cmd">$ git push --progress origin main</div><div>Enumerating objects: 12, done.</div><div class="stderr">Counting objects: 100% (12/12), done.</div><div class="stderr">Writing objects:  58% (7/12), 1.2 MiB | 600 KiB/s</div></div>
+      <div class="prompt"><span class="command-input"><span class="prefix">$ git</span><span class="ph">rebase --onto …</span></span></div>
     </div>
-    <div class="output" style="margin-top: 8px;"><div class="cmd">$ git fetch --progress origin</div><div>From github.com:topher/t4-git-ui</div><div>   a1b2c3d..9f8e7d6  main -> origin/main</div><div class="ok">✓ exit 0 · 1.1s</div></div>
-    <div class="output" style="margin-top: 8px;"><div class="cmd">$ git push origin main</div><div class="err">! [rejected] main -> main (fetch first)</div><div class="err">✗ exit 1 · 0.8s</div></div>`);
+    <div class="output" style="margin-top: 8px;"><div class="cmd">$ git fetch --progress origin</div><div>From github.com:topher/t4-git-ui</div><div>   a1b2c3d..9f8e7d6  main -&gt; origin/main</div><div class="ok" style="display: flex; align-items: center; gap: 4px;">${icon('check', 12)}exit 0 · 1.1s</div></div>
+    <div class="output" style="margin-top: 8px;"><div class="cmd">$ git push origin main</div><div class="stderr">! [rejected] main -&gt; main (fetch first)</div><div class="err" style="display: flex; align-items: center; gap: 4px;">${icon('x', 12)}exit 1 · 0.8s</div></div>
+    <div class="xs muted" style="margin-top: 8px;">The prompt holds a mono CommandInput with ↑ history and ref completion. With no operation yet the body reads “No output yet”.</div>`);
 }
 
 function dialogLayout() {
@@ -120,15 +139,37 @@ function dialogLayout() {
       <div class="dialog-title"><span class="grow">Push</span><span class="icon-btn">${icon('x')}</span></div>
       <div class="dialog-body">
         <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
-          <div class="field"><span class="field-label">Remote</span><span class="input select"><span>origin</span>${icon('chevron-down', 14)}</span></div>
-          <div class="field"><span class="field-label">Branch</span><span class="input select"><span>main → origin/main</span>${icon('chevron-down', 14)}</span></div>
+          <div class="field"><span class="field-label">Remote</span><span class="input select"><span class="val">origin</span>${icon('chevron-down', 14, 'chevron')}</span></div>
+          <div class="field"><span class="field-label">Branch</span><span class="input select"><span class="val">main → origin/main</span>${icon('chevron-down', 14, 'chevron')}</span></div>
         </div>
         <div style="display: flex; gap: 20px;"><span class="check"><span class="checkbox"></span>Force (with lease)</span><span class="check"><span class="checkbox"></span>Push tags</span><span class="check"><span class="checkbox is-checked">${icon('check', 12)}</span>Set upstream</span></div>
         <div class="output" style="display: flex; flex-direction: column; gap: 0;"><div class="cmd">$ git push --progress origin main</div><div>Enumerating objects: 12, done.</div><div>Writing objects:  58% (7/12), 1.2 MiB | 600 KiB/s</div></div>
         <div class="progress" style="height: 3px;"><div style="width: 58%;"></div></div>
       </div>
-      <div class="dialog-foot"><span class="spinner"></span><span class="xs muted">4.2s</span><span class="grow"></span><span class="btn secondary">Cancel</span><span class="btn primary is-disabled">Push</span></div>
+      <div class="dialog-foot"><span class="spinner"></span><span class="xs muted">4.2s</span><span class="preview">Runs <code>git push origin main</code></span><span class="grow"></span><span class="btn secondary">Cancel</span><span class="btn primary is-disabled">Push</span></div>
     </div></div>`);
+}
+
+function detailsPane() {
+  const kv = (k, v) => `<div class="row" style="height: auto; padding: 2px var(--space-4); align-items: baseline;"><span class="meta" style="width: 72px;">${k}</span><span class="grow">${v}</span></div>`;
+  return section('Details pane', '340px, resizable 240–560 (its file list 320 / 200–640) · header carries Copy only · a previewed stash takes the whole pane, pushing the selected commit behind it, and a Ctrl+click compare replaces it with a From / To panel',
+    `<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start;">
+      <div class="list">
+        <div class="panel-header">${icon('git-commit', 14)}<span class="grow">Commit</span><span class="icon-btn">${icon('copy', 14)}</span></div>
+        ${kv('Author', 'Topher M. <span class="signed">signed</span>')}
+        ${kv('Committer', 'Ada L.')}
+        ${kv('Parents', '<a class="mono" href="#">9f8e7d6</a> <a class="mono" href="#">5c4b3a2</a>')}
+      </div>
+      <div class="list">
+        <div class="panel-header">${icon('archive', 14)}<span class="grow">stash@{0}</span></div>
+        <div style="padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-4);">
+          <div>WIP on main: lane colors</div>
+          ${row([`<span class="btn secondary sm">Apply</span>`, `<span class="btn secondary sm">Pop</span>`, `<span class="btn danger sm">Drop…</span>`, `<span class="btn secondary sm">Open browser</span>`], 6)}
+        </div>
+        ${kv('On', 'main · a1b2c3d')}
+        ${kv('Untracked', '2 files')}
+      </div>
+    </div>`);
 }
 
 function shortcuts() {
@@ -145,5 +186,5 @@ function shortcuts() {
 
 export default () => ({
   body: shell('Patterns', 'How components compose into the recurring pieces of the main window. Screens (canvas 2) are built only from these.',
-    twoUp((t) => [gridRows(t), graphAnatomy(t), sidebar(), diffAnatomy(), outputDock(), dialogLayout(), shortcuts()].join(''))),
+    twoUp((t) => [gridRows(t), graphAnatomy(t), sidebar(), detailsPane(), diffAnatomy(), outputDock(), dialogLayout(), shortcuts()].join(''))),
 });

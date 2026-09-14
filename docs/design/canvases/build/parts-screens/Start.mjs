@@ -16,14 +16,16 @@ const action = (ic, title, hint, kbd) => `<div class="row" style="height: 56px; 
 export function build(theme) {
   const body = `
   <div style="display: flex; align-items: center; height: 40px; padding: 0 16px; gap: 8px; border-bottom: 1px solid var(--border); flex: none;">
-    ${icon('git-branch', 16, 'muted')}<span style="font-weight: 600;">t4 git ui</span><span class="xs muted">0.1.0</span>
+    ${icon('git-branch', 16, 'muted')}<span style="font-weight: 600;">T4 Git</span><span class="xs muted">0.9.0</span>
     <div style="flex: 1;"></div>
+    <span class="icon-btn">${icon('moon')}</span>
+    <span class="btn primary sm">${icon('arrow-up-circle', 14)}Update</span>
     <span class="icon-btn">${icon('settings')}</span>
   </div>
   <div style="flex: 1; display: flex; align-items: center; justify-content: center;">
     <div style="width: 960px; display: grid; grid-template-columns: 560px 1fr; gap: 40px; align-items: start;">
       <div style="display: flex; flex-direction: column; gap: 10px;">
-        <div style="display: flex; align-items: center; gap: 8px;"><span class="label">Recent</span><div style="flex: 1;"></div><span class="input" style="width: 220px; height: 26px;">${icon('search', 14)}<span class="ph">Filter repositories</span></span></div>
+        <div style="display: flex; align-items: center; gap: 8px;"><span class="label">Recent</span><div style="flex: 1;"></div><span class="input" style="width: 220px; height: var(--control-h-sm);">${icon('search', 14)}<span class="ph">Filter repositories</span></span></div>
         <div class="list">
           ${repo('is-selected', 't4-git-ui', 'F:\\src\\_ pet projects\\t4-git-ui', '2h ago', true)}
           ${repo('', 'git', 'C:\\Users\\toper\\src\\git', 'Yesterday', true)}
@@ -41,7 +43,7 @@ export function build(theme) {
       </div>
     </div>
   </div>
-  <div class="statusbar" style="flex: none;"><span class="item">${icon('check-circle', 12)}git 2.55.0 · C:\\Program Files\\Git\\cmd\\git.exe</span><span class="grow"></span><span class="item">5 recent</span></div>`;
+  <div class="statusbar" style="flex: none;"><span class="item">${icon('check-circle', 12)}git 2.55.0</span><span class="grow"></span><span class="item">5 recent</span></div>`;
   return { body: frame(theme, body), bg: PAGE_BG[theme] };
 }
 

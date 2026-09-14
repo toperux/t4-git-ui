@@ -19,8 +19,8 @@ function diff(t) {
       <div class="diff">
         <div class="hunk"><span class="grow">@@ -118,7 +118,9 @@ impl LaneLayout</span></div>
         ${line('', 118, 118, ' ', '    let lane = cols.iter().position(|c| c.expecting == oid);')}
-        ${line('del', 119, '', '−', '    let lane = lane.<span class="w">unwrap()</span>;')}
-        ${line('add', '', 119, '+', '    let lane = lane.<span class="w">unwrap_or_else(|| self.new_column(oid))</span>;')}
+        ${line('del', 119, '', '−', '    let lane = lane.<span class="emph">unwrap()</span>;')}
+        ${line('add', '', 119, '+', '    let lane = lane.<span class="emph">unwrap_or_else(|| self.new_column(oid))</span>;')}
         ${line('add', '', 120, '+', '    self.emit_merges(lane, oid);')}
         ${line('', 120, 121, ' ', '    cols[lane].expecting = parents[0];')}
       </div>
@@ -29,7 +29,7 @@ function diff(t) {
 }
 
 function chips(t) {
-  return section('Ref chips', 'lead the grid row, before the subject; order HEAD → current → local → remote → tag → stash; max 3 then “+N”; current branch gets the outline',
+  return section('Ref chips', 'lead the grid row, before the subject; order HEAD → current → local → remote → tag → stash → bisect; max 3 then “+N”; current branch gets the outline',
     `<div style="display: flex; flex-direction: column; gap: 14px;">
       ${row([
         `<span class="chip head">HEAD</span>`,
@@ -43,6 +43,14 @@ function chips(t) {
         `<span class="chip stash">${icon('archive', 11)}stash@{0}</span>`,
         `<span class="chip remote">+2</span>`,
       ], 8)}
+      ${row([
+        `<span class="chip bisect good">${icon('bug', 11)}good</span>`,
+        `<span class="chip bisect bad">${icon('bug', 11)}bad</span>`,
+        `<span class="chip bisect">${icon('bug', 11)}skip</span>`,
+        `<span style="width: 12px;"></span>`,
+        `<span class="sm">Topher M. <span class="signed">signed</span></span>`,
+      ], 8)}
+      <div class="xs muted">A bisect mark is a chip whose <em>name is its state</em>: <span class="mono">good</span> takes <span class="mono">--success-soft</span>/<span class="mono">--success</span>, <span class="mono">bad</span> takes <span class="mono">--danger-soft</span>/<span class="mono">--danger-text</span>, and <span class="mono">skip</span> stays the plain remote grey. Icon is <span class="mono">Bug</span> for all three. The <span class="signed">signed</span> marker beside a commit's author is not a ref, so it is not a Chip kind — same shape on <span class="mono">--success-soft</span>/<span class="mono">--success</span>.</div>
       <div class="xs muted">Local + its tracking remote on the same commit → one chip with a remote segment (“feature/lane-graph · origin”; several remotes comma-joined). An upstream not named after its branch is spelled out (“feature · origin/trunk”), or the segment would name a branch that may not be the upstream. Remote ahead/behind → separate <span class="chip remote" style="height: 16px;">origin/x</span> chip on its own row.</div>
       ${grid(5, ['chip-head-bg', 'chip-local-bg', 'chip-local-fg', 'chip-remote-bg', 'chip-remote-fg', 'chip-tag-bg', 'chip-tag-fg', 'chip-stash-bg', 'chip-stash-fg'].map((n) => swatch(n, t)), 10)}
     </div>`);
@@ -50,9 +58,10 @@ function chips(t) {
 
 function glyphs(t) {
   const g = (k, f, d) => `<div class="row" style="padding: 0;"><span class="glyph ${k}">${k}</span><span class="grow mono" style="font-size: 12px;">${f}</span><span class="xs muted">${d}</span></div>`;
-  return section('File status', 'one-letter mono glyph, colored; conflict gets a tinted box',
+  return section('File status · folder rows', 'one-letter mono glyph, colored; conflict gets a tinted box · a folder row in a tree takes --folder-fg on its icon and 600 on its label, so “feature/” never reads as a branch',
     `<div style="display: flex; gap: 20px; align-items: flex-start;">
       <div class="list" style="width: 320px; padding: 4px 8px;">
+        <div class="row folder" style="padding: 0;"><span class="tw">${icon('chevron-down', 12)}</span>${icon('folder', 14)}<span class="label">src / log</span><span class="meta">7</span></div>
         ${g('A', 'src/log/graph.rs', 'added')}
         ${g('M', 'src/lib.rs', 'modified')}
         ${g('D', 'src/old_walker.rs', 'deleted')}
@@ -60,7 +69,7 @@ function glyphs(t) {
         ${g('U', 'notes.txt', 'untracked')}
         ${g('C', 'Cargo.lock', 'conflict')}
       </div>
-      ${grid(3, ['status-added', 'status-modified', 'status-deleted', 'status-renamed', 'status-untracked', 'status-conflict'].map((n) => swatch(n, t)), 10)}
+      ${grid(3, ['status-added', 'status-modified', 'status-deleted', 'status-renamed', 'status-untracked', 'status-conflict', 'folder-fg'].map((n) => swatch(n, t)), 10)}
     </div>`);
 }
 
