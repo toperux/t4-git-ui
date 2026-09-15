@@ -330,7 +330,7 @@ describe("DiffDialog", () => {
 
 describe("DetailsPane tiers", () => {
   it("three columns wide, details over files at 1000, files beside the diff with a collapsed header at 720", async () => {
-    window.innerWidth = 1280;
+    window.innerWidth = 1400;
     const { getByRole, queryByRole, findByText, queryByText, rerender } = render(<DetailsPane />);
     await findByText("Ship it");
     expect(getByRole("separator", { name: "Resize commit details" })).toBeTruthy();

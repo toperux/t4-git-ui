@@ -77,14 +77,18 @@ export function RepoWindow() {
                   and the details pane every time the sidebar is toggled or the width crosses the breakpoint. */}
               {!rail && (
                 <>
-                  {/* 260 is the design width; the range is wide enough that dragging visibly does something. */}
-                  <Panel defaultSize={260} minSize={180} maxSize={560} className={s.panel}>
+                  {/* 260 is the design width, and now held there through a window resize instead of drifting
+                      off it. The range is wide enough that dragging visibly does something. */}
+                  <Panel defaultSize={260} minSize={180} maxSize={560} groupResizeBehavior="preserve-pixel-size" className={s.panel}>
                     <Sidebar />
                   </Panel>
                   <Separator className={s.splitH} aria-label="Resize sidebar" />
                 </>
               )}
-              <Panel className={s.content}>
+              {/* The absorber: a wider window lands here. The `minSize` earns its place now that the sidebar
+                  holds its pixels — without it the sidebar is first in DOM order with nothing to stop it, so a
+                  560px one kept through `railOverride` would squeeze this to nothing as the window narrows. */}
+              <Panel minSize={440} className={s.content}>
                 <StateBanners />
                 {/* One view at a time (spec §1). History unmounts while Changes shows: the selection and
                     the reveal request live in the store, and the grid scrolls to them when it comes back. */}
@@ -96,7 +100,8 @@ export function RepoWindow() {
                       <RevisionGrid />
                     </Panel>
                     <Separator className={s.splitV} aria-label="Resize details" />
-                    <Panel minSize={120} className={s.panel}>
+                    {/* Fixed height: the grid above takes the window's extra, so this keeps what it was dragged to. */}
+                    <Panel minSize={120} groupResizeBehavior="preserve-pixel-size" className={s.panel}>
                       <DetailsPane />
                     </Panel>
                   </Group>
@@ -118,6 +123,13 @@ export function RepoWindow() {
 }
 
 /**
+ * Whether a dock height is one the user could have dragged to, rather than one the layout forced.
+ * `minSize`/`maxSize` clamp a drag, so the open range is the whole of what a person can choose; a
+ * height outside it means the panes no longer fit and the library squeezed this one to make room.
+ */
+export const isDraggedHeight = (px: number) => px >= DOCK_MIN_H && px <= DOCK_MAX_H;
+
+/**
  * The output dock as a resizable panel: 160–320px open (style guide §4), collapsed to the
  * 28px header bar otherwise. The height is per session: 200px on the first open, then whatever it
  * was last dragged to — a bare `expand()` lands on `minSize`.
@@ -136,16 +148,22 @@ export function DockPanel({ open }: { open: boolean }) {
     else panel.current?.resize(lastOpenH.current);
   }, [open, panel]);
 
+  // Pixel height across a window resize, so the collapsed bar stays exactly its 28px.
   return (
     <Panel
       panelRef={panel}
       collapsible
+      groupResizeBehavior="preserve-pixel-size"
       collapsedSize={DOCK_COLLAPSED_H}
       defaultSize={open ? DOCK_DEFAULT_H : DOCK_COLLAPSED_H}
       minSize={DOCK_MIN_H}
       maxSize={DOCK_MAX_H}
       onResize={(size) => {
-        if (size.inPixels > DOCK_COLLAPSED_H) lastOpenH.current = size.inPixels;
+        // Only a height the user could have dragged to. A drag is clamped to min/max, so anything
+        // outside that range is the layout squeezing the panel to make its minimums fit — recording
+        // it would overwrite the height they chose with one they never picked, and every later
+        // expand would land on the squeezed value instead (down to the 28px bar, open but empty).
+        if (isDraggedHeight(size.inPixels)) lastOpenH.current = size.inPixels;
       }}
       className={s.panel}
     >

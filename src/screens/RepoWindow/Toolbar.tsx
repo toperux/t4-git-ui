@@ -25,7 +25,7 @@ import {
   Terminal,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import type { RevSpec, Stash } from "../../api/types";
 import { IconButton } from "../../components/ui/IconButton/IconButton";
 import { ThemeToggle } from "../../components/ui/ThemeToggle/ThemeToggle";
@@ -46,7 +46,7 @@ import { useViewStore } from "../../store/viewStore";
 import { toggleTheme, useTheme } from "../../theme/theme";
 import { closeTab, detachTab, fetchDefault, pickAndOpenRepo, quitApp, refreshAll, stashApply, stashPop, switchRepo } from "./actions";
 import { usePaletteStore } from "./CommandPalette/paletteStore";
-import { useLayout } from "./layout";
+import { HISTORY_CHIP_W, useLayout, useToolbarTier } from "./layout";
 import { SearchPopover } from "./SearchPopover";
 import { useTabDrag } from "./useTabDrag";
 import { ViewSwitch } from "./ViewSwitch";
@@ -60,12 +60,17 @@ const INLINE_RECENTS = 5;
 
 export function Toolbar() {
   const layout = useLayout();
-  const tier = layout.toolbar;
+  // Two things in this row vary in width and decide where the tiers fall: the repo name (measured
+  // below, not guessed at) and the file-history chip, which the search box is too small to absorb —
+  // see layout.ts. The hook re-renders this only when the tier itself moves.
+  const [nameWidth, setNameWidth] = useState(0);
+  const view = useViewStore((st) => st.view);
+  const historyPath = useRepoStore((st) => st.filter.path ?? null);
+  const tier = useToolbarTier(nameWidth, view === "history" && historyPath ? HISTORY_CHIP_W : 0);
   // The sidebar toggle lives here so it is in one place whichever state the sidebar is in.
   const railOverride = useViewStore((st) => st.railOverride);
   const toggleRail = useViewStore((st) => st.toggleRail);
   const rail = railOverride ?? layout.railAuto;
-  const view = useViewStore((st) => st.view);
   const theme = useTheme();
   const specKind = useRepoStore((st) => st.spec.kind);
   const startLog = useRepoStore((st) => st.startLog);
@@ -79,7 +84,6 @@ export function Toolbar() {
   const tabCount = useTabsStore((st) => st.tabs.length);
   const activeTab = useTabsStore((st) => st.tabs.find((t) => t.id === st.active) ?? null);
   const [text, setText] = useState(() => useRepoStore.getState().filter.text ?? "");
-  const historyPath = useRepoStore((st) => st.filter.path ?? null);
   const [repoMenu, setRepoMenu] = useState(false);
   const [branchMenu, setBranchMenu] = useState(false);
   const [stashMenu, setStashMenu] = useState(false);
@@ -88,6 +92,16 @@ export function Toolbar() {
   const branchBtn = useRef<HTMLButtonElement>(null);
   const stashBtn = useRef<HTMLButtonElement>(null);
   const moreBtn = useRef<HTMLButtonElement>(null);
+  const repoNameEl = useRef<HTMLSpanElement>(null);
+  // A rename is the one thing that moves the breakpoints, and the tier itself brings the name back
+  // into view, so both belong in the deps.
+  useLayoutEffect(() => {
+    const w = repoNameEl.current?.getBoundingClientRect().width ?? 0;
+    // ponytail: keep the last width the name actually had. The `icons` tier hides this span, and
+    // taking the 0 would drop the floor, re-show the name, raise it again — a flap. The cost is that
+    // a rename while in `icons` measures late, when the name is next on screen.
+    if (w > 0) setNameWidth(w);
+  }, [repo?.name, tier]);
   const others = recents.filter((r) => r.path !== repo?.path);
   // The strip is hidden with a single tab, so this button is the only handle that tab has: the same
   // pointer-capture drag, minus the reorder phase (there is no strip to reorder inside).
@@ -205,7 +219,9 @@ export function Toolbar() {
               if (!tabDrag.dragged()) setRepoMenu((o) => !o);
             }}
           >
-            <span className={s.repoName}>{repo?.name ?? "Repository"}</span>
+            <span className={s.repoName} ref={repoNameEl}>
+              {repo?.name ?? "Repository"}
+            </span>
           </ToolbarButton>
         }
       >

@@ -59,12 +59,12 @@ export function DetailsPane() {
   if (tier === "3col")
     return (
       <Group orientation="horizontal" className={s.pane}>
-        <Panel defaultSize={340} minSize={240} maxSize={560} className={w.panel}>
+        <Panel defaultSize={340} minSize={240} maxSize={560} groupResizeBehavior="preserve-pixel-size" className={w.panel}>
           {details}
         </Panel>
         <Separator className={w.splitH} aria-label="Resize commit details" />
         {/* 200: the list header (icon, Changes | Files, two toggles) needs 199px before the title gets any. */}
-        <Panel defaultSize={320} minSize={200} maxSize={640} className={w.panel}>
+        <Panel defaultSize={320} minSize={200} maxSize={640} groupResizeBehavior="preserve-pixel-size" className={w.panel}>
           <ChangedFileList />
         </Panel>
         <Separator className={w.splitH} aria-label="Resize file list" />
@@ -76,9 +76,9 @@ export function DetailsPane() {
   if (tier === "2col")
     return (
       <Group orientation="horizontal" className={s.pane}>
-        <Panel defaultSize={300} minSize={240} maxSize={560} className={w.panel}>
+        <Panel defaultSize={300} minSize={240} maxSize={560} groupResizeBehavior="preserve-pixel-size" className={w.panel}>
           <Group orientation="vertical" className={s.pane}>
-            <Panel defaultSize="50%" minSize={80} className={w.panel}>
+            <Panel defaultSize="50%" minSize={80} groupResizeBehavior="preserve-pixel-size" className={w.panel}>
               {details}
             </Panel>
             <Separator className={w.splitV} aria-label="Resize commit details" />
@@ -96,7 +96,7 @@ export function DetailsPane() {
   // narrow (spec §5): the file list beside the diff, the details folded to one line above it.
   return (
     <Group orientation="horizontal" className={s.pane}>
-      <Panel defaultSize={220} minSize={200} maxSize={480} className={w.panel}>
+      <Panel defaultSize={220} minSize={200} maxSize={480} groupResizeBehavior="preserve-pixel-size" className={w.panel}>
         <div className={s.narrowCol}>
           <DetailsHeaderCollapsed expanded={expanded} onToggle={() => setExpanded((e) => !e)} />
           {expanded && <div className={s.narrowDetails}>{details}</div>}

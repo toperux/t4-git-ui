@@ -42,7 +42,7 @@ export function CommitPanel() {
   if (tier === "2col")
     return (
       <Group orientation="horizontal" className={s.pane}>
-        <Panel defaultSize={280} minSize={220} maxSize={560} className={w.panel}>
+        <Panel defaultSize={280} minSize={220} maxSize={560} groupResizeBehavior="preserve-pixel-size" className={w.panel}>
           <Group orientation="vertical" className={s.pane}>
             <Panel minSize={120} className={w.panel}>
               <FilesColumn />
@@ -50,7 +50,7 @@ export function CommitPanel() {
             <Separator className={w.splitV} aria-label="Resize message row" />
             {/* 300 = the column's fixed rows (~180) + the editor's min-height, so Commit is in view
                 without scrolling at ordinary heights; at the 500px floor the column scrolls. */}
-            <Panel defaultSize={300} minSize={160} className={w.panel}>
+            <Panel defaultSize={300} minSize={160} groupResizeBehavior="preserve-pixel-size" className={w.panel}>
               {message}
             </Panel>
           </Group>
@@ -63,7 +63,7 @@ export function CommitPanel() {
     );
   return (
     <Group orientation="horizontal" className={s.pane}>
-      <Panel defaultSize={320} minSize={220} maxSize={560} className={w.panel}>
+      <Panel defaultSize={320} minSize={220} maxSize={560} groupResizeBehavior="preserve-pixel-size" className={w.panel}>
         <FilesColumn />
       </Panel>
       <Separator className={w.splitH} aria-label="Resize file lists" />
@@ -71,7 +71,7 @@ export function CommitPanel() {
         <DiffColumn />
       </Panel>
       <Separator className={w.splitH} aria-label="Resize commit message" />
-      <Panel defaultSize={340} minSize={260} maxSize={560} className={w.panel}>
+      <Panel defaultSize={340} minSize={260} maxSize={560} groupResizeBehavior="preserve-pixel-size" className={w.panel}>
         {message}
       </Panel>
     </Group>

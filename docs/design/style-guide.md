@@ -83,7 +83,7 @@ One file per row, except the few marked otherwise (a screen-level piece, or some
 | `Field` | label sm 500 muted, control, help xs muted |
 | `PanelHeader` | 28px `--bg-app`, sm 600 muted, icon 14, actions as IconButtons right |
 | `SectionHeader` | A sticky band (`--bg-panel`, 1px `--border` top, z-index 1) over the `--bg-app` sidebar, holding a 28px label-shape button at `--fg` with a chevron slot and count badge; the button fills the band, so its hover tint reaches the edge; a `children` control — Stashes' Archive IconButton — adds the side gap back and keeps its own hover. Click toggles. In the rail flyout the nav drops its own padding and the first header its top border, so the band sits flush against the panel's rounded edge; the scrolling sits under the header rather than around it, so a scrollbar never shortens the band |
-| `SplitHandle` | 5px hit area, 1px `--border` line; hover/drag = 2px accent |
+| `SplitHandle` | 5px hit area, 1px `--border` line; hover/drag = 2px accent. Dragging one moves only the two panes it sits between; resizing the *window* moves only each group's absorbing pane (see Breakpoints) |
 | `StatusBar` | 24px `--bg-app`, xs muted. Left: HEAD (`(unborn)` / `<sha> (detached)` appended), ahead/behind, and the remote — the branch's own, else origin, else the first — with its URL through `prettyUrl`. Right: the running op (`sm` Spinner + text), `Loading commits… N` while the walk runs, `N unstaged · M staged · K conflicted`, the tree state (`CircleCheck` clean / `TriangleAlert` otherwise; Clean, Merge, Rebase, Cherry-pick, Revert, Bisect in progress), and the git version |
 | `Toast` | 360px, `--bg-elevated` + shadow-1, radius lg, icon 16 semantic color (`--danger-text` / `--success` / `--accent-text`), title 500 + sm muted detail, optional `sm`-button `.actions` row under the detail (gap 6, margin-top 4), close IconButton. Top-center stack below the toolbar (z-index 45, over the dialog scrim), 5s (errors persist). A click anywhere on the toast dismisses it — except on its buttons or its detail, which stays selectable (its first click is also the opening of a double-click) |
 | `Banner` | 32px full-width at top of content, `*-soft` bg, icon 14 semantic, sm text, `sm` buttons right. Used for merge / rebase / cherry-pick / revert / bisect in progress, conflicts, detached HEAD. A stopped op offers **Abort** plus the way forward (Commit for merge / cherry-pick / revert, Continue for rebase). Bisect is **not** report-only: Good · Bad · Skip · Reset, degrading to Reset alone until both a good and a bad commit are marked (until then git has not moved HEAD, so a mark would hit the commit just marked the other way) |
@@ -115,14 +115,26 @@ One file per row, except the few marked otherwise (a screen-level piece, or some
 
 **Breakpoints** (window `innerWidth`, CSS px — `src/screens/RepoWindow/layout.ts` is the one place they live):
 
-| Width | Toolbar | Sidebar | Details pane | Commit panel |
-|---|---|---|---|---|
-| ≥ 1100 | full: sidebar toggle · repo ▾ · Fetch ▾ Pull Push · Branch Stash · switch · search 240 · branch filter · palette · Refresh · Theme · Update · Settings | 260px | details \| files \| diff | files \| diff \| message |
-| 1000–1099 | tight: Fetch / Pull / Push / Branch / Stash are icons + counts, search 140, filter 110 | 260px | details over files \| diff | files \| diff \| message |
-| 800–999 | tight | 36px rail | details over files \| diff | files \| diff \| message |
-| < 800 | icons: sidebar toggle, repo icon, switch icons, search → popover, Branch / Stash / Refresh / Theme / Settings → `⋯` (the palette icon stays) | 36px rail | files \| diff, the commit details a one-line header that expands over the list | files over message \| diff |
+| Width | Sidebar | Details pane | Commit panel |
+|---|---|---|---|
+| ≥ 1340 | 260px | details \| files \| diff | files \| diff \| message |
+| 1000–1339 | 260px | details over files \| diff | files \| diff \| message |
+| 800–999 | 36px rail | details over files \| diff | files \| diff \| message |
+| < 800 | 36px rail | files \| diff, the commit details a one-line header that expands over the list | files over message \| diff |
+
+The details pane’s 1340 is set by what the diff is left with rather than by the window: three columns spend 340 on details and 320 on files before the diff gets anything, so at 1100 the diff sat on its 200px minimum and the details column had already been squeezed off its 340. 1340 is where the diff still clears 400px — below it the other two stack into one column and the diff roughly doubles.
+
+The toolbar sets its own, because its width is decided by what is in it rather than by the window: every control is fixed width bar the search box, the repo name, and two members that come and go, so it needs **1168 + the rendered name** to stay full and **930 + it** to stay tight, the name counting only up to its 160px `max-width`. The name is measured when it changes, so a rename moves the breakpoints with it. The file-history chip adds **228** to both floors while it is on screen. The search box is the row's one elastic control (240 down to a 120 `min-width`) and that give is what absorbs the update badge, so the badge needs no reservation; the chip is nearly twice the give, and a tier chosen without counting it ran the row 173px past the window's right edge, taking Refresh, the theme toggle and Settings off it. A fixed 1100 was too low by ~140px: between 1100 and 1237 the full toolbar ran off its own right edge, taking Refresh and Settings off the window with it.
+
+| Toolbar | Contents |
+|---|---|
+| full | sidebar toggle · repo ▾ · Fetch ▾ Pull Push · Branch Stash · switch · search 240 · branch filter · palette · Refresh · Theme · Update · Settings |
+| tight | Fetch / Pull / Push / Branch / Stash are icons + counts, search 140, filter 110 |
+| icons | sidebar toggle, repo icon, switch icons, search → popover, Branch / Stash / Refresh / Theme / Settings → `⋯` (the palette icon stays) |
 
 The search box is the one control that gives way; everything else is fixed width. ``Ctrl+Shift+` `` overrides the sidebar either way for the session (a new window starts from the width again). Window minimum **700 × 500**.
+
+Resizing the window changes only the commit grid's height and the diff's width. Every other pane holds the pixel size it has (`groupResizeBehavior="preserve-pixel-size"`), so the sidebar stays at its 260 and the details / files / message columns stay where they were last dragged. Each split group keeps exactly one absorbing pane — the library requires one, and a group with none silently falls back to resizing everything proportionally, which is the bug this replaced. The content panel carries a `minSize` so a sidebar dragged wide still gives way when the window narrows instead of squeezing the panes beside it.
 
 ## 5. Accessibility
 - Text contrast ≥ 4.5:1 on its surface; non-text UI (control edges, icons, focus ring, scrollbar thumb, graph lanes) ≥ 3:1. Contrast audit: `node docs/design/canvases/build/contrast.mjs` checks 99 token pairs × 2 themes and exits non-zero on failure — run it after any token change. Computed minimums: text 4.50 (light `--danger-text` on `--bg-app`), non-text 3.01 (light `--graph-7` on `--bg-panel`); `--fg-muted` ≥ 4.52 on every surface incl. selected rows and the hover composite; `--fg-on-accent` ≥ 4.57 on every accent/danger fill.

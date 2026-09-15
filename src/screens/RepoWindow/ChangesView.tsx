@@ -65,7 +65,7 @@ export function ChangesView() {
             <EmptyState className={s.empty} icon={<CircleCheck size={24} aria-hidden />} title="Working tree clean" hint="Edit files, or amend the last commit." />
           </Panel>
           <Separator className={w.splitH} aria-label="Resize commit message" />
-          <Panel defaultSize={340} minSize={260} maxSize={560} className={w.panel}>
+          <Panel defaultSize={340} minSize={260} maxSize={560} groupResizeBehavior="preserve-pixel-size" className={w.panel}>
             <MessageColumn />
           </Panel>
         </Group>

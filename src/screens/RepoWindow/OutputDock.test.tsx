@@ -5,7 +5,7 @@ import * as ipc from "../../api/ipc";
 import { useCmdHistoryStore } from "../../store/cmdHistoryStore";
 import { useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
-import { DockPanel } from "./RepoWindow";
+import { DockPanel, isDraggedHeight } from "./RepoWindow";
 
 vi.mock("../../api/ipc", () => ({
   cancelOp: vi.fn(() => Promise.resolve(true)),
@@ -142,5 +142,27 @@ describe("OutputDock", () => {
     fireEvent.keyDown(prompt, { key: "Enter" });
     expect(getByText("-p needs a terminal")).toBeTruthy();
     expect(ipc.runGit).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("isDraggedHeight", () => {
+  // The height is remembered from onResize, which cannot say what caused the resize. A drag is
+  // clamped to the open range, so a height below it is the layout squeezing the panel to fit its
+  // neighbours minimums; recording that replaces the height the user picked, and every later expand
+  // lands on the squeezed value instead. Walked 2026-09-15: a short window drove the dock to 27px,
+  // and it then reopened at 27px - open by state, nothing but its header on screen.
+  it("takes the heights a drag can produce", () => {
+    expect(isDraggedHeight(200)).toBe(true);
+    expect(isDraggedHeight(160)).toBe(true);
+    expect(isDraggedHeight(320)).toBe(true);
+  });
+
+  it("rejects what a window too short to hold the panes forces on it", () => {
+    expect(isDraggedHeight(159)).toBe(false);
+    expect(isDraggedHeight(146)).toBe(false);
+    expect(isDraggedHeight(32)).toBe(false);
+    expect(isDraggedHeight(28)).toBe(false);
+    expect(isDraggedHeight(321)).toBe(false);
   });
 });

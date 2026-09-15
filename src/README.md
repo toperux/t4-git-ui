@@ -221,9 +221,9 @@ src/
     RepoWindow/            RepoWindow (layout: [TabStrip] / toolbar 40 / sidebar 260 or rail 36 | StateBanners + (History: grid ÷
                            DetailsPane | Changes: ChangesBar + CommitPanel) / dock / statusbar 24; viewStore picks the view,
                            layout.ts the tiers from the window width; hosts DialogHost, CommandPalette, useShortcuts),
-                           layout.ts (pure `layoutFor(width)` + the `useWindowWidth` / `useLayout` hooks behind it: the
-                           `RAIL_BELOW 1000` / `TIGHT_BELOW 1100` / `ICONS_BELOW 800` breakpoints turned into
-                           `{toolbar: full|tight|icons, details: 3col|2col|narrow, commit: 3col|2col, railAuto}` — the one place
+                           layout.ts (pure `layoutFor(width)` + the `useLayout` / `useToolbarTier` hooks behind it: the
+                           `RAIL_BELOW 1000` / `TIGHT_BELOW 1340` / `ICONS_BELOW 800` breakpoints turned into
+                           `{details: 3col|2col|narrow, commit: 3col|2col, railAuto}`, the toolbar tiering itself from its own contents — the one place
                            a breakpoint number appears, memoised so the object is stable per width),
                            Toolbar (leftmost is the sidebar toggle — the one collapse/expand control, pressed while the
                            sidebar shows, Ctrl+Shift+`; then the repo menu = open repository name → folder picker / other recents / move to new window /
@@ -234,7 +234,7 @@ src/
                            beside the Settings gear
                            (dialogStore kind `settings`); the file-history chip (§3) sits left of the search box at the same
                            height — "History: <basename>", the full path as its title, × clears `filter.path` and nothing else;
-                           `useLayout().toolbar` tiers it — `tight` drops the operation labels (icon + count) and narrows the
+                           `useToolbarTier()` tiers it — `tight` drops the operation labels (icon + count) and narrows the
                            search, `icons` shows the repo icon alone, compacts the switch, swaps the search for SearchPopover
                            and folds Branch ▸ / Stash… / Refresh / theme / Settings / Command palette into a `⋯` Menu, the
                            palette button staying out of it;
