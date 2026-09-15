@@ -355,7 +355,7 @@
       "x": 0,
       "y": 860,
       "w": 620,
-      "text": "1000 WIDE — sidebar becomes the 36px rail (or Alt+0 any time); a rail icon opens the section as a flyout. Details pane goes to two columns (commit + files over | diff) so the changed files stay browsable beside the diff. Changes keeps three columns. The dock still hangs under either view."
+      "text": "1000 WIDE — sidebar becomes the 36px rail (or the toolbar's leftmost toggle / Ctrl+Shift+` any time); a rail icon opens the section as a flyout. Details pane goes to two columns (commit + files over | diff) so the changed files stay browsable beside the diff. Changes keeps three columns. The dock still hangs under either view."
     },
     {
       "id": "row-3",

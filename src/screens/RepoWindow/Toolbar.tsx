@@ -15,6 +15,7 @@ import {
   GitMerge,
   History,
   Moon,
+  PanelLeft,
   Plus,
   Power,
   RefreshCw,
@@ -58,7 +59,12 @@ const NO_STASHES: Stash[] = [];
 const INLINE_RECENTS = 5;
 
 export function Toolbar() {
-  const tier = useLayout().toolbar;
+  const layout = useLayout();
+  const tier = layout.toolbar;
+  // The sidebar toggle lives here so it is in one place whichever state the sidebar is in.
+  const railOverride = useViewStore((st) => st.railOverride);
+  const toggleRail = useViewStore((st) => st.toggleRail);
+  const rail = railOverride ?? layout.railAuto;
   const view = useViewStore((st) => st.view);
   const theme = useTheme();
   const specKind = useRepoStore((st) => st.spec.kind);
@@ -169,6 +175,12 @@ export function Toolbar() {
 
   return (
     <div className={cx(s.toolbar, tier === "tight" && s.tight, tier === "icons" && s.icons)} role="toolbar" aria-label="Repository">
+      {/* Pressed while the sidebar shows. The only collapse/expand control there is: the sidebar
+          scrolls and the rail is narrow, so neither of them can hold one that stays put. */}
+      <IconButton label="Toggle sidebar" title="Toggle sidebar (Ctrl+Shift+`)" on={!rail} onClick={() => toggleRail(layout.railAuto)}>
+        <PanelLeft size={16} aria-hidden />
+      </IconButton>
+      <ToolbarSeparator />
       <Menu
         open={repoMenu}
         onClose={() => setRepoMenu(false)}

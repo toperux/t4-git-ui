@@ -64,9 +64,4 @@ describe("SidebarRail", () => {
     fireEvent.mouseDown(document.body);
     expect(queryByRole("tree")).toBeNull();
   });
-  it("the bottom button expands the sidebar", () => {
-    const { getByRole } = render(<SidebarRail />);
-    fireEvent.click(getByRole("button", { name: "Expand sidebar" }));
-    expect(useViewStore.getState().railOverride).toBe(false);
-  });
 });

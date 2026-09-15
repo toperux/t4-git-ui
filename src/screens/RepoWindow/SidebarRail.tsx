@@ -1,9 +1,7 @@
-import { Archive, Cloud, FolderGit2, GitBranch, Package, PanelLeft, Tag } from "lucide-react";
+import { Archive, Cloud, FolderGit2, GitBranch, Package, Tag } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cx } from "../../lib/cx";
 import { useRepoStore } from "../../store/repoStore";
-import { useViewStore } from "../../store/viewStore";
-import { useLayout } from "./layout";
 import { Sidebar, type Section } from "./Sidebar";
 import s from "./SidebarRail.module.css";
 
@@ -11,8 +9,6 @@ import s from "./SidebarRail.module.css";
 export function SidebarRail() {
   const refs = useRepoStore((st) => st.refs);
   const linked = useRepoStore((st) => st.linked);
-  const toggleRail = useViewStore((st) => st.toggleRail);
-  const railAuto = useLayout().railAuto;
   const [open, setOpen] = useState<Section | null>(null);
   const rail = useRef<HTMLElement>(null);
   const flyout = useRef<HTMLDivElement>(null);
@@ -63,10 +59,6 @@ export function SidebarRail() {
         {btn("stashes", <Archive size={16} aria-hidden />, "Stashes", refs?.stashes.length ?? 0)}
         {worktrees.length > 1 && btn("worktrees", <FolderGit2 size={16} aria-hidden />, "Worktrees", worktrees.length)}
         {submodules.length > 0 && btn("submodules", <Package size={16} aria-hidden />, "Submodules", submodules.length)}
-        <div className={s.grow} />
-        <button type="button" className={s.btn} aria-label="Expand sidebar" title="Expand sidebar (Alt+0)" onClick={() => toggleRail(railAuto)}>
-          <PanelLeft size={16} aria-hidden />
-        </button>
       </nav>
       {open && (
         <div ref={flyout} className={s.flyout}>

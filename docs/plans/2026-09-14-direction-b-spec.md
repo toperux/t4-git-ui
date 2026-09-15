@@ -31,8 +31,8 @@ before labels wrap, the sidebar (min 180) plus the commit panel's three columns 
 2. **Sidebar rail.** Below 1000px the sidebar collapses to a 36px rail: one icon button per
    section (Local, Remotes, Tags, Stashes, Worktrees and Submodules when present) with its count.
    Clicking one opens that section as a 260px flyout over the content; Esc or a click outside
-   closes it. `Alt+0` (and a button at the top of the sidebar / bottom of the rail) toggles rail
-   ↔ full at any width; the choice lasts the session.
+   closes it. ``Ctrl+Shift+` `` (and the toolbar's leftmost button, the one collapse/expand control)
+   toggles rail ↔ full at any width; the choice lasts the session.
 3. **Adaptive toolbar** (window width):
    - `≥ 1100` full: repo ▾ · Fetch ▾ Pull Push · Branch Stash · switch · search 240 · branch
      filter · palette · Refresh · Theme · Update · Settings

@@ -45,9 +45,29 @@
 .flyout {
   background: transparent;
   border-right: 0;
+  /* Not the `100%` above: the flyout is auto-height under a `max-height`, so a percentage resolves
+     to this nav's own content height and it never stretches. `auto` lets flexbox stretch it to the
+     clamped line height instead, and the inner scroller below takes over. */
+  height: auto;
+  /* Flush to the panel. The 4px the sidebar pads itself with left a strip of `--bg-elevated` above
+     the sticky header, so the band read as a chip floating inside the rounded frame instead of the
+     top of it. */
+  padding: 0;
+  /* The scrolling moves inside, under the header. A `position: sticky` band is laid out against its
+     scroller's content box, so while this nav was the scroller the band stopped a scrollbar's width
+     short of the panel's edge — a notch of panel behind the thumb, which ran up past the header. */
+  overflow: hidden;
 }
-.collapseRow {
-  display: flex;
-  justify-content: flex-end;
-  padding: var(--space-1) var(--space-3) 0;
+/* The panel already draws a 1px border; the first header's own would double it into a 2px rule.
+   Each section is wrapped in a fragment, so the header's band is a direct child of this nav. */
+.flyout > :first-child {
+  border-top: 0;
+}
+/* What sits under the header — the one section's tree, or its empty state — is the scroller now.
+   `:not(:first-child)` rather than `:last-child`: a collapsed section renders the header alone, and
+   that must not turn the header into the scroller. */
+.flyout > :not(:first-child) {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }

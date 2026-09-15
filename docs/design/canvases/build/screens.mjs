@@ -30,7 +30,7 @@ export function tabstrip({ tabs = ['t4-git-ui', 'libgit2'], active = 0, stale = 
 const SM = 'height: var(--control-h-sm);';
 
 /**
- * Toolbar.tsx order: Repository · | · Fetch▾ · Pull · Push · | · Branch · Stash · | · Commit ·
+ * Toolbar.tsx order: sidebar toggle · | · Repository · | · Fetch▾ · Pull · Push · | · Branch · Stash · | · Commit ·
  * grow · file-history chip · search · branch filter · | · Refresh · ThemeToggle · UpdateBadge · Settings.
  */
 export function toolbar({
@@ -47,6 +47,8 @@ export function toolbar({
 } = {}) {
   const cnt = (n) => (n ? ` <span class="cnt">${n}</span>` : '');
   return `<div class="toolbar" style="flex: none;">
+    <span class="icon-btn">${icon('panel-left', 16)}</span>
+    <span class="tb-sep"></span>
     <span class="tb-btn repo">${icon('folder-git-2', 18)}<span class="name">${repo}</span></span>
     <span class="tb-sep"></span>
     <span class="tb-split"><span class="tb-btn">${icon('arrow-down', 18)}Fetch</span><span class="tb-btn tb-more">${icon('chevron-down', 16)}</span></span>

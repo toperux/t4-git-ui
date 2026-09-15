@@ -1,4 +1,4 @@
-import { Archive, ArrowDown, Check, Cloud, Copy, FolderGit2, GitBranch, GitMerge, Link, Lock, LockOpen, Package, PanelLeft, Pencil, Plus, RefreshCw, Tag, Trash2 } from "lucide-react";
+import { Archive, ArrowDown, Check, Cloud, Copy, FolderGit2, GitBranch, GitMerge, Link, Lock, LockOpen, Package, Pencil, Plus, RefreshCw, Tag, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import type { Branch, Remote, RemoteBranch, RemoteTag, Stash, Submodule, Tag as TagRef, Worktree } from "../../api/types";
 import { Badge } from "../../components/ui/Badge/Badge";
@@ -153,7 +153,7 @@ function Tree({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-export function Sidebar({ only, onCollapse }: { only?: Section; onCollapse?: () => void } = {}) {
+export function Sidebar({ only }: { only?: Section } = {}) {
   const refs = useRepoStore((st) => st.refs);
   const linked = useRepoStore((st) => st.linked);
   const remoteTags = useRepoStore((st) => st.remoteTags);
@@ -403,13 +403,6 @@ export function Sidebar({ only, onCollapse }: { only?: Section; onCollapse?: () 
 
   return (
     <nav className={cx(s.sidebar, only && s.flyout, TREE_PANE_CLASS)} aria-label="References">
-      {onCollapse && (
-        <div className={s.collapseRow}>
-          <IconButton label="Collapse sidebar" title="Collapse sidebar (Alt+0)" onClick={onCollapse}>
-            <PanelLeft size={14} aria-hidden />
-          </IconButton>
-        </div>
-      )}
       {show("local") && (
         <>
           <SectionHeader title="Local" count={local.length} open={open.local} onToggle={() => toggle("local")} />

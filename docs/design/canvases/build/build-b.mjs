@@ -91,14 +91,14 @@ const segSwitch = (view, labels, count) => {
 function toolbarB(mode, view, { count = 4, update = false } = {}) {
   const seg = segSwitch(view, mode !== 'icons', count);
   if (mode === 'full')
-    return `<div class="toolbar" style="flex: none;">${repoBtn()}<span class="tb-sep"></span>
+    return `<div class="toolbar" style="flex: none;">${iconBtn('panel-left')}<span class="tb-sep"></span>${repoBtn()}<span class="tb-sep"></span>
       <span class="tb-split">${tb('arrow-down', 'Fetch')}<span class="tb-btn tb-more">${icon('chevron-down', 16)}</span></span>${tb('arrow-down-up', 'Pull', 5)}${tb('arrow-up', 'Push', 2)}<span class="tb-sep"></span>${tb('git-branch', 'Branch')}${tb('archive', 'Stash', 1)}<span class="tb-sep"></span>${seg}
       <div style="flex: 1;"></div>${view === 'history' ? search(update ? 160 : 200) + filterSel() : ''}<span class="tb-sep"></span>${kbtn()}${iconBtn('refresh')}${iconBtn('moon')}${update ? `<span class="btn primary sm">${icon('arrow-up-circle', 14)}Update</span>` : ''}${iconBtn('settings')}</div>`;
   if (mode === 'tight')
-    return `<div class="toolbar" style="flex: none;">${repoBtn()}<span class="tb-sep"></span>
+    return `<div class="toolbar" style="flex: none;">${iconBtn('panel-left')}<span class="tb-sep"></span>${repoBtn()}<span class="tb-sep"></span>
       ${tbIcon('arrow-down')}${tbIcon('arrow-down-up', 5)}${tbIcon('arrow-up', 2)}<span class="tb-sep"></span>${tbIcon('git-branch')}${tbIcon('archive', 1)}<span class="tb-sep"></span>${seg}
       <div style="flex: 1;"></div>${view === 'history' ? search(150) : ''}<span class="tb-sep"></span>${kbtn()}${iconBtn('moon')}${iconBtn('settings')}</div>`;
-  return `<div class="toolbar" style="flex: none; padding: 0 8px;">${repoBtn(false)}<span class="tb-sep" style="margin: 0 4px;"></span>
+  return `<div class="toolbar" style="flex: none; padding: 0 8px;">${iconBtn('panel-left')}<span class="tb-sep" style="margin: 0 4px;"></span>${repoBtn(false)}<span class="tb-sep" style="margin: 0 4px;"></span>
       ${tbIcon('arrow-down')}${tbIcon('arrow-down-up', 5)}${tbIcon('arrow-up', 2)}<span class="tb-sep" style="margin: 0 4px;"></span>${seg}
       <div style="flex: 1;"></div>${view === 'history' ? iconBtn('search') : ''}${kbtn()}${iconBtn('ellipsis')}</div>`;
 }
@@ -128,9 +128,8 @@ function localTree(selected = true) {
     ${tr(0, '', '', 'git-branch', 'hotfix-index-lock')}`;
 }
 
-function sidebarFull({ width = 260, collapseBtn = false, stashSelected = false } = {}) {
-  const head = collapseBtn ? `<div style="display: flex; justify-content: flex-end; padding: 0 6px 2px;"><span class="icon-btn">${icon('panel-left', 14)}</span></div>` : '';
-  return `<div class="tree scroll" style="width: ${width}px; flex: none; background: var(--bg-app); border-right: 1px solid var(--border); padding: 4px 0; overflow: hidden;">${head}
+function sidebarFull({ width = 260, stashSelected = false } = {}) {
+  return `<div class="tree scroll" style="width: ${width}px; flex: none; background: var(--bg-app); border-right: 1px solid var(--border); padding: 4px 0; overflow: hidden;">
     ${sh(true, 'Local', 4)}${localTree(!stashSelected)}
     ${sh(true, 'Remotes', 3, plus)}
     ${tr(0, '', 'chevron-down', 'cloud', 'origin')}
@@ -148,13 +147,11 @@ function rail({ on = null } = {}) {
   const b = (ic, n, key) => `<span class="rail-btn ${on === key ? 'is-on' : ''}">${icon(ic, 16)}${n ? `<span class="n">${n}</span>` : ''}</span>`;
   return `<div style="width: 36px; flex: none; background: var(--bg-app); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0;">
     ${b('git-branch', 4, 'local')}${b('cloud', 3, 'remotes')}${b('tag', 12, 'tags')}${b('archive', 1, 'stashes')}
-    <div style="flex: 1;"></div>
-    <span class="rail-btn">${icon('panel-left', 16)}</span>
   </div>`;
 }
 
 function railFlyout(top) {
-  return `<div class="menu tree" style="position: absolute; left: 40px; top: ${top}px; width: 260px; padding: 4px 0; z-index: 2;">
+  return `<div class="menu tree" style="position: absolute; left: 40px; top: ${top}px; width: 260px; padding: 0; overflow: hidden; z-index: 2;">
     ${sh(true, 'Local', 4, plus)}${localTree()}
   </div>`;
 }
@@ -311,18 +308,18 @@ const F = (w, h, inner) => frame(w, h, inner, t);
 
 // History: grid + details, full height. No commit panel in sight.
 out.Main = F(1280, 800, `${toolbarB('full', 'history', { update: true })}
-  <div style="display: flex; flex: 1; min-height: 0;">${sidebarFull({ collapseBtn: true })}${splitH()}
+  <div style="display: flex; flex: 1; min-height: 0;">${sidebarFull()}${splitH()}
     <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${grid(t, DEMO_ROWS.slice(0, 14), { selected: 1, hover: 4, height: gridH(14) })}${splitV()}${details3()}</div>
   </div>${dock({ open: false })}${statusbar({ counts: '4 unstaged · 2 staged' })}`);
 
 // Changes: the commit panel gets the whole content area.
 out.Changes = F(1280, 800, `${toolbarB('full', 'changes')}
-  <div style="display: flex; flex: 1; min-height: 0;">${sidebarFull({ collapseBtn: true })}${splitH()}
+  <div style="display: flex; flex: 1; min-height: 0;">${sidebarFull()}${splitH()}
     <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${changesBar()}${commit3(340, 360)}</div>
   </div>${dock({ open: false })}${statusbar({ counts: '4 unstaged · 2 staged' })}`);
 
 const historyBody = (rows = 14) => `${toolbarB('full', 'history')}
-  <div style="display: flex; flex: 1; min-height: 0;">${sidebarFull({ collapseBtn: true })}${splitH()}
+  <div style="display: flex; flex: 1; min-height: 0;">${sidebarFull()}${splitH()}
     <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${grid(t, DEMO_ROWS.slice(0, rows), { selected: 1, hover: -1, height: gridH(rows) })}${splitV()}${details3()}</div>
   </div>${dock({ open: false })}${statusbar({ counts: '4 unstaged · 2 staged' })}`;
 
@@ -386,7 +383,7 @@ const pri = (l) => `<span class="btn primary sm">${l}</span>`;
 out.ChangesMerge = F(1280, 800, `${toolbarB('full', 'changes')}
   ${banner('warning', 'Merge in progress — resolve conflicts, then commit to finish', sec('Abort') + pri('Commit merge'))}
   ${banner('danger', '1 file has conflicts — resolve, then stage it', '')}
-  <div style="display: flex; flex: 1; min-height: 0;">${sidebarFull({ collapseBtn: true })}${splitH()}
+  <div style="display: flex; flex: 1; min-height: 0;">${sidebarFull()}${splitH()}
     <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${changesBar({ text: 'Changes on <span class="mono" style="font-size: 12px;">main</span> <span class="muted" style="font-weight: 400;">· 4 unstaged · 2 staged · 1 conflicted</span>' })}${commit3(260, 280, {
       conflict: true, extraBar: false,
       header: diffHeader({ path: 'src/log/graph.rs', add: 0, del: 0, note: 'conflict markers', resolve: true, staging: true }),
@@ -401,13 +398,13 @@ const dirtyGrid = grid(t, DEMO_ROWS.slice(0, 14), { selected: 1, hover: -1, heig
     'Working tree · 4 changes</span></span><span class="meta" style="width: 110px; font-style: italic; white-space: nowrap;">Open changes →</span>',
   );
 out.HistoryDirty = F(1280, 800, `${toolbarB('full', 'history')}
-  <div style="display: flex; flex: 1; min-height: 0;">${sidebarFull({ collapseBtn: true })}${splitH()}
+  <div style="display: flex; flex: 1; min-height: 0;">${sidebarFull()}${splitH()}
     <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${dirtyGrid}${splitV()}${details3()}</div>
   </div>${dock({ open: false })}${statusbar({ counts: '4 unstaged · 2 staged' })}`);
 
 // A selected stash takes the details pane, as it does today.
 out.StashPreview = F(1280, 800, `${toolbarB('full', 'history')}
-  <div style="display: flex; flex: 1; min-height: 0;">${sidebarFull({ collapseBtn: true, stashSelected: true })}${splitH()}
+  <div style="display: flex; flex: 1; min-height: 0;">${sidebarFull({ stashSelected: true })}${splitH()}
     <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${grid(t, DEMO_ROWS.slice(0, 14), { selected: -1, hover: -1, height: gridH(14) })}${splitV()}
       <div style="display: flex; flex: 1; min-height: 0;">${stashDetails()}${splitH()}
         <div style="display: flex; flex-direction: column; flex: 1; min-width: 0; background: var(--bg-panel);">${diffHeader({ path: 'crates/git-core/src/log/graph.rs', add: 12, del: 3 })}${diffBody()}</div>
@@ -417,7 +414,7 @@ out.StashPreview = F(1280, 800, `${toolbarB('full', 'history')}
 
 // A clean tree in Changes is an empty state, not an empty list.
 out.ChangesEmpty = F(1280, 800, `${toolbarB('full', 'changes', { count: 0 })}
-  <div style="display: flex; flex: 1; min-height: 0;">${sidebarFull({ collapseBtn: true })}${splitH()}
+  <div style="display: flex; flex: 1; min-height: 0;">${sidebarFull()}${splitH()}
     <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${changesBar({ text: 'Changes on <span class="mono" style="font-size: 12px;">main</span> <span class="muted" style="font-weight: 400;">· nothing to commit</span>', stash: false })}
       <div style="display: flex; flex: 1; min-height: 0;">
         <div class="empty" style="flex: 1; background: var(--bg-panel);">${icon('check-circle', 24)}<div class="t">Working tree clean</div><div class="hint">Edit files, or amend the last commit.</div><span class="btn secondary sm" style="margin-top: 6px;">Amend last commit…</span></div>
@@ -484,7 +481,7 @@ const canvas = {
   annotations: [
     { id: 'row-1', x: 0, y: -220, w: 620, text: "DIRECTION B + PALETTE — one content view at a time\n• The toolbar keeps today's buttons (Branch and Stash stay); the Commit button becomes the History | Changes switch (Alt+1 / Alt+2). Changes carries the working-tree count.\n• History = grid + details, full height. Changes = the commit panel, full content area — three columns still fit at 1000.\n• Search + branch filter belong to History and leave the toolbar in Changes.\n• Ctrl+K opens the palette from anywhere: every action, view switch, go-to-branch, recent repos. Same items the menus have; searchable.\n• The full-window commit dialog and diff window stay, whatever the window size." },
     { id: 'row-1-palette', x: 2760, y: -220, w: 520, text: 'PALETTE — commands, views, go-to. Typing filters across groups; empty shows Recent first. Commit search stays in the toolbar (History only).' },
-    { id: 'row-2', x: 0, y: 860, w: 620, text: "1000 WIDE — sidebar becomes the 36px rail (or Alt+0 any time); a rail icon opens the section as a flyout. Details pane goes to two columns (commit + files over | diff) so the changed files stay browsable beside the diff. Changes keeps three columns. The dock still hangs under either view." },
+    { id: 'row-2', x: 0, y: 860, w: 620, text: "1000 WIDE — sidebar becomes the 36px rail (or the toolbar's leftmost toggle / Ctrl+Shift+` any time); a rail icon opens the section as a flyout. Details pane goes to two columns (commit + files over | diff) so the changed files stay browsable beside the diff. Changes keeps three columns. The dock still hangs under either view." },
     { id: 'row-3', x: 0, y: 1740, w: 620, text: "720 WIDE — icons-only toolbar with ⋯ overflow. Details pane keeps two columns: a files-only 220px column (paths shown relative to their common folder) beside the diff, with the commit details collapsed to a one-line header that expands over the file list. Changes goes two columns (files over message | diff). Window minimum 700×500." },
     { id: 'row-4', x: 0, y: 2480, w: 620, text: "STATES — banners sit above whichever view is showing. The working-tree row in History is the door to Changes (click or Enter → Changes, with an always-visible `Open changes →` hint at the row's right; double-click → the commit dialog). Selecting a commit or a branch while in Changes stays in Changes; the selection is there when you return with Alt+1. A selected stash takes the details pane as it does today. A clean tree in Changes is an empty state, not an empty list." },
     { id: 'row-5', x: 0, y: 3480, w: 620, text: "FULL-WINDOW DIALOGS — unchanged by B. The commit dialog and the diff window stay reachable at every window size (Repository › Commit…, double-click the working-tree row; the expand button in any diff header). They sit over whichever view is showing." },

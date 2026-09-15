@@ -4,13 +4,18 @@
 .wrap {
   display: flex;
   align-items: center;
-  padding-right: var(--space-3);
   position: sticky;
   top: 0;
   z-index: 1;
   background: var(--bg-panel);
   border-top: 1px solid var(--border);
   flex: none;
+}
+/* Only when there is a `children` control beside the button: it needs the gap, and the button no
+   longer stretches under it. The band used to carry this padding unconditionally, which left the
+   header's hover tint 6px short of the right edge on every section that has no control. */
+.wrap:has(> :not(.header)) {
+  padding-right: var(--space-3);
 }
 .header {
   display: flex;

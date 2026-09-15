@@ -99,7 +99,7 @@ Ctrl is ⌘ on macOS.
 | Start screen | `↑` `↓` `Home` `End` `Enter` `Delete` | Navigate recents / open / remove |
 | Repo window | `Alt+1` · `Alt+2` | History · Changes |
 | Repo window | `Ctrl+K` | Command palette |
-| Repo window | `Alt+0` | Collapse / expand the sidebar |
+| Repo window | ``Ctrl+Shift+` `` | Collapse / expand the sidebar |
 | Repo window | `F5` · `Ctrl+F5` | Refresh · Fetch |
 | Repo window | `Ctrl+Shift+L` · `Ctrl+Shift+U` | Pull… · Push… |
 | Repo window | `Ctrl+B` | Create branch… |

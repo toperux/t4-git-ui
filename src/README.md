@@ -225,7 +225,8 @@ src/
                            `RAIL_BELOW 1000` / `TIGHT_BELOW 1100` / `ICONS_BELOW 800` breakpoints turned into
                            `{toolbar: full|tight|icons, details: 3col|2col|narrow, commit: 3col|2col, railAuto}` — the one place
                            a breakpoint number appears, memoised so the object is stable per width),
-                           Toolbar (repo menu = open repository name → folder picker / other recents / move to new window /
+                           Toolbar (leftmost is the sidebar toggle — the one collapse/expand control, pressed while the
+                           sidebar shows, Ctrl+Shift+`; then the repo menu = open repository name → folder picker / other recents / move to new window /
                            close tab, Fetch = split
                            button: click → default remote w/ prune, ▾ → the Fetch dialog (remote, prune, tags), Pull / Push
                            dialogs + ahead/behind counts, Branch and Stash menus, the ViewSwitch where the Commit button was,
@@ -255,10 +256,11 @@ src/
                            whose own headers carry Add worktree… / Prune and Update all; Stashes starts collapsed like Tags,
                            its header carries the stash-browser button, and a stash row previews the entry in the pane
                            (`repoStore.preview`) — stash commits are never walked, so there is no row to reveal),
-                           SidebarRail.tsx (the sidebar below 1000px, or whenever Alt+0 says so: a 36px `nav` of one button
+                           SidebarRail.tsx (the sidebar below 1000px, or whenever the toolbar toggle says so: a 36px `nav` of one button
                            per section with its count — Worktrees and Submodules only when there are any — where a click opens
-                           that section as a 260px flyout holding `<Sidebar only={section} />`, closed by Esc or a click
-                           outside, and the last button hands the full sidebar back),
+                           that section as a 260px flyout holding `<Sidebar only={section} />` — which scrolls when the
+                           section outgrows it — closed by Esc or a click outside; the toolbar's leftmost button is the only
+                           collapse/expand control),
                            TabStrip.tsx (shown above the toolbar with two tabs or more: repo name, path as the title, stale
                            dot, ×, middle-click closes, + opens a repository, row menu Move to new window · Copy path · Close;
                            pointer capture drags a tab (`useTabDrag`) — inside the strip it reorders, outside it a ghost follows
@@ -289,8 +291,9 @@ src/
                            Ctrl+F5 fetch, F5 refresh; Ctrl+Tab / Ctrl+Shift+Tab cycle tabs, Ctrl+W (Ctrl+Shift+W) close tab,
                            Ctrl+T open, Ctrl+1..9 jump, Ctrl+Shift+N move to new window; Ctrl+` and the tab keys also inside
                            text fields — Ctrl+` is the only way out of the dock prompt; Alt+1 / Alt+2 History | Changes,
-                           Alt+0 sidebar rail ↔ full, Ctrl+K command palette (toggles; every other shortcut sleeps while it
-                           is open); Alt+0 and Ctrl+K also work inside text fields),
+                           Ctrl+Shift+` sidebar rail ↔ full (matched on `e.code`: shifted, the key is layout-dependent),
+                           Ctrl+K command palette (toggles; every other shortcut sleeps while it is open); Ctrl+Shift+` and
+                           Ctrl+K also work inside text fields),
                            CommandPalette/ (Ctrl+K: commands.tsx builds every Command — Views, Repository, Branch, Stash,
                            Network, Go to branch, Repositories, Window — from a context the panel gathers off the stores, each
                            with the id Recent remembers and the same disabled reason the toolbar gives; rank.ts scores a query

@@ -2,7 +2,7 @@
 // is in a text field or a dialog is open — those own their own keys. Ctrl+` is the exception: it has
 // no meaning in a field, and the dock prompt (the field most likely to have focus) lives in the dock
 // it collapses; the tab and window keys (Ctrl+Tab, Ctrl+W, Ctrl+T, Ctrl+Shift+N, Ctrl+Q, Ctrl+1..9)
-// and Alt+0 (the sidebar rail) are the same case. Alt+1 / Alt+2 pick the History | Changes view
+// and Ctrl+Shift+` (the sidebar rail) are the same case. Alt+1 / Alt+2 pick the History | Changes view
 // (spec §1). Ctrl+K opens the command palette, which then owns the keyboard until Ctrl+K (or Esc)
 // closes it again (spec §4).
 import { useEffect } from "react";
@@ -81,8 +81,11 @@ export function useShortcuts() {
         if (tab) useTabsStore.getState().activate(tab.id);
         return;
       }
-      // Alt+digit types nothing into a field, and the rail is a window-level thing like the tab keys.
-      if (e.altKey && !ctrl && !e.shiftKey && e.code === "Digit0") {
+      // Ctrl+Shift+` types nothing into a field, and the rail is a window-level thing like the tab
+      // keys. `code`, unlike the dock's Ctrl+` above, which takes the unshifted key: shifted, this
+      // one arrives as `~` on a US layout and as something else again elsewhere, so only the
+      // physical key is stable. The dock's branch demands `!e.shiftKey`, so the two never cross.
+      if (ctrl && e.shiftKey && e.code === "Backquote") {
         e.preventDefault();
         useViewStore.getState().toggleRail(layoutFor(window.innerWidth).railAuto);
         return;

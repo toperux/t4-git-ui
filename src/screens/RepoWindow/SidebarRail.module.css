@@ -56,9 +56,6 @@
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
-.grow {
-  flex: 1;
-}
 /* Elevated over the content; the Sidebar inside draws its own tree on this surface. */
 .flyout {
   position: absolute;

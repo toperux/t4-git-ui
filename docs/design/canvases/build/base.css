@@ -263,6 +263,8 @@ a { color: var(--accent-text); text-decoration: none; } a:hover { text-decoratio
 .section-header .grow { flex: 1; }
 .section-header .tw { width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; color: var(--fg); flex: none; }
 .section-header.is-hover { background: var(--bg-hover); color: var(--fg); }
+/* In the rail flyout the panel draws the border: the first header would double it. */
+.menu.tree > .section-header:first-child { border-top: 0; }
 .split-h { width: 5px; align-self: stretch; background: transparent; position: relative; }
 .split-h::after { content: ""; position: absolute; left: 2px; top: 0; bottom: 0; width: 1px; background: var(--border); }
 .split-h.is-hover::after { background: var(--accent); width: 2px; left: 1.5px; }

@@ -53,11 +53,12 @@ describe("useShortcuts", () => {
     expect(useViewStore.getState().view).toBe("history");
   });
 
-  it("Alt+0 toggles the sidebar rail, even from a text field", () => {
+  it("Ctrl+Shift+` toggles the sidebar rail, even from a text field", () => {
     window.innerWidth = 1280;
     renderHook(() => useShortcuts());
     const input = document.body.appendChild(document.createElement("input"));
-    fireEvent.keyDown(input, { key: "0", code: "Digit0", altKey: true });
+    // `key` is layout-dependent once shifted (`~` on a US layout), so the match is on `code`.
+    fireEvent.keyDown(input, { key: "~", code: "Backquote", ctrlKey: true, shiftKey: true });
     expect(useViewStore.getState().railOverride).toBe(true);
     input.remove();
   });

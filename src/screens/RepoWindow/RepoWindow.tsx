@@ -49,10 +49,9 @@ const DOCK_DEFAULT_H = 200;
 
 export function RepoWindow() {
   const view = useViewStore((st) => st.view);
-  // The width decides the sidebar unless the user said otherwise with Alt+0 (spec §2).
+  // The width decides the sidebar unless the user said otherwise with Ctrl+Shift+` (spec §2).
   const railAuto = useLayout().railAuto;
   const railOverride = useViewStore((st) => st.railOverride);
-  const toggleRail = useViewStore((st) => st.toggleRail);
   const rail = railOverride ?? railAuto;
   // One status sync serves the panel, the commit dialog (which can open from the toolbar with the
   // panel hidden) and the stash browser's working-tree row, which shows the same two lists.
@@ -75,12 +74,12 @@ export function RepoWindow() {
             {rail && <SidebarRail />}
             <Group orientation="horizontal" className={s.main}>
               {/* The group itself never remounts: a remount would throw away the grid's scroll position
-                  and the details pane every time Alt+0 is pressed or the width crosses the breakpoint. */}
+                  and the details pane every time the sidebar is toggled or the width crosses the breakpoint. */}
               {!rail && (
                 <>
                   {/* 260 is the design width; the range is wide enough that dragging visibly does something. */}
                   <Panel defaultSize={260} minSize={180} maxSize={560} className={s.panel}>
-                    <Sidebar onCollapse={() => toggleRail(railAuto)} />
+                    <Sidebar />
                   </Panel>
                   <Separator className={s.splitH} aria-label="Resize sidebar" />
                 </>

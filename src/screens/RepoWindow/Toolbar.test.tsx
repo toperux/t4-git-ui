@@ -43,6 +43,16 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+describe("Toolbar sidebar toggle", () => {
+  it("is pressed while the sidebar shows, and flips the rail override", () => {
+    const { getByRole } = render(<Toolbar />);
+    expect(getByRole("button", { name: "Toggle sidebar" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(getByRole("button", { name: "Toggle sidebar" }));
+    expect(useViewStore.getState().railOverride).toBe(true);
+    expect(getByRole("button", { name: "Toggle sidebar" }).getAttribute("aria-pressed")).toBe("false");
+  });
+});
+
 describe("Toolbar Fetch", () => {
   it("is a split button: the label fetches the default remote, the ▾ opens the Fetch dialog", async () => {
     const { getByRole } = render(<Toolbar />);

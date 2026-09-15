@@ -72,7 +72,7 @@ export function buildCommands(ctx: CommandContext): Command[] {
     ...ctx.local.map<Command>((b) => ({ id: `goto.${b.name}`, group: "Go to branch", label: b.name, icon: <GitBranch size={16} aria-hidden />, run: () => ctx.revealOid(b.oid) })),
     ...ctx.remotes.flatMap((r) => r.branches.map<Command>((b) => ({ id: `goto.${b.name}`, group: "Go to branch", label: b.name, icon: <Cloud size={16} aria-hidden />, run: () => ctx.revealOid(b.oid) }))),
     ...ctx.recents.filter((r) => r.path !== ctx.repoPath).map<Command>((r) => ({ id: `repo.switch.${r.path}`, group: "Repositories", label: r.name, icon: <FolderGit2 size={16} aria-hidden />, disabled: busy, run: () => ctx.switchRepo(r.path) })),
-    { id: "win.sidebar", group: "Window", label: "Toggle sidebar", icon: <PanelLeft size={16} aria-hidden />, kbd: "Alt+0", run: () => ctx.toggleRail() },
+    { id: "win.sidebar", group: "Window", label: "Toggle sidebar", icon: <PanelLeft size={16} aria-hidden />, kbd: "Ctrl+Shift+`", run: () => ctx.toggleRail() },
     { id: "win.refresh", group: "Window", label: "Refresh", icon: <RefreshCw size={16} aria-hidden />, kbd: "F5", run: () => ctx.refreshAll() },
     { id: "win.settings", group: "Window", label: "Settings", icon: <Settings size={16} aria-hidden />, run: dialog({ kind: "settings" }) },
     { id: "win.detach", group: "Window", label: "Move to new window", icon: <ExternalLink size={16} aria-hidden />, kbd: "Ctrl+Shift+N", disabled: busy ?? (ctx.tabCount < 2 ? "This tab is the only one in this window" : undefined), run: () => ctx.detachTab() },

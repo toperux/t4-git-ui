@@ -6,7 +6,7 @@ export type View = "history" | "changes";
 
 export interface ViewStore {
   view: View;
-  /** `null` = follow the width (`layout.railAuto`); `true` / `false` = the user said so (Alt+0). */
+  /** `null` = follow the width (`layout.railAuto`); `true` / `false` = the user said so (Ctrl+Shift+`). */
   railOverride: boolean | null;
   setView(view: View): void;
   /** `auto` is what the width would do right now; the toggle flips the effective state. */
