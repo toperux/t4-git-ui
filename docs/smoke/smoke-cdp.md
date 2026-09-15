@@ -23,6 +23,47 @@ call its `browser_close` once to drop the page handle from the previous process.
 with `CloseMainWindow()` (or the window's ×) so `recents.json` is written; edit that store only
 while the app is closed.
 
+## Driving it without Playwright
+
+`docs/smoke/cdp.mjs` is a dependency-free CDP driver, used for the 2026-09-15 pane-resize and
+toast/toolbar walks. Steps run in argv order:
+
+```
+node docs/smoke/cdp.mjs --inner 1280x800 --wait 400 --eval "expr" --eval @file.js \
+                        --drag "Resize sidebar" 60 0 --key Alt+2 --click "sel" --dblclick "sel"
+```
+
+`--inner` resizes the real window through `Browser.setWindowBounds` and converges on an exact CSS
+viewport, because `setWindowBounds` counts the frame and the script does not. Do **not** reach for
+Playwright's `setViewportSize` or the MCP `browser_resize` for layout work: both install a
+device-metrics override that pins the viewport and leaves the window unable to reflow until it is
+cleared with a 0x0 `Emulation.setDeviceMetricsOverride`.
+
+Three more gestures, added for the 2026-09-16 walk:
+- `--clickat "sel" dx dy` clicks at an offset from an element's top-left corner, for example a
+  toast's padding.
+- `--dragto "from" "to"` presses near the end of one element and releases on another, for example
+  a selection that overshoots.
+- `--dragpath "Separator label" 150,0` makes several vertical legs inside one press.
+
+`--click` and `--dblclick` dispatch real `Input.dispatchMouseEvent` pairs (`clickCount` 1 then 2).
+Synthetic DOM events do not reach library handlers, which is what made the output dock's
+double-click unprovable in an earlier walk.
+
+### A local build, isolated from the installed app
+
+`docs/smoke/fixtures/smoke-launch.ps1` starts a build on the debugging port with its own
+`WEBVIEW2_USER_DATA_FOLDER`, so a walk cannot touch the installed app's profile or rewrite its
+`recents.json`:
+
+```powershell
+pwsh -File docs/smoke/fixtures/smoke-launch.ps1              # the local release build
+pwsh -File docs/smoke/fixtures/smoke-launch.ps1 -Installed   # the installed app instead
+```
+
+It prints the pid, the profile directory and whether the port answered. Group AU was walked this
+way on 2026-09-14 against a local `tauri build --no-bundle` while 0.10.1 stayed installed.
+
 ## Selectors that hold
 
 - Start screen: `input[aria-label="Filter repositories"]`,
