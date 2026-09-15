@@ -70,6 +70,14 @@ describe("toastStore", () => {
     elsewhere.remove();
   });
 
+  it("dismissing a toast early cancels its expiry", () => {
+    const before = vi.getTimerCount();
+    const id = useToastStore.getState().push({ kind: "info", title: "Copied SHA" });
+    expect(vi.getTimerCount()).toBe(before + 1);
+    useToastStore.getState().dismiss(id);
+    expect(vi.getTimerCount()).toBe(before);
+  });
+
   it("cliDetail keeps the first stderr line of a `cli` message", () => {
     expect(cliDetail("`git push` exited with code 1: \n error: failed to push\nhint: try pull")).toBe("error: failed to push");
     // A negative exit code (a signal) is still a prefix.

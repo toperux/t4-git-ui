@@ -21,6 +21,8 @@
   background: var(--bg-elevated);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-1);
+  /* The whole toast closes on a click; .detail keeps the text cursor through .selectable. */
+  cursor: pointer;
 }
 .icon {
   display: inline-flex;

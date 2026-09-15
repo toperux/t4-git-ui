@@ -130,7 +130,7 @@ src/
                            Settings › Updates and the UpdateBadge on both screens read the same answer
     dialogStore.ts         zustand: one `DialogSpec` at a time — open(spec, {returnFocusTo}) / close(); DialogHost renders it
                            and feeds `returnFocusTo` to `Dialog` through `DialogReturnFocus`
-    toastStore.ts          zustand: toasts (info|success auto-dismiss after 6 s, errors persist until dismissed);
+    toastStore.ts          zustand: toasts (info|success auto-dismiss after 5 s, errors persist until dismissed);
                            toastError(err, title, retry?) — cli → first stderr line, indexLocked → "Index is locked…" + Retry
   theme/
     tokens.css             GENERATED from docs/design/canvases/build/tokens.css — never edit; run `node docs/design/canvases/build/build.mjs`
@@ -198,7 +198,7 @@ src/
                            UpdateBadge (sm primary Button beside the Settings gear on both screens, hidden until a check found
                            a version — a shortcut into Settings › Updates, where the check and the install live),
                            Progress (4px pill; indeterminate sweep, or `value` 0–100 = a filled bar + aria-valuenow),
-                           Toast + ToastStack,
+                           Toast + ToastStack (a click anywhere on a toast dismisses it — not its buttons, and not its detail, which stays selectable),
                            Dialog (440 / `.wide` 560 / `full` = the window minus a margin, unpadded body, footer optional —
                            over `--scrim`, portal, Esc closes, Enter submits, Tab trapped, focus
                            restored, aria-modal) + Field / FieldRow / Options / DialogText / Mono)

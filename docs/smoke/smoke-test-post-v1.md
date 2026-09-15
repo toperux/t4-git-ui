@@ -1229,7 +1229,9 @@ Retry re-runs from it and Dismiss puts the focus back on it (or on the open dial
 when that control is gone). Auto-dismiss never moves the focus. Walked 2026-09-13 over CDP in
 `c:/tmp/t4/work` with `.git/index.lock` planted. The first walk found the origin detached: every
 `DisabledHint`-wrapped button was remounted when an operation disabled it, so nothing was left to
-focus — fixed in this commit by keeping the wrapper in the DOM (`display: contents` while idle)._
+focus — fixed in this commit by keeping the wrapper in the DOM (`display: contents` while idle).
+Since 2026-09-15 a click anywhere on the toast dismisses it as well, so the same focus rule covers
+the body click; its buttons and a text selection in the detail are excluded._
 
 - [x] **Dismiss** (§3): plant `index.lock`, click **Unstage all** → *Unstage failed · Index is
       locked* with **Retry**; click × → the focus is on **Unstage all** again, not `<body>`
@@ -1240,6 +1242,15 @@ focus — fixed in this commit by keeping the wrapper in the DOM (`display: cont
       drops it to `<body>`; that is the control's own state, not a lost origin
 - [x] **In the commit dialog** (§3): repeat Dismiss with the full-window commit dialog open → the
       focus returns inside the dialog, never to the panel behind the scrim
+- [ ] **A click on the body** (§3): plant `index.lock`, click **Unstage all** → click the toast
+      title, then (on a fresh one) its icon, then the padding at its edge → each closes it, and the
+      focus is back on **Unstage all**, exactly as × leaves it. The cursor is a pointer over the
+      toast and a text caret over the detail
+- [ ] **The detail stays selectable** (§3): drag across the detail text → the toast stays put and the
+      selection is copyable; double-click a word in it → the word selects and the toast is still
+      there; click the title, the icon or the padding → it closes
+- [ ] **The buttons still own their clicks** (§3): **Retry** runs once and closes once, not twice;
+      the same for **Pull** on a rejected push and **Remove from list** on a dead recent
 
 ## AK. Files tab: a commit's whole tree, its files' content, a row menu (main §2, §3)
 _Shipped 2026-09-13 (three commits, `feat: Read a revision's whole file list…` onward). The file

@@ -5,7 +5,7 @@ import type { AppError } from "../api/types";
 import { firstDialogField } from "../components/ui/Dialog/Dialog";
 import { useDialogStore } from "./dialogStore";
 
-export const TOAST_MS = 6000;
+export const TOAST_MS = 5000;
 /** Errors never expire on their own, so the stack is capped: the oldest falls off. */
 export const MAX_TOASTS = 8;
 
@@ -42,11 +42,24 @@ const without = (id: number) => (s: { toasts: Toast[] }) => ({ toasts: s.toasts.
  * Puts the focus back where the action that failed started: its `origin` while that is still in the
  * document, else the open dialog's first field (the origin was inside a dialog that has been
  * re-rendered), else nothing — better to leave the focus alone than to move it somewhere arbitrary.
+ *
+ * The dialog fallback only runs while the focus is adrift — on `<body>`, or on the toast's own button
+ * about to unmount with it. Swatting a toast away mid-sentence cancels the press, so the caret stays
+ * in the field being typed into and must not be moved to the dialog's first one; a click on × or
+ * Retry does take the focus, and without the fallback it fell to `<body>` out of the dialog's reach.
  */
 export function restoreFocus(origin: HTMLElement | null | undefined) {
   if (origin?.isConnected) origin.focus();
-  else if (useDialogStore.getState().dialog) firstDialogField()?.focus();
+  else if (useDialogStore.getState().dialog && focusAdrift()) firstDialogField()?.focus();
 }
+
+function focusAdrift() {
+  const el = document.activeElement;
+  return !el || el === document.body || !!el.closest("[data-toast]");
+}
+
+/** Auto-dismiss timers by toast id, so dismissing one early cancels its expiry. */
+const timers = new Map<number, ReturnType<typeof setTimeout>>();
 
 export const useToastStore = create<ToastStore>()((set, get) => ({
   toasts: [],
@@ -65,7 +78,14 @@ export const useToastStore = create<ToastStore>()((set, get) => ({
       return { toasts };
     });
     // Expiring on its own must not move the focus — nothing was clicked.
-    if (toast.kind !== "error") setTimeout(() => set(without(id)), TOAST_MS);
+    if (toast.kind !== "error")
+      timers.set(
+        id,
+        setTimeout(() => {
+          timers.delete(id);
+          set(without(id));
+        }, TOAST_MS),
+      );
     return id;
   },
 
@@ -73,6 +93,8 @@ export const useToastStore = create<ToastStore>()((set, get) => ({
     // Dismiss and the toast's action both come through here (`ToastStack`), so the focus goes back
     // once, after the toast is gone — a Retry that runs first would toast over its own origin.
     const origin = get().toasts.find((t) => t.id === id)?.origin;
+    clearTimeout(timers.get(id));
+    timers.delete(id);
     set(without(id));
     restoreFocus(origin);
   },
