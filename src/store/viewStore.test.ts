@@ -15,8 +15,10 @@ describe("viewStore", () => {
     expect(st().railOverride).toBeNull();
     st().toggleRail(false); // wide window, sidebar full → collapse
     expect(st().railOverride).toBe(true);
+    // Back to what the width already wanted. That is not an override, so it stores null and the width
+    // takes the decision again — storing false here is what used to latch the sidebar for the session.
     st().toggleRail(false);
-    expect(st().railOverride).toBe(false);
+    expect(st().railOverride).toBeNull();
     st().__resetForTests();
     st().toggleRail(true); // narrow window, rail by default → expand
     expect(st().railOverride).toBe(false);

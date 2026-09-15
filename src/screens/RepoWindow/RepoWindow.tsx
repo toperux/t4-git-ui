@@ -1,5 +1,5 @@
 import { CircleCheck, Cloud, GitBranch, TriangleAlert } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, type RefObject } from "react";
 import { Group, Panel, Separator, usePanelRef } from "react-resizable-panels";
 import type { RepoState } from "../../api/types";
 import { Banner } from "../../components/ui/Banner/Banner";
@@ -52,6 +52,9 @@ export function RepoWindow() {
   // The width decides the sidebar unless the user said otherwise with Ctrl+Shift+` (spec §2).
   const railAuto = useLayout().railAuto;
   const railOverride = useViewStore((st) => st.railOverride);
+  // The override holds until the user toggles back to what the width would pick (`toggleRail`), not
+  // until a resize happens to pass a width that agrees with it: forced on at 1400, a round trip
+  // through 900 must not hand the sidebar back on the way out.
   const rail = railOverride ?? railAuto;
   // One status sync serves the panel, the commit dialog (which can open from the toolbar with the
   // panel hidden) and the stash browser's working-tree row, which shows the same two lists.
@@ -59,6 +62,49 @@ export function RepoWindow() {
   const stashesOpen = useDialogStore((st) => st.dialog?.kind === "stashes");
   useCommitSync(view === "changes" || commitOpen || stashesOpen);
   const dockOpen = useOpsStore((st) => st.open);
+  // Set while the user is working the output separator, by pointer or by key. Half of the answer to
+  // "is this height the user's?" — `DockPanel`'s `onResize` holds the other half.
+  const dockGesture = useRef(false);
+  const dockGestureFrame = useRef(0);
+  // The flag has to outlive the gesture by a frame or two. `onResize` reaches us from a
+  // ResizeObserver rather than from the event that caused it, so clearing the instant the key or the
+  // pointer came up threw away the resize it was there to authorise — walked as a keyboard tap that
+  // moved the dock to 320 and was then healed straight back to 160.
+  // What the dock does with a gesture once it is over; `DockPanel` fills it in.
+  const dockGestureEnd = useRef<() => void>(() => {});
+  const releaseDockGesture = useCallback(() => {
+    cancelAnimationFrame(dockGestureFrame.current);
+    dockGestureFrame.current = requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        // Every pointerup in the window lands here; only one that ends a gesture has anything to do.
+        if (!dockGesture.current) return;
+        dockGesture.current = false;
+        dockGestureEnd.current();
+      }),
+    );
+  }, []);
+  const armDockGesture = () => {
+    cancelAnimationFrame(dockGestureFrame.current);
+    dockGesture.current = true;
+  };
+  // The dock heals against the height this group actually has, not the window's: the tab strip sits
+  // outside the group and appears with the second tab, so it gives height back with no window resize.
+  const dockGroup = useRef<HTMLDivElement | null>(null);
+  // Registered once rather than per press. A release can land anywhere — outside the separator,
+  // outside the window, or nowhere at all if focus is taken mid-drag — and a per-press listener that
+  // never fires is also one that never clears the flag, which hands every later squeeze the
+  // authority of a deliberate drag.
+  useEffect(() => {
+    window.addEventListener("pointerup", releaseDockGesture);
+    window.addEventListener("pointercancel", releaseDockGesture);
+    window.addEventListener("blur", releaseDockGesture);
+    return () => {
+      cancelAnimationFrame(dockGestureFrame.current);
+      window.removeEventListener("pointerup", releaseDockGesture);
+      window.removeEventListener("pointercancel", releaseDockGesture);
+      window.removeEventListener("blur", releaseDockGesture);
+    };
+  }, [releaseDockGesture]);
   // With one tab there is nothing to switch to, and the toolbar already names the repository — but a
   // tab dragged here from another window needs somewhere to show its drop caret.
   const stripped = useTabsStore((st) => st.tabs.length > 1 || st.caret !== null);
@@ -68,7 +114,7 @@ export function RepoWindow() {
     <div className={s.window}>
       {stripped && <TabStrip />}
       <Toolbar />
-      <Group orientation="vertical" className={s.main}>
+      <Group orientation="vertical" className={s.main} elementRef={dockGroup}>
         <Panel minSize={200} className={s.panel}>
           <div className={s.row}>
             {rail && <SidebarRail />}
@@ -111,8 +157,31 @@ export function RepoWindow() {
           </div>
         </Panel>
         {/* Nothing to resize while the dock is collapsed to its header bar. */}
-        <Separator className={s.splitV} aria-label="Resize output" disabled={!dockOpen} />
-        <DockPanel open={dockOpen} />
+        <Separator
+          className={s.splitV}
+          aria-label="Resize output"
+          disabled={!dockOpen}
+          onPointerDown={(e) => {
+            if (armsDockGesture(e, dockOpen)) armDockGesture();
+          }}
+          // Arrow keys and Home/End resize a separator too, and the library treats them as the same
+          // user interaction a drag is. Leaving them out dropped the height a keyboard user picked,
+          // and then the heal put its own value back over the top of it. There is no keyup half:
+          // the release is deferred, so a tap too quick to hold the flag still records its resize.
+          onKeyDown={() => {
+            if (!dockOpen) return;
+            armDockGesture();
+            releaseDockGesture();
+          }}
+          // Double-click resets the panel to its `defaultSize`, and lands after the release, so there
+          // is no gesture left to observe — raise one for as long as that resize takes to arrive.
+          onDoubleClick={() => {
+            if (!dockOpen) return;
+            armDockGesture();
+            releaseDockGesture();
+          }}
+        />
+        <DockPanel open={dockOpen} gesture={dockGesture} gestureEnd={dockGestureEnd} group={dockGroup} />
       </Group>
       <RepoStatusBar />
       <DialogHost />
@@ -123,18 +192,39 @@ export function RepoWindow() {
 }
 
 /**
- * Whether a dock height is one the user could have dragged to, rather than one the layout forced.
- * `minSize`/`maxSize` clamp a drag, so the open range is the whole of what a person can choose; a
- * height outside it means the panes no longer fit and the library squeezed this one to make room.
+ * Whether a dock height is one the user could have meant, rather than one the layout forced. The
+ * open range is the whole of what a person can choose, but a drag is *not* held inside it: under the
+ * 94px midpoint the library snaps a collapsible panel to its 28px bar, and a group too short for
+ * `minSize` reports the squeezed box. This is the value half of the gate at a gesture's end; the gesture
+ * ref is the cause half, and neither is sufficient on its own — both were walked failing alone.
  */
 export const isDraggedHeight = (px: number) => px >= DOCK_MIN_H && px <= DOCK_MAX_H;
+
+/**
+ * Whether a pointer press on the output separator begins a resize the user asked for. `disabled` on
+ * a `Separator` renders `aria-disabled` on a plain div, which stops the library from resizing but
+ * not the event from reaching us; and a non-primary button raises a context menu or starts
+ * autoscroll rather than dragging, often swallowing the release that would clear the flag.
+ */
+export const armsDockGesture = (e: { pointerType?: string; button?: number }, dockOpen: boolean) =>
+  dockOpen && !(e.pointerType === "mouse" && (e.button ?? 0) > 0);
 
 /**
  * The output dock as a resizable panel: 160–320px open (style guide §4), collapsed to the
  * 28px header bar otherwise. The height is per session: 200px on the first open, then whatever it
  * was last dragged to — a bare `expand()` lands on `minSize`.
  */
-export function DockPanel({ open }: { open: boolean }) {
+export function DockPanel({
+  open,
+  gesture,
+  gestureEnd,
+  group,
+}: {
+  open: boolean;
+  gesture: RefObject<boolean>;
+  gestureEnd: RefObject<() => void>;
+  group: RefObject<HTMLDivElement | null>;
+}) {
   const panel = usePanelRef();
   const lastOpenH = useRef(DOCK_DEFAULT_H);
 
@@ -148,6 +238,61 @@ export function DockPanel({ open }: { open: boolean }) {
     else panel.current?.resize(lastOpenH.current);
   }, [open, panel]);
 
+  // The size the panel actually has, squeezes included — as against `lastOpenH`, which only ever
+  // holds a size the user chose.
+  const currentH = useRef(DOCK_DEFAULT_H);
+  // A squeezed dock keeps its squeezed pixels when the room comes back, because a pixel-size pane
+  // keeps whatever it has: it can sit at its 28px bar, open by state with nothing under the header,
+  // until someone thinks to toggle it. Put it back once there is room. `onResize` cannot carry this
+  // — it runs off a ResizeObserver on the panel's own element, and a taller group changes neither
+  // the dock's height nor its width, so nothing fires.
+  useEffect(() => {
+    const el = group.current;
+    if (!open || !el) return;
+    let prev = el.offsetHeight;
+    let frame = 0;
+    // The group rather than the window, because the group is the height actually being shared out:
+    // the tab strip sits outside it, so closing the second tab hands room back with no window resize.
+    const ro = new ResizeObserver(() => {
+      const now = el.offsetHeight;
+      const grew = now > prev;
+      prev = now;
+      // Only on the way up: the squeezed condition is just as true on the way down, where resizing
+      // would fight the layout for room that is not there. And measured against the height the user
+      // chose rather than the minimum — a group with room for 160 of a chosen 200 is still short,
+      // and stopping at the minimum strands the rest, as the first walk of this fix did.
+      if (!grew || currentH.current >= lastOpenH.current) return;
+      cancelAnimationFrame(frame);
+      // Two frames, not one. The library lays this same change out in the first of them, and a
+      // `resize` issued inside that frame is overwritten — measured twice: a single frame healed the
+      // dock to the library's own `minSize` instead of the height the user chose.
+      frame = requestAnimationFrame(() => {
+        frame = requestAnimationFrame(() => panel.current?.resize(lastOpenH.current));
+      });
+    });
+    ro.observe(el);
+    return () => {
+      cancelAnimationFrame(frame);
+      ro.disconnect();
+    };
+  }, [open, panel, group]);
+
+  // A gesture is judged by where it ends, not by what it passed through on the way: a drag down to
+  // the bar crosses 160 before it snaps, and a drag that closes the store mid-way disables the
+  // separator under the pointer, so it can no longer be dragged back up. Ending inside the open
+  // range is a height the user chose; ending on the bar is the dock shut, and the store has to say
+  // so, or the header offers the wrong toggle and the heal above reopens a dock the user shut.
+  const gestureH = useRef<number | null>(null);
+  useEffect(() => {
+    gestureEnd.current = () => {
+      const h = gestureH.current;
+      gestureH.current = null;
+      if (h === null) return;
+      if (isDraggedHeight(h)) lastOpenH.current = h;
+      else if (h <= DOCK_COLLAPSED_H + 1) useOpsStore.getState().setOpen(false);
+    };
+  }, [gestureEnd]);
+
   // Pixel height across a window resize, so the collapsed bar stays exactly its 28px.
   return (
     <Panel
@@ -159,11 +304,14 @@ export function DockPanel({ open }: { open: boolean }) {
       minSize={DOCK_MIN_H}
       maxSize={DOCK_MAX_H}
       onResize={(size) => {
-        // Only a height the user could have dragged to. A drag is clamped to min/max, so anything
-        // outside that range is the layout squeezing the panel to make its minimums fit — recording
-        // it would overwrite the height they chose with one they never picked, and every later
-        // expand would land on the squeezed value instead (down to the 28px bar, open but empty).
-        if (isDraggedHeight(size.inPixels)) lastOpenH.current = size.inPixels;
+        currentH.current = size.inPixels;
+        // Two questions, and this is the user's height only when both answer yes. Did they ask for
+        // the resize? Only a gesture on the separator says so — never the layout, and never our own
+        // `resize` calls, which run with no gesture in flight. And could they have meant this value?
+        // Asking either one alone was walked failing: the cause alone records the 28px snap and the
+        // squeezed box, the value alone records every squeeze that lands in range. The value is
+        // asked once the gesture ends (`gestureEnd` above); here the gesture's latest size is held.
+        if (gesture.current) gestureH.current = size.inPixels;
       }}
       className={s.panel}
     >

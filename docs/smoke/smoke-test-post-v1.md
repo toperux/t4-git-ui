@@ -1242,15 +1242,17 @@ the body click; its buttons and a text selection in the detail are excluded._
       drops it to `<body>`; that is the control's own state, not a lost origin
 - [x] **In the commit dialog** (§3): repeat Dismiss with the full-window commit dialog open → the
       focus returns inside the dialog, never to the panel behind the scrim
-- [ ] **A click on the body** (§3): plant `index.lock`, click **Unstage all** → click the toast
+- [x] **A click on the body** (§3): plant `index.lock`, click **Unstage all** → click the toast
       title, then (on a fresh one) its icon, then the padding at its edge → each closes it, and the
       focus is back on **Unstage all**, exactly as × leaves it. The cursor is a pointer over the
       toast and a text caret over the detail
-- [ ] **The detail stays selectable** (§3): drag across the detail text → the toast stays put and the
+- [x] **The detail stays selectable** (§3): drag across the detail text → the toast stays put and the
       selection is copyable; double-click a word in it → the word selects and the toast is still
       there; click the title, the icon or the padding → it closes
 - [ ] **The buttons still own their clicks** (§3): **Retry** runs once and closes once, not twice;
       the same for **Pull** on a rejected push and **Remove from list** on a dead recent
+      *(2026-09-16: Retry and Pull walked and pass; Remove from list not walked. Adding a dead recent
+      needs the native folder picker, and recents are shared with the installed app.)*
 
 ## AK. Files tab: a commit's whole tree, its files' content, a row menu (main §2, §3)
 _Shipped 2026-09-13 (three commits, `feat: Read a revision's whole file list…` onward). The file
@@ -1690,7 +1692,7 @@ toolbar overflows with the badge) were fixed and 3 + 9 re-walked the same day.
 4. - [x] `git stash` in a terminal → Changes shows `Working tree clean` beside the message column; Stash… is disabled with `Nothing to stash`; Amend still works.
 5. - [x] Resize to 1000 wide: Fetch / Pull / Push / Branch / Stash are icons with their counts, the repo name stays; the sidebar is a 36px rail with counts; the details pane is details-over-files | diff. Click the Local rail button → flyout with the tree; double-click a branch → checkout, the flyout stays; Esc → closed. *(The rail is `< 1000`: at exactly 1000 the sidebar is still full; walked at 990.)*
 6. - [x] Resize to 720 wide: the switch is icons only; search is an icon → popover with the box and the filter (type → the grid filters; Esc closes); `⋯` holds Branch ▸, Stash…, Refresh, Switch to … theme, Settings, Command palette; the details pane is files | diff with `> <subject> <sha>` on top — click it → details expand over the list; Changes is files-over-message | diff. At 700 × 500 nothing wraps or clips. *(The 700 × 500 floor itself is a drag check — `MoveWindow` bypasses it.)*
-7. - [ ] Ctrl+Shift+` at 1280 → rail; again → full. The toolbar's leftmost button does the same and never moves — pressed while the sidebar shows, unpressed on the rail; it is the only collapse/expand control (none in the sidebar, none in the rail). Resize past 1000 either way → the override holds; a new window starts from the width again.
+7. - [x] Ctrl+Shift+` at 1280 → rail; again → full. The toolbar's leftmost button does the same and never moves — pressed while the sidebar shows, unpressed on the rail; it is the only collapse/expand control (none in the sidebar, none in the rail). Resize past 1000 either way → the override holds; a new window starts from the width again.
 8. - [x] Ctrl+K from the grid, from the commit summary field, from the dock prompt → the palette. `st` → Stash rows first; ↓ ↵ → the dialog opens, the palette closes; Ctrl+K again → that command under Recent; Ctrl+K again → closed. `origin/` → Go to branch rows; ↵ while in Changes → still Changes, Alt+1 → the row is selected and visible. Start a fetch (Ctrl+F5) → Ctrl+K → Push… greyed with `Operation in progress`. Click outside → closed.
 9. - [x] Update badge present (Settings › Updates against a newer release, or fake it): at 1280 the repo name does not wrap; the search box narrows instead. *(Walked with a same-size stand-in element: search 240 → 192, Settings stays inside the window.)*
 10. - [x] Dark theme: switch, rail, flyout, palette, changes bar, search popover, collapsed details header all use the tokens — no light patches.

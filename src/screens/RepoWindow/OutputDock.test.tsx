@@ -5,7 +5,7 @@ import * as ipc from "../../api/ipc";
 import { useCmdHistoryStore } from "../../store/cmdHistoryStore";
 import { useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
-import { DockPanel, isDraggedHeight } from "./RepoWindow";
+import { armsDockGesture, DockPanel, isDraggedHeight } from "./RepoWindow";
 
 vi.mock("../../api/ipc", () => ({
   cancelOp: vi.fn(() => Promise.resolve(true)),
@@ -39,7 +39,7 @@ afterEach(() => {
 const renderDock = (open: boolean) =>
   render(
     <Group orientation="vertical">
-      <DockPanel open={open} />
+      <DockPanel open={open} gesture={{ current: false }} gestureEnd={{ current: () => {} }} group={{ current: null }} />
     </Group>,
   );
 
@@ -69,7 +69,7 @@ describe("OutputDock", () => {
     expect(useOpsStore.getState().open).toBe(true);
     rerender(
       <Group orientation="vertical">
-        <DockPanel open />
+        <DockPanel open gesture={{ current: false }} gestureEnd={{ current: () => {} }} group={{ current: null }} />
       </Group>,
     );
     expect(getByRole("log", { name: "Command output" }).textContent).toContain("Receiving objects: 100%");
@@ -146,23 +146,41 @@ describe("OutputDock", () => {
 });
 
 
+// The dock remembers a height only when a gesture on the separator asked for it *and* the value is
+// one a gesture could have produced. Both halves are pure and tested here; that they meet correctly
+// is a layout question, and jsdom lays out no panels — the CDP walk in
+// docs/plans/2026-09-15-self-healing-layout-plan.md is the check for that.
+
 describe("isDraggedHeight", () => {
-  // The height is remembered from onResize, which cannot say what caused the resize. A drag is
-  // clamped to the open range, so a height below it is the layout squeezing the panel to fit its
-  // neighbours minimums; recording that replaces the height the user picked, and every later expand
-  // lands on the squeezed value instead. Walked 2026-09-15: a short window drove the dock to 27px,
-  // and it then reopened at 27px - open by state, nothing but its header on screen.
-  it("takes the heights a drag can produce", () => {
+  // Walked 2026-09-15: a drag below the 94px midpoint snaps to the 28px bar while the pointer is
+  // still down, and a drag in a window too short for 160 reports the squeezed box. Both arrive as a
+  // genuine gesture, and recording either reopened the dock as a bare header bar for the session —
+  // the very bug the heal exists to prevent.
+  it("takes the heights a gesture can produce", () => {
     expect(isDraggedHeight(200)).toBe(true);
     expect(isDraggedHeight(160)).toBe(true);
     expect(isDraggedHeight(320)).toBe(true);
   });
 
-  it("rejects what a window too short to hold the panes forces on it", () => {
+  it("rejects the snap to the collapsed bar, and a squeezed box", () => {
     expect(isDraggedHeight(159)).toBe(false);
     expect(isDraggedHeight(146)).toBe(false);
     expect(isDraggedHeight(32)).toBe(false);
     expect(isDraggedHeight(28)).toBe(false);
     expect(isDraggedHeight(321)).toBe(false);
+  });
+});
+
+describe("armsDockGesture", () => {
+  it("arms on a primary press while the dock is open", () => {
+    expect(armsDockGesture({ pointerType: "mouse", button: 0 }, true)).toBe(true);
+    expect(armsDockGesture({ pointerType: "touch" }, true)).toBe(true);
+  });
+
+  it("ignores a press on the collapsed dock, and a non-primary button", () => {
+    // `disabled` on a Separator is only `aria-disabled` on a div, so the press still reaches us.
+    expect(armsDockGesture({ pointerType: "mouse", button: 0 }, false)).toBe(false);
+    // Right-click raises a context menu, and the release that would clear the flag may never come.
+    expect(armsDockGesture({ pointerType: "mouse", button: 2 }, true)).toBe(false);
   });
 });
