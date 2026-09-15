@@ -305,12 +305,12 @@ describe("RevisionGrid", () => {
       "Reset main to here…",
       "Merge feature into main…",
       "Rebase main onto feature…",
+      "Reset main to origin/main…",
+      "Reset stale to origin/renamed…",
       "Cherry-pick oid1…",
       "Revert oid1…",
       "Bisect: mark good",
       "Bisect: mark bad",
-      "Reset main to origin/main…",
-      "Reset stale to origin/renamed…",
       "Create branch here…",
       "Create tag here…",
       "Copy SHA",
@@ -381,8 +381,8 @@ describe("RevisionGrid", () => {
     };
 
     fireEvent.contextMenu(rows[1]);
-    // HEAD · history · new refs · clipboard · rename (`feature` is here) · delete.
-    expect(seps()).toBe(5);
+    // HEAD · pointer · apply · bisect · new refs · clipboard · rename (`feature` is here) · delete.
+    expect(seps()).toBe(7);
     expect(pick("Merge feature into main…")).toEqual({ kind: "merge", branch: "feature" });
     fireEvent.contextMenu(rows[1]);
     expect(pick("Rebase main onto feature…")).toEqual({ kind: "rebase", onto: "feature" });
@@ -396,7 +396,7 @@ describe("RevisionGrid", () => {
     // No branch here: the commit is the merge source and the rebase target.
     fireEvent.contextMenu(rows[2]);
     // No local branch: no rename group either.
-    expect(seps()).toBe(4);
+    expect(seps()).toBe(6);
     expect(pick("Merge commit oid2 into main…")).toEqual({ kind: "merge", branch: "oid2" });
     fireEvent.contextMenu(rows[2]);
     expect(pick("Rebase main onto here…")).toEqual({ kind: "rebase", onto: "oid2" });
@@ -406,7 +406,9 @@ describe("RevisionGrid", () => {
     // Merging into HEAD / rebasing onto it / picking it onto itself are all no-ops; the undo is not.
     expect(items().filter((t) => t?.startsWith("Merge") || t?.startsWith("Rebase") || t?.startsWith("Cherry-pick"))).toEqual([]);
     expect(items()).toContain("Revert oid0…");
-    expect(seps()).toBe(5);
+    // One short of a normal row: nothing here moves a branch pointer, so that group and its
+    // separator drop out together. The apply and bisect groups still stand on their own.
+    expect(seps()).toBe(6);
     expect(items()).toContain("Delete stale…");
     expect(items()).not.toContain("Delete main…");
     // Rename is not guarded: the checked-out branch and a protected name both get one.

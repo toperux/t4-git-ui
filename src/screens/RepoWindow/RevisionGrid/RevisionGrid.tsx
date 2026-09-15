@@ -249,8 +249,9 @@ export function RevisionGrid() {
 
 /**
  * Commit row actions, grouped by what each one moves: HEAD (checkout a branch here / detached, reset
- * the current branch here), the current branch's history (merge / rebase / cherry-pick / revert,
- * reset a branch to its remote), new refs (branch / tag here), the clipboard (copy SHA), and last the refs here that can
+ * the current branch here), where the current branch points (merge / rebase, reset a branch to its
+ * remote), what it contains (cherry-pick / revert this commit), the bisect search (mark good / bad),
+ * new refs (branch / tag here), the clipboard (copy SHA), and last the refs here that can
  * go (delete a local / remote branch, a tag).
  */
 function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number }; commit: CommitInfo; el: HTMLElement | null } | null; onClose: () => void }) {
@@ -277,10 +278,13 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
   const mergeTitle = m.length > 0 ? `Merge ${m[0].name} into ${current}…` : `Merge commit ${short} into ${current}…`;
   const onto = branches.rebaseOnto;
   const rebaseTitle = `Rebase ${current} onto ${onto ? onto.name : "here"}…`;
-  // The history group is the only one that can be empty (an unborn HEAD, no reset-to-remote item):
-  // its separator hangs off the same condition so two never end up side by side. Revert is the item
-  // with the widest condition, so it covers merge / rebase / cherry-pick too.
-  const integrate = !branches.unborn || branches.reset.length > 0;
+  // Merge and cherry-pick ask the same thing of the row: a commit to apply that is not already the
+  // one HEAD sits on.
+  const canApply = !branches.headCommit && !branches.unborn;
+  // Every group's separator hangs off exactly what that group renders, so two never end up side by
+  // side and none leads an empty run. The pointer group is the only one that can empty out; the
+  // apply group and the bisect group both stand or fall with Revert's condition, an unborn HEAD.
+  const pointer = canApply || branches.canRebase || (branches.canRebaseInteractive && parents.length > 0) || branches.reset.length > 0;
   return (
     <ContextMenu at={menu.at} onClose={onClose} label="Commit actions">
       {branches.checkout.length === 1 && (
@@ -306,9 +310,9 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
           Reset <MenuRef className={s.menuBranch}>{current}</MenuRef> to here…
         </span>
       </MenuItem>
-      {integrate && <MenuSeparator />}
+      {pointer && <MenuSeparator />}
       {/* On an unborn HEAD `git merge <oid>` moves the branch onto the commit and checks its tree out. */}
-      {!branches.headCommit && !branches.unborn && (
+      {canApply && (
         <MenuItem
           icon={<GitMerge size={16} aria-hidden />}
           title={mergeTitle}
@@ -364,8 +368,28 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
           </span>
         </MenuItem>
       )}
+      {branches.reset.map((r) => (
+        <MenuItem
+          key={r.remote}
+          icon={<RotateCcw size={16} aria-hidden />}
+          title={`Reset ${r.branch} to ${r.remote}`}
+          {...op}
+          onClick={run(() => openDialog(r.current ? { kind: "reset", target: r.remote } : { kind: "resetBranch", branch: r.branch, target: r.remote }))}
+        >
+          {/* Either name can be long: the local chip and the "to <remote>…" tail each ellipsize on their own. */}
+          <span className={s.menuLabel}>
+            Reset <MenuRef className={s.menuBranch}>{r.branch}</MenuRef>{" "}
+            <span className={s.menuBranch}>
+              to <MenuRef remote>{r.remote}</MenuRef>…
+            </span>
+          </span>
+        </MenuItem>
+      ))}
+      {/* Applying this commit's change to the current branch — forwards or backwards. Its own group:
+          everything above moves where a branch points, these two change what it contains. */}
+      {!branches.unborn && <MenuSeparator />}
       {/* Picking HEAD onto itself records nothing; an unborn HEAD has no commit to apply onto. */}
-      {!branches.headCommit && !branches.unborn && (
+      {canApply && (
         <MenuItem
           icon={<Cherry size={16} aria-hidden />}
           title={`Cherry-pick ${short} onto ${current}`}
@@ -390,9 +414,11 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
           </span>
         </MenuItem>
       )}
-      {/* The first mark starts the bisect; from then on the banner's buttons drive it on HEAD. */}
+      {/* Bisect is a search, not an edit: its own group, so a mark is never one slip from a revert.
+          The first mark starts it; from then on the banner's buttons drive it on HEAD. */}
       {!branches.unborn && (
         <>
+          <MenuSeparator />
           <MenuItem icon={<Bug size={16} aria-hidden />} title={`Mark ${short} good`} {...op} onClick={run(() => void bisectMark("good", oid))}>
             Bisect: mark good
           </MenuItem>
@@ -401,23 +427,6 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
           </MenuItem>
         </>
       )}
-      {branches.reset.map((r) => (
-        <MenuItem
-          key={r.remote}
-          icon={<RotateCcw size={16} aria-hidden />}
-          title={`Reset ${r.branch} to ${r.remote}`}
-          {...op}
-          onClick={run(() => openDialog(r.current ? { kind: "reset", target: r.remote } : { kind: "resetBranch", branch: r.branch, target: r.remote }))}
-        >
-          {/* Either name can be long: the local chip and the "to <remote>…" tail each ellipsize on their own. */}
-          <span className={s.menuLabel}>
-            Reset <MenuRef className={s.menuBranch}>{r.branch}</MenuRef>{" "}
-            <span className={s.menuBranch}>
-              to <MenuRef remote>{r.remote}</MenuRef>…
-            </span>
-          </span>
-        </MenuItem>
-      ))}
       <MenuSeparator />
       <MenuItem icon={<Plus size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "createBranch", startPoint: oid }))}>
         Create branch here…
