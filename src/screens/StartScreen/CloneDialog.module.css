@@ -15,7 +15,7 @@
   font-family: var(--font-mono);
   font-size: var(--mono-size);
   line-height: var(--mono-lh);
-  background: var(--bg-inset);
+  background: var(--bg-field);
   color: var(--fg-muted);
   padding: var(--space-4) var(--space-5);
   border-radius: var(--radius-md);

@@ -96,7 +96,7 @@ export function MessageColumn({ onExpand, onCommitted, autoFocus }: MessageColum
   }
 
   return (
-    <div className={s.col}>
+    <div className={cx(s.col, s.message)}>
       <PanelHeader icon={<GitCommitHorizontal size={14} aria-hidden />} title="Commit message">
         {onExpand && (
           <IconButton label="Open commit window" onClick={(e) => onExpand(e.currentTarget)}>

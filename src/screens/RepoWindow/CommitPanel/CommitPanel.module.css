@@ -16,6 +16,11 @@
      buttons would otherwise be cut off with no way to reach them. */
   overflow: auto;
 }
+/* The message column alone: a step under the field it hosts, so the editor box reads as a
+   field rather than as more of the column. Dark keeps --bg-panel via the alias. */
+.message {
+  background: var(--bg-commit);
+}
 
 /* --- file lists --- */
 /* Title text + the list/tree toggle, sitting together on the left of the header. */
@@ -200,7 +205,7 @@
   min-height: 108px;
   display: flex;
   flex-direction: column;
-  background: var(--bg-inset);
+  background: var(--bg-field);
   border: 1px solid transparent;
   border-radius: var(--radius-md);
   transition:

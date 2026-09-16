@@ -44,36 +44,46 @@
   --dur: 120ms;           /* hover/press/selection */
   --dur-panel: 150ms;     /* collapse/expand, dock toggle */
 
-  /* Surfaces */
-  --bg-app: #c4c7cb;       /* window, sidebar, toolbar */
-  --bg-panel: #d3d5d7;     /* content areas: grid, diff, lists */
-  --bg-elevated: #e1e3e5;  /* popovers, menus, dialogs: one step above panel; emphasis comes from --shadow-2 + --scrim */
+  /* Surfaces. Light runs content → chrome, brightest first: panel (= field) → elevated →
+     app → inset. A field takes its host pane’s shade and separates by sitting one step above
+     whatever holds it, which is why the commit message column drops to elevated. Dark keeps
+     the older "elevation = lighter" order, which is why --bg-field/-sidebar/-section-header/
+     -commit exist: they let light re-point a surface without moving dark, whose definitions
+     below alias them back. */
+  --bg-app: #bcbec2;       /* window, toolbar, status bar, panel + section headers */
+  --bg-panel: #cdced0;     /* content areas: grid, diff, lists, sidebar — and the fields in them */
+  --bg-elevated: #c5c7c8;  /* popovers, menus, dialogs, commit message column; emphasis comes from --shadow-2 + --scrim, not brightness */
   --scrim: rgba(17, 24, 39, 0.32); /* modal backdrop */
-  --bg-inset: #b6b9be;     /* inputs, output dock, code blocks */
+  --bg-inset: #a8abb0;     /* recessed chips + tracks ONLY: Kbd, Badge, Progress, ViewSwitch */
+  --bg-field: var(--bg-panel); /* what you type into: inputs, selects, the commit editor, code blocks */
+  --bg-field-focus: var(--bg-field); /* light signals focus with the accent border + halo, not a fill change */
+  --bg-sidebar: var(--bg-panel);     /* the sidebar reads as content, its headers as chrome */
+  --bg-section-header: var(--bg-app);
+  --bg-commit: var(--bg-elevated); /* the commit message column: a step under the field it hosts */
   --bg-hover: rgba(17, 24, 39, 0.05);
   --bg-active: rgba(17, 24, 39, 0.09);
-  --bg-selected: #aeb9d3;
-  --bg-selected-unfocused: #b4b9c3;
+  --bg-selected: #acb7d0;
+  --bg-selected-unfocused: #b2b7c0;
 
   /* Text */
   --fg: #1a1d24;
-  --fg-muted: #3f434e;     /* ≥4.5:1 on every surface incl. selected rows + hover composite */
-  --fg-faint: #59616c;     /* placeholders / disabled ONLY (≥3:1); never for information */
+  --fg-muted: #3a3e49;     /* ≥4.5:1 on every surface incl. selected rows + hover composite */
+  --fg-faint: #505763;     /* placeholders / disabled ONLY (≥3:1); never for information */
   --fg-on-accent: #ffffff;
 
   /* Borders */
-  --border: #a7abb1;       /* dividers (decorative, no contrast target) */
-  --border-strong: #5f6a7a; /* control edges: secondary button, checkbox, input hover — ≥3:1 on panel + app */
+  --border: #9da1a6;       /* dividers (decorative, no contrast target) */
+  --border-strong: #5a6474; /* control edges: secondary button, checkbox, input hover — ≥3:1 on panel + app */
 
   /* Accent + semantic. `--accent`/`--danger` are FILLS (buttons, badges, focus ring, HEAD chip);
      `--accent-text`/`--danger-text` are the text/icon-safe variants (≥4.5:1 on surfaces). */
   --accent: #2459be;
   --accent-hover: #1b4aa5;
   --accent-soft: #c1cbdd;
-  --accent-text: #1044af;
-  --danger: #aa2b22;  --danger-hover: #91231b; --danger-soft: #dac9c8; --danger-text: #95251d;
-  --success: #0d5a29; --success-soft: #c5d5c9;
-  --warning: #7c3d05; --warning-soft: #dad1bd;
+  --accent-text: #0e3fa5;
+  --danger: #a02820;  --danger-hover: #882019; --danger-soft: #dac9c8; --danger-text: #8d221b;
+  --success: #0c5426; --success-soft: #c5d5c9;
+  --warning: #743904; --warning-soft: #dad1bd;
 
   /* Focus */
   --focus-ring: 0 0 0 2px var(--bg-panel), 0 0 0 4px var(--accent);
@@ -128,6 +138,13 @@
   --bg-elevated: #242830;
   --scrim: rgba(0, 0, 0, 0.5);
   --bg-inset: #121419;
+  /* Dark keeps the arrangement it always had; these five alias back to it so light can
+     re-point a surface on its own. Changing one of them changes what dark paints. */
+  --bg-field: var(--bg-inset);
+  --bg-field-focus: var(--bg-panel); /* dark still lightens a focused field */
+  --bg-sidebar: var(--bg-app);
+  --bg-section-header: var(--bg-panel);
+  --bg-commit: var(--bg-panel);
   --bg-hover: rgba(255, 255, 255, 0.05);
   --bg-active: rgba(255, 255, 255, 0.09);
   --bg-selected: #2a3a5c;

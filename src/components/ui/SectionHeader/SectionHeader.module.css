@@ -1,13 +1,14 @@
 /* base.css .section-header */
 /* The band: a header must read heavier than the rows under it, and stay put while they scroll
-   (every one of them is a direct child of the sidebar scroller). */
+   (every one of them is a direct child of the sidebar scroller). --bg-section-header is a step
+   away from the sidebar in whichever direction that theme needs: darker in light, lighter in dark. */
 .wrap {
   display: flex;
   align-items: center;
   position: sticky;
   top: 0;
   z-index: 1;
-  background: var(--bg-panel);
+  background: var(--bg-section-header);
   border-top: 1px solid var(--border);
   flex: none;
 }

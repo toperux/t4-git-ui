@@ -59,10 +59,10 @@ const TEXT = 4.5, UI = 3;
 // [fg, bg, min, note]
 const pairs = [
   // body text
-  ...['bg-app', 'bg-panel', 'bg-elevated', 'bg-inset', 'bg-selected', 'bg-selected-unfocused'].map((b) => ['fg', b, TEXT]),
-  ...['bg-app', 'bg-panel', 'bg-elevated', 'bg-inset', 'bg-selected', 'bg-selected-unfocused', 'bg-app+bg-hover', 'bg-panel+bg-hover'].map((b) => ['fg-muted', b, TEXT]),
+  ...['bg-app', 'bg-panel', 'bg-elevated', 'bg-inset', 'bg-field', 'bg-selected', 'bg-selected-unfocused'].map((b) => ['fg', b, TEXT]),
+  ...['bg-app', 'bg-panel', 'bg-elevated', 'bg-inset', 'bg-field', 'bg-selected', 'bg-selected-unfocused', 'bg-app+bg-hover', 'bg-panel+bg-hover'].map((b) => ['fg-muted', b, TEXT]),
   // faint: placeholders / disabled only (§5) — still audited so it never silently drops below 3:1
-  ...['bg-app', 'bg-panel', 'bg-elevated', 'bg-inset'].map((b) => ['fg-faint', b, UI, 'placeholder']),
+  ...['bg-app', 'bg-panel', 'bg-elevated', 'bg-inset', 'bg-field'].map((b) => ['fg-faint', b, UI, 'placeholder']),
   // on-accent text
   ['fg-on-accent', 'accent', TEXT], ['fg-on-accent', 'accent-hover', TEXT], ['fg-on-accent', 'danger', TEXT], ['fg-on-accent', 'danger-hover', TEXT],
   ['chip-head-fg', 'chip-head-bg', TEXT],
@@ -85,9 +85,13 @@ const pairs = [
   ...['keyword', 'string', 'comment', 'number', 'type', 'function', 'punct'].flatMap((k) => ['bg-panel', 'diff-add-bg', 'diff-del-bg'].map((b) => [`syn-${k}`, b, TEXT])),
   // non-text UI
   ['border-strong', 'bg-panel', UI], ['border-strong', 'bg-app', UI],
+  ['border-strong', 'bg-field', UI, 'input hover edge'],
   ['accent', 'bg-panel', UI, 'focus ring / primary btn'], ['accent', 'bg-app', UI],
+  ['accent', 'bg-field', UI, 'focused input border'],
   ['danger', 'bg-inset', UI, 'invalid border'], ['danger', 'bg-panel', UI, 'danger btn / badge edge'],
+  ['danger', 'bg-field', UI, 'invalid input border'],
   ['scrollbar-thumb', 'bg-panel', UI], ['scrollbar-thumb', 'bg-app', UI],
+  ['scrollbar-thumb', 'bg-field', UI, 'output dock / listbox scroll'],
   ...[0, 1, 2, 3, 4, 5, 6, 7].map((i) => [`graph-${i}`, 'bg-panel', UI]),
 ];
 

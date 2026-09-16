@@ -7,7 +7,7 @@
   white-space: nowrap;
   height: var(--control-h);
   padding: 0 var(--space-4);
-  background: var(--bg-inset);
+  background: var(--bg-field);
   border: 1px solid transparent;
   border-radius: var(--radius-md);
   color: var(--fg);
@@ -22,7 +22,7 @@
   border-color: var(--border-strong);
 }
 .wrap:focus-within {
-  background: var(--bg-panel);
+  background: var(--bg-field-focus);
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }

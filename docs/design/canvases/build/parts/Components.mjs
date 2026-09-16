@@ -232,7 +232,7 @@ function dialog() {
 }
 
 function headers() {
-  return section('Panel header · Section header · Split handle', 'panel headers 28px on --bg-app · section headers sit in a sticky --bg-panel band with a top border, over an --bg-app sidebar; only the inner button takes the hover tint, the children slot sits outside it · split handles 5px hit, 1px line, accent on hover',
+  return section('Panel header · Section header · Split handle', 'panel headers 28px on --bg-app · section headers sit in a sticky --bg-section-header band with a top border, over a --bg-sidebar sidebar; only the inner button takes the hover tint, the children slot sits outside it · split handles 5px hit, 1px line, accent on hover',
     `<div style="display: flex; flex-direction: column; gap: 12px;">
       <div class="list"><div class="panel-header">${icon('file', 14)}<span class="grow mono" style="font-size: 12px;">src/log/graph.rs</span><span class="diff-mode">100644 → 100755</span><span class="icon-btn">${icon('external-link', 14)}</span><span class="icon-btn">${icon('columns', 14)}</span><span class="icon-btn is-on">${icon('rows', 14)}</span></div></div>
       <div class="list" style="background: var(--bg-app);">

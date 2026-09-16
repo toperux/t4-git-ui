@@ -30,11 +30,11 @@ function files() {
 }
 
 function message() {
-  return `<div style="width: 340px; flex: none; display: flex; flex-direction: column; background: var(--bg-panel); border-left: 1px solid var(--border);">
+  return `<div style="width: 340px; flex: none; display: flex; flex-direction: column; background: var(--bg-commit); border-left: 1px solid var(--border);">
     <div class="panel-header" style="flex: none;">${icon('git-commit', 14)}<span class="grow">Commit message</span><span class="icon-btn">${icon('maximize-2', 16)}</span><span class="icon-btn is-on">${icon('history', 16)}</span></div>
     <div style="padding: 12px; display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 0;">
       <!-- At rest the editor is a plain --bg-inset box: no border, no halo (CommitPanel.module.css .editor). -->
-      <div style="display: flex; flex-direction: column; background: var(--bg-inset); border: 1px solid transparent; border-radius: var(--radius-md); flex: 1; min-height: 0;">
+      <div style="display: flex; flex-direction: column; background: var(--bg-field); border: 1px solid transparent; border-radius: var(--radius-md); flex: 1; min-height: 0;">
         <div style="display: flex; align-items: center; height: 32px; padding: 0 10px; border-bottom: 1px solid var(--border); gap: 6px;"><span style="flex: 1; min-width: 0; font-weight: 500;">Lane layout: eager dedupe of first parent</span><span class="xs muted" style="font-variant-numeric: tabular-nums;">42/72</span></div>
         <div style="padding: 8px 10px; flex: 1;"><span class="sm faint">Body — what and why. Wrap at 72.</span></div>
       </div>

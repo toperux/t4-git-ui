@@ -45,7 +45,7 @@
   gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
   border-left: 2px solid var(--chip-tag-bg);
-  background: var(--bg-inset);
+  background: var(--bg-field);
 }
 .tagName {
   display: flex;

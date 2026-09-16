@@ -50,7 +50,7 @@
   min-height: 0;
   overflow: auto;
   padding: var(--space-4) var(--space-5);
-  background: var(--bg-inset);
+  background: var(--bg-field);
   color: var(--fg-muted);
   font-family: var(--font-mono);
   font-size: var(--mono-size);

@@ -56,36 +56,46 @@
   --dur: 120ms;           /* hover/press/selection */
   --dur-panel: 150ms;     /* collapse/expand, dock toggle */
 
-  /* Surfaces */
-  --bg-app: #c4c7cb;       /* window, sidebar, toolbar */
-  --bg-panel: #d3d5d7;     /* content areas: grid, diff, lists */
-  --bg-elevated: #e1e3e5;  /* popovers, menus, dialogs: one step above panel; emphasis comes from --shadow-2 + --scrim */
+  /* Surfaces. Light runs content → chrome, brightest first: panel (= field) → elevated →
+     app → inset. A field takes its host pane’s shade and separates by sitting one step above
+     whatever holds it, which is why the commit message column drops to elevated. Dark keeps
+     the older "elevation = lighter" order, which is why --bg-field/-sidebar/-section-header/
+     -commit exist: they let light re-point a surface without moving dark, whose definitions
+     below alias them back. */
+  --bg-app: #bcbec2;       /* window, toolbar, status bar, panel + section headers */
+  --bg-panel: #cdced0;     /* content areas: grid, diff, lists, sidebar — and the fields in them */
+  --bg-elevated: #c5c7c8;  /* popovers, menus, dialogs, commit message column; emphasis comes from --shadow-2 + --scrim, not brightness */
   --scrim: rgba(17, 24, 39, 0.32); /* modal backdrop */
-  --bg-inset: #b6b9be;     /* inputs, output dock, code blocks */
+  --bg-inset: #a8abb0;     /* recessed chips + tracks ONLY: Kbd, Badge, Progress, ViewSwitch */
+  --bg-field: var(--bg-panel); /* what you type into: inputs, selects, the commit editor, code blocks */
+  --bg-field-focus: var(--bg-field); /* light signals focus with the accent border + halo, not a fill change */
+  --bg-sidebar: var(--bg-panel);     /* the sidebar reads as content, its headers as chrome */
+  --bg-section-header: var(--bg-app);
+  --bg-commit: var(--bg-elevated); /* the commit message column: a step under the field it hosts */
   --bg-hover: rgba(17, 24, 39, 0.05);
   --bg-active: rgba(17, 24, 39, 0.09);
-  --bg-selected: #aeb9d3;
-  --bg-selected-unfocused: #b4b9c3;
+  --bg-selected: #acb7d0;
+  --bg-selected-unfocused: #b2b7c0;
 
   /* Text */
   --fg: #1a1d24;
-  --fg-muted: #3f434e;     /* ≥4.5:1 on every surface incl. selected rows + hover composite */
-  --fg-faint: #59616c;     /* placeholders / disabled ONLY (≥3:1); never for information */
+  --fg-muted: #3a3e49;     /* ≥4.5:1 on every surface incl. selected rows + hover composite */
+  --fg-faint: #505763;     /* placeholders / disabled ONLY (≥3:1); never for information */
   --fg-on-accent: #ffffff;
 
   /* Borders */
-  --border: #a7abb1;       /* dividers (decorative, no contrast target) */
-  --border-strong: #5f6a7a; /* control edges: secondary button, checkbox, input hover — ≥3:1 on panel + app */
+  --border: #9da1a6;       /* dividers (decorative, no contrast target) */
+  --border-strong: #5a6474; /* control edges: secondary button, checkbox, input hover — ≥3:1 on panel + app */
 
   /* Accent + semantic. `--accent`/`--danger` are FILLS (buttons, badges, focus ring, HEAD chip);
      `--accent-text`/`--danger-text` are the text/icon-safe variants (≥4.5:1 on surfaces). */
   --accent: #2459be;
   --accent-hover: #1b4aa5;
   --accent-soft: #c1cbdd;
-  --accent-text: #1044af;
-  --danger: #aa2b22;  --danger-hover: #91231b; --danger-soft: #dac9c8; --danger-text: #95251d;
-  --success: #0d5a29; --success-soft: #c5d5c9;
-  --warning: #7c3d05; --warning-soft: #dad1bd;
+  --accent-text: #0e3fa5;
+  --danger: #a02820;  --danger-hover: #882019; --danger-soft: #dac9c8; --danger-text: #8d221b;
+  --success: #0c5426; --success-soft: #c5d5c9;
+  --warning: #743904; --warning-soft: #dad1bd;
 
   /* Focus */
   --focus-ring: 0 0 0 2px var(--bg-panel), 0 0 0 4px var(--accent);
@@ -140,6 +150,13 @@
   --bg-elevated: #242830;
   --scrim: rgba(0, 0, 0, 0.5);
   --bg-inset: #121419;
+  /* Dark keeps the arrangement it always had; these five alias back to it so light can
+     re-point a surface on its own. Changing one of them changes what dark paints. */
+  --bg-field: var(--bg-inset);
+  --bg-field-focus: var(--bg-panel); /* dark still lightens a focused field */
+  --bg-sidebar: var(--bg-app);
+  --bg-section-header: var(--bg-panel);
+  --bg-commit: var(--bg-panel);
   --bg-hover: rgba(255, 255, 255, 0.05);
   --bg-active: rgba(255, 255, 255, 0.09);
   --bg-selected: #2a3a5c;
@@ -282,11 +299,11 @@ a { color: var(--accent-text); text-decoration: none; } a:hover { text-decoratio
 .tb-history .icon-btn { width: 18px; height: 18px; }
 
 /* Inputs — Input / Select / Checkbox / CommandInput */
-.input { display: flex; align-items: center; gap: var(--space-3); white-space: nowrap; height: var(--control-h); padding: 0 var(--space-4); background: var(--bg-inset); border: 1px solid transparent; border-radius: var(--radius-md); color: var(--fg); font: inherit; }
+.input { display: flex; align-items: center; gap: var(--space-3); white-space: nowrap; height: var(--control-h); padding: 0 var(--space-4); background: var(--bg-field); border: 1px solid transparent; border-radius: var(--radius-md); color: var(--fg); font: inherit; }
 .input .ph { color: var(--fg-faint); }
 .input .icon { color: var(--fg-muted); }
 .input.is-hover { border-color: var(--border-strong); }
-.input.is-focus { background: var(--bg-panel); border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.input.is-focus { background: var(--bg-field-focus); border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .input.is-invalid { border-color: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
 /* Only the inner field dims — the box keeps its surface (Input.module.css `.field:disabled`). */
 .input.is-disabled > * { opacity: 0.5; }
@@ -296,7 +313,7 @@ a { color: var(--accent-text); text-decoration: none; } a:hover { text-decoratio
 .select .val { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .select .chevron { position: absolute; right: var(--space-4); color: var(--fg-muted); pointer-events: none; }
 /* Open = the focus treatment, since the list is a portal and takes no focus of its own. */
-.select.is-open { background: var(--bg-panel); border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.select.is-open { background: var(--bg-field-focus); border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 /* The list is app-drawn (a native popup ignores the theme) and portalled to the body — in the app
    `position: fixed; z-index: 45` so it clears the dialog scrim; here it just sits in the sheet. */
 .listbox { max-height: 320px; overflow: auto; padding: var(--space-2); background: var(--bg-elevated); border-radius: var(--radius-lg); box-shadow: var(--shadow-1); }
@@ -305,10 +322,10 @@ a { color: var(--accent-text); text-decoration: none; } a:hover { text-decoratio
 .opt.is-disabled { color: var(--fg-faint); }
 .opt.is-active { background: var(--accent); color: var(--fg-on-accent); }
 /* CommandInput: input anatomy in mono with a `$ git` prefix; its list is `.listbox` + a hint column. */
-.command-input { display: flex; align-items: center; gap: var(--space-3); white-space: nowrap; height: var(--control-h); padding: 0 var(--space-4); background: var(--bg-inset); border: 1px solid transparent; border-radius: var(--radius-md); color: var(--fg); font-family: var(--font-mono); font-size: var(--mono-size); }
+.command-input { display: flex; align-items: center; gap: var(--space-3); white-space: nowrap; height: var(--control-h); padding: 0 var(--space-4); background: var(--bg-field); border: 1px solid transparent; border-radius: var(--radius-md); color: var(--fg); font-family: var(--font-mono); font-size: var(--mono-size); }
 .command-input .prefix { color: var(--fg-muted); flex: none; user-select: none; }
 .command-input .ph { color: var(--fg-faint); }
-.command-input.is-focus { background: var(--bg-panel); border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.command-input.is-focus { background: var(--bg-field-focus); border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .opt .hint { margin-left: auto; padding-left: var(--space-5); font-family: var(--font-ui); font-size: var(--text-xs); color: var(--fg-muted); }
 .opt.is-active .hint { color: inherit; opacity: 0.85; }
 .check { display: inline-flex; align-items: center; gap: var(--space-4); }
@@ -458,10 +475,10 @@ a { color: var(--accent-text); text-decoration: none; } a:hover { text-decoratio
 /* Headers, splitters, feedback */
 .panel-header { display: flex; align-items: center; gap: var(--space-3); height: var(--section-h); padding: 0 var(--space-4); background: var(--bg-app); border-bottom: 1px solid var(--border); font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--fg-muted); }
 .panel-header .grow { flex: 1; }
-/* The app splits this in two: a sticky `.wrap` band on `--bg-panel` with a top border, which holds
+/* The app splits this in two: a sticky `.wrap` band on `--bg-section-header` with a top border, which holds
    the `children` slot, and the `.header` button inside it that takes the hover tint. The sidebar
-   around it is `--bg-app`, so the band is what makes a header read heavier than its rows. */
-.section-header { display: flex; align-items: center; gap: var(--space-3); height: var(--section-h); padding: 0 var(--space-4); background: var(--bg-panel); border-top: 1px solid var(--border); color: var(--fg); font-size: var(--text-xs); font-weight: var(--weight-semibold); letter-spacing: 0.06em; text-transform: uppercase; }
+   around it is `--bg-sidebar`, so the band is what makes a header read heavier than its rows. */
+.section-header { display: flex; align-items: center; gap: var(--space-3); height: var(--section-h); padding: 0 var(--space-4); background: var(--bg-section-header); border-top: 1px solid var(--border); color: var(--fg); font-size: var(--text-xs); font-weight: var(--weight-semibold); letter-spacing: 0.06em; text-transform: uppercase; }
 .section-header .grow { flex: 1; }
 .section-header .tw { width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; color: var(--fg); flex: none; }
 .section-header.is-hover { background: var(--bg-hover); color: var(--fg); }
@@ -544,7 +561,7 @@ a { color: var(--accent-text); text-decoration: none; } a:hover { text-decoratio
 .diff-note { font-size: var(--text-xs); font-weight: var(--weight-regular); color: var(--fg-muted); white-space: nowrap; }
 
 /* Output dock — OutputDock.module.css */
-.output { font-family: var(--font-mono); font-size: var(--mono-size); line-height: var(--mono-lh); background: var(--bg-inset); color: var(--fg-muted); padding: var(--space-4) var(--space-5); border-radius: var(--radius-md); }
+.output { font-family: var(--font-mono); font-size: var(--mono-size); line-height: var(--mono-lh); background: var(--bg-field); color: var(--fg-muted); padding: var(--space-4) var(--space-5); border-radius: var(--radius-md); }
 .output .ok { color: var(--success); } .output .err { color: var(--danger-text); } .output .cmd { color: var(--fg); }
 .output .stderr { color: var(--fg-muted); font-style: italic; }
 /* The `$ git` prompt row sits *under* the log, outside `.output` — not selectable text, not part of it. */

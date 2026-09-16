@@ -87,13 +87,13 @@ const folderIcon = (open) => icon(open ? 'folder-open' : 'folder', 14);
 const accentIcon = (name) => icon(name, 14).replace('<svg ', '<svg style="color: var(--accent);" ');
 
 /**
- * Sidebar.tsx — 260px default (resizable 180–560), `--bg-app` with each SectionHeader in its own
- * sticky `--bg-panel` band. Worktrees appear only past one checkout, Submodules only when there are
+ * Sidebar.tsx — 260px default (resizable 180–560), `--bg-sidebar` with each SectionHeader in its own
+ * sticky `--bg-section-header` band. Worktrees appear only past one checkout, Submodules only when there are
  * any: both behind `full`.
  */
 export function sidebar({ width = 260, empty = false, detached = false, loading = false, full = false, compact = false } = {}) {
   if (loading) {
-    return `<div class="tree scroll" style="width: ${width}px; flex: none; background: var(--bg-app); border-right: 1px solid var(--border); padding: 4px 0; overflow: hidden;"><div class="sm muted" style="padding: 6px 12px;">Loading branches…</div></div>`;
+    return `<div class="tree scroll" style="width: ${width}px; flex: none; background: var(--bg-sidebar); border-right: 1px solid var(--border); padding: 4px 0; overflow: hidden;"><div class="sm muted" style="padding: 6px 12px;">Loading branches…</div></div>`;
   }
   const body = empty
     ? `${sh(true, 'Local', 0)}<div class="empty" style="padding: 20px 12px;">${icon('git-branch', 20)}<div class="sm">No branches yet</div></div>
@@ -122,7 +122,7 @@ export function sidebar({ width = 260, empty = false, detached = false, loading 
            ${sh(true, 'Submodules', 1)}
            ${tr(0, '', '', icon('package', 14), 'vendor/libgit2', `${mono('a1b2c3d')}${badge('not initialized', 'No checkout on disk — Update clones it')}`)}`
         : ''}`;
-  return `<div class="tree scroll" style="width: ${width}px; flex: none; background: var(--bg-app); border-right: 1px solid var(--border); padding: 4px 0; overflow: hidden;">${body}</div>`;
+  return `<div class="tree scroll" style="width: ${width}px; flex: none; background: var(--bg-sidebar); border-right: 1px solid var(--border); padding: 4px 0; overflow: hidden;">${body}</div>`;
 }
 
 /* --------------------------------------------------------------- status bar */
@@ -427,7 +427,7 @@ export function commitDetails() {
       <div class="sm" style="color: var(--fg); white-space: pre-line;">When a commit's first parent is already expected by another column, emit a Branch line into it and drop the current lane. Keeps wide histories narrow.
 
 Fixes #12.</div>
-      <div style="display: flex; flex-direction: column; gap: 4px; padding: 6px 8px; background: var(--bg-inset); border-left: 2px solid var(--chip-tag-bg);">
+      <div style="display: flex; flex-direction: column; gap: 4px; padding: 6px 8px; background: var(--bg-field); border-left: 2px solid var(--chip-tag-bg);">
         <div class="sm" style="display: flex; align-items: center; gap: 4px; font-weight: 600; color: var(--fg-muted);">${icon('tag', 12)}v0.1.1</div>
         <div class="sm" style="color: var(--fg); white-space: pre-line;">Lane dedupe, and the log cache behind it.</div>
       </div>
