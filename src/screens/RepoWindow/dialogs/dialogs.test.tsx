@@ -8,7 +8,7 @@ import { useRepoStore } from "../../../store/repoStore";
 import { useStatusStore } from "../../../store/statusStore";
 import { useToastStore } from "../../../store/toastStore";
 import { DialogHost } from "./DialogHost";
-import { DeleteRemoteTagDialog, MergeDialog, PickDialog, PullDialog, PushDialog, PushTagDialog, RebaseDialog, ResetBranchDialog, ResetDialog } from "./OpsDialogs";
+import { DeleteRemoteTagDialog, FetchDialog, MergeDialog, PickDialog, PullDialog, PushDialog, PushTagDialog, RebaseDialog, ResetBranchDialog, ResetDialog } from "./OpsDialogs";
 import { RebaseInteractiveDialog } from "./RebaseInteractiveDialog";
 import { CheckoutBranchDialog, CheckoutDialog, CreateBranchDialog, CreateTagDialog, DeleteRemoteBranchDialog, DeleteTagDialog } from "./RefDialogs";
 import { AddRemoteDialog, RemoveRemoteDialog, RenameRemoteDialog, SetRemoteUrlDialog } from "./RemoteDialogs";
@@ -130,6 +130,20 @@ describe("PushDialog", () => {
     const { getByRole } = render(<PushDialog onClose={() => {}} branch="feature/lane-graph" />);
     await waitFor(() => expect((getByRole("checkbox", { name: "Set upstream" }) as HTMLInputElement).checked).toBe(true));
     expect(preview(getByRole("dialog"))).toBe("git push --progress -u origin --end-of-options feature/lane-graph");
+  });
+});
+
+describe("FetchDialog", () => {
+  it("defaults to the only remote, and to all remotes when there is more than one", async () => {
+    const { getByRole, unmount } = render(<FetchDialog onClose={() => {}} />);
+    expect(preview(getByRole("dialog"))).toBe("git fetch --progress --prune --end-of-options origin");
+    unmount();
+
+    useRepoStore.setState({ refs: { ...REFS, remotes: [...REFS.remotes, { name: "mirror", url: "git@x/m.git", branches: [] }] } });
+    const { getByRole: get } = render(<FetchDialog onClose={() => {}} />);
+    expect(preview(get("dialog"))).toBe("git fetch --progress --prune --all");
+    fireEvent.click(get("button", { name: "Fetch" }));
+    await waitFor(() => expect(mocked.fetch).toHaveBeenCalledWith("r", null, true, false));
   });
 });
 

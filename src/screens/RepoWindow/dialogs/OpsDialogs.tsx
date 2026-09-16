@@ -246,7 +246,9 @@ export function PullDialog({ onClose }: { onClose: () => void }) {
 
 export function FetchDialog({ onClose }: { onClose: () => void }) {
   const remotes = useRemotes();
-  const [remote, setRemote] = useDefaultRemote(remotes);
+  // With more than one remote "All remotes" is the default; with a single one it is that remote.
+  const [picked, setPicked] = useState<string | null>(null);
+  const remote = picked ?? (remotes.length > 1 ? "" : (remotes[0] ?? ""));
   const [prune, setPrune] = useState(true);
   const [tags, setTags] = useState(false);
   const preview = gitCmd(fetchArgs(remote || null, prune, tags));
@@ -272,7 +274,7 @@ export function FetchDialog({ onClose }: { onClose: () => void }) {
         </>
       }
     >
-      <RemoteField remotes={remotes} value={remote} onChange={setRemote} all />
+      <RemoteField remotes={remotes} value={remote} onChange={setPicked} all />
       <Options inline>
         <Checkbox checked={prune} onChange={setPrune} title="Deletes remote-tracking branches that no longer exist">
           Prune

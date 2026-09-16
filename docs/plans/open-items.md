@@ -420,9 +420,9 @@ Written after re-reading every row above against the working tree, `git log`, th
   `docs/archive/walks/2026-09-16-viewport-anchor-walk.md`, which also records what the first version
   got wrong (one-pass anchoring never fires, because the restarted walk's first page comes back
   short) and three CDP techniques worth keeping.
-- **Uncommitted, undocumented**: `FetchDialog` defaults to *All remotes* when a repository has more
-  than one, and to that one remote otherwise (`OpsDialogs.tsx`, plus a `dialogs.test.tsx` case).
-  Working, gates green, not committed — finish or discard it before the next batch.
+- ~~**`FetchDialog` still preselected one remote**~~ — it now defaults to *All remotes* when a
+  repository has more than one, and to that one remote otherwise (`OpsDialogs.tsx`, plus a
+  `dialogs.test.tsx` case). Landed 2026-09-16.
 
 ## Suggested order, if nothing else decides it
 
