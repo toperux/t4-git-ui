@@ -108,14 +108,16 @@ the README's "Next" line (review item H4). Nothing here is scheduled yet — pic
   Group G's mode check needs WSL or a Unix box — done 2026-09-05 under WSLg, see the full-rewalk plan.
 - **Smoke steps no CDP walk can reach** (this machine, by hand): most walked on 2026-09-06 (by hand:
   folder pickers, clone Cancel, theme flash / switch / first frame, the large-repo checks; over CDP:
-  "Git not found", I's tag push; Resolve in editor ×2 over CDP with VSCodium). Left: **six** unticked
-  lines across the two smoke docs (recounted 2026-09-11), of which **four** are work still owed, all
-  waiting on hardware or a network — a DPI change (`docs/smoke/smoke-test.md:281`), plus group AC's three update
-  boxes (`docs/smoke/smoke-test-post-v1.md:743` a failed check, `:746` a failed install, `:749` deb / rpm),
-  which landed later with in-app updates and need a pullable network and a Linux package. The other
-  two are group AG's (`:1112`, `:1123`): deliberate records, not work — one box's recipe is
-  unachievable, and one cannot be decided by what it observes. So a grep for `- [ ]` finds six and
-  only four are owed; read AG before counting it as a backlog.
+  "Git not found", I's tag push; Resolve in editor ×2 over CDP with VSCodium). Left: **eight** unticked
+  lines across the two smoke docs (recounted 2026-09-16), of which **six** are work still owed:
+  a DPI change (`docs/smoke/smoke-test.md:283`); group AC's three update boxes
+  (`docs/smoke/smoke-test-post-v1.md:750` a failed check, `:753` a failed install, `:756` deb / rpm),
+  which need a pullable network and a Linux package; group AI's manual folder toggle across a refresh
+  (`:1222`); and the **Remove from list** half of AJ's "buttons own their clicks" (`:1252`) — Retry and
+  Pull passed on 2026-09-16, but adding a dead recent needs the native folder picker and the recents
+  store is shared with the installed app. The other two are group AG's (`:1149`, `:1160`): deliberate
+  records, not work — one box's recipe is unachievable, and one cannot be decided by what it observes.
+  So a grep for `- [ ]` finds eight and only six are owed; read AG before counting it as a backlog.
 
 The rest needs machines we do not have:
 - Installer on a clean Windows 11 (no dev tools, no WebView2 preinstalled? — the NSIS bundle
@@ -193,8 +195,8 @@ the path alone. Kept here as the record of what was seen.
   **#2** collapse branch folders by default rather than expanded; **#1** add issue form templates so
   filed reports arrive tagged. The first two are product decisions, not bugs.
   **All three delivered in v0.7.0 (2026-09-13)**: #1 the issue forms, #2 the *Sidebar folders*
-  setting, #3 the recents submenu. The issues are still open on GitHub; closing them is the
-  user's call.
+  setting, #3 the recents submenu. ~~The issues are still open on GitHub; closing them is the
+  user's call.~~ **All three closed on GitHub 2026-09-13** (verified 2026-09-16); nothing left here.
 - **Four code leftovers** from the two review passes before v0.1.4. Three are fixed in `b00459a`
   and its review follow-up (2026-09-11); the fourth is closed as won't-fix. None loses data:
   - ~~`src/screens/RepoWindow/dialogs/rebaseTodo.ts:80`~~ — a fixup below a *dropped* row was
@@ -373,10 +375,53 @@ building it:
   panels. Done 2026-09-15 (this commit).
 - **Per-view sidebar state** (Direction B follow-up): many will hide the sidebar while staging and want it back in History. One `railOverride` per view is a ten-line change in `viewStore` if the first weeks say so.
 
+## K. Added 2026-09-16 — a state check against the repo, not against this list
+
+Written after re-reading every row above against the working tree, `git log`, the workflows,
+`package.json` and GitHub. What had gone stale:
+
+- **Repo state.** `main` is in sync with `origin/main` at `9dd59ae`, working tree otherwise clean,
+  **v0.10.2 released** (2026-09-15, the newest of eleven releases). No local branches but `main`.
+  `docs/plans/2026-09-16-session-handoff.md` describes a mid-session state that no longer exists
+  (four unpushed commits, the rail fix unimplemented) — everything it parked has since landed and
+  been released; it is superseded by this section and moved to `docs/archive/plans/`.
+- **Shipped since this list was last swept** — 0.10.0 Direction B, then 0.10.1 (`d47c7bd`: the
+  Changes bar ×, sidebar selection tint, stash surfaces) and 0.10.2 (`ae24dde..f4917d3`: one sidebar
+  toggle and the rail flyout, toast dismiss-anywhere at 5 s, the row-menu groups for bisect and
+  cherry-pick/revert, pane resize moving only the grid and the diff, the dock height heal). Walks:
+  `docs/archive/walks/2026-09-15-group-av-walk.md`, `-pane-resize-walk.md`,
+  `-toast-and-toolbar-fix-walk.md`, `2026-09-16-review-fix-walk.md`.
+- ~~**The rail override latches**~~ — **fixed in `f4917d3`**, walked as R1 of the 2026-09-16 record.
+  The width-driven effect in `RepoWindow.tsx` is gone and `setRailOverride` with it; `toggleRail` is
+  the only way back to automatic. The deliberate trade: an override now holds across a breakpoint
+  round trip until the user toggles it back. A second reviewer read that as a regression — it is not.
+- ~~**The toast auto-dismiss timer is never cleared**~~ — **fixed**: `toastStore.ts` keeps the handles
+  in a `timers` map and an early dismiss cancels its own expiry. Unit-tested only; nothing to see in
+  the app.
+- **Issues #1–#3 are closed** on GitHub (2026-09-13). §E's "still open, closing them is the user's
+  call" is spent.
+- **The npm majors are still all open** (§H): `typescript ~5.8.3`, `vite ^7`, `vitest ^4`,
+  `@vitejs/plugin-react ^4`, `@types/node ^24`. No open PR of any kind; the last Dependabot PR was #8
+  on 2026-09-12. Take Vitest 5 first, as §H says.
+- **`ubuntu-22.04` is still pinned** in `checks.yml:28` and `release.yml:111`, and **t4-markdown-viewer
+  is in exactly the same state** (asked and answered 2026-09-16: still pinned, no decision recorded,
+  the reasoning lives only in its archived `ci-alignment*.md`). So the cross-repo decision is genuinely
+  unmade. Tomorrow's deprecation is a **label warning, not a break** — the first hard failure is the
+  2027-03-23 brownout, ~6 months out. If the Linux leg moves into a `container:`, check rustfmt is in
+  the image: the markdown viewer runs `Format` on the Linux leg only.
+- **Still open, re-confirmed in the code**: §J's palette prefixes (`#` / `/` — no prefix handling in
+  `CommandPalette/`), §J's per-view sidebar state (one global `railOverride`), §I's S1 blame
+  cancellation (no token anywhere in the stores), and every §A performance row (untouched, and each
+  still wants a measurement first).
+- **Uncommitted, undocumented**: `FetchDialog` defaults to *All remotes* when a repository has more
+  than one, and to that one remote otherwise (`OpsDialogs.tsx`, plus a `dialogs.test.tsx` case).
+  Working, gates green, not committed — finish or discard it before the next batch.
+
 ## Suggested order, if nothing else decides it
 
-Most time-pressed is the `ubuntu-22.04` decision in §E (deprecated from 2026-09-17), and it is
-not this repo's alone. Then the npm majors one PR at a time, Vitest 5 first (§H). Otherwise:
+Most time-pressed is the `ubuntu-22.04` decision in §E — but read §K first: the 2026-09-17 date is a
+label warning, the real deadline is the 2027-03-23 brownout, and it is not this repo's alone. Then
+the npm majors one PR at a time, Vitest 5 first (§H). Otherwise:
 1. Dogfooding against GitHub, then the clean-Win11 install.
 2. Linux/macOS rendering when a machine is available — signing is done, and never needed one. CI's
    ubuntu and macOS legs already run the `#[cfg(unix)]` exec-bit staging test on every code push
