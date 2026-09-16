@@ -129,10 +129,12 @@ a { color: var(--accent-text); text-decoration: none; } a:hover { text-decoratio
 .disabled-hint { display: inline-flex; }
 
 /* Repository tabs — TabStrip.module.css (hidden while a window has one tab) */
-.tabstrip { display: flex; align-items: stretch; gap: var(--space-2); padding: var(--space-2) var(--space-4) 0; background: var(--bg-app); border-bottom: 1px solid var(--border); overflow-x: auto; }
+.tabstrip { display: flex; align-items: stretch; gap: var(--space-2); padding: var(--space-2) var(--space-4) 0; background: var(--bg-panel) linear-gradient(var(--border), var(--border)) bottom / 100% 1px no-repeat; overflow-x: auto; }
+/* No scrollbar: 10px off the bottom of the strip would drop the hairline below the tabs. */
+.tabstrip::-webkit-scrollbar { height: 0; }
 .tabstrip .tab { display: flex; align-items: center; gap: var(--space-3); max-width: 220px; padding: 0 var(--space-2) 0 var(--space-4); height: 28px; border: 1px solid transparent; border-bottom: 0; border-radius: var(--radius-md) var(--radius-md) 0 0; background: transparent; color: var(--fg-muted); user-select: none; }
-.tabstrip .tab.is-hover { background: var(--bg-hover); }
-.tabstrip .tab.is-active { background: var(--bg-panel); border-color: var(--border); color: var(--fg); }
+.tabstrip .tab.is-hover:not(.is-active) { background: var(--bg-hover); }
+.tabstrip .tab.is-active { background: var(--bg-app); border-color: var(--border); color: var(--fg); --focus-ring: 0 0 0 2px var(--bg-app), 0 0 0 4px var(--accent); }
 .tabstrip .tab .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Something changed in that repository while the tab was in the background. */
 .tabstrip .stale { width: 6px; height: 6px; border-radius: var(--radius-pill); background: var(--accent); flex: none; }

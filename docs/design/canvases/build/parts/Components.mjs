@@ -41,7 +41,7 @@ function toolbar() {
 }
 
 function tabStrip() {
-  return section('Tab strip', 'under the title bar, above the toolbar · tabs 28px, radius md top-only, max 220px · active = --bg-panel + border · hidden while a window has one tab',
+  return section('Tab strip', 'under the title bar, above the toolbar · tabs 28px, radius md top-only, max 220px · active = --bg-app (the toolbar colour) + border · hidden while a window has one tab',
     `<div class="tabstrip">
       <span class="tab is-active">${icon('folder-git-2', 14)}<span class="name">t4-git-ui</span><span class="close">${icon('x', 12)}</span></span>
       <span class="tab is-hover">${icon('folder-git-2', 14)}<span class="name">libgit2</span><span class="close is-hover">${icon('x', 12)}</span></span>

@@ -4,10 +4,21 @@
   align-items: stretch;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-4) 0;
-  background-color: var(--bg-app);
-  border-bottom: 1px solid var(--border);
+  background-color: var(--bg-panel);
+  /* The line along the top of the toolbar is a background hairline, not a border: `overflow-x` clips
+     the tabs to the padding box, so a border here is one row the selected tab could never paint over,
+     and the line would cut under it instead of running around it. */
+  background-image: linear-gradient(var(--border), var(--border));
+  background-repeat: no-repeat;
+  background-size: 100% 1px;
+  background-position: bottom;
   overflow-x: auto;
   flex: none;
+}
+/* A scrollbar would take 10px from the bottom of the strip, dropping the hairline below the tabs and
+   breaking the outline exactly when tabs overflow. The wheel and a tab drag still reach them. */
+.strip::-webkit-scrollbar {
+  height: 0;
 }
 
 .tab {
@@ -29,16 +40,23 @@
   flex: none;
   transition: background-color var(--dur) var(--ease);
 }
-.tab:hover {
+/* The selected tab is excluded: a translucent tint over it would break the outline, since the strip's
+   hairline runs behind the tab and would show through. */
+.tab:not(.active):hover {
   background-color: var(--bg-hover);
 }
 .tab:focus-visible {
   box-shadow: inset 0 0 0 1px var(--accent);
 }
+/* Carries the toolbar's colour, and its last row covers the strip's hairline, so the line runs along
+   the top of the toolbar and up around this tab as one outline rather than cutting under it. */
 .active {
-  background-color: var(--bg-panel);
+  background-color: var(--bg-app);
   border-color: var(--border);
   color: var(--fg);
+  /* The ring's inner halo names the surface behind the control, and inside this tab that is the
+     toolbar's colour, not the strip's (`base.css` gives every `:focus-visible` `var(--focus-ring)`). */
+  --focus-ring: 0 0 0 2px var(--bg-app), 0 0 0 4px var(--accent);
 }
 
 .label {
