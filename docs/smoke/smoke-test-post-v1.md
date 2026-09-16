@@ -1713,6 +1713,30 @@ nothing selected) was fixed and re-walked the same day.
 5. - [x] Ctrl+Shift+S with the changes present → the browser opens on `Working tree · 3 changes` (first row, italic); above the list the push form with the mono preview and a full-width `Stash 3 files`; the middle panel is the Changes view's Unstaged / Staged lists with `a.txt` / `new.txt` and `dirty.txt`, the diff of the focused file at the right with its hunk actions. Stage `a.txt` from here → the status bar count follows. Click a stash → Apply / Pop / Drop… / Clear all… and that stash's files; ArrowUp on the list → back on the working tree. Stash from the form → the new stash is selected and the working-tree row reads `No changes`. Reopen on the clean tree → it opens on stash@{0}; click the Working tree row → `Stash` disabled with `No changes`, empty lists. Pop the stash and unstage `a.txt` afterwards. *(Walked with the push landing on the new entry and its Pop landing back on the working tree; the clean-tree open is a unit test.)*
 6. - [x] Dark theme: the ×, the sidebar tints, the files-to-stash list border and muted line, the working-tree row all read the tokens.
 
+## AW. The viewport keeps its place across a tab switch, a view switch and a pull (0.10.x fixes)
+
+Fixture: a repository with **more than 500 commits** — the walk used `c:/tmp/t4/mbk-clone`
+(10 956) — plus a second tab on any other repository, one of them dirty. Window 1280 x 800, so the
+grid scroller is about 13 rows of 26px. New commits arrive from a terminal, not from the app:
+`git -C <repo> commit --allow-empty -m probe`, undone with `git reset --hard HEAD~1`.
+
+Read the scroll position and the top row together — the position alone cannot tell a viewport that
+was restored from one that never moved.
+
+Walked 2026-09-16 over CDP on a local release build — see
+`docs/archive/walks/2026-09-16-viewport-anchor-walk.md`, which also records the first version's
+defect (anchoring in one pass never fires, because a restarted walk's first page comes back short).
+
+1. - [x] Scroll to row 100 → switch to the other tab → back: the same `scrollTop` and the same commit on top. The tab left behind keeps its own position too, however far apart the two are.
+2. - [x] Sitting at row 100, commit from a terminal → the viewport moves down exactly one row (`scrollTop` + one row height) and the **same commit** stays on top. `git reset --hard HEAD~1` → it moves back up by one, same commit.
+3. - [x] Sitting at the very top (`scrollTop` 0) when a commit arrives → the view stays at 0 and the new commit comes into view; the selected commit is still the one that was selected, one row lower.
+4. - [x] Scroll past the **first page** — row 600 or beyond, which no loaded page covers after a restart — and commit from a terminal: the same one-row move, the same commit on top. (This is the path that goes to `find_log_row` on the backend rather than to the loaded rows.)
+5. - [x] Scroll deep, switch to the other tab, commit in the **background** tab's repository, switch back: the tab comes back on the commit it was on, not on the row number it was on.
+6. - [x] Scroll deep → **Changes** (the grid unmounts) → **History**: back on the same row. Alt+1 / the bar's × take the same path.
+7. - [x] On a dirty repository sitting on the working-tree row, switch tabs and back: the row is in view again, not scrolled one row past it.
+8. - [x] Refresh (F5) with nothing changed, from any scroll position: nothing moves.
+9. - [ ] A reader who scrolls **during** the restart keeps their own scroll: not drivable here (the window between the walk restarting and completing is ~90 ms, and the watcher's own delay jitters more than that). Covered by `repoStore.test.ts` "does not scroll under a reader who moved while the restarted walk's first page loaded". What the walk did see: a scroll landing just *before* the restart re-anchors on the row the reader moved to, which is the same rule.
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the

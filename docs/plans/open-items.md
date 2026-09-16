@@ -413,6 +413,13 @@ Written after re-reading every row above against the working tree, `git log`, th
   `CommandPalette/`), §J's per-view sidebar state (one global `railOverride`), §I's S1 blame
   cancellation (no token anywhere in the stores), and every §A performance row (untouched, and each
   still wants a measurement first).
+- ~~**The grid's scroll position is neither tab state nor anchored to the rows**~~ — reported by the
+  user on 2026-09-16 as *"pulled, switched tabs, came back somewhere else"*, fixed the same day:
+  `topRow` in `repoStore`, a `start`-aligned reveal in the tab snapshot, and `reanchor` after a walk
+  restart. Walked over CDP against a 10 956-commit repository —
+  `docs/archive/walks/2026-09-16-viewport-anchor-walk.md`, which also records what the first version
+  got wrong (one-pass anchoring never fires, because the restarted walk's first page comes back
+  short) and three CDP techniques worth keeping.
 - **Uncommitted, undocumented**: `FetchDialog` defaults to *All remotes* when a repository has more
   than one, and to that one remote otherwise (`OpsDialogs.tsx`, plus a `dialogs.test.tsx` case).
   Working, gates green, not committed — finish or discard it before the next batch.

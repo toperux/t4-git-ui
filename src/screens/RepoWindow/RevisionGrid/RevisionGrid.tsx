@@ -10,7 +10,7 @@ import { useDialogStore, type DialogSpec } from "../../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../../store/opsStore";
 import { bisectMark, checkoutBranch, checkoutDetached, checkoutRemoteBranch, copyText, openCommitPanel } from "../actions";
 import { cx } from "../../../lib/cx";
-import { useMerging, useRepoStore } from "../../../store/repoStore";
+import { lastTopRow, noteTopRow, useMerging, useRepoStore } from "../../../store/repoStore";
 import { selectChangeCount, useShowWorkingTree, useStatusStore } from "../../../store/statusStore";
 import { useThemeTokens } from "../../../theme/useThemeTokens";
 import { commitBranchActions, type BranchAt, type DeleteAt } from "./commitMenu";
@@ -78,10 +78,30 @@ export function RevisionGrid() {
     if (last >= first) ensureRows(first, last + 1 + OVERSCAN);
   }, [first, last, total, ensureRows]);
 
+  // The View switch unmounts this grid, and its scroll position goes with it: coming back to History
+  // starts it where the store last saw the viewport. Declared before the reveal effect so that a tab
+  // being restored — which mounts with a scroll request of its own — still wins.
   useEffect(() => {
-    if (reveal) virtualizer.scrollToIndex(reveal.index + offset, { align: "auto" });
+    const row = lastTopRow();
+    if (row > 0) virtualizer.scrollToIndex(row + offset, { align: "start" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!reveal) return;
+    // `-1` is the working-tree pseudo-row, and it is `0` again for a grid that has none.
+    virtualizer.scrollToIndex(Math.max(0, reveal.index + offset), { align: reveal.align ?? "auto" });
+    // A scroll request is answered once: the grid unmounts on the view switch, and a request left
+    // standing would be answered again — with an index from whatever walk it was made in — the next
+    // time History mounts.
+    useRepoStore.setState((st) => (st.reveal === reveal ? { reveal: null } : {}));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reveal]);
+
+  // The store cannot see the scroll position, and it is what puts the viewport back after a tab
+  // switch or a walk restart — `range` is the rows actually in view, not the overscan ones.
+  const topRow = (virtualizer.range?.startIndex ?? 0) - offset;
+  useEffect(() => noteTopRow(topRow), [topRow]);
 
   const graphW = graphWidth(lanes, tokens.laneW);
 

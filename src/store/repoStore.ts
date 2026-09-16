@@ -55,8 +55,13 @@ export interface RepoStore {
    * every index) and clears it once the entry is gone.
    */
   preview: Stash | null;
-  /** Scroll request for the grid; `seq` bumps so the same index can be revealed twice. */
-  reveal: { index: number; seq: number } | null;
+  /**
+   * Scroll request for the grid, cleared by the grid once it has answered it; `seq` bumps so the
+   * same index can be revealed twice. `align` says how the row is placed: `auto` scrolls it just
+   * into view (revealing a commit), `start` puts it at the top (restoring a viewport). `-1` is the
+   * working-tree pseudo-row, i.e. the top of the list.
+   */
+  reveal: { index: number; seq: number; align?: "start" } | null;
 
   setGitVersion(v: string | null): void;
   openRepo(path: string): Promise<void>;
@@ -104,6 +109,25 @@ let labelGen = 0;
  * has it (`reselect`). While set, the first page does not default the selection to row 0.
  */
 let pendingSelect: { oid: string; generation: number | null } | null = null;
+/**
+ * First row the grid has in view (`-1` = the working-tree pseudo-row), as the grid last reported it.
+ * The scroll position itself is DOM state on a component that outlives both a tab switch and a walk
+ * restart, so this is what puts it back: `snapshot` carries it, and `startLog` anchors on it.
+ */
+let topRow = 0;
+/**
+ * The row the viewport sat on when `startLog` restarted the walk, scrolled back under the viewport
+ * once the new walk has it (`reanchor`).
+ */
+let pendingAnchor: { oid: string; index: number; generation: number | null } | null = null;
+
+/** The grid reports its first visible row here; nothing renders from it, so it is not store state. */
+export function noteTopRow(index: number) {
+  topRow = index;
+}
+
+/** Where the viewport was when the grid last reported it — what a remounting grid scrolls back to. */
+export const lastTopRow = () => topRow;
 
 /** Pages worth refetching eagerly: the viewport's own pages plus one on either side. */
 function nearViewport(p: number) {
@@ -159,6 +183,33 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
     pendingSelect = null;
     set({ selectedIndex: index });
     void fetchPage(Math.floor(index / PAGE_SIZE));
+  }
+
+  /**
+   * Puts the scroll back on the row the viewport started at. A walk restart renumbers the rows — a
+   * fetch that brought three commits pushes everything down three — and the grid scrolls in pixels,
+   * so without this the same offset shows different commits after every pull.
+   *
+   * Like `reselect`, a row the walk has not reached yet is tried again when it completes
+   * (`onProgress`) — the first page usually comes back short, so a viewport past its rows is not
+   * findable on the first pass at all.
+   */
+  async function reanchor() {
+    const pending = pendingAnchor;
+    const { repo, log } = get();
+    if (!pending || !repo || log.generation === null || pending.generation !== log.generation) return;
+    const index = await findIndex(pending.oid, log.generation);
+    const s = get();
+    // `topRow` moved: the reader scrolled while the page loaded, and their scroll wins over ours.
+    if (pendingAnchor !== pending || s.repo?.id !== repo.id || s.log.generation !== log.generation || topRow !== pending.index) return;
+    if (index === null) {
+      if (!s.log.complete) return; // `onProgress` retries once the walk is complete
+      pendingAnchor = null; // gone for good (rewritten, filtered out): leave the scroll alone
+      return;
+    }
+    pendingAnchor = null;
+    if (index === pending.index) return; // exactly where it was: nothing to scroll
+    set((st) => ({ reveal: { index, seq: (st.reveal?.seq ?? 0) + 1, align: "start" } }));
   }
 
   function fetchPage(p: number): Promise<void> {
@@ -274,6 +325,8 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
         startSeq++;
         resetPages();
         pendingSelect = null;
+        pendingAnchor = null;
+        topRow = 0;
         set({
           repo,
           refs: null,
@@ -311,6 +364,8 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
       startSeq++;
       resetPages();
       pendingSelect = null;
+      pendingAnchor = null;
+      topRow = 0;
       set({ repo: null, refs: null, linked: null, remoteTags: {}, log: EMPTY_LOG, rows: [], selectedIndex: null, wtSelected: false, compare: null, preview: null, reveal: null });
       await ipc.closeRepo(repo.id);
     },
@@ -396,6 +451,10 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
       // and the selected commit is selected again once the new walk has it — see `reselect`.
       const selectedOid = prev.wtSelected || prev.selectedIndex === null ? null : (prev.rows[prev.selectedIndex]?.row.commit.oid ?? null);
       pendingSelect = selectedOid ? { oid: selectedOid, generation: null } : null;
+      // The viewport keeps the commits it is on (`reanchor`) — but only off the top: at the top new
+      // commits belong in view, rather than the scroll following the old ones down past them.
+      const anchorOid = topRow > 0 ? (prev.rows[topRow]?.row.commit.oid ?? null) : null;
+      pendingAnchor = anchorOid ? { oid: anchorOid, index: topRow, generation: null } : null;
       const flat = !!filter.text?.trim() || !!filter.path;
       set({
         spec,
@@ -410,10 +469,14 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
         const generation = await ipc.startLog(repo.id, spec, filter);
         if (seq !== startSeq || get().repo?.id !== repo.id) return; // superseded
         if (pendingSelect) pendingSelect.generation = generation;
+        if (pendingAnchor) pendingAnchor.generation = generation;
         set((s) => ({ log: { ...s.log, generation } }));
-        // Not awaited: `startLog` resolves once the walk is started, as before; the selection is
-        // put back after the first page (the commit is usually near where it was).
-        void fetchPage(0).then(reselect);
+        // Not awaited: `startLog` resolves once the walk is started, as before; the selection and the
+        // viewport are put back after the first page (both are usually near where they were).
+        void fetchPage(0).then(() => {
+          void reselect();
+          void reanchor();
+        });
       } catch (e) {
         if (seq !== startSeq) return;
         set((s) => ({ log: { ...s.log, complete: true, error: toAppError(e).message } }));
@@ -481,6 +544,7 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
       // are skipped, so this is idle once the viewport is filled.
       get().ensureRows(viewport.start, viewport.end);
       if (p.complete && pendingSelect) void reselect();
+      if (p.complete && pendingAnchor) void reanchor();
     },
   };
 });
@@ -493,13 +557,22 @@ const SNAPSHOT_KEYS = ["repo", "refs", "linked", "remoteTags", "spec", "filter",
 
 export type RepoSnapshot = Pick<RepoStore, (typeof SNAPSHOT_KEYS)[number]>;
 
-export const snapshot = (): RepoSnapshot => pick(useRepoStore.getState(), SNAPSHOT_KEYS);
+export const snapshot = (): RepoSnapshot => {
+  const st = useRepoStore.getState();
+  // Where this tab was scrolled to, as a scroll request for when it comes back: the grid's own
+  // scroll position is DOM state on a component that outlives the switch, so a tab left alone would
+  // return at the offset of the tab being shown instead of its own.
+  return { ...pick(st, SNAPSHOT_KEYS), reveal: { index: topRow, seq: (st.reveal?.seq ?? 0) + 1, align: "start" } };
+};
 
 export function restore(s: RepoSnapshot) {
   // The page bookkeeping describes the tab being left; activation restarts the walk (`refreshAll`),
   // which is what fills the pages again.
   resetPages();
   pendingSelect = null;
+  pendingAnchor = null;
+  // That restart anchors on the row this tab was on, not on the row the grid still shows.
+  topRow = s.reveal?.index ?? 0;
   useRepoStore.setState(s);
 }
 
@@ -509,6 +582,8 @@ export function __resetForTests() {
   startSeq = 0;
   labelGen = 0;
   pendingSelect = null;
+  pendingAnchor = null;
+  topRow = 0;
   viewport = { start: 0, end: PAGE_SIZE };
   useRepoStore.setState({
     gitVersion: null,

@@ -18,7 +18,7 @@ vi.mock("../api/ipc", async (importOriginal) => {
 });
 
 import * as ipc from "../api/ipc";
-import { __resetForTests, PAGE_SIZE, useRepoStore } from "./repoStore";
+import { __resetForTests, noteTopRow, PAGE_SIZE, restore, snapshot, useRepoStore } from "./repoStore";
 import { useToastStore } from "./toastStore";
 
 const REPO: RepoSummary = { id: "c:\\repo", name: "repo", path: "c:\\repo", head: { oid: "a", branch: "main", detached: false } };
@@ -179,6 +179,107 @@ describe("repoStore walk restarts", () => {
     await flush();
     expect(useRepoStore.getState().rows).toHaveLength(3);
     expect(useRepoStore.getState().selectedIndex).toBe(0);
+  });
+
+  /** Walk 1 is 30 rows; walk 2 carries three new commits on top of the same 30. */
+  function fetchOfThree() {
+    mocked.startLog.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
+    mocked.getLogPage.mockImplementation((_id: string, gen: number, offset: number) =>
+      Promise.resolve(gen === 1 ? page(1, offset, 30, 30) : { ...page(2, offset, 33, 33), rows: [row(100), row(101), row(102), ...page(2, 0, 30, 30).rows] }),
+    );
+  }
+
+  it("keeps the viewport on the rows it was on when a fetch adds commits above them", async () => {
+    fetchOfThree();
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    noteTopRow(10); // `oid10` is the first row in view
+
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    // Three rows above it now, so the grid is asked to put it back at the top of the viewport.
+    expect(useRepoStore.getState().rows[13]?.row.commit.oid).toBe("oid10");
+    expect(useRepoStore.getState().reveal).toMatchObject({ index: 13, align: "start" });
+  });
+
+  it("waits for the walk to reach the anchor: the restarted walk's first page is usually short", async () => {
+    mocked.startLog.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
+    mocked.getLogPage.mockImplementation((_id: string, gen: number, offset: number) =>
+      // Walk 2 is still running when its first page is asked for, and has 30 of its 33 rows.
+      Promise.resolve(gen === 1 ? page(1, offset, 30, 30) : { ...page(2, offset, 30, 30, false), rows: [row(100), row(101), row(102), ...page(2, 0, 27, 27).rows] }),
+    );
+    mocked.findLogRow.mockResolvedValue(null); // the backend has not walked that far either
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    noteTopRow(10);
+
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    // Not found yet, so nothing is scrolled and the anchor is kept for the retry.
+    expect(useRepoStore.getState().reveal).toBeNull();
+
+    // The walk finished: the backend can place the anchor now (three rows lower than it was).
+    mocked.findLogRow.mockImplementation((_id: string, _gen: number, oid: string) => Promise.resolve(oid === "oid10" ? 13 : 3));
+    useRepoStore.getState().onProgress({ repoId: REPO.id, generation: 2, total: 33, complete: true, error: null });
+    await flush();
+    expect(useRepoStore.getState().reveal).toMatchObject({ index: 13, align: "start" });
+  });
+
+  it("leaves the scroll alone at the top of the list, and when the rows did not move", async () => {
+    fetchOfThree();
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    noteTopRow(0); // at the top: the new commits belong in view, not pushed past it
+
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    expect(useRepoStore.getState().reveal).toBeNull();
+
+    // And a restart that renumbers nothing scrolls nothing, wherever the viewport is: the same 33
+    // rows in the same order (a refresh that found no new commits).
+    mocked.startLog.mockResolvedValueOnce(3);
+    mocked.getLogPage.mockImplementation((_id: string, gen: number, offset: number) =>
+      Promise.resolve({ ...page(gen, offset, 33, 33), rows: [row(100), row(101), row(102), ...page(gen, 0, 30, 30).rows] }),
+    );
+    noteTopRow(7);
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    expect(useRepoStore.getState().reveal).toBeNull();
+  });
+
+  it("does not scroll under a reader who moved while the restarted walk's first page loaded", async () => {
+    let resolveSecond!: (p: LogPage) => void;
+    mocked.startLog.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
+    mocked.getLogPage
+      .mockImplementationOnce((_id: string, gen: number, offset: number) => Promise.resolve(page(gen, offset, 30, 30)))
+      .mockImplementationOnce(() => new Promise<LogPage>((r) => (resolveSecond = r)));
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    noteTopRow(10);
+
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    noteTopRow(25); // they scrolled on
+    resolveSecond({ ...page(2, 0, 33, 33), rows: [row(100), row(101), row(102), ...page(2, 0, 30, 30).rows] });
+    await flush();
+    expect(useRepoStore.getState().reveal).toBeNull();
+  });
+
+  it("a tab's snapshot carries where it was scrolled to, and its walk restarts from there", async () => {
+    fetchOfThree();
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    noteTopRow(10);
+    const saved = snapshot();
+    expect(saved.reveal).toMatchObject({ index: 10, align: "start" });
+
+    // The other tab scrolls elsewhere; coming back restores this one and refreshes it (`refreshAll`).
+    noteTopRow(400);
+    restore(saved);
+    expect(useRepoStore.getState().reveal).toMatchObject({ index: 10, align: "start" });
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    // Anchored on this tab's row, not on the row the grid still had on screen.
+    expect(useRepoStore.getState().reveal).toMatchObject({ index: 13, align: "start" });
   });
 
   it("revealOid uses the backend index instead of paging through the log", async () => {

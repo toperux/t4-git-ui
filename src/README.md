@@ -50,7 +50,16 @@ src/
                            each answer merges into the current state and prunes remotes that are gone, a failure toasts
                            "Couldn't check <remote> for tags" and keeps that remote's entry, `announce` toasts the counts), refreshLabels (re-fetch the pages
                            around the last `ensureRows` viewport, drop the rest so they reload lazily), startLog,
-                           ensureRows (500-row pages, dedupe, stale drop), select, selectWorkingTree, revealOid;
+                           ensureRows (500-row pages, dedupe, stale drop), select, selectWorkingTree, revealOid,
+                           noteTopRow (the grid's first visible row, `-1` = the working-tree row: module state, nothing renders
+                           from it). The scroll position is the grid's own DOM state, so that row is what puts a viewport back —
+                           `snapshot()` carries it as a `start`-aligned reveal (a tab returns where it was, not where the tab
+                           being left is) and `startLog` anchors on it by oid, so the rows a fetch adds above the viewport
+                           scroll under it instead of pushing it down; not from the top row, where new commits belong in view.
+                           `reanchor` waits for the walk to reach that row exactly as `reselect` does (`onProgress`): the
+                           restarted walk's first page usually comes back short, so a deeper viewport is not findable on the
+                           first pass. The grid clears `reveal` once it has scrolled — it unmounts on the Changes view switch,
+                           and a standing request would be answered again from an older walk's numbering;
                            a page rejected with `staleGeneration` restarts the walk, any other kind toasts once (never loops);
                            `__resetForTests()` clears the module-level page bookkeeping.
                            filter {text, workingTree, path}: `path` is the file history filter (§3) — `flat` counts it, so the
