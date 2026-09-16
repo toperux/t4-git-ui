@@ -56,71 +56,71 @@
   --dur-panel: 150ms;     /* collapse/expand, dock toggle */
 
   /* Surfaces */
-  --bg-app: #e0e3e8;       /* window, sidebar, toolbar */
-  --bg-panel: #eef0f3;     /* content areas: grid, diff, lists */
-  --bg-elevated: #f1f3f6;  /* popovers, menus, dialogs: one step above panel; emphasis comes from --shadow-2 + --scrim */
+  --bg-app: #c4c7cb;       /* window, sidebar, toolbar */
+  --bg-panel: #d3d5d7;     /* content areas: grid, diff, lists */
+  --bg-elevated: #e1e3e5;  /* popovers, menus, dialogs: one step above panel; emphasis comes from --shadow-2 + --scrim */
   --scrim: rgba(17, 24, 39, 0.32); /* modal backdrop */
-  --bg-inset: #dadde3;     /* inputs, output dock, code blocks */
+  --bg-inset: #b6b9be;     /* inputs, output dock, code blocks */
   --bg-hover: rgba(17, 24, 39, 0.05);
   --bg-active: rgba(17, 24, 39, 0.09);
-  --bg-selected: #cddbf8;
-  --bg-selected-unfocused: #d9dde4;
+  --bg-selected: #aeb9d3;
+  --bg-selected-unfocused: #b4b9c3;
 
   /* Text */
   --fg: #1a1d24;
-  --fg-muted: #545a67;     /* ≥4.5:1 on every surface incl. selected rows + hover composite */
-  --fg-faint: #737c8a;     /* placeholders / disabled ONLY (≥3:1); never for information */
+  --fg-muted: #3f434e;     /* ≥4.5:1 on every surface incl. selected rows + hover composite */
+  --fg-faint: #59616c;     /* placeholders / disabled ONLY (≥3:1); never for information */
   --fg-on-accent: #ffffff;
 
   /* Borders */
-  --border: #ced3da;       /* dividers (decorative, no contrast target) */
-  --border-strong: #758295; /* control edges: secondary button, checkbox, input hover — ≥3:1 on panel + app */
+  --border: #a7abb1;       /* dividers (decorative, no contrast target) */
+  --border-strong: #5f6a7a; /* control edges: secondary button, checkbox, input hover — ≥3:1 on panel + app */
 
   /* Accent + semantic. `--accent`/`--danger` are FILLS (buttons, badges, focus ring, HEAD chip);
      `--accent-text`/`--danger-text` are the text/icon-safe variants (≥4.5:1 on surfaces). */
-  --accent: #2f6feb;
-  --accent-hover: #255fd1;
-  --accent-soft: #dbe6fb;
-  --accent-text: #1858df;
-  --danger: #d3382c;  --danger-hover: #b92f25; --danger-soft: #f6e4e2; --danger-text: #bc3227;
-  --success: #147437; --success-soft: #dff0e3;
-  --warning: #9e5009; --warning-soft: #f7ecd6;
+  --accent: #2459be;
+  --accent-hover: #1b4aa5;
+  --accent-soft: #c1cbdd;
+  --accent-text: #1044af;
+  --danger: #aa2b22;  --danger-hover: #91231b; --danger-soft: #dac9c8; --danger-text: #95251d;
+  --success: #0d5a29; --success-soft: #c5d5c9;
+  --warning: #7c3d05; --warning-soft: #dad1bd;
 
   /* Focus */
   --focus-ring: 0 0 0 2px var(--bg-panel), 0 0 0 4px var(--accent);
 
   /* Shadows (the only two; --shadow-1 also serves tooltips) */
-  --shadow-1: 0 4px 16px rgba(17, 24, 39, 0.12), 0 0 0 1px var(--border);
-  --shadow-2: 0 12px 40px rgba(17, 24, 39, 0.22), 0 0 0 1px var(--border);
+  --shadow-1: 0 4px 16px rgba(17, 24, 39, 0.16), 0 0 0 1px var(--border);
+  --shadow-2: 0 12px 40px rgba(17, 24, 39, 0.28), 0 0 0 1px var(--border);
   --kbd-on-dark-bg: rgba(255, 255, 255, 0.15); /* kbd inside the inverted tooltip */
 
   /* Scrollbar (thumb ≥3:1 on panel/app) */
-  --scrollbar-thumb: rgba(17, 24, 39, 0.48);
-  --scrollbar-thumb-hover: rgba(17, 24, 39, 0.62);
+  --scrollbar-thumb: rgba(17, 24, 39, 0.62);
+  --scrollbar-thumb-hover: rgba(17, 24, 39, 0.76);
 
   /* Graph lanes (cycle 0-7; each ≥3:1 on --bg-panel) */
-  --graph-0: #3b82f6; --graph-1: #159f48; --graph-2: #d07206; --graph-3: #dc2626;
-  --graph-4: #7c3aed; --graph-5: #0891b2; --graph-6: #db2777; --graph-7: #5f9a0c;
+  --graph-0: #2f6acc; --graph-1: #0f843a; --graph-2: #ac5e04; --graph-3: #b11d1d;
+  --graph-4: #612cbb; --graph-5: #057893; --graph-6: #b21e5f; --graph-7: #4e8008;
 
   /* Diff */
-  --diff-add-bg: #dff0e3;  --diff-add-gutter: #c3e5cc; --diff-add-fg: #14532d; --diff-add-word: #b7e4c3;
-  --diff-del-bg: #f6e4e2;  --diff-del-gutter: #efcbc6; --diff-del-fg: #7f1d1d; --diff-del-word: #f5b8b1;
-  --diff-hunk-bg: #e2e8f8; --diff-hunk-fg: #4c5b8f;
+  --diff-add-bg: #c5d5c9;  --diff-add-gutter: #abc9b2; --diff-add-fg: #0c3b1e; --diff-add-word: #a0c8aa;
+  --diff-del-bg: #dac9c8;  --diff-del-gutter: #d1b2ad; --diff-del-fg: #591212; --diff-del-word: #d5a099;
+  --diff-hunk-bg: #c7cddb; --diff-hunk-fg: #39456e;
   --diff-gutter-fg: var(--fg-muted);
 
   /* Syntax highlighting in diffs (each ≥4.5:1 on --bg-panel, --diff-add-bg and --diff-del-bg) */
-  --syn-keyword: #9a1f9c; --syn-string: #1b6b3a; --syn-comment: var(--fg-muted); --syn-number: #0b5fa5;
-  --syn-type: #8a4b0a; --syn-function: #5a3fc0; --syn-punct: var(--fg-muted);
+  --syn-keyword: #761578; --syn-string: #12512b; --syn-comment: var(--fg-muted); --syn-number: #064980;
+  --syn-type: #6a3806; --syn-function: #432e93; --syn-punct: var(--fg-muted);
 
   /* Ref chips */
-  --chip-local-bg: var(--accent-soft); --chip-local-fg: #1e4fb8;
-  --chip-remote-bg: #d8dce3;           --chip-remote-fg: #4b5563;
-  --chip-tag-bg: var(--warning-soft);  --chip-tag-fg: #8a5a06;
+  --chip-local-bg: var(--accent-soft); --chip-local-fg: #143b8c;
+  --chip-remote-bg: #bdc1c7;           --chip-remote-fg: #373f49;
+  --chip-tag-bg: var(--warning-soft);  --chip-tag-fg: #6c4504;
   --chip-head-bg: var(--accent);       --chip-head-fg: var(--fg-on-accent);
-  --chip-stash-bg: #e9e2fa;            --chip-stash-fg: #5b3bb5;
+  --chip-stash-bg: #cec7dd;            --chip-stash-fg: #432b89;
 
   /* Folder rows in every tree. Not `--warning`: a folder is not a warning, and the two must drift freely. */
-  --folder-fg: #8a5a06;
+  --folder-fg: #6c4504;
 
   /* File status glyphs (text on --bg-panel) */
   --status-added: var(--success);
@@ -573,16 +573,16 @@ body { background: #cfd3da; }
   </div>
   <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px;"><div class="t-light sheet" style="display: flex; flex-direction: column; gap: 28px; padding: 20px; border-radius: 8px; min-width: 0;"><div class="sec">
   <div class="sec-title"><div class="h3">Surfaces</div><div class="sm muted">four layers + interaction tints</div></div>
-  <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px;"><div class="swatch"><div class="swatch-box" style="background: var(--bg-app);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--bg-app</div><div class="swatch-val">#e0e3e8</div></div><div class="swatch"><div class="swatch-box" style="background: var(--bg-panel);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--bg-panel</div><div class="swatch-val">#eef0f3</div></div><div class="swatch"><div class="swatch-box" style="background: var(--bg-elevated);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--bg-elevated</div><div class="swatch-val">#f1f3f6</div></div><div class="swatch"><div class="swatch-box" style="background: var(--bg-inset);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--bg-inset</div><div class="swatch-val">#dadde3</div></div><div class="swatch"><div class="swatch-box" style="background: var(--bg-hover);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--bg-hover</div><div class="swatch-val">rgba(17, 24, 39, 0.05)</div></div><div class="swatch"><div class="swatch-box" style="background: var(--bg-active);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--bg-active</div><div class="swatch-val">rgba(17, 24, 39, 0.09)</div></div><div class="swatch"><div class="swatch-box" style="background: var(--bg-selected);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--bg-selected</div><div class="swatch-val">#cddbf8</div></div><div class="swatch"><div class="swatch-box" style="background: var(--bg-selected-unfocused);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--bg-selected-unfocused</div><div class="swatch-val">#d9dde4</div></div><div class="swatch"><div class="swatch-box" style="background: var(--scrim);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--scrim</div><div class="swatch-val">rgba(17, 24, 39, 0.32)</div></div></div>
+  <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px;"><div class="swatch"><div class="swatch-box" style="background: var(--bg-app);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--bg-app</div><div class="swatch-val">#c4c7cb</div></div><div class="swatch"><div class="swatch-box" style="background: var(--bg-panel);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--bg-panel</div><div class="swatch-val">#d3d5d7</div></div><div class="swatch"><div class="swatch-box" style="background: var(--bg-elevated);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--bg-elevated</div><div class="swatch-val">#e1e3e5</div></div><div class="swatch"><div class="swatch-box" style="background: var(--bg-inset);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--bg-inset</div><div class="swatch-val">#b6b9be</div></div><div class="swatch"><div class="swatch-box" style="background: var(--bg-hover);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--bg-hover</div><div class="swatch-val">rgba(17, 24, 39, 0.05)</div></div><div class="swatch"><div class="swatch-box" style="background: var(--bg-active);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--bg-active</div><div class="swatch-val">rgba(17, 24, 39, 0.09)</div></div><div class="swatch"><div class="swatch-box" style="background: var(--bg-selected);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--bg-selected</div><div class="swatch-val">#aeb9d3</div></div><div class="swatch"><div class="swatch-box" style="background: var(--bg-selected-unfocused);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--bg-selected-unfocused</div><div class="swatch-val">#b4b9c3</div></div><div class="swatch"><div class="swatch-box" style="background: var(--scrim);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--scrim</div><div class="swatch-val">rgba(17, 24, 39, 0.32)</div></div></div>
 </div><div class="sec">
   <div class="sec-title"><div class="h3">Text</div><div class="sm muted">three levels; never lighter than faint for readable copy</div></div>
-  <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px;"><div class="swatch"><div class="swatch-box" style="background: var(--bg-panel); color: var(--fg); display: flex; align-items: center; padding: 0 10px; font-weight: 500;">Primary copy</div><div class="swatch-name">--fg</div><div class="swatch-val">#1a1d24</div></div><div class="swatch"><div class="swatch-box" style="background: var(--bg-panel); color: var(--fg-muted); display: flex; align-items: center; padding: 0 10px;">Secondary, metadata</div><div class="swatch-name">--fg-muted</div><div class="swatch-val">#545a67</div></div><div class="swatch"><div class="swatch-box" style="background: var(--bg-panel); color: var(--fg-faint); display: flex; align-items: center; padding: 0 10px;">Placeholder, hints</div><div class="swatch-name">--fg-faint</div><div class="swatch-val">#737c8a</div></div><div class="swatch"><div class="swatch-box" style="background: var(--accent); color: var(--fg-on-accent); display: flex; align-items: center; padding: 0 10px; font-weight: 500;">On accent</div><div class="swatch-name">--fg-on-accent</div><div class="swatch-val">#ffffff</div></div></div>
+  <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px;"><div class="swatch"><div class="swatch-box" style="background: var(--bg-panel); color: var(--fg); display: flex; align-items: center; padding: 0 10px; font-weight: 500;">Primary copy</div><div class="swatch-name">--fg</div><div class="swatch-val">#1a1d24</div></div><div class="swatch"><div class="swatch-box" style="background: var(--bg-panel); color: var(--fg-muted); display: flex; align-items: center; padding: 0 10px;">Secondary, metadata</div><div class="swatch-name">--fg-muted</div><div class="swatch-val">#3f434e</div></div><div class="swatch"><div class="swatch-box" style="background: var(--bg-panel); color: var(--fg-faint); display: flex; align-items: center; padding: 0 10px;">Placeholder, hints</div><div class="swatch-name">--fg-faint</div><div class="swatch-val">#59616c</div></div><div class="swatch"><div class="swatch-box" style="background: var(--accent); color: var(--fg-on-accent); display: flex; align-items: center; padding: 0 10px; font-weight: 500;">On accent</div><div class="swatch-name">--fg-on-accent</div><div class="swatch-val">#ffffff</div></div></div>
 </div><div class="sec">
   <div class="sec-title"><div class="h3">Borders</div><div class="sm muted">hairlines everywhere; strong only on controls</div></div>
-  <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px;"><div class="swatch"><div class="swatch-box" style="background: var(--border);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--border</div><div class="swatch-val">#ced3da</div></div><div class="swatch"><div class="swatch-box" style="background: var(--border-strong);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--border-strong</div><div class="swatch-val">#758295</div></div></div>
+  <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px;"><div class="swatch"><div class="swatch-box" style="background: var(--border);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--border</div><div class="swatch-val">#a7abb1</div></div><div class="swatch"><div class="swatch-box" style="background: var(--border-strong);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--border-strong</div><div class="swatch-val">#5f6a7a</div></div></div>
 </div><div class="sec">
   <div class="sec-title"><div class="h3">Accent + semantic</div><div class="sm muted">one accent. semantic colors only for meaning, never decoration</div></div>
-  <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px;"><div class="swatch"><div class="swatch-box" style="background: var(--accent);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--accent</div><div class="swatch-val">#2f6feb</div></div><div class="swatch"><div class="swatch-box" style="background: var(--accent-hover);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--accent-hover</div><div class="swatch-val">#255fd1</div></div><div class="swatch"><div class="swatch-box" style="background: var(--accent-soft);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--accent-soft</div><div class="swatch-val">#dbe6fb</div></div><div class="swatch"><div class="swatch-box" style="background: var(--danger);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--danger</div><div class="swatch-val">#d3382c</div></div><div class="swatch"><div class="swatch-box" style="background: var(--danger-soft);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--danger-soft</div><div class="swatch-val">#f6e4e2</div></div><div class="swatch"><div class="swatch-box" style="background: var(--success);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--success</div><div class="swatch-val">#147437</div></div><div class="swatch"><div class="swatch-box" style="background: var(--success-soft);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--success-soft</div><div class="swatch-val">#dff0e3</div></div><div class="swatch"><div class="swatch-box" style="background: var(--warning);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--warning</div><div class="swatch-val">#9e5009</div></div><div class="swatch"><div class="swatch-box" style="background: var(--warning-soft);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--warning-soft</div><div class="swatch-val">#f7ecd6</div></div></div>
+  <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px;"><div class="swatch"><div class="swatch-box" style="background: var(--accent);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--accent</div><div class="swatch-val">#2459be</div></div><div class="swatch"><div class="swatch-box" style="background: var(--accent-hover);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--accent-hover</div><div class="swatch-val">#1b4aa5</div></div><div class="swatch"><div class="swatch-box" style="background: var(--accent-soft);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--accent-soft</div><div class="swatch-val">#c1cbdd</div></div><div class="swatch"><div class="swatch-box" style="background: var(--danger);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--danger</div><div class="swatch-val">#aa2b22</div></div><div class="swatch"><div class="swatch-box" style="background: var(--danger-soft);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--danger-soft</div><div class="swatch-val">#dac9c8</div></div><div class="swatch"><div class="swatch-box" style="background: var(--success);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--success</div><div class="swatch-val">#0d5a29</div></div><div class="swatch"><div class="swatch-box" style="background: var(--success-soft);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--success-soft</div><div class="swatch-val">#c5d5c9</div></div><div class="swatch"><div class="swatch-box" style="background: var(--warning);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--warning</div><div class="swatch-val">#7c3d05</div></div><div class="swatch"><div class="swatch-box" style="background: var(--warning-soft);  display: flex; align-items: center; justify-content: center; font-size: 12px;"></div><div class="swatch-name">--warning-soft</div><div class="swatch-val">#dad1bd</div></div></div>
 </div><div class="sec">
   <div class="sec-title"><div class="h3">Typography</div><div class="sm muted">Inter (UI) + JetBrains Mono (code, hashes, paths). Hierarchy by weight, not size.</div></div>
   <div style="display: flex; flex-direction: column; gap: 10px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">

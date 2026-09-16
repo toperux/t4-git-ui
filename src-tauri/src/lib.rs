@@ -100,9 +100,9 @@ pub(crate) fn show_with_theme(app: &AppHandle, win: &tauri::WebviewWindow) {
         Some("dark") => false,
         _ => matches!(win.theme(), Ok(tauri::Theme::Light)),
     };
-    // --bg-app: light #e0e3e8, dark #16181d (index.html paints the same two)
+    // --bg-app: light #c4c7cb, dark #16181d (index.html paints the same two)
     let color = if light {
-        Color(0xe0, 0xe3, 0xe8, 0xff)
+        Color(0xc4, 0xc7, 0xcb, 0xff)
     } else {
         Color(0x16, 0x18, 0x1d, 0xff)
     };
