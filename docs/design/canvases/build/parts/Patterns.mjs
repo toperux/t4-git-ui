@@ -175,7 +175,7 @@ function detailsPane() {
 function shortcuts() {
   const k = (...ks) => ks.map((x) => `<span class="kbd">${x}</span>`).join('');
   const r = (a, b) => `<div style="display: flex; align-items: center; gap: 8px; height: 22px;"><span class="grow" style="flex: 1;">${a}</span><span style="display: inline-flex; gap: 3px;">${b}</span></div>`;
-  return section('Keyboard hints', 'shortcuts appear in tooltips and menus, never as labels · Ctrl on Win/Linux, ⌘ on macOS',
+  return section('Keyboard hints', 'shortcuts appear in tooltips and menus, never as labels · written literally as Ctrl+…, on every platform',
     `<div class="sm" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px;">
       ${r('Commit', k('Ctrl', 'Enter'))}${r('Fetch', k('Ctrl', 'F5'))}
       ${r('Stage / unstage file', k('Space'))}${r('Pull', k('Ctrl', 'Shift', 'L'))}

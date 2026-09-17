@@ -36,6 +36,19 @@ export const selectChangeCount = (s: StatusStore) =>
 /** `lib/freshStatus` against the refs as they are now — for the imperative callers below. */
 const freshNow = () => freshStatus(useStatusStore.getState().status, useRepoStore.getState().refs?.state);
 
+/**
+ * Nothing left to commit, judged only on a status the refs agree with: one scanned in another state
+ * reads as "not known yet", never as clean. `clean` is demanded rather than merely not `merge`,
+ * because an unfinished operation has a commit still to make whatever the count says — a
+ * `merge --no-commit` that staged nothing, or a paused rebase, whose banner sends the user to the
+ * very commit panel this answer would close (`banners.ts`: "amend or add commits in the commit
+ * panel, then Continue", and an **Open commit panel** button beside it).
+ */
+export const nothingToCommit = (): boolean => {
+  const fresh = freshNow();
+  return fresh !== null && fresh.state === "clean" && selectChangeCount(useStatusStore.getState()) === 0;
+};
+
 /** The same, reactive: re-reads when either the status or the refs change. */
 export const useFreshStatus = () =>
   freshStatus(

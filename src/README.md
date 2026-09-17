@@ -89,6 +89,9 @@ src/
                            walkSeeds = the oids the walk is pushed from (HEAD for `head`; + branches, remote branches and
                            tags for `all`), so a fetch that moves origin/* re-walks instead of only relabelling;
                            a clean tree clears wtSelected (unless mid-merge); useShowWorkingTree() = (dirty || merging) && !flat; follows repoStore.repo;
+                           nothingToCommit() = for imperative callers: a fresh status (the refs agree with it), state
+                           `clean` and a zero count — a status from another state answers false rather than "clean", and
+                           an unfinished merge / rebase / pick still owes a commit however empty the tree is;
                            `__resetForTests()` clears the debounce timer and the seq / coalescing guards
     commitStore.ts         zustand: commit-panel state — list (unstaged|staged) + multi-selection + anchor, `+N −M` stats
                            (get_changed_files ×2), diff of the anchor (unstaged|staged target, the settings' context — remembered as
@@ -110,7 +113,10 @@ src/
                            deleted is resolved as a removal instead), setAmend (get_head_message prefill), prefillPending
                            (get_merge_message prefill when `refs.state` becomes `merge` / `cherryPick` / `revert`, taken back on
                            abort; `{staged: true}` for a `--no-commit` pick, which leaves the state clean), useMessage, commit
-                           (→ oid | null, clears the editor incl. after an amend, msgHistory, toast, status + refs refresh),
+                           (→ oid | null, clears the editor incl. after an amend, msgHistory, toast, status + refs refresh,
+                           then leaves the Changes view when the commit took the last change — `nothingToCommit()` and a
+                           count taken before the commit, so an amend on an already-clean tree empties nothing and stays;
+                           off by `autoCloseChanges`),
                            reset on repo change
     recentsStore.ts        zustand: RecentRepo{path,name,lastOpened,pinned} persisted via lib/kv; load (migrates the M1
                            `localStorage.lastRepo`), touch (20 unpinned cap), remove, togglePin, lastOpen, lastCloneDir;
@@ -122,7 +128,8 @@ src/
                            `busy` (statusbar text of the running op) + selectRunning;
                            runOp(busy, fn, {success, onRefused}) — the single entry point for every branch/remote/stash op
     settingsStore.ts       zustand: diffContext / ignoreWhitespace / gitPath (+ gitVersion, gitError) / autoUpdateCheck (ask GitHub
-                           at launch; nothing stored means on, so only opting out is persisted) from lib/kv; load() after the
+                           at launch; nothing stored means on, so only opting out is persisted) / autoCloseChanges (same rule:
+                           leave the Changes view after a commit that empties the tree) from lib/kv; load() after the
                            git probe seeds diffStore; setters persist and apply at once (setGitPath clears gitError, probes through
                            set_git_path and keeps only a working path; the version is mirrored into repoStore;
                            clearGitError on edit).
@@ -216,12 +223,12 @@ src/
   screens/
     StartScreen/           recents list (filter, keyboard, pin, remove) | Open / Clone… / Initialize… cards + shortcuts;
                            CloneDialog.tsx (components/ui/Dialog with `busy`; form → progress mode); the gear opens
-                           SettingsDialog from local state (no DialogHost here)
+                           SettingsDialog from local state (no DialogHost here), and so does Ctrl+,
     SettingsDialog/        Settings (wide Dialog, Close only — fields apply on change; context lines on blur / Enter; the git path on
                            Apply, Enter or Locate…) in three tabs of the Dialog's `tabs` row, ←/→ to switch, every panel kept
                            mounted so a tool section's uncommitted edits survive a switch and the row disabled while an update
                            downloads (Updates is under General and a download disables Close): General (Theme — Light / Dark /
-                           Follow system → theme.setTheme; Sidebar; Updates), Git (Git executable — path, Locate…, Apply →
+                           Follow system → theme.setTheme; Sidebar; Changes — one checkbox, autoCloseChanges; Updates), Git (Git executable — path, Locate…, Apply →
                            version or error inline; Signing), Diff & merge (Diff — context lines 0–99, ignore whitespace by
                            default; Diff tool; Merge tool) — backed by store/settingsStore
                            ToolSection.tsx × 2 (Diff tool / Merge tool): template Select (None | ten TOOLS | Custom) → findTool
@@ -304,7 +311,7 @@ src/
                            git has not moved HEAD, so that text asks for one and only Reset is offered) | conflicts banners),
                            useShortcuts.ts (Ctrl+Shift+U push, Ctrl+Shift+L pull, Ctrl+Shift+S stashes, Ctrl+Shift+R run git command, Ctrl+B branch,
                            Ctrl+F5 fetch, F5 refresh; Ctrl+Tab / Ctrl+Shift+Tab cycle tabs, Ctrl+W (Ctrl+Shift+W) close tab,
-                           Ctrl+T open, Ctrl+1..9 jump, Ctrl+Shift+N move to new window; Ctrl+` and the tab keys also inside
+                           Ctrl+T open, Ctrl+1..9 jump, Ctrl+Shift+N move to new window, Ctrl+, settings; Ctrl+` and the tab keys also inside
                            text fields — Ctrl+` is the only way out of the dock prompt; Alt+1 / Alt+2 History | Changes,
                            Ctrl+Shift+` sidebar rail ↔ full (matched on `e.code`: shifted, the key is layout-dependent),
                            Ctrl+K command palette (toggles; every other shortcut sleeps while it is open); Ctrl+Shift+` and

@@ -91,7 +91,9 @@ describe("StartScreen", () => {
   });
 
   it("ignores Ctrl+O while a repo is already opening", () => {
-    (ipc.openRepo as ReturnType<typeof vi.fn>).mockImplementation(() => new Promise(() => {}));
+    // `Once`: `clearAllMocks` clears calls but not implementations, and a never-settling openRepo
+    // left installed would keep every later test in this file stuck at `busy`.
+    (ipc.openRepo as ReturnType<typeof vi.fn>).mockImplementationOnce(() => new Promise(() => {}));
     const { getByRole } = render(<StartScreen />);
     fireEvent.keyDown(getByRole("listbox", { name: "Recent repositories" }), { key: "Enter" });
     expect(ipc.openRepo).toHaveBeenCalledTimes(1);
@@ -136,6 +138,18 @@ describe("StartScreen", () => {
     const closers = getAllByRole("button", { name: "Close" });
     fireEvent.click(closers[closers.length - 1]);
     expect(queryByRole("dialog", { name: "Settings" })).toBeNull();
+  });
+
+  it("Ctrl+, opens Settings too, and ⌘+, does on macOS", () => {
+    const { getAllByRole, getByRole, queryByRole } = render(<StartScreen />);
+    expect(fireEvent.keyDown(window, { key: ",", ctrlKey: true })).toBe(false); // preventDefault
+    expect(getByRole("dialog", { name: "Settings" })).toBeTruthy();
+    const closers = getAllByRole("button", { name: "Close" });
+    fireEvent.click(closers[closers.length - 1]);
+    expect(queryByRole("dialog", { name: "Settings" })).toBeNull();
+
+    fireEvent.keyDown(window, { key: ",", metaKey: true });
+    expect(getByRole("dialog", { name: "Settings" })).toBeTruthy();
   });
 
   it("clone dialog refuses a relative parent folder", async () => {

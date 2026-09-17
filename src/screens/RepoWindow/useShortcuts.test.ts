@@ -43,6 +43,41 @@ describe("useShortcuts", () => {
     input.remove();
   });
 
+  // ⌘+, on macOS — `ctrl` in the handler is `ctrlKey || metaKey`, and a comma with either held down
+  // types nothing, so a field's focus is no reason to swallow it.
+  it("Ctrl+, opens Settings, even from a text field, and ⌘+, does the same", () => {
+    renderHook(() => useShortcuts());
+    const input = document.body.appendChild(document.createElement("input"));
+    expect(fireEvent.keyDown(input, { key: ",", ctrlKey: true })).toBe(false);
+    expect(useDialogStore.getState().dialog).toEqual({ kind: "settings" });
+
+    useDialogStore.setState({ dialog: null });
+    fireEvent.keyDown(window, { key: ",", metaKey: true });
+    expect(useDialogStore.getState().dialog).toEqual({ kind: "settings" });
+    input.remove();
+  });
+
+  // A comma reaches the handler shifted on layouts that put it behind Shift, and as Ctrl+Alt when
+  // AltGr typed it — the first must open Settings, the second must not.
+  it("Ctrl+, takes a shifted comma and leaves an AltGr one alone", () => {
+    renderHook(() => useShortcuts());
+    fireEvent.keyDown(window, { key: ",", ctrlKey: true, shiftKey: true });
+    expect(useDialogStore.getState().dialog).toEqual({ kind: "settings" });
+
+    useDialogStore.setState({ dialog: null });
+    fireEvent.keyDown(window, { key: ",", ctrlKey: true, altKey: true });
+    expect(useDialogStore.getState().dialog).toBeNull();
+  });
+
+  // The dialog guard at the top of the handler is what stops it: Settings must not replace the
+  // dialog already on screen, and a second press must not stack another one.
+  it("Ctrl+, does not reach past a dialog that is already open", () => {
+    renderHook(() => useShortcuts());
+    useDialogStore.setState({ dialog: { kind: "push" } });
+    fireEvent.keyDown(window, { key: ",", ctrlKey: true });
+    expect(useDialogStore.getState().dialog).toEqual({ kind: "push" });
+  });
+
   it("Alt+1 / Alt+2 switch the view; Ctrl+2 still means the second tab", () => {
     renderHook(() => useShortcuts());
     fireEvent.keyDown(window, { key: "2", code: "Digit2", altKey: true });

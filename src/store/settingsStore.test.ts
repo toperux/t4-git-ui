@@ -25,6 +25,7 @@ beforeEach(() => {
     gitVersion: null,
     gitError: null,
     autoUpdateCheck: true,
+    autoCloseChanges: true,
     sidebarFolders: "expanded",
     sidebarFoldersMax: DEFAULT_FOLDERS_MAX,
   });
@@ -88,6 +89,17 @@ describe("settingsStore.load", () => {
     expect(useSettingsStore.getState().autoUpdateCheck).toBe(false);
   });
 
+  it("arrives closing the Changes view after a commit, and reads back an opt-out", async () => {
+    useSettingsStore.setState({ autoCloseChanges: false });
+    // Same rule as the update check: nothing stored means nobody has opted out.
+    await useSettingsStore.getState().load();
+    expect(useSettingsStore.getState().autoCloseChanges).toBe(true);
+
+    localStorage.setItem("kv:autoCloseChanges", "false");
+    await useSettingsStore.getState().load();
+    expect(useSettingsStore.getState().autoCloseChanges).toBe(false);
+  });
+
   it("reads back the sidebar folder rule, and keeps today's behaviour for a corrupt one", async () => {
     localStorage.setItem("kv:sidebarFolders", JSON.stringify("auto"));
     localStorage.setItem("kv:sidebarFoldersMax", "25");
@@ -134,6 +146,13 @@ describe("settingsStore setters", () => {
     expect(useSettingsStore.getState().autoUpdateCheck).toBe(false);
     await flush();
     expect(stored("autoUpdateCheck")).toBe(false);
+  });
+
+  it("setAutoCloseChanges persists the opt-out", async () => {
+    useSettingsStore.getState().setAutoCloseChanges(false);
+    expect(useSettingsStore.getState().autoCloseChanges).toBe(false);
+    await flush();
+    expect(stored("autoCloseChanges")).toBe(false);
   });
 
   it("the sidebar folder setters persist, the threshold clamped", async () => {

@@ -43,6 +43,8 @@ export interface SettingsStore {
   tools: Tools;
   /** Ask GitHub for a newer release at launch. On by default: nothing is stored until it is turned off. */
   autoUpdateCheck: boolean;
+  /** Leave the Changes view after a commit that took the last change. On by default, same as above. */
+  autoCloseChanges: boolean;
   /** Which sidebar folder rows start collapsed. */
   sidebarFolders: SidebarFolders;
   /** The `"auto"` threshold: a folder holding more refs than this starts collapsed. */
@@ -52,6 +54,7 @@ export interface SettingsStore {
   setDiffContext(n: number): void;
   setIgnoreWhitespace(b: boolean): void;
   setAutoUpdateCheck(b: boolean): void;
+  setAutoCloseChanges(b: boolean): void;
   setSidebarFolders(v: SidebarFolders): void;
   setSidebarFoldersMax(n: number): void;
   /** Tries `path` before keeping it; `false` (with `gitError` set) when git refused to answer. */
@@ -76,15 +79,17 @@ export const useSettingsStore = create<SettingsStore>()((set) => ({
   gitError: null,
   tools: { diff: null, merge: null },
   autoUpdateCheck: true,
+  autoCloseChanges: true,
   sidebarFolders: "expanded",
   sidebarFoldersMax: DEFAULT_FOLDERS_MAX,
 
   async load() {
-    const [context, whitespace, gitPath, autoUpdate, folders, foldersMax, tools] = await Promise.all([
+    const [context, whitespace, gitPath, autoUpdate, autoClose, folders, foldersMax, tools] = await Promise.all([
       kvGet<number>("diffContext"),
       kvGet<boolean>("ignoreWhitespace"),
       kvGet<string>("gitPath"),
       kvGet<boolean>("autoUpdateCheck"),
+      kvGet<boolean>("autoCloseChanges"),
       kvGet<string>("sidebarFolders"),
       kvGet<number>("sidebarFoldersMax"),
       // An unreadable git config leaves both tools unset rather than failing startup.
@@ -100,6 +105,8 @@ export const useSettingsStore = create<SettingsStore>()((set) => ({
       ignoreWhitespace,
       gitPath: gitPath ?? "",
       autoUpdateCheck,
+      // Absent reads as on for the same reason: nothing is stored until it is turned off.
+      autoCloseChanges: autoClose ?? true,
       sidebarFolders: asFolders(folders),
       sidebarFoldersMax: clampFoldersMax(foldersMax ?? DEFAULT_FOLDERS_MAX),
       tools: tools ?? { diff: null, merge: null },
@@ -133,6 +140,11 @@ export const useSettingsStore = create<SettingsStore>()((set) => ({
   setAutoUpdateCheck(autoUpdateCheck) {
     set({ autoUpdateCheck });
     void persist("autoUpdateCheck", autoUpdateCheck);
+  },
+
+  setAutoCloseChanges(autoCloseChanges) {
+    set({ autoCloseChanges });
+    void persist("autoCloseChanges", autoCloseChanges);
   },
 
   setSidebarFolders(sidebarFolders) {

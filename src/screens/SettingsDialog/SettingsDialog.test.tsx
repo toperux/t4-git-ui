@@ -45,6 +45,7 @@ beforeEach(() => {
     gitPath: "",
     gitVersion: null,
     gitError: null,
+    autoCloseChanges: true,
     sidebarFolders: "expanded",
     sidebarFoldersMax: DEFAULT_FOLDERS_MAX,
   });
@@ -219,6 +220,16 @@ describe("SettingsDialog", () => {
     expect(r.getByRole("tab", { name: "Git" }).getAttribute("aria-selected")).toBe("true");
     fireEvent.keyDown(r.getByRole("tab", { name: "Git" }), { key: "ArrowRight" });
     expect(r.getByRole("tab", { name: "Diff & merge" }).getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("the Changes section reflects the setting and writes it", () => {
+    const setAutoCloseChanges = vi.spyOn(useSettingsStore.getState(), "setAutoCloseChanges");
+    useSettingsStore.setState({ autoCloseChanges: false });
+    const r = render(<SettingsDialog onClose={() => {}} />);
+    const box = r.getByRole("checkbox", { name: "Close the Changes view after a commit that leaves nothing to commit" });
+    expect((box as HTMLInputElement).checked).toBe(false);
+    fireEvent.click(box);
+    expect(setAutoCloseChanges).toHaveBeenCalledWith(true);
   });
 
   // Updates sits on General and a download disables Close, so wandering to another tab would leave

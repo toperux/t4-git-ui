@@ -1,10 +1,10 @@
 // Window-level shortcuts of the repo window (style guide §Keyboard hints). Ignored while the focus
 // is in a text field or a dialog is open — those own their own keys. Ctrl+` is the exception: it has
 // no meaning in a field, and the dock prompt (the field most likely to have focus) lives in the dock
-// it collapses; the tab and window keys (Ctrl+Tab, Ctrl+W, Ctrl+T, Ctrl+Shift+N, Ctrl+Q, Ctrl+1..9)
-// and Ctrl+Shift+` (the sidebar rail) are the same case. Alt+1 / Alt+2 pick the History | Changes view
-// (spec §1). Ctrl+K opens the command palette, which then owns the keyboard until Ctrl+K (or Esc)
-// closes it again (spec §4).
+// it collapses; the tab and window keys (Ctrl+Tab, Ctrl+W, Ctrl+T, Ctrl+Shift+N, Ctrl+Q, Ctrl+1..9),
+// Ctrl+, (the platform's own settings key) and Ctrl+Shift+` (the sidebar rail) are the same case.
+// Alt+1 / Alt+2 pick the History | Changes view (spec §1). Ctrl+K opens the command palette, which
+// then owns the keyboard until Ctrl+K (or Esc) closes it again (spec §4).
 import { useEffect } from "react";
 import { useDialogStore } from "../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../store/opsStore";
@@ -79,6 +79,17 @@ export function useShortcuts() {
         e.preventDefault();
         const tab = useTabsStore.getState().tabs[Number(e.key) - 1];
         if (tab) useTabsStore.getState().activate(tab.id);
+        return;
+      }
+      // ⌘+, on macOS, which `ctrl` already covers. It types nothing into a field, and Settings is
+      // reached from wherever the focus happens to be, like the window keys above.
+      // Shift is *not* excluded: a comma is a shifted key on some layouts (Cyrillic ЙЦУКЕН puts it on
+      // Shift+/), and no other chord is bound to Ctrl+Shift+, — on a layout where the comma is
+      // unshifted, shifting that key yields `<` or `;`, never `,`. `!e.altKey` stays: AltGr arrives as
+      // Ctrl+Alt on Windows and Linux, so without it an AltGr-typed comma would open Settings.
+      if (ctrl && !e.altKey && e.key === ",") {
+        e.preventDefault();
+        useDialogStore.getState().open({ kind: "settings" });
         return;
       }
       // Ctrl+Shift+` types nothing into a field, and the rail is a window-level thing like the tab

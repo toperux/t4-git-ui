@@ -16,7 +16,7 @@ Rust core (`git2` for reads and the index, the system `git` for everything that 
 - **State banners** — detached HEAD, merge / rebase in progress, conflicts.
 - **Start screen** — recent repositories (pin, filter), open, clone with progress, init; a friendly screen when `git` is missing.
 - Light and dark themes following the OS, or a toggle in the toolbar; no flash on launch; every colour pair audited for WCAG contrast.
-- **Settings** — git executable, theme (light / dark / follow the OS), diff context lines and whitespace default; applied on change, the git path on Apply.
+- **Settings** — git executable, theme (light / dark / follow the OS), diff context lines and whitespace default, and whether the Changes view closes itself after a commit that leaves nothing to commit; applied on change, the git path on Apply.
 
 - **Tabs and windows** — every open repository is a tab; drag a tab (or the toolbar's repository name) to reorder it, tear it off into a window of its own, or drop it on another window; Quit brings every window back next launch.
 - **Bisect** — mark a commit good or bad from its row, then drive the loop from the banner; the marks show as chips.
@@ -97,6 +97,7 @@ Ctrl is ⌘ on macOS.
 |---|---|---|
 | Start screen | `Ctrl+O` / `Ctrl+Shift+O` / `Ctrl+N` | Open / Clone / Initialize |
 | Start screen | `↑` `↓` `Home` `End` `Enter` `Delete` | Navigate recents / open / remove |
+| Both screens | `Ctrl+,` | Settings |
 | Repo window | `Alt+1` · `Alt+2` | History · Changes |
 | Repo window | `Ctrl+K` | Command palette |
 | Repo window | ``Ctrl+Shift+` `` | Collapse / expand the sidebar |

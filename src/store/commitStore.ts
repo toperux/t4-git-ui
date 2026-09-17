@@ -12,8 +12,10 @@ import { EMPTY_SELECTION, pruneSelection, type Selection } from "../lib/multiSel
 import { pick } from "../lib/pick";
 import { useDiffStore } from "./diffStore";
 import { useRepoStore } from "./repoStore";
-import { useStatusStore } from "./statusStore";
+import { useSettingsStore } from "./settingsStore";
+import { nothingToCommit, selectChangeCount, useStatusStore } from "./statusStore";
 import { toastError, useToastStore } from "./toastStore";
+import { useViewStore } from "./viewStore";
 
 export type ListId = "unstaged" | "staged";
 
@@ -481,6 +483,9 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       const id = repoId();
       const { summary, body, amend, signoff, sign, busy } = get();
       if (!id || busy || !summary.trim()) return null;
+      // "The commit took the last change" needs a before as well as an after: an amend on a tree
+      // that was already clean empties nothing, and that empty state is what one amends from.
+      const hadChanges = selectChangeCount(useStatusStore.getState()) > 0;
       const message = joinMessage(summary, body);
       set({ busy: true });
       let committed: string | null = null;
@@ -500,6 +505,13 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       const st = useStatusStore.getState();
       await st.refresh();
       await st.syncRefs();
+      // The Changes view closes rather than showing its "Working tree clean" empty state: the commit
+      // that took the last change is the moment there is nothing left for the pane to do. Only for a
+      // commit that landed, and only from the view being closed.
+      if (committed && hadChanges && useSettingsStore.getState().autoCloseChanges) {
+        const view = useViewStore.getState();
+        if (view.view === "changes" && nothingToCommit()) view.setView("history");
+      }
       return committed;
     },
 

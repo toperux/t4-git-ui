@@ -38,12 +38,16 @@ import * as ipc from "../api/ipc";
 import { useCommitStore } from "./commitStore";
 import { useDiffStore } from "./diffStore";
 import { __resetForTests as resetRepo, useRepoStore } from "./repoStore";
+import { useSettingsStore } from "./settingsStore";
 import { __resetForTests as resetStatus, useStatusStore } from "./statusStore";
 import { useToastStore } from "./toastStore";
+import { useViewStore } from "./viewStore";
 
 type MockName =
   | "getFileDiff"
   | "getChangedFiles"
+  | "getStatus"
+  | "getRefs"
   | "commit"
   | "getHeadMessage"
   | "getMergeMessage"
@@ -87,7 +91,14 @@ beforeEach(() => {
   useToastStore.setState({ toasts: [] });
   useCommitStore.getState().reset();
   useDiffStore.setState({ context: 3 });
+  useViewStore.getState().__resetForTests();
+  useSettingsStore.setState({ autoCloseChanges: true });
   mocked.getFileDiff.mockImplementation((_id: string, _t: unknown, path: string) => Promise.resolve(diff(path, "a")));
+  // A `mockResolvedValue` set inside a test outlives `clearAllMocks`, so these two go back by hand:
+  // without it one case's post-commit status is the next case's, and a test that asserts nothing
+  // happened passes for the wrong reason.
+  mocked.getStatus.mockResolvedValue({ entries: [], staged: 0, unstaged: 0, untracked: 0, conflicted: 0, state: "clean" });
+  mocked.getRefs.mockResolvedValue(REFS);
   ask.mockResolvedValue(true);
 });
 
@@ -726,5 +737,104 @@ describe("commitStore.commit", () => {
     useCommitStore.setState({ summary: "ok", busy: true });
     await expect(useCommitStore.getState().commit()).resolves.toBeNull();
     expect(mocked.commit).not.toHaveBeenCalled();
+  });
+});
+
+describe("commitStore.commit closing the Changes view", () => {
+  /** A dirty tree with the Changes view open: what every case below starts from. */
+  function inChangesWith(entries: StatusEntry[]) {
+    useStatusStore.setState({ status: status(entries), error: null });
+    useViewStore.setState({ view: "changes" });
+  }
+
+  it("a commit that took the last change leaves the view", async () => {
+    mocked.commit.mockResolvedValue("abcdef1234");
+    inChangesWith([entry("a.rs")]);
+    useCommitStore.setState({ summary: "Done" });
+    await useCommitStore.getState().commit();
+    expect(useViewStore.getState().view).toBe("history");
+  });
+
+  it("stays when the commit left something behind", async () => {
+    mocked.commit.mockResolvedValue("abcdef1234");
+    mocked.getStatus.mockResolvedValue({ entries: [], staged: 0, unstaged: 1, untracked: 0, conflicted: 0, state: "clean" });
+    inChangesWith([entry("a.rs"), entry("b.rs")]);
+    useCommitStore.setState({ summary: "Half of it" });
+    await useCommitStore.getState().commit();
+    expect(useViewStore.getState().view).toBe("changes");
+  });
+
+  // Untracked files are changes: `selectChangeCount` sums them, and committing a staged add empties
+  // the tree the same way committing a modification does.
+  it("counts an untracked file as something left behind", async () => {
+    mocked.commit.mockResolvedValue("abcdef1234");
+    mocked.getStatus.mockResolvedValue({ entries: [], staged: 0, unstaged: 0, untracked: 1, conflicted: 0, state: "clean" });
+    inChangesWith([entry("a.rs")]);
+    useCommitStore.setState({ summary: "Not all of it" });
+    await useCommitStore.getState().commit();
+    expect(useViewStore.getState().view).toBe("changes");
+  });
+
+  it("stays when the setting is off", async () => {
+    mocked.commit.mockResolvedValue("abcdef1234");
+    useSettingsStore.setState({ autoCloseChanges: false });
+    inChangesWith([entry("a.rs")]);
+    useCommitStore.setState({ summary: "Done" });
+    await useCommitStore.getState().commit();
+    expect(useViewStore.getState().view).toBe("changes");
+  });
+
+  it("stays when the commit failed", async () => {
+    mocked.commit.mockRejectedValue({ kind: "git", message: "boom" });
+    inChangesWith([entry("a.rs")]);
+    useCommitStore.setState({ summary: "Done" });
+    await useCommitStore.getState().commit();
+    expect(useViewStore.getState().view).toBe("changes");
+  });
+
+  // An amend on a tree that was already clean empties nothing, and that empty state is the surface
+  // one amends from — taking it away is not what "nothing left to commit" was asking for.
+  it("stays after an amend on a tree that was already clean", async () => {
+    mocked.commit.mockResolvedValue("abcdef1234");
+    inChangesWith([]);
+    useCommitStore.setState({ summary: "Reword", amend: true });
+    await useCommitStore.getState().commit();
+    expect(useViewStore.getState().view).toBe("changes");
+  });
+
+  // The freshness rule: a status scanned in a state the refs do not report reads as "not known
+  // yet", never as clean. Here the scan says clean and the refs still say merge, so the answer is
+  // "ask again", not "closed".
+  it("stays when the status and the refs do not agree yet", async () => {
+    mocked.commit.mockResolvedValue("abcdef1234");
+    mocked.getRefs.mockResolvedValue({ ...REFS, state: "merge" });
+    useRepoStore.setState({ refs: { ...REFS, state: "merge" } });
+    inChangesWith([entry("a.rs")]);
+    useCommitStore.setState({ summary: "Merge" });
+    await useCommitStore.getState().commit();
+    expect(useViewStore.getState().view).toBe("changes");
+  });
+
+  // And the state clause on its own: both halves agree, the tree is empty, but the operation is
+  // unfinished. A paused rebase is the one that would bite — its banner tells the user to commit
+  // from the panel this would have closed, once per stop.
+  it("stays while a sequencer operation is unfinished, though the tree is empty", async () => {
+    mocked.commit.mockResolvedValue("abcdef1234");
+    mocked.getStatus.mockResolvedValue({ entries: [], staged: 0, unstaged: 0, untracked: 0, conflicted: 0, state: "rebase" });
+    mocked.getRefs.mockResolvedValue({ ...REFS, state: "rebase" });
+    useRepoStore.setState({ refs: { ...REFS, state: "rebase" } });
+    inChangesWith([entry("a.rs")]);
+    useCommitStore.setState({ summary: "Fix it up" });
+    await useCommitStore.getState().commit();
+    expect(useViewStore.getState().view).toBe("changes");
+  });
+
+  // The trigger is a commit, not "the tree went clean" — which is the whole reason this lives in
+  // `commit()` rather than in the status refresh every discard and stash also runs.
+  it("a discard that empties the tree leaves the view alone", async () => {
+    inChangesWith([entry("a.rs")]);
+    await useCommitStore.getState().discard(["a.rs"]);
+    expect(mocked.discardPaths).toHaveBeenCalledWith(REPO.id, ["a.rs"]);
+    expect(useViewStore.getState().view).toBe("changes");
   });
 });

@@ -124,11 +124,14 @@ export function StartScreen() {
   useEffect(() => {
     function onKey(e: globalThis.KeyboardEvent) {
       // `busy`: the picker would come back to an `openPath` that drops the folder without a word.
-      if (!e.ctrlKey || e.altKey || clone || settings || busy) return;
+      // ⌘ counts as Ctrl here too, as it does in `lib/keys.ts` and `useShortcuts`.
+      if ((!e.ctrlKey && !e.metaKey) || e.altKey || clone || settings || busy) return;
       const k = e.key.toLowerCase();
       if (k === "o" && !e.shiftKey) void pick();
       else if (k === "o" && e.shiftKey) void startClone();
       else if (k === "n" && !e.shiftKey) void init();
+      // No `!e.shiftKey`: on some layouts the comma itself is shifted (see `useShortcuts`).
+      else if (k === ",") setSettings(true);
       else return;
       e.preventDefault();
     }
@@ -189,7 +192,7 @@ export function StartScreen() {
         <ThemeToggle />
         {/* Beside the gear it points at, as in the repo toolbar — not out by the version number. */}
         <UpdateBadge onClick={() => setSettings(true)} />
-        <IconButton label="Settings" onClick={() => setSettings(true)}>
+        <IconButton label="Settings" title="Settings (Ctrl+,)" onClick={() => setSettings(true)}>
           <Settings size={16} aria-hidden />
         </IconButton>
       </div>

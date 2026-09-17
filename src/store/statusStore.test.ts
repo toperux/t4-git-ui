@@ -17,7 +17,7 @@ vi.mock("../api/ipc", async (importOriginal) => {
 
 import * as ipc from "../api/ipc";
 import { __resetForTests as resetRepo, useRepoStore } from "./repoStore";
-import { __resetForTests as resetStatus, STATUS_DEBOUNCE_MS, useShowWorkingTree, useStatusStore } from "./statusStore";
+import { nothingToCommit, __resetForTests as resetStatus, STATUS_DEBOUNCE_MS, useShowWorkingTree, useStatusStore } from "./statusStore";
 import { useToastStore } from "./toastStore";
 
 const mocked = ipc as unknown as Record<"getStatus" | "getRefs" | "getLinked" | "refreshLabels" | "startLog" | "getLogPage", ReturnType<typeof vi.fn>>;
@@ -350,5 +350,46 @@ describe("statusStore", () => {
     expect(useRepoStore.getState().wtSelected).toBe(true);
     expect(mocked.startLog).not.toHaveBeenCalled();
     expect(renderHook(() => useShowWorkingTree()).result.current).toBe(true);
+  });
+});
+
+describe("nothingToCommit", () => {
+  const set = (st: WorkdirStatus | null, refsState: RepoState | null) => {
+    useStatusStore.setState({ status: st, error: null });
+    useRepoStore.setState({ refs: refsState === null ? null : { ...refs("h1"), state: refsState } });
+  };
+
+  it("is true for an empty tree the refs agree is clean", () => {
+    set(status(0), "clean");
+    expect(nothingToCommit()).toBe(true);
+  });
+
+  it("is false while anything is left, in any of the four counts", () => {
+    set(status(1), "clean");
+    expect(nothingToCommit()).toBe(false);
+    for (const field of ["staged", "unstaged", "untracked", "conflicted"] as const) {
+      set({ ...status(0), [field]: 1 }, "clean");
+      expect(nothingToCommit(), field).toBe(false);
+    }
+  });
+
+  // "Not known yet" must never read as clean: before the first scan, before the refs land, and
+  // while the two describe different states (a scan the refs have not caught up with).
+  it("is false when nothing has been scanned, or the refs do not agree", () => {
+    set(null, "clean");
+    expect(nothingToCommit()).toBe(false);
+    set(status(0), null);
+    expect(nothingToCommit()).toBe(false);
+    set(status(0, "rebase"), "clean");
+    expect(nothingToCommit()).toBe(false);
+  });
+
+  // An unfinished operation still owes a commit whatever the count says — a merge left uncommitted
+  // that staged nothing, or a paused rebase, whose banner points at the commit panel.
+  it("is false in every state but clean, even with an empty tree the refs agree on", () => {
+    for (const state of ["merge", "rebase", "cherryPick", "revert", "bisect"] as RepoState[]) {
+      set(status(0, state), state);
+      expect(nothingToCommit(), state).toBe(false);
+    }
   });
 });

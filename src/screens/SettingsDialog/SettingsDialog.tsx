@@ -39,9 +39,11 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const gitVersion = useSettingsStore((st) => st.gitVersion);
   const gitError = useSettingsStore((st) => st.gitError);
   const autoUpdateCheck = useSettingsStore((st) => st.autoUpdateCheck);
+  const autoCloseChanges = useSettingsStore((st) => st.autoCloseChanges);
   const sidebarFolders = useSettingsStore((st) => st.sidebarFolders);
   const sidebarFoldersMax = useSettingsStore((st) => st.sidebarFoldersMax);
-  const { setDiffContext, setIgnoreWhitespace, setAutoUpdateCheck, setSidebarFolders, setSidebarFoldersMax, setGitPath, clearGitError } = useSettingsStore.getState();
+  const { setDiffContext, setIgnoreWhitespace, setAutoUpdateCheck, setAutoCloseChanges, setSidebarFolders, setSidebarFoldersMax, setGitPath, clearGitError } =
+    useSettingsStore.getState();
   // Field by field, not `useUpdateStore()`: the whole-store subscription re-rendered the dialog on
   // every `set` the store makes, and a download makes one per chunk.
   const info = useUpdateStore((st) => st.info);
@@ -206,6 +208,15 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
               />
             </div>
           </Field>
+        </section>
+
+        <section className={s.section}>
+          <h3 className={s.head}>Changes</h3>
+          <Options>
+            <Checkbox checked={autoCloseChanges} onChange={setAutoCloseChanges}>
+              Close the Changes view after a commit that leaves nothing to commit
+            </Checkbox>
+          </Options>
         </section>
 
         <section className={s.section}>

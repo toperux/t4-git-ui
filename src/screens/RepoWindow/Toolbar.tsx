@@ -421,7 +421,7 @@ export function Toolbar() {
           </IconButton>
           <ThemeToggle />
           <UpdateBadge onClick={() => openDialog({ kind: "settings" })} />
-          <IconButton label="Settings" onClick={() => openDialog({ kind: "settings" })}>
+          <IconButton label="Settings" title="Settings (Ctrl+,)" onClick={() => openDialog({ kind: "settings" })}>
             <Settings size={16} aria-hidden />
           </IconButton>
         </>
@@ -451,7 +451,7 @@ export function Toolbar() {
             <MenuItem icon={theme === "dark" ? <Sun size={16} aria-hidden /> : <Moon size={16} aria-hidden />} onClick={pick(toggleTheme, () => setMore(false))}>
               {theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
             </MenuItem>
-            <MenuItem icon={<Settings size={16} aria-hidden />} onClick={pickDialog({ kind: "settings" }, () => setMore(false), moreBtn)}>
+            <MenuItem icon={<Settings size={16} aria-hidden />} kbd="Ctrl+," onClick={pickDialog({ kind: "settings" }, () => setMore(false), moreBtn)}>
               Settings
             </MenuItem>
             <MenuSeparator />
