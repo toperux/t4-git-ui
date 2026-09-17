@@ -383,7 +383,18 @@ export function MenuItem({ icon, danger, kbd, submenu, className, children, type
           }
         >
           {icon && <span className={s.icon}>{icon}</span>}
-          <span className={s.grow}>{children}</span>
+          <span
+            className={s.grow}
+            // The label ellipsizes at the menu's width, and a clipped branch name is unreadable. The
+            // metrics are read on hover, when layout is settled — no ref, no effect, no state.
+            onMouseEnter={(e) => {
+              if (rest.title) return; // an explicit title (a stash or recent-commit row) wins
+              const el = e.currentTarget;
+              el.title = el.scrollWidth > el.clientWidth ? (el.textContent ?? "") : "";
+            }}
+          >
+            {children}
+          </span>
           {kbd && (
             <Kbd className={s.kbd} aria-hidden>
               {kbd}

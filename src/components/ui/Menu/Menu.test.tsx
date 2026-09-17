@@ -275,6 +275,26 @@ describe("MenuItem submenu", () => {
       vi.useRealTimers();
     }
   });
+
+  it("titles a row whose label is clipped, and leaves one that fits alone", () => {
+    const label = "Merge origin/feature/a-really-long-branch-name into main";
+    const { getByRole } = render(
+      <Menu open onClose={() => {}} label="History" anchor={<button>Open</button>}>
+        <MenuItem>{label}</MenuItem>
+      </Menu>,
+    );
+    // jsdom lays nothing out, so the overflow the handler reads has to be stubbed.
+    const span = getByRole("menuitem", { name: label }).querySelector("span")!;
+    Object.defineProperty(span, "scrollWidth", { value: 200, configurable: true });
+    Object.defineProperty(span, "clientWidth", { value: 100, configurable: true });
+    // React synthesises onMouseEnter from a delegated mouseover; a dispatched mouseenter never lands.
+    fireEvent.mouseOver(span);
+    expect(span.title).toBe(label);
+
+    Object.defineProperty(span, "scrollWidth", { value: 100, configurable: true });
+    fireEvent.mouseOver(span);
+    expect(span.title).toBe("");
+  });
 });
 
 describe("ContextMenu", () => {

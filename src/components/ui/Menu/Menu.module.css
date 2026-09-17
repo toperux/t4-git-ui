@@ -39,10 +39,14 @@
   right: auto;
   margin: 0;
   z-index: 45;
-  /* Grow to the longest item (a branch name, say) instead of ellipsizing it, within reason. */
+  /* Grow to the longest item instead of ellipsizing it, but barely: a menu is a menu, not a panel,
+     and 280 is about as wide as one should get beside a 260px sidebar. A branch name past it
+     ellipsizes on purpose and `MenuItem` hands the full label to a `title` — it is read on hover,
+     rather than by widening every menu to its worst row. No `vw` term: the window's own 700px
+     minimum (`tauri.conf.json`, `MIN_W`) already leaves room for this, so one would never apply. */
   width: max-content;
   min-width: 220px;
-  max-width: 320px;
+  max-width: 280px;
 }
 .item {
   display: flex;

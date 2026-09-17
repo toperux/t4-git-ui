@@ -213,7 +213,8 @@ src/
                            BusyOverlay (scrim + spinner card while repoStore.opening is set; rendered once in App.tsx
                            so it covers the start screen and a toolbar-menu repo switch alike),
                            Menu/MenuItem/MenuSeparator (anchor + dropdown, Esc handled on the menu itself so a surrounding
-                           Dialog stays open, outside click, ↑/↓, `kbd` hint, `align`, focus back on the trigger)
+                           Dialog stays open, outside click, ↑/↓, `kbd` hint, `align`, focus back on the trigger,
+                           the full label as a `title` when the row ellipsizes)
                            + ContextMenu (portal at a viewport point, clamped) + MenuRef (a branch name inside an item:
                            mono, chip colours for local / remote), ThemeToggle (Sun/Moon, theme/theme.ts `toggleTheme`),
                            UpdateBadge (sm primary Button beside the Settings gear on both screens, hidden until a check found
