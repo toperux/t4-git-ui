@@ -109,7 +109,7 @@ export const setLayout = (layout: Layout) => call<void>("set_layout", { layout }
 /** The windows open at the last exit, main's first; consumed, so `[]` on every launch after it. */
 export const takeLayout = () => call<Layout[]>("take_layout");
 
-/** Quits: every window closes at once, and they all come back next launch. */
+/** Quits: every window closes at once, and they all come back next launch, whatever was closed before. */
 export const quit = () => call<void>("quit");
 
 /** This window's top-left on the virtual screen and its scale — the mapping a tab drag is tracked with. */

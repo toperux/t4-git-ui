@@ -129,8 +129,11 @@ pub fn take_layout(app: AppHandle) -> Vec<Layout> {
 
 /// Quits the app rather than closing one window: every window goes at once, so
 /// `RunEvent::ExitRequested` raises [`AppState::exiting`] before any of them is
-/// destroyed and all of their layouts are kept for the next launch. Closing them
-/// one by one drops each from the file instead, which is the point of a Quit.
+/// destroyed, so every window is still in the map and the file keeps them all.
+/// Closing them one by one usually comes back to the same place, the file being
+/// written by no window's close — but a window closed *before* another one
+/// changes a tab is gone from the write that change makes. Quit is the one that
+/// keeps a session whatever happened before it.
 #[tauri::command]
 pub fn quit(app: AppHandle) {
     app.exit(0);
