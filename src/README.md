@@ -186,6 +186,11 @@ src/
                            refs'; a scan from another state predates the change and reads as "not known yet", never as clean.
                            The one rule the banners, the walk seed, the pseudo-row, the drop-selection check and the rebase
                            dialog's autostash all route through — pure, so store-free `banners.ts` can use it too)
+                           dialogCapability.test.ts (no module of its own: it reads src-tauri/capabilities/default.json and
+                           demands a permission for every `@tauri-apps/plugin-dialog` export `src` imports, mapping
+                           ask / confirm / message all to the `message` command they invoke. A missing one fails only at
+                           runtime — the call rejects "not allowed by ACL" and each site reads that as a decline — and every
+                           other test mocks the plugin, so nothing else would notice)
   components/ui/<Name>/    one folder per style-guide component: <Name>.tsx + <Name>.module.css (incl. StatusGlyph A/M/D/R/U/C,
                            Checkbox, Kbd (the one shortcut-chip anatomy, used by MenuItem + StartScreen),
                            DisabledHint (a control that is `disabled` **and** carries a `title` gets wrapped in a

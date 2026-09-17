@@ -424,9 +424,43 @@ Written after re-reading every row above against the working tree, `git log`, th
   repository has more than one, and to that one remote otherwise (`OpsDialogs.tsx`, plus a
   `dialogs.test.tsx` case). Landed 2026-09-16.
 
+## L. Added 2026-09-17 — from the Ctrl+, / auto-close review and walk
+
+Four things that existed only in a session transcript. None is scheduled; each is written down so it
+is not rediscovered from scratch. The walk itself is
+`docs/archive/walks/2026-09-17-autoclose-walk.md`.
+
+- **`Ctrl+,` is dead while the start screen is opening a repository.** `StartScreen`'s handler returns
+  early on `busy`, which is set for the whole of `pick()` / `init()` / `startClone()`, so the chord
+  does nothing between the click and the window swap. Deliberate for the pickers (the OS dialog owns
+  the keyboard anyway) and harmless for the rest — opening Settings over a repository that is half
+  open is worse than a dead key. Reopen it only if the gap ever feels long; the fix is to drop
+  `busy` from the comma arm alone, not from the guard.
+- **The `smoke-dialog.ps1` fixture may not match today's confirm boxes.** `docs/smoke/smoke-cdp.md`
+  §"Native dialogs" clicks a button by label with `BM_CLICK` on a class-`Button` child window, and
+  warns that `WScript.Shell` `AppActivate` + `SendKeys` is unreliable. On 2026-09-17 the Discard
+  confirm exposed its buttons to UI Automation as TaskDialog command-link **Panes**
+  (`CommandButton_1000` / `_1001`), not as class-`Button` children, and what worked was exactly the
+  `AppActivate` + `SendKeys {ENTER}` the section warns against. `WM_COMMAND` to the dialog's own HWND
+  did nothing. Both readings were taken on the same machine, so this is a box-style difference to
+  measure against a live dialog before either the fixture or the doc is changed — not a reason to
+  change either yet. Until then: whichever route is used, **poll for the box**, because an
+  unanswered confirm is indistinguishable from a Discard that silently did nothing.
+- **Linux `Super+O` / `Super+N` / `Super+Q` reach the app.** Pre-existing, unrelated to this work:
+  `useShortcuts` treats `metaKey` as Ctrl so one branch serves ⌘ on macOS, and on Linux Super is
+  `metaKey` too. The desktop environment usually swallows Super chords first, which is why it has
+  never been reported. A `navigator.platform` split would fix it and would also be the first
+  platform test in that file, so it waits for a real report.
+- **`commitStore` is the only store that writes `viewStore`.** An architectural note, not a defect:
+  the auto-close lives in `commit()` because that is the single place every commit route lands, and
+  the alternative was threading `onCommitted` through three components. Worth remembering if a
+  second store ever wants the view — two writers and it belongs behind a named action on
+  `viewStore` instead.
+
 ## Suggested order, if nothing else decides it
 
-Most time-pressed is the `ubuntu-22.04` decision in §E — but read §K first: the 2026-09-17 date is a
+Most time-pressed is the `ubuntu-22.04` decision in §E — but read §K (and §L, which adds nothing
+scheduled) first: the 2026-09-17 date is a
 label warning, the real deadline is the 2027-03-23 brownout, and it is not this repo's alone. Then
 the npm majors one PR at a time, Vitest 5 first (§H). Otherwise:
 1. Dogfooding against GitHub, then the clean-Win11 install.

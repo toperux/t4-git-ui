@@ -1750,9 +1750,10 @@ Walked 2026-09-17 over CDP on a local release build — see
 `docs/archive/walks/2026-09-17-settings-tabs-walk.md`. Two of its findings were fixed *after* that
 build, so bullets 6 and 7 are the ones its binary could not show.
 
-Bullets 1 and 4 were **edited after that walk**, not re-walked: the General tab gained a `Changes`
-section, so its heading list and the two focusable counts moved by one. Group AY bullet 9 is what
-actually exercises that section.
+Bullets 6 and 7 were walked on 2026-09-17 against a later build — see
+`docs/archive/walks/2026-09-17-autoclose-walk.md`, which also re-read bullet 1's heading list
+(`Theme · Sidebar · Changes · Updates`). Bullet 4's focusable counts were edited after the first walk
+and are still **not** re-measured; group AY bullet 10 is what exercises the new `Changes` section.
 
 1. - [x] The gear opens on **General** — Theme · Sidebar · Changes · Updates — with `aria-selected` on General alone, only it a tab stop, and the other two panels carrying `hidden`. The row sits under the title, **outside** the body that scrolls, pad `6px 16px` over a 1px `--border` hairline.
 2. - [x] **Git** holds Git executable · Signing; **Diff & merge** holds Diff · Diff tool · Merge tool. Exactly one panel is visible at a time. Signing still fills in — its read happens once, when the dialog opens, not when its tab is first shown.
@@ -1760,29 +1761,39 @@ actually exercises that section.
 4. - [x] Tab from the last control of the open panel wraps to the title bar's Close and never lands on a control inside a hidden panel. (34 controls match the dialog's focusable selector; 11 are reachable on General, 14 on Git, 19 on Diff & merge — the counts were 33 / 10 before the Changes checkbox, whose input is `opacity: 0` rather than `hidden` and so is focusable.)
 5. - [x] Type into `Diff & merge › Diff tool › Command` without pressing Apply, switch to General and back: the draft is still there. The inactive panels are hidden, not unmounted, so the field stays in the DOM inside `[hidden]` — which is what makes losing the draft impossible.
 6. - [ ] Start a real update download: the whole tab row goes disabled along with Close, and the progress bar stays on screen with them. Needs a publishable newer release, so it is covered by `SettingsDialog.test.tsx` "a running download locks the tab row" and `updateStore.test.ts` "a progress subscription that never attaches unsticks the UI too".
-7. - [ ] Hover the **selected** tab: it keeps its `--bg-active` tint instead of dropping to the weaker `--bg-hover` one, and a disabled tab does not light up at all. Same check on the Changes | Files pair and on an open `SidebarRail` section — all three share the idiom.
+7. - [x] Hover the **selected** tab: it keeps its `--bg-active` tint instead of dropping to the weaker `--bg-hover` one, and a disabled tab does not light up at all. Same check on the Changes | Files pair and on an open `SidebarRail` section — all three share the idiom. (Measured as computed `background-color` under a real `mouseMoved`: the
+   selected tab holds `--bg-active` at .09 while hovered, an unselected one drops to `--bg-hover` at .05,
+   and an unhovered one is transparent — at each of the three places. No tab goes disabled without a
+   running download, so that half was read with `disabled` forced on: transparent, muted, opacity .45.)
 8. - [x] Light and dark: the selected pill, the unselected labels and the hairline all read their tokens. Light gives the pill `--bg-active` at 9% under near-black text on the elevated dialog, about 8:1. Switch themes through Settings' own Appearance select — flipping `data-theme` by hand does not re-resolve the tokens the pill reads.
 9. - [x] The dialog **grows with the tab** (546 → 608 → 812 px at a 929px-tall window) and Diff & merge scrolls on its own. Intended, not a defect: the tabs group related settings, they do not promise one height.
-10. - [ ] `Ctrl+,` opens Settings from the start screen and from the repo window — from a text field too (a commit message, the dock prompt), since the chord types nothing. Pressed again with Settings already open it does nothing rather than stacking a second one. On macOS the same key is ⌘+,.
+10. - [x] `Ctrl+,` opens Settings from the start screen and from the repo window — from a text field too (a commit message, the dock prompt), since the chord types nothing. Pressed again with Settings already open it does nothing rather than stacking a second one. On macOS the same key is ⌘+,.
 
 ## AY. The Changes view closes itself after a commit that empties the tree
+
+Walked 2026-09-17 over CDP on a local release build — see
+`docs/archive/walks/2026-09-17-autoclose-walk.md`. Bullets 8 and 9 were **corrected by the walk**; the
+rest passed as written.
 
 Fixture: any repository — the walk used `c:/tmp/t4/irebase`. The setting is
 Settings › General › Changes ("Close the Changes view after a commit that leaves nothing to
 commit"), on by default. The assertion in every bullet is which view the window is on
 afterwards: the toolbar `ViewSwitch` says so, and so does whether `ChangesBar` is on screen.
 
-1. - [ ] Dirty two tracked files. Alt+2, stage both, commit → the view goes back to **History** by itself, with the commit at the top of the grid and no working-tree row.
-2. - [ ] Dirty two, stage **one**, commit → **stays** in Changes, the other file still listed. Partly done is not done.
-3. - [ ] One **untracked** file only: stage it, commit → closes. Untracked files count as something left to commit, so emptying them is emptying the tree.
-4. - [ ] From the Changes **empty state** on an already-clean tree, amend the last commit → **stays**. Nothing was emptied, and that empty state is the surface the amend was started from.
-5. - [ ] Commit from the **commit dialog** (toolbar Commit…) with Changes open behind it → the dialog closes and the view behind it is History. From **History**, the same commit moves nothing.
-6. - [ ] **Commit & Push** from the inline panel with the last change staged → the view closes, the Push dialog still opens over History, and closing Push leaves the focus somewhere sane rather than throwing a console error (the panel that owned the button is gone by then).
-7. - [ ] Mid-merge with every conflict resolved and staged, commit the merge → closes. The merge is concluded by then, so the state is clean when the answer is read; the state banner sits above the view switch, so nothing is hidden either way.
-8. - [ ] A **paused interactive rebase** whose stop leaves the tree empty: commit from the panel its banner points at ("amend or add commits in the commit panel, then Continue") → **stays**. An unfinished operation still owes a commit, so the pane it is made from must not close under the user. Same for a cherry-pick or revert stopped on a conflict, once resolved and staged.
-9. - [ ] **Discard** the last change instead of committing it, and `git stash` the last change from a terminal → **stays** open both times. The trigger is a commit, not "the tree went clean".
-10. - [ ] Uncheck the setting, commit the last change → stays in Changes on the empty state. Restart the app → still unchecked. Re-check it, and leave it checked.
-11. - [ ] On `c:/tmp/t4/mbk-clone` (3004 files, a slow status scan) commit the last change and note whether it closes. A status fetch overtaken by the watcher's own refresh is dropped by `fetchStatus`'s seq guard, and the answer then reads the pre-commit tree and keeps the view open — accepted, and this is the one place it could show.
+1. - [x] Dirty two tracked files. Alt+2, stage both, commit → the view goes back to **History** by itself, with the commit at the top of the grid and no working-tree row.
+2. - [x] Dirty two, stage **one**, commit → **stays** in Changes, the other file still listed. Partly done is not done.
+3. - [x] One **untracked** file only: stage it, commit → closes. Untracked files count as something left to commit, so emptying them is emptying the tree.
+4. - [x] From the Changes **empty state** on an already-clean tree, amend the last commit → **stays**. Nothing was emptied, and that empty state is the surface the amend was started from.
+5. - [x] Commit from the **commit dialog** (the commit panel's *Open commit window*, or `Commit…` in the repository menu and the palette — there is no toolbar button) with Changes open behind it → the dialog closes and the view behind it is History. From **History**, the same commit moves nothing.
+6. - [x] **Commit & Push** from the inline panel with the last change staged → the view closes, the Push dialog still opens over History, and closing Push leaves the focus somewhere sane rather than throwing a console error (the panel that owned the button is gone by then). Walked: focus lands on `<body>`, with nothing on the console — the same place the bar's × and Alt+1 already leave it.
+7. - [x] Mid-merge with every conflict resolved and staged, commit the merge → closes. The merge is concluded by then, so the state is clean when the answer is read; the state banner sits above the view switch, so nothing is hidden either way.
+8. - [x] A **paused interactive rebase** whose stop leaves the tree empty: commit from the panel its banner points at ("amend or add commits in the commit panel, then Continue") → **stays**. An unfinished operation still owes a commit, so the pane it is made from must not close under the user. A cherry-pick or revert stopped on a conflict is **not** the same: resolving and committing *finishes*
+   it (git clears `CHERRY_PICK_HEAD`, and `Repository::state()` reads clean from that moment), so nothing
+   is owed and the view closes like the merge in bullet 7 — walked, and correct. What keeps the pane open
+   is an operation still unfinished after the commit, which is what a rebase `edit` stop is.
+9. - [x] **Discard** the last change instead of committing it, and `git stash` the last change from a terminal → **stays** open both times. The trigger is a commit, not "the tree went clean". Discard's confirmation is a native `ask()` modal, invisible to the DOM and to CDP — see `smoke-cdp.md` for how to answer one, and note that a walk which leaves it unanswered looks exactly like a Discard that does nothing.
+10. - [x] Uncheck the setting, commit the last change → stays in Changes on the empty state. Restart the app → still unchecked. Re-check it, and leave it checked.
+11. - [x] On `c:/tmp/t4/mbk-clone` (3004 files, a slow status scan) commit the last change and note whether it closes. A status fetch overtaken by the watcher's own refresh is dropped by `fetchStatus`'s seq guard, and the answer then reads the pre-commit tree and keeps the view open — accepted, and this is the one place it could show. Walked: it **closed**, so the race did not show here.
 
 ## Reporting
 
