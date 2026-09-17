@@ -66,12 +66,15 @@ const KEYS = {
   Backquote: { code: "Backquote", key: "`", keyCode: 192 },
   Enter: { code: "Enter", key: "Enter", keyCode: 13 },
   Escape: { code: "Escape", key: "Escape", keyCode: 27 },
+  Tab: { code: "Tab", key: "Tab", keyCode: 9 },
   1: { code: "Digit1", key: "1", keyCode: 49 },
   2: { code: "Digit2", key: "2", keyCode: 50 },
   R: { code: "KeyR", key: "R", keyCode: 82 },
   F5: { code: "F5", key: "F5", keyCode: 116 },
   ArrowUp: { code: "ArrowUp", key: "ArrowUp", keyCode: 38 },
   ArrowDown: { code: "ArrowDown", key: "ArrowDown", keyCode: 40 },
+  ArrowLeft: { code: "ArrowLeft", key: "ArrowLeft", keyCode: 37 },
+  ArrowRight: { code: "ArrowRight", key: "ArrowRight", keyCode: 39 },
   Comma: { code: "Comma", key: ",", keyCode: 188 },
 };
 

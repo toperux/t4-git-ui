@@ -72,6 +72,13 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Tab strip row between the title and the body; no gap — the tablist inside owns its own spacing. */
+.tabsBar {
+  display: flex;
+  flex: none;
+  padding: var(--space-3) var(--space-6);
+  border-bottom: 1px solid var(--border);
+}
 .body {
   display: flex;
   flex-direction: column;

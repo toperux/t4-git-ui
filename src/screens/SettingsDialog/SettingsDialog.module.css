@@ -31,6 +31,50 @@
 .number {
   width: 96px;
 }
+/* General | Git | Diff & merge — the same pill strip the file list's header uses. */
+.tabs {
+  display: inline-flex;
+  gap: var(--space-1);
+  flex: none;
+}
+.tab {
+  height: var(--control-h-sm);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-muted);
+  font: inherit;
+  cursor: default;
+  transition:
+    background-color var(--dur) var(--ease),
+    color var(--dur) var(--ease);
+}
+/* Excluding the two explicitly: `.tab:hover` outranks `.tabOn`, so without it the hovered current
+   tab drops to the weaker hover tint and reads as deselected — and a locked tab lights up as live. */
+.tab:hover:not(.tabOn):not(:disabled) {
+  background-color: var(--bg-hover);
+  color: var(--fg);
+}
+.tabOn {
+  background-color: var(--bg-active);
+  color: var(--fg);
+}
+.tab:disabled {
+  opacity: 0.45;
+}
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  /* A floor so General does not look stunted next to the much taller Diff & merge. It does not
+     equalise them: the dialog still grows across the tabs, and Diff & merge scrolls on its own. */
+  min-height: 380px;
+}
+/* .panel's display beats the UA [hidden] rule, so the hidden panel needs one of its own. */
+.panel[hidden] {
+  display: none;
+}
 /* The tool command line: it is a command, not prose. */
 .mono input {
   font-family: var(--font-mono);

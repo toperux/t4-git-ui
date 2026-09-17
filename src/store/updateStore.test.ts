@@ -90,6 +90,23 @@ describe("updateStore.install", () => {
     expect(unlisten).toHaveBeenCalledTimes(1);
   });
 
+  // The subscription is awaited inside the try for this: `installing` disables the dialog's Close
+  // and its Esc, so leaving it stuck true strands Settings — tab row and all — until a restart.
+  it("a progress subscription that never attaches unsticks the UI too", async () => {
+    useUpdateStore.setState({ info: release });
+    onProgress.mockRejectedValue({ kind: "io", message: "could not subscribe to progress" });
+    await useUpdateStore.getState().install();
+    expect(useUpdateStore.getState()).toMatchObject({
+      installing: false,
+      progress: null,
+      error: "could not subscribe to progress",
+      info: release,
+    });
+    // Nothing to unlisten, and the install was never started.
+    expect(unlisten).not.toHaveBeenCalled();
+    expect(mocked.installUpdate).not.toHaveBeenCalled();
+  });
+
   it("a failed install unsticks the UI: the message shows, the progress bar goes", async () => {
     useUpdateStore.setState({ info: release });
     mocked.installUpdate.mockRejectedValue({ kind: "io", message: "signature did not verify" });

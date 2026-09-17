@@ -583,7 +583,7 @@ describe("DiffViewer", () => {
     const off = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} onOpenExternal={onOpenExternal} />);
     const greyed = off.getByRole("button", { name: "Open in diff tool" });
     expect((greyed as HTMLButtonElement).disabled).toBe(true);
-    expect(greyed.getAttribute("title")).toBe("No diff tool set — Settings › Diff tool");
+    expect(greyed.getAttribute("title")).toBe("No diff tool set — Settings › Diff & merge › Diff tool");
     fireEvent.click(greyed);
     expect(onOpenExternal).not.toHaveBeenCalled();
     cleanup();

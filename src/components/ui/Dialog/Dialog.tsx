@@ -35,10 +35,15 @@ export interface DialogProps {
   preview?: string;
   /** Footer buttons, primary last (`type="submit"`); no footer at all when omitted. */
   footer?: ReactNode;
+  /** A tab strip on its own row under the title (Settings); the caller owns the panels. */
+  tabs?: ReactNode;
   children: ReactNode;
 }
 
 const FOCUSABLE = 'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])';
+
+/** Controls inside a `hidden` panel are in the DOM but not reachable — a tabbed dialog has some. */
+const reachable = (el: HTMLElement) => !el.closest("[hidden]");
 
 /**
  * First focusable control of the open dialog, for focus that has nowhere else to go (a toast whose
@@ -48,14 +53,14 @@ const FOCUSABLE = 'button:not(:disabled), input:not(:disabled), select:not(:disa
 export function firstDialogField(): HTMLElement | null {
   const form = document.querySelector<HTMLElement>('form[role="dialog"]');
   if (!form) return null;
-  return (form.querySelector<HTMLElement>(`.${s.body}`) ?? form).querySelector<HTMLElement>(FOCUSABLE);
+  return Array.from((form.querySelector<HTMLElement>(`.${s.body}`) ?? form).querySelectorAll<HTMLElement>(FOCUSABLE)).find(reachable) ?? null;
 }
 
 /**
  * Modal dialog (style guide `Dialog`): scrim, title + close, body, footer. Esc closes, Enter submits,
  * Tab is trapped inside, focus returns to the opener on unmount. Rendered into `document.body`.
  */
-export function Dialog({ title, wide, full, onClose, busy, onSubmit, preview, footer, children }: DialogProps) {
+export function Dialog({ title, wide, full, onClose, busy, onSubmit, preview, footer, tabs, children }: DialogProps) {
   const ref = useRef<HTMLFormElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -67,7 +72,7 @@ export function Dialog({ title, wide, full, onClose, busy, onSubmit, preview, fo
   // React focuses an `autoFocus` control itself; only fall back when nothing inside took focus.
   useEffect(() => {
     const el = ref.current;
-    if (el && !el.contains(document.activeElement)) el.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+    if (el && !el.contains(document.activeElement)) Array.from(el.querySelectorAll<HTMLElement>(FOCUSABLE)).find(reachable)?.focus();
     const back = opener.current;
     return () => {
       // Only when closing dropped the focus: a dialog that opens another in the same commit (Commit &
@@ -86,7 +91,7 @@ export function Dialog({ title, wide, full, onClose, busy, onSubmit, preview, fo
   useEffect(() => {
     const el = ref.current;
     if (busy || !el || el.contains(document.activeElement)) return;
-    (bodyRef.current?.querySelector<HTMLElement>(FOCUSABLE) ?? el.querySelector<HTMLElement>(FOCUSABLE))?.focus();
+    (Array.from(bodyRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []).find(reachable) ?? Array.from(el.querySelectorAll<HTMLElement>(FOCUSABLE)).find(reachable))?.focus();
   }, [busy]);
 
   function onKeyDown(e: KeyboardEvent<HTMLFormElement>) {
@@ -97,7 +102,7 @@ export function Dialog({ title, wide, full, onClose, busy, onSubmit, preview, fo
       return;
     }
     if (e.key !== "Tab") return;
-    const items = Array.from(ref.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []);
+    const items = Array.from(ref.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []).filter(reachable);
     if (items.length === 0) return;
     const first = items[0];
     const last = items[items.length - 1];
@@ -135,6 +140,7 @@ export function Dialog({ title, wide, full, onClose, busy, onSubmit, preview, fo
             <X size={16} aria-hidden />
           </IconButton>
         </div>
+        {tabs && <div className={s.tabsBar}>{tabs}</div>}
         <div ref={bodyRef} className={cx(s.body, full && s.bodyFull)}>
           {children}
         </div>

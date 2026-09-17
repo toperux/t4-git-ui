@@ -49,10 +49,13 @@ export const useUpdateStore = create<UpdateStore>()((set) => ({
 
   async install() {
     set({ installing: true, progress: null, error: null });
-    // Attached before the call, the way CloneDialog attaches its op listener: the download starts
-    // inside `install_update`, so a subscription made afterwards can miss its first percentages.
-    const unlisten = await onUpdateProgressReady((progress) => set({ progress }));
+    // Inside the try, so a subscription that rejects still reaches the `finally`: `installing` also
+    // disables Close and Esc, and leaving it stuck true strands the whole dialog until a restart.
+    let unlisten: (() => void) | undefined;
     try {
+      // Attached before the call, the way CloneDialog attaches its op listener: the download starts
+      // inside `install_update`, so a subscription made afterwards can miss its first percentages.
+      unlisten = await onUpdateProgressReady((progress) => set({ progress }));
       await ipc.installUpdate();
     } catch (e) {
       set({ error: toAppError(e).message });
@@ -60,7 +63,7 @@ export const useUpdateStore = create<UpdateStore>()((set) => ({
       // Reached only when the install failed (or refused to take over): the section goes back to
       // being usable, with the message beside the buttons, rather than stuck on a dead progress bar.
       set({ installing: false, progress: null });
-      unlisten();
+      unlisten?.();
     }
   },
 }));

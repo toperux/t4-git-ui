@@ -136,7 +136,7 @@ src/
                            check() (check_for_update — run at launch when settingsStore.autoUpdateCheck, and by Settings' Check now)
                            and install() (subscribes to `update://progress` *before* invoking install_update, then never comes
                            back: the app restarts into the new version — so only its failures land in `error`).
-                           Settings › Updates and the UpdateBadge on both screens read the same answer
+                           Settings › General › Updates and the UpdateBadge on both screens read the same answer
     dialogStore.ts         zustand: one `DialogSpec` at a time — open(spec, {returnFocusTo}) / close(); DialogHost renders it
                            and feeds `returnFocusTo` to `Dialog` through `DialogReturnFocus`
     toastStore.ts          zustand: toasts (info|success auto-dismiss after 5 s, errors persist until dismissed);
@@ -205,19 +205,25 @@ src/
                            + ContextMenu (portal at a viewport point, clamped) + MenuRef (a branch name inside an item:
                            mono, chip colours for local / remote), ThemeToggle (Sun/Moon, theme/theme.ts `toggleTheme`),
                            UpdateBadge (sm primary Button beside the Settings gear on both screens, hidden until a check found
-                           a version — a shortcut into Settings › Updates, where the check and the install live),
+                           a version — a shortcut into Settings › General › Updates, where the check and the install live),
                            Progress (4px pill; indeterminate sweep, or `value` 0–100 = a filled bar + aria-valuenow),
                            Toast + ToastStack (a click anywhere on a toast dismisses it — not its buttons, and not its detail, which stays selectable),
-                           Dialog (440 / `.wide` 560 / `full` = the window minus a margin, unpadded body, footer optional —
-                           over `--scrim`, portal, Esc closes, Enter submits, Tab trapped, focus
+                           Dialog (440 / `.wide` 560 / `full` = the window minus a margin, unpadded body, footer optional,
+                           optional `tabs` row between the title and the body — outside the body because the body is what
+                           scrolls — over `--scrim`, portal, Esc closes, Enter submits, Tab trapped (skipping controls
+                           inside a `hidden` panel, which a tabbed dialog has), focus
                            restored, aria-modal) + Field / FieldRow / Options / DialogText / Mono)
   screens/
     StartScreen/           recents list (filter, keyboard, pin, remove) | Open / Clone… / Initialize… cards + shortcuts;
                            CloneDialog.tsx (components/ui/Dialog with `busy`; form → progress mode); the gear opens
                            SettingsDialog from local state (no DialogHost here)
     SettingsDialog/        Settings (wide Dialog, Close only — fields apply on change; context lines on blur / Enter; the git path on
-                           Apply, Enter or Locate…): Git executable (path, Locate…, Apply → version or error inline), Theme
-                           (Light / Dark / Follow system → theme.setTheme), Diff (context lines 0–99, ignore whitespace by default) — backed by store/settingsStore
+                           Apply, Enter or Locate…) in three tabs of the Dialog's `tabs` row, ←/→ to switch, every panel kept
+                           mounted so a tool section's uncommitted edits survive a switch and the row disabled while an update
+                           downloads (Updates is under General and a download disables Close): General (Theme — Light / Dark /
+                           Follow system → theme.setTheme; Sidebar; Updates), Git (Git executable — path, Locate…, Apply →
+                           version or error inline; Signing), Diff & merge (Diff — context lines 0–99, ignore whitespace by
+                           default; Diff tool; Merge tool) — backed by store/settingsStore
                            ToolSection.tsx × 2 (Diff tool / Merge tool): template Select (None | ten TOOLS | Custom) → findTool
                            fills Path (a stale lookup is dropped by a pick counter) and derives Command until the user edits it;
                            Locate… = the same file picker, Suggest re-runs the lookup, Custom adds a free Name (validateRefName);

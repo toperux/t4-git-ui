@@ -334,7 +334,9 @@ a { color: var(--accent-text); text-decoration: none; } a:hover { text-decoratio
 .checkbox.is-focus { box-shadow: var(--focus-ring); }
 /* Disabled sits on the label wrapper, so the text dims with the box. There is no mixed state. */
 .check.is-disabled { opacity: 0.45; }
-/* Changes | Files (ChangedFileList.module.css .tabs / .tab / .tabOn): 24px pills, radius sm, no underline. */
+/* The same pills twice: the Changes | Files panel header pair (ChangedFileList.module.css .tabs /
+   .tab / .tabOn) and the Settings dialog's three-tab strip (SettingsDialog.module.css .tabs / .tab
+   / .tabOn): 24px pills, radius sm, no underline. */
 .pill-tabs { display: inline-flex; gap: var(--space-1); flex: none; }
 .pill-tab { height: var(--control-h-sm); padding: 0 var(--space-3); border-radius: var(--radius-sm); display: inline-flex; align-items: center; background: transparent; color: var(--fg-muted); }
 .pill-tab.is-hover { background: var(--bg-hover); color: var(--fg); }
@@ -454,6 +456,8 @@ a { color: var(--accent-text); text-decoration: none; } a:hover { text-decoratio
 .dialog.full { width: 100%; height: 100%; }
 .dialog-title { display: flex; align-items: center; gap: var(--space-3); height: 44px; flex: none; padding: 0 var(--space-6); font-size: var(--text-lg); font-weight: var(--weight-semibold); border-bottom: 1px solid var(--border); }
 .dialog-title .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* Dialog.module.css .tabsBar — the optional tab row between title and body (Settings only). */
+.dialog-tabs { display: flex; flex: none; padding: var(--space-3) var(--space-6); border-bottom: 1px solid var(--border); }
 .dialog-body { display: flex; flex-direction: column; gap: var(--space-5); padding: var(--space-6); overflow: auto; }
 .dialog-body.full { flex: 1; min-height: 0; padding: 0; gap: 0; overflow: hidden; }
 .dialog-foot { display: flex; align-items: center; gap: var(--space-4); flex: none; padding: var(--space-5) var(--space-6); border-top: 1px solid var(--border); }

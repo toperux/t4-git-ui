@@ -39,7 +39,9 @@
     background-color var(--dur) var(--ease),
     color var(--dur) var(--ease);
 }
-.tab:hover {
+/* Excluding .tabOn: `.tab:hover` outranks it on specificity, so without this the hovered current
+   tab drops to the weaker hover tint and reads as deselected. */
+.tab:hover:not(.tabOn) {
   background-color: var(--bg-hover);
   color: var(--fg);
 }

@@ -28,7 +28,9 @@
   justify-content: center;
   cursor: default;
 }
-.btn:hover {
+/* Excluding .on: `.btn:hover` outranks it on specificity, so without this the hovered open
+   section drops to the weaker hover tint and reads as closed. */
+.btn:hover:not(.on) {
   background: var(--bg-hover);
   color: var(--fg);
 }

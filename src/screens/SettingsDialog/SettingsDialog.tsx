@@ -1,11 +1,13 @@
-// App preferences, reachable from both screens (toolbar gear / start screen gear).
+// App preferences, reachable from both screens (toolbar gear / start screen gear). Eight sections
+// across three tabs — General (theme, sidebar, updates), Git (executable, signing) and Diff & merge
+// (diff, diff tool, merge tool) — since stacked in one column they were a scroll nobody read.
 // Theme, the whitespace default and the folder mode apply as they change; the path field and the two
 // number fields apply on Enter (the git path on Apply / Locate… too, since trying it starts a
 // process); the two tool sections have an Apply of their own. The footer only closes.
 import { open as openFile } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { FolderSearch } from "lucide-react";
-import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useEffect, useId, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { toAppError } from "../../api/ipc";
 import { Button } from "../../components/ui/Button/Button";
 import { Checkbox } from "../../components/ui/Checkbox/Checkbox";
@@ -13,6 +15,7 @@ import { Dialog, Field, Options } from "../../components/ui/Dialog/Dialog";
 import { Input, Select } from "../../components/ui/Input/Input";
 import { Progress } from "../../components/ui/Progress/Progress";
 import { APP_NAME } from "../../lib/app";
+import { cx } from "../../lib/cx";
 import { getThemePref, setTheme, type ThemePref } from "../../theme/theme";
 import { MAX_CONTEXT, MAX_FOLDERS_MAX, useSettingsStore, type SidebarFolders } from "../../store/settingsStore";
 import { toastError } from "../../store/toastStore";
@@ -21,6 +24,13 @@ import pkg from "../../../package.json";
 import s from "./SettingsDialog.module.css";
 import { SigningSection } from "./SigningSection";
 import { ToolSection } from "./ToolSection";
+
+const TABS = [
+  { key: "general", label: "General" },
+  { key: "git", label: "Git" },
+  { key: "diff", label: "Diff & merge" },
+] as const;
+type Tab = (typeof TABS)[number]["key"];
 
 export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const diffContext = useSettingsStore((st) => st.diffContext);
@@ -41,6 +51,17 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const progress = useUpdateStore((st) => st.progress);
   const updateError = useUpdateStore((st) => st.error);
   const { check, install } = useUpdateStore.getState();
+
+  const [tab, setTab] = useState<Tab>("general");
+  const baseId = useId();
+
+  const panel = (k: Tab) => ({
+    role: "tabpanel" as const,
+    className: s.panel,
+    hidden: tab !== k,
+    id: `${baseId}-panel-${k}`,
+    "aria-labelledby": `${baseId}-tab-${k}`,
+  });
 
   // The path is edited freely and only tried on Apply / Enter — trying it runs `git --version`.
   const [path, setPath] = useState(gitPath);
@@ -141,137 +162,183 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
           Close
         </Button>
       }
+      // Locked while a download runs: Updates lives on General and `busy` disables Close, so leaving
+      // that tab mid-download would give the user a dialog they can't close and no reason on screen.
+      tabs={<SettingsTabs tab={tab} setTab={setTab} disabled={installing} baseId={baseId} />}
     >
-      <section className={s.section}>
-        <h3 className={s.head}>Git executable</h3>
-        <Field label="Path" invalid={!!gitError} help={gitError ?? gitVersion ?? "Leave empty to use the git found on PATH."}>
-          <div className={s.row}>
-            <Input
-              aria-label="Git executable"
-              value={path}
-              onChange={(e) => {
-                setPath(e.target.value);
-                // The message describes the path that was probed, not the one being typed.
-                if (gitError) clearGitError();
-              }}
-              onKeyDown={onPathKeyDown}
-              placeholder="git (from PATH)"
-              disabled={busy}
-              spellCheck={false}
-            />
-            <Button icon={<FolderSearch size={14} aria-hidden />} disabled={busy} onClick={() => void locate()}>
-              Locate…
-            </Button>
-            <Button disabled={busy} onClick={() => void apply()}>
-              Apply
-            </Button>
-          </div>
-        </Field>
-      </section>
-
-      <section className={s.section}>
-        <h3 className={s.head}>Theme</h3>
-        <Field label="Appearance">
-          <Select aria-label="Theme" value={pref} onChange={(e) => pickTheme(e.target.value)}>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-            <option value="system">Follow system</option>
-          </Select>
-        </Field>
-      </section>
-
-      <section className={s.section}>
-        <h3 className={s.head}>Sidebar</h3>
-        {/* The rule seeds the folder rows: one opened or closed by hand stays that way for the session. */}
-        <Field label="Sidebar folders" help={`"More than N" counts the refs under a folder at any depth (1–${MAX_FOLDERS_MAX}).`}>
-          <div className={s.row}>
-            <Select aria-label="Sidebar folders" value={sidebarFolders} onChange={(e) => setSidebarFolders(e.target.value as SidebarFolders)}>
-              <option value="expanded">Always expanded</option>
-              <option value="collapsed">Always collapsed</option>
-              <option value="auto">Collapsed when more than N refs</option>
+      {/* All three panels stay mounted: ToolSection holds an unapplied draft in local state and
+          SigningSection fetches on mount, so a switch would throw a typed command away. */}
+      <div {...panel("general")}>
+        <section className={s.section}>
+          <h3 className={s.head}>Theme</h3>
+          <Field label="Appearance">
+            <Select aria-label="Theme" value={pref} onChange={(e) => pickTheme(e.target.value)}>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+              <option value="system">Follow system</option>
             </Select>
+          </Field>
+        </section>
+
+        <section className={s.section}>
+          <h3 className={s.head}>Sidebar</h3>
+          {/* The rule seeds the folder rows: one opened or closed by hand stays that way for the session. */}
+          <Field label="Sidebar folders" help={`"More than N" counts the refs under a folder at any depth (1–${MAX_FOLDERS_MAX}).`}>
+            <div className={s.row}>
+              <Select aria-label="Sidebar folders" value={sidebarFolders} onChange={(e) => setSidebarFolders(e.target.value as SidebarFolders)}>
+                <option value="expanded">Always expanded</option>
+                <option value="collapsed">Always collapsed</option>
+                <option value="auto">Collapsed when more than N refs</option>
+              </Select>
+              <Input
+                className={s.number}
+                aria-label="Refs per folder"
+                type="number"
+                min={1}
+                max={MAX_FOLDERS_MAX}
+                disabled={sidebarFolders !== "auto"}
+                value={foldersMax}
+                onChange={(e) => setFoldersMax(e.target.value)}
+                onBlur={applyFoldersMax}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") applyFoldersMax();
+                }}
+              />
+            </div>
+          </Field>
+        </section>
+
+        <section className={s.section}>
+          <h3 className={s.head}>Updates</h3>
+          <Options>
+            <Checkbox checked={autoUpdateCheck} onChange={setAutoUpdateCheck} disabled={installing}>
+              Check for updates on launch
+            </Checkbox>
+          </Options>
+          {/* Check now works whatever the toggle says: the setting is about launch, not about asking. */}
+          <Field label="Version" invalid={!!updateError} help={updateStatus}>
+            <div className={s.buttons}>
+              <Button disabled={checking || installing} onClick={() => void check()}>
+                Check now
+              </Button>
+              {/* Nobody should have to accept a version sight unseen: on every install kind but .deb /
+                  .rpm the button below installs it, so this is the only way to the release notes. */}
+              {info && (
+                <Button variant="ghost" disabled={installing} onClick={() => openReleasePage(info.releaseUrl)}>
+                  What's new
+                </Button>
+              )}
+              {/* Always rendered, so the section keeps its shape whether or not a check found anything.
+                  Disabled it still labels itself, and "Up to date" is only true once a check came back —
+                  after one that failed it would be the wrong answer, stated confidently. */}
+              <Button variant="primary" disabled={!info || installing} onClick={getUpdate}>
+                {info
+                  ? info.installable
+                    ? `Update to ${info.version}…`
+                    : "Download…"
+                  : checked
+                    ? "Up to date"
+                    : "Update"}
+              </Button>
+            </div>
+          </Field>
+          {installing && <Progress thin label="Downloading update" value={progress ?? undefined} />}
+        </section>
+      </div>
+
+      <div {...panel("git")}>
+        <section className={s.section}>
+          <h3 className={s.head}>Git executable</h3>
+          <Field label="Path" invalid={!!gitError} help={gitError ?? gitVersion ?? "Leave empty to use the git found on PATH."}>
+            <div className={s.row}>
+              <Input
+                aria-label="Git executable"
+                value={path}
+                onChange={(e) => {
+                  setPath(e.target.value);
+                  // The message describes the path that was probed, not the one being typed.
+                  if (gitError) clearGitError();
+                }}
+                onKeyDown={onPathKeyDown}
+                placeholder="git (from PATH)"
+                disabled={busy}
+                spellCheck={false}
+              />
+              <Button icon={<FolderSearch size={14} aria-hidden />} disabled={busy} onClick={() => void locate()}>
+                Locate…
+              </Button>
+              <Button disabled={busy} onClick={() => void apply()}>
+                Apply
+              </Button>
+            </div>
+          </Field>
+        </section>
+
+        <SigningSection />
+      </div>
+
+      <div {...panel("diff")}>
+        <section className={s.section}>
+          <h3 className={s.head}>Diff</h3>
+          <Field label="Context lines" help={`Lines of unchanged context around each hunk (0–${MAX_CONTEXT}).`}>
             <Input
               className={s.number}
-              aria-label="Refs per folder"
+              aria-label="Context lines"
               type="number"
-              min={1}
-              max={MAX_FOLDERS_MAX}
-              disabled={sidebarFolders !== "auto"}
-              value={foldersMax}
-              onChange={(e) => setFoldersMax(e.target.value)}
-              onBlur={applyFoldersMax}
+              min={0}
+              max={MAX_CONTEXT}
+              value={context}
+              onChange={(e) => setContext(e.target.value)}
+              onBlur={applyContext}
               onKeyDown={(e) => {
-                if (e.key === "Enter") applyFoldersMax();
+                if (e.key === "Enter") applyContext();
               }}
             />
-          </div>
-        </Field>
-      </section>
+          </Field>
+          <Options>
+            <Checkbox checked={ignoreWhitespace} onChange={setIgnoreWhitespace}>
+              Ignore whitespace by default
+            </Checkbox>
+          </Options>
+        </section>
 
-      <section className={s.section}>
-        <h3 className={s.head}>Diff</h3>
-        <Field label="Context lines" help={`Lines of unchanged context around each hunk (0–${MAX_CONTEXT}).`}>
-          <Input
-            className={s.number}
-            aria-label="Context lines"
-            type="number"
-            min={0}
-            max={MAX_CONTEXT}
-            value={context}
-            onChange={(e) => setContext(e.target.value)}
-            onBlur={applyContext}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") applyContext();
-            }}
-          />
-        </Field>
-        <Options>
-          <Checkbox checked={ignoreWhitespace} onChange={setIgnoreWhitespace}>
-            Ignore whitespace by default
-          </Checkbox>
-        </Options>
-      </section>
-
-      <ToolSection kind="diff" />
-      <ToolSection kind="merge" />
-      <SigningSection />
-
-      <section className={s.section}>
-        <h3 className={s.head}>Updates</h3>
-        <Options>
-          <Checkbox checked={autoUpdateCheck} onChange={setAutoUpdateCheck} disabled={installing}>
-            Check for updates on launch
-          </Checkbox>
-        </Options>
-        {/* Check now works whatever the toggle says: the setting is about launch, not about asking. */}
-        <Field label="Version" invalid={!!updateError} help={updateStatus}>
-          <div className={s.buttons}>
-            <Button disabled={checking || installing} onClick={() => void check()}>
-              Check now
-            </Button>
-            {/* Nobody should have to accept a version sight unseen: on every install kind but .deb /
-                .rpm the button below installs it, so this is the only way to the release notes. */}
-            {info && (
-              <Button variant="ghost" disabled={installing} onClick={() => openReleasePage(info.releaseUrl)}>
-                What's new
-              </Button>
-            )}
-            {/* Always rendered, so the section keeps its shape whether or not a check found anything.
-                Disabled it still labels itself, and "Up to date" is only true once a check came back —
-                after one that failed it would be the wrong answer, stated confidently. */}
-            <Button variant="primary" disabled={!info || installing} onClick={getUpdate}>
-              {info
-                ? info.installable
-                  ? `Update to ${info.version}…`
-                  : "Download…"
-                : checked
-                  ? "Up to date"
-                  : "Update"}
-            </Button>
-          </div>
-        </Field>
-        {installing && <Progress thin label="Downloading update" value={progress ?? undefined} />}
-      </section>
+        <ToolSection kind="diff" />
+        <ToolSection kind="merge" />
+      </div>
     </Dialog>
+  );
+}
+
+/** General | Git | Diff & merge. ←/→ switch, as a tab strip is expected to. */
+function SettingsTabs({ tab, setTab, disabled, baseId }: { tab: Tab; setTab: (t: Tab) => void; disabled: boolean; baseId: string }) {
+  const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    const i = TABS.findIndex((t) => t.key === tab);
+    const next = TABS[(i + (e.key === "ArrowRight" ? 1 : TABS.length - 1)) % TABS.length].key;
+    setTab(next);
+    // The selected tab is the only tab stop, so the focus follows the selection onto it.
+    e.currentTarget.querySelector<HTMLElement>(`[data-tab="${next}"]`)?.focus();
+  };
+  return (
+    <div className={s.tabs} role="tablist" aria-label="Settings sections" onKeyDown={onKeyDown}>
+      {TABS.map(({ key, label }) => (
+        <button
+          key={key}
+          type="button"
+          role="tab"
+          data-tab={key}
+          id={`${baseId}-tab-${key}`}
+          aria-controls={`${baseId}-panel-${key}`}
+          aria-selected={tab === key}
+          tabIndex={tab === key ? 0 : -1}
+          disabled={disabled}
+          className={cx(s.tab, tab === key && s.tabOn)}
+          onClick={() => setTab(key)}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
   );
 }

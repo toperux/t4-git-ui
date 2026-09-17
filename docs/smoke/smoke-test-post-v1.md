@@ -191,6 +191,8 @@ _Shipped 2026-09-02: `21c2158`._
 
 ## J. Settings (main §6)
 _Shipped 2026-09-02: `8b8102a`._
+_These controls sit on tabs since 2026-09-17 (group AX): the git path under **Git**, the theme under
+**General**, the context lines and the whitespace default under **Diff & merge**._
 
 - [x] **Settings** (toolbar gear, also on the start screen): a bogus git path + Apply → the error shows
       inline, the old path stays and the app keeps working; the real path → `git version …` shows and
@@ -1736,6 +1738,27 @@ defect (anchoring in one pass never fires, because a restarted walk's first page
 7. - [x] On a dirty repository sitting on the working-tree row, switch tabs and back: the row is in view again, not scrolled one row past it.
 8. - [x] Refresh (F5) with nothing changed, from any scroll position: nothing moves.
 9. - [ ] A reader who scrolls **during** the restart keeps their own scroll: not drivable here (the window between the walk restarting and completing is ~90 ms, and the watcher's own delay jitters more than that). Covered by `repoStore.test.ts` "does not scroll under a reader who moved while the restarted walk's first page loaded". What the walk did see: a scroll landing just *before* the restart re-anchors on the row the reader moved to, which is the same rule.
+
+## AX. Settings in three tabs (main §6; group J's controls moved)
+
+Fixture: any repository — the walk used `c:/tmp/t4/irebase`. `Diff & merge › Diff tool` needs a tool
+configured for its Command field to exist, which bullet 5 types into. Most of this is read out of
+the DOM rather than eyeballed: for a tab strip the questions are which panel is visible, which
+controls are reachable and what the computed tokens are.
+
+Walked 2026-09-17 over CDP on a local release build — see
+`docs/archive/walks/2026-09-17-settings-tabs-walk.md`. Two of its findings were fixed *after* that
+build, so bullets 6 and 7 are the ones its binary could not show.
+
+1. - [x] The gear opens on **General** — Theme · Sidebar · Updates — with `aria-selected` on General alone, only it a tab stop, and the other two panels carrying `hidden`. The row sits under the title, **outside** the body that scrolls, pad `6px 16px` over a 1px `--border` hairline.
+2. - [x] **Git** holds Git executable · Signing; **Diff & merge** holds Diff · Diff tool · Merge tool. Exactly one panel is visible at a time. Signing still fills in — its read happens once, when the dialog opens, not when its tab is first shown.
+3. - [x] ←/→ move the selection **and** the focus, wrapping both ways: General → Git → Diff & merge → General, and ArrowLeft back again.
+4. - [x] Tab from the last control of the open panel wraps to the title bar's Close and never lands on a control inside a hidden panel. (33 controls match the dialog's focusable selector; 10 are reachable on General, 14 on Git, 19 on Diff & merge.)
+5. - [x] Type into `Diff & merge › Diff tool › Command` without pressing Apply, switch to General and back: the draft is still there. The inactive panels are hidden, not unmounted, so the field stays in the DOM inside `[hidden]` — which is what makes losing the draft impossible.
+6. - [ ] Start a real update download: the whole tab row goes disabled along with Close, and the progress bar stays on screen with them. Needs a publishable newer release, so it is covered by `SettingsDialog.test.tsx` "a running download locks the tab row" and `updateStore.test.ts` "a progress subscription that never attaches unsticks the UI too".
+7. - [ ] Hover the **selected** tab: it keeps its `--bg-active` tint instead of dropping to the weaker `--bg-hover` one, and a disabled tab does not light up at all. Same check on the Changes | Files pair and on an open `SidebarRail` section — all three share the idiom.
+8. - [x] Light and dark: the selected pill, the unselected labels and the hairline all read their tokens. Light gives the pill `--bg-active` at 9% under near-black text on the elevated dialog, about 8:1. Switch themes through Settings' own Appearance select — flipping `data-theme` by hand does not re-resolve the tokens the pill reads.
+9. - [x] The dialog **grows with the tab** (546 → 608 → 812 px at a 929px-tall window) and Diff & merge scrolls on its own. Intended, not a defect: the tabs group related settings, they do not promise one height.
 
 ## Reporting
 

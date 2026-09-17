@@ -18,12 +18,16 @@ import { open as openFile } from "@tauri-apps/plugin-dialog";
 import * as ipc from "../../api/ipc";
 import { SIGNING_KEYS, type SigningConfig } from "../../api/types";
 import { DEFAULT_CONTEXT, DEFAULT_FOLDERS_MAX, useSettingsStore } from "../../store/settingsStore";
+import { useUpdateStore } from "../../store/updateStore";
 import * as theme from "../../theme/theme";
 import { SettingsDialog } from "./SettingsDialog";
 
 const mocked = ipc as unknown as Record<"setGitPath" | "getSigning" | "setSigning", ReturnType<typeof vi.fn>>;
 const picker = openFile as unknown as ReturnType<typeof vi.fn>;
 const setThemeMock = theme.setTheme as unknown as ReturnType<typeof vi.fn>;
+
+/** The sections sit on three tabs, and a hidden panel's controls are out of the a11y tree. */
+const goTo = (r: ReturnType<typeof render>, name: string) => fireEvent.click(r.getByRole("tab", { name }));
 
 /** Every signing key unset, with the named ones overridden. */
 const signing = (over: Partial<SigningConfig> = {}): SigningConfig =>
@@ -44,22 +48,28 @@ beforeEach(() => {
     sidebarFolders: "expanded",
     sidebarFoldersMax: DEFAULT_FOLDERS_MAX,
   });
+  // Shared with the dialog through `busy`, so a test that sets it must not leak into the next one.
+  useUpdateStore.setState({ info: null, checked: false, checking: false, installing: false, progress: null, error: null });
 });
 afterEach(cleanup);
 
 describe("SettingsDialog", () => {
   it("shows the stored preferences", () => {
     useSettingsStore.setState({ diffContext: 8, ignoreWhitespace: true, gitPath: "C:\\git\\bin\\git.exe" });
-    const { getByRole } = render(<SettingsDialog onClose={() => {}} />);
+    const r = render(<SettingsDialog onClose={() => {}} />);
+    const { getByRole } = r;
+    goTo(r, "Git");
     expect((getByRole("textbox", { name: "Git executable" }) as HTMLInputElement).value).toBe("C:\\git\\bin\\git.exe");
+    goTo(r, "Diff & merge");
     expect((getByRole("spinbutton", { name: "Context lines" }) as HTMLInputElement).value).toBe("8");
     expect((getByRole("checkbox", { name: "Ignore whitespace by default" }) as HTMLInputElement).checked).toBe(true);
   });
 
   it("applies the context lines once the field is left, not on every keystroke", () => {
     const setDiffContext = vi.spyOn(useSettingsStore.getState(), "setDiffContext");
-    const { getByRole } = render(<SettingsDialog onClose={() => {}} />);
-    const field = getByRole("spinbutton", { name: "Context lines" });
+    const r = render(<SettingsDialog onClose={() => {}} />);
+    goTo(r, "Diff & merge");
+    const field = r.getByRole("spinbutton", { name: "Context lines" });
     // Typing "12" over "3" passes through "1": applying it would persist 1 and reload the diff at 1.
     fireEvent.change(field, { target: { value: "1" } });
     fireEvent.change(field, { target: { value: "12" } });
@@ -72,8 +82,9 @@ describe("SettingsDialog", () => {
   it("an emptied field applies nothing and comes back with the stored value", () => {
     useSettingsStore.setState({ diffContext: 8 });
     const setDiffContext = vi.spyOn(useSettingsStore.getState(), "setDiffContext");
-    const { getByRole } = render(<SettingsDialog onClose={() => {}} />);
-    const field = getByRole("spinbutton", { name: "Context lines" }) as HTMLInputElement;
+    const r = render(<SettingsDialog onClose={() => {}} />);
+    goTo(r, "Diff & merge");
+    const field = r.getByRole("spinbutton", { name: "Context lines" }) as HTMLInputElement;
     fireEvent.change(field, { target: { value: "" } });
     fireEvent.blur(field);
     expect(setDiffContext).not.toHaveBeenCalled();
@@ -83,8 +94,9 @@ describe("SettingsDialog", () => {
 
   it("applies the whitespace default as it is ticked", () => {
     const setIgnoreWhitespace = vi.spyOn(useSettingsStore.getState(), "setIgnoreWhitespace");
-    const { getByRole } = render(<SettingsDialog onClose={() => {}} />);
-    fireEvent.click(getByRole("checkbox", { name: "Ignore whitespace by default" }));
+    const r = render(<SettingsDialog onClose={() => {}} />);
+    goTo(r, "Diff & merge");
+    fireEvent.click(r.getByRole("checkbox", { name: "Ignore whitespace by default" }));
     expect(setIgnoreWhitespace).toHaveBeenCalledWith(true);
   });
 
@@ -116,7 +128,9 @@ describe("SettingsDialog", () => {
 
   it("Apply tries the typed executable and reports the version", async () => {
     mocked.setGitPath.mockResolvedValue("git version 2.55.0");
-    const { getByRole, findByText } = render(<SettingsDialog onClose={() => {}} />);
+    const r = render(<SettingsDialog onClose={() => {}} />);
+    const { getByRole, findByText } = r;
+    goTo(r, "Git");
     fireEvent.change(getByRole("textbox", { name: "Git executable" }), { target: { value: "C:\\git\\bin\\git.exe" } });
     fireEvent.click(getByRole("button", { name: "Apply" }));
     await waitFor(() => expect(mocked.setGitPath).toHaveBeenCalledWith("C:\\git\\bin\\git.exe"));
@@ -125,7 +139,9 @@ describe("SettingsDialog", () => {
 
   it("a rejected executable is reported and not kept", async () => {
     mocked.setGitPath.mockRejectedValue({ kind: "gitNotFound", message: "not a git executable" });
-    const { getByRole, findByText } = render(<SettingsDialog onClose={() => {}} />);
+    const r = render(<SettingsDialog onClose={() => {}} />);
+    const { getByRole, findByText } = r;
+    goTo(r, "Git");
     fireEvent.change(getByRole("textbox", { name: "Git executable" }), { target: { value: "C:\\nope.exe" } });
     fireEvent.click(getByRole("button", { name: "Apply" }));
     expect(await findByText("not a git executable")).toBeTruthy();
@@ -135,6 +151,7 @@ describe("SettingsDialog", () => {
   it("the rejection is cleared by an edit and is gone the next time the dialog opens", async () => {
     mocked.setGitPath.mockRejectedValue({ kind: "gitNotFound", message: "not a git executable" });
     const first = render(<SettingsDialog onClose={() => {}} />);
+    goTo(first, "Git");
     const field = first.getByRole("textbox", { name: "Git executable" });
     fireEvent.change(field, { target: { value: "C:\\nope.exe" } });
     fireEvent.click(first.getByRole("button", { name: "Apply" }));
@@ -146,12 +163,15 @@ describe("SettingsDialog", () => {
     cleanup();
 
     const second = render(<SettingsDialog onClose={() => {}} />);
+    goTo(second, "Git");
     expect(second.getByText("Leave empty to use the git found on PATH.")).toBeTruthy();
   });
 
   it("strips the quotes Explorer's Copy as path leaves around the executable", async () => {
     mocked.setGitPath.mockResolvedValue("git version 2.55.0");
-    const { getByRole } = render(<SettingsDialog onClose={() => {}} />);
+    const r = render(<SettingsDialog onClose={() => {}} />);
+    const { getByRole } = r;
+    goTo(r, "Git");
     fireEvent.change(getByRole("textbox", { name: "Git executable" }), { target: { value: '"C:\\Program Files\\Git\\bin\\git.exe"' } });
     fireEvent.click(getByRole("button", { name: "Apply" }));
     await waitFor(() => expect(mocked.setGitPath).toHaveBeenCalledWith("C:\\Program Files\\Git\\bin\\git.exe"));
@@ -159,11 +179,14 @@ describe("SettingsDialog", () => {
 
   it("Enter applies the git path and nothing else does", async () => {
     mocked.setGitPath.mockResolvedValue("git version 2.55.0");
-    const { getByRole } = render(<SettingsDialog onClose={() => {}} />);
+    const r = render(<SettingsDialog onClose={() => {}} />);
+    const { getByRole } = r;
     // The dialog has no submit action: Enter in another field must not start a git probe.
+    goTo(r, "Diff & merge");
     fireEvent.keyDown(getByRole("spinbutton", { name: "Context lines" }), { key: "Enter" });
     expect(mocked.setGitPath).not.toHaveBeenCalled();
 
+    goTo(r, "Git");
     const field = getByRole("textbox", { name: "Git executable" });
     fireEvent.change(field, { target: { value: "C:\\git\\bin\\git.exe" } });
     fireEvent.keyDown(field, { key: "Enter" });
@@ -173,10 +196,41 @@ describe("SettingsDialog", () => {
   it("Locate… fills the field from the picker and applies it", async () => {
     picker.mockResolvedValue("D:\\PortableGit\\bin\\git.exe");
     mocked.setGitPath.mockResolvedValue("git version 2.51.0");
-    const { getByRole } = render(<SettingsDialog onClose={() => {}} />);
+    const r = render(<SettingsDialog onClose={() => {}} />);
+    const { getByRole } = r;
+    goTo(r, "Git");
     fireEvent.click(getByRole("button", { name: "Locate…" }));
     await waitFor(() => expect(mocked.setGitPath).toHaveBeenCalledWith("D:\\PortableGit\\bin\\git.exe"));
     expect((getByRole("textbox", { name: "Git executable" }) as HTMLInputElement).value).toBe("D:\\PortableGit\\bin\\git.exe");
+  });
+
+  it("opens on General and the tabs swap which sections are reachable", () => {
+    const r = render(<SettingsDialog onClose={() => {}} />);
+    expect(r.getByRole("tab", { name: "General" }).getAttribute("aria-selected")).toBe("true");
+    expect(r.queryByRole("spinbutton", { name: "Context lines" })).toBe(null);
+
+    goTo(r, "Diff & merge");
+    expect(r.getByRole("spinbutton", { name: "Context lines" })).toBeTruthy();
+    expect(r.queryByRole("textbox", { name: "Git executable" })).toBe(null);
+
+    // ←/→ move the selection, as a tab strip is expected to.
+    const diff = r.getByRole("tab", { name: "Diff & merge" });
+    fireEvent.keyDown(diff, { key: "ArrowLeft" });
+    expect(r.getByRole("tab", { name: "Git" }).getAttribute("aria-selected")).toBe("true");
+    fireEvent.keyDown(r.getByRole("tab", { name: "Git" }), { key: "ArrowRight" });
+    expect(r.getByRole("tab", { name: "Diff & merge" }).getAttribute("aria-selected")).toBe("true");
+  });
+
+  // Updates sits on General and a download disables Close, so wandering to another tab would leave
+  // a dialog that won't close with nothing on screen saying why.
+  it("a running download locks the tab row", () => {
+    useUpdateStore.setState({ installing: true, progress: 40 });
+    const r = render(<SettingsDialog onClose={() => {}} />);
+    for (const name of ["General", "Git", "Diff & merge"]) {
+      expect((r.getByRole("tab", { name }) as HTMLButtonElement).disabled).toBe(true);
+    }
+    // The progress it explains stays on screen with them.
+    expect(r.getByRole("progressbar", { name: "Downloading update" })).toBeTruthy();
   });
 });
 
@@ -190,9 +244,12 @@ describe("SettingsDialog ▸ Signing", () => {
         "commit.gpgsign": { value: "true", local: false },
       }),
     );
-    const { getByRole, findByText, queryByText } = render(<SettingsDialog onClose={() => {}} />);
+    const r = render(<SettingsDialog onClose={() => {}} />);
+    const { getByRole, findByText, queryByText } = r;
+    goTo(r, "Git");
     await waitFor(() => expect(getByRole("combobox", { name: "Signing format" }).textContent).toBe("SSH"));
-    expect((getByRole("textbox", { name: "Signing key" }) as HTMLInputElement).value).toBe("~/.ssh/id_ed25519.pub");
+    // The two text fields are seeded from the config by an effect, so they land a commit behind the select.
+    await waitFor(() => expect((getByRole("textbox", { name: "Signing key" }) as HTMLInputElement).value).toBe("~/.ssh/id_ed25519.pub"));
     // The SSH format's program key, not gpg.program.
     expect((getByRole("textbox", { name: "Signing program" }) as HTMLInputElement).value).toBe("/usr/bin/ssh-keygen");
     expect((getByRole("checkbox", { name: "Sign commits" }) as HTMLInputElement).checked).toBe(true);
@@ -202,7 +259,9 @@ describe("SettingsDialog ▸ Signing", () => {
   });
 
   it("writes each field to the global config", async () => {
-    const { getByRole } = render(<SettingsDialog onClose={() => {}} />);
+    const r = render(<SettingsDialog onClose={() => {}} />);
+    const { getByRole } = r;
+    goTo(r, "Git");
     await waitFor(() => expect(mocked.getSigning).toHaveBeenCalledWith(null));
     // A save disables the section until the re-read lands; wait it out before the next one.
     const idle = () => waitFor(() => expect((getByRole("textbox", { name: "Signing key" }) as HTMLInputElement).disabled).toBe(false));
@@ -235,7 +294,9 @@ describe("SettingsDialog ▸ Signing", () => {
 
   it("an emptied field clears the key instead of writing an empty value", async () => {
     mocked.getSigning.mockResolvedValue(signing({ "user.signingkey": { value: "ABCD1234", local: false } }));
-    const { getByRole } = render(<SettingsDialog onClose={() => {}} />);
+    const r = render(<SettingsDialog onClose={() => {}} />);
+    const { getByRole } = r;
+    goTo(r, "Git");
     const key = () => getByRole("textbox", { name: "Signing key" }) as HTMLInputElement;
     await waitFor(() => expect(key().value).toBe("ABCD1234"));
     fireEvent.change(key(), { target: { value: "  " } });

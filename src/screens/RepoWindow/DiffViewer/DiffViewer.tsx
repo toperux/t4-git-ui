@@ -304,7 +304,7 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
           <IconButton
             label="Open in diff tool"
             disabled={!diffTool || !path}
-            title={diffTool ? `Open in ${toolLabel(diffTool.name)}` : "No diff tool set — Settings › Diff tool"}
+            title={diffTool ? `Open in ${toolLabel(diffTool.name)}` : "No diff tool set — Settings › Diff & merge › Diff tool"}
             onClick={onOpenExternal}
           >
             <ExternalLink size={16} aria-hidden />
