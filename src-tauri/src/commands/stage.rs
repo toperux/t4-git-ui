@@ -5,6 +5,7 @@
 
 use std::future::Future;
 use std::sync::Arc;
+use std::time::Instant;
 
 use git_core::diff::{self, DiffOptions, DiffTarget};
 use git_core::patch::{self, PatchSelection};
@@ -102,6 +103,15 @@ fn as_strs(paths: &[String]) -> Vec<&str> {
     paths.iter().map(String::as_str).collect()
 }
 
+/// Runs a path-level index op and logs how long it took: one line per click,
+/// so a slow stage of thousands of files can be told apart from the re-scan after it.
+fn timed<T>(what: &str, paths: &[String], f: impl FnOnce() -> T) -> T {
+    let t = Instant::now();
+    let out = f();
+    tracing::info!(paths = paths.len(), elapsed = ?t.elapsed(), "{what}");
+    out
+}
+
 #[tauri::command]
 pub async fn stage_paths(
     app: AppHandle,
@@ -109,16 +119,44 @@ pub async fn stage_paths(
     id: RepoId,
     paths: Vec<String>,
 ) -> Result<(), AppError> {
-    mutate(
-        &app,
-        &state,
-        &id,
-        &[ChangeKind::Index],
-        |handle| async move {
-            blocking(move || Ok(stage::stage_paths(&handle.git2.lock(), &as_strs(&paths))?)).await
-        },
-    )
+    let (app, state) = (&app, state.inner());
+    mutate(app, state, &id, &[ChangeKind::Index], |handle| async move {
+        let t = Instant::now();
+        let res = stage_via_cli(app, state, &handle, &paths).await;
+        tracing::info!(paths = paths.len(), elapsed = ?t.elapsed(), "stage_paths");
+        res
+    })
     .await
+}
+
+/// Stages `paths` through the CLI (see [`stage::StageInput`]): `check-ignore`
+/// refuses an ignored untracked path before `update-index` writes anything.
+async fn stage_via_cli(
+    app: &AppHandle,
+    state: &AppState,
+    handle: &RepoHandle,
+    paths: &[String],
+) -> Result<(), AppError> {
+    let input = stage::StageInput::new(&as_strs(paths))?;
+    let run = |args: Vec<&'static str>, stdin: Vec<u8>| async move {
+        run_git_op(
+            app,
+            state,
+            Some(&handle.id),
+            &handle.path,
+            &args,
+            Some(stdin),
+            false,
+        )
+        .await
+    };
+    stage::check_ignored(
+        &run(stage::check_ignore_args(), input.check_ignore)
+            .await?
+            .out,
+    )?;
+    stage::check_staged(&run(stage::stage_paths_args(), input.stage).await?.out)?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -134,7 +172,12 @@ pub async fn unstage_paths(
         &id,
         &[ChangeKind::Index],
         |handle| async move {
-            blocking(move || Ok(stage::unstage_paths(&handle.git2.lock(), &as_strs(&paths))?)).await
+            blocking(move || {
+                timed("unstage_paths", &paths, || {
+                    Ok(stage::unstage_paths(&handle.git2.lock(), &as_strs(&paths))?)
+                })
+            })
+            .await
         },
     )
     .await
@@ -250,9 +293,7 @@ pub async fn resolve_conflict(
                 )
                 .await?;
                 run.out.check(&format!("git {}", argv.join(" ")))?;
-                let h = Arc::clone(&handle);
-                blocking(move || Ok(stage::stage_paths(&h.git2.lock(), &as_strs(&present))?))
-                    .await?;
+                stage_via_cli(app, state, &handle, &present).await?;
             }
             if !missing.is_empty() {
                 blocking(move || {

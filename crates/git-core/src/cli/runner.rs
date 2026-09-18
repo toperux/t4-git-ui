@@ -83,6 +83,29 @@ impl CliOutput {
             })
         }
     }
+
+    /// [`check`](Self::check) for a command that may print a `warning:` per
+    /// file (`LF will be replaced by CRLF`): those lines are dropped, so the
+    /// error shows what failed. A held `index.lock` is [`GitError::IndexLocked`],
+    /// as libgit2's is (`map_git2`), so the UI offers Retry either way.
+    pub fn check_quiet(&self, cmd: &str) -> Result<(), GitError> {
+        if self.code == 0 {
+            return Ok(());
+        }
+        if self.stderr.contains("index.lock") {
+            return Err(GitError::IndexLocked);
+        }
+        let stderr: Vec<&str> = self
+            .stderr
+            .lines()
+            .filter(|l| !l.starts_with("warning:"))
+            .collect();
+        Err(GitError::Cli {
+            cmd: cmd.to_string(),
+            code: self.code,
+            stderr: stderr.join("\n").trim().to_string(),
+        })
+    }
 }
 
 /// The command line as shown to the user (`git …`): an argument with

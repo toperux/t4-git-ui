@@ -1,8 +1,8 @@
-//! Path-level stage / unstage / discard via the libgit2 index. Hunk and line
-//! selections go through the CLI: `git apply --cached` for a stage / unstage
-//! ([`stage_patch_args`]) and `git apply` on the working tree for a discard
-//! ([`discard_patch_args`], deliberately without `--cached`); see
-//! [`crate::patch`].
+//! Path-level unstage / discard via the libgit2 index, stage via the CLI (see
+//! [`StageInput`]). Hunk and line selections go through the CLI too:
+//! `git apply --cached` for a stage / unstage ([`stage_patch_args`]) and
+//! `git apply` on the working tree for a discard ([`discard_patch_args`],
+//! deliberately without `--cached`); see [`crate::patch`].
 
 use std::path::Path;
 
@@ -10,6 +10,7 @@ use git2::build::CheckoutBuilder;
 use git2::{ErrorCode, Index, ObjectType, Repository, Status};
 use serde::{Deserialize, Serialize};
 
+use crate::cli::CliOutput;
 use crate::{map_git2, GitError};
 
 fn workdir(repo: &Repository) -> Result<&Path, GitError> {
@@ -33,35 +34,91 @@ fn with_index(
         })
 }
 
-/// Stages the current working-tree state of `paths` (repo-relative, `/`-separated):
-/// new/modified files are added, missing files are removed from the index.
-/// A rename is staged by passing both its old and new path. An ignored file
-/// that is not tracked yet is refused (`Index::add_path` would force-add it).
-pub fn stage_paths(repo: &Repository, paths: &[&str]) -> Result<(), GitError> {
-    let workdir = workdir(repo)?;
-    let mut index = repo.index().map_err(map_git2)?;
-    // The CLI may have written this index a moment ago (a merge, a checkout of
-    // one conflict side, `apply --cached`), and libgit2 hands back the copy it
-    // last read — writing that back would undo git's write.
-    index.read(false).map_err(map_git2)?;
-    with_index(&mut index, |index| {
-        for p in paths {
-            let rel = Path::new(p);
-            if workdir.join(rel).symlink_metadata().is_ok() {
-                // Stages 1–3 are the sides of a conflict: an unmerged path has no
-                // stage 0, and it is tracked either way.
-                let tracked = (0..=3).any(|s| index.get_path(rel, s).is_some());
-                if !tracked && repo.status_should_ignore(rel).map_err(map_git2)? {
-                    return Err(GitError::Refused(format!("{p} is ignored")));
-                }
-                index.add_path(rel)
-            } else {
-                index.remove_path(rel)
-            }
-            .map_err(map_git2)?;
+/// Staging `paths` (repo-relative, `/`-separated) is two CLI runs, both fed on
+/// stdin: [`check_ignore_args`] with [`StageInput::check_ignore`], checked by
+/// [`check_ignored`], then [`stage_paths_args`] with [`StageInput::stage`],
+/// checked by [`check_staged`]. New/modified files are added, missing ones
+/// removed, and a rename is staged by passing both its old and new path.
+///
+/// The CLI, not libgit2: `Index::add_path` took 4 s for 1800 files where
+/// `git update-index` takes 2 s (measured on a 1.4 GB working tree).
+pub struct StageInput {
+    pub check_ignore: Vec<u8>,
+    pub stage: Vec<u8>,
+}
+
+impl StageInput {
+    /// Refuses a directory path (`sub/`, how status lists an untracked nested
+    /// repository): `update-index` would skip it with a warning and exit 0.
+    pub fn new(paths: &[&str]) -> Result<Self, GitError> {
+        if let Some(p) = paths.iter().find(|p| p.ends_with('/')) {
+            return Err(GitError::Refused(format!("{p} is a directory")));
         }
-        Ok(())
-    })
+        let list = |f: fn(&str) -> String| {
+            paths
+                .iter()
+                .flat_map(|p| {
+                    let mut b = f(p).into_bytes();
+                    b.push(0);
+                    b
+                })
+                .collect()
+        };
+        Ok(Self {
+            // `check-ignore` reads pathspecs: a leading `:` would be magic.
+            check_ignore: list(|p| {
+                if p.starts_with(':') {
+                    format!("./{p}")
+                } else {
+                    p.to_string()
+                }
+            }),
+            // `update-index` takes paths literally.
+            stage: list(str::to_string),
+        })
+    }
+}
+
+/// `git check-ignore`: lists the paths an ignore rule matches, leaving out
+/// tracked ones (unmerged included) — an ignored file that is not tracked yet
+/// is refused, as `git add` would refuse it without `-f`.
+pub fn check_ignore_args() -> Vec<&'static str> {
+    vec!["check-ignore", "-z", "--stdin"]
+}
+
+/// Exit 1 is "nothing ignored", 0 names the ignored paths on stdout.
+pub fn check_ignored(out: &CliOutput) -> Result<(), GitError> {
+    match out.code {
+        1 => Ok(()),
+        0 => {
+            let first = out.stdout.split('\0').next().unwrap_or_default();
+            let first = first.strip_prefix("./").unwrap_or(first);
+            Err(GitError::Refused(format!("{first} is ignored")))
+        }
+        _ => out.check_quiet("git check-ignore"),
+    }
+}
+
+/// `git update-index --add --remove`: paths, not pathspecs, so a `*` or `[` in
+/// a name matches only itself; a path gone from disk is removed, and one gone
+/// from the index too is a no-op rather than a failed batch. A failure writes
+/// nothing, and an unmerged path comes out resolved.
+pub fn stage_paths_args() -> Vec<&'static str> {
+    vec!["update-index", "--add", "--remove", "-z", "--stdin"]
+}
+
+/// `update-index` skips a path it will not take (`.git/…`, a name the file
+/// system cannot hold) with a warning and still exits 0.
+pub fn check_staged(out: &CliOutput) -> Result<(), GitError> {
+    out.check_quiet("git update-index")?;
+    match out
+        .stderr
+        .lines()
+        .find_map(|l| l.strip_prefix("Ignoring path "))
+    {
+        Some(p) => Err(GitError::Refused(format!("{p} was not staged"))),
+        None => Ok(()),
+    }
 }
 
 /// Deletes `file`. A symlink or junction *to* a directory is a directory
@@ -100,7 +157,9 @@ fn prune_empty_dirs(workdir: &Path, file: &Path) {
 
 /// Resets the index entries of `paths` to HEAD (removes them when HEAD is unborn).
 pub fn unstage_paths(repo: &Repository, paths: &[&str]) -> Result<(), GitError> {
-    // As in `stage_paths`: `reset_default` writes the index libgit2 cached.
+    // The CLI may have written this index a moment ago (a merge, `update-index`,
+    // `apply --cached`), and libgit2 hands back the copy it last read:
+    // `reset_default` writing that back would undo git's write.
     repo.index()
         .map_err(map_git2)?
         .read(false)
@@ -207,7 +266,7 @@ pub fn split_by_side<'a>(
     side: ConflictSide,
 ) -> Result<(Vec<&'a str>, Vec<&'a str>), GitError> {
     let mut index = repo.index().map_err(map_git2)?;
-    // The merge that made these conflicts was the CLI's write (see `stage_paths`).
+    // The merge that made these conflicts was the CLI's write (see `unstage_paths`).
     index.read(false).map_err(map_git2)?;
     let wanted = match side {
         ConflictSide::Ours => 2,
@@ -327,61 +386,6 @@ mod tests {
         Some(String::from_utf8_lossy(blob.content()).into_owned())
     }
 
-    #[test]
-    fn stage_and_unstage_add_modify_delete() {
-        let t = TempRepo::new();
-        t.commit(&[("m.txt", "m\n"), ("d.txt", "d\n")], "base");
-        t.write("m.txt", "m2\n");
-        t.write("new.txt", "n\n");
-        std::fs::remove_file(t.path().join("d.txt")).unwrap();
-
-        stage_paths(&t.repo, &["m.txt", "new.txt", "d.txt"]).unwrap();
-        assert_eq!(
-            entry(&t, "m.txt").unwrap().index,
-            Some(FileStatus::Modified)
-        );
-        assert_eq!(entry(&t, "new.txt").unwrap().index, Some(FileStatus::Added));
-        assert_eq!(entry(&t, "d.txt").unwrap().index, Some(FileStatus::Deleted));
-        assert_eq!(index_content(&t, "m.txt").as_deref(), Some("m2\n"));
-        assert!(status(&t.repo)
-            .unwrap()
-            .entries
-            .iter()
-            .all(|e| e.workdir.is_none()));
-
-        unstage_paths(&t.repo, &["m.txt", "new.txt", "d.txt"]).unwrap();
-        let e = entry(&t, "m.txt").unwrap();
-        assert_eq!((e.index, e.workdir), (None, Some(FileStatus::Modified)));
-        let e = entry(&t, "new.txt").unwrap();
-        assert_eq!((e.index, e.workdir), (None, Some(FileStatus::Untracked)));
-        let e = entry(&t, "d.txt").unwrap();
-        assert_eq!((e.index, e.workdir), (None, Some(FileStatus::Deleted)));
-        assert_eq!(index_content(&t, "m.txt").as_deref(), Some("m\n"));
-    }
-
-    /// A failed `index.write()` must not leave the mutation in libgit2's cached
-    /// index: the UI read the path back as staged while git had never written it.
-    #[test]
-    fn a_locked_index_leaves_the_path_unstaged() {
-        let t = TempRepo::new();
-        t.commit(&[("f.txt", "v0\n")], "base");
-        t.write("f.txt", "v1\n");
-
-        let lock = t.path().join(".git").join("index.lock");
-        std::fs::write(&lock, "").unwrap();
-        assert!(matches!(
-            stage_paths(&t.repo, &["f.txt"]),
-            Err(GitError::IndexLocked)
-        ));
-        let e = entry(&t, "f.txt").unwrap();
-        assert_eq!((e.index, e.workdir), (None, Some(FileStatus::Modified)));
-
-        std::fs::remove_file(&lock).unwrap();
-        stage_paths(&t.repo, &["f.txt"]).unwrap();
-        let e = entry(&t, "f.txt").unwrap();
-        assert_eq!((e.index, e.workdir), (Some(FileStatus::Modified), None));
-    }
-
     /// The mirror for unstage: `reset_default` writes the index itself, so a
     /// failed write has to be rolled back too — git still has the path staged.
     #[test]
@@ -389,7 +393,7 @@ mod tests {
         let t = TempRepo::new();
         t.commit(&[("f.txt", "v0\n")], "base");
         t.write("f.txt", "v1\n");
-        stage_paths(&t.repo, &["f.txt"]).unwrap();
+        t.stage(&["f.txt"]);
 
         let lock = t.path().join(".git").join("index.lock");
         std::fs::write(&lock, "").unwrap();
@@ -404,45 +408,6 @@ mod tests {
         unstage_paths(&t.repo, &["f.txt"]).unwrap();
         let e = entry(&t, "f.txt").unwrap();
         assert_eq!((e.index, e.workdir), (None, Some(FileStatus::Modified)));
-    }
-
-    /// The refusal comes mid-loop, after the earlier path was already added to
-    /// libgit2's cached index — nothing was written, so nothing may look staged.
-    #[test]
-    fn a_refused_path_leaves_the_earlier_ones_unstaged() {
-        let t = TempRepo::new();
-        t.commit(&[(".gitignore", "*.log\n"), ("a.txt", "v0\n")], "base");
-        t.write("a.txt", "v1\n");
-        t.write("debug.log", "x\n");
-
-        assert!(matches!(
-            stage_paths(&t.repo, &["a.txt", "debug.log"]),
-            Err(GitError::Refused(_))
-        ));
-        let e = entry(&t, "a.txt").unwrap();
-        assert_eq!((e.index, e.workdir), (None, Some(FileStatus::Modified)));
-    }
-
-    #[test]
-    fn stage_refuses_an_ignored_untracked_file_but_not_a_tracked_one() {
-        let t = TempRepo::new();
-        t.commit(
-            &[(".gitignore", "*.log\n"), ("kept.log", "tracked\n")],
-            "base",
-        );
-        t.write("debug.log", "x\n");
-        t.write("kept.log", "tracked, edited\n");
-        assert!(matches!(
-            stage_paths(&t.repo, &["debug.log"]),
-            Err(GitError::Refused(_))
-        ));
-        assert!(entry(&t, "debug.log").is_none());
-        // Matching an ignore pattern does not un-track a file that is in the index.
-        stage_paths(&t.repo, &["kept.log"]).unwrap();
-        assert_eq!(
-            entry(&t, "kept.log").unwrap().index,
-            Some(FileStatus::Modified)
-        );
     }
 
     #[test]
@@ -461,29 +426,10 @@ mod tests {
     }
 
     #[test]
-    fn stage_and_unstage_rename_both_halves() {
-        let t = TempRepo::new();
-        t.commit(&[("old.txt", "same content\nfor rename\n")], "base");
-        std::fs::rename(t.path().join("old.txt"), t.path().join("new.txt")).unwrap();
-
-        stage_paths(&t.repo, &["old.txt", "new.txt"]).unwrap();
-        let e = entry(&t, "new.txt").unwrap();
-        assert_eq!(e.index, Some(FileStatus::Renamed));
-        assert_eq!(e.old_path.as_deref(), Some("old.txt"));
-        assert!(entry(&t, "old.txt").is_none());
-
-        unstage_paths(&t.repo, &["old.txt", "new.txt"]).unwrap();
-        let e = entry(&t, "new.txt").unwrap();
-        assert_eq!(e.index, None);
-        assert_eq!(e.workdir, Some(FileStatus::Renamed));
-        assert!(entry(&t, "old.txt").is_none(), "{:?}", entry(&t, "old.txt"));
-    }
-
-    #[test]
     fn unstage_on_unborn_head_removes_entries() {
         let t = TempRepo::new();
         t.write("a.txt", "a\n");
-        stage_paths(&t.repo, &["a.txt"]).unwrap();
+        t.stage(&["a.txt"]);
         assert_eq!(entry(&t, "a.txt").unwrap().index, Some(FileStatus::Added));
         unstage_paths(&t.repo, &["a.txt"]).unwrap();
         assert_eq!(
@@ -503,7 +449,7 @@ mod tests {
             "base",
         );
         t.write("f.txt", "v1\n");
-        stage_paths(&t.repo, &["f.txt"]).unwrap();
+        t.stage(&["f.txt"]);
         t.write("f.txt", "v2\n");
         std::fs::remove_file(t.path().join("gone.txt")).unwrap();
 
@@ -566,7 +512,7 @@ mod tests {
         let t = TempRepo::new();
         t.commit(&[("keep/a.txt", "a\n")], "base");
         std::os::unix::fs::symlink("keep", t.path().join("link")).unwrap();
-        stage_paths(&t.repo, &["link"]).unwrap();
+        t.stage(&["link"]);
         t.commit_index("add link");
         std::fs::remove_file(t.path().join("link")).unwrap();
         std::os::unix::fs::symlink("elsewhere", t.path().join("link")).unwrap();
@@ -643,6 +589,70 @@ mod tests {
             entry(&t, "old.txt").unwrap().workdir,
             Some(FileStatus::Deleted)
         );
+    }
+
+    fn out(code: i32, stdout: &str, stderr: &str) -> CliOutput {
+        CliOutput {
+            code,
+            stdout: stdout.into(),
+            stderr: stderr.into(),
+            truncated: false,
+        }
+    }
+
+    #[test]
+    fn stage_input_is_nul_separated_and_refuses_a_directory() {
+        let i = StageInput::new(&["a.txt", ":odd", "d/b"]).unwrap();
+        assert_eq!(i.stage, b"a.txt\0:odd\0d/b\0");
+        // Only `check-ignore` parses pathspec magic.
+        assert_eq!(i.check_ignore, b"a.txt\0./:odd\0d/b\0");
+        assert!(matches!(
+            StageInput::new(&["a.txt", "sub/"]),
+            Err(GitError::Refused(m)) if m == "sub/ is a directory"
+        ));
+    }
+
+    #[test]
+    fn check_ignored_reads_the_exit_code() {
+        assert!(check_ignored(&out(1, "", "")).is_ok());
+        assert!(matches!(
+            check_ignored(&out(0, "./:x.log\0b.log\0", "")),
+            Err(GitError::Refused(m)) if m == ":x.log is ignored"
+        ));
+        assert!(matches!(
+            check_ignored(&out(128, "", "fatal: bad")),
+            Err(GitError::Cli { .. })
+        ));
+    }
+
+    #[test]
+    fn check_staged_reports_a_skipped_path() {
+        assert!(check_staged(&out(0, "", "warning: in the working copy of 'a'\n")).is_ok());
+        assert!(matches!(
+            check_staged(&out(0, "", "Ignoring path .git/x\n")),
+            Err(GitError::Refused(m)) if m == ".git/x was not staged"
+        ));
+    }
+
+    #[test]
+    fn check_quiet_drops_warnings_and_knows_a_held_lock() {
+        let e = out(
+            128,
+            "",
+            "warning: in the working copy of 'a', LF will be replaced by CRLF\nfatal: boom\n",
+        )
+        .check_quiet("git x")
+        .unwrap_err();
+        assert!(matches!(e, GitError::Cli { stderr, .. } if stderr == "fatal: boom"));
+        assert!(matches!(
+            out(
+                128,
+                "",
+                "fatal: Unable to create '/r/.git/index.lock': File exists."
+            )
+            .check_quiet("git x"),
+            Err(GitError::IndexLocked)
+        ));
     }
 
     #[test]

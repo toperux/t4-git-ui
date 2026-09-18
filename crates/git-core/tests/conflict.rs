@@ -1,6 +1,6 @@
 //! Unmerged index entries: the three sides a merge editor needs, and resolving
 //! a conflict by keeping one whole side (`git checkout --ours|--theirs` through
-//! the CLI runner, then the libgit2 staging). The CLI-backed tests are skipped
+//! the CLI runner, then staging, also through the CLI). The CLI-backed tests are skipped
 //! at runtime when `git` is missing.
 
 use std::path::Path;
@@ -39,6 +39,29 @@ async fn git(t: &TempRepo, args: &[String]) {
         .await
         .expect("run");
     out.check(&format!("git {}", argv.join(" "))).expect("git");
+}
+
+/// Stages `paths` the way `commands::stage` does (see `tests/stage.rs`).
+async fn stage_paths(t: &TempRepo, paths: &[&str]) -> Result<(), GitError> {
+    let input = stage::StageInput::new(paths)?;
+    let cli = GitCli::new("git");
+    let run = |args: Vec<&'static str>, stdin: Vec<u8>| {
+        let cli = &cli;
+        async move {
+            cli.run(
+                t.path(),
+                "test",
+                &args,
+                Some(stdin),
+                CancellationToken::new(),
+                |_| {},
+            )
+            .await
+            .expect("run")
+        }
+    };
+    stage::check_ignored(&run(stage::check_ignore_args(), input.check_ignore).await)?;
+    stage::check_staged(&run(stage::stage_paths_args(), input.stage).await)
 }
 
 fn index_content(t: &TempRepo, path: &str) -> Option<String> {
@@ -167,7 +190,7 @@ async fn keeping_a_side_that_exists_resolves_the_path() {
     .await;
     // `git checkout --theirs` rewrites .git/index and leaves the path unmerged;
     // staging is what resolves it, and it must not write back a stale index.
-    stage::stage_paths(&t.repo, &["f.txt"]).expect("stage");
+    stage_paths(&t, &["f.txt"]).await.expect("stage");
 
     assert_eq!(conflict::stages(&t.repo, "f.txt").expect("stages"), None);
     assert_eq!(index_content(&t, "f.txt").as_deref(), Some("feat\n"));
@@ -229,11 +252,14 @@ fn a_locked_index_leaves_the_stages_and_the_file() {
 /// The ignore guard used to look at stage 0 only, which an unmerged path never
 /// has — so a tracked, conflicted, ignored file was refused *after* the
 /// checkout had already overwritten it.
-#[test]
-fn staging_a_conflicted_file_is_not_blocked_by_an_ignore_rule() {
+#[tokio::test]
+async fn staging_a_conflicted_file_is_not_blocked_by_an_ignore_rule() {
+    if !have_git() {
+        return;
+    }
     let t = conflicted();
     t.write(".gitignore", "*.txt\n");
-    stage::stage_paths(&t.repo, &["f.txt"]).expect("stage");
+    stage_paths(&t, &["f.txt"]).await.expect("stage");
     assert_eq!(conflict::stages(&t.repo, "f.txt").expect("stages"), None);
 }
 

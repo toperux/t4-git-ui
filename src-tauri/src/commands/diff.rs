@@ -11,6 +11,9 @@ use tauri::State;
 use super::repo::blocking;
 use crate::{AppError, AppState};
 
+/// On a private handle: the line counts read every changed file (seconds for a
+/// few thousand large ones), and on the shared one they held up the status
+/// refresh — and the stage / unstage after it — for all that time.
 #[tauri::command]
 pub async fn get_changed_files(
     state: State<'_, AppState>,
@@ -18,7 +21,7 @@ pub async fn get_changed_files(
     target: DiffTarget,
 ) -> Result<Vec<FileChange>, AppError> {
     let handle = state.repo(&id)?;
-    blocking(move || Ok(diff::changed_files(&handle.git2.lock(), &target)?)).await
+    blocking(move || Ok(diff::changed_files(&handle.open_private()?, &target)?)).await
 }
 
 #[tauri::command]
@@ -96,7 +99,7 @@ pub async fn get_status(state: State<'_, AppState>, id: RepoId) -> Result<Workdi
         let t = Instant::now();
         let status = status::status_with(&h.git2.lock(), refresh)?;
         if t.elapsed() >= SLOW_STATUS {
-            tracing::info!(id = %h.id, elapsed = ?t.elapsed(), "slow status");
+            tracing::info!(id = %h.id, entries = status.entries.len(), refresh, elapsed = ?t.elapsed(), "slow status");
         }
         Ok(status)
     })
