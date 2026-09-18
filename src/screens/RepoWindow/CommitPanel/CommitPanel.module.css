@@ -38,6 +38,13 @@
      "Stage all" state (measured 2026-09-12), while without the floor it fits. The jog is the
      cheaper of the two. */
 }
+/* Zero-height: the 3px bar lies over the list's top edge instead of pushing the rows down. */
+.progress {
+  position: relative;
+  height: 0;
+  flex: none;
+  z-index: 1;
+}
 .list {
   flex: 1 1 0;
   min-height: 40px;

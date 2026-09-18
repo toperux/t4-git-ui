@@ -509,6 +509,37 @@ describe("commitStore mutations", () => {
     button.remove();
   });
 
+  it("`applying` outlasts `busy` until the status refresh lands, failed op or not", async () => {
+    for (const fail of [false, true]) {
+      if (fail) mocked.stagePaths.mockRejectedValueOnce({ kind: "git", message: "boom" });
+      let land!: (s: WorkdirStatus) => void;
+      mocked.getStatus.mockReturnValueOnce(new Promise<WorkdirStatus>((r) => (land = r)));
+      const done = useCommitStore.getState().stage(["a.rs"]);
+      expect(useCommitStore.getState().applying).toBe(true);
+      await flush();
+      // The op is over (the button is live again), but the lists still show the old status.
+      expect(useCommitStore.getState()).toMatchObject({ busy: false, applying: true });
+      land(status([]));
+      await done;
+      expect(useCommitStore.getState().applying).toBe(false);
+    }
+  });
+
+  it("a stage started while another's refresh is still out keeps the bar up until both land", async () => {
+    const lands: ((s: WorkdirStatus) => void)[] = [];
+    mocked.getStatus.mockImplementation(() => new Promise<WorkdirStatus>((r) => lands.push(r)));
+    const first = useCommitStore.getState().stage(["a.rs"]);
+    await flush();
+    const second = useCommitStore.getState().stage(["b.rs"]);
+    await flush();
+    lands[0](status([]));
+    await first;
+    expect(useCommitStore.getState().applying).toBe(true);
+    lands[1](status([]));
+    await second;
+    expect(useCommitStore.getState().applying).toBe(false);
+  });
+
   it("a mutation refused because another one is running says so — the Retry must not vanish silently", async () => {
     useCommitStore.setState({ busy: true });
     await useCommitStore.getState().stage(["a.rs"]);

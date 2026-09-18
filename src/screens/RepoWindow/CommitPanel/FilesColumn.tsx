@@ -6,6 +6,7 @@ import { Badge } from "../../../components/ui/Badge/Badge";
 import { Button } from "../../../components/ui/Button/Button";
 import { IconButton } from "../../../components/ui/IconButton/IconButton";
 import { PanelHeader } from "../../../components/ui/PanelHeader/PanelHeader";
+import { Progress } from "../../../components/ui/Progress/Progress";
 import { StatusGlyph } from "../../../components/ui/StatusGlyph/StatusGlyph";
 import { TreeRow } from "../../../components/ui/TreeRow/TreeRow";
 import { cx } from "../../../lib/cx";
@@ -170,6 +171,7 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
   const anchor = useCommitStore((st) => st.anchor);
   const stats = useCommitStore((st) => st.stats[list]);
   const busy = useCommitStore((st) => st.busy);
+  const applying = useCommitStore((st) => st.applying);
   const select = useCommitStore((st) => st.select);
   const setOrder = useCommitStore((st) => st.setOrder);
   const stage = useCommitStore((st) => st.stage);
@@ -393,106 +395,114 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
   }
 
   return (
-    <div
-      ref={scrollRef}
-      /* The 2px accent bar is a multi-selection affordance (style guide §3 ListRow), not a single-row one. */
-      className={cx(s.list, sel.selected.length > 1 && s.multi)}
-      // A folder row is a `treeitem`, not an `option`: tree mode can't be a listbox.
-      role={tree ? "tree" : "listbox"}
-      aria-multiselectable
-      aria-label={list === "unstaged" ? "Unstaged files" : "Staged files"}
-      aria-activedescendant={anchorRow >= 0 ? `${rowId}-${anchorRow}` : undefined}
-      tabIndex={0}
-      onFocus={() => (held.current = true)}
-      onBlur={(e) => {
-        if (e.relatedTarget) {
-          if (!e.currentTarget.contains(e.relatedTarget)) held.current = false;
-          return;
-        }
-        // No `relatedTarget`: either a row was removed under the focus — this list's loss to repair —
-        // or the click landed on something unfocusable (a header, the panel background) and the focus
-        // is idle from here on. A removed row is out of the document by the next microtask.
-        const target = e.target;
-        void Promise.resolve().then(() => {
-          // A row button disabled while the operation runs blurs this way too, and its row goes a
-          // moment later: that loss is ours as well.
-          if (target.isConnected && !(target as HTMLElement & { disabled?: boolean }).disabled) held.current = false;
-        });
-      }}
-      onKeyDown={onKeyDown}
-      onClick={onClick}
-      onContextMenu={onContextMenu}
-      onDoubleClick={onDoubleClick}
-    >
-      {entries.length === 0 ? (
-        <div className={s.empty}>{list === "unstaged" ? "No unstaged changes" : "Nothing staged"}</div>
-      ) : (
-        <div className={s.rows} style={{ height: virtualizer.getTotalSize() }}>
-          {virtualizer.getVirtualItems().map((item) => {
-            const row = rows[item.index];
-            const id = `${rowId}-${item.index}`;
-            // Keyed by kind: a deleted file `a` and an untracked `a/b` put a file and a folder at the same path.
-            if (row.kind === "folder") {
-              const { target, note } = folderTarget(row.path);
-              return (
-                /* `TreeRow` is a button, so its Stage / Unstage action sits beside it, not inside;
-                   `data-folder` is on the wrapper so `closest` resolves from the row and the action alike. */
-                <div key={`d:${row.path}`} className={cx(s.vrow, s.folderLine)} style={{ transform: `translateY(${item.start}px)` }} data-folder={row.path}>
-                  <TreeRow
-                    id={id}
-                    role="treeitem"
-                    aria-level={row.depth + 1}
-                    tabIndex={-1}
-                    className={s.treeRow}
-                    depth={row.depth}
-                    expanded={row.expanded}
-                    folder
-                    /* A compacted chain reads as `a / b / c`, ellipsized at the start like a file row;
-                       the tooltip keeps the real path. */
-                    label={
-                      <span className={s.folder}>
-                        <bdi dir="ltr">{row.name.split("/").join(" / ")}</bdi>
-                      </span>
-                    }
-                    title={row.path}
-                  />
-                  <IconButton
-                    className={s.action}
-                    label={list === "unstaged" ? "Stage folder" : "Unstage folder"}
-                    disabled={busy || target.length === 0}
-                    title={busy ? BUSY : note}
-                    tabIndex={-1}
-                    data-act=""
-                    /* Mouse-only, like a file row's, but a child of the tree rather than of a treeitem: hidden from the tree's outline. */
-                    aria-hidden
-                  >
-                    {list === "unstaged" ? <Plus size={16} aria-hidden /> : <Minus size={16} aria-hidden />}
-                  </IconButton>
-                </div>
-              );
-            }
-            const e = row.file;
-            return (
-              <FileRow
-                key={`f:${e.path}`}
-                id={id}
-                top={item.start}
-                list={list}
-                entry={e}
-                label={row.label}
-                depth={row.depth}
-                stat={stats[e.path]}
-                selected={active && selected.includes(e.path)}
-                anchor={active && anchor === e.path}
-                busy={busy}
-                skipNote={list === "unstaged" && e.submoduleDirtyOnly ? DIRTY_ONLY : undefined}
-              />
-            );
-          })}
+    <>
+      {/* Beside the list, not in it: a listbox / tree may only own its rows. */}
+      {applying && (
+        <div className={s.progress}>
+          <Progress thin label="Applying changes" />
         </div>
       )}
-      <FileContextMenu list={list} paths={menu?.paths ?? []} entries={entries} menu={menu} onClose={() => setMenu(null)} act={act} discard={(ps) => void discard(ps)} />
-    </div>
+      <div
+        ref={scrollRef}
+        /* The 2px accent bar is a multi-selection affordance (style guide §3 ListRow), not a single-row one. */
+        className={cx(s.list, sel.selected.length > 1 && s.multi)}
+        // A folder row is a `treeitem`, not an `option`: tree mode can't be a listbox.
+        role={tree ? "tree" : "listbox"}
+        aria-multiselectable
+        aria-label={list === "unstaged" ? "Unstaged files" : "Staged files"}
+        aria-activedescendant={anchorRow >= 0 ? `${rowId}-${anchorRow}` : undefined}
+        tabIndex={0}
+        onFocus={() => (held.current = true)}
+        onBlur={(e) => {
+          if (e.relatedTarget) {
+            if (!e.currentTarget.contains(e.relatedTarget)) held.current = false;
+            return;
+          }
+          // No `relatedTarget`: either a row was removed under the focus — this list's loss to repair —
+          // or the click landed on something unfocusable (a header, the panel background) and the focus
+          // is idle from here on. A removed row is out of the document by the next microtask.
+          const target = e.target;
+          void Promise.resolve().then(() => {
+            // A row button disabled while the operation runs blurs this way too, and its row goes a
+            // moment later: that loss is ours as well.
+            if (target.isConnected && !(target as HTMLElement & { disabled?: boolean }).disabled) held.current = false;
+          });
+        }}
+        onKeyDown={onKeyDown}
+        onClick={onClick}
+        onContextMenu={onContextMenu}
+        onDoubleClick={onDoubleClick}
+      >
+        {entries.length === 0 ? (
+          <div className={s.empty}>{list === "unstaged" ? "No unstaged changes" : "Nothing staged"}</div>
+        ) : (
+          <div className={s.rows} style={{ height: virtualizer.getTotalSize() }}>
+            {virtualizer.getVirtualItems().map((item) => {
+              const row = rows[item.index];
+              const id = `${rowId}-${item.index}`;
+              // Keyed by kind: a deleted file `a` and an untracked `a/b` put a file and a folder at the same path.
+              if (row.kind === "folder") {
+                const { target, note } = folderTarget(row.path);
+                return (
+                  /* `TreeRow` is a button, so its Stage / Unstage action sits beside it, not inside;
+                     `data-folder` is on the wrapper so `closest` resolves from the row and the action alike. */
+                  <div key={`d:${row.path}`} className={cx(s.vrow, s.folderLine)} style={{ transform: `translateY(${item.start}px)` }} data-folder={row.path}>
+                    <TreeRow
+                      id={id}
+                      role="treeitem"
+                      aria-level={row.depth + 1}
+                      tabIndex={-1}
+                      className={s.treeRow}
+                      depth={row.depth}
+                      expanded={row.expanded}
+                      folder
+                      /* A compacted chain reads as `a / b / c`, ellipsized at the start like a file row;
+                         the tooltip keeps the real path. */
+                      label={
+                        <span className={s.folder}>
+                          <bdi dir="ltr">{row.name.split("/").join(" / ")}</bdi>
+                        </span>
+                      }
+                      title={row.path}
+                    />
+                    <IconButton
+                      className={s.action}
+                      label={list === "unstaged" ? "Stage folder" : "Unstage folder"}
+                      disabled={busy || target.length === 0}
+                      title={busy ? BUSY : note}
+                      tabIndex={-1}
+                      data-act=""
+                      /* Mouse-only, like a file row's, but a child of the tree rather than of a treeitem: hidden from the tree's outline. */
+                      aria-hidden
+                    >
+                      {list === "unstaged" ? <Plus size={16} aria-hidden /> : <Minus size={16} aria-hidden />}
+                    </IconButton>
+                  </div>
+                );
+              }
+              const e = row.file;
+              return (
+                <FileRow
+                  key={`f:${e.path}`}
+                  id={id}
+                  top={item.start}
+                  list={list}
+                  entry={e}
+                  label={row.label}
+                  depth={row.depth}
+                  stat={stats[e.path]}
+                  selected={active && selected.includes(e.path)}
+                  anchor={active && anchor === e.path}
+                  busy={busy}
+                  skipNote={list === "unstaged" && e.submoduleDirtyOnly ? DIRTY_ONLY : undefined}
+                />
+              );
+            })}
+          </div>
+        )}
+        <FileContextMenu list={list} paths={menu?.paths ?? []} entries={entries} menu={menu} onClose={() => setMenu(null)} act={act} discard={(ps) => void discard(ps)} />
+      </div>
+    </>
   );
 }
 

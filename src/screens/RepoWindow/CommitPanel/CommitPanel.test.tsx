@@ -564,6 +564,15 @@ describe("CommitPanel", () => {
     expect(btn.getAttribute("title")).toBe("Operation in progress");
   });
 
+  it("a running stage / unstage shows a progress bar over each list, outside the listbox", () => {
+    const { queryAllByRole } = renderPanel();
+    expect(queryAllByRole("progressbar", { name: "Applying changes" })).toHaveLength(0);
+    act(() => useCommitStore.setState({ applying: true }));
+    const bars = queryAllByRole("progressbar", { name: "Applying changes" });
+    expect(bars).toHaveLength(2);
+    for (const bar of bars) expect(bar.closest('[role="listbox"], [role="tree"]')).toBeNull();
+  });
+
   it("the staged header and a row's own +/− say the same while a mutation runs", () => {
     const { getByRole, container } = renderPanel();
     act(() => useCommitStore.setState({ busy: true }));

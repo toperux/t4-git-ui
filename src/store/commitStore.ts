@@ -80,6 +80,8 @@ export interface CommitStore {
   prefill: { summary: string; body: string; from: "amend" | "pending" | "history" } | null;
   /** A mutation is in flight. */
   busy: boolean;
+  /** A stage / unstage / discard runs, up to the status refresh after it — what the lists' progress bar shows. */
+  applying: boolean;
 
   select(list: ListId, sel: Selection): void;
   /** `FileList` registers its display order; a focused row missing from the new order hands the selection to its neighbour. */
@@ -137,6 +139,8 @@ let statsPending: StatusEntry[] | null = null;
 let authorFor: string | null = null;
 /** Both prefill entry points await an IPC and then write the editor: the later start wins. */
 let prefillSeq = 0;
+/** `run`s between their start and their refresh landing: the next can start while one still refreshes. */
+let applyingRuns = 0;
 
 const EMPTY_STATS = { unstaged: {}, staged: {} };
 const NO_ORDER = { unstaged: null, staged: null };
@@ -252,22 +256,29 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       useToastStore.getState().push({ kind: "info", title: "Operation in progress", detail: "Another change is being applied" });
       return false;
     }
-    set({ busy: true });
+    applyingRuns++;
+    set({ busy: true, applying: true });
     try {
-      await op(id);
-    } catch (e) {
-      toastError(toAppError(e), title, () => void run(title, op, from), from);
+      try {
+        await op(id);
+      } catch (e) {
+        toastError(toAppError(e), title, () => void run(title, op, from), from);
+      } finally {
+        set({ busy: false });
+      }
+      // We just rewrote the index for the shown file, so the diff and the `+N −M` beside it are stale
+      // whatever the status says: staging one hunk out of several leaves the entry at
+      // modified/modified, and both guards read that as "nothing to see". Forgetting what they were
+      // computed for makes them reload. (Identical content still keeps the `diff` object, so a reload
+      // that finds nothing new never jumps the view.)
+      diffEntry = null;
+      statsFor = null;
+      await useStatusStore.getState().refresh();
     } finally {
-      set({ busy: false });
+      // Past the refresh, unlike `busy`: on a big index the re-scan is half the wait, and a bar gone
+      // before the lists change reads as "done, and nothing happened".
+      set({ applying: --applyingRuns > 0 });
     }
-    // We just rewrote the index for the shown file, so the diff and the `+N −M` beside it are stale
-    // whatever the status says: staging one hunk out of several leaves the entry at
-    // modified/modified, and both guards read that as "nothing to see". Forgetting what they were
-    // computed for makes them reload. (Identical content still keeps the `diff` object, so a reload
-    // that finds nothing new never jumps the view.)
-    diffEntry = null;
-    statsFor = null;
-    await useStatusStore.getState().refresh();
     return true;
   }
 
@@ -292,6 +303,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
     sign: null,
     prefill: null,
     busy: false,
+    applying: false,
 
     select(list, sel) {
       const s = get();
@@ -542,6 +554,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
         sign: null,
         prefill: null,
         busy: false,
+        applying: false,
       });
     },
   };
