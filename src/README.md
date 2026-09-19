@@ -52,7 +52,8 @@ src/
                            around the last `ensureRows` viewport, drop the rest so they reload lazily), startLog,
                            ensureRows (500-row pages, dedupe, stale drop), select, selectWorkingTree, revealOid,
                            noteTopRow (the grid's first visible row, `-1` = the working-tree row: module state, nothing renders
-                           from it). The scroll position is the grid's own DOM state, so that row is what puts a viewport back —
+                           from it; a remounting grid skips its first report, which carries the range from before the scroll it
+                           asked for in the same commit). The scroll position is the grid's own DOM state, so that row is what puts a viewport back —
                            `snapshot()` carries it as a `start`-aligned reveal (a tab returns where it was, not where the tab
                            being left is) and `startLog` anchors on it by oid, so the rows a fetch adds above the viewport
                            scroll under it instead of pushing it down; not from the top row, where new commits belong in view.

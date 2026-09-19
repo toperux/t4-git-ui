@@ -81,9 +81,16 @@ export function RevisionGrid() {
   // The View switch unmounts this grid, and its scroll position goes with it: coming back to History
   // starts it where the store last saw the viewport. Declared before the reveal effect so that a tab
   // being restored — which mounts with a scroll request of its own — still wins.
+  const settling = useRef(false);
   useEffect(() => {
     const row = lastTopRow();
-    if (row > 0) virtualizer.scrollToIndex(row + offset, { align: "start" });
+    if (row > 0) {
+      virtualizer.scrollToIndex(row + offset, { align: "start" });
+      // The note effect below runs in this same commit, with the range as it was before the scroll —
+      // it would report row 0 and lose the row we are scrolling to. Armed here rather than at the
+      // ref's init so that StrictMode's second mount (main.tsx) re-arms it.
+      settling.current = true;
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -101,7 +108,15 @@ export function RevisionGrid() {
   // The store cannot see the scroll position, and it is what puts the viewport back after a tab
   // switch or a walk restart — `range` is the rows actually in view, not the overscan ones.
   const topRow = (virtualizer.range?.startIndex ?? 0) - offset;
-  useEffect(() => noteTopRow(topRow), [topRow]);
+  useEffect(() => {
+    // The mount scroll has not been answered yet: skip this one run and keep the stored row. The
+    // next change — the scroll having landed — is a real viewport and notes normally.
+    if (settling.current) {
+      settling.current = false;
+      return;
+    }
+    noteTopRow(topRow);
+  }, [topRow]);
 
   const graphW = graphWidth(lanes, tokens.laneW);
 

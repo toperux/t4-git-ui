@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Branch, LogRow, RefsSnapshot } from "../../../api/types";
 import { useDialogStore } from "../../../store/dialogStore";
 import { useOpsStore } from "../../../store/opsStore";
-import { __resetForTests as resetRepo, useRepoStore } from "../../../store/repoStore";
+import { __resetForTests as resetRepo, lastTopRow, noteTopRow, useRepoStore } from "../../../store/repoStore";
 import { __resetForTests as resetStatus, useStatusStore } from "../../../store/statusStore";
 import { useViewStore } from "../../../store/viewStore";
 import { RevisionGrid } from "./RevisionGrid";
@@ -122,6 +122,21 @@ describe("RevisionGrid", () => {
 
     expect(rows[0].getAttribute("aria-selected")).toBe("true");
     expect(rows[1].getAttribute("aria-selected")).toBe("false");
+  });
+
+  it("keeps the stored top row while the mount scroll is still on its way", () => {
+    useRepoStore.setState({
+      repo: { id: "r", name: "r", path: "r", head: { oid: "oid0", branch: "main", detached: false } },
+      refs: null,
+      log: { generation: 1, total: 100, complete: true, error: null, flat: false },
+      rows: [row(0, "Top", [])],
+      selectedIndex: 0,
+    });
+    // Coming back from Changes: the grid mounts, asks to be scrolled to row 50, and reports its
+    // range in the same commit — before the scroll. That report must not overwrite the row.
+    noteTopRow(50);
+    render(<RevisionGrid />);
+    expect(lastTopRow()).toBe(50);
   });
 
   it("an empty history filter says the file has none yet, not that the search matched nothing", () => {
