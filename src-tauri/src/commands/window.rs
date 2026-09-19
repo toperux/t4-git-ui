@@ -4,6 +4,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 use git_core::RepoId;
 use serde::{Deserialize, Serialize};
@@ -23,6 +24,59 @@ pub struct Layout {
 }
 
 const LAYOUT_FILE: &str = "layout.json";
+
+/// How long a closed window keeps its place in the file — the gap allowed
+/// between two closes, not the time a whole close-all may take, since each
+/// close restarts the clock for the ones before it. Long enough that a
+/// close-all one window at a time, or a crash right after a close, still comes
+/// back whole; short enough that a window closed and left closed is forgotten
+/// while the app is still running.
+const CLOSE_GRACE: Duration = Duration::from_secs(4);
+
+/// What the app has open: the live windows, and the ones closed inside the
+/// last [`CLOSE_GRACE`] — a chain, since each close keeps the ones before it
+/// alive (see [`restorable`]).
+#[derive(Debug, Default)]
+pub struct Layouts {
+    pub open: HashMap<String, Layout>,
+    pub closed: Vec<(Instant, String, Layout)>,
+}
+
+/// What `layout.json` should say at `now`: the open windows plus the closed
+/// chain, which expires as a whole once its *last* close is more than a grace
+/// old. Every write goes through this, so the file is always "what should come
+/// back", whichever way the app ends.
+///
+/// The chain only expires while some open window has a tab. With nothing open
+/// anywhere, closing the last thing leaves the waiting session alone: a window
+/// closed while `main` sits on the start screen comes back, rather than the
+/// next launch starting from nothing. No window at all is the same case, and
+/// the one that matters most — the app on its way out, where a slow exit (more
+/// than a grace between the last `Destroyed` and the process ending) would
+/// otherwise let a timer write an empty file.
+fn restorable(l: &mut Layouts, now: Instant) -> HashMap<String, Layout> {
+    expire(l, now);
+    let mut out = l.open.clone();
+    out.extend(
+        l.closed
+            .iter()
+            .map(|(_, label, layout)| (label.clone(), layout.clone())),
+    );
+    out
+}
+
+/// Drops a chain whose last close is more than a grace old — see [`restorable`]
+/// for when it is kept regardless.
+fn expire(l: &mut Layouts, now: Instant) {
+    let something_open = l.open.values().any(|layout| !layout.tabs.is_empty());
+    let old = l
+        .closed
+        .last()
+        .is_some_and(|(t, _, _)| now.duration_since(*t) > CLOSE_GRACE);
+    if something_open && old {
+        l.closed.clear();
+    }
+}
 
 /// The window sizes `tauri.conf.json` gives `main`; a spawned window has no
 /// entry there, so the floor is repeated rather than left at the OS default.
@@ -115,8 +169,55 @@ pub fn take_pending(state: State<'_, AppState>, window: Window) -> Option<Layout
 pub fn set_layout(app: AppHandle, window: Window, layout: Layout) {
     let state = app.state::<AppState>();
     let mut layouts = state.layouts();
-    layouts.insert(window.label().to_string(), layout);
-    write_layouts(&layout_file(&app), &layouts);
+    layouts.open.insert(window.label().to_string(), layout);
+    let list = restorable(&mut layouts, Instant::now());
+    write_layouts(&layout_file(&app), &list);
+}
+
+/// What a close does to the state; `false` for a window that never reported.
+fn close(l: &mut Layouts, label: &str, now: Instant) -> bool {
+    // A chain that had already run out does not get extended by this close —
+    // judged with this window still open: its tabs are what let it run out.
+    expire(l, now);
+    let Some(layout) = l.open.remove(label) else {
+        return false;
+    };
+    // A window without a tab has nothing to come back, and as the chain's last
+    // entry it would hand the windows closed before it a fresh grace.
+    if !layout.tabs.is_empty() {
+        l.closed.push((now, label.to_string(), layout));
+    }
+    true
+}
+
+/// A window is gone: it keeps its place in the file for [`CLOSE_GRACE`], so a
+/// close-all one window at a time — or a crash right after a close — still
+/// restores the whole session. The timer writes the file again once the grace
+/// is up, so the window drops out of it with nobody touching the app.
+///
+/// The timer holds nothing: a later close brings its own, and if the app is
+/// gone by then the file already says what should come back.
+pub(crate) fn window_closed(app: &AppHandle, label: &str) {
+    let state = app.state::<AppState>();
+    let path = layout_file(app);
+    {
+        let mut layouts = state.layouts();
+        let now = Instant::now();
+        if !close(&mut layouts, label, now) {
+            return;
+        }
+        let list = restorable(&mut layouts, now);
+        write_layouts(&path, &list);
+    }
+
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(CLOSE_GRACE + Duration::from_millis(50));
+        let state = app.state::<AppState>();
+        let mut layouts = state.layouts();
+        let list = restorable(&mut layouts, Instant::now());
+        write_layouts(&path, &list);
+    });
 }
 
 /// The layout the last exit left, consumed: `main` opens the first entry itself
@@ -129,11 +230,9 @@ pub fn take_layout(app: AppHandle) -> Vec<Layout> {
 
 /// Quits the app rather than closing one window: every window goes at once, so
 /// `RunEvent::ExitRequested` raises [`AppState::exiting`] before any of them is
-/// destroyed, so every window is still in the map and the file keeps them all.
-/// Closing them one by one usually comes back to the same place, the file being
-/// written by no window's close — but a window closed *before* another one
-/// changes a tab is gone from the write that change makes. Quit is the one that
-/// keeps a session whatever happened before it.
+/// destroyed, and none of them takes the `window_closed` path at all — the map
+/// keeps them and the file has them all. Closing them one by one comes back to
+/// the same place as long as the closes are less than [`CLOSE_GRACE`] apart.
 #[tauri::command]
 pub fn quit(app: AppHandle) {
     app.exit(0);
@@ -416,5 +515,116 @@ mod tests {
         map.insert("w1".to_string(), layout(&["c:/b"]));
         write_layouts(&path, &map);
         assert_eq!(take_layouts(&path), vec![layout(&["c:/b"])]);
+    }
+
+    fn labels(map: HashMap<String, Layout>) -> Vec<String> {
+        let mut labels: Vec<String> = map.into_keys().collect();
+        labels.sort();
+        labels
+    }
+
+    /// A closed window stays in the file until its grace runs out — the window
+    /// that is left rewrites it by then, and so does the timer if nothing else does.
+    #[test]
+    fn a_closed_window_is_kept_for_the_grace() {
+        let t0 = Instant::now();
+        let mut l = Layouts {
+            open: HashMap::from([("main".to_string(), layout(&["c:/a"]))]),
+            closed: vec![(t0, "w1".to_string(), layout(&["c:/b"]))],
+        };
+        let second = Duration::from_secs(1);
+        assert_eq!(
+            labels(restorable(&mut l, t0 + CLOSE_GRACE - second)),
+            ["main", "w1"]
+        );
+        assert_eq!(
+            labels(restorable(&mut l, t0 + CLOSE_GRACE + second)),
+            ["main"]
+        );
+        assert!(l.closed.is_empty(), "an expired chain is gone for good");
+    }
+
+    /// A window that closed its last tab and then itself is no part of the
+    /// chain: the window closed before it runs out on its own clock.
+    #[test]
+    fn an_empty_window_closing_does_not_extend_the_chain() {
+        let t0 = Instant::now();
+        let second = Duration::from_secs(1);
+        let mut l = Layouts {
+            open: HashMap::from([
+                ("main".to_string(), layout(&["c:/a"])),
+                ("w2".to_string(), Layout::default()),
+            ]),
+            closed: vec![(t0, "w1".to_string(), layout(&["c:/b"]))],
+        };
+        assert!(close(&mut l, "w2", t0 + CLOSE_GRACE - second));
+        assert_eq!(l.closed.len(), 1, "w2 had nothing to restore");
+        assert_eq!(
+            labels(restorable(&mut l, t0 + CLOSE_GRACE + second)),
+            ["main"]
+        );
+        assert!(!close(&mut l, "w2", t0 + CLOSE_GRACE + second));
+    }
+
+    /// Closing them one by one: each close keeps the ones before it, so only
+    /// the last one's age decides whether the chain is still there.
+    #[test]
+    fn closes_within_a_grace_of_each_other_are_one_chain() {
+        let t0 = Instant::now();
+        let second = Duration::from_secs(1);
+        // The grace is the gap between two closes, not the time the whole run takes.
+        let t1 = t0 + CLOSE_GRACE - second;
+        let mut l = Layouts {
+            open: HashMap::from([("main".to_string(), layout(&["c:/d"]))]),
+            closed: vec![
+                (t0, "w1".to_string(), layout(&["c:/c"])),
+                (t1, "w2".to_string(), layout(&["c:/b"])),
+            ],
+        };
+        // More than a grace after the first close, less than one after the second.
+        assert_eq!(
+            labels(restorable(&mut l, t1 + CLOSE_GRACE - second)),
+            ["main", "w1", "w2"]
+        );
+        assert_eq!(
+            labels(restorable(&mut l, t1 + CLOSE_GRACE + second)),
+            ["main"]
+        );
+    }
+
+    /// Closing the last thing open leaves the waiting session alone: `main` on
+    /// the start screen has nothing to restore, so the closed window is kept
+    /// until a window has a tab again.
+    #[test]
+    fn with_no_tab_open_anywhere_the_chain_is_kept() {
+        let t0 = Instant::now();
+        let empty = Layout {
+            tabs: Vec::new(),
+            active: String::new(),
+        };
+        let mut l = Layouts {
+            open: HashMap::from([("main".to_string(), empty)]),
+            closed: vec![(t0, "w1".to_string(), layout(&["c:/b"]))],
+        };
+        let later = t0 + Duration::from_secs(60);
+        assert_eq!(labels(restorable(&mut l, later)), ["main", "w1"]);
+
+        l.open.insert("main".to_string(), layout(&["c:/a"]));
+        assert_eq!(labels(restorable(&mut l, later)), ["main"]);
+    }
+
+    /// No window left is the app on its way out: however long the exit takes,
+    /// the timer must not write the session away.
+    #[test]
+    fn with_no_window_left_the_chain_never_expires() {
+        let t0 = Instant::now();
+        let mut l = Layouts {
+            open: HashMap::new(),
+            closed: vec![(t0, "main".to_string(), layout(&["c:/a"]))],
+        };
+        assert_eq!(
+            labels(restorable(&mut l, t0 + Duration::from_secs(60))),
+            ["main"]
+        );
     }
 }

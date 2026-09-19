@@ -116,9 +116,9 @@ pub(crate) fn show_with_theme(app: &AppHandle, win: &tauri::WebviewWindow) {
 
 /// A window has gone: it takes its tabs' claims on the open repositories with
 /// it (so a closed or crashed window never leaks a handle or a watcher), and
-/// its layout entry — unless the app is quitting, when every window is being
-/// closed and none of them may be dropped from the map a late `set_layout`
-/// could still write.
+/// its layout entry moves to the closed chain, which the file keeps for a
+/// grace ([`commands::window::window_closed`]) — unless the app is quitting,
+/// when every window is being closed and the map keeps them all.
 fn on_window_destroyed(app: &AppHandle, label: &str) {
     let state = app.state::<AppState>();
     state.pending().remove(label);
@@ -128,12 +128,7 @@ fn on_window_destroyed(app: &AppHandle, label: &str) {
     if state.exiting.load(Ordering::Relaxed) {
         return;
     }
-    state.layouts().remove(label);
-    // Nothing is written here. Quitting is every window closing one after
-    // another, and a window that has gone looks the same either way — so
-    // recording what is left would whittle the file down to whichever window
-    // happened to close last, which is what it used to do. The windows that
-    // remain write it again at their next tab change instead.
+    commands::window::window_closed(app, label);
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

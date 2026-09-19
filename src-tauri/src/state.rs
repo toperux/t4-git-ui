@@ -7,7 +7,7 @@ use git_core::watch::Watcher;
 use git_core::{RepoHandle, RepoId};
 use tokio_util::sync::CancellationToken;
 
-use crate::commands::window::Layout;
+use crate::commands::window::{Layout, Layouts};
 use crate::AppError;
 
 pub struct AppState {
@@ -24,8 +24,9 @@ pub struct AppState {
     holders: Mutex<HashMap<String, HashSet<RepoId>>>,
     /// What a window being created should open, until its webview asks.
     pending: Mutex<HashMap<String, Layout>>,
-    /// What each window last reported having open.
-    layouts: Mutex<HashMap<String, Layout>>,
+    /// What each window last reported having open, plus the ones closed a
+    /// moment ago (window.rs `restorable`).
+    layouts: Mutex<Layouts>,
     /// The window a detached tab drag is over, so it can be told when the drag
     /// leaves it again (`tab-drag-out`).
     drag_target: Mutex<Option<String>>,
@@ -45,7 +46,7 @@ impl Default for AppState {
             watchers: Mutex::new(HashMap::new()),
             holders: Mutex::new(HashMap::new()),
             pending: Mutex::new(HashMap::new()),
-            layouts: Mutex::new(HashMap::new()),
+            layouts: Mutex::new(Layouts::default()),
             drag_target: Mutex::new(None),
             exiting: AtomicBool::new(false),
             next_op: AtomicU64::new(1),
@@ -108,7 +109,7 @@ impl AppState {
         lock(&self.pending)
     }
 
-    pub fn layouts(&self) -> MutexGuard<'_, HashMap<String, Layout>> {
+    pub fn layouts(&self) -> MutexGuard<'_, Layouts> {
         lock(&self.layouts)
     }
 
