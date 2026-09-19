@@ -1,13 +1,12 @@
-//! Path staging through the system `git` (`check-ignore`, then `update-index`),
-//! run the way `commands::stage` runs it. Skipped at runtime when `git` is missing.
+//! Path staging through the system `git` (the libgit2 ignore check, then
+//! `update-index`), run the way `commands::stage` runs it. Skipped at runtime
+//! when `git` is missing.
 
 use std::path::Path;
 
 use git_core::cli::GitCli;
 use git_core::diff::FileStatus;
-use git_core::stage::{
-    check_ignore_args, check_ignored, check_staged, stage_paths_args, unstage_paths, StageInput,
-};
+use git_core::stage::{check_staged, refuse_ignored, stage_paths_args, stage_stdin, unstage_paths};
 use git_core::status::{status, StatusEntry};
 use git_core::test_util::TempRepo;
 use git_core::GitError;
@@ -25,25 +24,22 @@ fn have_git() -> bool {
 }
 
 async fn stage(t: &TempRepo, paths: &[&str]) -> Result<(), GitError> {
-    let input = StageInput::new(paths)?;
-    let cli = GitCli::new("git");
-    let run = |args: Vec<&'static str>, stdin: Vec<u8>| {
-        let cli = &cli;
-        async move {
-            cli.run(
-                t.path(),
-                "test",
-                &args,
-                Some(stdin),
-                CancellationToken::new(),
-                |_| {},
-            )
-            .await
-            .expect("run")
-        }
-    };
-    check_ignored(&run(check_ignore_args(), input.check_ignore).await)?;
-    check_staged(&run(stage_paths_args(), input.stage).await)
+    // A handle of its own, as the command's `open_private` is: `TempRepo`'s
+    // cached index is stale the moment the CLI writes one.
+    refuse_ignored(&git2::Repository::open(t.path()).expect("open"), paths)?;
+    let stdin = stage_stdin(paths)?;
+    let out = GitCli::new("git")
+        .run(
+            t.path(),
+            "test",
+            &stage_paths_args(),
+            Some(stdin),
+            CancellationToken::new(),
+            |_| {},
+        )
+        .await
+        .expect("run");
+    check_staged(&out)
 }
 
 fn entry(t: &TempRepo, path: &str) -> Option<StatusEntry> {
@@ -154,6 +150,29 @@ async fn an_ignored_untracked_file_refuses_the_batch_but_a_tracked_one_stages() 
         entry(&t, "kept.log").unwrap().index,
         Some(FileStatus::Modified)
     );
+}
+
+/// A `!negation` un-ignores a path: `git check-ignore` without `-v` called it
+/// ignored all the same on git 2.24–2.26, which is why the check is libgit2's.
+#[tokio::test]
+async fn a_negated_ignore_rule_stages() {
+    if !have_git() {
+        return;
+    }
+    let t = TempRepo::new();
+    t.commit(&[(".gitignore", "*.log\n!keep.log\n")], "base");
+    t.write("keep.log", "k\n");
+    t.write("debug.log", "d\n");
+
+    stage(&t, &["keep.log"]).await.unwrap();
+    assert_eq!(
+        entry(&t, "keep.log").unwrap().index,
+        Some(FileStatus::Added)
+    );
+    assert!(matches!(
+        stage(&t, &["debug.log"]).await,
+        Err(GitError::Refused(m)) if m == "debug.log is ignored"
+    ));
 }
 
 #[tokio::test]

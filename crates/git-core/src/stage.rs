@@ -1,5 +1,5 @@
 //! Path-level unstage / discard via the libgit2 index, stage via the CLI (see
-//! [`StageInput`]). Hunk and line selections go through the CLI too:
+//! [`stage_stdin`]). Hunk and line selections go through the CLI too:
 //! `git apply --cached` for a stage / unstage ([`stage_patch_args`]) and
 //! `git apply` on the working tree for a discard ([`discard_patch_args`],
 //! deliberately without `--cached`); see [`crate::patch`].
@@ -34,69 +34,49 @@ fn with_index(
         })
 }
 
-/// Staging `paths` (repo-relative, `/`-separated) is two CLI runs, both fed on
-/// stdin: [`check_ignore_args`] with [`StageInput::check_ignore`], checked by
-/// [`check_ignored`], then [`stage_paths_args`] with [`StageInput::stage`],
-/// checked by [`check_staged`]. New/modified files are added, missing ones
+/// Staging `paths` (repo-relative, `/`-separated) is one CLI run, fed this on
+/// stdin ([`stage_paths_args`], checked by [`check_staged`]), with
+/// [`refuse_ignored`] ahead of it. New/modified files are added, missing ones
 /// removed, and a rename is staged by passing both its old and new path.
 ///
 /// The CLI, not libgit2: `Index::add_path` took 4 s for 1800 files where
 /// `git update-index` takes 2 s (measured on a 1.4 GB working tree).
-pub struct StageInput {
-    pub check_ignore: Vec<u8>,
-    pub stage: Vec<u8>,
-}
-
-impl StageInput {
-    /// Refuses a directory path (`sub/`, how status lists an untracked nested
-    /// repository): `update-index` would skip it with a warning and exit 0.
-    pub fn new(paths: &[&str]) -> Result<Self, GitError> {
-        if let Some(p) = paths.iter().find(|p| p.ends_with('/')) {
-            return Err(GitError::Refused(format!("{p} is a directory")));
-        }
-        let list = |f: fn(&str) -> String| {
-            paths
-                .iter()
-                .flat_map(|p| {
-                    let mut b = f(p).into_bytes();
-                    b.push(0);
-                    b
-                })
-                .collect()
-        };
-        Ok(Self {
-            // `check-ignore` reads pathspecs: a leading `:` would be magic.
-            check_ignore: list(|p| {
-                if p.starts_with(':') {
-                    format!("./{p}")
-                } else {
-                    p.to_string()
-                }
-            }),
-            // `update-index` takes paths literally.
-            stage: list(str::to_string),
+///
+/// Refuses a directory path (`sub/`, how status lists an untracked nested
+/// repository): `update-index` would skip it with a warning and exit 0.
+pub fn stage_stdin(paths: &[&str]) -> Result<Vec<u8>, GitError> {
+    if let Some(p) = paths.iter().find(|p| p.ends_with('/')) {
+        return Err(GitError::Refused(format!("{p} is a directory")));
+    }
+    // `update-index` takes paths literally.
+    Ok(paths
+        .iter()
+        .flat_map(|p| {
+            let mut b = p.as_bytes().to_vec();
+            b.push(0);
+            b
         })
-    }
+        .collect())
 }
 
-/// `git check-ignore`: lists the paths an ignore rule matches, leaving out
-/// tracked ones (unmerged included) — an ignored file that is not tracked yet
-/// is refused, as `git add` would refuse it without `-f`.
-pub fn check_ignore_args() -> Vec<&'static str> {
-    vec!["check-ignore", "-z", "--stdin"]
-}
-
-/// Exit 1 is "nothing ignored", 0 names the ignored paths on stdout.
-pub fn check_ignored(out: &CliOutput) -> Result<(), GitError> {
-    match out.code {
-        1 => Ok(()),
-        0 => {
-            let first = out.stdout.split('\0').next().unwrap_or_default();
-            let first = first.strip_prefix("./").unwrap_or(first);
-            Err(GitError::Refused(format!("{first} is ignored")))
+/// Refuses an ignored path that is not tracked yet, as `git add` does without
+/// `-f`. Stages 1–3 are the sides of a conflict: an unmerged path has no stage
+/// 0, and it is tracked either way.
+///
+/// libgit2 rather than `git check-ignore`: that one costs a second spawn per
+/// stage, and without `-v` it reports a path a `!negation` *un*-ignores as
+/// ignored on git 2.24–2.26. `repo` wants a fresh index (a private handle) —
+/// the CLI writes this index behind libgit2's back.
+pub fn refuse_ignored(repo: &Repository, paths: &[&str]) -> Result<(), GitError> {
+    let index = repo.index().map_err(map_git2)?;
+    for p in paths {
+        let rel = Path::new(p);
+        let tracked = (0..=3).any(|s| index.get_path(rel, s).is_some());
+        if !tracked && repo.status_should_ignore(rel).map_err(map_git2)? {
+            return Err(GitError::Refused(format!("{p} is ignored")));
         }
-        _ => out.check_quiet("git check-ignore"),
     }
+    Ok(())
 }
 
 /// `git update-index --add --remove`: paths, not pathspecs, so a `*` or `[` in
@@ -108,7 +88,9 @@ pub fn stage_paths_args() -> Vec<&'static str> {
 }
 
 /// `update-index` skips a path it will not take (`.git/…`, a name the file
-/// system cannot hold) with a warning and still exits 0.
+/// system cannot hold) with a warning and still exits 0 — the rest of the
+/// batch *was* written, so the message says so rather than reading as a whole
+/// failed stage.
 pub fn check_staged(out: &CliOutput) -> Result<(), GitError> {
     out.check_quiet("git update-index")?;
     match out
@@ -116,7 +98,9 @@ pub fn check_staged(out: &CliOutput) -> Result<(), GitError> {
         .lines()
         .find_map(|l| l.strip_prefix("Ignoring path "))
     {
-        Some(p) => Err(GitError::Refused(format!("{p} was not staged"))),
+        Some(p) => Err(GitError::Refused(format!(
+            "git skipped {p}; any other paths were staged"
+        ))),
         None => Ok(()),
     }
 }
@@ -602,26 +586,13 @@ mod tests {
 
     #[test]
     fn stage_input_is_nul_separated_and_refuses_a_directory() {
-        let i = StageInput::new(&["a.txt", ":odd", "d/b"]).unwrap();
-        assert_eq!(i.stage, b"a.txt\0:odd\0d/b\0");
-        // Only `check-ignore` parses pathspec magic.
-        assert_eq!(i.check_ignore, b"a.txt\0./:odd\0d/b\0");
+        assert_eq!(
+            stage_stdin(&["a.txt", ":odd", "d/b"]).unwrap(),
+            b"a.txt\0:odd\0d/b\0"
+        );
         assert!(matches!(
-            StageInput::new(&["a.txt", "sub/"]),
+            stage_stdin(&["a.txt", "sub/"]),
             Err(GitError::Refused(m)) if m == "sub/ is a directory"
-        ));
-    }
-
-    #[test]
-    fn check_ignored_reads_the_exit_code() {
-        assert!(check_ignored(&out(1, "", "")).is_ok());
-        assert!(matches!(
-            check_ignored(&out(0, "./:x.log\0b.log\0", "")),
-            Err(GitError::Refused(m)) if m == ":x.log is ignored"
-        ));
-        assert!(matches!(
-            check_ignored(&out(128, "", "fatal: bad")),
-            Err(GitError::Cli { .. })
         ));
     }
 
@@ -630,7 +601,7 @@ mod tests {
         assert!(check_staged(&out(0, "", "warning: in the working copy of 'a'\n")).is_ok());
         assert!(matches!(
             check_staged(&out(0, "", "Ignoring path .git/x\n")),
-            Err(GitError::Refused(m)) if m == ".git/x was not staged"
+            Err(GitError::Refused(m)) if m == "git skipped .git/x; any other paths were staged"
         ));
     }
 
@@ -652,6 +623,16 @@ mod tests {
             )
             .check_quiet("git x"),
             Err(GitError::IndexLocked)
+        ));
+        // A lock that cannot be created for another reason is not a Retry.
+        assert!(matches!(
+            out(
+                128,
+                "",
+                "fatal: Unable to create '/r/.git/index.lock': Permission denied"
+            )
+            .check_quiet("git x"),
+            Err(GitError::Cli { .. })
         ));
     }
 

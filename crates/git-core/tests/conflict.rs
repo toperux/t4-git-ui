@@ -41,27 +41,23 @@ async fn git(t: &TempRepo, args: &[String]) {
     out.check(&format!("git {}", argv.join(" "))).expect("git");
 }
 
-/// Stages `paths` the way `commands::stage` does (see `tests/stage.rs`).
+/// Stages `paths` the way `resolve_conflict` does: the `update-index` run
+/// alone, without the ignore check (see `tests/stage.rs`) — these paths are
+/// tracked by definition.
 async fn stage_paths(t: &TempRepo, paths: &[&str]) -> Result<(), GitError> {
-    let input = stage::StageInput::new(paths)?;
-    let cli = GitCli::new("git");
-    let run = |args: Vec<&'static str>, stdin: Vec<u8>| {
-        let cli = &cli;
-        async move {
-            cli.run(
-                t.path(),
-                "test",
-                &args,
-                Some(stdin),
-                CancellationToken::new(),
-                |_| {},
-            )
-            .await
-            .expect("run")
-        }
-    };
-    stage::check_ignored(&run(stage::check_ignore_args(), input.check_ignore).await)?;
-    stage::check_staged(&run(stage::stage_paths_args(), input.stage).await)
+    let stdin = stage::stage_stdin(paths)?;
+    let out = GitCli::new("git")
+        .run(
+            t.path(),
+            "test",
+            &stage::stage_paths_args(),
+            Some(stdin),
+            CancellationToken::new(),
+            |_| {},
+        )
+        .await
+        .expect("run");
+    stage::check_staged(&out)
 }
 
 fn index_content(t: &TempRepo, path: &str) -> Option<String> {
@@ -259,6 +255,10 @@ async fn staging_a_conflicted_file_is_not_blocked_by_an_ignore_rule() {
     }
     let t = conflicted();
     t.write(".gitignore", "*.txt\n");
+    // The guard itself, on a fresh handle (the merge was the CLI's write):
+    // `resolve_conflict` skips it, a plain stage of the same path does not.
+    let fresh = git2::Repository::open(t.path()).expect("open");
+    stage::refuse_ignored(&fresh, &["f.txt"]).expect("an unmerged path is tracked");
     stage_paths(&t, &["f.txt"]).await.expect("stage");
     assert_eq!(conflict::stages(&t.repo, "f.txt").expect("stages"), None);
 }

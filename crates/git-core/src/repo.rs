@@ -193,9 +193,11 @@ pub fn repo_relative(path: &str) -> Result<&Path, GitError> {
 }
 
 /// Converts a libgit2 error, recognizing lock contention (`index.lock` etc.)
-/// as [`GitError::IndexLocked`].
+/// as [`GitError::IndexLocked`]. A lock that cannot be *made* — a read-only
+/// `.git`, a full disk — names the lock file too, and is no contention: a
+/// Retry would never get past it, so it keeps libgit2's own message.
 pub fn map_git2(e: git2::Error) -> GitError {
-    if e.code() == ErrorCode::Locked || e.message().contains("index.lock") {
+    if e.code() == ErrorCode::Locked || e.message().contains("failed to lock file") {
         GitError::IndexLocked
     } else {
         GitError::Git2(e)
@@ -397,6 +399,12 @@ mod tests {
             "failed to lock file '/x/.git/index.lock' for writing",
         );
         assert!(matches!(map_git2(e), GitError::IndexLocked));
+        let e = git2::Error::new(
+            ErrorCode::GenericError,
+            git2::ErrorClass::Os,
+            "failed to create locked file '/x/.git/index.lock': Permission denied",
+        );
+        assert!(matches!(map_git2(e), GitError::Git2(_)));
         let e = git2::Error::new(ErrorCode::NotFound, git2::ErrorClass::Odb, "nope");
         assert!(matches!(map_git2(e), GitError::Git2(_)));
     }

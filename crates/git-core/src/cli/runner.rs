@@ -87,12 +87,15 @@ impl CliOutput {
     /// [`check`](Self::check) for a command that may print a `warning:` per
     /// file (`LF will be replaced by CRLF`): those lines are dropped, so the
     /// error shows what failed. A held `index.lock` is [`GitError::IndexLocked`],
-    /// as libgit2's is (`map_git2`), so the UI offers Retry either way.
+    /// as libgit2's is (`map_git2`), so the UI offers Retry either way — git's
+    /// own "File exists" line, not the file name alone: a lock that cannot be
+    /// created for any other reason (no permission, no space) is a real error
+    /// with a real message, and retrying it changes nothing.
     pub fn check_quiet(&self, cmd: &str) -> Result<(), GitError> {
         if self.code == 0 {
             return Ok(());
         }
-        if self.stderr.contains("index.lock") {
+        if self.stderr.contains("index.lock': File exists") {
             return Err(GitError::IndexLocked);
         }
         let stderr: Vec<&str> = self
