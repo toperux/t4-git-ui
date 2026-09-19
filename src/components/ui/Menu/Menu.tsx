@@ -266,17 +266,27 @@ export function ContextMenu({ at, onClose, label, children }: ContextMenuProps) 
   useRestoreFocus(open);
   useMenuDismiss(open, onClose, menu, menu, anchor);
 
-  // Clamp to the viewport once the menu has a size.
+  // Clamp to the viewport once the menu has a size — and again when that size changes: a row focused
+  // from the keyboard wraps (Menu.module.css), and at the window's bottom edge the taller menu would
+  // put the very row being read below it.
   useLayoutEffect(() => {
     if (!at) return;
     const el = menu.current;
     if (!el) return;
-    const { width, height } = el.getBoundingClientRect();
-    const pad = 4;
-    setPos({
-      x: Math.max(pad, Math.min(at.x, window.innerWidth - width - pad)),
-      y: Math.max(pad, Math.min(at.y, window.innerHeight - height - pad)),
-    });
+    const clamp = () => {
+      const { width, height } = el.getBoundingClientRect();
+      const pad = 4;
+      setPos({
+        x: Math.max(pad, Math.min(at.x, window.innerWidth - width - pad)),
+        y: Math.max(pad, Math.min(at.y, window.innerHeight - height - pad)),
+      });
+    };
+    clamp();
+    // jsdom has no ResizeObserver, and no layout for one to watch.
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(clamp);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, [at]);
 
   if (!at) return null;

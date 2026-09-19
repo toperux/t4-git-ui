@@ -74,6 +74,17 @@
 .item:focus-visible .icon {
   color: inherit;
 }
+/* A name clipped at the menu's width is read on hover (`MenuItem` sets the `title`), and the keyboard
+   has no hover — nor does a native tooltip ever show on focus. So the focused row wraps instead:
+   `.item`'s fixed height and `nowrap` both have to give way. A row that fits looks no different. */
+.item:focus-visible {
+  height: auto;
+  min-height: var(--row-h);
+  white-space: normal;
+}
+.item:focus-visible .grow {
+  overflow-wrap: anywhere;
+}
 .item:disabled {
   opacity: 0.45;
 }
