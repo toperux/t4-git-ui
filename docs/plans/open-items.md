@@ -118,6 +118,7 @@ the README's "Next" line (review item H4). Nothing here is scheduled yet — pic
   store is shared with the installed app. The other two are group AG's (`:1149`, `:1160`): deliberate
   records, not work — one box's recipe is unachievable, and one cannot be decided by what it observes.
   So a grep for `- [ ]` finds eight and only six are owed; read AG before counting it as a backlog.
+  (Recounted 2026-09-19 in §M: fourteen lines, the line numbers above moved by two.)
 
 The rest needs machines we do not have:
 - Installer on a clean Windows 11 (no dev tools, no WebView2 preinstalled? — the NSIS bundle
@@ -456,6 +457,41 @@ is not rediscovered from scratch. The walk itself is
   the alternative was threading `onCommitted` through three components. Worth remembering if a
   second store ever wants the view — two writers and it belongs behind a named action on
   `viewStore` instead.
+
+## M. Added 2026-09-19 — review of `v0.10.1..HEAD`, its fixes, and the walk of group AZ
+
+Eight findings, all fixed (staging back on libgit2's ignore check, the `index.lock` match on both the CLI
+and the libgit2 side, window restore, the grid's mount row, clipped menu names); a second review of the
+fixes and the walk added three more. The walk is `docs/archive/walks/2026-09-19-group-az-walk.md`. What is
+left, so it is not rediscovered:
+
+- **Open boxes in group AZ**: 9 (the `git skipped <path>` toast — unit-tested, no hand recipe), 10 (an
+  update's restart keeps every window — needs a published update, walk it with group AC), 11 (Linux and
+  macOS: rows 3a, 3b, 3d, 3i and bullet 6, by hand).
+- **Unticked lines, recounted**: fourteen across the two smoke docs. The eight of §B (now
+  `smoke-test-post-v1.md:752`, `:755`, `:758`, `:1151`, `:1162`, `:1224`, `:1254` and `smoke-test.md:283`),
+  the viewport-anchor walk's 9 (`:1741`, not drivable), the settings walk's 6 (`:1764`, a real update
+  download), and AZ's 9, 10 and the two under 11.
+- **Window restore, accepted limits.** A Quit or a crash inside four seconds of a deliberate close brings
+  that window back — indistinguishable from closing the windows one by one. More than four seconds between
+  two closes of a quit by hand reads as a deliberate close of the earlier ones. `layout.json` is written
+  with a plain `fs::write`, not tmp + rename: the grace timer's write could be cut by a process exit in
+  the same few microseconds, and an unreadable file restores nothing. A `set_layout` that lands after its
+  window's `Destroyed` re-inserts the label for the session (older than this work). Decided against:
+  de-duplicating a repository held by both a closed entry and a live window, and t4-markdown-viewer's
+  counter design (a report from another window inside the grace drops the closed one).
+- **Staging, accepted cost.** libgit2 reads the ignore files per path: 1861 untracked files under 61 nested
+  `.gitignore` stage in 0.62 s against 0.48 s on 0.10.7; 1800 modified files in 0.57 s against 0.60 s.
+- **Menus.** Rows shift by a line while arrowing over a clipped name. After arrow keys in the grid a
+  right-click menu opens with its first item focus-visible, so a clipped first item opens wrapped — the
+  same case in which that row always had the accent highlight.
+- **Seen in the walk, not acted on.** An external `git reset` of 1800 files takes about four seconds to
+  show in Changes, on 0.10.7 as well. A libgit2 error toast ends in git2's own
+  `; class=Os (2); code=NotFound (-3)`. And a second reading for §L's native-confirm bullet: on
+  2026-09-19 `SendKeys {ENTER}` after `SetForegroundWindow` on the `#32770` box answered the **Resolve
+  conflict** confirm at the first try.
+- **`smoke-cdp.md` said a local build cannot rewrite the installed app's `recents.json`.** It can, and
+  `layout.json` with it: only the WebView2 profile is isolated. Corrected there, with the backup recipe.
 
 ## Suggested order, if nothing else decides it
 

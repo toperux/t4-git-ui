@@ -53,8 +53,8 @@ double-click unprovable in an earlier walk.
 ### A local build, isolated from the installed app
 
 `docs/smoke/fixtures/smoke-launch.ps1` starts a build on the debugging port with its own
-`WEBVIEW2_USER_DATA_FOLDER`, so a walk cannot touch the installed app's profile or rewrite its
-`recents.json`:
+`WEBVIEW2_USER_DATA_FOLDER`, so a walk cannot fight the installed app over the WebView2 profile
+(localStorage: theme, settings, splitter sizes):
 
 ```powershell
 pwsh -File docs/smoke/fixtures/smoke-launch.ps1              # the local release build
@@ -63,6 +63,37 @@ pwsh -File docs/smoke/fixtures/smoke-launch.ps1 -Installed   # the installed app
 
 It prints the pid, the profile directory and whether the port answered. Group AU was walked this
 way on 2026-09-14 against a local `tauri build --no-bundle` while 0.10.1 stayed installed.
+
+**The store folder is not isolated.** `%APPDATA%\dev.topher.t4gitui\` — `recents.json`, `layout.json`,
+`.window-state.json` — is one folder for every build on the machine, and a local build rewrites all three:
+opening a fixture pushes it into the installed app's recents, and closing the walk's windows replaces the
+installed app's saved session. Before a walk that opens or closes anything: close the installed app, copy
+the folder's files aside, and copy them back with every build closed — then `cmp` them. Group AZ was walked
+that way on 2026-09-19.
+
+### Several windows, and what else group AZ needed
+
+- **One page target per window.** `http://127.0.0.1:9222/json/list` lists them; match on the title
+  (`T4 Git - <repo>`) and open one WebSocket per target. The title follows the active tab, so read the
+  list again after a tab change or an adopted tab.
+- **N windows at launch**: write `layout.json` first — `[{"tabs":[…],"active":…}, …]` — with the paths
+  exactly as the app writes them (copy the spelling from a file the app wrote: backslashes on Windows). A
+  forward-slash path opens, but its `active` tab is not restored.
+- **Closing a window** the way its × does: `WM_CLOSE` posted to the top-level HWND (`EnumWindows`, filtered
+  by the build's pid and the title). That is what AZ 3 was walked with; a killed process is row 3h, not a close.
+- **The log file is buffered**: a killed process loses its tail. Close the window properly before reading
+  the `stage_paths` line.
+- **The CSP blocks an injected `<style>`** — the tag is there and nothing applies. Try a CSS change through
+  the CSSOM (`el.style.display = …`) before rebuilding for it.
+- **`:focus-visible` follows CDP key events.** After keys in the grid, a CDP right-click on a row still opens
+  the menu with its first item focus-visible — the grid never gave up the keyboard focus. For a pure mouse
+  path, start from a fresh launch with no key sent.
+- **A tab dragged into another window**: `Input.dispatchMouseEvent` takes coordinates outside the source
+  window (the strip captures the pointer). Target = the other window's `screenX/Y` minus this one's, plus
+  the point on its strip; press, a dozen `mouseMoved` steps, half a second over the target so the hover
+  probe runs, release — all in one CDP session.
+- **Icon buttons have no text**: `button[aria-label="Stage"]`. A text match on "Stage" finds **Stage all**
+  first, which is disabled while every listed file is conflicted.
 
 ## Selectors that hold
 

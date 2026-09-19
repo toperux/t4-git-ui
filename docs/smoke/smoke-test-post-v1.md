@@ -1646,8 +1646,9 @@ restarts, the preview stays)._
       on `e2a4247` (slip, drop on nothing + Enter, adoption) with the real-pointer script
 - [x] **Quit keeps every window**: two windows → Repository › **Quit** (Ctrl+Q) → both close;
       `layout.json` lists both with their tabs; relaunch → both come back, tabs and active tab as
-      left. Closing windows one at a time instead drops each from the file (by design)
+      left. Closing windows one at a time keeps each in the file for four seconds — see group AZ
 - [x] **Layout on every change**: after each open / close / move, `layout.json` matches what is open
+      — a closed window stays listed for four seconds first (group AZ 3)
 
 ## AT. Stash preview and browser, sidebar headers, folder rows (main §2, §4)
 _`c:/tmp/t4/irebase` or any repo with stashes — `git stash` a dirty tree first if it has none. Walked
@@ -1794,6 +1795,64 @@ afterwards: the toolbar `ViewSwitch` says so, and so does whether `ChangesBar` i
 9. - [x] **Discard** the last change instead of committing it, and `git stash` the last change from a terminal → **stays** open both times. The trigger is a commit, not "the tree went clean". Discard's confirmation is a native `ask()` modal, invisible to the DOM and to CDP — see `smoke-cdp.md` for how to answer one, and note that a walk which leaves it unanswered looks exactly like a Discard that does nothing.
 10. - [x] Uncheck the setting, commit the last change → stays in Changes on the empty state. Restart the app → still unchecked. Re-check it, and leave it checked.
 11. - [x] On `c:/tmp/t4/mbk-clone` (3004 files, a slow status scan) commit the last change and note whether it closes. A status fetch overtaken by the watcher's own refresh is dropped by `fetchStatus`'s seq guard, and the answer then reads the pre-commit tree and keeps the view open — accepted, and this is the one place it could show. Walked: it **closed**, so the race did not show here.
+
+## AZ. Review fixes after 0.10.1: staging, the index lock, window restore, the grid's row, clipped menu names
+
+Fixtures: 1, 4 — any repository; 2 — one with ~1800 modified files; 3 — two or three windows with a tab each; 5 — a few
+hundred commits; 6 — a branch name longer than the row menu's 280 px; 7 — a tracked `gen.log` under `*.log`, conflicted
+by a merge, twice; 8 — an untracked file, listed. The layout lives in `%APPDATA%\dev.topher.t4gitui\layout.json`
+(Linux `~/.local/share/dev.topher.t4gitui/`, macOS `~/Library/Application Support/dev.topher.t4gitui/`); the stage
+timing is the `stage_paths` line in the log. A local build shares that folder with the installed app: close the
+installed one and copy the folder's files aside first, copy them back after (`smoke-cdp.md` › A local build).
+
+_Walked 2026-09-19 over CDP on a local release build (`tauri build --no-bundle`) with the installed app closed:
+windows closed with a real `WM_CLOSE`, `layout.json` seeded per row, 3b / 3h / 3i relaunched to see what comes back.
+Fixture `c:/tmp/t4/az` — 200-odd commits, a branch name past 280 px, the `.gitignore` of 1. All rows pass. One
+finding, in 6, fixed and re-walked the same day: a two-half item wrapped its name inside its own half, six lines
+tall; focused from the keyboard the label now flows as one sentence. Not walked: a grid mount whose stored row is
+past the row count (5) — not reachable by hand. 3l and the Unstage half of 4 came out of a review of these
+commits the same day; they and the whole of 3 were walked again on the build that has them. 3m, 7, 8 and the
+bottom-edge / light-theme half of 6 were added and walked after that, 3m with a CDP drag of the repo-name handle, 7's
+native confirm answered with an Enter on the `#32770` dialog; the bottom edge was a second finding — the wrapped
+**Delete** row lost its last line below the window — fixed (the menu re-fits when its size changes) and re-walked.
+Open: 9 (unit-tested only), 10 (needs a published update), 11 (other platforms). The record is
+`docs/archive/walks/2026-09-19-group-az-walk.md`._
+
+1. - [x] **A negated ignore rule stages**: `.gitignore` with `*.log` and `!keep.log`; create `keep.log` and `debug.log` → only `keep.log` is listed, and staging it works. The check is libgit2's, so this holds on git 2.24–2.26 too.
+2. - [x] **Stage all is no slower**: stage ~1800 modified files → the `stage_paths` log line is no higher than on 0.10.7. One `git` spawn per stage now, none for the ignore check. Measured on a scratch repo, three runs each: 1800 modified files 0.57 s (0.10.7: 0.60 s); 1861 untracked files under 61 nested `.gitignore` 0.62 s (0.10.7: 0.48 s) — libgit2 reads the ignore files per path, the price of 1.
+3. **A closed window keeps its place for four seconds.** The rule: `layout.json` is the open windows that
+   have a tab, plus the windows closed in the last four seconds — a chain, where the four seconds is the
+   gap allowed between two closes, not the time a close-all may take. The chain only runs out while some
+   open window has a tab, and a window that closes with no tab left is no part of it. A, B, C are windows with a tab each; tick a row when both columns hold. The
+   table is shared with t4-markdown-viewer (`docs/plans/session-review-fixes.md`, Task 3), rows 3e–3g
+   being where the two designs were compared.
+
+   | | Sequence | `layout.json` | Next launch |
+   |---|---|---|---|
+   | 3a [x] | Close B, leave the app alone | A + B at once; A only after 4 s, with no click in between | A |
+   | 3b [x] | Close B, then A under 4 s later (a quit by hand) | A + B | A + B |
+   | 3c [x] | Close C, B, A, each under 4 s after the one before — more than 4 s in all | A + B + C | all three |
+   | 3d [x] | Close B, wait past 4 s, close A | A | A |
+   | 3e [x] | Close B, change a tab in A under 4 s later | A (new tabs) + B until the 4 s are up, then A | — |
+   | 3f [x] | Close B, close a tab in A, close A, all inside 4 s | A (without that tab) + B | A without that tab, + B |
+   | 3g [x] | Close B, open a new window C under 4 s later | A + C + B until the 4 s are up, then A + C | — |
+   | 3h [x] | Close B, kill the process inside the 4 s | A + B | A + B |
+   | 3i [x] | Main on the start screen (no tab), B with a tab: close B, wait past 4 s, close main | B, however long the wait | B's tabs, in main |
+   | 3j [x] | As 3i, but open a repository in main after the 4 s | main only | main |
+   | 3k [x] | Quit (Ctrl+Q) with A and B open | A + B | A + B, as before |
+   | 3l [x] | Close B, then under 4 s later close C's last tab, so C closes itself with no tab | A + B until B's own 4 s are up, then A — C's close does not restart the clock | — |
+   | 3m [x] | Drag B's only tab (its repo-name handle) onto A's tab strip | A with that tab, the repository listed once — at once and after the 4 s; B is gone | — |
+
+4. - [x] **A lock that cannot be made is not a Retry**: make `.git` read-only (or deny write), stage a file → the toast shows git's own message (`Permission denied`), not "index is locked" with a Retry. A held `index.lock` (`touch .git/index.lock`) still offers Retry. The same two for **Unstage**, which writes through libgit2: its own `failed to create locked file … Access is denied` (`Permission denied` off Windows), no Retry; the held lock a Retry.
+5. - [x] **History comes back where it was**: scroll the grid to about row 50, Alt+2, Alt+1 → the same rows; do it again with a fetch that brings commits in between → the viewport stays on the same commits. Also with the commit arriving as History mounts (Alt+1 and a `git commit` from a terminal in the same moment).
+6. - [x] **A clipped menu name is readable from the keyboard**: a branch name longer than the row menu's 280 px; open the row menu with Shift+F10 and arrow onto it → the row wraps and shows the whole name, the rows that fit do not change; with the mouse the row stays one line and the hover `title` still has the full name. Check a two-half item (`Merge X into Y`) reads right when wrapped: one sentence at the row's width. After arrow keys in the grid a right-click menu opens with its first item focus-visible — the grid never gave up the keyboard focus — so a clipped first item opens wrapped; it follows the accent highlight that row always had. At the window's bottom edge (a short window, the menu opened on the last visible row, **End** for the Delete row) the menu moves up as the row wraps, so the row being read is never cut. The light theme reads the same. The sidebar's branch menu has no names in its rows; a submenu's rows (Repository › More recent) are ordinary rows and wrap alike if one ever clips.
+7. - [x] **A conflict under an ignore rule still stages**: a tracked `gen.log` under `*.log` (`git add -f`), changed on two branches, merged → conflicted. Resolve it by hand and **Stage** → staged, no "is ignored" refusal (the index's stages 1–3 count as tracked). On a second such file **Keep `<branch>`'s version** → staged with that side; it runs no ignore check at all.
+8. - [x] **A file that became ignored is still refused**: with an untracked `new.txt` listed and selected, append `new.txt` to `.gitignore` from a terminal and press **Stage** before the list refreshes → "Stage failed — new.txt is ignored", nothing in the index.
+9. - [ ] **A skipped path says so**: when `git update-index` skips a path of a batch, the toast reads `git skipped <path>; any other paths were staged` and the lists refresh. No hand recipe known — unit-tested (`check_staged`).
+10. - [ ] **An update's restart keeps every window**: with two windows open, install an update from the in-app prompt → the relaunch restores both (the restart takes the Quit path, 3k). Needs a published update newer than the build — walk it with group AC.
+11. **Other platforms** — nothing here is OS-specific code, but only Windows was walked. Repeat 3a, 3b, 3d, 3i (close windows, `cat` the file) and 6:
+    - [ ] Linux (WebKitGTK)
+    - [ ] macOS
 
 ## Reporting
 

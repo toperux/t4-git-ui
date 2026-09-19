@@ -9,7 +9,7 @@ plans/
   open-items.md    the one live list: deferred features, verification owed, roadmap, to-revisit rows
 smoke/
   smoke-test.md            v1 regression walkthrough, ticked as walked
-  smoke-test-post-v1.md    post-v1 feature groups A–AN, ticked as walked
+  smoke-test-post-v1.md    post-v1 feature groups A–AZ, ticked as walked
   smoke-cdp.md             driving the installed app over CDP instead of by hand
   fixtures/                smoke-fixtures.ps1 (builds C:\tmp\t4), smoke-dialog.ps1, ad7-*.sh, irebase-fixture.sh, linked-fixture.sh
 archive/

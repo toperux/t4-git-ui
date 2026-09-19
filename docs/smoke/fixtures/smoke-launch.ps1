@@ -1,8 +1,9 @@
 # Starts t4-git-ui with the Chrome DevTools Protocol open, in its own WebView2 profile.
 #
 # The isolated profile is the point: WebView2 shares one browser process per user-data folder, so
-# a walk that reuses the default profile fights the installed app (and can rewrite its recents.json).
-# With -DataDir the walk cannot touch it.
+# a walk that reuses the default profile fights the installed app. With -DataDir the walk cannot touch
+# that profile. The store folder (recents.json, layout.json, .window-state.json under %APPDATA%) is NOT
+# isolated: every build shares it - back it up first, see docs/smoke/smoke-cdp.md.
 #
 #   pwsh -File docs/smoke/fixtures/smoke-launch.ps1              # the local release build
 #   pwsh -File docs/smoke/fixtures/smoke-launch.ps1 -Installed   # the installed app instead
