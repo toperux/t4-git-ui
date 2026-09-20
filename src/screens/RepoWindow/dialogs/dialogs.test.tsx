@@ -126,6 +126,19 @@ describe("PushDialog", () => {
     await waitFor(() => expect(mocked.push).toHaveBeenCalledWith("r", "origin", "main", true, true, true));
   });
 
+  it("pushes to the upstream's name when it differs, and to the local name on another remote", async () => {
+    useRepoStore.setState({ refs: { ...REFS, local: [{ ...REFS.local[0], upstream: "origin/trunk" }], remotes: [...REFS.remotes, { name: "fork", url: null, branches: [] }] } });
+    const { getByRole } = render(<PushDialog onClose={() => {}} />);
+    const dialog = getByRole("dialog", { name: "Push" });
+    await waitFor(() => expect(preview(dialog)).toBe("git push --progress origin --end-of-options main:trunk"));
+    fireEvent.click(getByRole("button", { name: "Push" }));
+    await waitFor(() => expect(mocked.push).toHaveBeenCalledWith("r", "origin", "main:trunk", false, false, false));
+    // The upstream is on `origin`: another remote has no say over the local name, so `main` goes out as is.
+    fireEvent.click(getByRole("combobox", { name: "Remote" }));
+    fireEvent.click(getByRole("option", { name: "fork" }));
+    expect(preview(dialog)).toBe("git push --progress fork --end-of-options main");
+  });
+
   it("checks Set upstream when the branch has none", async () => {
     const { getByRole } = render(<PushDialog onClose={() => {}} branch="feature/lane-graph" />);
     await waitFor(() => expect((getByRole("checkbox", { name: "Set upstream" }) as HTMLInputElement).checked).toBe(true));

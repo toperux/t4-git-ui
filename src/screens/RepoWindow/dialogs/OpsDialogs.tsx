@@ -133,13 +133,18 @@ export function PushDialog({ onClose, branch: branchProp }: { onClose: () => voi
   const [force, setForce] = useState(false);
   const [tags, setTags] = useState(false);
 
-  const preview = gitCmd(pushArgs(remote || "origin", branch || null, setUpstream, force, tags));
-  const target = info?.upstream ?? `${remote}/${branch}`;
+  // The remote-side name: local `dev` may track `origin/develop`, and a bare `dev` would create
+  // `origin/dev` beside it. Only an upstream on the picked remote counts (as in PullDialog).
+  const remoteBranch = info?.upstream && remote && info.upstream.startsWith(`${remote}/`) ? info.upstream.slice(remote.length + 1) : branch;
+  const refspec = remoteBranch === branch ? branch : `${branch}:${remoteBranch}`;
+  const preview = gitCmd(pushArgs(remote || "origin", refspec || null, setUpstream, force, tags));
+  // What the push wrote, not what the branch tracks: they differ when another remote is picked.
+  const target = `${remote}/${remoteBranch}`;
 
   function submit() {
     if (!remote || !branch) return;
     onClose();
-    void runOp(`Pushing to ${remote}…`, (id) => ipc.push(id, remote, branch, setUpstream, force, tags), { success: `Pushed ${branch} → ${target}`, remote });
+    void runOp(`Pushing to ${remote}…`, (id) => ipc.push(id, remote, refspec, setUpstream, force, tags), { success: `Pushed ${branch} → ${target}`, remote });
   }
 
   return (
