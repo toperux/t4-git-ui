@@ -2,11 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OpResult } from "../../api/types";
 import { useCmdHistoryStore } from "../../store/cmdHistoryStore";
 import { useCommitStore } from "../../store/commitStore";
+import { useDialogStore } from "../../store/dialogStore";
+import { useDiffStore } from "../../store/diffStore";
 import { useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
 import { useToastStore } from "../../store/toastStore";
 import { useTabsStore } from "../../store/tabsStore";
-import { busyLabel, checkoutTag, closeTab, pickAndOpenRepo, runGit, stashDrop, switchRepo } from "./actions";
+import { useViewStore } from "../../store/viewStore";
+import { blameAt, busyLabel, checkoutTag, closeTab, pickAndOpenRepo, runGit, showHistory, stashDrop, switchRepo } from "./actions";
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(() => Promise.resolve("/elsewhere")), ask: vi.fn(() => Promise.resolve(true)) }));
 vi.mock("@tauri-apps/plugin-clipboard-manager", () => ({ writeText: vi.fn() }));
@@ -152,5 +155,37 @@ describe("checkoutTag", () => {
     await checkoutTag("v1.0");
     expect(mocked.checkout).toHaveBeenCalledWith("r", "refs/tags/v1.0", null, false, true);
     expect(toasts().map((t) => t.title)).toContain("Checked out v1.0 (detached)");
+  });
+});
+
+// Both land in the History layout (the grid's path filter, the details pane's Files tab). From the
+// Changes view, or from a row menu inside the commit dialog, the click used to change nothing on screen.
+describe("History and Blame from a file row", () => {
+  const startLog = vi.fn();
+  beforeEach(() => {
+    useRepoStore.setState({ startLog: startLog as never, revealOid: vi.fn(() => Promise.resolve(true)) as never });
+    useDiffStore.setState({ setTab: vi.fn(), selectTreePathAt: vi.fn(), setBlameOn: vi.fn() } as never);
+    useViewStore.setState({ view: "changes" });
+    useDialogStore.setState({ dialog: { kind: "commit" }, returnFocus: null });
+  });
+
+  it("History filters the grid, opens the History view and closes the dialog it was clicked in", () => {
+    showHistory("a.txt");
+    expect(startLog).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ path: "a.txt" }));
+    expect(useViewStore.getState().view).toBe("history");
+    expect(useDialogStore.getState().dialog).toBeNull();
+  });
+
+  it("Blame does the same from the commit dialog", async () => {
+    await blameAt("abc", "a.txt");
+    expect(useDiffStore.getState().selectTreePathAt).toHaveBeenCalledWith("abc", "a.txt");
+    expect(useViewStore.getState().view).toBe("history");
+    expect(useDialogStore.getState().dialog).toBeNull();
+  });
+
+  it("Blame leaves a diff window open: it shows the blame itself, and a hunk click drills down inside it", async () => {
+    useDialogStore.setState({ dialog: { kind: "diff" } });
+    await blameAt("abc", "a.txt");
+    expect(useDialogStore.getState().dialog).toEqual({ kind: "diff" });
   });
 });

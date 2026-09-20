@@ -175,6 +175,11 @@ export async function openInDiffTool(target: DiffTarget, path: string, oldPath: 
  * nothing but the toast happens then.
  */
 export async function blameAt(oid: string, path: string) {
+  // The blame shows in the History layout. From the Changes view the click changed nothing on screen;
+  // from the commit dialog it changed the view *behind* the dialog. A diff window stays: it is bound to
+  // the same store, so it shows the blame itself and a hunk click drills down inside it.
+  if (useDialogStore.getState().dialog?.kind === "commit") useDialogStore.getState().close();
+  useViewStore.getState().setView("history");
   const diff = useDiffStore.getState();
   diff.setTab("files");
   diff.selectTreePathAt(oid, path);
@@ -189,6 +194,10 @@ export async function blameAt(oid: string, path: string) {
  * the chip beside the search box is what clears this one.
  */
 export function showHistory(path: string) {
+  // The filtered grid is the result, and it sits behind any dialog the row menu was opened in. One
+  // dialog is open at a time and the click came from inside it.
+  useDialogStore.getState().close();
+  useViewStore.getState().setView("history");
   const st = useRepoStore.getState();
   void st.startLog(st.spec, { ...st.filter, path });
 }
