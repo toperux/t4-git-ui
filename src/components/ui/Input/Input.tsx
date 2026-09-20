@@ -64,6 +64,14 @@ function options(children: ReactNode): Opt[] {
     .map((c) => ({ value: String(c.props.value ?? ""), label: c.props.children, disabled: c.props.disabled, title: c.props.title }));
 }
 
+/** The text of a `ReactNode` label: its string and number bits, in order. */
+function textOf(n: ReactNode): string {
+  if (typeof n === "string" || typeof n === "number") return String(n);
+  if (Array.isArray(n)) return n.map(textOf).join("");
+  if (isValidElement<{ children?: ReactNode }>(n)) return textOf(n.props.children);
+  return "";
+}
+
 /** Viewport rect for the list: under the field, flipped above it when the bottom edge is close. */
 function useDropPosition(open: boolean, anchor: RefObject<HTMLElement | null>, list: RefObject<HTMLElement | null>) {
   const [pos, setPos] = useState<{ left: number; top: number; width: number } | null>(null);
@@ -104,6 +112,7 @@ export function Select({ value, onChange, children, disabled, autoFocus, classNa
   const list = useRef<HTMLDivElement>(null);
   const id = useId();
   const pos = useDropPosition(open, btn, list);
+  const typed = useRef({ text: "", at: 0 });
 
   // The list is placed once, from the field's rect: close it rather than let it drift.
   useEffect(() => {
@@ -144,6 +153,7 @@ export function Select({ value, onChange, children, disabled, autoFocus, classNa
   function pick(i: number) {
     const o = opts[i];
     if (o?.disabled) return;
+    typed.current.text = "";
     setOpen(false);
     if (o && o.value !== value) onChange({ target: { value: o.value } });
   }
@@ -155,6 +165,35 @@ export function Select({ value, onChange, children, disabled, autoFocus, classNa
       const next = pickable(Math.min(opts.length - 1, Math.max(0, i + d)), d);
       return opts[next]?.disabled ? i : next;
     });
+  }
+
+  /**
+   * The option the typed buffer `q` names, or -1: the first option the whole buffer starts, then —
+   * for one letter over and over (`f`, `ff`, `fff`) — the next option starting with it, from the
+   * active one on, then the first option the buffer appears in. The whole buffer goes first so a
+   * doubled start (`11.0.0` next to `1.1.0`) can be reached. Disabled options are never a match.
+   */
+  function search(q: string) {
+    const texts = opts.map((o) => (textOf(o.label) || o.value).toLowerCase());
+    const hit = (from: number, ok: (t: string) => boolean) => {
+      for (let n = 1; n <= opts.length; n++) {
+        const i = (from + n) % opts.length;
+        if (!opts[i].disabled && ok(texts[i])) return i;
+      }
+      return -1;
+    };
+    const top = opts.length - 1; // …so the walk starts at 0.
+    if (q.length > 1) {
+      const starts = hit(top, (t) => t.startsWith(q));
+      if (starts >= 0) return starts;
+    }
+    if ([...q].every((c) => c === q[0])) {
+      // Shut, `active` is wherever the last visit left it: the walk starts after the selected
+      // option — from the top when none is (-1).
+      const cycled = hit(open ? active : selected, (t) => t.startsWith(q[0]));
+      if (cycled >= 0) return cycled;
+    }
+    return hit(top, (t) => t.includes(q));
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
@@ -174,6 +213,30 @@ export function Select({ value, onChange, children, disabled, autoFocus, classNa
       }
       return;
     }
+    // Type-ahead, like a native select: printable keys build a buffer (a gap over half a second
+    // starts a new one) and the match becomes the active option — opening the list on it when it is
+    // shut, but never committing. `show()` would put the active option back on the selected one.
+    // Space is text while a buffer is live (`always c…`): picking with it there would commit whatever
+    // the letters before it had reached. With no buffer it keeps its open/pick meaning below.
+    // ponytail: an AltGr character arrives as Ctrl+Alt on Windows and Linux and stops at the Alt
+    // branch above, so it never matches. If it bites: let a Ctrl+Alt chord with `e.key.length === 1`
+    // past that branch.
+    const now = Date.now();
+    // `abs`: a clock set back must not keep a stale buffer alive for good.
+    const live = Math.abs(now - typed.current.at) <= 500 ? typed.current.text : "";
+    if (e.key.length === 1 && (e.key !== " " || live) && !e.ctrlKey && !e.metaKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      const text = live + e.key.toLowerCase();
+      typed.current = { text, at: now };
+      const match = search(text);
+      if (match >= 0) {
+        setActive(match);
+        setOpen(true);
+      }
+      return;
+    }
+    // Any other key ends the word being typed: `m`, Enter, `f` is `f`, not `mf`.
+    typed.current.text = "";
     if (!open) {
       if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter" || e.key === " ") {
         e.preventDefault();
