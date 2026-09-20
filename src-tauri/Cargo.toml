@@ -26,6 +26,7 @@ tauri-plugin-store = "2"
 tauri-plugin-window-state = "2"
 tauri-plugin-clipboard-manager = "2"
 tauri-plugin-updater = "2"
+tauri-plugin-single-instance = "2"
 git-core = { path = "../crates/git-core" }
 serde.workspace = true
 # `generate_context!` parses the `plugins` config through it, so it has to be a

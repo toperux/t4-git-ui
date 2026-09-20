@@ -95,22 +95,28 @@ pub fn focus_window(app: &AppHandle, label: &str) {
 
 /// Creates a window showing `payload`'s tabs, at `placement` (a physical screen
 /// point for its top-left) or wherever the OS puts it. Returns its label.
+/// `source` is the window the tabs came from, told if the build fails; `None`
+/// for a second launch of the app (`lib.rs`), which moves nothing and whose
+/// window has to come forward by itself — no click of the user's raised it.
 ///
 /// The build runs on a worker thread on purpose: `build()` waits on the event
 /// loop to construct the webview, and this command already runs *on* that loop,
 /// so building inline deadlocks the app. Reserving the label and parking the
 /// payload happens first and synchronously, so the new window's `take_pending`
 /// cannot race it.
-#[tauri::command]
-pub fn spawn_window(
-    app: AppHandle,
-    window: Window,
+pub fn spawn(
+    app: &AppHandle,
+    source: Option<String>,
     payload: Layout,
     placement: Option<(f64, f64)>,
 ) -> String {
-    let state = app.state::<AppState>();
-    let label = state.next_window_label();
-    state.pending().insert(label.clone(), payload.clone());
+    // In a block: `state` borrows `app`, and the thread below takes a clone of it.
+    let label = {
+        let state = app.state::<AppState>();
+        let label = state.next_window_label();
+        state.pending().insert(label.clone(), payload.clone());
+        label
+    };
 
     // Logical, not physical: the builder's size is in CSS pixels, and main may
     // be on a scaled monitor.
@@ -119,8 +125,8 @@ pub fn spawn_window(
         let scale = w.scale_factor().unwrap_or(1.0);
         Some((s.width as f64 / scale, s.height as f64 / scale))
     });
-    let source = window.label().to_string();
     let target = label.clone();
+    let app = app.clone();
     std::thread::spawn(move || {
         let mut builder =
             WebviewWindowBuilder::new(&app, &target, WebviewUrl::App("index.html".into()))
@@ -137,6 +143,9 @@ pub fn spawn_window(
                         win.set_position(PhysicalPosition::new(x.round() as i32, y.round() as i32));
                 }
                 crate::show_with_theme(&app, &win);
+                if source.is_none() {
+                    let _ = win.set_focus();
+                }
             }
             Err(e) => {
                 tracing::warn!(label = %target, error = %e, "window failed to open");
@@ -144,15 +153,27 @@ pub fn spawn_window(
                 state.pending().remove(&target);
                 // Give the tabs back to the window that let them go, or they are
                 // lost — every one of them, not just the active one.
-                let _ = app.emit_to(
-                    &source,
-                    "tab-spawn-failed",
-                    serde_json::json!({ "paths": payload.tabs }),
-                );
+                if let Some(source) = &source {
+                    let _ = app.emit_to(
+                        source,
+                        "tab-spawn-failed",
+                        serde_json::json!({ "paths": payload.tabs }),
+                    );
+                }
             }
         }
     });
     label
+}
+
+#[tauri::command]
+pub fn spawn_window(
+    app: AppHandle,
+    window: Window,
+    payload: Layout,
+    placement: Option<(f64, f64)>,
+) -> String {
+    spawn(&app, Some(window.label().to_string()), payload, placement)
 }
 
 /// Hands this window whatever it was created to open. Consumed on first call;

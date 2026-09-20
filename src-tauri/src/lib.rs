@@ -134,6 +134,16 @@ fn on_window_destroyed(app: &AppHandle, label: &str) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // First, so a second launch is turned away before anything touches the
+        // files both would share: it would wipe the temp files an external merge
+        // tool still has open (`clean_merge_temp` below assumes a cold start),
+        // consume `layout.json`, and open a repository under a second set of
+        // locks. The second process exits, and what it was started for — another
+        // window — is opened here instead, on the start screen: an empty layout,
+        // so it does not reach for the repository another window already holds.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            commands::window::spawn(app, None, commands::window::Layout::default(), None);
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::new().build())
