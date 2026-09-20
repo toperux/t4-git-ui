@@ -508,35 +508,58 @@ export function ResetDialog({ onClose, target }: { onClose: () => void; target: 
   );
 }
 
-/** `git branch -f`: moves a branch that is not checked out (the current branch goes through `ResetDialog`). */
-export function ResetBranchDialog({ onClose, branch, target }: { onClose: () => void; branch: string; target: string }) {
+/**
+ * `git branch -f`: moves a branch that is not checked out (the current branch goes through
+ * `ResetDialog`). A lone `branches` entry is the branch; several are offered to choose from.
+ */
+export function ResetBranchDialog({ onClose, branches, target }: { onClose: () => void; branches: string[]; target: string }) {
   const short = shortRef(target);
-  const preview = gitCmd(resetBranchArgs(branch, target));
+  const picker = branches.length > 1;
+  // No default pick: a force move must not run on Enter against a branch nobody chose.
+  const [name, setName] = useState(picker ? "" : (branches[0] ?? ""));
+  const preview = name ? gitCmd(resetBranchArgs(name, target)) : "";
 
   function submit() {
+    if (!name) return;
     onClose();
-    void runOp(`Resetting ${branch} to ${short}…`, (id) => ipc.resetBranch(id, branch, target), { success: `Reset ${branch} to ${short}` });
+    void runOp(`Resetting ${name} to ${short}…`, (id) => ipc.resetBranch(id, name, target), { success: `Reset ${name} to ${short}` });
   }
 
   return (
     <Dialog
-      title={`Reset ${branch}`}
+      title={picker ? "Reset branch" : `Reset ${name}`}
       onClose={onClose}
       onSubmit={submit}
       preview={preview}
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" type="submit">
+          <Button variant="primary" type="submit" disabled={!name}>
             Reset
           </Button>
         </>
       }
     >
-      <DialogText>
-        Moves <Mono>{branch}</Mono> to <Mono>{short}</Mono>. It isn&apos;t checked out, so your files don&apos;t change. Commits after{" "}
-        <Mono>{short}</Mono> stay reachable only through the reflog.
-      </DialogText>
+      {picker && (
+        <Field label="Branch">
+          <Select aria-label="Branch" value={name} onChange={(e) => setName(e.target.value)} autoFocus>
+            <option value="" disabled>
+              Pick a branch
+            </option>
+            {branches.map((b) => (
+              <option key={b} value={b}>
+                {b}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      )}
+      {name && (
+        <DialogText>
+          Moves <Mono>{name}</Mono> to <Mono>{short}</Mono>. It isn&apos;t checked out, so your files don&apos;t change. Commits only{" "}
+          <Mono>{name}</Mono> reaches stay reachable only through the reflog.
+        </DialogText>
+      )}
     </Dialog>
   );
 }

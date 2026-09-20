@@ -27,8 +27,8 @@ export type DialogSpec =
   | { kind: "checkoutBranch"; branches: { name: string; remote: string | null }[] }
   /** Reset the current branch (or a detached HEAD) to `target` (an oid or a ref name). */
   | { kind: "reset"; target: string }
-  /** Move a branch that is not checked out to `target` (`git branch -f`). */
-  | { kind: "resetBranch"; branch: string; target: string }
+  /** Move a branch that is not checked out to `target` (`git branch -f`); one `branches` entry is the branch, several hand the pick to the dialog. */
+  | { kind: "resetBranch"; branches: string[]; target: string }
   /** `startPoint` = ref name / oid preselected as the start point (default HEAD). */
   | { kind: "createBranch"; startPoint?: string }
   | { kind: "deleteBranch"; name: string }

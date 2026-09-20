@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Branch, RefsSnapshot } from "../../../api/types";
+import type { Branch, RefsSnapshot, Worktree } from "../../../api/types";
 import { commitBranchActions } from "./commitMenu";
 
 const branch = (name: string, oid: string, extra: Partial<Branch> = {}): Branch => ({
@@ -36,7 +36,7 @@ const REFS: RefsSnapshot = {
 describe("commitBranchActions", () => {
   it("offers local branches at the commit, minus the current one", () => {
     // HEAD's own commit: no plain rebase (a no-op), but rebasing interactively *from* here is the point.
-    expect(commitBranchActions(REFS, "a")).toEqual({ checkout: [], reset: [], merge: [], rebaseOnto: null, canRebase: false, canRebaseInteractive: true, headCommit: true, unborn: false, remove: [], rename: ["main"] });
+    expect(commitBranchActions(REFS, "a")).toEqual({ checkout: [], reset: [], resetHere: ["feature", "hotfix", "stale", "develop"], merge: [], rebaseOnto: null, canRebase: false, canRebaseInteractive: true, headCommit: true, unborn: false, remove: [], rename: ["main"] });
     const { checkout } = commitBranchActions(REFS, "b");
     expect(checkout.filter((b) => !b.remote).map((b) => b.name)).toEqual(["feature", "hotfix"]);
   });
@@ -53,11 +53,49 @@ describe("commitBranchActions", () => {
     expect(checkout.some((b) => b.remote)).toBe(false);
   });
 
+  it("force-moves any other local branch here — never one that is checked out somewhere", () => {
+    // `main` is HEAD's own, `feature` / `hotfix` already sit at `b`, `stale` is the reset-to-remote above.
+    expect(commitBranchActions(REFS, "b").resetHere).toEqual(["develop"]);
+    // `hotfix` is checked out in a linked worktree: `git branch -f` would refuse it.
+    const worktree = (name: string): Worktree => ({ path: `/wt/${name}`, head: { oid: "b", branch: name, detached: false }, main: false, current: false, locked: false, lockReason: null, prunable: false });
+    expect(commitBranchActions(REFS, "a", [worktree("hotfix")]).resetHere).toEqual(["feature", "stale", "develop"]);
+    // A detached worktree names no branch, so it takes none out.
+    expect(commitBranchActions(REFS, "a", [{ ...worktree("hotfix"), head: { oid: "b", branch: null, detached: true } }]).resetHere).toEqual(["feature", "hotfix", "stale", "develop"]);
+    // The current worktree's entry can trail `refs` and still name a branch just switched away from:
+    // `isHead` is the truth for it, so it takes none out — a linked one alongside it still does.
+    expect(commitBranchActions(REFS, "a", [{ ...worktree("hotfix"), current: true }]).resetHere).toEqual(["feature", "hotfix", "stale", "develop"]);
+    expect(commitBranchActions(REFS, "a", [{ ...worktree("stale"), current: true }, worktree("hotfix")]).resetHere).toEqual(["feature", "stale", "develop"]);
+  });
+
+  it("never resets a local branch that is checked out in a linked worktree", () => {
+    // `stale` tracks `origin/renamed`, which sits at `b` — but the move is a `git branch -f` too.
+    const worktree: Worktree = { path: "/wt/stale", head: { oid: "c", branch: "stale", detached: false }, main: false, current: false, locked: false, lockReason: null, prunable: false };
+    expect(commitBranchActions(REFS, "b", [worktree]).reset).toEqual([{ branch: "main", remote: "origin/main", current: true }]);
+  });
+
+  it("moves no branch here mid-rebase or mid-bisect — the one the operation owns is unknown", () => {
+    for (const state of ["rebase", "bisect"] as const) {
+      const at = commitBranchActions({ ...REFS, state }, "b");
+      expect(at.resetHere).toEqual([]);
+      // The current branch is still a plain `git reset`, which the operation does not block.
+      expect(at.reset).toEqual([{ branch: "main", remote: "origin/main", current: true }]);
+    }
+    // A stopped merge blocks neither: `git branch -f` moves any branch but the checked-out one.
+    const merging = commitBranchActions({ ...REFS, state: "merge" }, "b");
+    expect(merging.resetHere).toEqual(["develop"]);
+    expect(merging.reset).toEqual([
+      { branch: "main", remote: "origin/main", current: true },
+      { branch: "stale", remote: "origin/renamed", current: false },
+    ]);
+  });
+
   it("checks out remote branches without a local counterpart as tracking locals", () => {
     // `fork/feature` → local `feature` exists (found by name) but sits elsewhere → reset, not checkout.
     expect(commitBranchActions(REFS, "d")).toEqual({
       checkout: [{ name: "origin/new", remote: "origin" }],
       reset: [{ branch: "feature", remote: "fork/feature", current: false }],
+      // `feature` is left out: the reset above already moves it here, to `fork/feature`.
+      resetHere: ["hotfix", "stale", "develop"],
       merge: [{ name: "origin/new", remote: "origin" }, { name: "fork/feature", remote: "fork" }],
       rebaseOnto: { name: "origin/new", remote: "origin" },
       canRebase: true,
@@ -143,7 +181,7 @@ describe("commitBranchActions", () => {
   });
 
   it("is empty without refs", () => {
-    expect(commitBranchActions(null, "a")).toEqual({ checkout: [], reset: [], merge: [], rebaseOnto: null, canRebase: false, canRebaseInteractive: false, headCommit: false, unborn: false, remove: [], rename: [] });
+    expect(commitBranchActions(null, "a")).toEqual({ checkout: [], reset: [], resetHere: [], merge: [], rebaseOnto: null, canRebase: false, canRebaseInteractive: false, headCommit: false, unborn: false, remove: [], rename: [] });
   });
 
   it("neither rebase is offered mid-merge, mid-rebase, on a detached or an unborn HEAD", () => {

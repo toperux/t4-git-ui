@@ -1,5 +1,5 @@
 // What the commit context menu offers for the branches sitting at a commit.
-import type { RefsSnapshot } from "../../../api/types";
+import type { RefsSnapshot, Worktree } from "../../../api/types";
 import { protectedNames, stripRemote } from "../actions";
 
 /** A branch at the commit; `remote` is set for a remote branch (`origin/x` on `origin`). */
@@ -25,6 +25,8 @@ export interface CommitBranchActions {
   /** Checkout candidates: local branches other than the current one, remote ones without a local counterpart. */
   checkout: BranchAt[];
   reset: ResetToRemote[];
+  /** Local branches `git branch -f` can move here: not the current one, not already here, not checked out in a worktree, not one `reset` already moves here. */
+  resetHere: string[];
   /** Merge candidates: every branch at the commit but the current one and remotes a local sits on. */
   merge: BranchAt[];
   /** What a rebase of the current branch lands on: a local branch here, else a remote one, else the caller's oid. */
@@ -50,14 +52,22 @@ export interface CommitBranchActions {
  * A remote branch's local counterpart is the branch tracking it, else the one with the same short
  * name. With one at the same commit there is nothing to do; elsewhere it can be reset to the remote.
  */
-export function commitBranchActions(refs: RefsSnapshot | null, oid: string): CommitBranchActions {
-  if (!refs) return { checkout: [], reset: [], merge: [], rebaseOnto: null, canRebase: false, canRebaseInteractive: false, headCommit: false, unborn: false, remove: [], rename: [] };
+export function commitBranchActions(refs: RefsSnapshot | null, oid: string, worktrees?: Worktree[]): CommitBranchActions {
+  if (!refs) return { checkout: [], reset: [], resetHere: [], merge: [], rebaseOnto: null, canRebase: false, canRebaseInteractive: false, headCommit: false, unborn: false, remove: [], rename: [] };
   const locals: BranchAt[] = refs.local.filter((b) => b.oid === oid && !b.isHead).map((b) => ({ name: b.name, remote: null }));
   const checkout: BranchAt[] = [...locals];
   const remotes: BranchAt[] = [];
   const reset: ResetToRemote[] = [];
   const keep = protectedNames(refs.remotes);
   const remove: DeleteAt[] = locals.filter((b) => !keep.has(b.name)).map((b) => ({ kind: "local", name: b.name }));
+  // `git branch -f` refuses a branch checked out anywhere; the current worktree's own is `isHead`
+  // already. Only the other worktrees count: the current one's entry can trail `refs` and still name
+  // the branch just switched away from, and `isHead` is the truth for it either way.
+  const checkedOut = new Set(worktrees?.filter((w) => !w.current).map((w) => w.head?.branch));
+  // Mid-rebase / mid-bisect HEAD is detached, so the branch the operation owns is nobody's `isHead`
+  // and the snapshot doesn't say which one it is — `git branch -f` would refuse exactly that one.
+  // No move at all until it ends; a `git reset` of the current branch is a different matter.
+  const frozen = refs.state === "rebase" || refs.state === "bisect";
   for (const r of refs.remotes) {
     for (const rb of r.branches) {
       if (rb.oid !== oid) continue;
@@ -69,9 +79,15 @@ export function commitBranchActions(refs: RefsSnapshot | null, oid: string): Com
       if (local?.oid === oid) continue;
       remotes.push({ name: rb.name, remote: r.name });
       if (!local) checkout.push({ name: rb.name, remote: r.name });
-      else reset.push({ branch: local.name, remote: rb.name, current: local.isHead });
+      // The current branch moves with a `git reset`, which neither a worktree nor a running operation
+      // blocks; every other one is a `git branch -f` and answers to both.
+      else if (local.isHead || (!frozen && !checkedOut.has(local.name))) reset.push({ branch: local.name, remote: rb.name, current: local.isHead });
     }
   }
+  // A branch `reset` moves to a remote sitting here is the same move under a better name.
+  const resetHere = frozen
+    ? []
+    : refs.local.filter((b) => !b.isHead && b.oid !== oid && !checkedOut.has(b.name) && !reset.some((r) => !r.current && r.branch === b.name)).map((b) => b.name);
   const headCommit = refs.head.oid === oid;
   // An unborn HEAD sits at no commit, so nothing is HEAD's own and neither operation can run.
   const unborn = refs.head.oid === null;
@@ -82,6 +98,7 @@ export function commitBranchActions(refs: RefsSnapshot | null, oid: string): Com
   return {
     checkout,
     reset,
+    resetHere,
     merge: headCommit || unborn ? [] : [...locals, ...remotes],
     rebaseOnto: canRebase ? (locals[0] ?? remotes[0] ?? null) : null,
     canRebase,

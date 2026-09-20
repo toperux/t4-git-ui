@@ -212,10 +212,29 @@ describe("ResetDialog", () => {
 
 describe("ResetBranchDialog", () => {
   it("force-moves the branch with `git branch -f`", async () => {
-    const { getByRole } = render(<ResetBranchDialog onClose={() => {}} branch="feature/lane-graph" target="origin/main" />);
+    const { getByRole, queryByRole } = render(<ResetBranchDialog onClose={() => {}} branches={["feature/lane-graph"]} target="origin/main" />);
     expect(preview(getByRole("dialog", { name: "Reset feature/lane-graph" }))).toBe("git branch -f --end-of-options feature/lane-graph origin/main");
+    // The only candidate: nothing to pick.
+    expect(queryByRole("combobox", { name: "Branch" })).toBeNull();
     fireEvent.click(getByRole("button", { name: "Reset" }));
     await waitFor(() => expect(mocked.resetBranch).toHaveBeenCalledWith("r", "feature/lane-graph", "origin/main"));
+  });
+
+  it("waits for a pick when it is handed several branches: a force move must not run on Enter", async () => {
+    const oid = "deadbeefcafe0123456789abcdef0123456789ab";
+    const { getByRole } = render(<ResetBranchDialog onClose={() => {}} branches={["main", "feature/lane-graph"]} target={oid} />);
+    const dialog = getByRole("dialog", { name: "Reset branch" });
+    // Nothing chosen: no command to preview, no branch to warn about, and Reset cannot fire.
+    expect(dialog.querySelector("code")).toBeNull();
+    expect((getByRole("button", { name: "Reset" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.submit(dialog);
+    expect(mocked.resetBranch).not.toHaveBeenCalled();
+
+    fireEvent.click(getByRole("combobox", { name: "Branch" }));
+    fireEvent.click(getByRole("option", { name: "feature/lane-graph" }));
+    expect(preview(dialog)).toBe(`git branch -f --end-of-options feature/lane-graph ${oid}`);
+    fireEvent.click(getByRole("button", { name: "Reset" }));
+    await waitFor(() => expect(mocked.resetBranch).toHaveBeenCalledWith("r", "feature/lane-graph", oid));
   });
 });
 

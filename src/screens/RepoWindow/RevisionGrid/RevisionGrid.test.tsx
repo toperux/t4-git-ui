@@ -347,7 +347,7 @@ describe("RevisionGrid", () => {
     // The current branch takes a `git reset`; another local moves with `branch -f`.
     expect(pick("Reset main to origin/main…").dialog).toEqual({ kind: "reset", target: "origin/main" });
     fireEvent.contextMenu(rows[1]);
-    expect(pick("Reset stale to origin/renamed…").dialog).toEqual({ kind: "resetBranch", branch: "stale", target: "origin/renamed" });
+    expect(pick("Reset stale to origin/renamed…").dialog).toEqual({ kind: "resetBranch", branches: ["stale"], target: "origin/renamed" });
     fireEvent.contextMenu(rows[1]);
     expect(pick("Rename feature…").dialog).toEqual({ kind: "renameBranch", name: "feature" });
     fireEvent.contextMenu(rows[1]);
@@ -364,6 +364,7 @@ describe("RevisionGrid", () => {
       "Reset main to here…",
       "Merge origin/new into main…",
       "Rebase main onto origin/new…",
+      "Reset branch to here…",
       "Cherry-pick oid2…",
       "Revert oid2…",
       "Bisect: mark good",
@@ -421,14 +422,40 @@ describe("RevisionGrid", () => {
     // Merging into HEAD / rebasing onto it / picking it onto itself are all no-ops; the undo is not.
     expect(items().filter((t) => t?.startsWith("Merge") || t?.startsWith("Rebase") || t?.startsWith("Cherry-pick"))).toEqual([]);
     expect(items()).toContain("Revert oid0…");
-    // One short of a normal row: nothing here moves a branch pointer, so that group and its
-    // separator drop out together. The apply and bisect groups still stand on their own.
-    expect(seps()).toBe(6);
+    // The pointer group survives on `Reset feature to here…` alone: `feature` sits elsewhere.
+    expect(seps()).toBe(7);
+    expect(items()).toContain("Reset feature to here…");
     expect(items()).toContain("Delete stale…");
     expect(items()).not.toContain("Delete main…");
     // Rename is not guarded: the checked-out branch and a protected name both get one.
     expect(items()).toContain("Rename main…");
     expect(items()).toContain("Rename stale…");
+    useDialogStore.setState({ dialog: null, returnFocus: null });
+  });
+
+  it("force-moves another local branch to the row: one candidate by name, several through the dialog", () => {
+    withRefs();
+    useDialogStore.setState({ dialog: null, returnFocus: null });
+    const { container, getByRole, getAllByRole } = render(<RevisionGrid />);
+    const rows = container.querySelectorAll(ROWS);
+    const items = () => getAllByRole("menuitem").map((el) => el.textContent);
+    const pick = (name: string) => {
+      fireEvent.click(getByRole("menuitem", { name }));
+      return useDialogStore.getState().dialog;
+    };
+
+    // Three locals sit elsewhere: the dialog does the picking.
+    fireEvent.contextMenu(rows[2]);
+    expect(pick("Reset branch to here…")).toEqual({ kind: "resetBranch", branches: ["feature", "hotfix", "stale"], target: "oid2" });
+
+    // `feature` / `hotfix` are already here, `main` is checked out, and `stale` is the reset-to-remote item above.
+    fireEvent.contextMenu(rows[1]);
+    expect(items().filter((t) => t?.endsWith(" to here…"))).toEqual(["Reset main to here…"]);
+
+    // A lone candidate is named outright and skips the picker.
+    useRepoStore.setState({ refs: { ...REFS, local: [branch("main", "oid0", { isHead: true }), branch("feature", "oid1")], remotes: [] } });
+    fireEvent.contextMenu(rows[2]);
+    expect(pick("Reset feature to here…")).toEqual({ kind: "resetBranch", branches: ["feature"], target: "oid2" });
     useDialogStore.setState({ dialog: null, returnFocus: null });
   });
 

@@ -66,7 +66,7 @@ function renderDialog(dialog: DialogSpec, close: () => void): ReactNode {
     case "reset":
       return <ResetDialog onClose={close} target={dialog.target} />;
     case "resetBranch":
-      return <ResetBranchDialog onClose={close} branch={dialog.branch} target={dialog.target} />;
+      return <ResetBranchDialog onClose={close} branches={dialog.branches} target={dialog.target} />;
     case "checkoutBranch":
       return <CheckoutBranchDialog onClose={close} branches={dialog.branches} />;
     case "createBranch":

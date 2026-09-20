@@ -293,11 +293,12 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
   const open = useDialogStore((st) => st.open);
   const running = useOpsStore(selectRunning);
   const refs = useRepoStore((st) => st.refs);
+  const linked = useRepoStore((st) => st.linked);
   if (!menu) return null;
   const { oid, summary, parents } = menu.commit;
   const short = oid.slice(0, 7);
   const current = refs?.local.find((b) => b.isHead)?.name ?? "HEAD";
-  const branches = commitBranchActions(refs, oid);
+  const branches = commitBranchActions(refs, oid, linked?.worktrees);
   const checkout = (b: BranchAt) => (b.remote ? checkoutRemoteBranch({ name: b.name, oid, mergedInto: null }, b.remote) : checkoutBranch(b.name));
   const run = (fn: () => void) => () => {
     onClose();
@@ -316,10 +317,12 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
   // Merge and cherry-pick ask the same thing of the row: a commit to apply that is not already the
   // one HEAD sits on.
   const canApply = !branches.headCommit && !branches.unborn;
+  // The lone force-move candidate, named outright in its item; `null` when the dialog does the picking.
+  const only = branches.resetHere.length === 1 ? branches.resetHere[0] : null;
   // Every group's separator hangs off exactly what that group renders, so two never end up side by
   // side and none leads an empty run. The pointer group is the only one that can empty out; the
   // apply group and the bisect group both stand or fall with Revert's condition, an unborn HEAD.
-  const pointer = canApply || branches.canRebase || (branches.canRebaseInteractive && parents.length > 0) || branches.reset.length > 0;
+  const pointer = canApply || branches.canRebase || (branches.canRebaseInteractive && parents.length > 0) || branches.reset.length > 0 || branches.resetHere.length > 0;
   return (
     <ContextMenu at={menu.at} onClose={onClose} label="Commit actions">
       {branches.checkout.length === 1 && (
@@ -409,7 +412,7 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
           icon={<RotateCcw size={16} aria-hidden />}
           title={`Reset ${r.branch} to ${r.remote}`}
           {...op}
-          onClick={run(() => openDialog(r.current ? { kind: "reset", target: r.remote } : { kind: "resetBranch", branch: r.branch, target: r.remote }))}
+          onClick={run(() => openDialog(r.current ? { kind: "reset", target: r.remote } : { kind: "resetBranch", branches: [r.branch], target: r.remote }))}
         >
           {/* Either name can be long: the local chip and the "to <remote>…" tail each ellipsize on their own. */}
           <span className={s.menuLabel}>
@@ -420,6 +423,23 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
           </span>
         </MenuItem>
       ))}
+      {/* Any other local branch can be force-moved here; with several the dialog does the picking. */}
+      {branches.resetHere.length > 0 && (
+        <MenuItem
+          icon={<RotateCcw size={16} aria-hidden />}
+          title={only ? `Reset ${only} to here` : "Reset a branch to here"}
+          {...op}
+          onClick={run(() => openDialog({ kind: "resetBranch", branches: branches.resetHere, target: oid }))}
+        >
+          {only ? (
+            <span className={s.menuLabel}>
+              Reset <MenuRef className={s.menuBranch}>{only}</MenuRef> to here…
+            </span>
+          ) : (
+            "Reset branch to here…"
+          )}
+        </MenuItem>
+      )}
       {/* Applying this commit's change to the current branch — forwards or backwards. Its own group:
           everything above moves where a branch points, these two change what it contains. */}
       {!branches.unborn && <MenuSeparator />}
