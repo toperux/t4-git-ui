@@ -1854,6 +1854,39 @@ Open: 9 (unit-tested only), 10 (needs a published update), 11 (other platforms).
     - [ ] Linux (WebKitGTK)
     - [ ] macOS
 
+## BA. Reset another branch to the right-clicked commit (commit menu)
+
+Fixture: `docs/smoke/fixtures/ba-fixture.sh` builds `c:/tmp/t4/ba` — four commits, HEAD on `feature` with `main`,
+`reset-me` and `x` at the tip, `topic` one commit back, `origin/x` two back (5), and `wt-branch` checked out in the
+linked worktree `c:/tmp/t4/ba-wt` (4), tracking `origin/wt-branch` beside `origin/x` (9). Every move here is `git branch -f`, so the reflog
+(`git reflog show <branch>`) is what says where the branch was.
+
+Walked 2026-09-20 over CDP on a local `tauri build --no-bundle`, bullets 1–7 green, plus **Reset `x` to `origin/x`…**
+through the same dialog as a regression check.
+
+1. - [x] **A branch moves from the menu**: right-click the tip's row — `topic` is the only branch that can move there → **Reset `topic` to here…** → the dialog has no picker, says it isn't checked out and your files don't change → **Reset** → the chip moves in the grid, the working tree is untouched, and `git reflog show topic` records the move.
+2. - [x] **Several candidates hand the pick to the dialog**: a row where more than one local branch can move → **Reset branch to here…** opens with **Pick a branch** showing and nothing chosen: **Reset** is greyed, the preview line is empty, and **Enter** opens the branch list rather than running anything. Pick one → the command preview and the warning appear, naming it; **Reset** runs it.
+3. - [x] **`main` is movable**: nothing protects it here — the dialog is the confirmation. Moved back two commits and forward again.
+4. - [x] **Never offered**: HEAD's own branch (that is **Reset `<current>` to here…**, the item above), a branch already sitting at the clicked commit, and a branch checked out in another worktree — `wt-branch` from the start, and `reset-me` once a terminal `git worktree add` takes it and the refresh lands.
+5. - [x] **No duplicate of the reset-to-remote item**: right-click the row carrying `origin/x` while the local `x` sits elsewhere → **Reset `x` to `origin/x`…** names it, and the picker lists `main`, `reset-me`, `topic` without `x`: moving it there lands on the same commit.
+6. - [x] **Greyed while an op runs**: `git config remote.origin.uploadpack "sleep 12; git-upload-pack"`, toolbar **Fetch**, right-click a row → both reset items are disabled with the `Operation in progress` title, like their neighbours. Unset the config afterwards. (An error toast can sit over the first rows and swallow the right-click — dismiss it first.)
+7. - [x] **Refusal reads as git's own**: open the picker and leave it open, `git worktree add <dir> reset-me` from a terminal, then pick `reset-me` → **Reset** fails in the output dock and a toast with git's message (`fatal: cannot force update the branch 'reset-me' used by worktree at …`), exit 128, and the branch has not moved.
+8. - [x] **The picker finds a branch as you type** (any `Select` does): `git branch tango HEAD` first — with it, `to` lands on `topic` only if the two keys made one buffer (an `o` on its own finds `tango`). Open **Reset branch to here…** on the oldest row, type `t` → the list opens with `tango` active, `o` → `topic`, and nothing is chosen yet (**Pick a branch** still showing, Reset still greyed); **Enter** picks it. With the list open: `m` jumps to `main`; after a pause `t`, `t`, `t` walks `tango` → `topic` → `tango`; Ctrl+X moves nothing; none of it changes the picked value. A pick ends the word: `to`, **Enter**, then `m` straight away reopens the list on `main` (not a search for `tom`). A space inside a word is text, not a pick: Settings › **Sidebar folders**, focus it, type `always c` → the active row goes `Always expanded` → `Always collapsed` and the setting keeps its old value until **Enter**. Walked on a rebuild the same day.
+9. - [x] **The worktree rule covers reset-to-remote too**: right-click the row carrying `origin/x` and `origin/wt-branch` → **Reset `x` to `origin/x`…** is there and no **Reset `wt-branch` to `origin/wt-branch`…**: it is the same `git branch -f`, and `wt-branch` is checked out in `ba-wt`. Walked on a rebuild the same day, like 10.
+10. - [x] **No branch moves under a rebase or a bisect**: `GIT_SEQUENCE_EDITOR="sed -i 1s/pick/edit/" git rebase -i HEAD~2` stops with HEAD detached — the branch being rebased is nobody's current branch, and git refuses to move exactly that one. Right-click any row → only **Reset HEAD to here…** is left: no **Reset branch to here…**, no **Reset `x` to `origin/x`…**. `git rebase --abort` brings them back. The same under `git bisect start` / `bad` / `good HEAD~3` until `git bisect reset`. Mid-merge (a conflicting `git merge`) they all stay: `git branch -f` does not mind a merge.
+
+## BB. A running commit shows it (commit panel)
+
+Any repo with a change to commit; group BA's `c:/tmp/t4/ba` was used. A commit is over before the eye catches it, so
+slow it down with a hook: `printf '#!/bin/sh\nsleep 6\n' > .git/hooks/pre-commit` (`chmod +x` it on Linux / macOS).
+Delete the hook afterwards.
+
+Walked 2026-09-20 over CDP on a local `tauri build --no-bundle`, in the dark and the light theme.
+
+1. - [x] **Commit**: stage a change, write a summary, press **Commit** → for the length of the hook the button reads **Committing…** with a spinner in the button's text colour, disabled but not dimmed; **Commit & Push** beside it is dimmed and keeps its name; a thin bar runs over both file lists (a screen reader hears `Committing`, not `Applying changes`). When the hook ends the bar goes — with the Changes view, if the commit took the last change and auto-close is on.
+2. - [x] **Commit & Push**: the same with the other button → the spinner and **Committing…** are on **Commit & Push** — the one that was pressed — while **Commit** is dimmed and still reads **Commit**; when the hook ends the Push dialog opens.
+3. - [x] **Legible in both themes**: the spinner's arc is the button's own text colour — white on the filled **Commit**, the text colour on the plain **Commit & Push** — so it shows on either button, dark or light (toolbar **Switch to light theme**).
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the
