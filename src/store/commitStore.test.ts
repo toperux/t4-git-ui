@@ -744,6 +744,27 @@ describe("commitStore.commit", () => {
     expect(useToastStore.getState().toasts).toMatchObject([{ kind: "error", title: "Commit failed" }]);
   });
 
+  it("`committing` ends with the commit, `applying` with the status refresh after it — failed commit or not", async () => {
+    for (const fail of [false, true]) {
+      let settle!: () => void;
+      mocked.commit.mockReturnValueOnce(
+        new Promise<string>((res, rej) => (settle = () => (fail ? rej({ kind: "git", message: "boom" }) : res("abcdef1234")))),
+      );
+      let land!: (s: WorkdirStatus) => void;
+      mocked.getStatus.mockReturnValueOnce(new Promise<WorkdirStatus>((r) => (land = r)));
+      useCommitStore.setState({ summary: "Fix lanes" });
+      const done = useCommitStore.getState().commit();
+      expect(useCommitStore.getState()).toMatchObject({ busy: true, committing: true, applying: true });
+      settle();
+      await flush();
+      // The button is itself again, but the lists still show what was staged.
+      expect(useCommitStore.getState()).toMatchObject({ busy: false, committing: false, applying: true });
+      land(status([]));
+      await done;
+      expect(useCommitStore.getState().applying).toBe(false);
+    }
+  });
+
   it("a normal commit leaves amend off and records the message in history", async () => {
     mocked.commit.mockResolvedValue("1234567890");
     useCommitStore.setState({ summary: "Add lanes", body: "detail" });

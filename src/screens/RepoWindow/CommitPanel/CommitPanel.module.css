@@ -306,3 +306,16 @@
 .commitBtn {
   flex: 1;
 }
+/* Committing: disabled against a second click, but not dimmed — it is the one thing on screen that is
+   working. Either button can be the one that was pressed, and only `.commitBtn` may take the width. */
+.busyBtn[aria-busy="true"]:disabled {
+  opacity: 1;
+}
+/* The spinner's own arc is the accent, which is this button's background. */
+.commitSpinner {
+  display: inline-flex;
+}
+.commitSpinner > span {
+  border-color: color-mix(in srgb, currentColor 35%, transparent);
+  border-top-color: currentColor;
+}

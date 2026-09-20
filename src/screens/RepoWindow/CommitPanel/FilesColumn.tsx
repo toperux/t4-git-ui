@@ -172,6 +172,7 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
   const stats = useCommitStore((st) => st.stats[list]);
   const busy = useCommitStore((st) => st.busy);
   const applying = useCommitStore((st) => st.applying);
+  const committing = useCommitStore((st) => st.committing);
   const select = useCommitStore((st) => st.select);
   const setOrder = useCommitStore((st) => st.setOrder);
   const stage = useCommitStore((st) => st.stage);
@@ -399,7 +400,8 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
       {/* Beside the list, not in it: a listbox / tree may only own its rows. */}
       {applying && (
         <div className={s.progress}>
-          <Progress thin label="Applying changes" />
+          {/* A commit is not a change being applied to the lists: while it runs, the bar says so. */}
+          <Progress thin label={committing ? "Committing" : "Applying changes"} />
         </div>
       )}
       <div

@@ -80,8 +80,10 @@ export interface CommitStore {
   prefill: { summary: string; body: string; from: "amend" | "pending" | "history" } | null;
   /** A mutation is in flight. */
   busy: boolean;
-  /** A stage / unstage / discard runs, up to the status refresh after it — what the lists' progress bar shows. */
+  /** A stage / unstage / discard / commit runs, up to the status refresh after it — what the lists' progress bar shows. */
   applying: boolean;
+  /** `commit()` is the mutation in flight — what turns the Commit button into a spinner. */
+  committing: boolean;
 
   select(list: ListId, sel: Selection): void;
   /** `FileList` registers its display order; a focused row missing from the new order hands the selection to its neighbour. */
@@ -239,6 +241,31 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
     return false;
   }
 
+  /** Runs `op` inside the busy / applying bracket every mutation shares, and refreshes the status after it. */
+  async function withApplying(op: () => Promise<void>, committing = false) {
+    applyingRuns++;
+    set({ busy: true, applying: true, committing });
+    try {
+      try {
+        await op();
+      } finally {
+        set({ busy: false, committing: false });
+      }
+      // We just rewrote the index for the shown file, so the diff and the `+N −M` beside it are stale
+      // whatever the status says: staging one hunk out of several leaves the entry at
+      // modified/modified, and both guards read that as "nothing to see". Forgetting what they were
+      // computed for makes them reload. (Identical content still keeps the `diff` object, so a reload
+      // that finds nothing new never jumps the view.)
+      diffEntry = null;
+      statsFor = null;
+      await useStatusStore.getState().refresh();
+    } finally {
+      // Past the refresh, unlike `busy`: on a big index the re-scan is half the wait, and a bar gone
+      // before the lists change reads as "done, and nothing happened".
+      set({ applying: --applyingRuns > 0 });
+    }
+  }
+
   /**
    * Runs one mutation (errors → toast with Retry), then refreshes the status.
    * `false` when it never ran because no repo is open or another mutation holds `busy`.
@@ -256,29 +283,13 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       useToastStore.getState().push({ kind: "info", title: "Operation in progress", detail: "Another change is being applied" });
       return false;
     }
-    applyingRuns++;
-    set({ busy: true, applying: true });
-    try {
+    await withApplying(async () => {
       try {
         await op(id);
       } catch (e) {
         toastError(toAppError(e), title, () => void run(title, op, from), from);
-      } finally {
-        set({ busy: false });
       }
-      // We just rewrote the index for the shown file, so the diff and the `+N −M` beside it are stale
-      // whatever the status says: staging one hunk out of several leaves the entry at
-      // modified/modified, and both guards read that as "nothing to see". Forgetting what they were
-      // computed for makes them reload. (Identical content still keeps the `diff` object, so a reload
-      // that finds nothing new never jumps the view.)
-      diffEntry = null;
-      statsFor = null;
-      await useStatusStore.getState().refresh();
-    } finally {
-      // Past the refresh, unlike `busy`: on a big index the re-scan is half the wait, and a bar gone
-      // before the lists change reads as "done, and nothing happened".
-      set({ applying: --applyingRuns > 0 });
-    }
+    });
     return true;
   }
 
@@ -304,6 +315,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
     prefill: null,
     busy: false,
     applying: false,
+    committing: false,
 
     select(list, sel) {
       const s = get();
@@ -499,23 +511,21 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       // that was already clean empties nothing, and that empty state is what one amends from.
       const hadChanges = selectChangeCount(useStatusStore.getState()) > 0;
       const message = joinMessage(summary, body);
-      set({ busy: true });
       let committed: string | null = null;
-      try {
-        const oid = await ipc.commit(id, message, amend, signoff, sign);
-        committed = oid;
-        pushHistory(id, message);
-        useToastStore.getState().push({ kind: "success", title: amend ? "Amended HEAD" : "Committed", detail: `${oid.slice(0, 7)} ${summary.trim()}` });
-        // The message is spent either way — an amend also drops the amend flag and its prefill memory.
-        set({ summary: "", body: "", amend: false, prefill: null });
-      } catch (e) {
-        toastError(toAppError(e), "Commit failed", () => void get().commit());
-      } finally {
-        set({ busy: false });
-      }
       // Status first (clears the working-tree row when clean), then refs → HEAD moved → fresh walk.
       const st = useStatusStore.getState();
-      await st.refresh();
+      await withApplying(async () => {
+        try {
+          const oid = await ipc.commit(id, message, amend, signoff, sign);
+          committed = oid;
+          pushHistory(id, message);
+          useToastStore.getState().push({ kind: "success", title: amend ? "Amended HEAD" : "Committed", detail: `${oid.slice(0, 7)} ${summary.trim()}` });
+          // The message is spent either way — an amend also drops the amend flag and its prefill memory.
+          set({ summary: "", body: "", amend: false, prefill: null });
+        } catch (e) {
+          toastError(toAppError(e), "Commit failed", () => void get().commit());
+        }
+      }, true);
       await st.syncRefs();
       // The Changes view closes rather than showing its "Working tree clean" empty state: the commit
       // that took the last change is the moment there is nothing left for the pane to do. Only for a
@@ -555,6 +565,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
         prefill: null,
         busy: false,
         applying: false,
+        committing: false,
       });
     },
   };

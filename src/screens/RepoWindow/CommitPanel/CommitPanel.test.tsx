@@ -571,6 +571,39 @@ describe("CommitPanel", () => {
     const bars = queryAllByRole("progressbar", { name: "Applying changes" });
     expect(bars).toHaveLength(2);
     for (const bar of bars) expect(bar.closest('[role="listbox"], [role="tree"]')).toBeNull();
+    // A commit runs on the same bar, but nothing is being applied to the lists yet.
+    act(() => useCommitStore.setState({ committing: true }));
+    expect(queryAllByRole("progressbar", { name: "Committing" })).toHaveLength(2);
+    expect(queryAllByRole("progressbar", { name: "Applying changes" })).toHaveLength(0);
+  });
+
+  it("a running commit turns the Commit button into a busy one, named once", () => {
+    const { getByRole, queryByRole } = renderPanel();
+    expect(queryByRole("button", { name: "Committing…" })).toBeNull();
+    act(() => useCommitStore.setState({ busy: true, committing: true }));
+    // Exactly "Committing…": the spinner's own label stays out of the name.
+    const btn = getByRole("button", { name: "Committing…" });
+    expect(btn.hasAttribute("disabled")).toBe(true);
+    expect(btn.getAttribute("aria-busy")).toBe("true");
+    expect(queryByRole("button", { name: "Commit" })).toBeNull();
+  });
+
+  it("a Commit & Push spins on the button that was pressed, not on the plain Commit one", async () => {
+    let done = (_oid: string) => {};
+    mocked.commit.mockReturnValueOnce(new Promise<string>((resolve) => (done = resolve)));
+    mocked.getStatus.mockResolvedValueOnce({ ...STATUS, entries: [], staged: 0, unstaged: 0, untracked: 0, conflicted: 0 });
+    useCommitStore.setState({ summary: "Fix lanes" });
+    const { getByRole } = renderPanel();
+    // The same two DOM nodes throughout: only their names move.
+    const push = getByRole("button", { name: "Commit & Push" });
+    const plain = getByRole("button", { name: "Commit" });
+    fireEvent.click(push);
+    await waitFor(() => expect(text(push)).toBe("Committing…"));
+    expect(push.getAttribute("aria-busy")).toBe("true");
+    expect(text(plain)).toBe("Commit");
+    expect(plain.getAttribute("aria-busy")).toBe("false");
+    await act(async () => done("abcdef1234"));
+    expect(text(push)).toBe("Commit & Push");
   });
 
   it("the staged header and a row's own +/− say the same while a mutation runs", () => {

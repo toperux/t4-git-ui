@@ -6,6 +6,7 @@ import { IconButton } from "../../../components/ui/IconButton/IconButton";
 import { Select } from "../../../components/ui/Input/Input";
 import { Menu, MenuItem } from "../../../components/ui/Menu/Menu";
 import { PanelHeader } from "../../../components/ui/PanelHeader/PanelHeader";
+import { Spinner } from "../../../components/ui/Spinner/Spinner";
 import { cx } from "../../../lib/cx";
 import { loadHistory, splitMessage } from "../../../lib/msgHistory";
 import { useCommitStore } from "../../../store/commitStore";
@@ -38,6 +39,7 @@ export function MessageColumn({ onExpand, onCommitted, autoFocus }: MessageColum
   const signoff = useCommitStore((st) => st.signoff);
   const sign = useCommitStore((st) => st.sign);
   const busy = useCommitStore((st) => st.busy);
+  const committing = useCommitStore((st) => st.committing);
   const running = useOpsStore(selectRunning);
   const setSummary = useCommitStore((st) => st.setSummary);
   const setBody = useCommitStore((st) => st.setBody);
@@ -54,6 +56,9 @@ export function MessageColumn({ onExpand, onCommitted, autoFocus }: MessageColum
   const loadAuthor = useCommitStore((st) => st.loadAuthor);
   useEffect(() => void loadAuthor(), [loadAuthor, repoId]);
 
+  // `committing` is store-wide, so which button it belongs to is only known here: the spinner goes on
+  // the one that was pressed, not on whichever one reads the flag first.
+  const [viaPush, setViaPush] = useState(false);
   const [histOpen, setHistOpen] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
   function toggleHistory() {
@@ -82,11 +87,22 @@ export function MessageColumn({ onExpand, onCommitted, autoFocus }: MessageColum
     // that dialog's opener, not to this button — it unmounts with the dialog. Every path that opens
     // the window names one, or this is null and Push falls back to the doomed button.
     const returnFocusTo = useDialogStore.getState().returnFocus;
-    if (await commit()) {
-      onCommitted?.();
-      useDialogStore.getState().open({ kind: "push" }, { returnFocusTo });
+    setViaPush(true);
+    try {
+      if (await commit()) {
+        onCommitted?.();
+        useDialogStore.getState().open({ kind: "push" }, { returnFocusTo });
+      }
+    } finally {
+      setViaPush(false);
     }
   }
+
+  const spinner = (
+    <span className={s.commitSpinner} aria-hidden>
+      <Spinner />
+    </span>
+  );
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && canCommit) {
@@ -194,14 +210,29 @@ export function MessageColumn({ onExpand, onCommitted, autoFocus }: MessageColum
           )
         )}
         <div className={s.actions}>
-          <Button variant="primary" className={s.commitBtn} icon={<Check size={14} aria-hidden />} disabled={!canCommit} onClick={() => void commitOnly()}>
-            Commit
+          {/* The spinner is hidden from the name: its own label would make the button "Committing Committing…". */}
+          <Button
+            variant="primary"
+            className={cx(s.commitBtn, s.busyBtn)}
+            icon={committing && !viaPush ? spinner : <Check size={14} aria-hidden />}
+            disabled={!canCommit}
+            aria-busy={committing && !viaPush}
+            onClick={() => void commitOnly()}
+          >
+            {committing && !viaPush ? "Committing…" : "Commit"}
           </Button>
           {/* What the button does is worth a tooltip only while it can do it: dead for want of a
               summary or a staged file, the sentence describes nothing that is about to happen — and
               a dead title is hoverable (`DisabledHint`), so it names the condition instead. */}
-          <Button disabled={!canCommit || running} title={running ? "Operation in progress" : canCommit ? "Commit, then open the Push dialog" : waitingOn} onClick={() => void commitAndPush()}>
-            Commit &amp; Push
+          <Button
+            className={s.busyBtn}
+            icon={committing && viaPush ? spinner : undefined}
+            disabled={!canCommit || running}
+            aria-busy={committing && viaPush}
+            title={running ? "Operation in progress" : canCommit ? "Commit, then open the Push dialog" : waitingOn}
+            onClick={() => void commitAndPush()}
+          >
+            {committing && viaPush ? "Committing…" : "Commit & Push"}
           </Button>
         </div>
       </div>
