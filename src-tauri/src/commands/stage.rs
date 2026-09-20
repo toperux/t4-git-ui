@@ -333,7 +333,8 @@ enum PatchOp {
 /// (`Staged` for an unstage, `Unstaged` otherwise) and applies it. `old_path`
 /// is the rename hint the frontend loaded the shown diff with: without the
 /// same hint the rebuild here is a different diff, and the indices would point
-/// at other hunks.
+/// at other hunks. `seen` is how a rebuild that no longer matches the shown
+/// diff is caught — see `patch::check_seen`.
 #[allow(clippy::too_many_arguments)]
 async fn apply_selection(
     app: &AppHandle,
@@ -342,6 +343,7 @@ async fn apply_selection(
     path: String,
     old_path: Option<String>,
     selection: PatchSelection,
+    seen: Vec<(usize, usize, String)>,
     op: PatchOp,
     context: u32,
 ) -> Result<(), AppError> {
@@ -369,6 +371,7 @@ async fn apply_selection(
         let h = Arc::clone(&handle);
         let patch = blocking(move || {
             let d = diff::file_diff(&h.git2.lock(), &target, &path, old_path.as_deref(), &opts)?;
+            patch::check_seen(&d, &seen)?;
             Ok(patch::build_patch(&d, &selection, reverse, mode)?)
         })
         .await?;
@@ -403,6 +406,7 @@ pub async fn stage_hunks(
     path: String,
     old_path: Option<String>,
     hunks: Vec<usize>,
+    seen: Vec<(usize, usize, String)>,
     reverse: bool,
     context: u32,
 ) -> Result<(), AppError> {
@@ -418,6 +422,7 @@ pub async fn stage_hunks(
         path,
         old_path,
         PatchSelection::Hunks(hunks),
+        seen,
         op,
         context,
     )
@@ -434,6 +439,7 @@ pub async fn stage_lines(
     path: String,
     old_path: Option<String>,
     lines: Vec<[usize; 2]>,
+    seen: Vec<(usize, usize, String)>,
     reverse: bool,
     context: u32,
 ) -> Result<(), AppError> {
@@ -450,6 +456,7 @@ pub async fn stage_lines(
         path,
         old_path,
         PatchSelection::Lines(lines),
+        seen,
         op,
         context,
     )
@@ -459,6 +466,7 @@ pub async fn stage_lines(
 /// Throws away `hunks` of the unstaged diff of `path` — the working file loses
 /// them, the index keeps whatever is staged. Not undoable.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn discard_hunks(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -466,6 +474,7 @@ pub async fn discard_hunks(
     path: String,
     old_path: Option<String>,
     hunks: Vec<usize>,
+    seen: Vec<(usize, usize, String)>,
     context: u32,
 ) -> Result<(), AppError> {
     apply_selection(
@@ -475,6 +484,7 @@ pub async fn discard_hunks(
         path,
         old_path,
         PatchSelection::Hunks(hunks),
+        seen,
         PatchOp::Discard,
         context,
     )
@@ -483,6 +493,7 @@ pub async fn discard_hunks(
 
 /// `lines` are `[hunkIndex, lineIndexWithinHunk]` pairs of the unstaged diff.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn discard_lines(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -490,6 +501,7 @@ pub async fn discard_lines(
     path: String,
     old_path: Option<String>,
     lines: Vec<[usize; 2]>,
+    seen: Vec<(usize, usize, String)>,
     context: u32,
 ) -> Result<(), AppError> {
     let lines = lines.into_iter().map(|[h, l]| (h, l)).collect();
@@ -500,6 +512,7 @@ pub async fn discard_lines(
         path,
         old_path,
         PatchSelection::Lines(lines),
+        seen,
         PatchOp::Discard,
         context,
     )

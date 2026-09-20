@@ -35,6 +35,7 @@ const ask = vi.hoisted(() => vi.fn());
 vi.mock("@tauri-apps/plugin-dialog", () => ({ ask }));
 
 import * as ipc from "../api/ipc";
+import { hunkPrint } from "../lib/hunkPrint";
 import { useCommitStore } from "./commitStore";
 import { useDiffStore } from "./diffStore";
 import { __resetForTests as resetRepo, useRepoStore } from "./repoStore";
@@ -78,6 +79,13 @@ const diff = (path: string, text: string): FileDiff => ({
   deletions: 0,
   hunks: [{ header: "@@ -1 +1 @@", oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, lines: [{ kind: "add", oldNo: null, newNo: 1, text, noNewline: false }] }],
 });
+
+/** The `seen` a hunk / line action sends: one entry per hunk index it touches, printed from the shown diff. */
+const seenOf = (shown: FileDiff, hunks: number[]): [number, number, string][] =>
+  [...new Set(hunks)].map((h) => {
+    const hunk = shown.hunks[h];
+    return hunk ? [h, hunk.lines.length, hunkPrint(hunk)] : [h, 0, ""];
+  });
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
@@ -264,13 +272,26 @@ describe("commitStore mutations", () => {
   it("hunk / line staging reverses only when the staged diff is shown", async () => {
     await sync([entry("a.rs")]);
     await useCommitStore.getState().stageHunk(0);
-    expect(mocked.stageHunks).toHaveBeenCalledWith(REPO.id, "a.rs", [0], false, 3, undefined);
+    expect(mocked.stageHunks).toHaveBeenCalledWith(REPO.id, "a.rs", [0], false, 3, seenOf(diff("a.rs", "a"), [0]), undefined);
 
     useCommitStore.setState({ diffList: "staged" });
     await useCommitStore.getState().stageHunk(2);
-    expect(mocked.stageHunks).toHaveBeenLastCalledWith(REPO.id, "a.rs", [2], true, 3, undefined);
+    expect(mocked.stageHunks).toHaveBeenLastCalledWith(REPO.id, "a.rs", [2], true, 3, seenOf(diff("a.rs", "a"), [2]), undefined);
     await useCommitStore.getState().stageLines([[0, 1]]);
-    expect(mocked.stageLines).toHaveBeenLastCalledWith(REPO.id, "a.rs", [[0, 1]], true, 3, undefined);
+    expect(mocked.stageLines).toHaveBeenLastCalledWith(REPO.id, "a.rs", [[0, 1]], true, 3, seenOf(diff("a.rs", "a"), [0]), undefined);
+  });
+
+  it("a hunk / line action carries the print of every hunk it touches", async () => {
+    await sync([entry("a.rs")]);
+    const hunk = (header: string) => ({ header, oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, lines: [{ kind: "add" as const, oldNo: null, newNo: 1, text: "x", noNewline: false }] });
+    const hunks = [hunk("@@ -1 +1 @@"), hunk("@@ -9 +9 @@ fn x()")];
+    useCommitStore.setState({ diff: { ...useCommitStore.getState().diff!, hunks } });
+
+    await useCommitStore.getState().stageHunk(1);
+    expect(mocked.stageHunks).toHaveBeenLastCalledWith(REPO.id, "a.rs", [1], false, 3, [[1, 1, hunkPrint(hunks[1])]], undefined);
+    // Two lines of one hunk name it once.
+    await useCommitStore.getState().stageLines([[0, 0], [0, 0], [1, 0]]);
+    expect(mocked.stageLines).toHaveBeenLastCalledWith(REPO.id, "a.rs", [[0, 0], [0, 0], [1, 0]], false, 3, [[0, 1, hunkPrint(hunks[0])], [1, 1, hunkPrint(hunks[1])]], undefined);
   });
 
   it("hunk / line discard asks first and sends the context the diff was loaded with", async () => {
@@ -279,11 +300,11 @@ describe("commitStore mutations", () => {
 
     await useCommitStore.getState().discardHunk(1);
     expect(ask.mock.calls[0][0]).toContain("Discard this hunk from a.rs?");
-    expect(mocked.discardHunks).toHaveBeenCalledWith(REPO.id, "a.rs", [1], 8, undefined);
+    expect(mocked.discardHunks).toHaveBeenCalledWith(REPO.id, "a.rs", [1], 8, seenOf(diff("a.rs", "a"), [1]), undefined);
 
     await useCommitStore.getState().discardLines([[0, 1]]);
     expect(ask.mock.calls[1][0]).toContain("Discard 1 selected line from a.rs?");
-    expect(mocked.discardLines).toHaveBeenCalledWith(REPO.id, "a.rs", [[0, 1]], 8, undefined);
+    expect(mocked.discardLines).toHaveBeenCalledWith(REPO.id, "a.rs", [[0, 1]], 8, seenOf(diff("a.rs", "a"), [0]), undefined);
 
     // Declined → nothing leaves the store.
     ask.mockResolvedValue(false);
@@ -307,19 +328,19 @@ describe("commitStore mutations", () => {
 
     await sync([renamed]);
     await useCommitStore.getState().stageHunk(0);
-    expect(mocked.stageHunks).toHaveBeenLastCalledWith(REPO.id, "new.txt", [0], false, 3, "old.txt");
+    expect(mocked.stageHunks).toHaveBeenLastCalledWith(REPO.id, "new.txt", [0], false, 3, seenOf(diff("new.txt", "a"), [0]), "old.txt");
 
     await sync([renamed]);
     await useCommitStore.getState().stageLines([[0, 1]]);
-    expect(mocked.stageLines).toHaveBeenLastCalledWith(REPO.id, "new.txt", [[0, 1]], false, 3, "old.txt");
+    expect(mocked.stageLines).toHaveBeenLastCalledWith(REPO.id, "new.txt", [[0, 1]], false, 3, seenOf(diff("new.txt", "a"), [0]), "old.txt");
 
     await sync([renamed]);
     await useCommitStore.getState().discardHunk(0);
-    expect(mocked.discardHunks).toHaveBeenLastCalledWith(REPO.id, "new.txt", [0], 3, "old.txt");
+    expect(mocked.discardHunks).toHaveBeenLastCalledWith(REPO.id, "new.txt", [0], 3, seenOf(diff("new.txt", "a"), [0]), "old.txt");
 
     await sync([renamed]);
     await useCommitStore.getState().discardLines([[0, 1]]);
-    expect(mocked.discardLines).toHaveBeenLastCalledWith(REPO.id, "new.txt", [[0, 1]], 3, "old.txt");
+    expect(mocked.discardLines).toHaveBeenLastCalledWith(REPO.id, "new.txt", [[0, 1]], 3, seenOf(diff("new.txt", "a"), [0]), "old.txt");
   });
 
   it("a context change rebuilds the panel diff, and the rebuilt one's context is what the next action sends", async () => {
@@ -332,7 +353,7 @@ describe("commitStore mutations", () => {
     await flush();
     expect(mocked.getFileDiff).toHaveBeenLastCalledWith(REPO.id, { kind: "unstaged" }, "a.rs", { context: 8 }, undefined);
     await useCommitStore.getState().stageHunk(0);
-    expect(mocked.stageHunks).toHaveBeenCalledWith(REPO.id, "a.rs", [0], false, 8, undefined);
+    expect(mocked.stageHunks).toHaveBeenCalledWith(REPO.id, "a.rs", [0], false, 8, seenOf(diff("a.rs", "a"), [0]), undefined);
   });
 
   it("sends the context of the diff on screen while its rebuild is still in flight", async () => {
@@ -343,7 +364,7 @@ describe("commitStore mutations", () => {
 
     // The reload has not landed: what the user sees is still the context-3 diff, so its indices are.
     await useCommitStore.getState().stageHunk(0);
-    expect(mocked.stageHunks).toHaveBeenCalledWith(REPO.id, "a.rs", [0], false, 3, undefined);
+    expect(mocked.stageHunks).toHaveBeenCalledWith(REPO.id, "a.rs", [0], false, 3, seenOf(diff("a.rs", "a"), [0]), undefined);
   });
 
   it("drops a discard whose diff was replaced while the confirmation was up", async () => {

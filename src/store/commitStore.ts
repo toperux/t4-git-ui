@@ -7,6 +7,7 @@ import * as ipc from "../api/ipc";
 import { toAppError } from "../api/ipc";
 import type { AppError, Author, ConflictSide, FileChange, FileDiff, FileStatus, RepoState, StatusEntry, WorkdirStatus } from "../api/types";
 import { eqDeep } from "../lib/eqDeep";
+import { hunkPrint } from "../lib/hunkPrint";
 import { joinMessage, pushHistory, splitMessage } from "../lib/msgHistory";
 import { EMPTY_SELECTION, pruneSelection, type Selection } from "../lib/multiSelect";
 import { pick } from "../lib/pick";
@@ -161,6 +162,13 @@ function renameHint(path: string | null): string | undefined {
   const e = path ? useStatusStore.getState().status?.entries.find((x) => x.path === path) : undefined;
   return e?.workdir === "renamed" ? (e.oldPath ?? undefined) : undefined;
 }
+
+/** Every hunk a selection touches, as the shown diff has it — the backend rebuilds the diff and refuses when they differ. A hunk the diff does not have prints as nothing, which no rebuild matches. */
+const seenHunks = (diff: FileDiff | null, hunks: number[]): ipc.SeenHunk[] =>
+  [...new Set(hunks)].map((h) => {
+    const hunk = diff?.hunks[h];
+    return hunk ? [h, hunk.lines.length, hunkPrint(hunk)] : [h, 0, ""];
+  });
 
 /** Nothing the user typed is in the editor: it is empty, or holds exactly what the last prefill put there. */
 const untouched = ({ summary, body, prefill }: CommitStore) =>
@@ -428,18 +436,18 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
 
     async stageHunk(hunk) {
       // The indices are the shown diff's, so the backend has to rebuild it with the same context
-      // and the same rename hint.
-      const { diffPath, diffList, diffContext } = get();
+      // and the same rename hint — and gets the headers, to refuse when the rebuild is another diff.
+      const { diffPath, diffList, diffContext, diff } = get();
       if (!diffPath) return;
       const reverse = diffList === "staged";
-      await run(reverse ? "Unstage failed" : "Stage failed", (id) => ipc.stageHunks(id, diffPath, [hunk], reverse, diffContext, renameHint(diffPath)));
+      await run(reverse ? "Unstage failed" : "Stage failed", (id) => ipc.stageHunks(id, diffPath, [hunk], reverse, diffContext, seenHunks(diff, [hunk]), renameHint(diffPath)));
     },
 
     async stageLines(lines) {
-      const { diffPath, diffList, diffContext } = get();
+      const { diffPath, diffList, diffContext, diff } = get();
       if (!diffPath || lines.length === 0) return;
       const reverse = diffList === "staged";
-      await run(reverse ? "Unstage failed" : "Stage failed", (id) => ipc.stageLines(id, diffPath, lines, reverse, diffContext, renameHint(diffPath)));
+      await run(reverse ? "Unstage failed" : "Stage failed", (id) => ipc.stageLines(id, diffPath, lines, reverse, diffContext, seenHunks(diff, lines.map(([h]) => h)), renameHint(diffPath)));
     },
 
     async discardHunk(hunk) {
@@ -448,7 +456,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       // No confirmation available → declined; a discard has no undo.
       const ok = await ask(`Discard this hunk from ${diffPath}? This cannot be undone.`, { title: "Discard hunk", kind: "warning", cancelLabel: "Cancel", okLabel: "Discard" }).catch(() => false);
       if (!ok || !stillShown(diff)) return;
-      await run("Discard failed", (id) => ipc.discardHunks(id, diffPath, [hunk], diffContext, renameHint(diffPath)));
+      await run("Discard failed", (id) => ipc.discardHunks(id, diffPath, [hunk], diffContext, seenHunks(diff, [hunk]), renameHint(diffPath)));
     },
 
     async discardLines(lines) {
@@ -457,7 +465,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       const n = lines.length;
       const ok = await ask(`Discard ${n} selected line${n === 1 ? "" : "s"} from ${diffPath}? This cannot be undone.`, { title: "Discard lines", kind: "warning", cancelLabel: "Cancel", okLabel: "Discard" }).catch(() => false);
       if (!ok || !stillShown(diff)) return;
-      await run("Discard failed", (id) => ipc.discardLines(id, diffPath, lines, diffContext, renameHint(diffPath)));
+      await run("Discard failed", (id) => ipc.discardLines(id, diffPath, lines, diffContext, seenHunks(diff, lines.map(([h]) => h)), renameHint(diffPath)));
     },
 
     setSummary: (summary) => set({ summary }),

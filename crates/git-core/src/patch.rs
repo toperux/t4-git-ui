@@ -115,6 +115,57 @@ fn transform<'a>(
     Ok(out)
 }
 
+/// A fingerprint of the first `lines` lines of `hunk`: FNV-1a (32-bit) over the
+/// header and each line's sign, text and no-newline flag. The frontend computes
+/// the same over the hunk it rendered (`src/lib/hunkPrint.ts`); a vector pinned
+/// in both test suites keeps the two in step. A change detector, nothing more.
+pub fn hunk_print(hunk: &Hunk, lines: usize) -> String {
+    let mut h: u32 = 0x811c_9dc5;
+    let mut eat = |s: &str| {
+        for b in s.bytes() {
+            h ^= u32::from(b);
+            h = h.wrapping_mul(0x0100_0193);
+        }
+    };
+    eat(&hunk.header);
+    eat("\n");
+    for l in hunk.lines.iter().take(lines) {
+        eat(match l.kind {
+            DiffLineKind::Context => " ",
+            DiffLineKind::Add => "+",
+            DiffLineKind::Del => "-",
+        });
+        eat(&l.text);
+        if l.no_newline {
+            eat("\\");
+        }
+        eat("\n");
+    }
+    format!("{h:08x}")
+}
+
+/// The indices of a selection come from a diff the frontend rendered; this one
+/// was rebuilt when the button was pressed. `seen` is `(hunk index, lines shown,
+/// print)` for every hunk the selection touches: a file rewritten in between
+/// shifts or rewrites the hunks, and an index still in range would stage — or
+/// discard — lines nobody looked at. `lines shown` because the rendered diff can
+/// be cut at `max_lines` and this one never is.
+pub fn check_seen(diff: &FileDiff, seen: &[(usize, usize, String)]) -> Result<(), GitError> {
+    let same = seen.iter().all(|(h, lines, print)| {
+        diff.hunks
+            .get(*h)
+            .is_some_and(|x| *lines <= x.lines.len() && &hunk_print(x, *lines) == print)
+    });
+    if same {
+        Ok(())
+    } else {
+        Err(GitError::Refused(format!(
+            "{} changed since this diff was shown; nothing was applied",
+            diff.path
+        )))
+    }
+}
+
 /// Builds the patch text for `selection`; `reverse` when it will be applied
 /// with `git apply -R` (i.e. the diff is HEAD → index and the index is the
 /// side being edited). `mode` emits the `old mode` / `new mode` header lines
@@ -262,7 +313,7 @@ pub fn build_patch(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::diff::{file_diff, DiffOptions, DiffTarget};
+    use crate::diff::{file_diff, DiffLine, DiffOptions, DiffTarget};
     use crate::test_util::TempRepo;
 
     fn unstaged(t: &TempRepo, path: &str) -> FileDiff {
@@ -300,6 +351,74 @@ mod tests {
             .filter(|(_, l)| l.kind != DiffLineKind::Context)
             .map(|(i, _)| i)
             .collect()
+    }
+
+    fn line(kind: DiffLineKind, text: &str, no_newline: bool) -> DiffLine {
+        DiffLine {
+            kind,
+            old_no: None,
+            new_no: None,
+            text: text.into(),
+            no_newline,
+        }
+    }
+
+    /// The vector `src/lib/hunkPrint.test.ts` pins too: the two implementations
+    /// have to agree, or every hunk action is refused.
+    #[test]
+    fn hunk_print_matches_the_shared_vector() {
+        let hunk = Hunk {
+            header: "@@ -1,2 +1,4 @@ fn x()".into(),
+            old_start: 1,
+            old_lines: 2,
+            new_start: 1,
+            new_lines: 4,
+            lines: vec![
+                line(DiffLineKind::Context, "a", false),
+                line(DiffLineKind::Del, "b", true),
+                line(DiffLineKind::Add, "b", false),
+                line(DiffLineKind::Add, "café\r", false),
+            ],
+        };
+        assert_eq!(hunk_print(&hunk, 4), "6b34fb19");
+        assert_eq!(
+            hunk_print(&hunk, 2),
+            "53a53432",
+            "a hunk shown cut at max_lines"
+        );
+    }
+
+    #[test]
+    fn a_hunk_that_changed_since_it_was_shown_is_refused() {
+        let t = TempRepo::new();
+        t.commit(&[("f.txt", &numbered(30))], "base");
+        let mut lines: Vec<String> = numbered(30).lines().map(String::from).collect();
+        lines[19] = "LINE 20".into();
+        t.write("f.txt", lines.join("\n") + "\n");
+        let shown = unstaged(&t, "f.txt");
+        let n = shown.hunks[0].lines.len();
+        let seen = vec![(0, n, hunk_print(&shown.hunks[0], n))];
+        check_seen(&shown, &seen).unwrap();
+        // A hunk the panel showed cut short is still the same hunk.
+        check_seen(&shown, &[(0, 2, hunk_print(&shown.hunks[0], 2))]).unwrap();
+
+        // Same place, same size, other content: the header alone would pass this.
+        lines[19] = "line TWENTY".into();
+        t.write("f.txt", lines.join("\n") + "\n");
+        let same_shape = unstaged(&t, "f.txt");
+        assert_eq!(same_shape.hunks[0].header, shown.hunks[0].header);
+        assert!(matches!(
+            check_seen(&same_shape, &seen),
+            Err(GitError::Refused(_))
+        ));
+
+        // An edit above: the old hunk 0 is hunk 1 now.
+        lines[1] = "LINE 2".into();
+        t.write("f.txt", lines.join("\n") + "\n");
+        assert!(check_seen(&unstaged(&t, "f.txt"), &seen).is_err());
+        // An index or a line count past the end is the same refusal, not a panic.
+        assert!(check_seen(&shown, &[(9, 0, String::new())]).is_err());
+        assert!(check_seen(&shown, &[(0, n + 1, String::new())]).is_err());
     }
 
     #[test]

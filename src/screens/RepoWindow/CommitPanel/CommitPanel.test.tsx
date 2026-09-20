@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { RefsSnapshot, WorkdirStatus } from "../../../api/types";
+import type { Hunk, RefsSnapshot, WorkdirStatus } from "../../../api/types";
+import { hunkPrint } from "../../../lib/hunkPrint";
 import { useCommitStore } from "../../../store/commitStore";
 import { useDiffStore } from "../../../store/diffStore";
 import { useRepoStore } from "../../../store/repoStore";
@@ -377,6 +378,18 @@ describe("CommitPanel", () => {
   });
 
   it("hunk Discard is offered for the unstaged diff only, and asks before rewriting the file", async () => {
+    // Typed, because the action names the hunk it saw by its print.
+    const hunk: Hunk = {
+      header: "@@ -1,1 +1,1 @@",
+      oldStart: 1,
+      oldLines: 1,
+      newStart: 1,
+      newLines: 1,
+      lines: [
+        { kind: "del", oldNo: 1, newNo: null, text: "old", noNewline: false },
+        { kind: "add", oldNo: null, newNo: 1, text: "new", noNewline: false },
+      ],
+    };
     mocked.getFileDiff.mockImplementation((_id: string, _t: unknown, path: string) =>
       Promise.resolve({
         path,
@@ -387,26 +400,14 @@ describe("CommitPanel", () => {
         maxLines: 20_000,
         additions: 1,
         deletions: 1,
-        hunks: [
-          {
-            header: "@@ -1,1 +1,1 @@",
-            oldStart: 1,
-            oldLines: 1,
-            newStart: 1,
-            newLines: 1,
-            lines: [
-              { kind: "del", oldNo: 1, newNo: null, text: "old", noNewline: false },
-              { kind: "add", oldNo: null, newNo: 1, text: "new", noNewline: false },
-            ],
-          },
-        ],
+        hunks: [hunk],
       }),
     );
     const { getByRole, queryByRole } = renderPanel();
     await act(async () => {});
 
     fireEvent.click(getByRole("button", { name: "Discard hunk" }));
-    await waitFor(() => expect(mocked.discardHunks).toHaveBeenCalledWith("r", "a.rs", [0], 3, undefined));
+    await waitFor(() => expect(mocked.discardHunks).toHaveBeenCalledWith("r", "a.rs", [0], 3, [[0, 2, hunkPrint(hunk)]], undefined));
     expect(ask.mock.calls[0][0]).toContain("Discard this hunk from a.rs?");
 
     // The staged diff edits the index: unstaging is the only thing on offer there.

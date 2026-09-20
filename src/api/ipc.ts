@@ -235,25 +235,29 @@ export const discardPaths = (id: RepoId, paths: string[]) => call<string[]>("dis
 export const resolveConflict = (id: RepoId, paths: string[], side: ConflictSide) =>
   call<void>("resolve_conflict", { id, paths, side });
 
+/** `[hunkIndex, linesShown, print]` — see `hunkPrint`. `linesShown` because a shown hunk can be cut at the line cap. */
+export type SeenHunk = [number, number, string];
+
 /**
  * Hunk indices into the `unstaged` diff of `path` (`staged` when `reverse`, which unstages);
  * `context` and `oldPath` must be the ones the shown diff was loaded with, or the backend rebuilds
- * a different diff and the indices point elsewhere.
+ * a different diff and the indices point elsewhere. `seen` names every hunk touched as the panel
+ * showed it — the backend refuses when its rebuilt diff disagrees.
  */
-export const stageHunks = (id: RepoId, path: string, hunks: number[], reverse: boolean, context: number, oldPath?: string) =>
-  call<void>("stage_hunks", { id, path, oldPath, hunks, reverse, context });
+export const stageHunks = (id: RepoId, path: string, hunks: number[], reverse: boolean, context: number, seen: SeenHunk[], oldPath?: string) =>
+  call<void>("stage_hunks", { id, path, oldPath, hunks, seen, reverse, context });
 
 /** `[hunkIndex, lineIndexWithinHunk]` pairs; same target rule as `stageHunks`. */
-export const stageLines = (id: RepoId, path: string, lines: [number, number][], reverse: boolean, context: number, oldPath?: string) =>
-  call<void>("stage_lines", { id, path, oldPath, lines, reverse, context });
+export const stageLines = (id: RepoId, path: string, lines: [number, number][], reverse: boolean, context: number, seen: SeenHunk[], oldPath?: string) =>
+  call<void>("stage_lines", { id, path, oldPath, lines, seen, reverse, context });
 
 /** Throws `hunks` of the `unstaged` diff away — the working file loses them, the index keeps what is staged. */
-export const discardHunks = (id: RepoId, path: string, hunks: number[], context: number, oldPath?: string) =>
-  call<void>("discard_hunks", { id, path, oldPath, hunks, context });
+export const discardHunks = (id: RepoId, path: string, hunks: number[], context: number, seen: SeenHunk[], oldPath?: string) =>
+  call<void>("discard_hunks", { id, path, oldPath, hunks, seen, context });
 
 /** `[hunkIndex, lineIndexWithinHunk]` pairs of the `unstaged` diff; same rule as `discardHunks`. */
-export const discardLines = (id: RepoId, path: string, lines: [number, number][], context: number, oldPath?: string) =>
-  call<void>("discard_lines", { id, path, oldPath, lines, context });
+export const discardLines = (id: RepoId, path: string, lines: [number, number][], context: number, seen: SeenHunk[], oldPath?: string) =>
+  call<void>("discard_lines", { id, path, oldPath, lines, seen, context });
 
 /**
  * `git commit` via the CLI (hook output streams as `op://event`); resolves with the new HEAD oid.
