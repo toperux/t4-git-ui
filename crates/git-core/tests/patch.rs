@@ -301,6 +301,27 @@ async fn crlf_and_no_newline_round_trip() {
 }
 
 #[tokio::test]
+async fn the_newline_pair_stages_cleanly_and_the_index_gains_the_newline() {
+    if !have_git() {
+        return;
+    }
+    let t = TempRepo::new();
+    t.set_config("core.autocrlf", "false");
+    t.commit(&[("f.txt", "a\nb")], "base");
+    t.write("f.txt", "a\nb\nc\n");
+    let d = diff(&t, DiffTarget::Unstaged, "f.txt");
+    let p = build_patch(
+        &d,
+        &PatchSelection::Lines(vec![(0, 1), (0, 2)]),
+        false,
+        true,
+    )
+    .unwrap();
+    apply(&t, &p, false).await;
+    assert_eq!(index_content(&t, "f.txt").unwrap(), "a\nb\n");
+}
+
+#[tokio::test]
 async fn autocrlf_repo_stages_lf_content() {
     if !have_git() {
         return;

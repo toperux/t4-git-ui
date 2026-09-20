@@ -95,6 +95,20 @@ fn transform<'a>(
             no_newline: line.no_newline,
         });
     }
+    // `\ No newline at end of file` is only true of the LAST line of a side. A
+    // `-` line demoted to context is on both sides, so a `+` after it would be
+    // appended to it: git applies that patch and the blob reads `bc`.
+    for (i, l) in out.iter().enumerate().filter(|(_, l)| l.no_newline) {
+        let (on_old, on_new) = (l.kind != DiffLineKind::Add, l.kind != DiffLineKind::Del);
+        let follows = out[i + 1..].iter().any(|r| {
+            (on_old && r.kind != DiffLineKind::Add) || (on_new && r.kind != DiffLineKind::Del)
+        });
+        if follows {
+            return Err(GitError::Refused(
+                "the file's missing final newline is part of this change: select the lines around it too, or the whole hunk".into(),
+            ));
+        }
+    }
     if !changed {
         return Err(GitError::InvalidPatch);
     }
@@ -529,5 +543,55 @@ mod tests {
             p.ends_with("@@ -1,2 +1,3 @@\n a\r\n-b\r\n+B\r\n+c\n\\ No newline at end of file\n"),
             "{p:?}"
         );
+    }
+
+    /// Index `a\nb` (no newline), working tree `a\nb\nc\n`: the diff is ` a`,
+    /// `-b\`, `+b`, `+c`. Any selection that leaves `b\` as context with a `+`
+    /// after it appends to that line — git applies it and the index reads `bc`.
+    #[test]
+    fn a_selection_that_would_follow_a_no_newline_line_is_refused() {
+        let t = TempRepo::new();
+        t.set_config("core.autocrlf", "false");
+        t.commit(&[("f.txt", "a\nb")], "base");
+        t.write("f.txt", "a\nb\nc\n");
+        let d = unstaged(&t, "f.txt");
+        assert_eq!(change_lines(&d, 0), vec![1, 2, 3]);
+
+        for lines in [vec![(0, 3)], vec![(0, 2)], vec![(0, 2), (0, 3)]] {
+            assert!(
+                matches!(
+                    build_patch(&d, &PatchSelection::Lines(lines.clone()), false, true),
+                    Err(GitError::Refused(_))
+                ),
+                "{lines:?}"
+            );
+        }
+        // The pair that carries the newline change is a valid patch, and so is the hunk.
+        let p = build_patch(
+            &d,
+            &PatchSelection::Lines(vec![(0, 1), (0, 2)]),
+            false,
+            true,
+        )
+        .unwrap();
+        assert!(p.ends_with("-b\n\\ No newline at end of file\n+b\n"), "{p}");
+        build_patch(&d, &PatchSelection::Hunks(vec![0]), false, true).unwrap();
+    }
+
+    /// The mirror: unstaging only `-b\` would leave it in the middle of the old side.
+    #[test]
+    fn the_reverse_direction_refuses_the_same_shape() {
+        let t = TempRepo::new();
+        t.set_config("core.autocrlf", "false");
+        t.commit(&[("f.txt", "a\nb")], "base");
+        t.write("f.txt", "a\nb\nc\n");
+        t.stage(&["f.txt"]);
+        let d = staged(&t, "f.txt");
+        assert!(matches!(
+            build_patch(&d, &PatchSelection::Lines(vec![(0, 1)]), true, true),
+            Err(GitError::Refused(_))
+        ));
+        // Unstaging `+c` alone touches no no-newline line.
+        build_patch(&d, &PatchSelection::Lines(vec![(0, 3)]), true, true).unwrap();
     }
 }
