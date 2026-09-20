@@ -558,13 +558,13 @@ left, so it is not rediscovered:
 - **Still open from this batch** (2026-09-21), none of it blocking:
   1. ~~**BD 8, "in front"**~~ — passed by hand 2026-09-21: the exe double-clicked while the local
      build ran, the new start-screen window came up on top.
-  2. **The push**: everything from `5c014d6` on (`git rev-list --count origin/main..main`). CI's
-     macOS leg has not seen this batch, and on Linux only the release build ran (WSL, `7cc503b`) —
-     no clippy, no tests there: the new runner tests (a `sh` alias, `seq`, `sleep 0.1`) and the
-     bracketed-name tests have only ever run on Windows.
-  3. **The next release** — the note lines are below. Only a published update lets BD 10 be walked
-     (Install refused while an operation runs) and, with it, "after the update installs, the app
-     comes back" (§I, F7 / updater restart). Walk both with group AC.
+  2. ~~**The push**~~ — pushed 2026-09-21, `1c8d292..f238ee8`; the tag's `checks` jobs are the first
+     run of the new runner tests (a `sh` alias, `seq`, `sleep 0.1`) and the bracketed-name tests on
+     Linux and macOS.
+  3. ~~**The next release**~~ — **v0.10.10**, tagged 2026-09-21 at `f238ee8`. Still to walk, now that
+     an update is published: BD 10 (Install refused while an operation runs) and, with it, "after
+     the update installs, the app comes back" (§I, F7 / updater restart). Walk both with group AC,
+     from an installed 0.10.9 or older.
   4. ~~**The watcher's 50 ms gap**~~ — narrowed 2026-09-21 (`bbb7e7f`, BD 18): inside the grace the
      watcher drops only the kinds the operation declared, so a working-tree write after a stage or a
      commit shows. What is left, accepted (Q12): a foreign write *of a declared kind* in those 50 ms
@@ -604,12 +604,11 @@ left, so it is not rediscovered:
   `:(literal)<path>`, with a test that runs git. The conflict checkouts and the file history do
   honour the flag (walked).
 - **Closed, will not fix** (one): Push's bare branch name against a same-named tag — see §I.
-- **Lines for the next release's notes**: a second launch now opens another window of the running
+- **Lines for the release's notes** (shipped as v0.10.10): a second launch now opens another window of the running
   app (was: a second process); Push writes to the upstream's branch name when it differs; hunk /
   line actions are refused when the file changed under the diff, beside a missing final newline,
   and in a non-UTF-8 file; Squash is unavailable with "Always create a merge commit"; Install waits
-  for running git operations. v0.10.9 is tagged and `main` is in sync with it, so these ship as the
-  next version — not part of this plan.
+  for running git operations.
 
 ## Suggested order, if nothing else decides it
 
