@@ -28,19 +28,31 @@ use crate::{GitError, RepoHandle};
 
 pub const DEBOUNCE: Duration = Duration::from_millis(250);
 
-/// How long after an operation ends its own writes keep being dropped. The
-/// event is stamped when the watch thread sees it, which can be a moment after
-/// the write that produced it — and after a fast op has already returned.
+/// How long after an operation ends its writes of a kind *it declared* keep
+/// being dropped. The event is stamped when the watch thread sees it, which
+/// can be a moment after the write that produced it — and after a fast op has
+/// already returned. Other kinds pass, so a file written the moment a stage or
+/// a commit ends is still reported.
+///
+/// Ceiling: a foreign write of a declared kind inside these 50 ms is still
+/// lost — all of it for the ops that declare every kind. Accepted; the
+/// alternative is a second status scan after every operation (review row Q12,
+/// `docs/archive/plans/2026-09-12-consolidated-findings.md`).
 const SUPPRESS_GRACE: Duration = Duration::from_millis(50);
 
 /// Watcher suppression state.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 enum Suppress {
     /// One of our own operations is running: drop everything.
     Running,
-    /// Drop events last seen before this instant — they are the writes that
-    /// operation made, flushed by the debouncer after it returned.
-    Until(Instant),
+    /// An operation ended at `ended`. Events last seen before it are the
+    /// writes it made, flushed by the debouncer after it returned, and are
+    /// dropped whatever their kind; for [`SUPPRESS_GRACE`] past it only the
+    /// `kinds` that operation declared are.
+    Until {
+        ended: Instant,
+        kinds: Vec<ChangeKind>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -124,14 +136,17 @@ impl Watcher {
         if !git_dirs.contains(&common) {
             git_dirs.push(common);
         }
-        let suppress = Arc::new(Mutex::new(Suppress::Until(Instant::now())));
+        let suppress = Arc::new(Mutex::new(Suppress::Until {
+            ended: Instant::now(),
+            kinds: Vec::new(),
+        }));
         let flag = Arc::clone(&suppress);
         let (wd, gd) = (workdir.clone(), git_dirs.clone());
 
         let handler = move |result: DebounceEventResult| {
-            let cutoff = match *flag.lock() {
+            let (ended, suppressed_kinds) = match &*flag.lock() {
                 Suppress::Running => return,
-                Suppress::Until(t) => t,
+                Suppress::Until { ended, kinds } => (*ended, kinds.clone()),
             };
             let mut change = RepoChange {
                 kinds: Vec::new(),
@@ -149,14 +164,20 @@ impl Watcher {
                         }
                         // `time` is when the merged event was last seen: a path
                         // written during the op and again after it survives.
-                        if ev.time < cutoff {
+                        if ev.time < ended {
                             continue;
                         }
+                        // A rescan has no path and so no kind; inside the grace
+                        // it passes — rare, and the refresh is the safe side.
                         if ev.need_rescan() {
                             change.rescan = true;
                         }
+                        let in_grace = ev.time < ended + SUPPRESS_GRACE;
                         for p in &ev.paths {
                             if let Some(kind) = classify(p, &wd, &gd, &repo) {
+                                if in_grace && suppressed_kinds.contains(&kind) {
+                                    continue;
+                                }
                                 if !change.kinds.contains(&kind) {
                                     change.kinds.push(kind);
                                 }
@@ -205,12 +226,18 @@ impl Watcher {
     /// the caller emits one synthetic change afterwards). Un-suppressing keeps
     /// dropping the events the operation itself produced: the debouncer only
     /// flushes them [`DEBOUNCE`] after the last write, long after a short op
-    /// has returned.
-    pub fn set_suppressed(&self, on: bool) {
+    /// has returned. `kinds` are the ones that operation writes — for
+    /// [`SUPPRESS_GRACE`] past the un-suppress only those are dropped, so a
+    /// foreign write of any other kind in that window is kept. Ignored when
+    /// `on`.
+    pub fn set_suppressed(&self, on: bool, kinds: &[ChangeKind]) {
         *self.suppress.lock() = if on {
             Suppress::Running
         } else {
-            Suppress::Until(Instant::now() + SUPPRESS_GRACE)
+            Suppress::Until {
+                ended: Instant::now(),
+                kinds: kinds.to_vec(),
+            }
         };
     }
 
@@ -342,14 +369,42 @@ mod tests {
         let t = TempRepo::new();
         t.commit(&[("a.txt", "a")], "init");
         let (w, rx) = start(&t);
-        w.set_suppressed(true);
+        w.set_suppressed(true, &[]);
         t.write("a.txt", "b");
         assert!(rx.recv_timeout(Duration::from_millis(600)).is_err());
-        w.set_suppressed(false);
+        w.set_suppressed(false, &[ChangeKind::Workdir]);
         std::thread::sleep(SUPPRESS_GRACE);
         t.write("a.txt", "c");
         assert!(rx.recv_timeout(Duration::from_secs(1)).is_ok());
         w.stop();
+    }
+
+    /// The hook case: a commit declares `Index` + `Refs`, and a file written
+    /// the moment it ends has to reach the screen without a Refresh.
+    #[test]
+    fn a_kind_the_op_did_not_declare_is_reported_inside_the_grace() {
+        let t = TempRepo::new();
+        t.commit(&[("a.txt", "a")], "init");
+        let (w, rx) = start(&t);
+        w.set_suppressed(true, &[]);
+        w.set_suppressed(false, &[ChangeKind::Index]);
+        t.write("a.txt", "b");
+        let kinds = kinds_within(&rx, Duration::from_millis(1200));
+        assert!(kinds.contains(&ChangeKind::Workdir), "{kinds:?}");
+    }
+
+    #[test]
+    fn a_declared_kind_is_dropped_inside_the_grace() {
+        let t = TempRepo::new();
+        t.commit(&[("a.txt", "a")], "init");
+        let (w, rx) = start(&t);
+        w.set_suppressed(true, &[]);
+        w.set_suppressed(false, &[ChangeKind::Workdir]);
+        t.write("a.txt", "b");
+        assert!(
+            rx.recv_timeout(Duration::from_secs(1)).is_err(),
+            "a declared kind inside the grace is the op's own write"
+        );
     }
 
     #[test]
@@ -357,10 +412,27 @@ mod tests {
         let t = TempRepo::new();
         t.commit(&[("a.txt", "a")], "init");
         let (w, rx) = start(&t);
-        w.set_suppressed(true);
+        w.set_suppressed(true, &[]);
         t.write("a.txt", "b");
         // The op returns at once; the debouncer only flushes it ~250 ms later.
-        w.set_suppressed(false);
+        w.set_suppressed(false, &[ChangeKind::Workdir]);
+        assert!(
+            rx.recv_timeout(Duration::from_secs(1)).is_err(),
+            "our own write must not come back as a change"
+        );
+    }
+
+    /// A write from inside the op is dropped by its stamp, not by its kind —
+    /// the pause puts the stamp safely before the un-suppress.
+    #[test]
+    fn a_write_made_during_the_op_is_dropped_whatever_the_op_declared() {
+        let t = TempRepo::new();
+        t.commit(&[("a.txt", "a")], "init");
+        let (w, rx) = start(&t);
+        w.set_suppressed(true, &[]);
+        t.write("a.txt", "b");
+        std::thread::sleep(Duration::from_millis(100));
+        w.set_suppressed(false, &[ChangeKind::Index]);
         assert!(
             rx.recv_timeout(Duration::from_secs(1)).is_err(),
             "our own write must not come back as a change"
@@ -372,8 +444,8 @@ mod tests {
         let t = TempRepo::new();
         t.commit(&[("a.txt", "a")], "init");
         let (w, rx) = start(&t);
-        w.set_suppressed(true);
-        w.set_suppressed(false);
+        w.set_suppressed(true, &[]);
+        w.set_suppressed(false, &[ChangeKind::Workdir]);
         std::thread::sleep(Duration::from_millis(200));
         t.write("a.txt", "b");
         assert!(rx.recv_timeout(Duration::from_secs(1)).is_ok());

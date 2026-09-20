@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, RwLock};
 
 use git_core::cli::GitCli;
-use git_core::watch::Watcher;
+use git_core::watch::{ChangeKind, Watcher};
 use git_core::{RepoHandle, RepoId};
 use tokio_util::sync::CancellationToken;
 
@@ -171,14 +171,14 @@ impl AppState {
         }
     }
 
-    pub fn set_watcher_suppressed(&self, id: &RepoId, on: bool) {
+    pub fn set_watcher_suppressed(&self, id: &RepoId, on: bool, kinds: &[ChangeKind]) {
         if let Some(w) = self
             .watchers
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .get(id)
         {
-            w.set_suppressed(on);
+            w.set_suppressed(on, kinds);
         }
     }
 }
@@ -231,7 +231,7 @@ mod tests {
             "{v}"
         );
         // Suppressing a watcher that does not exist is a no-op, not a panic.
-        state.set_watcher_suppressed(&id, true);
+        state.set_watcher_suppressed(&id, true, &[]);
     }
 
     /// The refcount the tabs rely on: a repository open in two windows survives

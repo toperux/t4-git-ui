@@ -85,9 +85,9 @@ where
     F: FnOnce(Arc<RepoHandle>) -> Fut,
     Fut: Future<Output = Result<T, AppError>>,
 {
-    state.set_watcher_suppressed(&handle.id, true);
+    state.set_watcher_suppressed(&handle.id, true, &[]);
     let result = f(Arc::clone(handle)).await;
-    state.set_watcher_suppressed(&handle.id, false);
+    state.set_watcher_suppressed(&handle.id, false, kinds);
     emit_changed(
         app,
         &handle.id,
