@@ -74,7 +74,7 @@ fn shutdown_logging(app: &tauri::AppHandle) {
 const KV_STORE: &str = "recents.json";
 
 /// Window title before a repository is open; `useWindowTitle` owns it after that.
-pub(crate) const APP_TITLE: &str = "T4 Git";
+pub(crate) const APP_TITLE: &str = "T4 Git UI";
 
 fn init_window_background(app: &tauri::App) {
     if let Some(win) = app.get_webview_window("main") {

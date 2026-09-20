@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "t4-git-ui",
+  "productName": "T4 Git UI",
   "identifier": "dev.topher.t4gitui",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -11,7 +11,7 @@
   "app": {
     "windows": [
       {
-        "title": "T4 Git",
+        "title": "T4 Git UI",
         "width": 1280,
         "height": 800,
         "minWidth": 700,
@@ -37,6 +37,9 @@
     ],
     "macOS": {
       "minimumSystemVersion": "13.0"
+    },
+    "windows": {
+      "nsis": { "installerHooks": "./windows/hooks.nsh" }
     }
   },
   "plugins": {

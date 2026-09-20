@@ -24,18 +24,18 @@ beforeEach(() => {
 describe("useWindowTitle", () => {
   it("names the app alone with no repository open", () => {
     render(<Probe />);
-    expect(setTitle).toHaveBeenLastCalledWith("T4 Git");
-    expect(document.title).toBe("T4 Git");
+    expect(setTitle).toHaveBeenLastCalledWith("T4 Git UI");
+    expect(document.title).toBe("T4 Git UI");
   });
 
   it("follows the open repository, and back when it closes", () => {
     render(<Probe />);
     act(() => useRepoStore.setState({ repo: REPO }));
-    expect(setTitle).toHaveBeenLastCalledWith("T4 Git - work");
-    expect(document.title).toBe("T4 Git - work");
+    expect(setTitle).toHaveBeenLastCalledWith("T4 Git UI - work");
+    expect(document.title).toBe("T4 Git UI - work");
 
     act(() => useRepoStore.setState({ repo: null }));
-    expect(setTitle).toHaveBeenLastCalledWith("T4 Git");
-    expect(document.title).toBe("T4 Git");
+    expect(setTitle).toHaveBeenLastCalledWith("T4 Git UI");
+    expect(document.title).toBe("T4 Git UI");
   });
 });

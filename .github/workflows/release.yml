@@ -390,7 +390,7 @@ jobs:
 
           print(json.dumps({
               "version": ver,
-              "notes": f"T4 Git {ver}. Release notes: https://github.com/{repo}/releases/tag/v{ver}",
+              "notes": f"T4 Git UI {ver}. Release notes: https://github.com/{repo}/releases/tag/v{ver}",
               "platforms": {
                   "windows-x86_64": entry("x64-setup.exe"),
                   "darwin-x86_64": mac,
@@ -402,19 +402,19 @@ jobs:
           cat latest.json
 
       # `name` is set here because the default is the bare tag, and every
-      # release before this one is titled `T4 Git v<x.y.z>` — one unnamed
+      # release before this one is titled `T4 Git UI v<x.y.z>` — one unnamed
       # release and the list stops reading as one product.
       - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           files: dist/*
           draft: false
-          name: T4 Git v${{ needs.version.outputs.version }}
+          name: T4 Git UI v${{ needs.version.outputs.version }}
           generate_release_notes: true
           body: |
             ### Windows
 
             `T4-Git-UI_${{ needs.version.outputs.version }}_x64-setup.exe` —
-            per-user install, no admin prompt, into `%LOCALAPPDATA%\t4-git-ui`.
+            per-user install, no admin prompt, into `%LOCALAPPDATA%\T4 Git UI`.
 
             Not code-signed, so SmartScreen shows "Windows protected your PC" the
             first few times: **More info** → **Run anyway**.
@@ -425,7 +425,7 @@ jobs:
             Apple Silicon and Intel in one image. Drag to Applications, then:
 
             ```sh
-            xattr -dr com.apple.quarantine "/Applications/t4-git-ui.app"
+            xattr -dr com.apple.quarantine "/Applications/T4 Git UI.app"
             ```
 
             Signed with a self-signed certificate but not notarized, so without that

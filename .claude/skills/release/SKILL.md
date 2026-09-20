@@ -1,6 +1,6 @@
 ---
 name: release
-description: Cut a T4 Git release — bump the version, tag it, let the Release workflow build and publish the five installers. Use when the user asks to release, cut a version, ship a build or publish a tag.
+description: Cut a T4 Git UI release — bump the version, tag it, let the Release workflow build and publish the five installers. Use when the user asks to release, cut a version, ship a build or publish a tag.
 ---
 
 # Release

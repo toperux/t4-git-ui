@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in T4 Git misbehaves
+description: Something in T4 Git UI misbehaves
 labels: ["bug"]
 body:
   - type: markdown

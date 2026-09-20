@@ -94,7 +94,7 @@ export const closeRepo = (id: RepoId) => call<void>("close_repo", { id });
 // --- windows (src-tauri/src/commands/window.rs) ---
 
 /**
- * Opens another T4 Git window showing `payload`'s tabs, at `placement` (a physical screen point for
+ * Opens another T4 Git UI window showing `payload`'s tabs, at `placement` (a physical screen point for
  * its top-left) or wherever the OS puts it. Resolves with the new window's label.
  */
 export const spawnWindow = (payload: Layout, placement: [number, number] | null = null) =>
