@@ -27,6 +27,14 @@ use crate::GitError;
 const BATCH_LINES: usize = 200;
 /// How long a batch may wait for more lines before it is emitted.
 const BATCH_AGE: Duration = Duration::from_millis(50);
+/// How long the pipes may stay *silent* after git itself has exited before the
+/// pumps are stopped. What git wrote is read within milliseconds; what is left
+/// is a child it spawned that kept the handles (a hook's `daemon &`), and that
+/// can be hours. Measured from the last line, not from the exit: a loaded
+/// machine still draining git's own output is never cut short.
+const DRAIN_GRACE: Duration = Duration::from_millis(500);
+/// The most a child that keeps writing can add to an op after git exited.
+const DRAIN_CAP: Duration = Duration::from_secs(5);
 /// Per-stream cap on the text handed back in [`CliOutput`]: everything before
 /// the last of these bytes is dropped and `truncated` is set.
 const MAX_RETAINED: usize = 4 * 1024 * 1024;
@@ -270,10 +278,19 @@ impl GitCli {
         let (tx, mut rx) = mpsc::unbounded_channel();
         let stdout = child.stdout.take().expect("stdout piped");
         let stderr = child.stderr.take().expect("stderr piped");
-        let out_task = tokio::spawn(pump(stdout, Kind::Stdout, tx.clone(), MAX_RETAINED));
-        let err_task = tokio::spawn(pump(stderr, Kind::Stderr, tx, MAX_RETAINED));
+        let stop = CancellationToken::new();
+        let out_task = tokio::spawn(pump(
+            stdout,
+            Kind::Stdout,
+            tx.clone(),
+            MAX_RETAINED,
+            stop.clone(),
+        ));
+        let err_task = tokio::spawn(pump(stderr, Kind::Stderr, tx, MAX_RETAINED, stop.clone()));
 
         let mut cancelled = false;
+        let mut status = None;
+        let mut exited_at: Option<Instant> = None;
         let mut batch = Batch::default();
         loop {
             tokio::select! {
@@ -291,11 +308,31 @@ impl GitCli {
                     tracing::info!(op_id, "cancelling git command");
                     tree.kill(&mut child);
                 }
+                // Pipe EOF alone is not "git exited": a background child of a hook
+                // inherits the handles and keeps them open.
+                exited = child.wait(), if status.is_none() => {
+                    status = Some(exited?);
+                    exited_at = Some(Instant::now());
+                }
+                // git is gone and nothing has come through for `DRAIN_GRACE` (the
+                // sleep is recreated each iteration, like the batch one above):
+                // whoever still holds the pipes is not git. The pumps return what
+                // they have and the channel closes.
+                _ = tokio::time::sleep(DRAIN_GRACE), if status.is_some() && !stop.is_cancelled() => {
+                    stop.cancel();
+                }
+            }
+            // A child that keeps *talking* never goes silent: the cap ends it anyway.
+            if exited_at.is_some_and(|t| t.elapsed() >= DRAIN_CAP) {
+                stop.cancel();
             }
         }
         batch.flush(&mut on_event);
 
-        let status = child.wait().await?;
+        let status = match status {
+            Some(s) => s,
+            None => child.wait().await?,
+        };
         let (stdout, out_truncated) = out_task.await.unwrap_or_default();
         let (stderr, err_truncated) = err_task.await.unwrap_or_default();
         let code = status.code().unwrap_or(-1);
@@ -323,6 +360,7 @@ async fn pump<R: AsyncRead + Unpin>(
     kind: Kind,
     tx: mpsc::UnboundedSender<(Kind, String)>,
     limit: usize,
+    stop: CancellationToken,
 ) -> (String, bool) {
     // A deque so dropping the head of a multi-gigabyte stream stays cheap.
     let mut all: VecDeque<u8> = VecDeque::new();
@@ -330,9 +368,13 @@ async fn pump<R: AsyncRead + Unpin>(
     let mut pending = Vec::new();
     let mut buf = [0u8; 8192];
     loop {
-        let n = match r.read(&mut buf).await {
-            Ok(0) | Err(_) => break,
-            Ok(n) => n,
+        let n = tokio::select! {
+            read = r.read(&mut buf) => match read {
+                Ok(0) | Err(_) => break,
+                Ok(n) => n,
+            },
+            // git is gone and the grace is over: whoever still holds the pipe is not git.
+            _ = stop.cancelled() => break,
         };
         all.extend(&buf[..n]);
         if all.len() > limit {
@@ -595,7 +637,8 @@ mod tests {
             .flat_map(|i| format!("line {i}\n").into_bytes())
             .collect();
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let (text, truncated) = pump(&data[..], Kind::Stdout, tx, 32).await;
+        let (text, truncated) =
+            pump(&data[..], Kind::Stdout, tx, 32, CancellationToken::new()).await;
         assert!(truncated);
         assert_eq!(text.len(), 32);
         assert!(data.ends_with(text.as_bytes()), "{text:?}");
@@ -606,7 +649,14 @@ mod tests {
         assert_eq!(lines, 100, "every line is still streamed");
 
         let (tx, _rx) = mpsc::unbounded_channel();
-        let (text, truncated) = pump(&data[..], Kind::Stdout, tx, MAX_RETAINED).await;
+        let (text, truncated) = pump(
+            &data[..],
+            Kind::Stdout,
+            tx,
+            MAX_RETAINED,
+            CancellationToken::new(),
+        )
+        .await;
         assert!(!truncated);
         assert_eq!(text.len(), data.len());
     }
@@ -617,7 +667,8 @@ mod tests {
         // between the halves of one of them.
         let data = "é".repeat(20).into_bytes();
         let (tx, _rx) = mpsc::unbounded_channel();
-        let (text, truncated) = pump(&data[..], Kind::Stdout, tx, 15).await;
+        let (text, truncated) =
+            pump(&data[..], Kind::Stdout, tx, 15, CancellationToken::new()).await;
         assert!(truncated);
         assert!(!text.contains('\u{FFFD}'), "{text:?}");
         assert_eq!(text, "é".repeat(7));
@@ -787,6 +838,64 @@ mod tests {
         assert!(
             elapsed < Duration::from_millis(800),
             "cancel took {elapsed:?}"
+        );
+    }
+
+    /// A hook that backgrounds a child without redirecting it leaves the pipe's
+    /// write end open after git exits. The op used to last as long as that
+    /// child — with the repo's op lock held the whole time.
+    #[tokio::test]
+    async fn a_background_child_holding_the_pipe_does_not_hold_the_op() {
+        if !have_git() {
+            return;
+        }
+        let t = TempRepo::new();
+        let started = std::time::Instant::now();
+        let out = GitCli::new("git")
+            .run(
+                t.path(),
+                "op-bg",
+                &["-c", "alias.bg=!sleep 12 & echo started", "bg"],
+                None,
+                CancellationToken::new(),
+                |_| {},
+            )
+            .await
+            .expect("run");
+        assert_eq!(out.code, 0);
+        assert!(out.stdout.contains("started"), "{:?}", out.stdout);
+        assert!(
+            started.elapsed() < Duration::from_secs(10),
+            "returned after {:?}",
+            started.elapsed()
+        );
+    }
+
+    #[tokio::test]
+    async fn a_background_child_that_keeps_writing_is_cut_at_the_cap() {
+        if !have_git() {
+            return;
+        }
+        let t = TempRepo::new();
+        let started = std::time::Instant::now();
+        let alias =
+            "alias.chat=!(for i in $(seq 1 100); do echo tick; sleep 0.1; done) & echo started";
+        let out = GitCli::new("git")
+            .run(
+                t.path(),
+                "op-chat",
+                &["-c", alias, "chat"],
+                None,
+                CancellationToken::new(),
+                |_| {},
+            )
+            .await
+            .expect("run");
+        assert_eq!(out.code, 0);
+        assert!(
+            started.elapsed() < Duration::from_secs(8),
+            "returned after {:?}",
+            started.elapsed()
         );
     }
 }
