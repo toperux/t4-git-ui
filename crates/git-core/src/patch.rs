@@ -130,6 +130,12 @@ pub fn build_patch(
     if diff.binary || diff.truncated || diff.hunks.is_empty() {
         return Err(GitError::InvalidPatch);
     }
+    if diff.lossy {
+        return Err(GitError::Refused(format!(
+            "{} is not UTF-8, so a part of it cannot be applied faithfully; stage or discard the whole file",
+            diff.path
+        )));
+    }
     // Blob ↔ symlink ↔ gitlink: git rejects a patch whose two modes disagree
     // in their type bits, and the two contents have nothing in common anyway.
     if let (Some(o), Some(n)) = (diff.old_mode.as_deref(), diff.new_mode.as_deref()) {

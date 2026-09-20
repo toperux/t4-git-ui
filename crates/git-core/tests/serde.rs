@@ -224,6 +224,7 @@ fn diff_shapes_are_camel_case() {
         deletions: 1,
         old_mode: Some("100644".into()),
         new_mode: Some("100755".into()),
+        lossy: false,
     };
     let v = serde_json::to_value(&d).expect("ser");
     assert_eq!(v["oldPath"], "a");

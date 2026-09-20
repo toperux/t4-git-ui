@@ -129,6 +129,10 @@ pub struct FileDiff {
     /// and the header can show it. `None` when the side has no blob mode.
     pub old_mode: Option<String>,
     pub new_mode: Option<String>,
+    /// Some line was not UTF-8, so `text` holds U+FFFD where the file holds
+    /// other bytes: fine to show, wrong to build a patch from. Backend only.
+    #[serde(skip)]
+    pub lossy: bool,
 }
 
 /// Octal text of a blob-ish mode; `None` for a tree / unreadable entry (and
@@ -424,6 +428,7 @@ fn file_diff_from_patch(
             deletions: 0,
             old_mode,
             new_mode,
+            lossy: false,
         });
     };
 
@@ -431,6 +436,7 @@ fn file_diff_from_patch(
     let mut hunks = Vec::with_capacity(patch.num_hunks());
     let mut collected = 0usize;
     let mut truncated = false;
+    let mut lossy = false;
     'hunks: for h in 0..patch.num_hunks() {
         let (hunk, n_lines) = patch.hunk(h).map_err(map_git2)?;
         let mut lines = Vec::with_capacity(n_lines);
@@ -459,7 +465,9 @@ fn file_diff_from_patch(
                     continue;
                 }
             };
-            let mut text = String::from_utf8_lossy(line.content()).into_owned();
+            let text = String::from_utf8_lossy(line.content());
+            lossy |= matches!(text, std::borrow::Cow::Owned(_));
+            let mut text = text.into_owned();
             if text.ends_with('\n') {
                 text.pop();
             }
@@ -487,6 +495,7 @@ fn file_diff_from_patch(
         deletions: count(deletions),
         old_mode,
         new_mode,
+        lossy,
     })
 }
 

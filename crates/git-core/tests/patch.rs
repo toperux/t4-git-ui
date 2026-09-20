@@ -605,3 +605,25 @@ async fn a_partial_unstage_of_a_staged_rename_keeps_the_rename() {
     );
     assert!(index_content(&t, "old.txt").is_none(), "{p}");
 }
+
+/// The diff's text is a lossy decode, fine to look at and wrong to stage from:
+/// `caf\xE9` would reach the index as `caf\xEF\xBF\xBD`.
+#[test]
+fn a_file_that_is_not_utf8_is_refused_for_hunk_staging() {
+    let t = TempRepo::new();
+    t.set_config("core.autocrlf", "false");
+    t.commit(&[("f.txt", "a\nb\nc\n")], "base");
+    t.write("f.txt", b"a\ncaf\xE9\nc\n");
+    let d = diff(&t, DiffTarget::Unstaged, "f.txt");
+    assert!(d.lossy);
+    let err = build_patch(&d, &PatchSelection::Hunks(vec![0]), false, true).unwrap_err();
+    assert!(
+        matches!(&err, GitError::Refused(m) if m.contains("UTF-8")),
+        "{err:?}"
+    );
+
+    t.write("f.txt", "a\ncafé\nc\n");
+    let d = diff(&t, DiffTarget::Unstaged, "f.txt");
+    assert!(!d.lossy);
+    build_patch(&d, &PatchSelection::Hunks(vec![0]), false, true).unwrap();
+}
