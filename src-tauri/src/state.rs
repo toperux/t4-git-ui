@@ -149,6 +149,12 @@ impl AppState {
             .remove(id);
     }
 
+    /// Whether any CLI operation is registered, in any window. Reads (blame,
+    /// `ls-remote`) count too: an update's install ends them all alike.
+    pub fn op_running(&self) -> bool {
+        !lock(&self.ops).is_empty()
+    }
+
     /// Cancels a running operation; `false` when no such op is running.
     pub fn cancel_op(&self, id: &str) -> bool {
         match self
@@ -196,6 +202,16 @@ mod tests {
             "a finished op is no longer cancellable"
         );
         assert!(!state.cancel_op("op-nope"));
+    }
+
+    #[test]
+    fn an_op_counts_as_running_until_it_ends() {
+        let state = AppState::default();
+        assert!(!state.op_running());
+        let (id, _token) = state.begin_op();
+        assert!(state.op_running());
+        state.end_op(&id);
+        assert!(!state.op_running());
     }
 
     #[test]

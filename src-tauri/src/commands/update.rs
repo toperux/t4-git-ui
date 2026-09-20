@@ -6,10 +6,10 @@
 //! t4-markdown-viewer wraps it the same way, so the two stay one pattern.
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_updater::UpdaterExt;
 
-use crate::AppError;
+use crate::{AppError, AppState};
 
 const PROGRESS_EVENT: &str = "update://progress";
 
@@ -43,6 +43,17 @@ fn release_url() -> String {
     format!("{}/releases/latest", env!("CARGO_PKG_REPOSITORY"))
 }
 
+/// On Windows the NSIS step kills the whole app: a rebase or a push running in
+/// any window would lose its result handling, and git would finish unobserved.
+fn refuse_while_busy(state: &AppState) -> Result<(), AppError> {
+    if state.op_running() {
+        return Err(AppError::Internal(
+            "a git operation is still running — let it finish or cancel it, then install".into(),
+        ));
+    }
+    Ok(())
+}
+
 /// Ask whether a newer version exists. Whether that happens automatically at
 /// launch is the frontend's setting, not ours.
 #[tauri::command]
@@ -69,7 +80,7 @@ pub async fn check_for_update(app: AppHandle) -> Result<Option<UpdateInfo>, AppE
 /// one small request, and it keeps a type from a plugin's internals out of this
 /// app's shared state.
 #[tauri::command]
-pub async fn install_update(app: AppHandle) -> Result<(), AppError> {
+pub async fn install_update(app: AppHandle, state: State<'_, AppState>) -> Result<(), AppError> {
     // Refused here rather than in the caller: without this, a deb or rpm
     // install downloads the whole artifact only to fail inside `install`.
     if !installable() {
@@ -79,6 +90,7 @@ pub async fn install_update(app: AppHandle) -> Result<(), AppError> {
                 .into(),
         ));
     }
+    refuse_while_busy(&state)?;
 
     let update = app
         .updater()
@@ -117,6 +129,9 @@ pub async fn install_update(app: AppHandle) -> Result<(), AppError> {
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
+    // Again: the download is long enough for a push to have started meanwhile.
+    refuse_while_busy(&state)?;
+
     update
         .install(bytes)
         .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -147,5 +162,18 @@ mod tests {
         } else {
             assert!(installable());
         }
+    }
+
+    /// The helper only: that `install_update` asks it (twice) needs an `AppHandle`,
+    /// and a published update to install.
+    #[test]
+    fn install_is_refused_while_an_operation_runs() {
+        let state = AppState::default();
+        assert!(refuse_while_busy(&state).is_ok());
+        let (id, _cancel) = state.begin_op();
+        let refused = refuse_while_busy(&state).unwrap_err().to_string();
+        assert!(refused.contains("still running"), "{refused}");
+        state.end_op(&id);
+        assert!(refuse_while_busy(&state).is_ok());
     }
 }
