@@ -57,18 +57,29 @@ pub(crate) struct GitRun {
     pub out: CliOutput,
 }
 
+/// Who an op's events are for: the window holding the repository, or — with
+/// no repository yet (a clone) — the window that asked.
+pub(crate) enum OpOwner<'a> {
+    Repo(&'a RepoId),
+    Window(&'a str),
+}
+
 /// Runs `git <args>` in `dir` as a registered (cancellable) op; when `stream`,
-/// every [`CliEvent`] is forwarded as `op://event`. Cancellation surfaces as
-/// `GitError::Cancelled`.
+/// every [`CliEvent`] is forwarded as `op://event` to the window that owns the
+/// op. Cancellation surfaces as `GitError::Cancelled`.
 pub(crate) async fn run_git_op(
     app: &AppHandle,
     state: &AppState,
-    repo_id: Option<&RepoId>,
+    owner: OpOwner<'_>,
     dir: &Path,
     args: &[&str],
     stdin: Option<Vec<u8>>,
     stream: bool,
 ) -> Result<GitRun, AppError> {
+    let (repo_id, label) = match owner {
+        OpOwner::Repo(id) => (Some(id), state.holder_of(id, "")),
+        OpOwner::Window(label) => (None, Some(label.to_string())),
+    };
     let (op_id, cancel) = state.begin_op();
     let cli = state.git_cli();
     let result = cli
@@ -79,7 +90,14 @@ pub(crate) async fn run_git_op(
                     op_id: &op_id,
                     event,
                 };
-                if let Err(e) = app.emit(OP_EVENT, payload) {
+                // To the owner alone: every window listens, and a broadcast put
+                // window A's failed push in window B's dock. No holder (a window
+                // that went away mid-op) falls back to everyone.
+                let sent = match &label {
+                    Some(label) => app.emit_to(label.as_str(), OP_EVENT, payload),
+                    None => app.emit(OP_EVENT, payload),
+                };
+                if let Err(e) = sent {
                     tracing::warn!(error = %e, "failed to emit op event");
                 }
             }
@@ -120,7 +138,7 @@ async fn run_and_classify(
     let run = run_git_op(
         app,
         state,
-        Some(&handle.id),
+        OpOwner::Repo(&handle.id),
         &handle.path,
         &argv,
         None,
@@ -451,7 +469,7 @@ pub async fn rebase_todo(
         let run = run_git_op(
             app,
             state,
-            Some(&handle.id),
+            OpOwner::Repo(&handle.id),
             &handle.path,
             &argv,
             None,
@@ -1159,7 +1177,16 @@ pub async fn remote_tags(
     let handle = state.repo(&id)?;
     let args = gitops::ls_remote_tags(ref_arg(&remote)?);
     let argv: Vec<&str> = args.iter().map(String::as_str).collect();
-    let run = run_git_op(&app, &state, Some(&id), &handle.path, &argv, None, false).await?;
+    let run = run_git_op(
+        &app,
+        &state,
+        OpOwner::Repo(&id),
+        &handle.path,
+        &argv,
+        None,
+        false,
+    )
+    .await?;
     remote_tags_of(&run.out)
 }
 
@@ -1214,9 +1241,17 @@ pub async fn clone_repo(
         }
         e
     };
-    let run = run_git_op(&app, &state, None, &parent, &argv, None, true)
-        .await
-        .map_err(&cleanup)?;
+    let run = run_git_op(
+        &app,
+        &state,
+        OpOwner::Window(window.label()),
+        &parent,
+        &argv,
+        None,
+        true,
+    )
+    .await
+    .map_err(&cleanup)?;
     run.out
         .check(&format!("git clone {url}"))
         .map_err(|e| cleanup(AppError::from(e)))?;

@@ -64,16 +64,19 @@ export const onTabDragOut = (cb: () => void) => subscribeHere<null>("tab-drag-ou
 /** A tab was dropped on this window (`tab-adopt`); the backend has already moved the repository's holder here. */
 export const onTabAdopt = (cb: (p: { path: string; x: number }) => void) => subscribeHere<{ path: string; x: number }>("tab-adopt", cb);
 
-/** Streamed output of a CLI op (`op://event`). */
-export const onOpEvent = (cb: (p: OpEvent) => void) => subscribe<OpEvent>("op://event", cb);
+/**
+ * Streamed output of a CLI op (`op://event`), addressed to the window that owns the op: untargeted,
+ * a failed push in another window opened this one's dock, and two clones crossed their op ids.
+ */
+export const onOpEvent = (cb: (p: OpEvent) => void) => subscribeHere<OpEvent>("op://event", cb);
 
 /**
  * `subscribe` for callers that must already be listening when they invoke: it resolves only once the
  * listener is attached, so an event the very command being invoked emits cannot be missed.
  */
-async function subscribeReady<T>(name: string, cb: (payload: T) => void): Promise<() => void> {
+async function subscribeReady<T>(name: string, cb: (payload: T) => void, target?: EventTarget): Promise<() => void> {
   try {
-    return await listen<T>(name, (e) => cb(e.payload));
+    return await listen<T>(name, (e) => cb(e.payload), target && { target });
   } catch {
     // Outside Tauri (tests, a plain browser) there is no event bus.
     return () => {};
@@ -81,7 +84,8 @@ async function subscribeReady<T>(name: string, cb: (payload: T) => void): Promis
 }
 
 /** `onOpEvent` awaited: the first event (`started`, which carries the `opId`) must not be missed. */
-export const onOpEventReady = (cb: (p: OpEvent) => void) => subscribeReady<OpEvent>("op://event", cb);
+export const onOpEventReady = (cb: (p: OpEvent) => void) =>
+  subscribeReady<OpEvent>("op://event", cb, { kind: "Window", label: windowLabel() });
 
 /**
  * Download percentage of the update being installed (`update://progress`): 0..=100, or `null` while

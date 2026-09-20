@@ -14,7 +14,7 @@ use git_core::{commit, refs, stage, GitError, RepoHandle, RepoId};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 
-use super::ops::run_git_op;
+use super::ops::{run_git_op, OpOwner};
 use super::repo::blocking;
 use crate::{AppError, AppState};
 
@@ -156,7 +156,7 @@ async fn stage_via_cli(
     let run = run_git_op(
         app,
         state,
-        Some(&handle.id),
+        OpOwner::Repo(&handle.id),
         &handle.path,
         &args,
         Some(stdin),
@@ -244,7 +244,7 @@ async fn run_checkout_merge(
             let run = run_git_op(
                 app,
                 state,
-                Some(&handle.id),
+                OpOwner::Repo(&handle.id),
                 &handle.path,
                 &argv,
                 None,
@@ -294,7 +294,7 @@ pub async fn resolve_conflict(
                 let run = run_git_op(
                     app,
                     state,
-                    Some(&handle.id),
+                    OpOwner::Repo(&handle.id),
                     &handle.path,
                     &argv,
                     None,
@@ -384,7 +384,7 @@ async fn apply_selection(
         let run = run_git_op(
             app,
             state,
-            Some(&handle.id),
+            OpOwner::Repo(&handle.id),
             &handle.path,
             &args,
             Some(patch.into_bytes()),
@@ -554,7 +554,7 @@ pub async fn commit(
             let run = run_git_op(
                 app,
                 state,
-                Some(&handle.id),
+                OpOwner::Repo(&handle.id),
                 &handle.path,
                 &args,
                 None,
