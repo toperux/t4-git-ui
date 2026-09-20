@@ -359,6 +359,12 @@ condition that reopens it.
   where a guard would flicker; **R13** `canSquash` O(n) per row. All wont-for-now, recorded.
 - `src/store/repoStore.ts:263` opening a dirty repository walks the graph twice — **closed
   2026-09-11, will not fix, do not re-offer** (§E has the reasoning).
+- Push sends a bare branch name (`git push origin main`), which is ambiguous when a tag is also
+  named `main` — **closed 2026-09-20, will not fix, do not re-offer** (2026-09-20 review, F4 /
+  decision D5). git refuses that push ("src refspec main matches more than one"), so nothing is
+  ever pushed to the wrong place; the case is rare; and the fix — always `refs/heads/…` — makes
+  every push preview longer, the line the user reads before confirming. Reopen only if the
+  refusal is actually reported as confusing.
 - Two `ponytail:` ceilings in code: `Menu.tsx` (a submenu panel is `.menu`-wide, the parent's
   width stands in) and `log/walker.rs` (a `Refs` spec that never reaches HEAD leaves the
   working-tree column open).
@@ -492,6 +498,26 @@ left, so it is not rediscovered:
   conflict** confirm at the first try.
 - **`smoke-cdp.md` said a local build cannot rewrite the installed app's `recents.json`.** It can, and
   `layout.json` with it: only the WebView2 profile is isolated. Corrected there, with the backup recipe.
+
+## N. Added 2026-09-20 — full codebase review at v0.10.9
+
+- **10 findings, in `docs/plans/2026-09-20-codebase-review-findings.md`**; fix plan beside it
+  (`2026-09-20-review-fixes-plan.md`) — **plan written, not executed**; its five decisions made
+  2026-09-20 (refuse the no-newline selection; refuse non-UTF-8 hunk staging as a toast; a content
+  print per hunk; single instance with the second launch opening another window; Push keeps the
+  bare name when the upstream's matches). **4 P0**, all silent loss or corruption of file content: paths matched as glob
+  pathspecs (discarding `pages/[id].tsx` also restores `pages/i.tsx`), a line selection beside a
+  missing final newline glues two lines in the index (reproduced against git), hunk staging in a
+  non-UTF-8 file stages U+FFFD, and hunk indices trusted across a diff rebuild. **4 P1**: Push goes
+  to the local name while the toast names the upstream, `op://event` is broadcast to every window,
+  an op outlives git when a hook backgrounds a child, no single-instance guard. **2 P2**: Squash +
+  `--no-ff` offered together, Install ignores running ops.
+- **Deferred, not addressed by the plan** (two): the hunk buttons stay enabled on a non-UTF-8 file —
+  the refusal is a toast; reopen when such repositories are actually worked in (the `lossy` flag
+  exists on the backend, it only needs putting on the wire and a `DisabledHint`). A typed,
+  uncommitted commit message in another window is lost to an update's restart — needs a design
+  choice first (persist the draft across the restart, or refuse Install while one exists).
+- **Closed, will not fix** (one): Push's bare branch name against a same-named tag — see §I.
 
 ## Suggested order, if nothing else decides it
 
