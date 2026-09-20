@@ -444,14 +444,14 @@ _Shipped 2026-09-06 (this commit); walked the same day over CDP (Locate… is th
       before starting)
 
 ## S. App name and window title (main §1, §6)
-_Shipped 2026-09-06 (this commit); walked the same day over CDP on the installed build, the title bar read through `Get-Process t4-git-ui | Select MainWindowTitle` after each step; the Git-missing step by launching with git off `PATH`._
+_Shipped 2026-09-06 (this commit); walked the same day over CDP on the installed build, the title bar read through `Get-Process t4-git-ui | Select MainWindowTitle` after each step; the Git-missing step by launching with git off `PATH`. The name was `T4 Git` then; it became `T4 Git UI` on 2026-09-20 (unit tests hold the strings, BC 1 reads the title bar)._
 
-- [x] **The name** (§1): launch with no repository open → the start screen header reads `T4 Git`
-      with the version beside it, and the window's title bar reads `T4 Git`
-- [x] **It follows the repository** (§1): open `work` → the title bar reads `T4 Git - work`;
-      **Repository › Close repository** → back to `T4 Git`; switch to another recent → its name
+- [x] **The name** (§1): launch with no repository open → the start screen header reads `T4 Git UI`
+      with the version beside it, and the window's title bar reads `T4 Git UI`
+- [x] **It follows the repository** (§1): open `work` → the title bar reads `T4 Git UI - work`;
+      **Repository › Close repository** → back to `T4 Git UI`; switch to another recent → its name
 - [x] **Git missing** (§6): launch with git off `PATH` (or point Settings › Git executable at a
-      file that is not git) → the Git-missing screen's hint starts `T4 Git needs git 2.24 or newer`
+      file that is not git) → the Git-missing screen's hint starts `T4 Git UI needs git 2.24 or newer`
 
 ## T. Local-only tag badge (main §2)
 _Shipped 2026-09-06 (this commit); walked the same day over CDP on the installed build in `work` (origin = `bare.git`) and a throwaway repository with no remote. Git keeps no local record of a remote's tags, so the badge comes from `git ls-remote --tags` run quietly after a fetch / push / pull / delete on remote, and the answer is cached per repository in the kv store — nothing hits the network on open._
@@ -744,7 +744,7 @@ they stay clear._
       total size is unknown), Esc does not close the dialog and Close is disabled → the app installs
       and restarts on the new version → the badge is gone
 - [x] **Up to date**: on the current build, open Settings → the status line names this build **without**
-      claiming anything (`T4 Git <v>`, no verdict) → **Check now** → `Checking…` → `T4 Git <v> is up
+      claiming anything (`T4 Git UI <v>`, no verdict) → **Check now** → `Checking…` → `T4 Git UI <v> is up
       to date`, and **Update to…** stays disabled reading `Up to date`
 - [x] **The toggle governs the launch check only**: switch *Check for updates on launch* off, close
       and reopen the app → no badge, nothing asked → open Settings → **Check now** still answers;
@@ -1398,7 +1398,7 @@ marked † — re-walked 2026-09-13 on a release build of `7bdda90`; all pass. A
       the badge for the reason), `newbr`; each row's meta is its branch; hover a row → the full path
 - [x] **Row click** on `feature` → the grid reveals `feature`'s tip; click on `linked` → nothing
 - [x] **Open**: right-click `newbr` → **Open** → the window switches to `C:\tmp\t4\linked-wt\newbr`
-      (title `T4 Git - newbr`), the section now marks `newbr` as `current`, `linked` keeps `main`;
+      (title `T4 Git UI - newbr`), the section now marks `newbr` as `current`, `linked` keeps `main`;
       Repository › the recents list has `newbr`; **Open** on the current row and on `gone` is disabled
       with the reason in the tooltip. Open `linked` again from the row (or recents) before going on
 - [x] **Create worktree here…** on branch row `feature` → disabled, *Already checked out in a
@@ -1438,7 +1438,7 @@ marked † — re-walked 2026-09-13 on a release build of `7bdda90`; all pass. A
       → error toast *Deleting topic failed — Cannot delete branch 'refs/heads/topic' as it is the
       current HEAD of a linked repository*, the branch stays. (The Delete dialog stays open behind the
       toast on a non-`refused` failure — pre-existing, not this batch.)
-- [x] **From a linked worktree** ※: **Open** on `newbr` → title `T4 Git - newbr`, the section
+- [x] **From a linked worktree** ※: **Open** on `newbr` → title `T4 Git UI - newbr`, the section
       still lists `linked` (`main`, no longer `current`) and every sibling, `newbr` is `current`;
       Submodules shows both as `not initialized` (a fresh worktree has the gitlinks, no checkouts);
       status bar `Clean`; **Open** on the `linked` row brings the window back
@@ -1498,7 +1498,7 @@ https / ssh. Walked 2026-09-13 with AO._
 - [x] **Update all**: right-click the **Submodules** header → **Update all** → toast *Submodules
       updated*, `sub2` is checked out from its kept module directory and its `not initialized`
       badge goes
-- [x] **Open**: right-click `sub` → **Open** → title `T4 Git - sub`, a detached-HEAD banner at
+- [x] **Open**: right-click `sub` → **Open** → title `T4 Git UI - sub`, a detached-HEAD banner at
       `6104eaf` with *Checkout main*, `origin` under Remotes, no Worktrees / Submodules sections;
       Repository › `linked` brings the window back. (**Open** disabled on a `not initialized` row —
       *update it first* — is by the same `disabled`/`title` pair as the worktree rows; not clicked)
@@ -1512,7 +1512,7 @@ https / ssh. Walked 2026-09-13 with AO._
       skipped)* once the pointer is staged, and *Every file here is either conflicted or a
       submodule with an unmoved pointer* (disabled) when those two are all that is left
 - [x] **Nested path** ‡: a `vendor/lib` submodule → row `vendor/lib`; **Open** → title
-      `T4 Git - lib`, recents holds `c:\tmp\t4\linked\vendor\lib` (the repo's separator, not the
+      `T4 Git UI - lib`, recents holds `c:\tmp\t4\linked\vendor\lib` (the repo's separator, not the
       `.gitmodules` slash); Repository › `linked` brings the window back
 - [x] **Junction discard** ‡ (main §4): `mklink /J link C:\tmp\t4\linked-src` inside `linked` → one
       untracked row `link` (not its contents); Delete → prompt → **Delete** → the link is gone and
@@ -1614,7 +1614,7 @@ progress starts the bisect, and a stash preview survives a branch added from a s
 restarts, the preview stays)._
 
 - [x] **A second open is a tab**: Repository › a recent → a tab strip appears above the toolbar with
-      both names, the new one active, title `T4 Git - <new>`; with one tab the strip is hidden
+      both names, the new one active, title `T4 Git UI - <new>`; with one tab the strip is hidden
 - [x] **Switching restores the state**: select a commit, type a commit message, switch tabs and back →
       selection and draft are as left; Ctrl+Tab / Ctrl+Shift+Tab cycle, Ctrl+1..9 jump
 - [x] **Stale dot**: touch a file in the background tab's repository from a shell → a dot
@@ -1629,7 +1629,7 @@ restarts, the preview stays)._
       order follows the pointer, the dragged tab fades; release → the order stays, the active tab
       is unchanged
 - [x] **Tear off**: drag a tab down out of the strip → the tab's slot empties and a ghost chip with
-      its name follows the cursor; release anywhere that is not another T4 Git window → a new window
+      its name follows the cursor; release anywhere that is not another T4 Git UI window → a new window
       opens at the cursor with that tab; a window's only tab cannot be torn off (nothing happens)
 - [x] **Drop on another window** ⌂: drag a tab from one window onto the strip of another → a caret in
       the target strip marks the slot (the strip appears there even with one tab); release → the
@@ -1886,6 +1886,18 @@ Walked 2026-09-20 over CDP on a local `tauri build --no-bundle`, in the dark and
 1. - [x] **Commit**: stage a change, write a summary, press **Commit** → for the length of the hook the button reads **Committing…** with a spinner in the button's text colour, disabled but not dimmed; **Commit & Push** beside it is dimmed and keeps its name; a thin bar runs over both file lists (a screen reader hears `Committing`, not `Applying changes`). When the hook ends the bar goes — with the Changes view, if the commit took the last change and auto-close is on.
 2. - [x] **Commit & Push**: the same with the other button → the spinner and **Committing…** are on **Commit & Push** — the one that was pressed — while **Commit** is dimmed and still reads **Commit**; when the hook ends the Push dialog opens.
 3. - [x] **Legible in both themes**: the spinner's arc is the button's own text colour — white on the filled **Commit**, the text colour on the plain **Commit & Push** — so it shows on either button, dark or light (toolbar **Switch to light theme**).
+
+## BC. The rename to T4 Git UI takes the old `t4-git-ui` install with it (Windows installer)
+
+Needs a machine with 0.10.8 or older installed (Start menu entry `t4-git-ui`, in `%LOCALAPPDATA%\t4-git-ui`) and a
+local `tauri build --bundles nsis` — the signing key's two variables exported, or the bundler aborts. Copy
+`%APPDATA%\dev.topher.t4gitui` aside first. Close the app.
+
+Walked 2026-09-20 on Windows 11, twice: over the installed 0.10.8, then over the published 0.10.8 setup put back for
+the second run. A desktop shortcut appears even where there was none — a passive install always makes one.
+
+1. - [x] **An update moves the install**: run the setup the way the updater does, `"T4 Git UI_<ver>_x64-setup.exe" /P /R /UPDATE` → the app comes back up titled `T4 Git UI`, recents and settings as they were. The Start menu and **Installed apps** each hold one **T4 Git UI** and no `t4-git-ui`; `%LOCALAPPDATA%\t4-git-ui` is gone and `%LOCALAPPDATA%\T4 Git UI\t4-git-ui.exe` is there; `reg query HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\t4-git-ui` and `reg query HKCU\Software\topher\t4-git-ui` both find nothing.
+2. - [x] **The next update is a plain one**: close the app, run the same command again → it comes back up, still one entry in each place.
 
 ## Reporting
 

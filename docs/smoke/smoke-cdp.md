@@ -9,7 +9,7 @@ OS theme, DPI) are the steps this cannot reach — they stay hand-walked.
 
 ```powershell
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9222"
-Start-Process "$env:LOCALAPPDATA\t4-git-ui\t4-git-ui.exe"
+Start-Process "$env:LOCALAPPDATA\T4 Git UI\t4-git-ui.exe"
 ```
 
 `http://127.0.0.1:9222/json/version` answers once the window is up. **Close every other instance
@@ -74,7 +74,7 @@ that way on 2026-09-19.
 ### Several windows, and what else group AZ needed
 
 - **One page target per window.** `http://127.0.0.1:9222/json/list` lists them; match on the title
-  (`T4 Git - <repo>`) and open one WebSocket per target. The title follows the active tab, so read the
+  (`T4 Git UI - <repo>`) and open one WebSocket per target. The title follows the active tab, so read the
   list again after a tab change or an adopted tab.
 - **N windows at launch**: write `layout.json` first — `[{"tabs":[…],"active":…}, …]` — with the paths
   exactly as the app writes them (copy the spelling from a file the app wrote: backslashes on Windows). A

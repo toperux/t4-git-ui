@@ -30,7 +30,7 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
 
 if (-not $Exe) {
   $Exe = if ($Installed) {
-    Join-Path $env:LOCALAPPDATA 't4-git-ui\t4-git-ui.exe'
+    Join-Path $env:LOCALAPPDATA 'T4 Git UI\t4-git-ui.exe'
   } else {
     Join-Path $repoRoot 'target\release\t4-git-ui.exe'
   }
