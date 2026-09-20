@@ -7,7 +7,7 @@
 use std::path::Path;
 
 use git2::build::CheckoutBuilder;
-use git2::{ErrorCode, Index, ObjectType, Repository, Status};
+use git2::{ErrorCode, Index, IndexEntry, IndexTime, Repository, Status};
 use serde::{Deserialize, Serialize};
 
 use crate::cli::CliOutput;
@@ -141,25 +141,51 @@ fn prune_empty_dirs(workdir: &Path, file: &Path) {
 
 /// Resets the index entries of `paths` to HEAD (removes them when HEAD is unborn).
 pub fn unstage_paths(repo: &Repository, paths: &[&str]) -> Result<(), GitError> {
+    let mut index = repo.index().map_err(map_git2)?;
     // The CLI may have written this index a moment ago (a merge, `update-index`,
-    // `apply --cached`), and libgit2 hands back the copy it last read:
-    // `reset_default` writing that back would undo git's write.
-    repo.index()
-        .map_err(map_git2)?
-        .read(false)
-        .map_err(map_git2)?;
-    let head = match repo.head() {
-        Ok(head) => Some(head.peel(ObjectType::Commit).map_err(map_git2)?),
+    // `apply --cached`), and libgit2 hands back the copy it last read: writing
+    // that back would undo git's write.
+    index.read(false).map_err(map_git2)?;
+    let tree = match repo.head() {
+        Ok(head) => Some(head.peel_to_tree().map_err(map_git2)?),
         Err(e) if e.code() == ErrorCode::UnbornBranch => None,
         Err(e) => return Err(map_git2(e)),
     };
-    // `reset_default` does its own write, so it cannot go through `with_index`;
-    // the rollback it gives has to be done by hand.
-    repo.reset_default(head.as_ref(), paths)
-        .map_err(map_git2)
-        .inspect_err(|_| {
-            let _ = repo.index().and_then(|mut i| i.read(true));
-        })
+    // Not `reset_default`: it takes pathspecs and cannot be told to read them
+    // literally, so unstaging `[id].tsx` unstaged `i.tsx` with it.
+    with_index(&mut index, |index| {
+        for p in paths {
+            let rel = Path::new(p);
+            // Every stage goes, so an unmerged path is reset as well.
+            match index.remove_path(rel) {
+                Ok(()) => {}
+                Err(e) if e.code() == ErrorCode::NotFound => {}
+                Err(e) => return Err(map_git2(e)),
+            }
+            let Some(entry) = tree.as_ref().and_then(|t| t.get_path(rel).ok()) else {
+                continue;
+            };
+            // Zeroed stat fields: the next status rehashes the file, as it does
+            // after `git reset`.
+            index
+                .add(&IndexEntry {
+                    ctime: IndexTime::new(0, 0),
+                    mtime: IndexTime::new(0, 0),
+                    dev: 0,
+                    ino: 0,
+                    mode: entry.filemode() as u32,
+                    uid: 0,
+                    gid: 0,
+                    file_size: 0,
+                    id: entry.id(),
+                    flags: 0,
+                    flags_extended: 0,
+                    path: p.as_bytes().to_vec(),
+                })
+                .map_err(map_git2)?;
+        }
+        Ok(())
+    })
 }
 
 /// Discards UNSTAGED changes of `paths`: tracked files are restored from the
@@ -201,7 +227,9 @@ pub fn discard_paths(repo: &Repository, paths: &[&str]) -> Result<Vec<String>, G
     }
     if !restore.is_empty() {
         let mut cb = CheckoutBuilder::new();
-        cb.force();
+        // Paths, not pathspecs: `[id].tsx` is also the class `[id]`, and would
+        // force-restore a modified `i.tsx` along with it.
+        cb.force().disable_pathspec_match(true);
         for p in &restore {
             cb.path(p);
         }
@@ -220,6 +248,8 @@ pub fn discard_paths(repo: &Repository, paths: &[&str]) -> Result<Vec<String>, G
 /// overwrites the working file, so it belongs behind a confirmation.
 pub fn recreate_conflict_args(paths: &[&str]) -> Vec<String> {
     let mut args = vec![
+        // Paths from the status list, not patterns: see `discard_paths`.
+        "--literal-pathspecs".to_string(),
         "checkout".to_string(),
         "--merge".to_string(),
         "--".to_string(),
@@ -312,7 +342,12 @@ pub fn checkout_side_args(side: ConflictSide, paths: &[&str]) -> Vec<String> {
         ConflictSide::Ours => "--ours",
         ConflictSide::Theirs => "--theirs",
     };
-    let mut args = vec!["checkout".to_string(), flag.to_string(), "--".to_string()];
+    let mut args = vec![
+        "--literal-pathspecs".to_string(),
+        "checkout".to_string(),
+        flag.to_string(),
+        "--".to_string(),
+    ];
     args.extend(paths.iter().map(|p| (*p).to_string()));
     args
 }
@@ -452,6 +487,100 @@ mod tests {
         let e = entry(&t, "f.txt").unwrap();
         assert_eq!((e.index, e.workdir), (Some(FileStatus::Modified), None));
         assert_eq!(index_content(&t, "f.txt").as_deref(), Some("v1\n"));
+    }
+
+    /// `[id]` is a character class to a pathspec: without the literal switch a
+    /// discard of `[id].txt` also restores `i.txt`, and those edits are gone.
+    #[test]
+    fn discard_takes_a_bracketed_name_literally() {
+        let t = TempRepo::new();
+        t.set_config("core.autocrlf", "false");
+        t.commit(&[("[id].txt", "v0\n"), ("i.txt", "v0\n")], "base");
+        t.write("[id].txt", "v1\n");
+        t.write("i.txt", "keep me\n");
+
+        let got = discard_paths(&t.repo, &["[id].txt"]).unwrap();
+        assert_eq!(got, vec!["[id].txt"]);
+        assert_eq!(
+            std::fs::read_to_string(t.path().join("[id].txt")).unwrap(),
+            "v0\n"
+        );
+        assert_eq!(
+            std::fs::read_to_string(t.path().join("i.txt")).unwrap(),
+            "keep me\n",
+            "the sibling the class matches is not the file that was discarded"
+        );
+    }
+
+    #[test]
+    fn unstage_takes_a_bracketed_name_literally() {
+        let t = TempRepo::new();
+        t.commit(&[("[id].txt", "v0\n"), ("i.txt", "v0\n")], "base");
+        t.write("[id].txt", "v1\n");
+        t.write("i.txt", "v1\n");
+        t.stage(&["[id].txt", "i.txt"]);
+
+        unstage_paths(&t.repo, &["[id].txt"]).unwrap();
+        let e = entry(&t, "[id].txt").unwrap();
+        assert_eq!((e.index, e.workdir), (None, Some(FileStatus::Modified)));
+        let e = entry(&t, "i.txt").unwrap();
+        assert_eq!((e.index, e.workdir), (Some(FileStatus::Modified), None));
+    }
+
+    /// A staged deletion and a staged new file, the two shapes `reset_default`
+    /// handled that a plain "copy the HEAD entry" could miss.
+    #[test]
+    fn unstage_brings_back_a_deleted_entry_and_drops_an_added_one() {
+        let t = TempRepo::new();
+        t.commit(&[("gone.txt", "g\n")], "base");
+        // `remove` takes it off the disk and out of the index: a staged deletion.
+        t.remove("gone.txt");
+        t.write("new.txt", "n\n");
+        t.stage(&["new.txt"]);
+
+        unstage_paths(&t.repo, &["gone.txt", "new.txt"]).unwrap();
+        assert_eq!(index_content(&t, "gone.txt").as_deref(), Some("g\n"));
+        assert!(index_content(&t, "new.txt").is_none());
+    }
+
+    /// A moved submodule pointer is an index entry like any other to `reset_default`;
+    /// the hand-rolled reset has to put the gitlink back with its mode and the old commit.
+    #[test]
+    fn unstage_puts_a_moved_submodule_pointer_back() {
+        let src = TempRepo::new();
+        src.commit(&[("s.txt", "1\n")], "s1");
+        let t = TempRepo::new();
+        t.commit(&[("f.txt", "v0\n")], "base");
+        t.add_submodule("sub", &src);
+        let pointer = |t: &TempRepo| {
+            t.repo
+                .index()
+                .unwrap()
+                .get_path(Path::new("sub"), 0)
+                .unwrap()
+        };
+        let before = pointer(&t);
+        assert_eq!(before.mode, 0o160000);
+
+        // Move the submodule's HEAD, then stage the new pointer in the superproject.
+        let sub = Repository::open(t.path().join("sub")).unwrap();
+        let head = sub.head().unwrap().peel_to_commit().unwrap();
+        let sig = git2::Signature::now("t", "t@example.com").unwrap();
+        sub.commit(
+            Some("HEAD"),
+            &sig,
+            &sig,
+            "s2",
+            &head.tree().unwrap(),
+            &[&head],
+        )
+        .unwrap();
+        t.stage(&["sub"]);
+        assert_ne!(pointer(&t).id, before.id);
+
+        unstage_paths(&t.repo, &["sub"]).unwrap();
+        let after = pointer(&t);
+        assert_eq!((after.id, after.mode), (before.id, 0o160000));
     }
 
     #[test]
@@ -681,11 +810,18 @@ mod tests {
     fn checkout_side_args_carry_gits_own_flag() {
         assert_eq!(
             checkout_side_args(ConflictSide::Ours, &["a.rs"]),
-            ["checkout", "--ours", "--", "a.rs"]
+            ["--literal-pathspecs", "checkout", "--ours", "--", "a.rs"]
         );
         assert_eq!(
             checkout_side_args(ConflictSide::Theirs, &["a.rs", "dir/b.rs"]),
-            ["checkout", "--theirs", "--", "a.rs", "dir/b.rs"]
+            [
+                "--literal-pathspecs",
+                "checkout",
+                "--theirs",
+                "--",
+                "a.rs",
+                "dir/b.rs"
+            ]
         );
     }
 

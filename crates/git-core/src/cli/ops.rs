@@ -560,11 +560,15 @@ pub fn worktree_unlock(path: &str) -> Vec<String> {
 /// `submodule update --init --recursive --progress [-- <path>]` — `--` rather
 /// than [`END`]: `git submodule` is not reliably a parse-options builtin (it is
 /// still a shell script on plenty of builds) and rejects `--end-of-options`.
+/// The path goes as `:(literal)<path>`: `git submodule update` ignores
+/// `--literal-pathspecs` and `GIT_LITERAL_PATHSPECS` both (git 2.55), so with
+/// `subs/[ab]` and `subs/a` side by side it updated the wrong one.
 pub fn submodule_update(path: Option<&str>) -> Vec<String> {
     let mut a = args(["submodule", "update", "--init", "--recursive", "--progress"]);
     if let Some(p) = path {
         a.push("--".into());
-        a.push(p.into());
+        // A submodule's path, not a pattern: see `stage::discard_paths`.
+        a.push(format!(":(literal){p}"));
     }
     a
 }
@@ -1144,7 +1148,7 @@ mod tests {
                 "--recursive",
                 "--progress",
                 "--",
-                "vendor/dep"
+                ":(literal)vendor/dep"
             ]
         );
     }

@@ -299,3 +299,48 @@ async fn a_moved_submodule_pointer_stages() {
     index.read(false).unwrap();
     assert_eq!(index.get_path(Path::new("sub"), 0).unwrap().id, first);
 }
+
+/// `subs/[ab]` as a pattern is `subs/a`. Run through git, because the argument's
+/// shape proves nothing: `--literal-pathspecs` looked right and git ignored it.
+#[tokio::test]
+async fn updating_a_bracketed_submodule_leaves_its_glob_match_alone() {
+    if !have_git() {
+        return;
+    }
+    let src = TempRepo::new();
+    let first = src.commit(&[("s.txt", "1\n")], "s1");
+    let second = src.commit(&[("s.txt", "2\n")], "s2");
+    let t = TempRepo::new();
+    t.commit(&[("f.txt", "v0\n")], "base");
+    t.add_submodule("subs/[ab]", &src);
+    t.add_submodule("subs/a", &src);
+    let head = |sub: &str| {
+        git2::Repository::open(t.path().join(sub))
+            .unwrap()
+            .refname_to_id("HEAD")
+            .unwrap()
+    };
+    for sub in ["subs/[ab]", "subs/a"] {
+        git2::Repository::open(t.path().join(sub))
+            .unwrap()
+            .set_head_detached(first)
+            .unwrap();
+    }
+
+    let args = git_core::cli::ops::submodule_update(Some("subs/[ab]"));
+    let argv: Vec<&str> = args.iter().map(String::as_str).collect();
+    let out = GitCli::new("git")
+        .run(
+            t.path(),
+            "op-sub",
+            &argv,
+            None,
+            CancellationToken::new(),
+            |_| {},
+        )
+        .await
+        .expect("run");
+    assert_eq!(out.code, 0, "{}", out.stderr);
+    assert_eq!(head("subs/[ab]"), second);
+    assert_eq!(head("subs/a"), first);
+}

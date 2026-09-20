@@ -19,8 +19,8 @@ use crate::cli::runner::display_cmd;
 use crate::cli::GitCli;
 use crate::GitError;
 
-/// `git -c core.quotePath=false log --follow --format=%H --name-status -z
-/// [--all] --end-of-options [<rev>…] -- <path>`.
+/// `git -c core.quotePath=false --literal-pathspecs log --follow --format=%H
+/// --name-status -z [--all] --end-of-options [<rev>…] -- <path>`.
 ///
 /// `git log` — unlike `git blame`, which reads the same shape as two revisions
 /// — takes `--end-of-options` *before* the revisions, so the separator guards
@@ -31,6 +31,8 @@ pub fn history_args(spec: &RevSpec, path: &str) -> Vec<String> {
     let mut a: Vec<String> = [
         "-c",
         "core.quotePath=false",
+        // The path is one file's name: `[id].tsx` must not also follow `i.tsx`.
+        "--literal-pathspecs",
         "log",
         "--follow",
         "--format=%H",
@@ -177,6 +179,7 @@ mod tests {
             vec![
                 "-c",
                 "core.quotePath=false",
+                "--literal-pathspecs",
                 "log",
                 "--follow",
                 "--format=%H",
@@ -191,11 +194,11 @@ mod tests {
         // `--all` is an option: it has to precede the separator, and replaces
         // the revisions rather than joining them.
         let all = history_args(&RevSpec::All, "a.txt");
-        assert_eq!(&all[7..], ["--all", "--end-of-options", "--", "a.txt"]);
+        assert_eq!(&all[8..], ["--all", "--end-of-options", "--", "a.txt"]);
         // Full ref names go after it, where a leading `-` can do no harm.
         let refs = RevSpec::Refs(vec!["refs/heads/main".into(), "refs/tags/v1".into()]);
         assert_eq!(
-            &history_args(&refs, "a.txt")[7..],
+            &history_args(&refs, "a.txt")[8..],
             [
                 "--end-of-options",
                 "refs/heads/main",
