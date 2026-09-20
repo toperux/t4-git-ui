@@ -28,8 +28,8 @@ describe("gitArgs (preview line)", () => {
 
   it("merge / checkout / stash, with quoting", () => {
     expect(mergeArgs("feat", "auto", false, null)).toEqual(["merge", "--ff", "--end-of-options", "feat"]);
-    expect(gitCmd(mergeArgs("feat", "no", true, "Merge branch 'feat' into main"))).toBe(
-      "git merge --no-ff --squash -m 'Merge branch '\\''feat'\\'' into main' --end-of-options feat",
+    expect(gitCmd(mergeArgs("feat", "auto", true, "Merge branch 'feat' into main"))).toBe(
+      "git merge --ff --squash -m 'Merge branch '\\''feat'\\'' into main' --end-of-options feat",
     );
     expect(checkoutArgs("origin/x", "x", true)).toEqual(["checkout", "--track", "-b", "x", "--end-of-options", "origin/x"]);
     expect(checkoutArgs("main", null, true)).toEqual(["checkout", "--end-of-options", "main"]);

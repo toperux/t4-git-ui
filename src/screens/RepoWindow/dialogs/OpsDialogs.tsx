@@ -361,7 +361,16 @@ export function MergeDialog({ onClose, branch: initial }: { onClose: () => void;
         </Select>
       </Field>
       <Field label="Strategy">
-        <Select aria-label="Strategy" value={ff} onChange={(e) => setFf(e.target.value as FfMode)}>
+        <Select
+          aria-label="Strategy"
+          value={ff}
+          onChange={(e) => {
+            const m = e.target.value as FfMode;
+            setFf(m);
+            // git: "You cannot combine --squash with --no-ff" — a squash records no merge commit.
+            if (m === "no") setSquash(false);
+          }}
+        >
           {(Object.keys(FF_LABEL) as FfMode[]).map((m) => (
             <option key={m} value={m}>
               {FF_LABEL[m]}
@@ -370,7 +379,12 @@ export function MergeDialog({ onClose, branch: initial }: { onClose: () => void;
         </Select>
       </Field>
       <Options>
-        <Checkbox checked={squash} onChange={setSquash} title="Applies the changes without recording a merge; commit them yourself">
+        <Checkbox
+          checked={squash}
+          onChange={setSquash}
+          disabled={ff === "no"}
+          title={ff === "no" ? "A squash records no merge commit, so git refuses it with this strategy" : "Applies the changes without recording a merge; commit them yourself"}
+        >
           Squash into one commit
         </Checkbox>
       </Options>

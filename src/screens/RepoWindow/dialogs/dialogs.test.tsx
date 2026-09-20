@@ -537,13 +537,25 @@ describe("MergeDialog", () => {
     const dialog = getByRole("dialog", { name: "Merge into main" });
     expect(preview(dialog)).toBe("git merge --ff --end-of-options feature/lane-graph");
     fireEvent.click(getByRole("combobox", { name: "Strategy" }));
-    fireEvent.click(getByRole("option", { name: "Always create a merge commit" }));
+    fireEvent.click(getByRole("option", { name: "Fast-forward only" }));
     fireEvent.click(getByRole("checkbox", { name: "Squash into one commit" }));
     fireEvent.change(getByRole("textbox", { name: "Commit message" }), { target: { value: "custom msg" } });
-    expect(preview(dialog)).toBe("git merge --no-ff --squash -m 'custom msg' --end-of-options feature/lane-graph");
+    expect(preview(dialog)).toBe("git merge --ff-only --squash -m 'custom msg' --end-of-options feature/lane-graph");
     fireEvent.click(getByRole("button", { name: "Merge" }));
     expect(onClose).toHaveBeenCalled();
-    await waitFor(() => expect(mocked.merge).toHaveBeenCalledWith("r", "feature/lane-graph", "no", true, "custom msg"));
+    await waitFor(() => expect(mocked.merge).toHaveBeenCalledWith("r", "feature/lane-graph", "only", true, "custom msg"));
+  });
+
+  it("squash is off the table with 'always a merge commit': git refuses the pair", () => {
+    const { getByRole } = render(<MergeDialog onClose={() => {}} />);
+    const squash = () => getByRole("checkbox", { name: "Squash into one commit" }) as HTMLInputElement;
+    fireEvent.click(squash());
+    expect(squash().checked).toBe(true);
+    fireEvent.click(getByRole("combobox", { name: "Strategy" }));
+    fireEvent.click(getByRole("option", { name: "Always create a merge commit" }));
+    expect(squash().checked).toBe(false);
+    expect(squash().disabled).toBe(true);
+    expect(preview(getByRole("dialog"))).toBe("git merge --no-ff --end-of-options feature/lane-graph");
   });
 
   it("preselects the branch it was opened on", () => {
