@@ -13,7 +13,10 @@ Start-Process "$env:LOCALAPPDATA\T4 Git UI\t4-git-ui.exe"
 ```
 
 `http://127.0.0.1:9222/json/version` answers once the window is up. **Close every other instance
-first.** WebView2 shares one browser process per user-data folder, and a launch whose browser
+first.** Since the single-instance guard a second launch is not a second process: it hands over to
+the running app — which opens the new window — and exits, so the installed app must be closed
+before a local build is launched, or the walk drives the installed build without knowing it.
+WebView2 shares one browser process per user-data folder, and a launch whose browser
 arguments differ from the process already running (this flag on one side, not the other) never
 gets its webview: the new `t4-git-ui` process sits without a window, logs only "logging to file",
 and only `Stop-Process` ends it. Two instances with the same arguments — both with the flag, or

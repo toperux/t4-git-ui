@@ -368,6 +368,35 @@ condition that reopens it.
 - Two `ponytail:` ceilings in code: `Menu.tsx` (a submenu panel is `.menu`-wide, the parent's
   width stands in) and `log/walker.rs` (a `Refs` spec that never reaches HEAD leaves the
   working-tree column open).
+- **F3** (2026-09-20 review, moved from §N) — the hunk buttons stay enabled on a non-UTF-8 file;
+  the refusal arrives as a toast naming the reason. Reopen when such repositories are actually
+  worked in — the `lossy` flag already exists on the backend (`FileDiff::lossy`,
+  `#[serde(skip)]`), it only needs putting on the wire and a `DisabledHint`.
+- **F10** (2026-09-20 review, moved from §N) — a typed, uncommitted commit message in another
+  window is lost to an update's restart. Needs a design choice first: persist the draft across the
+  restart, or refuse Install while one exists.
+- **F7 / Linux residual risk** — ACCEPTED by the user 2026-09-21: `tauri-plugin-single-instance`
+  2.4.5 `platform_impl/linux.rs:56` unwraps `zbus::blocking::connection::Builder::session()`. With
+  no session bus at all the address still resolves (zbus falls back to `$XDG_RUNTIME_DIR/bus`,
+  then `/run/user/<euid>/bus`), the connect fails, and the app starts as before — one process per
+  launch, no guard. Only a `DBUS_SESSION_BUS_ADDRESS` that is set but unparseable (empty, no
+  `transport:`) panics at startup. All three launched under WSLg 2026-09-21 on a build of
+  `7cc503b`: with the session bus a second launch hands over (one process, two windows); with the
+  variable unset and an empty `XDG_RUNTIME_DIR` both launches start, two processes; with
+  `DBUS_SESSION_BUS_ADDRESS=garbage` or set empty the app panics at `linux.rs:57`. Reopen if a
+  user reports a startup crash on Linux, or when the plugin stops unwrapping.
+- **F7 / updater restart** — verified from sources 2026-09-21: the plugin releases its lock on
+  `RunEvent::Exit` on all three platforms, and tauri 2.11.5's `restart()` delivers that exit before
+  spawning the new process when called off the main thread, which `install_update` (an async
+  command) is. It would NOT hold if `restart()` were ever called on the main thread
+  (`cleanup_before_exit` does not reach plugins). Not walkable without a published update: smoke
+  BD 10 / AZ 10 carries "after the update installs, the app comes back".
+- **F8 / test cost, Windows only** —
+  `a_background_child_holding_the_pipe_does_not_hold_the_op` takes ~12 s of wall time: `run()`
+  returns in ~0.6 s, but tokio's blocking-pool pipe read outlives the op until the `sleep 12`
+  orphan exits and `#[tokio::test]` teardown waits for it. In the app that is one parked pool
+  thread per orphan, not the op or the repo lock. Was `sleep 20`; 12 is as low as it goes while the
+  assert bound is 10 s.
 
 ## J. Added 2026-09-14 — from the UI direction B review
 Direction B (History | Changes view switch + Ctrl+K palette) is the chosen small-window layout;
@@ -499,25 +528,88 @@ left, so it is not rediscovered:
 - **`smoke-cdp.md` said a local build cannot rewrite the installed app's `recents.json`.** It can, and
   `layout.json` with it: only the WebView2 profile is isolated. Corrected there, with the backup recipe.
 
-## N. Added 2026-09-20 — full codebase review at v0.10.9
+## N. Added 2026-09-20 — full codebase review at v0.10.9, fixed 2026-09-21
 
-- **10 findings, in `docs/plans/2026-09-20-codebase-review-findings.md`**; fix plan beside it
-  (`2026-09-20-review-fixes-plan.md`) — **plan written, not executed**; its five decisions made
-  2026-09-20 (refuse the no-newline selection; refuse non-UTF-8 hunk staging as a toast; a content
-  print per hunk; single instance with the second launch opening another window; Push keeps the
-  bare name when the upstream's matches). **4 P0**, all silent loss or corruption of file content: paths matched as glob
-  pathspecs (discarding `pages/[id].tsx` also restores `pages/i.tsx`), a line selection beside a
-  missing final newline glues two lines in the index (reproduced against git), hunk staging in a
-  non-UTF-8 file stages U+FFFD, and hunk indices trusted across a diff rebuild. **4 P1**: Push goes
-  to the local name while the toast names the upstream, `op://event` is broadcast to every window,
-  an op outlives git when a hook backgrounds a child, no single-instance guard. **2 P2**: Squash +
-  `--no-ff` offered together, Install ignores running ops.
-- **Deferred, not addressed by the plan** (two): the hunk buttons stay enabled on a non-UTF-8 file —
-  the refusal is a toast; reopen when such repositories are actually worked in (the `lossy` flag
-  exists on the backend, it only needs putting on the wire and a `DisabledHint`). A typed,
-  uncommitted commit message in another window is lost to an update's restart — needs a design
-  choice first (persist the draft across the restart, or refuse Install while one exists).
+- **10 findings, in `docs/archive/plans/2026-09-20-codebase-review-findings.md`**; fix plan beside it
+  (`2026-09-20-review-fixes-plan.md`), its five decisions made 2026-09-20 (refuse the no-newline
+  selection; refuse non-UTF-8 hunk staging as a toast; a content print per hunk; single instance
+  with the second launch opening another window; Push keeps the bare name when the upstream's
+  matches). **Landed 2026-09-21** as ten commits `5c014d6..2e62a88` (pushed 2026-09-21): F1 literal
+  pathspecs — discard, unstage, conflict checkout, file history, submodule update (`5c014d6`); F2
+  a line selection beside a missing final newline is refused instead of glued (`0619b89`); F3 hunk
+  staging in a non-UTF-8 file is refused instead of staging U+FFFD (`4d090a8`); F9 a per-hunk
+  content print catches a diff rebuilt since it was shown (`9722116`); F4 Push writes to the
+  upstream's name when it differs, bare name otherwise, toast names what was written (`6a806bd`);
+  F6 `op://event` reaches only the window that owns the op (`7d698cf`); F8 an op ends when git
+  exits, not when a backgrounded child's pipe closes (`cdba0d3`); F7 a second launch opens another
+  window of the running app instead of a second process (`1730ab1`); F5 the merge dialog no longer
+  offers Squash with Always create a merge commit (`824ffca`); F10 Install is refused while a git
+  operation is running in any window (`2e62a88`). Smoke group BD walked 2026-09-21 over CDP
+  (`docs/archive/walks/2026-09-21-group-bd-walk.md`): rows 1–9 pass — row 8's **in front**, which a scripted second start cannot show (the foreground
+  lock), by hand the same day; row 10 needs a published update.
+- **Deferred, moved to §I** (two, unchanged from the plan): the hunk buttons staying enabled on a
+  non-UTF-8 file (F3); a typed commit message lost to an update restart (F10).
+- **Found on the walk, not fixed** (older than this batch): a working-tree write in the 50 ms after
+  an operation ends is never shown until **Refresh** — `watch.rs` drops every event stamped before
+  `un-suppress + SUPPRESS_GRACE` as the operation's own, and the post-operation status read has
+  already run. No person is that fast; a tool started by the commit can be, and since `cdba0d3` an
+  operation ends while a hook's backgrounded child may still be writing. Reopen with a cheap fix in
+  mind: one more status read a grace after the operation ends, or classify by path instead of by time.
+- **Still open from this batch** (2026-09-21), none of it blocking:
+  1. ~~**BD 8, "in front"**~~ — passed by hand 2026-09-21: the exe double-clicked while the local
+     build ran, the new start-screen window came up on top.
+  2. **The push**: everything from `5c014d6` on (`git rev-list --count origin/main..main`). CI's
+     macOS leg has not seen this batch, and on Linux only the release build ran (WSL, `7cc503b`) —
+     no clippy, no tests there: the new runner tests (a `sh` alias, `seq`, `sleep 0.1`) and the
+     bracketed-name tests have only ever run on Windows.
+  3. **The next release** — the note lines are below. Only a published update lets BD 10 be walked
+     (Install refused while an operation runs) and, with it, "after the update installs, the app
+     comes back" (§I, F7 / updater restart). Walk both with group AC.
+  4. ~~**The watcher's 50 ms gap**~~ — narrowed 2026-09-21 (`bbb7e7f`, BD 18): inside the grace the
+     watcher drops only the kinds the operation declared, so a working-tree write after a stage or a
+     commit shows. What is left, accepted (Q12): a foreign write *of a declared kind* in those 50 ms
+     — everything, for the operations that declare every kind (pull, merge, checkout).
+  5. ~~**F8's test costs 20 s per Windows `cargo test`**~~ — now `sleep 12` (the assert bound is
+     10 s): 8 s back. §I.
+  6. ~~`graphify update .`~~ — run 2026-09-21 after the follow-ups.
+  7. **A staged diff's body can stay stale after an outside `git add`** — found on the second walk
+     (BD 11), older than this batch. The panel reloads a diff when the row's status entry changes:
+     its letters, or `workdir_stamp` (mtime:size). Nothing stamps the index side, so a tool that
+     writes a file and `git add`s it with a status read landing in between leaves the staged body
+     on the old blob (the row's `+N −M` does update). Reselecting the row reloads it. No data at
+     risk: a hunk action on the stale body is refused by the print check. The cheap fix is the
+     index entry's oid beside `workdir_stamp`.
+  8. **`linesShown` is unreachable from the panel** — a truncated diff is whole-file only there
+     (`wholeOnly`), so the hunk print always covers the whole hunk; the cut-hunk path has unit
+     tests only.
+- **Follow-ups, 2026-09-21** (`docs/archive/plans/2026-09-21-walk-followups-plan.md`; `edb9502`, `bbb7e7f`, and two folded in, below):
+  History and Blame on a file row now open the History view — since the views were split they set
+  their state there and stayed on Changes; History also closes the dialog it was clicked in, Blame
+  the commit dialog only, because a diff window shows the blame itself (BD 17). The watcher (row 4),
+  the 12 s test (row 5) and a test on Install's refusal helper — that `install_update` calls it
+  still waits for BD 10.
+- **Squashed before the push, 2026-09-21.** Three later commits were folded into the fix they
+  correct: the submodule `:(literal)` fix (was `1adbeff`) into F1 `5c014d6`, the 12 s test sleep (was
+  `abdffe8`) into F8 `cdba0d3`, the refusal helper's test (was `53d7ac7`) into F10 `2e62a88`; every
+  docs commit after the review's own became one. The fix hashes in this file are the pushed ones.
+  The walk records, the follow-up plan and every "on a build of …" keep the hashes of the day —
+  those builds were of the commits as they stood: `7cc503b` = the ten fixes before the submodule
+  fix, `1adbeff` = with it, `53d7ac7` = with the follow-ups (the code now at `bbb7e7f`). Old → new:
+  `9f617ec` `5c014d6` · `8a19f62` `0619b89` · `e1f42ba` `4d090a8` · `6f8b324` `9722116` · `2f545b2`
+  `6a806bd` · `0cf7942` `7d698cf` · `bb27c36` `cdba0d3` · `aa605eb` `1730ab1` · `20340ec` `824ffca` ·
+  `7cc503b` `2e62a88` · `42ecbbc` `edb9502` · `c3e1120` `bbb7e7f`.
+- **Second walk, 2026-09-21** (BD 11–16, `docs/archive/walks/2026-09-21-group-bd-second-walk.md`):
+  one defect in this batch's own fix — `git submodule update` ignores `--literal-pathspecs` (the
+  flag and `GIT_LITERAL_PATHSPECS` both, git 2.55), so Update on `subs/[ab]` moved `subs/a`. Now
+  `:(literal)<path>`, with a test that runs git. The conflict checkouts and the file history do
+  honour the flag (walked).
 - **Closed, will not fix** (one): Push's bare branch name against a same-named tag — see §I.
+- **Lines for the next release's notes**: a second launch now opens another window of the running
+  app (was: a second process); Push writes to the upstream's branch name when it differs; hunk /
+  line actions are refused when the file changed under the diff, beside a missing final newline,
+  and in a non-UTF-8 file; Squash is unavailable with "Always create a merge commit"; Install waits
+  for running git operations. v0.10.9 is tagged and `main` is in sync with it, so these ship as the
+  next version — not part of this plan.
 
 ## Suggested order, if nothing else decides it
 

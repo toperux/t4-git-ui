@@ -1354,7 +1354,7 @@ a text filter even when the file is modified (plan §3's edge case, not kept in 
       **History** → four rows across the rename; the oldest (`d153469`) preselects
       `reviews/html-css.md` on both tabs; back to HEAD → `reviews/old/html-css.md`; × → the full
       walk, HEAD still selected
-- [x] **Entry from the commit panel** (§3): append a line to `a.txt`, select the working-tree row →
+- [x] **Entry from the commit panel** (§3) — walked before Direction B, when the commit panel sat inside the History layout; from the Changes view of today the same click is group BD row 17: append a line to `a.txt`, select the working-tree row →
       right-click the unstaged `a.txt` → **History** → two rows (`feature edit`, `first`), row 0
       selected, chip `History: a.txt`, the details pane preselects `a.txt`; **Commit** clears the
       chip *and* the search and returns to the working-tree row. **First walk: nothing was
@@ -1898,6 +1898,55 @@ the second run. A desktop shortcut appears even where there was none — a passi
 
 1. - [x] **An update moves the install**: run the setup the way the updater does, `"T4 Git UI_<ver>_x64-setup.exe" /P /R /UPDATE` → the app comes back up titled `T4 Git UI`, recents and settings as they were. The Start menu and **Installed apps** each hold one **T4 Git UI** and no `t4-git-ui`; `%LOCALAPPDATA%\t4-git-ui` is gone and `%LOCALAPPDATA%\T4 Git UI\t4-git-ui.exe` is there; `reg query HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\t4-git-ui` and `reg query HKCU\Software\topher\t4-git-ui` both find nothing.
 2. - [x] **The next update is a plain one**: close the app, run the same command again → it comes back up, still one entry in each place.
+
+## BD. The 2026-09-20 review fixes (staging edges, push target, op ownership, one instance)
+
+Fixture: a scratch repo with `pages/[id].txt` and `pages/i.txt` committed, a second remote-tracking
+setup where local `dev` tracks `origin/develop`, and a `post-commit` hook `sleep 60 &`.
+`docs/smoke/fixtures/bd-fixture.sh` builds it.
+
+- [x] 1. Modify `pages/[id].txt` and `pages/i.txt`; Discard `[id].txt` → `i.txt` keeps its edit. Stage both, Unstage `[id].txt` → `i.txt` stays staged.
+- [x] 2. A file committed without a final newline, then a line appended: staging only the appended line is refused with the "missing final newline" reason; staging the hunk works and the index ends in a newline.
+- [x] 3. A Latin-1 file with one changed line: Stage hunk is refused naming UTF-8; staging the whole file works and `git diff --cached` shows the original bytes.
+- [x] 4. With a diff open, rewrite the file from a terminal so its hunks shift, and press Stage hunk inside the same beat (before the panel reloads): refused with "changed since this diff was shown", index untouched. Again with a same-shape edit (one changed line's text replaced, nothing added or removed): refused too. Over CDP the beat is reachable by calling the store action right after the write; by hand it may not be — then tick it as unit-only and say so.
+- [x] 5. Push `dev` (tracks `origin/develop`): preview reads `dev:develop`, `origin/develop` moves, no `origin/dev` appears, the toast names `origin/develop`.
+- [x] 6. Two windows, a repo each: a failing push in window A leaves window B's dock closed and empty. Two clones at once, Cancel in one: the other finishes.
+- [x] 7. Commit with the `sleep 60 &` hook installed: the Commit button stops spinning within a second and a second commit right after is not `Busy`.
+- [x] 8. Start the exe twice: one process, a second window on the start screen, in front. Opening in it the repository the first window holds brings the first forward instead; closing its last tab closes it; closed while still empty, it is not restored on the next launch.
+- [x] 9. Merge dialog: "Always create a merge commit" greys Squash out and unticks it; with another strategy Squash still merges.
+- [ ] 10. With a long fetch running in one window, Install in another is refused with the running-operation reason. (Needs a published update — walk with group AC.)
+
+Rows 11–16 use a second fixture, `docs/smoke/fixtures/bd2-fixture.sh` → `c:/tmp/t4/be`: the two page files
+conflicting between `main` and `side`, submodules `subs/[ab]` and `subs/a` one commit behind, a second
+remote `other`, `dev` tracking `origin/develop`, a `pre-push` hook `sleep 12`.
+
+- [x] 11. `git merge side` on `main`: **Keep side's version** on `pages/[id].txt` → it holds side's text and is staged, `pages/i.txt` is still conflicted. Stage both with the markers in them, select `[id].txt`, **Restore conflict** → `UU pages/[id].txt`, `i.txt` still staged. **Keep main's version** → `[id].txt` is main's, `i.txt` untouched.
+- [x] 12. **History** on the `pages/[id].txt` row: the grid lists the commits that touched it (`pages`, `id only`, `main pages`, `side pages`) and not `i only`.
+- [x] 13. Sidebar › Submodules › `subs/[ab]` › **Update**: `subs/[ab]` moves to the recorded commit, `subs/a` stays where it was.
+- [x] 14. Two staged hunks: **Unstage hunk** on one leaves the other staged. With the staged diff open, `git add` a new version from a terminal and press **Unstage hunk** in the same beat: refused with "changed since this diff was shown". Unstaged: **Discard hunk** and **Discard N lines** each work, and each is refused the same way when the file is rewritten between the button and the confirm's **Discard** (`write-then-click`: the write and the `BM_CLICK` from one process).
+- [x] 15. On `dev`, Push with Remote = `other`: preview `git push … other … dev` (no `:develop`), `other` gains `dev`. With **Set upstream** and `origin`: preview `git push … -u origin … dev:develop`, `origin/develop` moves, no `origin/dev`, `dev` still tracks `origin/develop`.
+- [x] 16. While the 12 s push runs: **Move to new window** and **Close tab** are disabled. Close the window itself mid-push: the push lands on the remote, the other window's dock and toasts stay empty, and the repository reopened afterwards fetches (the op lock was released).
+- [x] 17. Changes › right-click an unstaged file › **History** → the History view, chip `History: <name>`, row 0 selected; the chip's × restores the full walk. **Blame** from the same menu → the History view, Files tab, the file blamed. **Commit…** (repository menu) with a summary typed › a row › **History** → the dialog closes onto the filtered grid; **Commit…** again → the summary is still there; **Blame** from that dialog closes it the same way. A commit's diff window (the expand button) › a file row › **Blame** → the window stays and shows the blame; **History** there closes it onto the filtered grid.
+- [x] 18. Stage a file, type a summary, and from one driver process press **Commit**, wait for the button to stop reading `Committing…`, and write a new file at once: within a few seconds the Changes badge counts it, no Refresh. (On a build before the fix the file is on disk and the list does not have it.)
+
+Row 6 also carries two things no test reaches: a window-targeted listener hears `emit_to(label)`, and it
+still hears the plain `emit` of the no-holder fallback. The first is what the row shows; the second needs
+a window closed mid-op — if that op's output then shows nowhere, note it and move on: nothing that worked
+before breaks.
+
+Walked 2026-09-21 over CDP on a build of `7cc503b` — `docs/archive/walks/2026-09-21-group-bd-walk.md`. Row 4
+went through the real button, the write and the click a few milliseconds apart. Row 8's **in front** is the one
+clause a scripted second start cannot show (Windows' foreground lock): walked by hand the same day, the
+exe double-clicked while the app ran — the new window came up on top. Row 6's no-holder fallback was not walked.
+
+Rows 11–16 walked the same day — `docs/archive/walks/2026-09-21-group-bd-second-walk.md`. Row 13 failed on
+the build of `7cc503b` (`git submodule update` ignores `--literal-pathspecs`), was fixed, and passed on a rebuild.
+The no-holder fallback turned out not to be reachable from the UI: a window closed mid-op (row 16) gets
+`emit_to` a label nobody has, which is silent. A diff cut at the line cap offers no hunk or line action, so
+the `linesShown` half of the print is unit-only.
+
+Rows 17 and 18 walked the same day on a build of `53d7ac7`, each seen failing first on the build of `1adbeff` —
+the third section of the second walk's record.
 
 ## Reporting
 
