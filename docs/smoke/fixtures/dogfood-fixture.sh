@@ -3,7 +3,7 @@
 # c:/tmp/t4/dogfood-other (someone else pushing). Talks to github.com over https, through GCM.
 # Writes only refs/heads/dogfood/* and refs/tags/dogfood-* on GitHub; never main, never a v* tag.
 #   sh dogfood-fixture.sh           clone both, a scratch branch with one commit, the `big` remote
-#   sh dogfood-fixture.sh diverge   the other clone pushes a commit to dogfood/test (BE 4)
+#   sh dogfood-fixture.sh diverge   the other clone pushes a commit to dogfood/test (BE 1)
 #   sh dogfood-fixture.sh cleanup   delete every dogfood/* branch and dogfood-* tag left on GitHub
 # Close the dogfood tab in the app before re-running setup.
 set -e
@@ -28,7 +28,7 @@ setup)
   echo "dogfood $(date +%s)" > "$A/dogfood.txt"
   git -C "$A" add dogfood.txt
   commit "$A" -m "dogfood: scratch commit"
-  # ~300 MB on a first fetch: long enough to cancel (BE 5). master only and --no-tags, so a fetch
+  # ~300 MB on a first fetch: long enough to cancel (BE 2). master only and --no-tags, so a fetch
   # that finishes brings no git/git v* tags that a later "Push tags" could send to GitHub.
   git -C "$A" remote add --no-tags -t master big https://github.com/git/git.git
   git -C "$A" log --oneline -2

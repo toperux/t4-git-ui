@@ -55,9 +55,9 @@ The rest needs machines we do not have:
   quarantine step remains in the release notes. (Signing is done, 2026-09-11 — see the done file.)
 - UI-vs-canvas comparison pass (v1 plan M6 leftover): screenshots of the real app against the
   screens canvas, one pass, fix what differs or update the canvas.
-- Dogfooding against the real GitHub remote (`toperux/t4-git-ui`): fetch / push / tag push with
-  credentials through GCM, a failed push, a cancelled fetch — the smoke test only uses local bare
-  remotes. Drafted 2026-09-24 as smoke group BE (`docs/smoke/fixtures/dogfood-fixture.sh`), not walked.
+- Dogfooding against a real remote — left: **a rejected push and a cancelled fetch**, smoke group BE
+  (`docs/smoke/fixtures/dogfood-fixture.sh`, against `toperux/t4-git-ui`), not walked. Fetch / pull /
+  push / tag push through GCM are covered by daily use on Azure DevOps (done file §B).
 
 ## C. Roadmap — v1 out-of-scope, unchanged, unscheduled
 Custom titlebar (revisited in M6, native kept) · i18n · plugins.

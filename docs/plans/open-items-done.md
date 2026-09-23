@@ -103,6 +103,10 @@ Text is moved as written; hashes and line numbers are those of the day._
   then deleted: its run staged the bundles into Vite's `dist/`, fixed in `c23992d`. When the
   `publish` job dies to the Actions spending limit the built bundles stay on the run: raise the
   limit and re-run the failed job, no rebuild.
+- **Dogfooding, the credential half** — reported by the user 2026-09-24: the app has been in daily use on
+  a work laptop against a work repository hosted on **Azure DevOps**, and fetch, pull, push and tag push
+  through GCM all work there. A second host besides the local bare remotes the smoke tests use. Not
+  hit in that use: a rejected push and a cancelled fetch — still open, `open-items.md` §B, group BE.
 - ~~Dependabot's `glib` 0.18 alert~~ (unsound `VariantStrIter`, fixed in 0.20): reached us through
   Tauri's gtk 0.18 pin (`tauri → muda → gtk → atk → glib`), Linux builds only, an API this app
   never calls. **Dismissed 2026-09-10** on exactly that reasoning; no open Dependabot alert remains.
