@@ -1948,6 +1948,37 @@ the `linesShown` half of the print is unit-only.
 Rows 17 and 18 walked the same day on a build of `53d7ac7`, each seen failing first on the build of `1adbeff` —
 the third section of the second walk's record.
 
+## BE. Dogfooding against the real GitHub remote (main §5)
+
+Every other group pushes to local bare repos; this one goes to `toperux/t4-git-ui` over https, with the
+credential coming from Git Credential Manager. Needs the network. `docs/smoke/fixtures/dogfood-fixture.sh`
+clones the repo twice into `c:/tmp/t4/dogfood` (open this one) and `c:/tmp/t4/dogfood-other`, puts a
+scratch branch `dogfood/test` with one commit on the first clone, and adds a remote `big` (git/git) to it.
+
+On GitHub, touch only `dogfood/*` branches and `dogfood-*` tags. **Don't push `main`**: the ruleset bypass
+lets it straight through. **Don't name a tag `v…`**: `release.yml` runs on `v*` and publishes a release.
+
+- [ ] 1. **Fetch** (origin) → it finishes with a toast, and no credential prompt appears (the repo is public,
+      so a fetch needs no credential).
+- [ ] 2. **Push** `dogfood/test` with **Set upstream** → the credential comes from GCM: silently if one is
+      stored, otherwise GCM's own sign-in window, once. No terminal prompt, no hang. The sidebar shows
+      `origin/dogfood/test`, 0 ahead / 0 behind, and `git ls-remote origin dogfood/test` finds it.
+      Optional, to see the sign-in: first `printf 'protocol=https\nhost=github.com\n\n' | git credential reject`
+      (this forgets the stored GitHub credential, so you sign in again afterwards).
+- [ ] 3. **Create tag** `dogfood-1` on HEAD with **Push after create** → `git ls-remote origin dogfood-1`
+      finds it, and `gh run list -w release.yml -L 1` shows no new run.
+- [ ] 4. **A rejected push**: run `sh docs/smoke/fixtures/dogfood-fixture.sh diverge`, then commit a change on
+      `dogfood/test` in the app and **Push** without fetching first → the dock expands on its own with
+      git's `[rejected] … (fetch first)` line, an error toast shows, and the buttons re-enable. Then
+      **Pull**, **Push** again → it goes through.
+- [ ] 5. **Cancel a fetch**: Fetch ▾ › `big`, expand the dock (`` Ctrl+` ``) → elapsed timer + **Cancel**.
+      Cancel within a few seconds → a toast, the buttons re-enable, and the dock does not pop open on its
+      own. **Fetch** (origin) right after → it works (no lock left behind).
+- [ ] 6. **Clean up from the app**: right-click the `origin/dogfood/test` row › **Delete origin/dogfood/test on
+      remote…** → Delete. **Delete tag dogfood-1…** with "also on remote" ticked → Delete. Then
+      `git ls-remote origin 'dogfood*'` finds nothing. If anything is left:
+      `sh docs/smoke/fixtures/dogfood-fixture.sh cleanup`.
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the

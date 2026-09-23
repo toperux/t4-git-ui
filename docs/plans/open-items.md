@@ -57,7 +57,7 @@ The rest needs machines we do not have:
   screens canvas, one pass, fix what differs or update the canvas.
 - Dogfooding against the real GitHub remote (`toperux/t4-git-ui`): fetch / push / tag push with
   credentials through GCM, a failed push, a cancelled fetch — the smoke test only uses local bare
-  remotes.
+  remotes. Drafted 2026-09-24 as smoke group BE (`docs/smoke/fixtures/dogfood-fixture.sh`), not walked.
 
 ## C. Roadmap — v1 out-of-scope, unchanged, unscheduled
 Custom titlebar (revisited in M6, native kept) · i18n · plugins.
