@@ -63,7 +63,8 @@ The rest needs machines we do not have:
 Custom titlebar (revisited in M6, native kept) · i18n · plugins.
 
 ## E. Added 2026-09-10 — one dated decision
-- **`ubuntu-22.04` retirement — dated, and cross-repo.** Deprecated from **2026-09-17**, brownouts
+- **`ubuntu-22.04` retirement — dated, and cross-repo.** **Parked until 2026-12-23** (user,
+  2026-09-24): do not offer it before three months ahead of the first brownout. Deprecated from **2026-09-17**, brownouts
   2027-03-23 / -03-30 / -04-06 / -04-13, unsupported 2027-04-17 (`actions/runner-images#14254`).
   `release.yml` builds Linux on it deliberately, for the glibc floor the `.deb` links against.
   `checks.yml` pins it only to match that matrix — it bundles nothing, it builds and tests, so the
@@ -224,9 +225,8 @@ The ten fixes, the walks and the squash map (old → new hashes) are in the done
 
 ## Suggested order, if nothing else decides it
 
-Most time-pressed is the `ubuntu-22.04` decision in §E: the 2026-09-17 date is a label warning, the
-real deadline is the 2027-03-23 brownout, and it is not this repo's alone. Then the npm majors one PR
-at a time, Vitest 5 first (§H). Otherwise:
+The `ubuntu-22.04` decision in §E is parked until 2026-12-23 (three months before the 2027-03-23
+brownout). First, the npm majors one PR at a time, Vitest 5 first (§H). Otherwise:
 1. Dogfooding against GitHub, then the clean-Win11 install.
 2. Linux/macOS rendering when a machine is available — signing is done, and never needed one. CI's
    ubuntu and macOS legs already run the `#[cfg(unix)]` exec-bit staging test on every code push
