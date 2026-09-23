@@ -6,7 +6,8 @@ What lives where. A plan is archived once every open row it holds is carried by
 ```
 design/            style guide + design canvases (token source of truth; see design/style-guide.md)
 plans/
-  open-items.md    the one live list: deferred features, verification owed, roadmap, to-revisit rows
+  open-items.md       the one live list: deferred features, verification owed, roadmap, to-revisit rows
+  open-items-done.md  its done / closed rows, same § letters
 smoke/
   smoke-test.md            v1 regression walkthrough, ticked as walked
   smoke-test-post-v1.md    post-v1 feature groups A–AZ, ticked as walked
