@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // No Tauri runtime: the store plugin fails to load and lib/kv falls back to localStorage.
 vi.mock("@tauri-apps/plugin-store", () => ({ load: vi.fn(() => Promise.reject(new Error("not in tauri"))) }));
-vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), ask: vi.fn() }));
 vi.mock("../../api/ipc", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/ipc")>();
   const pending = () => new Promise<never>(() => {});

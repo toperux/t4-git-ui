@@ -8,7 +8,7 @@ import { toAppError } from "../api/ipc";
 import type { RepoId } from "../api/types";
 import { closeThisWindow, isMainWindow } from "../lib/appWindow";
 import { refreshAll, refusedWhileRunning } from "../screens/RepoWindow/actions";
-import { restore as restoreCommit, snapshot as commitSnapshot, type CommitSnapshot } from "./commitStore";
+import { hasDraft, restore as restoreCommit, snapshot as commitSnapshot, type CommitSnapshot, useCommitStore } from "./commitStore";
 import { useDialogStore } from "./dialogStore";
 import { restore as restoreDiff, snapshot as diffSnapshot, type DiffSnapshot } from "./diffStore";
 import { restore as restoreRepo, snapshot as repoSnapshot, useRepoStore, type RepoSnapshot } from "./repoStore";
@@ -189,3 +189,9 @@ export const useTabsStore = create<TabsStore>()((set, get) => ({
 
 /** The active tab, for the strip and the title. */
 export const selectActiveTab = (s: TabsStore) => s.tabs.find((t) => t.id === s.active) ?? null;
+
+/** This window's repositories with a typed commit message: the active tab's editor, and every background tab's snapshot. */
+export function draftRepos(): string[] {
+  const { tabs, active, saved } = useTabsStore.getState();
+  return tabs.filter((t) => (t.id === active ? hasDraft(useCommitStore.getState()) : !!saved[t.id] && hasDraft(saved[t.id].commit))).map((t) => t.name);
+}

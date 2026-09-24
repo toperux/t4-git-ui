@@ -669,3 +669,9 @@ export interface UpdateInfo {
   installable: boolean;
   releaseUrl: string;
 }
+
+/** The last update check's answer; `checked` tells "nothing newer" from "nobody asked yet". */
+export interface UpdateCheck {
+  checked: boolean;
+  info: UpdateInfo | null;
+}

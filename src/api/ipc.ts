@@ -35,6 +35,7 @@ import type {
   Tools,
   TreeListing,
   TreeTarget,
+  UpdateCheck,
   UpdateInfo,
   WindowOrigin,
   WorkdirStatus,
@@ -163,8 +164,17 @@ export const openPath = (id: RepoId, path: string, reveal: boolean, target?: Tre
 /** The published release newer than this build, `null` when there is none. */
 export const checkForUpdate = () => call<UpdateInfo | null>("check_for_update");
 
+/** The last check's answer, whichever window asked — for a window that opened after it came back. */
+export const lastUpdateCheck = () => call<UpdateCheck>("last_update_check");
+
 /** Downloads and installs it. Success never resolves — the app restarts into the new version. */
 export const installUpdate = () => call<void>("install_update");
+
+/** Reports the repositories this window holds a typed commit message for; Install asks before a restart loses one. */
+export const setCommitDrafts = (repos: string[]) => call<void>("set_commit_drafts", { repos });
+
+/** Every window's reported drafts, sorted. */
+export const commitDrafts = () => call<string[]>("commit_drafts");
 
 // --- src-tauri/src/commands/diff.rs ---
 

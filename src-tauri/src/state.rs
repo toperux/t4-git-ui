@@ -7,6 +7,7 @@ use git_core::watch::{ChangeKind, Watcher};
 use git_core::{RepoHandle, RepoId};
 use tokio_util::sync::CancellationToken;
 
+use crate::commands::update::{UpdateCheck, UpdateInfo};
 use crate::commands::window::{Layout, Layouts};
 use crate::AppError;
 
@@ -30,9 +31,18 @@ pub struct AppState {
     /// The window a detached tab drag is over, so it can be told when the drag
     /// leaves it again (`tab-drag-out`).
     drag_target: Mutex<Option<String>>,
+    /// The last update check's answer: a window that opens after it came back
+    /// missed its `update://checked` event.
+    last_update: Mutex<UpdateCheck>,
+    /// The repositories each window holds a typed, uncommitted commit message
+    /// for, by window label — what an update's restart would throw away.
+    drafts: Mutex<HashMap<String, Vec<String>>>,
     /// The app is quitting, so a window going away is not the user closing it:
     /// its layout entry stays, to be restored next launch.
     pub exiting: AtomicBool,
+    /// An `install_update` is running: Install in a second window must not
+    /// start a second download and a second setup.
+    pub installing: AtomicBool,
     next_op: AtomicU64,
     next_window: AtomicU64,
 }
@@ -48,7 +58,10 @@ impl Default for AppState {
             pending: Mutex::new(HashMap::new()),
             layouts: Mutex::new(Layouts::default()),
             drag_target: Mutex::new(None),
+            last_update: Mutex::new(UpdateCheck::default()),
+            drafts: Mutex::new(HashMap::new()),
             exiting: AtomicBool::new(false),
+            installing: AtomicBool::new(false),
             next_op: AtomicU64::new(1),
             next_window: AtomicU64::new(0),
         }
@@ -153,6 +166,34 @@ impl AppState {
     /// `ls-remote`) count too: an update's install ends them all alike.
     pub fn op_running(&self) -> bool {
         !lock(&self.ops).is_empty()
+    }
+
+    pub fn set_last_update(&self, info: Option<UpdateInfo>) {
+        *lock(&self.last_update) = UpdateCheck {
+            checked: true,
+            info,
+        };
+    }
+
+    pub fn last_update(&self) -> UpdateCheck {
+        lock(&self.last_update).clone()
+    }
+
+    /// Replaces `window`'s report; an empty one forgets the window.
+    pub fn set_drafts(&self, window: &str, repos: Vec<String>) {
+        let mut drafts = lock(&self.drafts);
+        if repos.is_empty() {
+            drafts.remove(window);
+        } else {
+            drafts.insert(window.to_string(), repos);
+        }
+    }
+
+    /// Every window's, sorted — for Install's confirmation.
+    pub fn drafts(&self) -> Vec<String> {
+        let mut all: Vec<String> = lock(&self.drafts).values().flatten().cloned().collect();
+        all.sort();
+        all
     }
 
     /// Cancels a running operation; `false` when no such op is running.

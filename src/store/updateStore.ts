@@ -1,11 +1,13 @@
 // The update check and the install that follows it. Both live here rather than in the dialog because
 // the badge beside the Settings gear reads the same answer, on both screens. A successful install
 // never comes back — the app restarts into the new version — so only its failures land in `error`.
+import { ask } from "@tauri-apps/plugin-dialog";
 import { create } from "zustand";
 import { onUpdateProgressReady } from "../api/events";
 import * as ipc from "../api/ipc";
 import { toAppError } from "../api/ipc";
 import type { UpdateInfo } from "../api/types";
+import { APP_NAME } from "../lib/app";
 
 export interface UpdateStore {
   /** The release newer than this build, once a check found one. */
@@ -24,6 +26,8 @@ export interface UpdateStore {
 
   check(): Promise<void>;
   install(): Promise<void>;
+  /** Another window's check came back (`update://checked`): its answer is this window's too. */
+  learn(info: UpdateInfo | null): void;
 }
 
 export const useUpdateStore = create<UpdateStore>()((set) => ({
@@ -48,6 +52,18 @@ export const useUpdateStore = create<UpdateStore>()((set) => ({
   },
 
   async install() {
+    // The restart takes every window with it, and a typed commit message lives only in its window.
+    // A failed query installs anyway: an update must not be blocked by bookkeeping.
+    const drafts = await ipc.commitDrafts().catch(() => [] as string[]);
+    if (drafts.length > 0) {
+      const ok = await ask(`Installing restarts ${APP_NAME}. The commit message typed in ${drafts.join(", ")} will be lost.`, {
+        title: "Install the update",
+        kind: "warning",
+        cancelLabel: "Cancel",
+        okLabel: "Install",
+      }).catch(() => false);
+      if (!ok) return;
+    }
     set({ installing: true, progress: null, error: null });
     // Inside the try, so a subscription that rejects still reaches the `finally`: `installing` also
     // disables Close and Esc, and leaving it stuck true strands the whole dialog until a restart.
@@ -66,4 +82,8 @@ export const useUpdateStore = create<UpdateStore>()((set) => ({
       unlisten?.();
     }
   },
+
+  // The check this window failed is answered now, so its message goes, unless an install is running:
+  // that message is about the download, not the check.
+  learn: (info) => set((s) => (s.installing ? { info, checked: true } : { info, checked: true, error: null })),
 }));

@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { UpdateInfo } from "../api/types";
 
+const ask = vi.hoisted(() => vi.fn());
+vi.mock("@tauri-apps/plugin-dialog", () => ({ ask }));
 vi.mock("../api/ipc", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api/ipc")>();
-  return { ...actual, checkForUpdate: vi.fn(), installUpdate: vi.fn() };
+  return { ...actual, checkForUpdate: vi.fn(), installUpdate: vi.fn(), commitDrafts: vi.fn() };
 });
 vi.mock("../api/events", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api/events")>();
@@ -14,7 +16,7 @@ import * as events from "../api/events";
 import * as ipc from "../api/ipc";
 import { useUpdateStore } from "./updateStore";
 
-const mocked = ipc as unknown as Record<"checkForUpdate" | "installUpdate", ReturnType<typeof vi.fn>>;
+const mocked = ipc as unknown as Record<"checkForUpdate" | "installUpdate" | "commitDrafts", ReturnType<typeof vi.fn>>;
 const onProgress = events.onUpdateProgressReady as unknown as ReturnType<typeof vi.fn>;
 
 const release: UpdateInfo = { version: "0.2.0", installable: true, releaseUrl: "https://example.test/v0.2.0" };
@@ -24,6 +26,8 @@ const flush = () => new Promise((r) => setTimeout(r, 0));
 beforeEach(() => {
   vi.clearAllMocks();
   onProgress.mockResolvedValue(unlisten);
+  mocked.commitDrafts.mockResolvedValue([]);
+  ask.mockResolvedValue(true);
   useUpdateStore.setState({ info: null, checked: false, checking: false, installing: false, progress: null, error: null });
 });
 
@@ -77,10 +81,10 @@ describe("updateStore.install", () => {
     mocked.installUpdate.mockReturnValueOnce(new Promise<void>((res) => (finish = res)));
 
     const done = useUpdateStore.getState().install();
+    await flush();
     // The subscription is made before `install_update` is invoked, so no early percentage is lost.
     expect(onProgress).toHaveBeenCalledTimes(1);
-    expect(mocked.installUpdate).not.toHaveBeenCalled();
-    await flush();
+    expect(onProgress.mock.invocationCallOrder[0]).toBeLessThan(mocked.installUpdate.mock.invocationCallOrder[0]);
     expect(mocked.installUpdate).toHaveBeenCalledTimes(1);
     expect(useUpdateStore.getState().installing).toBe(true);
     percent(42);
@@ -119,5 +123,43 @@ describe("updateStore.install", () => {
       info: release,
     });
     expect(unlisten).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks first when a commit message is typed in any window, and a No installs nothing", async () => {
+    useUpdateStore.setState({ info: release });
+    mocked.commitDrafts.mockResolvedValue(["api", "web"]);
+    ask.mockResolvedValue(false);
+    await useUpdateStore.getState().install();
+    expect(ask.mock.calls[0][0]).toContain("api, web");
+    expect(mocked.installUpdate).not.toHaveBeenCalled();
+    expect(useUpdateStore.getState()).toMatchObject({ installing: false, error: null });
+  });
+
+  it("a Yes installs; no draft installs without asking", async () => {
+    useUpdateStore.setState({ info: release });
+    mocked.installUpdate.mockResolvedValue(undefined);
+    mocked.commitDrafts.mockResolvedValueOnce(["api"]);
+    await useUpdateStore.getState().install();
+    expect(mocked.installUpdate).toHaveBeenCalledTimes(1);
+    await useUpdateStore.getState().install();
+    expect(ask).toHaveBeenCalledTimes(1);
+    expect(mocked.installUpdate).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("updateStore.learn", () => {
+  // Another window's check came back: this one shows the same offer without a network call of its own.
+  it("takes another window's answer as this window's own", () => {
+    useUpdateStore.setState({ error: "couldn't reach GitHub" });
+    useUpdateStore.getState().learn(release);
+    // Its own failed check is answered now: the stale message would sit beside a live offer.
+    expect(useUpdateStore.getState()).toMatchObject({ info: release, checked: true, error: null });
+    expect(mocked.checkForUpdate).not.toHaveBeenCalled();
+  });
+
+  it("leaves a failed install's message alone while one runs", () => {
+    useUpdateStore.setState({ installing: true, error: "the download was interrupted" });
+    useUpdateStore.getState().learn(release);
+    expect(useUpdateStore.getState().error).toBe("the download was interrupted");
   });
 });

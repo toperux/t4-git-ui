@@ -25,7 +25,7 @@ vi.mock("../lib/appWindow", () => ({ isMainWindow: () => label === "main", close
 import * as ipc from "../api/ipc";
 import { useCommitStore } from "./commitStore";
 import { __resetForTests as resetRepo, useRepoStore } from "./repoStore";
-import { useTabsStore } from "./tabsStore";
+import { draftRepos, type Snapshot, useTabsStore } from "./tabsStore";
 
 let label = "main";
 const mocked = ipc as unknown as Record<"openRepo" | "closeRepo" | "spawnWindow", ReturnType<typeof vi.fn>>;
@@ -160,5 +160,26 @@ describe("reorder", () => {
     expect(tabs().map((t) => t.path)).toEqual(["/c", "/a", "/b"]);
     useTabsStore.getState().reorder(0, 9);
     expect(tabs().map((t) => t.path)).toEqual(["/c", "/a", "/b"]);
+  });
+});
+
+describe("draftRepos", () => {
+  it("names the active tab's draft and every background tab's", () => {
+    useTabsStore.setState({
+      tabs: [
+        { id: "a", path: "/a", name: "alpha", stale: false },
+        { id: "b", path: "/b", name: "beta", stale: false },
+        { id: "c", path: "/c", name: "gamma", stale: false },
+      ],
+      active: "a",
+      saved: {
+        b: { commit: { summary: "wip", body: "", prefill: null } } as unknown as Snapshot,
+        c: { commit: { summary: "", body: "", prefill: null } } as unknown as Snapshot,
+      },
+    });
+    useCommitStore.setState({ summary: "", body: "", prefill: null });
+    expect(draftRepos()).toEqual(["beta"]);
+    useCommitStore.setState({ summary: "typed" });
+    expect(draftRepos()).toEqual(["alpha", "beta"]);
   });
 });

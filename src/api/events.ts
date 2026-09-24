@@ -1,6 +1,6 @@
 import { emit, listen, type EventTarget, type UnlistenFn } from "@tauri-apps/api/event";
 import { windowLabel } from "../lib/appWindow";
-import type { LogProgress, OpEvent, RepoChanged } from "./types";
+import type { LogProgress, OpEvent, RepoChanged, UpdateInfo } from "./types";
 
 /**
  * Subscribes to a Tauri event. Returns an unsubscribe function (safe to call before the listener is attached).
@@ -41,6 +41,12 @@ export const onSettingsChanged = (cb: () => void) => subscribe<null>("settings:/
 export function emitSettingsChanged() {
   emit("settings://changed").catch((e: unknown) => console.warn("events: could not emit \"settings://changed\"", e));
 }
+
+/**
+ * A check came back in some window (`update://checked`), the asking one included. Only the main
+ * window checks at launch, so this is how the others learn of a release.
+ */
+export const onUpdateChecked = (cb: (info: UpdateInfo | null) => void) => subscribe<UpdateInfo | null>("update://checked", cb);
 
 /** Subscribes to an event the backend addresses to this window alone (`emit_to(label, …)`). */
 const subscribeHere = <T,>(name: string, cb: (payload: T) => void) => subscribe<T>(name, cb, { kind: "Window", label: windowLabel() });

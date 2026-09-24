@@ -5,13 +5,19 @@
 //! permission-gated the way plugin commands are. The sibling app
 //! t4-markdown-viewer wraps it the same way, so the two stay one pattern.
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, State, Window};
 use tauri_plugin_updater::UpdaterExt;
 
 use crate::{AppError, AppState};
 
 const PROGRESS_EVENT: &str = "update://progress";
+/// Every successful check's answer, to every window: only the main window
+/// checks at launch, and the others would otherwise offer nothing until
+/// Check now is pressed in each.
+const CHECKED_EVENT: &str = "update://checked";
 
 /// What the frontend needs to describe an available release.
 #[derive(Debug, Clone, Serialize)]
@@ -26,6 +32,14 @@ pub struct UpdateInfo {
     /// real release notes live. `latest.json` is generated before the GitHub
     /// release exists, so the manifest can carry a link but never the body.
     release_url: String,
+}
+
+/// The last check's answer, for a window that opens after it came back.
+/// `checked` is what tells "nothing newer" from "nobody asked yet".
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct UpdateCheck {
+    pub checked: bool,
+    pub info: Option<UpdateInfo>,
 }
 
 /// Only an AppImage can rewrite itself in place. The plugin sets `APPIMAGE`
@@ -54,22 +68,71 @@ fn refuse_while_busy(state: &AppState) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Holds [`AppState::installing`] for one `install_update`, and lets go on
+/// every way out of it but the restart.
+#[derive(Debug)]
+struct InstallGuard<'a>(&'a AtomicBool);
+
+impl Drop for InstallGuard<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
+}
+
+/// Each window guards its own Install button; two windows pressing it would
+/// otherwise run two downloads and two setups side by side.
+fn begin_install(state: &AppState) -> Result<InstallGuard<'_>, AppError> {
+    if state.installing.swap(true, Ordering::SeqCst) {
+        return Err(AppError::Internal(
+            "an update is already being installed from another window".into(),
+        ));
+    }
+    Ok(InstallGuard(&state.installing))
+}
+
+const UNREACHABLE: &str = "couldn't reach GitHub — check the connection";
+const INTERRUPTED: &str = "the download was interrupted — try again";
+
+/// reqwest's own words ("error decoding response body" for a cut download)
+/// describe the library, not the problem. The raw text stays in brackets:
+/// it is what a bug report needs.
+fn updater_error(e: tauri_plugin_updater::Error, network: &str) -> AppError {
+    match e {
+        tauri_plugin_updater::Error::Reqwest(inner) => {
+            AppError::Internal(format!("{network} ({inner})"))
+        }
+        e => AppError::Internal(e.to_string()),
+    }
+}
+
 /// Ask whether a newer version exists. Whether that happens automatically at
 /// launch is the frontend's setting, not ours.
 #[tauri::command]
-pub async fn check_for_update(app: AppHandle) -> Result<Option<UpdateInfo>, AppError> {
+pub async fn check_for_update(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<Option<UpdateInfo>, AppError> {
     let found = app
         .updater()
         .map_err(|e| AppError::Internal(e.to_string()))?
         .check()
         .await
-        .map_err(|e| AppError::Internal(e.to_string()))?;
+        .map_err(|e| updater_error(e, UNREACHABLE))?;
 
-    Ok(found.map(|update| UpdateInfo {
+    let info = found.map(|update| UpdateInfo {
         version: update.version,
         installable: installable(),
         release_url: release_url(),
-    }))
+    });
+    state.set_last_update(info.clone());
+    let _ = app.emit(CHECKED_EVENT, &info);
+    Ok(info)
+}
+
+/// The last check's answer, for a window that opened after it came back.
+#[tauri::command]
+pub fn last_update_check(state: State<'_, AppState>) -> UpdateCheck {
+    state.last_update()
 }
 
 /// Download the update, install it, and restart into it. Does not return: the
@@ -90,6 +153,7 @@ pub async fn install_update(app: AppHandle, state: State<'_, AppState>) -> Resul
                 .into(),
         ));
     }
+    let _installing = begin_install(&state)?;
     refuse_while_busy(&state)?;
 
     let update = app
@@ -97,7 +161,7 @@ pub async fn install_update(app: AppHandle, state: State<'_, AppState>) -> Resul
         .map_err(|e| AppError::Internal(e.to_string()))?
         .check()
         .await
-        .map_err(|e| AppError::Internal(e.to_string()))?
+        .map_err(|e| updater_error(e, UNREACHABLE))?
         .ok_or_else(|| AppError::Internal("there is no update to install".into()))?;
 
     let progress_app = app.clone();
@@ -127,7 +191,7 @@ pub async fn install_update(app: AppHandle, state: State<'_, AppState>) -> Resul
             },
         )
         .await
-        .map_err(|e| AppError::Internal(e.to_string()))?;
+        .map_err(|e| updater_error(e, INTERRUPTED))?;
 
     // Again: the download is long enough for a push to have started meanwhile.
     refuse_while_busy(&state)?;
@@ -137,6 +201,19 @@ pub async fn install_update(app: AppHandle, state: State<'_, AppState>) -> Resul
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
     app.restart()
+}
+
+/// A window reports the repositories it holds a typed commit message for,
+/// whenever that list changes, so Install can ask before the restart.
+#[tauri::command]
+pub fn set_commit_drafts(window: Window, state: State<'_, AppState>, repos: Vec<String>) {
+    state.set_drafts(window.label(), repos);
+}
+
+/// Every window's reported drafts.
+#[tauri::command]
+pub fn commit_drafts(state: State<'_, AppState>) -> Vec<String> {
+    state.drafts()
 }
 
 #[cfg(test)]
@@ -175,5 +252,48 @@ mod tests {
         assert!(refused.contains("still running"), "{refused}");
         state.end_op(&id);
         assert!(refuse_while_busy(&state).is_ok());
+    }
+
+    /// Only a network failure is reworded: the rest (a bad signature, a manifest
+    /// without this platform) already say what is wrong, in their own words.
+    #[test]
+    fn only_network_failures_are_reworded() {
+        let e = updater_error(tauri_plugin_updater::Error::ReleaseNotFound, "NETWORK").to_string();
+        assert!(e.contains("Could not fetch a valid release JSON"), "{e}");
+        assert!(!e.contains("NETWORK"), "{e}");
+    }
+
+    /// Nothing is known until a check comes back; after that, a window that
+    /// opens later is told the answer, a "nothing newer" included.
+    #[test]
+    fn the_last_answer_is_kept_for_windows_that_open_later() {
+        let state = AppState::default();
+        assert!(!state.last_update().checked);
+        state.set_last_update(None);
+        let kept = state.last_update();
+        assert!(kept.checked && kept.info.is_none());
+    }
+
+    /// One install at a time across windows, and a failed one lets the next in.
+    #[test]
+    fn a_second_install_is_refused_while_one_runs() {
+        let state = AppState::default();
+        let first = begin_install(&state).expect("the first install starts");
+        let refused = begin_install(&state).expect_err("a second is refused");
+        assert!(refused.to_string().contains("already"), "{refused}");
+        drop(first);
+        assert!(begin_install(&state).is_ok());
+    }
+
+    /// Each window's report replaces its last one, an empty report clears it,
+    /// and Install sees them all.
+    #[test]
+    fn drafts_are_kept_per_window() {
+        let state = AppState::default();
+        state.set_drafts("main", vec!["web".into(), "api".into()]);
+        state.set_drafts("w1", vec!["docs".into()]);
+        assert_eq!(state.drafts(), ["api", "docs", "web"]);
+        state.set_drafts("main", Vec::new());
+        assert_eq!(state.drafts(), ["docs"]);
     }
 }

@@ -17,6 +17,7 @@ vi.mock("./api/ipc", async (importOriginal) => {
     spawnWindow: vi.fn(() => Promise.resolve("w1")),
     setLayout: vi.fn(() => Promise.resolve()),
     getTools: vi.fn(() => Promise.resolve({ diff: null, merge: null })),
+    lastUpdateCheck: vi.fn(() => Promise.resolve({ checked: false, info: null })),
   };
 });
 vi.mock("./api/events", () => ({
@@ -28,6 +29,7 @@ vi.mock("./api/events", () => ({
   onTabDragOver: vi.fn(() => () => {}),
   onTabDragOut: vi.fn(() => () => {}),
   onTabAdopt: vi.fn(() => () => {}),
+  onUpdateChecked: vi.fn(() => () => {}),
 }));
 
 import * as ipc from "./api/ipc";

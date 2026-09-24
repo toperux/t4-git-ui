@@ -122,6 +122,8 @@ pub(crate) fn show_with_theme(app: &AppHandle, win: &tauri::WebviewWindow) {
 fn on_window_destroyed(app: &AppHandle, label: &str) {
     let state = app.state::<AppState>();
     state.pending().remove(label);
+    // Its drafts went with it: Install must not warn about a message nobody can lose any more.
+    state.set_drafts(label, Vec::new());
     for id in state.release_all(label) {
         commands::repo::drop_repo(&state, &id);
     }
@@ -177,7 +179,10 @@ pub fn run() {
             commands::app::probe_git,
             commands::app::set_git_path,
             commands::update::check_for_update,
+            commands::update::last_update_check,
             commands::update::install_update,
+            commands::update::set_commit_drafts,
+            commands::update::commit_drafts,
             commands::window::spawn_window,
             commands::window::take_pending,
             commands::window::set_layout,

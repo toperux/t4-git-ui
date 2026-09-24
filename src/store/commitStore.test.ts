@@ -36,7 +36,7 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({ ask }));
 
 import * as ipc from "../api/ipc";
 import { hunkPrint } from "../lib/hunkPrint";
-import { useCommitStore } from "./commitStore";
+import { hasDraft, useCommitStore } from "./commitStore";
 import { useDiffStore } from "./diffStore";
 import { __resetForTests as resetRepo, useRepoStore } from "./repoStore";
 import { useSettingsStore } from "./settingsStore";
@@ -909,5 +909,19 @@ describe("commitStore.commit closing the Changes view", () => {
     await useCommitStore.getState().discard(["a.rs"]);
     expect(mocked.discardPaths).toHaveBeenCalledWith(REPO.id, ["a.rs"]);
     expect(useViewStore.getState().view).toBe("changes");
+  });
+});
+
+describe("hasDraft", () => {
+  const c = (summary: string, body = "", prefill: { summary: string; body: string; from: "amend" | "pending" | "history" } | null = null) => ({ summary, body, prefill });
+  it("a typed message is one", () => {
+    expect(hasDraft(c("wip"))).toBe(true);
+    expect(hasDraft(c("", "notes"))).toBe(true);
+  });
+  // An untouched prefill came from HEAD, MERGE_MSG or history: all still there after a restart.
+  it("an empty editor or an untouched prefill is not", () => {
+    expect(hasDraft(c("  ", "\n"))).toBe(false);
+    expect(hasDraft(c("Fix it", "body", { summary: "Fix it", body: "body", from: "amend" }))).toBe(false);
+    expect(hasDraft(c("Fix it!", "body", { summary: "Fix it", body: "body", from: "amend" }))).toBe(true);
   });
 });

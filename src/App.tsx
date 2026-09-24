@@ -1,7 +1,7 @@
 import { open as openFile } from "@tauri-apps/plugin-dialog";
 import { useCallback, useEffect, useState } from "react";
-import { onLogProgress, onOpEvent, onRepoChanged, onSettingsChanged, onTabSpawnFailed } from "./api/events";
-import { probeGit, setGitPath, setLayout, spawnWindow, takeLayout, takePending, toAppError } from "./api/ipc";
+import { onLogProgress, onOpEvent, onRepoChanged, onSettingsChanged, onTabSpawnFailed, onUpdateChecked } from "./api/events";
+import { lastUpdateCheck, probeGit, setCommitDrafts, setGitPath, setLayout, spawnWindow, takeLayout, takePending, toAppError } from "./api/ipc";
 import { BusyOverlay } from "./components/ui/BusyOverlay/BusyOverlay";
 import { Spinner } from "./components/ui/Spinner/Spinner";
 import { isMainWindow } from "./lib/appWindow";
@@ -13,12 +13,13 @@ import { RepoWindow } from "./screens/RepoWindow/RepoWindow";
 import { listenTabDrags } from "./screens/RepoWindow/TabStrip";
 import { StartScreen } from "./screens/StartScreen/StartScreen";
 import { useCmdHistoryStore } from "./store/cmdHistoryStore";
+import { useCommitStore } from "./store/commitStore";
 import { useOpsStore } from "./store/opsStore";
 import { useRecentsStore } from "./store/recentsStore";
 import { useRepoStore } from "./store/repoStore";
 import { useSettingsStore } from "./store/settingsStore";
 import { useStatusStore } from "./store/statusStore";
-import { useTabsStore } from "./store/tabsStore";
+import { draftRepos, useTabsStore } from "./store/tabsStore";
 import { toastError, useToastStore } from "./store/toastStore";
 import { useUpdateStore } from "./store/updateStore";
 
@@ -128,6 +129,8 @@ export default function App() {
       onOpEvent((e) => useOpsStore.getState().onEvent(e)),
       // Another window wrote a preference: re-read it, or this one keeps a stale theme / diff default.
       onSettingsChanged(() => void useSettingsStore.getState().load()),
+      // A check in any window answers for all of them: only the main window checks at launch.
+      onUpdateChecked((info) => useUpdateStore.getState().learn(info)),
       // The window a tab was moved to never opened (the build fails after `spawn_window` returns):
       // take the tab back rather than lose it.
       onTabSpawnFailed((paths) => {
@@ -147,6 +150,13 @@ export default function App() {
       // strip, which is not rendered with one tab or none.
       listenTabDrags(),
     ];
+    // A window restored at launch, or opened later, may have missed the event: ask for the last answer.
+    // ponytail: an answer landing between this reply and the listener attaching is missed; Check now covers it.
+    void lastUpdateCheck()
+      .then((c) => {
+        if (c.checked) useUpdateStore.getState().learn(c.info);
+      })
+      .catch(() => undefined);
     // Every open lands in recents, and the backend keeps what this window has open so the next
     // launch can put every window back (`layout.json`).
     const unsubscribe = useTabsStore.subscribe((st, prev) => {
@@ -157,6 +167,19 @@ export default function App() {
       recents.setLastOpen(active?.path ?? null);
       void setLayout({ tabs: st.tabs.map((t) => t.path), active: active?.path ?? "" }).catch(() => undefined);
     });
+    // The backend keeps each window's drafts for Install's confirmation. Sent only when the list
+    // changes: the editor's store changes on every keystroke and every diff load. The first list is
+    // always sent, empty or not: a reloaded window keeps its label, and its old entry must not linger.
+    let reported: string | null = null;
+    const reportDrafts = () => {
+      const repos = draftRepos();
+      const key = repos.join("\n");
+      if (key === reported) return;
+      reported = key;
+      void setCommitDrafts(repos).catch(() => undefined);
+    };
+    const unsubscribeDrafts = [useCommitStore.subscribe(reportDrafts), useTabsStore.subscribe(reportDrafts)];
+    reportDrafts();
     // Runs after the app's own context menus (they preventDefault on the way up); see keepsNativeMenu.
     function onContextMenu(e: MouseEvent) {
       const sel = window.getSelection();
@@ -166,6 +189,7 @@ export default function App() {
     return () => {
       unlisten.forEach((fn) => fn());
       unsubscribe();
+      for (const u of unsubscribeDrafts) u();
       document.removeEventListener("contextmenu", onContextMenu);
     };
   }, []);

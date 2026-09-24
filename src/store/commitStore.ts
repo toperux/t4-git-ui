@@ -580,6 +580,13 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
 });
 
 /**
+ * A message someone typed: not blank, and not a prefill left as it was. HEAD's message, `MERGE_MSG`
+ * and a history entry all survive a restart; only typing is lost.
+ */
+export const hasDraft = (c: Pick<CommitStore, "summary" | "body" | "prefill">) =>
+  (c.summary.trim() !== "" || c.body.trim() !== "") && !(c.prefill && c.summary === c.prefill.summary && c.body === c.prefill.body);
+
+/**
  * What a background tab keeps of this store — the whole editor, so a half-written commit message
  * survives a switch. One list, beside `reset`'s; see `tabsStore`.
  */
