@@ -85,6 +85,19 @@ fn normalized(path: &Path) -> PathBuf {
     ))
 }
 
+/// A write of a kind the op declared, seen within [`SUPPRESS_GRACE`] of its
+/// end, is taken as the op's own. On its own so the rule is tested with
+/// chosen times: through the file system, the test raced the OS's event
+/// delivery against those 50 ms, and a slow CI runner lost the race.
+fn own_write_in_grace(
+    time: Instant,
+    ended: Instant,
+    kind: ChangeKind,
+    declared: &[ChangeKind],
+) -> bool {
+    time < ended + SUPPRESS_GRACE && declared.contains(&kind)
+}
+
 fn classify(
     path: &Path,
     workdir: &Path,
@@ -172,10 +185,9 @@ impl Watcher {
                         if ev.need_rescan() {
                             change.rescan = true;
                         }
-                        let in_grace = ev.time < ended + SUPPRESS_GRACE;
                         for p in &ev.paths {
                             if let Some(kind) = classify(p, &wd, &gd, &repo) {
-                                if in_grace && suppressed_kinds.contains(&kind) {
+                                if own_write_in_grace(ev.time, ended, kind, &suppressed_kinds) {
                                     continue;
                                 }
                                 if !change.kinds.contains(&kind) {
@@ -395,15 +407,20 @@ mod tests {
 
     #[test]
     fn a_declared_kind_is_dropped_inside_the_grace() {
-        let t = TempRepo::new();
-        t.commit(&[("a.txt", "a")], "init");
-        let (w, rx) = start(&t);
-        w.set_suppressed(true, &[]);
-        w.set_suppressed(false, &[ChangeKind::Workdir]);
-        t.write("a.txt", "b");
+        let ended = Instant::now();
+        let declared = [ChangeKind::Workdir];
+        let at = |ms| ended + Duration::from_millis(ms);
         assert!(
-            rx.recv_timeout(Duration::from_secs(1)).is_err(),
-            "a declared kind inside the grace is the op's own write"
+            own_write_in_grace(at(10), ended, ChangeKind::Workdir, &declared),
+            "the op's own write"
+        );
+        assert!(
+            !own_write_in_grace(at(10), ended, ChangeKind::Index, &declared),
+            "a kind it did not declare"
+        );
+        assert!(
+            !own_write_in_grace(at(60), ended, ChangeKind::Workdir, &declared),
+            "past the grace"
         );
     }
 
