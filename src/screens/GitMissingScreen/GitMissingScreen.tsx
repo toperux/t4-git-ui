@@ -22,7 +22,9 @@ export function GitMissingScreen({
         <EmptyState
           icon={<TriangleAlert size={24} aria-hidden />}
           title="Git not found"
-          hint={`${APP_NAME} needs git 2.24 or newer. Install it from git-scm.com or add it to PATH and retry, or point the app at the git executable.`}
+          // "Restart", not "retry": git runs from the PATH the app started with, so a git installed since is
+          // only found after a restart (smoke BF 5). Retry still helps when git lands in a folder already on it.
+          hint={`${APP_NAME} needs git 2.24 or newer. Install it from git-scm.com, then restart ${APP_NAME} — or point the app at the git executable.`}
           action={
             <>
               <Button variant="secondary" icon={<RefreshCw size={14} aria-hidden />} onClick={onRetry} disabled={busy}>
