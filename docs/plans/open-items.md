@@ -77,10 +77,6 @@ Custom titlebar (revisited in M6, native kept) · i18n · plugins.
     the image: the markdown viewer runs `Format` on the Linux leg only.
 
 ## H. Added 2026-09-12 — after the push
-- **TypeScript 5.8 → 7, the last npm major.** No PR yet: Dependabot opens at most five npm PRs and five
-  were open until 2026-09-24; the next weekly run should bring it (or Insights → Dependency graph →
-  Dependabot → *Check for updates*). A compiler rewrite, not a plain bump: `tsc`, the full gates and a
-  `tauri build --no-bundle` before merging. The other majors landed 2026-09-24 (done file §H).
 - **`watch::tests::rename_is_reported` flaked once on macOS** (PR #7's first run, 2026-09-12);
   passed on the rerun and on every run since. FSEvents timing is the usual reason. Watch, do not
   act: a second flake makes it a finding (bound the wait on the rename pair, or accept either

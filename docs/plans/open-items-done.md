@@ -289,6 +289,13 @@ commits and pushed with the CI port from the markdown viewer (`a904701`).
     (background only), so the tests now load the grammar first and join touching highlights. Gates
     green, `tauri build --no-bundle` built and launched, syntax + intra-line highlight seen on a `.rs`
     diff. #13 (`@types/node` 26, `9796066`) and #14 (the group of 14 that replaced #9, `27f2d1f`) merged by the user the same day; gates green on the result. TypeScript 7 left — `open-items.md` §H.
+- **TypeScript 5.8 → 7.0.2** (#15, opened 2026-09-24 once the other majors freed Dependabot's five npm
+  PR slots) — landed on `main` the same day with its one fix. TS 7 no longer includes `@types/*` on its
+  own (`types` defaults to empty), so the one file that runs Node APIs, `src/lib/dialogCapability.test.ts`
+  (`node:fs`, `process`), lost them: three `tsc` errors on every OS, tests green. It now carries
+  `/// <reference types="node" />` rather than `"types": ["node"]` in `tsconfig.json`, which would hand
+  `process` to app code too. `npm run build` and 928/928 green. An editor running an older TypeScript
+  language server shows false errors (no `Promise`, no `JSON`) until it picks up the workspace's TS 7.
 - **v0.7.0 (2026-09-13)**: release run green on every leg, 16 assets, `latest.json` at
   `releases/latest` resolves to 0.7.0 for all four platform keys; notes edited after publish.
 

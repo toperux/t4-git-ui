@@ -1,3 +1,6 @@
+// The one file that runs Node APIs. TypeScript 7 no longer includes `@types/*` on its own, and app
+// code has no business seeing `process`, so the types come in here rather than tsconfig's `types`.
+/// <reference types="node" />
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
