@@ -186,7 +186,10 @@ async function dblclick(sel) {
 }
 
 const version = await (await fetch(`http://${HOST}/json/version`)).json();
-const [page] = (await (await fetch(`http://${HOST}/json/list`)).json()).filter((t) => t.type === "page");
+// CDP_TITLE picks one window of several by a piece of its title (`T4 Git UI - <repo>`).
+const [page] = (await (await fetch(`http://${HOST}/json/list`)).json()).filter(
+  (t) => t.type === "page" && (!process.env.CDP_TITLE || t.title.includes(process.env.CDP_TITLE)),
+);
 targetId = page.id;
 
 ws = new WebSocket(version.webSocketDebuggerUrl);

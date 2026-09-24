@@ -12,7 +12,7 @@ smoke/
   smoke-test.md            v1 regression walkthrough, ticked as walked
   smoke-test-post-v1.md    post-v1 feature groups A–AZ, ticked as walked
   smoke-cdp.md             driving the installed app over CDP instead of by hand
-  fixtures/                smoke-fixtures.ps1 (builds C:\tmp\t4), smoke-dialog.ps1, ad7-*.sh, irebase-fixture.sh, linked-fixture.sh, bd-fixture.sh, bd2-fixture.sh, dogfood-fixture.sh, sandbox/ (Windows Sandbox scripts)
+  fixtures/                smoke-fixtures.ps1 (builds C:\tmp\t4), smoke-dialog.ps1, ad7-*.sh, irebase-fixture.sh, linked-fixture.sh, bd-fixture.sh, bd2-fixture.sh, dogfood-fixture.sh, throttle-proxy.mjs, sandbox/ (Windows Sandbox scripts)
 archive/
   plans/     executed plans and their review records (v1 plan, interactive rebase, Files/blame/history,
              CI alignment, the 2026-09-12 consolidated findings, review2-A–D, the 2026-09-20 review

@@ -33,9 +33,9 @@ done, move it there._
 ## B. Verification and release
 - **Smoke steps no CDP walk can reach** (this machine, by hand). Left: **eight** unticked
   lines across the two smoke docs (recounted 2026-09-16), of which **six** are work still owed:
-  a DPI change (`docs/smoke/smoke-test.md:283`); group AC's three update boxes
-  (`docs/smoke/smoke-test-post-v1.md:750` a failed check, `:753` a failed install, `:756` deb / rpm),
-  which need a pullable network and a Linux package; group AI's manual folder toggle across a refresh
+  a DPI change (`docs/smoke/smoke-test.md:283`); group AC's deb / rpm box, which needs a Linux package
+  (its failed-check and failed-install boxes were walked 2026-09-24 through
+  `docs/smoke/fixtures/throttle-proxy.mjs`); group AI's manual folder toggle across a refresh
   (`:1222`); and the **Remove from list** half of AJ's "buttons own their clicks" (`:1252`) — Retry and
   Pull passed on 2026-09-16, but adding a dead recent needs the native folder picker and the recents
   store is shared with the installed app. The other two are group AG's (`:1149`, `:1160`): deliberate
@@ -127,12 +127,6 @@ condition that reopens it. (Rows closed as will-not-fix or accepted are in the d
 - **F10** (2026-09-20 review, moved from §N) — a typed, uncommitted commit message in another
   window is lost to an update's restart. Needs a design choice first: persist the draft across the
   restart, or refuse Install while one exists.
-- **F7 / updater restart** — verified from sources 2026-09-21: the plugin releases its lock on
-  `RunEvent::Exit` on all three platforms, and tauri 2.11.5's `restart()` delivers that exit before
-  spawning the new process when called off the main thread, which `install_update` (an async
-  command) is. It would NOT hold if `restart()` were ever called on the main thread
-  (`cleanup_before_exit` does not reach plugins). Not walkable without a published update: smoke
-  BD 10 / AZ 10 carries "after the update installs, the app comes back".
 
 ## J. Added 2026-09-14 — from the UI direction B review
 Direction B (History | Changes view switch + Ctrl+K palette) is the chosen small-window layout;
@@ -179,8 +173,7 @@ is not rediscovered from scratch. The walk itself is
 
 The walk is `docs/archive/walks/2026-09-19-group-az-walk.md`. What is left, so it is not rediscovered:
 
-- **Open boxes in group AZ**: 9 (the `git skipped <path>` toast — unit-tested, no hand recipe), 10 (an
-  update's restart keeps every window — needs a published update, walk it with group AC), 11 (Linux and
+- **Open boxes in group AZ**: 9 (the `git skipped <path>` toast — unit-tested, no hand recipe) and 11 (Linux and
   macOS: rows 3a, 3b, 3d, 3i and bullet 6, by hand).
 - **Unticked lines, recounted**: fourteen across the two smoke docs. The eight of §B (now
   `smoke-test-post-v1.md:752`, `:755`, `:758`, `:1151`, `:1162`, `:1224`, `:1254` and `smoke-test.md:283`),
@@ -199,10 +192,6 @@ The walk is `docs/archive/walks/2026-09-19-group-az-walk.md`. What is left, so i
 
 The ten fixes, the walks and the squash map (old → new hashes) are in the done file. Still open
 (2026-09-21), none of it blocking:
-- **BD 10 + the update restart** — now that v0.10.10 is published: BD 10 (Install refused while an
-  operation runs) and, with it, "after the update installs, the app comes back" (§I, F7 / updater
-  restart). Walk both with group AC, from an installed 0.10.9 or older. That `install_update` calls
-  the refusal helper also waits for BD 10.
 - **A staged diff's body can stay stale after an outside `git add`** — found on the second walk
   (BD 11), older than this batch. The panel reloads a diff when the row's status entry changes:
   its letters, or `workdir_stamp` (mtime:size). Nothing stamps the index side, so a tool that

@@ -98,6 +98,15 @@ that way on 2026-09-19.
 - **Icon buttons have no text**: `button[aria-label="Stage"]`. A text match on "Stage" finds **Stage all**
   first, which is disabled while every listed file is conflicted.
 
+### Pulling the network for the app alone
+
+`docs/smoke/fixtures/throttle-proxy.mjs` is a CONNECT proxy: `node throttle-proxy.mjs 8888 [bytesPerSecond]`.
+Launch the app with `$env:HTTPS_PROXY = "http://127.0.0.1:8888"` (and `HTTP_PROXY`) set before
+`smoke-launch.ps1`. The updater follows those variables, and so does git over https. Stop the proxy and the app is
+offline; start it with a rate and a download slows enough to kill it mid-transfer. That is how group AC's
+failed-check and failed-install boxes were walked on 2026-09-24, with no admin rights and no firewall rule. With
+several windows open, `CDP_TITLE="- <repo>"` picks the one `cdp.mjs` drives.
+
 ### Inside Windows Sandbox (a clean machine)
 
 Group BF was walked this way on 2026-09-24. It needs the Store-updated Windows Sandbox, the one that ships

@@ -749,12 +749,13 @@ they stay clear._
 - [x] **The toggle governs the launch check only**: switch *Check for updates on launch* off, close
       and reopen the app → no badge, nothing asked → open Settings → **Check now** still answers;
       the setting survives a restart
-- [ ] **A failed check is honest**: pull the network → **Check now** → the failure shows in the
+- [x] **A failed check is honest**: pull the network → **Check now** → the failure shows in the
       Updates section (not as a toast), the dialog stays usable, and the status line does **not**
       fall back to `is up to date`
-- [ ] **A failed install unsticks**: interrupt the download (kill the network mid-transfer) → the
+- [x] **A failed install unsticks**: interrupt the download (kill the network mid-transfer) → the
       message lands beside the buttons, the progress bar goes, and **Update to <v>…** can be pressed
       again
+      Walked 2026-09-24 on the installed 0.10.10 updating to the published 0.10.11, through `docs/smoke/fixtures/throttle-proxy.mjs` (`docs/archive/walks/2026-09-24-update-walk.md`). The network was the proxy: stopped for the check, cut at 11 % for the install.
 - [ ] **deb / rpm**: on a `.deb` install the button reads **Download…** and opens the releases page
       instead of installing; on the AppImage it installs in place like Windows
 
@@ -1849,7 +1850,7 @@ Open: 9 (unit-tested only), 10 (needs a published update), 11 (other platforms).
 7. - [x] **A conflict under an ignore rule still stages**: a tracked `gen.log` under `*.log` (`git add -f`), changed on two branches, merged → conflicted. Resolve it by hand and **Stage** → staged, no "is ignored" refusal (the index's stages 1–3 count as tracked). On a second such file **Keep `<branch>`'s version** → staged with that side; it runs no ignore check at all.
 8. - [x] **A file that became ignored is still refused**: with an untracked `new.txt` listed and selected, append `new.txt` to `.gitignore` from a terminal and press **Stage** before the list refreshes → "Stage failed — new.txt is ignored", nothing in the index.
 9. - [ ] **A skipped path says so**: when `git update-index` skips a path of a batch, the toast reads `git skipped <path>; any other paths were staged` and the lists refresh. No hand recipe known — unit-tested (`check_staged`).
-10. - [ ] **An update's restart keeps every window**: with two windows open, install an update from the in-app prompt → the relaunch restores both (the restart takes the Quit path, 3k). Needs a published update newer than the build — walk it with group AC.
+10. - [x] **An update's restart keeps every window**: with two windows open, install an update from the in-app prompt → the relaunch restores both (the restart takes the Quit path, 3k). Needs a published update newer than the build — walk it with group AC. Walked 2026-09-24 on the installed 0.10.10 updating to the published 0.10.11, through `docs/smoke/fixtures/throttle-proxy.mjs` (`docs/archive/walks/2026-09-24-update-walk.md`). Two windows (`work`, `dogfood`) came back within 5 s on 0.10.11.
 11. **Other platforms** — nothing here is OS-specific code, but only Windows was walked. Repeat 3a, 3b, 3d, 3i (close windows, `cat` the file) and 6:
     - [ ] Linux (WebKitGTK)
     - [ ] macOS
@@ -1914,7 +1915,7 @@ setup where local `dev` tracks `origin/develop`, and a `post-commit` hook `sleep
 - [x] 7. Commit with the `sleep 60 &` hook installed: the Commit button stops spinning within a second and a second commit right after is not `Busy`.
 - [x] 8. Start the exe twice: one process, a second window on the start screen, in front. Opening in it the repository the first window holds brings the first forward instead; closing its last tab closes it; closed while still empty, it is not restored on the next launch.
 - [x] 9. Merge dialog: "Always create a merge commit" greys Squash out and unticks it; with another strategy Squash still merges.
-- [ ] 10. With a long fetch running in one window, Install in another is refused with the running-operation reason. (Needs a published update — walk with group AC.)
+- [x] 10. With a long fetch running in one window, Install in another is refused with the running-operation reason. (Needs a published update — walk with group AC.) Walked 2026-09-24 on the installed 0.10.10 updating to the published 0.10.11, through `docs/smoke/fixtures/throttle-proxy.mjs` (`docs/archive/walks/2026-09-24-update-walk.md`). A 60 s fetch from `slow` in `work`; Install in `dogfood` read *"a git operation is still running — let it finish or cancel it, then install"*.
 
 Rows 11–16 use a second fixture, `docs/smoke/fixtures/bd2-fixture.sh` → `c:/tmp/t4/be`: the two page files
 conflicting between `main` and `side`, submodules `subs/[ab]` and `subs/a` one commit behind, a second

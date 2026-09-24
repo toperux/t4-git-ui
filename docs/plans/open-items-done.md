@@ -330,6 +330,11 @@ commits and pushed with the CI port from the markdown viewer (`a904701`).
   variable unset and an empty `XDG_RUNTIME_DIR` both launches start, two processes; with
   `DBUS_SESSION_BUS_ADDRESS=garbage` or set empty the app panics at `linux.rs:57`. Reopen if a
   user reports a startup crash on Linux, or when the plugin stops unwrapping.
+- **F7 / updater restart** — **walked 2026-09-24** (`docs/archive/walks/2026-09-24-update-walk.md`): the installed
+  0.10.10 updated itself to the published 0.10.11 with two windows open. The process was gone and a new one up
+  within 5 s, with both windows, on 0.10.11. The single-instance lock let go on the way out, as read from the
+  sources on 2026-09-21. The same walk ticked BD 10 (Install refused while a fetch runs in another window), AZ 10,
+  and AC's failed-check and failed-install boxes, through `docs/smoke/fixtures/throttle-proxy.mjs` as the network.
 - **F8 / test cost, Windows only** —
   `a_background_child_holding_the_pipe_does_not_hold_the_op` takes ~12 s of wall time: `run()`
   returns in ~0.6 s, but tokio's blocking-pool pipe read outlives the op until the `sleep 12`
