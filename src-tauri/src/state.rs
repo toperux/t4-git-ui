@@ -193,6 +193,7 @@ impl AppState {
     pub fn drafts(&self) -> Vec<String> {
         let mut all: Vec<String> = lock(&self.drafts).values().flatten().cloned().collect();
         all.sort();
+        all.dedup();
         all
     }
 

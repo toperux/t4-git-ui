@@ -9,6 +9,13 @@ import { toAppError } from "../api/ipc";
 import type { UpdateInfo } from "../api/types";
 import { APP_NAME } from "../lib/app";
 
+/**
+ * `installing` isn't set until after the drafts query and the ask below, so a second Install click in
+ * that gap would start a second install flow. Guarded here rather than by setting `installing` early:
+ * Settings reads `installing` as "Downloading…", which must not show while it is still asking.
+ */
+let confirming = false;
+
 export interface UpdateStore {
   /** The release newer than this build, once a check found one. */
   info: UpdateInfo | null;
@@ -52,17 +59,23 @@ export const useUpdateStore = create<UpdateStore>()((set) => ({
   },
 
   async install() {
-    // The restart takes every window with it, and a typed commit message lives only in its window.
-    // A failed query installs anyway: an update must not be blocked by bookkeeping.
-    const drafts = await ipc.commitDrafts().catch(() => [] as string[]);
-    if (drafts.length > 0) {
-      const ok = await ask(`Installing restarts ${APP_NAME}. The commit message typed in ${drafts.join(", ")} will be lost.`, {
-        title: "Install the update",
-        kind: "warning",
-        cancelLabel: "Cancel",
-        okLabel: "Install",
-      }).catch(() => false);
-      if (!ok) return;
+    if (confirming) return;
+    confirming = true;
+    try {
+      // The restart takes every window with it, and a typed commit message lives only in its window.
+      // A failed query installs anyway: an update must not be blocked by bookkeeping.
+      const drafts = await ipc.commitDrafts().catch(() => [] as string[]);
+      if (drafts.length > 0) {
+        const ok = await ask(`Installing restarts ${APP_NAME}. The commit message typed in ${drafts.join(", ")} will be lost.`, {
+          title: "Install the update",
+          kind: "warning",
+          cancelLabel: "Cancel",
+          okLabel: "Install",
+        }).catch(() => false);
+        if (!ok) return;
+      }
+    } finally {
+      confirming = false;
     }
     set({ installing: true, progress: null, error: null });
     // Inside the try, so a subscription that rejects still reaches the `finally`: `installing` also

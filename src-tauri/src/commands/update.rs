@@ -295,5 +295,8 @@ mod tests {
         assert_eq!(state.drafts(), ["api", "docs", "web"]);
         state.set_drafts("main", Vec::new());
         assert_eq!(state.drafts(), ["docs"]);
+        // Two windows can have the same repository open — its draft counts once.
+        state.set_drafts("main", vec!["docs".into()]);
+        assert_eq!(state.drafts(), ["docs"]);
     }
 }

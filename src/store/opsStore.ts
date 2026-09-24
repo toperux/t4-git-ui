@@ -132,10 +132,12 @@ export interface RunOpOptions {
    */
   remote?: string | true;
   /**
-   * A branch pull or push: its success is the answer to an earlier "Rejected — Pull first", so that
-   * toast goes. Error toasts never expire on their own, and this one otherwise outlives its cause.
+   * The remote and local branch a pull or push is about. A "Rejected — Pull first" is kept under the
+   * pair, and the next pull or push of that pair that succeeds retires it — error toasts never expire
+   * on their own, and this one otherwise outlives its cause. Pushing `feature`, or pulling `main` from
+   * `origin`, says nothing about `main` on `mirror`.
    */
-  answersRejection?: boolean;
+  about?: { remote: string; branch: string };
 }
 
 export type OpOutcome = { ok: true } | { ok: false; error: AppError | null; failure: OpFailure | null };
@@ -166,8 +168,14 @@ export function failureToast(f: OpFailure): { title: string; detail?: string; ac
   }
 }
 
-/** The "Rejected — Pull first" toast still up, by repository: the next pull or push that succeeds retires it. */
-const rejections = new Map<RepoId, number>();
+/** The "Rejected — Pull first" toast still up, by repository, remote and branch (`rejectionKey`). */
+const rejections = new Map<string, number>();
+
+/** An op with no `about` (a typed `git push`) keys under empty names: no pull or push retires it. */
+const rejectionKey = (repo: RepoId, about: RunOpOptions["about"]) => `${repo}\n${about?.remote ?? ""}\n${about?.branch ?? ""}`;
+
+/** Drops a rejection toast by id — not `dismiss`, which moves the focus. */
+const removeRejectionToast = (id: number) => useToastStore.setState((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }));
 
 /**
  * Runs one operation against the open repo. Refuses (info toast) while another `runOp` is in flight;
@@ -193,16 +201,22 @@ export async function runOp(busy: string, fn: (id: RepoId) => Promise<OpResult |
       const loud = stopped || failure.kind === "authFailed" || failure.kind === "nonFastForward" || failure.kind === "diverged";
       if (!opts.quietFailure || loud) {
         const toast = push({ kind: stopped ? "info" : "error", ...failureToast(failure) });
-        if (failure.kind === "nonFastForward") rejections.set(repo.id, toast);
+        if (failure.kind === "nonFastForward") {
+          // A second rejection while the first is still up must not orphan it: one toast per pair.
+          const key = rejectionKey(repo.id, opts.about);
+          const old = rejections.get(key);
+          if (old !== undefined) removeRejectionToast(old);
+          rejections.set(key, toast);
+        }
       }
       if (stopped) useRepoStore.getState().selectWorkingTree();
       outcome = { ok: false, error: null, failure };
     } else {
-      const rejection = opts.answersRejection ? rejections.get(repo.id) : undefined;
+      const key = rejectionKey(repo.id, opts.about);
+      const rejection = opts.about ? rejections.get(key) : undefined;
       if (rejection !== undefined) {
-        rejections.delete(repo.id);
-        // Not `dismiss`: that hands the focus back to the toast's origin, and nothing was clicked.
-        useToastStore.setState((s) => ({ toasts: s.toasts.filter((t) => t.id !== rejection) }));
+        rejections.delete(key);
+        removeRejectionToast(rejection);
       }
       if (opts.success) push({ kind: "success", title: opts.success });
       outcome = { ok: true };

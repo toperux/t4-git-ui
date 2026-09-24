@@ -145,6 +145,23 @@ describe("updateStore.install", () => {
     expect(ask).toHaveBeenCalledTimes(1);
     expect(mocked.installUpdate).toHaveBeenCalledTimes(2);
   });
+
+  it("a second Install click during the confirm is refused, not a second install flow", async () => {
+    useUpdateStore.setState({ info: release });
+    mocked.commitDrafts.mockResolvedValue(["api"]);
+    let resolveAsk!: (v: boolean) => void;
+    ask.mockReturnValueOnce(new Promise<boolean>((res) => (resolveAsk = res)));
+    const first = useUpdateStore.getState().install();
+    await flush();
+    expect(ask).toHaveBeenCalledTimes(1);
+
+    await useUpdateStore.getState().install();
+    expect(ask).toHaveBeenCalledTimes(1);
+    expect(mocked.installUpdate).not.toHaveBeenCalled();
+
+    resolveAsk(false);
+    await first;
+  });
 });
 
 describe("updateStore.learn", () => {

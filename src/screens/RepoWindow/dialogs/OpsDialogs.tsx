@@ -144,7 +144,7 @@ export function PushDialog({ onClose, branch: branchProp }: { onClose: () => voi
   function submit() {
     if (!remote || !branch) return;
     onClose();
-    void runOp(`Pushing to ${remote}…`, (id) => ipc.push(id, remote, refspec, setUpstream, force, tags), { success: `Pushed ${branch} → ${target}`, remote, answersRejection: true });
+    void runOp(`Pushing to ${remote}…`, (id) => ipc.push(id, remote, refspec, setUpstream, force, tags), { success: `Pushed ${branch} → ${target}`, remote, about: { remote, branch } });
   }
 
   return (
@@ -217,8 +217,18 @@ export function PullDialog({ onClose }: { onClose: () => void }) {
       success: `Pulled ${branch && remote ? `${remote}/${branch}` : remote || "changes"}`,
       // No remote picked: git followed the tracking configuration, so ask them all.
       remote: remote || true,
-      answersRejection: true,
+      about: rejectionPair(),
     });
+  }
+
+  /**
+   * What a rejected push of this branch was keyed under: the local branch pulled into (not `branch`,
+   * the remote side), and the remote — the picked one, else the upstream's, which is where git pulls from.
+   */
+  function rejectionPair() {
+    const into = local?.find((b) => b.isHead)?.name;
+    const from = remote || remotes.find((r) => upstream?.startsWith(`${r}/`));
+    return into && from ? { remote: from, branch: into } : undefined;
   }
 
   return (

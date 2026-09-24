@@ -141,6 +141,17 @@ describe("commitStore.syncWithStatus", () => {
     expect(mocked.getFileDiff).toHaveBeenCalledTimes(2);
   });
 
+  it("reloads when only the shown file's indexStamp changed, which workdirStamp alone does not show", async () => {
+    // Staging through another tool moves the index blob but not the working file: workdirStamp holds,
+    // indexStamp is the only part of the entry that says the staged content is not what was shown.
+    const withIndexStamp = (indexStamp: string | null): StatusEntry => ({ ...entry("a.rs"), indexStamp });
+    await sync([withIndexStamp(null)]);
+    expect(mocked.getFileDiff).toHaveBeenCalledTimes(1);
+
+    await sync([withIndexStamp("abc")]);
+    expect(mocked.getFileDiff).toHaveBeenCalledTimes(2);
+  });
+
   it("reloads when the shown file's own status entry changed, keeping identity for equal hunks", async () => {
     await sync([entry("a.rs")]);
     const shown = useCommitStore.getState().diff;

@@ -171,7 +171,7 @@ const seenHunks = (diff: FileDiff | null, hunks: number[]): ipc.SeenHunk[] =>
   });
 
 /** Nothing the user typed is in the editor: it is empty, or holds exactly what the last prefill put there. */
-const untouched = ({ summary, body, prefill }: CommitStore) =>
+const untouched = ({ summary, body, prefill }: Pick<CommitStore, "summary" | "body" | "prefill">) =>
   (!summary.trim() && !body.trim()) || (prefill !== null && prefill.summary === summary && prefill.body === body);
 
 export const useCommitStore = create<CommitStore>()((set, get) => {
@@ -583,8 +583,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
  * A message someone typed: not blank, and not a prefill left as it was. HEAD's message, `MERGE_MSG`
  * and a history entry all survive a restart; only typing is lost.
  */
-export const hasDraft = (c: Pick<CommitStore, "summary" | "body" | "prefill">) =>
-  (c.summary.trim() !== "" || c.body.trim() !== "") && !(c.prefill && c.summary === c.prefill.summary && c.body === c.prefill.body);
+export const hasDraft = (c: Pick<CommitStore, "summary" | "body" | "prefill">) => !untouched(c);
 
 /**
  * What a background tab keeps of this store — the whole editor, so a half-written commit message

@@ -18,9 +18,10 @@ src/
     ipc.ts                 `call()` (the one `invoke` wrapper) + one typed function per command, including the start-screen
                            cloneRepo {url,dest,recurseSubmodules,depth?} / initRepo {path} → RepoSummary; every
                            rejection is an AppError {kind, message}; isAppError/toAppError
-    events.ts              onLogProgress / onRepoChanged / onOpEvent / onSettingsChanged (cb) → unlisten  (`log://progress`,
-                           `repo://changed`, `op://event`, `settings://changed` — broadcast by emitSettingsChanged after a
-                           preference is written, so every window re-reads it) and onTabSpawnFailed (`tab-spawn-failed` —
+    events.ts              onLogProgress / onRepoChanged / onOpEvent / onSettingsChanged / onUpdateChecked (cb) → unlisten
+                           (`log://progress`, `repo://changed`, `op://event`, `settings://changed` — broadcast by
+                           emitSettingsChanged after a preference is written, so every window re-reads it, `update://checked`
+                           — every successful check's answer, to every window) and onTabSpawnFailed (`tab-spawn-failed` —
                            the window some moved tabs were promised never opened, so all of them come back here);
                            onOpEventReady / onUpdateProgressReady (cb) → Promise<unlisten> for callers that must be listening
                            before they invoke (`op://event`, `update://progress` — the update download's percent, `null` until
@@ -143,7 +144,11 @@ src/
                            progress (download percent, `null` while the total size is unknown), error;
                            check() (check_for_update — run at launch when settingsStore.autoUpdateCheck, and by Settings' Check now)
                            and install() (subscribes to `update://progress` *before* invoking install_update, then never comes
-                           back: the app restarts into the new version — so only its failures land in `error`).
+                           back: the app restarts into the new version — so only its failures land in `error`; asks first
+                           when `ipc.commitDrafts()` names a window holding a typed commit message, kept current by each
+                           window's own `setCommitDrafts`). learn(info) takes another window's check as this window's own —
+                           fed by App.tsx's onUpdateChecked (`update://checked`) and, for a window opening after the answer
+                           already came back, `ipc.lastUpdateCheck()`.
                            Settings › General › Updates and the UpdateBadge on both screens read the same answer
     dialogStore.ts         zustand: one `DialogSpec` at a time — open(spec, {returnFocusTo}) / close(); DialogHost renders it
                            and feeds `returnFocusTo` to `Dialog` through `DialogReturnFocus`
