@@ -43,9 +43,14 @@ done, move it there._
   So a grep for `- [ ]` finds eight and only six are owed; read AG before counting it as a backlog.
   (Recounted 2026-09-19 in §M: fourteen lines, the line numbers above moved by two.)
 
-The rest needs machines we do not have:
-- Installer on a clean Windows 11 (no dev tools, no WebView2 preinstalled? — the NSIS bundle
-  should fetch it).
+- **Windows code signing** — the NSIS setup is not Authenticode-signed, so every new Windows user meets
+  SmartScreen's "Windows protected your PC" and has to pick *More info › Run anyway*. The updater's minisign
+  signature is a different thing: it protects updates, not the first download. Fixing it needs a code-signing
+  certificate (paid, or a signing service), then `bundle.windows.certificateThumbprint` / `signCommand` and a
+  release-workflow step, the same shape as the macOS certificate. Recorded 2026-09-24 from group BF. What an unsigned setup
+  actually met there (BF 3, in Windows Sandbox): **Edge warned on the download**, and running it brought **no
+  SmartScreen prompt**. So today the friction is the browser's download warning. SmartScreen on run may still
+  differ on a real machine, whose settings the Sandbox need not share.
 - Linux (WebKitGTK) rendering: walked on 2026-09-05 under WSLg (Ubuntu 24.04, X11 backend) —
   fonts, both themes, graph, panels, styled scrollbars (thumb + hover), all five splitters and the
   dock drag, native-menu suppression (toolbar / panel header / statusbar / bare diff body → nothing;
@@ -212,10 +217,9 @@ The ten fixes, the walks and the squash map (old → new hashes) are in the done
 ## Suggested order, if nothing else decides it
 
 The `ubuntu-22.04` decision in §E is parked until 2026-12-23 (three months before the 2027-03-23
-brownout). First, the npm majors one PR at a time, Vitest 5 first (§H). Otherwise:
-1. The clean-Win11 install.
-2. Linux/macOS rendering when a machine is available — signing is done, and never needed one. CI's
+brownout). Otherwise:
+1. Linux/macOS rendering when a machine is available — signing is done, and never needed one. CI's
    ubuntu and macOS legs already run the `#[cfg(unix)]` exec-bit staging test on every code push
    to `main`; only group G's manual
    mode-chip check needed a Unix box (done under WSLg 2026-09-05).
-3. The performance items, each only after a measurement on a `git/git` clone says so.
+2. The performance items, each only after a measurement on a `git/git` clone says so.

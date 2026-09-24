@@ -7,7 +7,8 @@
 // pins the viewport and leaves the window unable to reflow.
 import { readFileSync } from "node:fs";
 
-const HOST = "127.0.0.1:9222";
+// CDP_HOST reaches an app elsewhere, e.g. inside Windows Sandbox behind a port proxy.
+const HOST = process.env.CDP_HOST ?? "127.0.0.1:9222";
 let nextId = 1;
 const pending = new Map();
 let ws, sessionId, targetId;

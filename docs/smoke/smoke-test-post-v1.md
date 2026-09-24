@@ -1986,6 +1986,41 @@ restored) — `docs/archive/walks/2026-09-24-group-be-walk.md`. Both rows pass. 
 clause cannot be seen in this order — the row expands the dock to reach Cancel — and is the main doc's §5
 check, walked there.
 
+## BF. A clean Windows 11: install, first launch, uninstall (Windows installer)
+
+A machine with no dev tools, no git and no WebView2. Windows Sandbox is one: the image it ran on 2026-09-24
+(Windows 11 24H2, 26100) had the Edge browser but **no WebView2 runtime**. The recipe, over `wsb.exe` with CDP
+through a port proxy, is `docs/smoke/smoke-cdp.md` › *Inside Windows Sandbox*, with the scripts in
+`docs/smoke/fixtures/sandbox/`. Use the published `T4-Git-UI_<ver>_x64-setup.exe`, checked against its `.sha256`.
+
+- [x] 1. **Before**: no WebView2 in the registry or under `Program Files (x86)\Microsoft\EdgeWebView`, no git,
+      no `%LOCALAPPDATA%\T4 Git UI`.
+- [x] 2. **Install** (`/S`, as the logged-on user, no admin prompt) → exit 0. WebView2 is there afterwards
+      (the installer fetched it); `t4-git-ui.exe` + `uninstall.exe` in `%LOCALAPPDATA%\T4 Git UI`; a Start menu
+      entry **T4 Git UI**; an uninstall entry **T4 Git UI** with version `<ver>`.
+- [x] 3. **The installer's own pages and SmartScreen**, by hand (a silent install shows neither): download the
+      setup **inside** the Sandbox with Edge, from the release page, so it carries the downloaded-file mark. A copied-in
+      file skips SmartScreen. Walked by the user 2026-09-24: **Edge warns on the download**; running it brought **no
+      SmartScreen prompt**; per-user only, with no all-users option; it installs WebView2; **Run T4 Git UI** is
+      ticked at the end; the first launch shows *Git not found*. The interactive uninstall offers **Delete the
+      application data**.
+- [x] 4. **First launch, no git** → **Git not found**, *"T4 Git UI needs git 2.24 or newer…"*, with **Retry** and
+      **Locate git…**.
+- [x] 5. **Install git with the app open** → Retry keeps reporting *git executable not found*: the process
+      still has the PATH it started with. So the screen says *"Install it from git-scm.com, then restart T4 Git
+      UI"* (0.10.10 said "… and retry"; reworded 2026-09-24). **Restart** → the start screen, with
+      `git 2.55.0.windows.5` in its footer.
+- [x] 6. **Clone** `https://github.com/toperux/t4-git-ui.git` from the Clone dialog (a public repo, no
+      credentials) → the window opens on it: the grid, the status bar `main · origin · Clean`. A commit's `.rs`
+      diff has syntax colours and intra-line highlights; the Files tab lists the whole tree with sizes.
+- [x] 7. **Settings › Updates** → *"T4 Git UI <ver> is up to date"*, from the check on launch and from **Check now**.
+- [x] 8. **Uninstall** (close the app, `uninstall.exe /S`) → no `%LOCALAPPDATA%\T4 Git UI`, no Start menu entry,
+      no uninstall entry, nothing running. No desktop shortcut either way (a silent install makes none).
+      `%APPDATA%\dev.topher.t4gitui` (layout, recents, window state) and `%LOCALAPPDATA%\dev.topher.t4gitui` (the
+      WebView2 profile) stay, as a silent uninstall leaves the app data.
+
+Walked 2026-09-24 over `wsb` + CDP on the published 0.10.10 — `docs/archive/walks/2026-09-24-group-bf-walk.md`.
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the

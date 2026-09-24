@@ -110,6 +110,17 @@ Text is moved as written; hashes and line numbers are those of the day._
   against `toperux/t4-git-ui`, both pass (`docs/archive/walks/2026-09-24-group-be-walk.md`, which also
   records three observations: the rejection toast outlives a successful pull and push, it covers the
   grid's top row, and closing windows one by one drops the earlier ones from `layout.json`).
+- **Installer on a clean Windows 11** — walked 2026-09-24 as smoke group BF, in Windows Sandbox (a Windows 11
+  24H2 image with the Edge browser but **no WebView2 runtime**), driven over `wsb.exe` + CDP
+  (`docs/archive/walks/2026-09-24-group-bf-walk.md`). The published 0.10.10 setup installs silently without
+  admin, **fetches WebView2 itself**, and registers a Start menu entry and an uninstall entry. The first launch
+  shows *Git not found*. With git installed and the app restarted it clones a public repo over https; the grid,
+  a syntax-coloured diff and the Files tab all work, and Updates reports up to date. The uninstall removes the
+  program and its entries and keeps the app data. The installer's pages and SmartScreen were walked by hand the
+  same day (BF 3): Edge warns on the download, no SmartScreen prompt on run, per-user only, it installs WebView2,
+  **Run** is ticked at the end, and the interactive uninstall offers to delete the app data. **Retry on *Git not found*** cannot see a git installed after launch: git runs from the
+  PATH the process started with. Decided 2026-09-24 to fix the wording rather than the lookup, so the screen now
+  says *"Install it from git-scm.com, then restart T4 Git UI"* (`GitMissingScreen.tsx`).
 - ~~Dependabot's `glib` 0.18 alert~~ (unsound `VariantStrIter`, fixed in 0.20): reached us through
   Tauri's gtk 0.18 pin (`tauri → muda → gtk → atk → glib`), Linux builds only, an API this app
   never calls. **Dismissed 2026-09-10** on exactly that reasoning; no open Dependabot alert remains.

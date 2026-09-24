@@ -98,6 +98,33 @@ that way on 2026-09-19.
 - **Icon buttons have no text**: `button[aria-label="Stage"]`. A text match on "Stage" finds **Stage all**
   first, which is disabled while every listed file is conflicted.
 
+### Inside Windows Sandbox (a clean machine)
+
+Group BF was walked this way on 2026-09-24. It needs the Store-updated Windows Sandbox, the one that ships
+`wsb.exe`: start the built-in one once and the update installs itself in the background. The scripts are in
+`docs/smoke/fixtures/sandbox/`, shared into the Sandbox read-only as `C:\t4in`, with a writable `C:\t4out`:
+
+```
+wsb start --raw --config "<Configuration><Networking>Enable</Networking><MappedFolders>…</MappedFolders></Configuration>"
+wsb connect --id <id>          # opens the window; -r ExistingLogin needs a logged-on session
+wsb exec --id <id> -r ExistingLogin -c "powershell -NoProfile -ExecutionPolicy Bypass -File C:\t4in\probe.ps1 -Name before"
+wsb exec --id <id> -r ExistingLogin -c "C:\t4in\T4-Git-UI_<ver>_x64-setup.exe /S"
+wsb exec --id <id> -r System        -c "powershell … -File C:\t4in\forward.ps1"   # port proxy 9223 → 9222 + firewall
+wsb exec --id <id> -r System        -c "powershell … -File C:\t4in\policy.ps1"    # CDP flag via WebView2 policy
+wsb exec --id <id> -r ExistingLogin -c "powershell … -File C:\t4in\launch.ps1"
+CDP_HOST=$(wsb ip --id <id>):9223 node docs/smoke/cdp.mjs --eval "document.title"
+```
+
+- `wsb exec` returns only an exit code, so every script writes its findings to `C:\t4out`. Read them from the host.
+- **The environment variable does not work there.** `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`, set in the
+  launching PowerShell, never reached WebView2 when the app was started through `wsb exec`. The policy key
+  `HKLM\SOFTWARE\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments`, value `t4-git-ui.exe`, did.
+- WebView2 serves CDP on `127.0.0.1` only, hence the port proxy. The page's `webSocketDebuggerUrl` comes back
+  with the Sandbox's own address, so `cdp.mjs` needs nothing beyond `CDP_HOST`.
+- A silent install skips the installer's own pages and SmartScreen. Those still want a hand look.
+- Clear the `data-w` marker before tagging the next element. `querySelector('[data-w]')` returns the
+  **first** one in the DOM, so an old tag on a grid row makes every later click land on that row.
+
 ## Selectors that hold
 
 - Start screen: `input[aria-label="Filter repositories"]`,
