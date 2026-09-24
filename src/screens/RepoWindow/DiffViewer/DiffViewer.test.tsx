@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { loadLang } from "../../../lib/highlight";
 import { useDiffStore } from "../../../store/diffStore";
 import { useSettingsStore } from "../../../store/settingsStore";
 import { bigDiff, fileDiff, hunk, line } from "./diffFixtures";
@@ -87,9 +88,21 @@ describe("DiffViewer", () => {
   });
 
   // `css: false` in vitest, so the CSS-module class is matched by substring rather than by value.
-  const emph = (el: Element) => Array.from(el.querySelectorAll('[class*="emph"]')).map((e) => e.textContent);
+  // Touching emphasised spans read as one highlight: with the grammar loaded, `[0];` is four syntax
+  // spans, each cut on its own.
+  const emph = (el: Element) =>
+    Array.from(el.querySelectorAll('[class*="emph"]')).reduce<string[]>((out, e) => {
+      // `previousSibling`, not `…ElementSibling`: plain text between two highlights is a bare text node.
+      const prev = e.previousSibling;
+      if (out.length && prev instanceof Element && prev.className.includes("emph")) out[out.length - 1] += e.textContent;
+      else out.push(e.textContent ?? "");
+      return out;
+    }, []);
 
-  it("unified: only the changed words of the paired del/add line are emphasised", () => {
+  it("unified: only the changed words of the paired del/add line are emphasised", async () => {
+    // Loaded up front, as in the app once a `.rs` diff has been seen: whether the dynamic import had
+    // resolved by render time was the test runner's timing, and it differs between Vitest 4 and 5.
+    await loadLang("rust");
     useDiffStore.setState({ view: "unified" });
     const { getByRole } = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} />);
     const rows = Array.from(getByRole("region", { name: "Diff" }).firstElementChild!.children);
@@ -102,7 +115,8 @@ describe("DiffViewer", () => {
     expect(rows[3].textContent).toBe("113+    let lane = match matches.first() {");
   });
 
-  it("split: each side of a pair carries its own emphasis", () => {
+  it("split: each side of a pair carries its own emphasis", async () => {
+    await loadLang("rust");
     useDiffStore.setState({ view: "split" });
     const { getByRole } = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} />);
     const rows = Array.from(getByRole("region", { name: "Diff" }).firstElementChild!.children);
