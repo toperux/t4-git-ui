@@ -90,7 +90,15 @@ Custom titlebar (revisited in M6, native kept) · i18n · plugins.
     on 2026-09-12.
   - (2026-09-24) **The single PRs arrived 2026-09-17**, all open: #10 Vitest 5, #11 Vite 8, #12
     plugin-react 6 (all three red), #13 `@types/node` 26 and #9 the npm group of 7 (both green). No
-    TypeScript 7 PR.
+    TypeScript 7 PR — Dependabot's default limit is five open npm PRs, and five were open.
+  - (2026-09-24) **Vitest 5, Vite 8 and plugin-react 6 landed on `main` as one commit** (`3a802e8`,
+    after the test fix `1847fa8`). #11 and #12 cannot pass apart: plugin-react 4 accepts no Vite 8 and
+    plugin-react 6 needs it. #10's two red tests were the answer to the question above, and it is
+    neither: the `.rs` grammar is a dynamic import, and under Vitest 5 it had resolved by render, so
+    `[0];` came back as four syntax spans, each highlighted. The app draws those as one highlight
+    (background only), so the tests now load the grammar first and join touching highlights. Gates
+    green, `tauri build --no-bundle` built and launched, syntax + intra-line highlight seen on a `.rs`
+    diff. Left: #9 and #13 (green), and TypeScript 7 when its PR opens.
 - **`watch::tests::rename_is_reported` flaked once on macOS** (PR #7's first run, 2026-09-12);
   passed on the rerun and on every run since. FSEvents timing is the usual reason. Watch, do not
   act: a second flake makes it a finding (bound the wait on the rename pair, or accept either
