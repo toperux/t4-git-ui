@@ -1179,6 +1179,7 @@ mod tests {
                     submodule: false,
                     submodule_dirty_only: false,
                     workdir_stamp: None,
+                    index_stamp: None,
                 },
                 StatusEntry {
                     path: "b.txt".into(),
@@ -1189,6 +1190,7 @@ mod tests {
                     submodule: false,
                     submodule_dirty_only: false,
                     workdir_stamp: None,
+                    index_stamp: None,
                 },
             ],
             staged: 0,

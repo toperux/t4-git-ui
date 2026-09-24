@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { StatusEntry } from "../../../api/types";
 import { stageTarget } from "./stageTarget";
 
-const entry = (path: string, conflicted = false): StatusEntry => ({ path, oldPath: null, index: null, workdir: "modified", conflicted, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1" });
+const entry = (path: string, conflicted = false): StatusEntry => ({ path, oldPath: null, index: null, workdir: "modified", conflicted, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1", indexStamp: null });
 
 describe("stageTarget", () => {
   it("drops paths the list no longer holds: a selection outlives the status it was made against", () => {

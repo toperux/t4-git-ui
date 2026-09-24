@@ -57,6 +57,7 @@ const entry = (path: string, patch: Partial<StatusEntry> = {}): StatusEntry => (
   submodule: false,
   submoduleDirtyOnly: false,
   workdirStamp: null,
+  indexStamp: null,
   ...patch,
 });
 /** A dirty tree the stash surfaces read through `useStashFiles`. */

@@ -534,6 +534,12 @@ export interface StatusEntry {
    * is a directory, so it carries the checkout's own HEAD oid instead.
    */
   workdirStamp: string | null;
+  /**
+   * The staged blob's oid (16 hex digits — it only has to change), `null` when nothing is staged (or for a staged deletion). Re-staging new
+   * content keeps the letters and, for a file staged whole, there is no `workdirStamp` — this is what
+   * makes the entry differ then.
+   */
+  indexStamp: string | null;
 }
 
 export interface WorkdirStatus {

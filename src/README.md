@@ -98,7 +98,7 @@ src/
                            (get_changed_files ×2), diff of the anchor (unstaged|staged target, the settings' context — remembered as
                            `diffContext` beside the diff — no whitespace option, so hunk / line indices match the backend), editor (summary/body/amend/signoff/prefill), busy;
                            actions: select, syncWithStatus (prune → neighbour → other list; reloads the diff only when the anchor
-                           or its own StatusEntry changed — the entry carries `workdirStamp` (mtime:size) precisely so an edit on
+                           or its own StatusEntry changed — the entry carries `workdirStamp` (mtime:size) and `indexStamp` (the staged blob) precisely so an edit on
                            disk counts as a change: resolving a conflict in an editor leaves every status letter as it was —
                            plus always after one of our own mutations, which clear `diffEntry`:
                            staging a second hunk leaves the entry at modified/modified and would look like nothing happened —

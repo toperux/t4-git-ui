@@ -176,3 +176,44 @@ fn a_gitlinks_stamp_moves_with_its_pointer() {
     let after = stamp(&status(&t.repo).expect("status"));
     assert!(before.is_some() && before != after, "{before:?} {after:?}");
 }
+
+/// A file staged whole and re-staged with new content behind the app keeps its
+/// letters (`modified` in the index, nothing in the workdir) and has no workdir
+/// stamp, so only the index side's stamp can tell the panel its staged diff
+/// went stale (open-items §N).
+#[test]
+fn restaging_new_content_moves_the_index_stamp() {
+    let t = TempRepo::new();
+    t.commit(&[("f.txt", "v0\n")], "base");
+    let stamp = |t: &TempRepo| {
+        let s = status(&t.repo).expect("status");
+        let e = s
+            .entries
+            .into_iter()
+            .find(|e| e.path == "f.txt")
+            .expect("f.txt");
+        assert_eq!((e.index, e.workdir), (Some(FileStatus::Modified), None));
+        e.index_stamp
+    };
+    t.write("f.txt", "v1\n");
+    t.stage(&["f.txt"]);
+    let before = stamp(&t);
+    t.write("f.txt", "v2\n");
+    t.stage(&["f.txt"]);
+    let after = stamp(&t);
+    assert!(before.is_some() && before != after, "{before:?} {after:?}");
+}
+
+/// A staged deletion has no blob on the index side: its oid is zero, and a
+/// zero stamp would make every such entry look alike.
+#[test]
+fn a_staged_deletion_has_no_index_stamp() {
+    let t = TempRepo::new();
+    t.commit(&[("f.txt", "v0\n")], "base");
+    // `remove` takes the path out of the index too — that is the staging.
+    t.remove("f.txt");
+    let s = status(&t.repo).expect("status");
+    let e = s.entries.iter().find(|e| e.path == "f.txt").expect("f.txt");
+    assert_eq!(e.index, Some(FileStatus::Deleted));
+    assert_eq!(e.index_stamp, None);
+}

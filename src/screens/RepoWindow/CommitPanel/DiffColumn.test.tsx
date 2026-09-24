@@ -19,7 +19,7 @@ vi.mock("../DiffViewer/DiffViewer", () => ({
 vi.mock("@tauri-apps/plugin-dialog", () => ({ ask: vi.fn(), open: vi.fn() }));
 
 const STATUS: WorkdirStatus = {
-  entries: [{ path: "a.rs", oldPath: null, index: null, workdir: "modified", conflicted: false, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1" }],
+  entries: [{ path: "a.rs", oldPath: null, index: null, workdir: "modified", conflicted: false, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1", indexStamp: null }],
   staged: 0,
   unstaged: 1,
   untracked: 0,
@@ -50,7 +50,7 @@ describe("DiffColumn", () => {
 
   it("offers no hunk or line actions on a gitlink: a 160000 entry has no patchable body", () => {
     useStatusStore.setState({
-      status: { ...STATUS, entries: [{ path: "sub", oldPath: null, index: null, workdir: "modified", conflicted: false, submodule: true, submoduleDirtyOnly: false, workdirStamp: "abc:false" }] },
+      status: { ...STATUS, entries: [{ path: "sub", oldPath: null, index: null, workdir: "modified", conflicted: false, submodule: true, submoduleDirtyOnly: false, workdirStamp: "abc:false", indexStamp: null }] },
     });
     useCommitStore.setState({ diffPath: "sub", diffList: "unstaged" });
     render(<DiffColumn />);

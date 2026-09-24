@@ -40,6 +40,12 @@ pub struct StatusEntry {
     /// with the pointer. A conflicted one has no such id and falls back to the
     /// directory stamp.
     pub workdir_stamp: Option<String>,
+    /// The staged blob's oid, cut to 16 hex digits, `None` when nothing is
+    /// staged or the index side has no blob (a staged deletion). The letters
+    /// stay `modified` when a file is re-staged with new content, and a file
+    /// staged whole has no workdir stamp, so this is what tells the UI its
+    /// staged diff went stale.
+    pub index_stamp: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -234,6 +240,17 @@ pub fn status_with(repo: &Repository, refresh: bool) -> Result<WorkdirStatus, Gi
         } else {
             None
         };
+        // 16 hex digits, not 40: the stamp only has to change when the blob does, and it rides on
+        // every status read — tens of thousands of entries when a whole tree is staged.
+        let index_stamp = index
+            .and(hi.as_ref())
+            .map(|d| d.new_file().id())
+            .filter(|id| !id.is_zero())
+            .map(|id| {
+                let mut s = id.to_string();
+                s.truncate(16);
+                s
+            });
         entries.push(StatusEntry {
             path,
             old_path,
@@ -243,6 +260,7 @@ pub fn status_with(repo: &Repository, refresh: bool) -> Result<WorkdirStatus, Gi
             submodule,
             submodule_dirty_only: dirty_only,
             workdir_stamp,
+            index_stamp,
         });
     }
     entries.sort_by(|a, b| a.path.cmp(&b.path));

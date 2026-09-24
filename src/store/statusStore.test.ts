@@ -23,7 +23,7 @@ import { useToastStore } from "./toastStore";
 const mocked = ipc as unknown as Record<"getStatus" | "getRefs" | "getLinked" | "refreshLabels" | "startLog" | "getLogPage", ReturnType<typeof vi.fn>>;
 const REPO: RepoSummary = { id: "r1", name: "r1", path: "r1", head: { oid: "h1", branch: "main", detached: false } };
 const status = (n: number, state: RepoState = "clean"): WorkdirStatus => ({
-  entries: Array.from({ length: n }, (_, i) => ({ path: `f${i}`, oldPath: null, index: null, workdir: "modified", conflicted: false, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1" })),
+  entries: Array.from({ length: n }, (_, i) => ({ path: `f${i}`, oldPath: null, index: null, workdir: "modified", conflicted: false, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1", indexStamp: null })),
   staged: 0,
   unstaged: n,
   untracked: 0,

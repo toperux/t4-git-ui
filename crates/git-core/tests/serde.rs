@@ -297,6 +297,7 @@ fn diff_shapes_are_camel_case() {
             submodule: false,
             submodule_dirty_only: false,
             workdir_stamp: Some("1700000000000:12".into()),
+            index_stamp: Some("abc".into()),
         }],
         staged: 1,
         unstaged: 0,
@@ -310,6 +311,7 @@ fn diff_shapes_are_camel_case() {
     assert_eq!(ws["entries"][0]["workdir"], Value::Null);
     assert_eq!(ws["entries"][0]["oldPath"], Value::Null);
     assert_eq!(ws["entries"][0]["workdirStamp"], "1700000000000:12");
+    assert_eq!(ws["entries"][0]["indexStamp"], "abc");
     assert_eq!(ws["staged"], 1);
 
     // Options: all fields default, camelCase keys.
