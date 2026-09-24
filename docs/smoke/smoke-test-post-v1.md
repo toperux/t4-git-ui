@@ -1762,7 +1762,9 @@ and are still **not** re-measured; group AY bullet 10 is what exercises the new 
 3. - [x] ←/→ move the selection **and** the focus, wrapping both ways: General → Git → Diff & merge → General, and ArrowLeft back again.
 4. - [x] Tab from the last control of the open panel wraps to the title bar's Close and never lands on a control inside a hidden panel. (34 controls match the dialog's focusable selector; 11 are reachable on General, 14 on Git, 19 on Diff & merge — the counts were 33 / 10 before the Changes checkbox, whose input is `opacity: 0` rather than `hidden` and so is focusable.)
 5. - [x] Type into `Diff & merge › Diff tool › Command` without pressing Apply, switch to General and back: the draft is still there. The inactive panels are hidden, not unmounted, so the field stays in the DOM inside `[hidden]` — which is what makes losing the draft impossible.
-6. - [ ] Start a real update download: the whole tab row goes disabled along with Close, and the progress bar stays on screen with them. Needs a publishable newer release, so it is covered by `SettingsDialog.test.tsx` "a running download locks the tab row" and `updateStore.test.ts` "a progress subscription that never attaches unsticks the UI too".
+6. - [x] Start a real update download: the whole tab row goes disabled along with Close, and the progress bar stays on screen with them. Also covered by `SettingsDialog.test.tsx` "a running download locks the tab row" and `updateStore.test.ts` "a progress subscription that never attaches unsticks the UI too". Walked 2026-09-25 on a local build versioned 0.10.10, with the published 0.10.11 downloading through `throttle-proxy.mjs` at 100 KB/s:
+   - At *Downloading… 1%* all three tabs and both Close buttons (the title bar's and the footer's) were disabled, with the progress bar showing.
+   - The proxy was then killed: *the download was interrupted — try again (…)*, the tabs and Close enabled again, and the bar gone.
 7. - [x] Hover the **selected** tab: it keeps its `--bg-active` tint instead of dropping to the weaker `--bg-hover` one, and a disabled tab does not light up at all. Same check on the Changes | Files pair and on an open `SidebarRail` section — all three share the idiom. (Measured as computed `background-color` under a real `mouseMoved`: the
    selected tab holds `--bg-active` at .09 while hovered, an unselected one drops to `--bg-hover` at .05,
    and an unhovered one is transparent — at each of the three places. No tab goes disabled without a
@@ -2021,6 +2023,45 @@ through a port proxy, is `docs/smoke/smoke-cdp.md` › *Inside Windows Sandbox*,
       WebView2 profile) stay, as a silent uninstall leaves the app data.
 
 Walked 2026-09-24 over `wsb` + CDP on the published 0.10.10 — `docs/archive/walks/2026-09-24-group-bf-walk.md`.
+
+## BG. Staged-diff reload, update wording, rejection toast, update broadcast, Install's draft confirm
+
+The five fixes of `docs/archive/plans/2026-09-25-update-and-staging-fixes.md`. Rows 2, 4 and 5 need a published release newer
+than the build. Build the local build as the previous version, so the latest release is offered:
+`npm run tauri -- build --no-bundle --config "{\"version\":\"<previous>\"}"`.
+
+For rows 2 and 5, launch it behind `docs/smoke/fixtures/throttle-proxy.mjs`: `HTTPS_PROXY` and `HTTP_PROXY` set to
+`http://127.0.0.1:8888` before `smoke-launch.ps1`.
+- With the proxy stopped, the app is offline.
+- Run it at `200000` B/s and kill it within the first few percent of a download. A late kill lets the setup install
+  the release over the installed app.
+
+- [x] 1. **Re-staged behind the app** — stage a file whole and show it in the Staged list. Then, outside the app:
+      - rewrite it and `git add` it in one shell line → the body shows the new content without reselecting the row;
+      - rewrite it, wait for the row to show the working-tree change, then `git add` → the body shows the new content
+        at both steps.
+- [x] 2. **Offline words** — with the proxy stopped, the launch check (or **Check now**) reads *couldn't reach GitHub —
+      check the connection (error sending request for url (…))*. A download cut mid-way reads *the download was
+      interrupted — try again (error decoding response body)*.
+- [x] 3. **The rejection toast retires** — a push the remote rejects shows *Rejected: remote has new commits — Pull
+      first*.
+      - A **Fetch** leaves it.
+      - A successful **Pull** from the toolbar removes it.
+      - So does a successful **Push**, after the branch was pulled outside the app.
+
+      (The toast's own **Pull** action closes it on the click, as before.)
+- [x] 4. **Every window learns the answer** — relaunch with two windows restored and the launch check on → both show
+      the update badge.
+      - **Ctrl+Shift+N** moves a tab into a new window → that window shows it too, from the kept answer.
+      - **Check now** in one window of a session whose launch check failed → the other window's badge appears at once.
+- [x] 5. **Install asks about a typed message** — type a summary in a tab, switch that window to another tab, then
+      press **Update to …** in another window → a warning box: *"Installing restarts T4 Git UI. The commit message
+      typed in <repo> will be lost."*, with **Install** and **Cancel**.
+      - **Cancel** → nothing downloads; the offer stays.
+      - Clear the summary and press it again → no box, the download starts. Cut it with the proxy.
+
+Walked 2026-09-25 over CDP on a local build of the fixes (`8c75071`), versioned as 0.10.10 —
+`docs/archive/walks/2026-09-25-group-bg-walk.md`.
 
 ## Reporting
 

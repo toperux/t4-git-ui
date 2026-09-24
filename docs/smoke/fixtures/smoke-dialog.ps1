@@ -1,43 +1,65 @@
-# Answers the app's native message boxes (Tauri `ask()` / `message()`) from a script, for the
-# CDP-driven smoke walks: CDP can drive the page but not a Win32 dialog. Lists them, or clicks a
-# button by its label with BM_CLICK. Sending keys with WScript.Shell is unreliable here — the dialog
-# is up while the page's click is still being dispatched — so click the button directly.
+# Answers the app's native dialogs (Tauri `ask()` / `message()`) from a script, for the CDP-driven
+# smoke walks: CDP drives the page but not a Win32 dialog. Lists them, or presses a button by its
+# label through UI Automation.
 #
-#   pwsh -File docs/smoke/fixtures/smoke-dialog.ps1                                  # list open dialogs
+# On Windows `ask()` is a task dialog: its buttons are drawn inside one surface, not `Button` child
+# windows, so `BM_CLICK` finds nothing, and `SendKeys {ENTER}` can only press the default button. UI
+# Automation sees them by name, and a classic message box's buttons as well.
+#
+#   pwsh -File docs/smoke/fixtures/smoke-dialog.ps1                                   # list open dialogs
+#   pwsh -File docs/smoke/fixtures/smoke-dialog.ps1 -Title "Install the update"      # its text and buttons
 #   pwsh -File docs/smoke/fixtures/smoke-dialog.ps1 -Title "Resolve conflict" -Button Replace
-param([string]$Title = "", [string]$Button = "")
-Add-Type @'
-using System; using System.Text; using System.Runtime.InteropServices; using System.Collections.Generic;
-public class SmokeDlg {
-  public delegate bool CB(IntPtr h, IntPtr l);
-  [DllImport("user32.dll")] public static extern bool EnumWindows(CB cb, IntPtr l);
-  [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr p, CB cb, IntPtr l);
-  [DllImport("user32.dll")] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
-  [DllImport("user32.dll")] public static extern int GetClassName(IntPtr h, StringBuilder s, int n);
-  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
-  [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
-  static string Txt(IntPtr h) { var t = new StringBuilder(1024); GetWindowText(h, t, 1024); return t.ToString(); }
-  static string Cls(IntPtr h) { var c = new StringBuilder(256); GetClassName(h, c, 256); return c.ToString(); }
-  // Top-level #32770 (dialog-class) windows owned by the process.
-  public static List<IntPtr> Dialogs(uint pid) { var o = new List<IntPtr>(); EnumWindows((h, l) => { uint p; GetWindowThreadProcessId(h, out p); if (p == pid && Cls(h) == "#32770") o.Add(h); return true; }, IntPtr.Zero); return o; }
-  public static string Title(IntPtr h) { return Txt(h); }
-  public static string Describe(IntPtr h) { var parts = new List<string>(); EnumChildWindows(h, (c, l) => { var t = Txt(c); if (t.Length > 0) parts.Add(Cls(c) + ":" + t); return true; }, IntPtr.Zero); return Txt(h) + " || " + string.Join(" | ", parts); }
-  public static IntPtr Button(IntPtr dlg, string text) { IntPtr o = IntPtr.Zero; EnumChildWindows(dlg, (c, l) => { if (Cls(c) == "Button" && Txt(c) == text) { o = c; return false; } return true; }, IntPtr.Zero); return o; }
-  public static void Click(IntPtr b) { SendMessage(b, 0x00F5, IntPtr.Zero, IntPtr.Zero); } // BM_CLICK
-}
-'@
+#
+# With -Title it waits up to -WaitSeconds for the box, so it can be started right after the click that
+# opens it, and it reports whether the box went away after the press.
+param([string]$Title = "", [string]$Button = "", [int]$WaitSeconds = 10)
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+$A = [System.Windows.Automation.AutomationElement]
+$Scope = [System.Windows.Automation.TreeScope]
+
 $proc = Get-Process t4-git-ui -ErrorAction SilentlyContinue | Select-Object -First 1
 if (-not $proc) { "t4-git-ui is not running"; exit 1 }
-$dialogs = [SmokeDlg]::Dialogs($proc.Id)
+
+# Both kinds of box are class #32770, and only this app's count: a same-titled box from another
+# program must not be pressed. An owned box can sit under its owner in the UI Automation tree, so
+# the search is not limited to top-level windows.
+$boxes = New-Object System.Windows.Automation.AndCondition(
+  (New-Object System.Windows.Automation.PropertyCondition($A::ProcessIdProperty, $proc.Id)),
+  (New-Object System.Windows.Automation.PropertyCondition($A::ClassNameProperty, "#32770")))
+function Dialogs { @($A::RootElement.FindAll($Scope::Descendants, $boxes)) }
+function Find { Dialogs | Where-Object { $_.Current.Name -like "$Title*" } | Select-Object -First 1 }
+function Describe($d) {
+  $names = @($d.FindAll($Scope::Descendants, [System.Windows.Automation.Condition]::TrueCondition) |
+      ForEach-Object { $_.Current.Name } | Where-Object { $_ })
+  "$($d.Current.Name) || $($names -join ' | ')"
+}
+
 if (-not $Title) {
-  if ($dialogs.Count -eq 0) { "no dialogs" } else { $dialogs | ForEach-Object { [SmokeDlg]::Describe($_) } }
+  $all = Dialogs
+  if ($all.Count -eq 0) { "no dialogs" } else { $all | ForEach-Object { Describe $_ } }
   exit 0
 }
-$dlg = $dialogs | Where-Object { [SmokeDlg]::Title($_) -like "$Title*" } | Select-Object -First 1
-if (-not $dlg) { "no dialog titled $Title"; exit 1 }
-$btn = [SmokeDlg]::Button($dlg, $Button)
-if ($btn -eq [IntPtr]::Zero) { "no button '$Button' on: " + [SmokeDlg]::Describe($dlg); exit 1 }
-[SmokeDlg]::Click($btn)
-Start-Sleep -Milliseconds 700
-$left = ([SmokeDlg]::Dialogs($proc.Id) | Where-Object { [SmokeDlg]::Title($_) -like "$Title*" }).Count
-"clicked $Button; dialog still up: $($left -gt 0)"
+
+$deadline = (Get-Date).AddSeconds($WaitSeconds)
+while (-not ($dlg = Find) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 250 }
+if (-not $dlg) { "no dialog titled $Title after $WaitSeconds s"; exit 1 }
+if (-not $Button) { Describe $dlg; exit 0 }
+
+# By name, whatever the control type. A task dialog's button is a `CCPushButton` window — not class
+# `Button`, and to UI Automation a Pane with no patterns at all — so it is pressed with BM_CLICK on its
+# own handle. An element that can only be invoked (no window of its own) is invoked.
+$btn = @($dlg.FindAll($Scope::Descendants, (New-Object System.Windows.Automation.PropertyCondition($A::NameProperty, $Button)))) |
+  Where-Object { $_.Current.NativeWindowHandle -ne 0 -or $_.GetSupportedPatterns() -contains [System.Windows.Automation.InvokePattern]::Pattern } |
+  Select-Object -First 1
+if (-not $btn) { "no button '$Button' on: " + (Describe $dlg); exit 1 }
+if ($btn.Current.NativeWindowHandle -ne 0) {
+  Add-Type -Namespace SmokeDlg -Name User32 -MemberDefinition '[DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr h, uint m, IntPtr w, IntPtr l);'
+  [void][SmokeDlg.User32]::SendMessage([IntPtr]$btn.Current.NativeWindowHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero) # BM_CLICK
+} else {
+  $btn.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+}
+
+$deadline = (Get-Date).AddSeconds(3)
+while ((Find) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 200 }
+"pressed $Button; dialog still up: $([bool](Find))"

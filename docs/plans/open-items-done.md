@@ -265,6 +265,19 @@ the path alone. Kept here as the record of what was seen.
 
 ## H. Added 2026-09-12 — after the push
 
+- **Three CI test flakes** — found in the rerun history and **fixed 2026-09-25** for v0.10.12 (test-only, no app
+  change). Each had passed on its rerun.
+  - **macOS `watch::tests::rename_is_reported`** (PR #7, 2026-09-12: `[Refs, Workdir]`) and **macOS
+    `watch::tests::workdir_edit_is_reported`** (CI run 34859003358, 2026-09-14: `[Refs]`). Same cause: on a
+    loaded runner, FSEvents delivered the setup commit's ref write after `start`'s 500 ms quiet window, into
+    the test's own window. The second test also took only the first event, so it saw nothing but that `Refs`.
+    Both now drop `Refs` (`without_setup_refs`), since ref classification is `commit_reports_refs_and_index`'s
+    to check. `workdir_edit_is_reported` now collects until a second of quiet, and checks every change is
+    free of `rescan`. Not reproducible on Windows; watch the next macOS runs.
+  - **Windows `cancel_kills_push_and_its_hook`** (release run 35117912609, v0.10.3, 2026-09-16): *cancel took
+    1.10 s* against an 800 ms bound. The hook sleeps 30 s, so the point is killing the tree rather than
+    waiting for it. The bound is now 3 s.
+
 The 61 items of §G are landed (29 follow-ups from a second review pass too), squashed to nine
 commits and pushed with the CI port from the markdown viewer (`a904701`).
 
@@ -335,12 +348,24 @@ commits and pushed with the CI port from the markdown viewer (`a904701`).
   within 5 s, with both windows, on 0.10.11. The single-instance lock let go on the way out, as read from the
   sources on 2026-09-21. The same walk ticked BD 10 (Install refused while a fetch runs in another window), AZ 10,
   and AC's failed-check and failed-install boxes, through `docs/smoke/fixtures/throttle-proxy.mjs` as the network.
+- **F10 / a typed commit message lost to an update restart** — **fixed 2026-09-25** for v0.10.12
+  (`docs/archive/plans/2026-09-25-update-and-staging-fixes.md` Task 5, walked as BG 5). Decided 2026-09-25: *confirm*,
+  not refuse. Each window reports the repositories it holds a typed message for (background tabs included,
+  untouched prefills not), and Install asks *"Installing restarts T4 Git UI. The commit message typed in <repos>
+  will be lost."*. Two more decisions of that day, on the update flow:
+  - **Broadcast**: a successful check's answer reaches every window (`update://checked`, plus the kept answer for
+    a window that opens later) instead of each window checking.
+  - **Keep the offer after a failed re-check**: the release still exists, and the error line says why the check
+    failed. No change.
 - **F8 / test cost, Windows only** —
   `a_background_child_holding_the_pipe_does_not_hold_the_op` takes ~12 s of wall time: `run()`
   returns in ~0.6 s, but tokio's blocking-pool pipe read outlives the op until the `sleep 12`
   orphan exits and `#[tokio::test]` teardown waits for it. In the app that is one parked pool
   thread per orphan, not the op or the repo lock. Was `sleep 20`; 12 is as low as it goes while the
   assert bound is 10 s.
+- **S5** no Blame on a working-tree target in `FileRowMenu`, while the commit panel offers it — **closed
+  2026-09-25 as moot**. The "no working-tree Files surface" decision leaves no working-tree row for that menu
+  to be opened on.
 
 ## J. Added 2026-09-14 — from the UI direction B review
 - ~~**Stash dialog shows nothing of what it stashes.**~~ `Stash changes…` took a message and two
@@ -389,7 +414,43 @@ Written after re-reading every row above against the working tree, `git log`, th
   repository has more than one, and to that one remote otherwise (`OpsDialogs.tsx`, plus a
   `dialogs.test.tsx` case). Landed 2026-09-16.
 
+## L. Added 2026-09-17 — from the Ctrl+, / auto-close review and walk
+
+- **`commitStore` is the only store that writes `viewStore`** — an architectural note, not a defect; moved here
+  2026-09-25 because nothing is open about it. The auto-close lives in `commit()` because that is the single
+  place every commit route lands; the alternative was threading `onCommitted` through three components. If a
+  second store ever wants the view, the writes belong behind a named action on `viewStore` instead.
+- **`smoke-dialog.ps1` did not match today's confirm boxes** — **fixed 2026-09-25.** Tauri's `ask()` is a task
+  dialog, whose buttons are `CCPushButton` child windows, not `Button`. To UI Automation they are Panes with no
+  patterns. So the script's class-`Button` search found nothing, and `SendKeys {ENTER}` could press only the
+  default.
+
+  The readings that led there:
+  - 2026-09-17: the Discard confirm, answered by `SendKeys {ENTER}`;
+  - 2026-09-19: the Resolve conflict box, the same;
+  - 2026-09-25: group BG's *Install the update* box, where an `InvokePattern` press happened to work;
+  - 2026-09-25: a Discard hunk confirm, where `InvokePattern` failed with "Unsupported Pattern".
+
+  The script now finds the box and the button by name through UI Automation (the app's own boxes only), sends
+  `BM_CLICK` to the button's own handle, and waits for the box. Checked on the Discard hunk confirm: **Cancel**
+  kept the edit, **Discard** reverted it. `smoke-cdp.md` › Native dialogs says the same.
+
 ## M. Added 2026-09-19 — review of `v0.10.1..HEAD`, its fixes, and the walk of group AZ
+
+- **A libgit2 error toast ended in git2's own `; class=Os (2); code=NotFound (-3)`** — **fixed 2026-09-25**
+  for v0.10.12. `GitError::Git2` displays `git2::Error::message()` alone, not its `Display`, which appends
+  the class and code. The IPC `kind` already says `git`. Test: `error::tests::a_libgit2_error_shows_its_message_alone`.
+- **Pull from a remote that isn't the upstream's failed** (BG re-walk, 2026-09-25) — **fixed the same day** for
+  v0.10.12. The Pull dialog now names the local branch there, as Push does, in place of a bare `git pull <remote>`,
+  which git refuses. Test: `dialogs.test.tsx` › *pulls the local name when the current branch does not track the
+  chosen remote*. The 2026-09-26 review added an unborn branch (`refs.head.branch`) and a first-render remote that
+  follows the upstream, not `remotes[0]`, so an Enter before `get_default_remote` answers pulls the right remote.
+  Walked 2026-09-26 (the BG walk record).
+- **A failed op's toast detail could be a progress line** (same walk) — **fixed the same day**. With no
+  `fatal:` / `error:` line, `classify_failure` now skips a fetch's own chatter (`remote:`, `From`, the indented
+  ref updates, `…% (…)` progress) before taking the first line. Test: `cli::ops::tests`, the `pull` case.
+- **The "unticked lines, recounted" bullet** (fourteen, 2026-09-19) — superseded 2026-09-25 by §B's recount in
+  `open-items.md` (eleven). AZ 10 and AC's two network boxes were walked on 2026-09-24.
 
 Eight findings, all fixed (staging back on libgit2's ignore check, the `index.lock` match on both the CLI
 and the libgit2 side, window restore, the grid's mount row, clipped menu names); a second review of the
@@ -473,6 +534,29 @@ fixes and the walk added three more. The walk is `docs/archive/walks/2026-09-19-
   `:(literal)<path>`, with a test that runs git. The conflict checkouts and the file history do
   honour the flag (walked).
 - **Closed, will not fix** (one): Push's bare branch name against a same-named tag — see §I.
+- **A staged diff's body stayed stale after an outside `git add`** (found on the BD second walk) — **fixed
+  2026-09-25** for v0.10.12 (`docs/archive/plans/2026-09-25-update-and-staging-fixes.md` Task 1, walked as BG 1).
+  - Reproduced first on 0.10.11: only a rewrite plus `git add` with *no* status read in between was stale. That
+    leaves the entry identical, since a file staged whole has no workdir stamp. With a read in between, it already
+    reloaded.
+  - The entry now carries `indexStamp`, the staged blob's oid.
+  - Landed with it, from the 2026-09-24 walks:
+    - a successful pull or push of the same remote and branch retires the *Rejected — Pull first* toast (BE
+      observation 1, BG 3). It was per repository at first, then per remote and branch after the final review. So
+      neither pushing `feature` nor pulling from `origin` clears `main`'s rejection on `mirror`;
+    - the updater's network failures read *couldn't reach GitHub* / *the download was interrupted* (update-walk
+      observation 1, BG 2);
+    - every window learns an update check's answer (update-walk observation 3, BG 4).
+  - **Closed without a change** (user, 2026-09-25), so they aren't re-offered:
+    - the error toast stack sits over the grid's top row, where it caught a right-click in the BE walk (BE
+      observation 2): leave it;
+    - Escape once didn't close Settings (update-walk observation 4): not a bug. The user was using the machine
+      at the time, and the key went to a diff window.
+  - BG was walked on a build of `8c75071`, as the walk record says. After the squash, that code plus the 16-digit `indexStamp`, the cross-window install guard and the rejection toast kept per remote and branch is `76dee06`
+    (`a7d6ffc` staging · `73ebed3` toast · `dbf931d` update flow · `76dee06` final-review fixes).
+- **`linesShown` is unreachable from the panel** — **closed 2026-09-25, nothing to do.** A truncated diff is
+  whole-file only in the panel (`wholeOnly`), so the hunk print always covers the whole hunk. The cut-hunk path
+  has unit tests, and no surface reaches it. Reopen if a surface ever offers hunk actions on a truncated diff.
 - **Lines for the release's notes** (shipped as v0.10.10): a second launch now opens another window of the running
   app (was: a second process); Push writes to the upstream's branch name when it differs; hunk /
   line actions are refused when the file changed under the diff, beside a missing final newline,

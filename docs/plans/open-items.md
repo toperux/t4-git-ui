@@ -5,7 +5,7 @@ it folds together the v1 plan's "Known gaps", the 2026-09-01 codebase review's d
 the README's "Next" line (review item H4). Nothing here is scheduled yet — pick from it._
 
 _Done, fixed, walked and closed rows live in `open-items-done.md` (split 2026-09-24), under the same
-section letters — a letter with nothing open left (§D, §F, §G, §K) is only there. When a row here is
+section letters — a letter with nothing open left (§D, §F, §G, §K, §N) is only there. When a row here is
 done, move it there._
 
 ## A. Performance — measure before touching
@@ -31,17 +31,22 @@ done, move it there._
   scans that looked like this were the stale stat cache, not the tree size.)
 
 ## B. Verification and release
-- **Smoke steps no CDP walk can reach** (this machine, by hand). Left: **eight** unticked
-  lines across the two smoke docs (recounted 2026-09-16), of which **six** are work still owed:
-  a DPI change (`docs/smoke/smoke-test.md:283`); group AC's deb / rpm box, which needs a Linux package
-  (its failed-check and failed-install boxes were walked 2026-09-24 through
-  `docs/smoke/fixtures/throttle-proxy.mjs`); group AI's manual folder toggle across a refresh
-  (`:1222`); and the **Remove from list** half of AJ's "buttons own their clicks" (`:1252`) — Retry and
-  Pull passed on 2026-09-16, but adding a dead recent needs the native folder picker and the recents
-  store is shared with the installed app. The other two are group AG's (`:1149`, `:1160`): deliberate
-  records, not work — one box's recipe is unachievable, and one cannot be decided by what it observes.
-  So a grep for `- [ ]` finds eight and only six are owed; read AG before counting it as a backlog.
-  (Recounted 2026-09-19 in §M: fourteen lines, the line numbers above moved by two.)
+- **Unticked smoke lines — recounted 2026-09-25: ten**, across the two smoke docs. The settings walk's 6 was
+  walked the same day, and a grep for `- [ ]` also matches `smoke-test-post-v1.md:296`, which is prose. By what
+  they need:
+  - **By hand on this machine (3):**
+    - a DPI change (`smoke-test.md:283`);
+    - AI's manual folder toggle across a refresh (`smoke-test-post-v1.md:1225`);
+    - the **Remove from list** half of AJ's "buttons own their clicks" (`:1255`). Retry and Pull passed
+      2026-09-16; adding a dead recent needs the native folder picker, and the recents store is shared with
+      the installed app.
+  - **A Linux or macOS machine (3):** AC's deb / rpm box (`:759`), and AZ 11's two platform lines (`:1855`,
+    `:1856`).
+  - **Records, not work (4):**
+    - AG's two (`:1152`, `:1163`): one box's recipe is unachievable, and one cannot be decided by what it
+      observes;
+    - the viewport-anchor walk's 9 (`:1742`), which isn't drivable;
+    - AZ 9 (`:1852`), which is unit-tested with no hand recipe.
 
 - **Windows code signing** — the NSIS setup is not Authenticode-signed, so every new Windows user meets
   SmartScreen's "Windows protected your PC" and has to pick *More info › Run anyway*. The updater's minisign
@@ -82,10 +87,9 @@ Custom titlebar (revisited in M6, native kept) · i18n · plugins.
     the image: the markdown viewer runs `Format` on the Linux leg only.
 
 ## H. Added 2026-09-12 — after the push
-- **`watch::tests::rename_is_reported` flaked once on macOS** (PR #7's first run, 2026-09-12);
-  passed on the rerun and on every run since. FSEvents timing is the usual reason. Watch, do not
-  act: a second flake makes it a finding (bound the wait on the rename pair, or accept either
-  order).
+- **Watch CI after the v0.10.12 push:** the three CI flakes were fixed 2026-09-25 (done file §H). The macOS
+  ones could not be reproduced here, so the first macOS runs are the check. Close this row after a few green
+  ones.
 - **A `#[cfg(unix)]` block is invisible to Windows clippy.** The 14-commit push of 2026-09-13 went
   red on Linux and macOS only: a `let mut` flag assigned inside a `#[cfg(unix)]` test block is
   `unused_assignments` under `-D warnings`, and the local gate never compiles that branch
@@ -105,8 +109,6 @@ condition that reopens it. (Rows closed as will-not-fix or accepted are in the d
   Split the flag if it ever bites.
 - **S4** `blameAt` switches tab / seeds / turns blame on before the reveal is known to hit.
   Reordering races the details-pane effect; toast only.
-- **S5** no Blame on a working-tree target in `FileRowMenu` while the commit panel offers it —
-  moot under the "no working-tree Files surface" decision.
 - **E6** O(n²) tree build for a flat directory (`fileTree.ts`, `Sidebar.buildTree`). Measure
   first; rare shape.
 - **B3** the interactive-rebase read pass runs a real `rebase -i --autostash`; a kill mid-run
@@ -117,16 +119,15 @@ condition that reopens it. (Rows closed as will-not-fix or accepted are in the d
   leaves the details pane blank during the round trip — reconsider only if it flickers.
 - **R10** selected-mode header after a partial stage; **R12** two stale status/refs pairings
   where a guard would flicker; **R13** `canSquash` O(n) per row. All wont-for-now, recorded.
-- Two `ponytail:` ceilings in code: `Menu.tsx` (a submenu panel is `.menu`-wide, the parent's
-  width stands in) and `log/walker.rs` (a `Refs` spec that never reaches HEAD leaves the
-  working-tree column open).
+- Three `ponytail:` ceilings in code:
+  - `Menu.tsx`: a submenu panel is `.menu`-wide, so the parent's width stands in;
+  - `log/walker.rs`: a `Refs` spec that never reaches HEAD leaves the working-tree column open;
+  - `App.tsx` (2026-09-25): an update answer that lands between a new window's `lastUpdateCheck()` reply and its
+    `update://checked` listener attaching is missed. Check now covers it.
 - **F3** (2026-09-20 review, moved from §N) — the hunk buttons stay enabled on a non-UTF-8 file;
   the refusal arrives as a toast naming the reason. Reopen when such repositories are actually
   worked in — the `lossy` flag already exists on the backend (`FileDiff::lossy`,
   `#[serde(skip)]`), it only needs putting on the wire and a `DisabledHint`.
-- **F10** (2026-09-20 review, moved from §N) — a typed, uncommitted commit message in another
-  window is lost to an update's restart. Needs a design choice first: persist the draft across the
-  restart, or refuse Install while one exists.
 
 ## J. Added 2026-09-14 — from the UI direction B review
 Direction B (History | Changes view switch + Ctrl+K palette) is the chosen small-window layout;
@@ -137,8 +138,9 @@ canvases under `docs/design/` once it lands.
 
 ## L. Added 2026-09-17 — from the Ctrl+, / auto-close review and walk
 
-Four things that existed only in a session transcript. None is scheduled; each is written down so it
-is not rediscovered from scratch. The walk itself is
+Things that existed only in a session transcript. None is scheduled; each is written down so it
+is not rediscovered from scratch. (Two more, the `commitStore` → `viewStore` note and the `smoke-dialog.ps1`
+fixture, are in the done file since 2026-09-25.) The walk itself is
 `docs/archive/walks/2026-09-17-autoclose-walk.md`.
 
 - **`Ctrl+,` is dead while the start screen is opening a repository.** `StartScreen`'s handler returns
@@ -147,27 +149,11 @@ is not rediscovered from scratch. The walk itself is
   the keyboard anyway) and harmless for the rest — opening Settings over a repository that is half
   open is worse than a dead key. Reopen it only if the gap ever feels long; the fix is to drop
   `busy` from the comma arm alone, not from the guard.
-- **The `smoke-dialog.ps1` fixture may not match today's confirm boxes.** `docs/smoke/smoke-cdp.md`
-  §"Native dialogs" clicks a button by label with `BM_CLICK` on a class-`Button` child window, and
-  warns that `WScript.Shell` `AppActivate` + `SendKeys` is unreliable. On 2026-09-17 the Discard
-  confirm exposed its buttons to UI Automation as TaskDialog command-link **Panes**
-  (`CommandButton_1000` / `_1001`), not as class-`Button` children, and what worked was exactly the
-  `AppActivate` + `SendKeys {ENTER}` the section warns against. `WM_COMMAND` to the dialog's own HWND
-  did nothing. Both readings were taken on the same machine, so this is a box-style difference to
-  measure against a live dialog before either the fixture or the doc is changed — not a reason to
-  change either yet. Until then: whichever route is used, **poll for the box**, because an
-  unanswered confirm is indistinguishable from a Discard that silently did nothing.
-  (A second reading, 2026-09-19, is in §M.)
 - **Linux `Super+O` / `Super+N` / `Super+Q` reach the app.** Pre-existing, unrelated to this work:
   `useShortcuts` treats `metaKey` as Ctrl so one branch serves ⌘ on macOS, and on Linux Super is
   `metaKey` too. The desktop environment usually swallows Super chords first, which is why it has
   never been reported. A `navigator.platform` split would fix it and would also be the first
   platform test in that file, so it waits for a real report.
-- **`commitStore` is the only store that writes `viewStore`.** An architectural note, not a defect:
-  the auto-close lives in `commit()` because that is the single place every commit route lands, and
-  the alternative was threading `onCommitted` through three components. Worth remembering if a
-  second store ever wants the view — two writers and it belongs behind a named action on
-  `viewStore` instead.
 
 ## M. Added 2026-09-19 — review of `v0.10.1..HEAD`, its fixes, and the walk of group AZ
 
@@ -175,33 +161,12 @@ The walk is `docs/archive/walks/2026-09-19-group-az-walk.md`. What is left, so i
 
 - **Open boxes in group AZ**: 9 (the `git skipped <path>` toast — unit-tested, no hand recipe) and 11 (Linux and
   macOS: rows 3a, 3b, 3d, 3i and bullet 6, by hand).
-- **Unticked lines, recounted**: fourteen across the two smoke docs. The eight of §B (now
-  `smoke-test-post-v1.md:752`, `:755`, `:758`, `:1151`, `:1162`, `:1224`, `:1254` and `smoke-test.md:283`),
-  the viewport-anchor walk's 9 (`:1741`, not drivable), the settings walk's 6 (`:1764`, a real update
-  download), and AZ's 9, 10 and the two under 11.
 - **Menus.** Rows shift by a line while arrowing over a clipped name. After arrow keys in the grid a
   right-click menu opens with its first item focus-visible, so a clipped first item opens wrapped — the
   same case in which that row always had the accent highlight.
 - **Seen in the walk, not acted on.** An external `git reset` of 1800 files takes about four seconds to
-  show in Changes, on 0.10.7 as well. A libgit2 error toast ends in git2's own
-  `; class=Os (2); code=NotFound (-3)`. And a second reading for §L's native-confirm bullet: on
-  2026-09-19 `SendKeys {ENTER}` after `SetForegroundWindow` on the `#32770` box answered the **Resolve
-  conflict** confirm at the first try.
-
-## N. Added 2026-09-20 — full codebase review at v0.10.9, fixed 2026-09-21
-
-The ten fixes, the walks and the squash map (old → new hashes) are in the done file. Still open
-(2026-09-21), none of it blocking:
-- **A staged diff's body can stay stale after an outside `git add`** — found on the second walk
-  (BD 11), older than this batch. The panel reloads a diff when the row's status entry changes:
-  its letters, or `workdir_stamp` (mtime:size). Nothing stamps the index side, so a tool that
-  writes a file and `git add`s it with a status read landing in between leaves the staged body
-  on the old blob (the row's `+N −M` does update). Reselecting the row reloads it. No data at
-  risk: a hunk action on the stale body is refused by the print check. The cheap fix is the
-  index entry's oid beside `workdir_stamp`.
-- **`linesShown` is unreachable from the panel** — a truncated diff is whole-file only there
-  (`wholeOnly`), so the hunk print always covers the whole hunk; the cut-hunk path has unit
-  tests only.
+  show in Changes, on 0.10.7 as well. (The libgit2 error-suffix row was fixed 2026-09-25 and is in the done
+  file; the walk's native-confirm reading is in §L.)
 
 ## Suggested order, if nothing else decides it
 

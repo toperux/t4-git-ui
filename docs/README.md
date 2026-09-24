@@ -16,7 +16,7 @@ smoke/
 archive/
   plans/     executed plans and their review records (v1 plan, interactive rebase, Files/blame/history,
              CI alignment, the 2026-09-12 consolidated findings, review2-A–D, the 2026-09-20 review
-             findings and their fix plan)
+             findings and their fix plan, the 2026-09-25 update and staging fixes)
   reviews/   dated whole-codebase reviews, 2026-09-01 … 09-06
   walks/     dated smoke-walk records and the findings they produced
 ```

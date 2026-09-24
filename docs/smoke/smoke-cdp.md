@@ -194,18 +194,31 @@ focus the target the way a real mouse does, so focus checks are meaningful; jsdo
 
 ## Native dialogs
 
-`ask()` boxes (Discard, Resolve conflict, Abort merge…) are Win32 message boxes the page cannot
-see. `docs/smoke/fixtures/smoke-dialog.ps1` lists them and clicks a button by label:
+`ask()` boxes (Discard, Resolve conflict, Abort merge, Install the update…) are native dialogs the page
+cannot see. `docs/smoke/fixtures/smoke-dialog.ps1` finds them through UI Automation, lists them, and presses a
+button by its label:
 
 ```powershell
 pwsh -File docs/smoke/fixtures/smoke-dialog.ps1                                      # what is open
+pwsh -File docs/smoke/fixtures/smoke-dialog.ps1 -Title "Install the update"         # its text and buttons
 pwsh -File docs/smoke/fixtures/smoke-dialog.ps1 -Title "Resolve conflict" -Button Replace
 ```
 
-Poll for the box rather than assume timing: start a loop that retries the script every half
-second for twenty seconds before the Playwright click that opens it (the click may return while
-the box is still up, or block until it closes). `WScript.Shell` `AppActivate` + `SendKeys` was not
-reliable for this — the keys reported as sent and the box stayed; `BM_CLICK` on the button is.
+On Windows `ask()` is a **task dialog**. Its buttons are child windows of class `CCPushButton`, not `Button`.
+To UI Automation they are a Pane with no patterns at all, so `InvokePattern` fails on them.
+- An older version of the script looked for class-`Button` children and found nothing on these boxes.
+- `SendKeys {ENTER}` answers them, but it presses only the default button.
+
+The script finds the button by name among the box's descendants, then sends `BM_CLICK` to that button's own
+window handle. An element with no window of its own is invoked instead. Checked on 2026-09-25 against a Discard
+hunk confirm: **Cancel** kept the edit and **Discard** reverted it.
+
+- **Timing:** start the script right after the click that opens the box. With `-Title` it waits up to
+  `-WaitSeconds` (default 10) for the box, and after the press it reports whether the box went away. An
+  unanswered confirm looks exactly like an action that silently did nothing, so check that line.
+- **Matching:** only the app's own windows match, so a box with the same title from another program is
+  never pressed.
+
 
 ## Fixture and cleanup
 
