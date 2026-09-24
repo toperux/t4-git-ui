@@ -77,28 +77,10 @@ Custom titlebar (revisited in M6, native kept) · i18n · plugins.
     the image: the markdown viewer runs `Format` on the Linux leg only.
 
 ## H. Added 2026-09-12 — after the push
-- **npm majors, one PR at a time, Vitest 5 first.** The first grouped npm PR (#7) bundled
-  TypeScript 5.8→7.0, Vite 7→8, Vitest 4→5, `@vitejs/plugin-react` 4→6 and `@types/node` 24→26
-  with seven patch bumps, and two `DiffViewer.test.tsx` intra-line emphasis tests failed on every
-  OS: the token `[0];` came back as four tokens. The group is now minor+patch only (`04a7eda`),
-  the seven safe bumps landed as #8, and the five majors will arrive as single PRs (weekly run, or
-  Insights → Dependency graph → Dependabot → *Check for updates* on npm — no CLI). A test-only
-  difference points at the test runner, so take Vitest 5 first; if it is green, the tokenizer's
-  behaviour changed under one of the others and the test's expectation needs a decision, not a fix.
-  - (§K, 2026-09-16) **Still all open**: `typescript ~5.8.3`, `vite ^7`, `vitest ^4`,
-    `@vitejs/plugin-react ^4`, `@types/node ^24`. No open PR of any kind; the last Dependabot PR was #8
-    on 2026-09-12.
-  - (2026-09-24) **The single PRs arrived 2026-09-17**, all open: #10 Vitest 5, #11 Vite 8, #12
-    plugin-react 6 (all three red), #13 `@types/node` 26 and #9 the npm group of 7 (both green). No
-    TypeScript 7 PR — Dependabot's default limit is five open npm PRs, and five were open.
-  - (2026-09-24) **Vitest 5, Vite 8 and plugin-react 6 landed on `main` as one commit** (`3a802e8`,
-    after the test fix `1847fa8`). #11 and #12 cannot pass apart: plugin-react 4 accepts no Vite 8 and
-    plugin-react 6 needs it. #10's two red tests were the answer to the question above, and it is
-    neither: the `.rs` grammar is a dynamic import, and under Vitest 5 it had resolved by render, so
-    `[0];` came back as four syntax spans, each highlighted. The app draws those as one highlight
-    (background only), so the tests now load the grammar first and join touching highlights. Gates
-    green, `tauri build --no-bundle` built and launched, syntax + intra-line highlight seen on a `.rs`
-    diff. Left: #9 and #13 (green), and TypeScript 7 when its PR opens.
+- **TypeScript 5.8 → 7, the last npm major.** No PR yet: Dependabot opens at most five npm PRs and five
+  were open until 2026-09-24; the next weekly run should bring it (or Insights → Dependency graph →
+  Dependabot → *Check for updates*). A compiler rewrite, not a plain bump: `tsc`, the full gates and a
+  `tauri build --no-bundle` before merging. The other majors landed 2026-09-24 (done file §H).
 - **`watch::tests::rename_is_reported` flaked once on macOS** (PR #7's first run, 2026-09-12);
   passed on the rerun and on every run since. FSEvents timing is the usual reason. Watch, do not
   act: a second flake makes it a finding (bound the wait on the rename pair, or accept either

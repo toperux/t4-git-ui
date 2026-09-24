@@ -267,6 +267,28 @@ commits and pushed with the CI port from the markdown viewer (`a904701`).
   (34696639994) and on the tag run (34698147016), the 13.0 macOS floor bundled, and the macOS
   certificate import and signature verify — never run on a runner before — passed on both. The
   release skill's dry-run-before-first-tag rule was followed; the user installed 0.6.0 the same day.
+- ~~**npm majors, one PR at a time, Vitest 5 first.**~~ **Done 2026-09-24** except TypeScript 7. The first grouped npm PR (#7) bundled
+  TypeScript 5.8→7.0, Vite 7→8, Vitest 4→5, `@vitejs/plugin-react` 4→6 and `@types/node` 24→26
+  with seven patch bumps, and two `DiffViewer.test.tsx` intra-line emphasis tests failed on every
+  OS: the token `[0];` came back as four tokens. The group is now minor+patch only (`04a7eda`),
+  the seven safe bumps landed as #8, and the five majors will arrive as single PRs (weekly run, or
+  Insights → Dependency graph → Dependabot → *Check for updates* on npm — no CLI). A test-only
+  difference points at the test runner, so take Vitest 5 first; if it is green, the tokenizer's
+  behaviour changed under one of the others and the test's expectation needs a decision, not a fix.
+  - (§K, 2026-09-16) **Still all open**: `typescript ~5.8.3`, `vite ^7`, `vitest ^4`,
+    `@vitejs/plugin-react ^4`, `@types/node ^24`. No open PR of any kind; the last Dependabot PR was #8
+    on 2026-09-12.
+  - (2026-09-24) **The single PRs arrived 2026-09-17**, all open: #10 Vitest 5, #11 Vite 8, #12
+    plugin-react 6 (all three red), #13 `@types/node` 26 and #9 the npm group of 7 (both green). No
+    TypeScript 7 PR — Dependabot's default limit is five open npm PRs, and five were open.
+  - (2026-09-24) **Vitest 5, Vite 8 and plugin-react 6 landed on `main` as one commit** (`3a802e8`,
+    after the test fix `1847fa8`). #11 and #12 cannot pass apart: plugin-react 4 accepts no Vite 8 and
+    plugin-react 6 needs it. #10's two red tests were the answer to the question above, and it is
+    neither: the `.rs` grammar is a dynamic import, and under Vitest 5 it had resolved by render, so
+    `[0];` came back as four syntax spans, each highlighted. The app draws those as one highlight
+    (background only), so the tests now load the grammar first and join touching highlights. Gates
+    green, `tauri build --no-bundle` built and launched, syntax + intra-line highlight seen on a `.rs`
+    diff. #13 (`@types/node` 26, `9796066`) and #14 (the group of 14 that replaced #9, `27f2d1f`) merged by the user the same day; gates green on the result. TypeScript 7 left — `open-items.md` §H.
 - **v0.7.0 (2026-09-13)**: release run green on every leg, 16 assets, `latest.json` at
   `releases/latest` resolves to 0.7.0 for all four platform keys; notes edited after publish.
 
