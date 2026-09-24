@@ -131,6 +131,11 @@ export interface RunOpOptions {
    * afterwards. `true` = all of them, for `fetch --all` and typed commands.
    */
   remote?: string | true;
+  /**
+   * A branch pull or push: its success is the answer to an earlier "Rejected — Pull first", so that
+   * toast goes. Error toasts never expire on their own, and this one otherwise outlives its cause.
+   */
+  answersRejection?: boolean;
 }
 
 export type OpOutcome = { ok: true } | { ok: false; error: AppError | null; failure: OpFailure | null };
@@ -161,6 +166,9 @@ export function failureToast(f: OpFailure): { title: string; detail?: string; ac
   }
 }
 
+/** The "Rejected — Pull first" toast still up, by repository: the next pull or push that succeeds retires it. */
+const rejections = new Map<RepoId, number>();
+
 /**
  * Runs one operation against the open repo. Refuses (info toast) while another `runOp` is in flight;
  * maps `OpResult.failure` / rejections to toasts; refreshes status + refs + the walk afterwards (the
@@ -183,10 +191,19 @@ export async function runOp(busy: string, fn: (id: RepoId) => Promise<OpResult |
       // Conflicts and a paused rebase are stops, not errors: the working tree is where the user carries on.
       const stopped = failure.kind === "conflicts" || failure.kind === "paused";
       const loud = stopped || failure.kind === "authFailed" || failure.kind === "nonFastForward" || failure.kind === "diverged";
-      if (!opts.quietFailure || loud) push({ kind: stopped ? "info" : "error", ...failureToast(failure) });
+      if (!opts.quietFailure || loud) {
+        const toast = push({ kind: stopped ? "info" : "error", ...failureToast(failure) });
+        if (failure.kind === "nonFastForward") rejections.set(repo.id, toast);
+      }
       if (stopped) useRepoStore.getState().selectWorkingTree();
       outcome = { ok: false, error: null, failure };
     } else {
+      const rejection = opts.answersRejection ? rejections.get(repo.id) : undefined;
+      if (rejection !== undefined) {
+        rejections.delete(repo.id);
+        // Not `dismiss`: that hands the focus back to the toast's origin, and nothing was clicked.
+        useToastStore.setState((s) => ({ toasts: s.toasts.filter((t) => t.id !== rejection) }));
+      }
       if (opts.success) push({ kind: "success", title: opts.success });
       outcome = { ok: true };
     }

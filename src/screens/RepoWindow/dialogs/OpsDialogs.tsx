@@ -144,7 +144,7 @@ export function PushDialog({ onClose, branch: branchProp }: { onClose: () => voi
   function submit() {
     if (!remote || !branch) return;
     onClose();
-    void runOp(`Pushing to ${remote}…`, (id) => ipc.push(id, remote, refspec, setUpstream, force, tags), { success: `Pushed ${branch} → ${target}`, remote });
+    void runOp(`Pushing to ${remote}…`, (id) => ipc.push(id, remote, refspec, setUpstream, force, tags), { success: `Pushed ${branch} → ${target}`, remote, answersRejection: true });
   }
 
   return (
@@ -217,6 +217,7 @@ export function PullDialog({ onClose }: { onClose: () => void }) {
       success: `Pulled ${branch && remote ? `${remote}/${branch}` : remote || "changes"}`,
       // No remote picked: git followed the tracking configuration, so ask them all.
       remote: remote || true,
+      answersRejection: true,
     });
   }
 

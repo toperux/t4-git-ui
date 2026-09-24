@@ -201,6 +201,28 @@ describe("runOp", () => {
     expect(useDialogStore.getState().dialog).toEqual({ kind: "pull" });
   });
 
+  it("a successful pull or push of the same repository retires the rejection toast; a fetch does not", async () => {
+    const rejected = () => Promise.resolve({ ...ok, code: 1, failure: { kind: "nonFastForward" } } as OpResult);
+    const titles = () => toasts().map((t) => t.title);
+    await runOp("Pushing…", rejected, { answersRejection: true });
+    await runOp("Fetching…", () => Promise.resolve(ok), { success: "Fetched" });
+    expect(titles()).toContain("Rejected: remote has new commits — Pull first");
+    // Another tab's repository answering its own push says nothing about this one.
+    useRepoStore.setState({ repo: { ...REPO, id: "other" } });
+    await runOp("Pushing…", () => Promise.resolve(ok), { answersRejection: true, success: "Pushed other" });
+    expect(titles()).toContain("Rejected: remote has new commits — Pull first");
+    useRepoStore.setState({ repo: REPO });
+    await runOp("Pulling…", () => Promise.resolve(ok), { answersRejection: true, success: "Pulled" });
+    expect(titles()).toEqual(["Fetched", "Pushed other", "Pulled"]);
+  });
+
+  it("a rejection toast dismissed by hand leaves nothing for the next success to retire", async () => {
+    await runOp("Pushing…", () => Promise.resolve({ ...ok, code: 1, failure: { kind: "nonFastForward" } }), { answersRejection: true });
+    useToastStore.getState().dismiss(toasts()[0].id);
+    await runOp("Pulling…", () => Promise.resolve(ok), { answersRejection: true, success: "Pulled" });
+    expect(toasts().map((t) => t.title)).toEqual(["Pulled"]);
+  });
+
   it("diverged → no Pull action, whatever the label", async () => {
     await runOp("git pull --ff-only", () => Promise.resolve({ ...ok, code: 1, failure: { kind: "diverged" } }));
     expect(toasts()).toMatchObject([{ kind: "error", title: "Cannot fast-forward — the branches have diverged" }]);
