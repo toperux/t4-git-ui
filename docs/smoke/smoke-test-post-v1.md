@@ -1966,13 +1966,13 @@ lets it straight through. **Don't name a tag `v…`**: `release.yml` runs on `v*
 Setup, not a row: **Push** `dogfood/test`, Remote `origin`, **Set upstream** ticked (the default for a
 branch with no upstream) → `origin/dogfood/test` in the sidebar.
 
-- [ ] 1. **A rejected push**: run `sh docs/smoke/fixtures/dogfood-fixture.sh diverge` (it appends to
+- [x] 1. **A rejected push**: run `sh docs/smoke/fixtures/dogfood-fixture.sh diverge` (it appends to
       `dogfood.txt` on the remote). In the app, commit a new file `mine.txt` on `dogfood/test` — not an
       edit to `dogfood.txt`, or the pull below conflicts — and **Push** without fetching first → the dock
       expands on its own with git's `[rejected] … (fetch first)` line, an error toast shows, and the
       buttons re-enable. Then **Pull** (Integrate with: Merge) → a merge commit; **Push** again → it goes
       through.
-- [ ] 2. **Cancel a fetch**: Fetch ▾ (the dialog — with two remotes it defaults to *All remotes*), Remote
+- [x] 2. **Cancel a fetch**: Fetch ▾ (the dialog — with two remotes it defaults to *All remotes*), Remote
       `big`, expand the dock (`` Ctrl+` ``) → elapsed timer + **Cancel**. Cancel within a few seconds → a
       toast, the buttons re-enable, and the dock does not pop open on its own. The toolbar **Fetch** (the
       default remote, `origin`) right after → it works (no lock left behind).
@@ -1980,6 +1980,11 @@ branch with no upstream) → `origin/dogfood/test` in the sidebar.
 Cleanup: right-click the `origin/dogfood/test` row › **Delete origin/dogfood/test on remote…** → **Delete on
 remote**; `git ls-remote origin 'dogfood*'` finds nothing. If anything is left:
 `sh docs/smoke/fixtures/dogfood-fixture.sh cleanup`.
+
+Walked 2026-09-24 over CDP on the installed 0.10.10 (isolated WebView2 profile, store folder backed up and
+restored) — `docs/archive/walks/2026-09-24-group-be-walk.md`. Both rows pass. Row 2's "does not pop open"
+clause cannot be seen in this order — the row expands the dock to reach Cancel — and is the main doc's §5
+check, walked there.
 
 ## Reporting
 

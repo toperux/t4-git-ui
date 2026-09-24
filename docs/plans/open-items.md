@@ -55,9 +55,6 @@ The rest needs machines we do not have:
   quarantine step remains in the release notes. (Signing is done, 2026-09-11 — see the done file.)
 - UI-vs-canvas comparison pass (v1 plan M6 leftover): screenshots of the real app against the
   screens canvas, one pass, fix what differs or update the canvas.
-- Dogfooding against a real remote — left: **a rejected push and a cancelled fetch**, smoke group BE
-  (`docs/smoke/fixtures/dogfood-fixture.sh`, against `toperux/t4-git-ui`), not walked. Fetch / pull /
-  push / tag push through GCM are covered by daily use on Azure DevOps (done file §B).
 
 ## C. Roadmap — v1 out-of-scope, unchanged, unscheduled
 Custom titlebar (revisited in M6, native kept) · i18n · plugins.
@@ -91,6 +88,9 @@ Custom titlebar (revisited in M6, native kept) · i18n · plugins.
   - (§K, 2026-09-16) **Still all open**: `typescript ~5.8.3`, `vite ^7`, `vitest ^4`,
     `@vitejs/plugin-react ^4`, `@types/node ^24`. No open PR of any kind; the last Dependabot PR was #8
     on 2026-09-12.
+  - (2026-09-24) **The single PRs arrived 2026-09-17**, all open: #10 Vitest 5, #11 Vite 8, #12
+    plugin-react 6 (all three red), #13 `@types/node` 26 and #9 the npm group of 7 (both green). No
+    TypeScript 7 PR.
 - **`watch::tests::rename_is_reported` flaked once on macOS** (PR #7's first run, 2026-09-12);
   passed on the rerun and on every run since. FSEvents timing is the usual reason. Watch, do not
   act: a second flake makes it a finding (bound the wait on the rename pair, or accept either
@@ -227,7 +227,7 @@ The ten fixes, the walks and the squash map (old → new hashes) are in the done
 
 The `ubuntu-22.04` decision in §E is parked until 2026-12-23 (three months before the 2027-03-23
 brownout). First, the npm majors one PR at a time, Vitest 5 first (§H). Otherwise:
-1. Dogfooding against GitHub, then the clean-Win11 install.
+1. The clean-Win11 install.
 2. Linux/macOS rendering when a machine is available — signing is done, and never needed one. CI's
    ubuntu and macOS legs already run the `#[cfg(unix)]` exec-bit staging test on every code push
    to `main`; only group G's manual
