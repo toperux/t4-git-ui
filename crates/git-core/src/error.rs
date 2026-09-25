@@ -4,7 +4,9 @@ use serde::ser::{Serialize, SerializeStruct, Serializer};
 
 #[derive(Debug, thiserror::Error)]
 pub enum GitError {
-    #[error(transparent)]
+    /// libgit2's own message only. `git2::Error`'s Display appends `; class=Os (2); code=NotFound (-3)`,
+    /// which is for a bug report, not for the toast this reaches; `kind()` already says it came from git.
+    #[error("{}", .0.message())]
     Git2(#[from] git2::Error),
     #[error(transparent)]
     Io(#[from] std::io::Error),
@@ -59,5 +61,24 @@ impl Serialize for GitError {
         s.serialize_field("kind", self.kind())?;
         s.serialize_field("message", &self.to_string())?;
         s.end()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The toast shows `message` as it is, so the class / code tail must not reach it.
+    #[test]
+    fn a_libgit2_error_shows_its_message_alone() {
+        let e = GitError::from(git2::Error::new(
+            git2::ErrorCode::NotFound,
+            git2::ErrorClass::Os,
+            "could not find repository at 'x'",
+        ));
+        assert_eq!(e.to_string(), "could not find repository at 'x'");
+        let v = serde_json::to_value(&e).unwrap();
+        assert_eq!(v["kind"], "git");
+        assert_eq!(v["message"], "could not find repository at 'x'");
     }
 }
