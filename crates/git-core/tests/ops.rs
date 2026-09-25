@@ -598,10 +598,10 @@ async fn cancel_kills_push_and_its_hook() {
         .await;
     let elapsed = started.elapsed();
     assert!(matches!(res, Err(GitError::Cancelled)), "{res:?}");
-    assert!(
-        elapsed < Duration::from_millis(800),
-        "cancel took {elapsed:?}"
-    );
+    // Far below the hook's 30 s sleep, which is the point: cancel kills the
+    // tree rather than waiting for it. 800 ms was too tight for a loaded
+    // Windows runner (1.1 s on the v0.10.3 release run, 2026-09-16).
+    assert!(elapsed < Duration::from_secs(3), "cancel took {elapsed:?}");
     let remote = Repository::open_bare(bare.path()).unwrap();
     assert!(
         remote.find_reference("refs/heads/master").is_err(),

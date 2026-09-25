@@ -315,17 +315,31 @@ mod tests {
         kinds
     }
 
+    /// Without `Refs`: on a loaded macOS runner FSEvents can deliver the setup
+    /// commit's ref write after `start`'s quiet window (CI, 2026-09-12 and
+    /// -14), where it lands in a workdir test's window. Ref classification is
+    /// `commit_reports_refs_and_index`'s to check.
+    fn without_setup_refs(mut kinds: Vec<ChangeKind>) -> Vec<ChangeKind> {
+        kinds.retain(|k| *k != ChangeKind::Refs);
+        kinds
+    }
+
     #[test]
     fn workdir_edit_is_reported() {
         let t = TempRepo::new();
         t.commit(&[("a.txt", "a")], "init");
         let (_w, rx) = start(&t);
         t.write("a.txt", "b");
-        let c = rx
-            .recv_timeout(Duration::from_secs(1))
-            .expect("change within 1s");
-        assert_eq!(c.kinds, vec![ChangeKind::Workdir]);
-        assert!(!c.rescan);
+        // Every change until a second of quiet, not just the first: a late setup
+        // event may come first.
+        let changes: Vec<RepoChange> =
+            std::iter::from_fn(|| rx.recv_timeout(Duration::from_secs(1)).ok()).collect();
+        let mut kinds = without_setup_refs(changes.iter().flat_map(|c| c.kinds.clone()).collect());
+        // Distinct kinds, as `kinds_within` counts them: one edit split across
+        // two debounce windows is still one workdir change.
+        kinds.dedup();
+        assert_eq!(kinds, vec![ChangeKind::Workdir], "{changes:?}");
+        assert!(changes.iter().all(|c| !c.rescan), "{changes:?}");
     }
 
     #[test]
@@ -337,7 +351,7 @@ mod tests {
         // sides are workdir paths, so the refresh is the same one.
         std::fs::rename(t.path().join("a.txt"), t.path().join("b.txt")).unwrap();
         let kinds = kinds_within(&rx, Duration::from_millis(1200));
-        assert_eq!(kinds, vec![ChangeKind::Workdir]);
+        assert_eq!(without_setup_refs(kinds), vec![ChangeKind::Workdir]);
     }
 
     #[test]
