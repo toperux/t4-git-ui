@@ -349,12 +349,28 @@ describe("PullDialog", () => {
     await waitFor(() => expect(mocked.pull).toHaveBeenCalledWith("r", "origin", "main", "merge"));
   });
 
-  it("names no branch when the current one does not track the chosen remote", async () => {
+  it("pulls the local name when the current branch does not track the chosen remote", async () => {
+    // A bare `git pull origin` here is refused: "…did not specify a branch".
     useRepoStore.setState({ refs: { ...REFS, local: [{ ...REFS.local[0], upstream: "upstream/develop" }] } });
     const { getByRole } = render(<PullDialog onClose={() => {}} />);
-    await waitFor(() => expect(preview(getByRole("dialog"))).toBe("git pull --progress --no-rebase --end-of-options origin"));
+    await waitFor(() => expect(preview(getByRole("dialog"))).toBe("git pull --progress --no-rebase --end-of-options origin main"));
     fireEvent.click(getByRole("button", { name: "Pull" }));
-    await waitFor(() => expect(mocked.pull).toHaveBeenCalledWith("r", "origin", null, "merge"));
+    await waitFor(() => expect(mocked.pull).toHaveBeenCalledWith("r", "origin", "main", "merge"));
+  });
+
+  it("names an unborn branch, which has no local row yet", async () => {
+    useRepoStore.setState({ refs: { ...REFS, head: { oid: null, branch: "main", detached: false }, local: [] } });
+    const { getByRole } = render(<PullDialog onClose={() => {}} />);
+    await waitFor(() => expect(preview(getByRole("dialog"))).toBe("git pull --progress --no-rebase --end-of-options origin main"));
+  });
+
+  it("starts on the upstream's remote before the default arrives, not the first remote", () => {
+    // An Enter that beats `get_default_remote` would otherwise merge `fork/main`.
+    mocked.getDefaultRemote.mockReturnValueOnce(new Promise(() => {}));
+    const fork = { name: "fork", url: null, branches: [] };
+    useRepoStore.setState({ refs: { ...REFS, remotes: [fork, ...REFS.remotes] } });
+    const { getByRole } = render(<PullDialog onClose={() => {}} />);
+    expect(preview(getByRole("dialog"))).toBe("git pull --progress --no-rebase --end-of-options origin main");
   });
 });
 

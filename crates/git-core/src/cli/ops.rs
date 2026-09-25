@@ -677,14 +677,28 @@ pub fn classify_failure(code: i32, stdout: &str, stderr: &str) -> OpFailure {
     }
     // Without a `fatal:` / `error:` line git is giving advice, and advice leads with the headline
     // ("The previous cherry-pick is now empty…") and ends with a hint ("Otherwise, please use…").
+    // A pull's fetch talks first, so its progress and ref-update lines are passed over.
     let message = stderr
         .lines()
         .map(str::trim)
         .rfind(|l| l.starts_with("fatal:") || l.starts_with("error:"))
+        .or_else(|| {
+            stderr
+                .lines()
+                .find(|l| !l.trim().is_empty() && !is_fetch_chatter(l))
+                .map(str::trim)
+        })
         .or_else(|| stderr.lines().map(str::trim).find(|l| !l.is_empty()))
         .map(String::from)
         .unwrap_or_else(|| format!("git exited with code {code}"));
     OpFailure::Other { message }
+}
+
+/// A fetch's own stderr: `remote: …`, `From <url>`, the indented ref updates, and the local
+/// `Receiving objects: 100% (4/4), done.` progress.
+fn is_fetch_chatter(line: &str) -> bool {
+    let t = line.trim();
+    line.starts_with(' ') || t.starts_with("remote:") || t.starts_with("From ") || t.contains("% (")
 }
 
 /// Refuses argv that would need a terminal, before anything runs. The rule,
@@ -1313,6 +1327,21 @@ mod tests {
                 message:
                     "The previous cherry-pick is now empty, possibly due to conflict resolution."
                         .into()
+            }
+        );
+        // A pull's fetch talks before git's advice: the advice, not `remote: Enumerating…`.
+        let pull = "remote: Enumerating objects: 4, done.\nremote: Total 3 (delta 0), reused 0 (delta 0)\nUnpacking objects: 100% (3/3), 250 bytes | 2.00 KiB/s, done.\nFrom c:/tmp/t4/mirror\n   910db56..1a2b3c4  master     -> mirror/master\nYou asked to pull from the remote 'mirror', but did not specify\na branch. Because this is not the default configured remote\n";
+        assert_eq!(
+            classify_failure(1, "", pull),
+            OpFailure::Other {
+                message: "You asked to pull from the remote 'mirror', but did not specify".into()
+            }
+        );
+        // Nothing but fetch output: its first line still beats a bare exit code.
+        assert_eq!(
+            classify_failure(1, "", "remote: Enumerating objects: 4, done.\n"),
+            OpFailure::Other {
+                message: "remote: Enumerating objects: 4, done.".into()
             }
         );
     }

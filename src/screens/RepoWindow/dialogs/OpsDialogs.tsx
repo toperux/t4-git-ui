@@ -19,9 +19,17 @@ export function useRemotes() {
   return useMemo(() => (remotes ?? []).map((r) => r.name), [remotes]);
 }
 
-/** `get_default_remote`, falling back to the first remote; `initial` (the row's own remote) wins outright. */
+/**
+ * `get_default_remote`, falling back to the first remote; `initial` (the row's own remote) wins outright.
+ * Until the answer lands, the same order from the refs (upstream's remote, `origin`, the first): an Enter
+ * that beats it must not pull from a remote the branch doesn't track.
+ */
 export function useDefaultRemote(remotes: string[], initial?: string) {
-  const [remote, setRemote] = useState<string>(() => initial ?? remotes[0] ?? "");
+  const [remote, setRemote] = useState<string>(() => {
+    const upstream = useRepoStore.getState().refs?.local.find((b) => b.isHead)?.upstream;
+    const tracking = remotes.find((r) => upstream?.startsWith(`${r}/`));
+    return initial ?? tracking ?? (remotes.includes("origin") ? "origin" : remotes[0]) ?? "";
+  });
   useEffect(() => {
     if (initial) return;
     let live = true;
@@ -191,10 +199,14 @@ export function PullDialog({ onClose }: { onClose: () => void }) {
   const [remote, setRemote] = useDefaultRemote(remotes);
   const [mode, setMode] = useState<PullMode>("merge");
   const local = useRepoStore((st) => st.refs?.local);
-  const upstream = local?.find((b) => b.isHead)?.upstream ?? null;
-  // The refspec is the *remote* branch: local `dev` may track `origin/develop`. Without a matching
-  // upstream we name no branch at all and let git use the tracking configuration.
-  const branch = upstream && remote && upstream.startsWith(`${remote}/`) ? upstream.slice(remote.length + 1) : null;
+  const current = local?.find((b) => b.isHead);
+  // An unborn branch has no `local` row yet, but `git pull origin <it>` still works.
+  const unborn = useRepoStore((st) => st.refs?.head.branch);
+  const head = current?.name ?? unborn ?? null;
+  const upstream = current?.upstream ?? null;
+  // The refspec is the *remote* branch: local `dev` may track `origin/develop`. On a remote the upstream
+  // isn't on, the local name, as Push does — a bare `git pull <remote>` there is refused ("did not specify a branch").
+  const branch = upstream && remote && upstream.startsWith(`${remote}/`) ? upstream.slice(remote.length + 1) : remote ? head : null;
 
   // Default follows `pull.rebase`.
   useEffect(() => {
@@ -226,9 +238,8 @@ export function PullDialog({ onClose }: { onClose: () => void }) {
    * the remote side), and the remote — the picked one, else the upstream's, which is where git pulls from.
    */
   function rejectionPair() {
-    const into = local?.find((b) => b.isHead)?.name;
     const from = remote || remotes.find((r) => upstream?.startsWith(`${r}/`));
-    return into && from ? { remote: from, branch: into } : undefined;
+    return head && from ? { remote: from, branch: head } : undefined;
   }
 
   return (
