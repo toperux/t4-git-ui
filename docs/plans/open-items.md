@@ -48,6 +48,17 @@ done, move it there._
     - the viewport-anchor walk's 9 (`:1742`), which isn't drivable;
     - AZ 9 (`:1852`), which is unit-tested with no hand recipe.
 
+- **Before the next tag: walk an update on `tauri-plugin-updater` 2.12.0.** Dependabot #17 (2026-09-26) moved it
+  from 2.11.0. So far it has only compiled and passed CI, and it ships in the next release, so a regression would
+  strand every installed copy of that release. The update is run by the *installed* app's updater, so walk it
+  on a local build of `main` versioned as 0.10.11, updating to the published 0.10.12
+  (`npm run tauri -- build --no-bundle --config "{\"version\":\"0.10.11\"}"`, then Check now / Install, through
+  `docs/smoke/fixtures/throttle-proxy.mjs` for the cut and failed cases — the recipe of the 2026-09-24 update walk).
+  Its release note: 2.12.0 dropped the JS `check` option `allowDowngrades`, which this app never used.
+- **The user's own 0.10.11 → 0.10.12 update** — the first real run of the plain-words update errors and of
+  Install's confirm over a typed commit message (group BG walked them on local builds only). Can be the same
+  sitting as the row above.
+
 - **Windows code signing** — the NSIS setup is not Authenticode-signed, so every new Windows user meets
   SmartScreen's "Windows protected your PC" and has to pick *More info › Run anyway*. The updater's minisign
   signature is a different thing: it protects updates, not the first download. Fixing it needs a code-signing
@@ -87,9 +98,6 @@ Custom titlebar (revisited in M6, native kept) · i18n · plugins.
     the image: the markdown viewer runs `Format` on the Linux leg only.
 
 ## H. Added 2026-09-12 — after the push
-- **Watch CI after the v0.10.12 push:** the three CI flakes were fixed 2026-09-25 (done file §H). The macOS
-  ones could not be reproduced here, so the first macOS runs are the check. Close this row after a few green
-  ones.
 - **A `#[cfg(unix)]` block is invisible to Windows clippy.** The 14-commit push of 2026-09-13 went
   red on Linux and macOS only: a `let mut` flag assigned inside a `#[cfg(unix)]` test block is
   `unused_assignments` under `-D warnings`, and the local gate never compiles that branch
@@ -158,6 +166,18 @@ fixture, are in the done file since 2026-09-25.) The walk itself is
 ## M. Added 2026-09-19 — review of `v0.10.1..HEAD`, its fixes, and the walk of group AZ
 
 The walk is `docs/archive/walks/2026-09-19-group-az-walk.md`. What is left, so it is not rediscovered:
+
+- **A failed op's toast detail, known limits** (2026-09-26, the Pull fix's review). Without a `fatal:` /
+  `error:` line, `classify_failure` takes the first line after a fetch's chatter. Git wraps its advice, so
+  the toast can stop mid-sentence (*…but did not specify*), and a `warning:` line before the advice
+  (`warning: redirecting to …`) is taken in its place. The dock has the whole text. Joining lines up to a
+  blank one would cut the first, but it would also lengthen the cherry-pick advice headline that
+  `cli::ops::tests::rejected_and_other` pins. So both are left until one bites.
+- **The default remote can overwrite a quick pick** (pre-existing). `useDefaultRemote` sets the answer of
+  `get_default_remote` whenever it lands, even after the Remote field was changed by hand. Since 2026-09-26 the
+  first render already shows the same order from the refs, so the answer rarely differs. The preview follows
+  the change, but an Enter right after it can still miss it. Fix: skip the `setRemote` once the field was
+  touched.
 
 - **Open boxes in group AZ**: 9 (the `git skipped <path>` toast — unit-tested, no hand recipe) and 11 (Linux and
   macOS: rows 3a, 3b, 3d, 3i and bullet 6, by hand).

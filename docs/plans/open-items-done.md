@@ -273,7 +273,8 @@ the path alone. Kept here as the record of what was seen.
     the test's own window. The second test also took only the first event, so it saw nothing but that `Refs`.
     Both now drop `Refs` (`without_setup_refs`), since ref classification is `commit_reports_refs_and_index`'s
     to check. `workdir_edit_is_reported` now collects until a second of quiet, and checks every change is
-    free of `rescan`. Not reproducible on Windows; watch the next macOS runs.
+    free of `rescan`. Not reproducible on Windows. **Closed 2026-09-26**, after three green macOS runs:
+    CI runs 36188124064 and 36225640149, and the v0.10.12 release run 36188618283.
   - **Windows `cancel_kills_push_and_its_hook`** (release run 35117912609, v0.10.3, 2026-09-16): *cancel took
     1.10 s* against an 800 ms bound. The hook sleeps 30 s, so the point is killing the tree rather than
     waiting for it. The bound is now 3 s.
@@ -448,7 +449,7 @@ Written after re-reading every row above against the working tree, `git log`, th
   Walked 2026-09-26 (the BG walk record).
 - **A failed op's toast detail could be a progress line** (same walk) — **fixed the same day**. With no
   `fatal:` / `error:` line, `classify_failure` now skips a fetch's own chatter (`remote:`, `From`, the indented
-  ref updates, `…% (…)` progress) before taking the first line. Test: `cli::ops::tests`, the `pull` case.
+  ref updates, `…% (…)` progress) before taking the first line. Test: `cli::ops::tests::rejected_and_other`, the `pull` case.
 - **The "unticked lines, recounted" bullet** (fourteen, 2026-09-19) — superseded 2026-09-25 by §B's recount in
   `open-items.md` (eleven). AZ 10 and AC's two network boxes were walked on 2026-09-24.
 
