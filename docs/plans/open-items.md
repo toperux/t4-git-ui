@@ -32,21 +32,23 @@ done, move it there._
 
 ## B. Verification and release
 - **Unticked smoke lines — recounted 2026-09-25: ten**, across the two smoke docs. The settings walk's 6 was
-  walked the same day, and a grep for `- [ ]` also matches `smoke-test-post-v1.md:296`, which is prose. By what
+  walked the same day, and a grep for `- [ ]` also matches `smoke-test-post-v1.md:298`, which is prose. (Line numbers
+  refreshed 2026-09-26.) By what
   they need:
   - **By hand on this machine (3):**
-    - a DPI change (`smoke-test.md:283`);
-    - AI's manual folder toggle across a refresh (`smoke-test-post-v1.md:1225`);
-    - the **Remove from list** half of AJ's "buttons own their clicks" (`:1255`). Retry and Pull passed
+    - a DPI change (`smoke-test.md:285`);
+    - AI's manual folder toggle across a refresh (`smoke-test-post-v1.md:1234`);
+    - the **Remove from list** half of AJ's "buttons own their clicks" (`:1264`). Retry and Pull passed
       2026-09-16; adding a dead recent needs the native folder picker, and the recents store is shared with
       the installed app.
-  - **A Linux or macOS machine (3):** AC's deb / rpm box (`:759`), and AZ 11's two platform lines (`:1855`,
-    `:1856`).
+  - **A Linux or macOS machine (3):** AC's deb / rpm box (`:761`), and AZ 11's two platform lines (`:1867`,
+    `:1870`).
   - **Records, not work (4):**
-    - AG's two (`:1152`, `:1163`): one box's recipe is unachievable, and one cannot be decided by what it
+    - AG's two (`:1161`, `:1172`): one box's recipe is unachievable, and one cannot be decided by what it
       observes;
-    - the viewport-anchor walk's 9 (`:1742`), which isn't drivable;
-    - AZ 9 (`:1852`), which is unit-tested with no hand recipe.
+    - the viewport-anchor walk's 9 (`:1751`), which isn't drivable;
+    - AZ 9 (`:1864`), which is unit-tested with no hand recipe. `check_staged`'s test covers the message only,
+      not the toast or the list refresh.
 
 - **Windows code signing** — the NSIS setup is not Authenticode-signed, so every new Windows user meets
   SmartScreen's "Windows protected your PC" and has to pick *More info › Run anyway*. The updater's minisign
@@ -159,14 +161,134 @@ fixture, are in the done file since 2026-09-25.) The walk itself is
 
 The walk is `docs/archive/walks/2026-09-19-group-az-walk.md`. What is left, so it is not rediscovered:
 
-- **Open boxes in group AZ**: 9 (the `git skipped <path>` toast — unit-tested, no hand recipe) and 11 (Linux and
-  macOS: rows 3a, 3b, 3d, 3i and bullet 6, by hand).
+- **Open boxes in group AZ**: 9 (the `git skipped <path>` toast — unit-tested, no hand recipe; a record, see §B) and
+  11 (Linux and macOS: rows 3a, 3b, 3d, 3i and bullet 6, by hand). Linux was walked 2026-09-26 and failed on 6; the
+  fix is committed on `linux-smoke-and-fixes`, see §O.
 - **Menus.** Rows shift by a line while arrowing over a clipped name. After arrow keys in the grid a
   right-click menu opens with its first item focus-visible, so a clipped first item opens wrapped — the
   same case in which that row always had the accent highlight.
 - **Seen in the walk, not acted on.** An external `git reset` of 1800 files takes about four seconds to
   show in Changes, on 0.10.7 as well. (The libgit2 error-suffix row was fixed 2026-09-25 and is in the done
   file; the walk's native-confirm reading is in §L.)
+
+## O. Added 2026-09-26 — the Linux walk of group AZ 11
+
+The walk is `docs/archive/walks/2026-09-26-group-az-linux-walk.md`: a debug build of `1e795ad` on Ubuntu 26.04.1,
+WebKitGTK 2.52.6, driven under Xvfb (`docs/smoke/smoke-linux.md`). Rows 3a, 3b, 3d and 3i pass. It found two bugs,
+both reproduced without WebDriver. Fix plan, with a status section:
+`docs/plans/2026-09-26-linux-menu-focus-and-restore-plan.md`.
+
+- **Menus show no keyboard focus on WebKitGTK: fixed** (branch `linux-smoke-and-fixes`).
+  - **The bug:** `Menu.tsx` focused items by script, WebKitGTK never gives those `:focus-visible`, and every highlight
+    and the clipped-name wrap were keyed on it.
+  - **The fix:** `focusItem` marks a keyboard-focused item `data-kbd`, and the CSS styles `[data-kbd]:focus` beside
+    `:focus-visible`.
+  - **Checked:** AZ 6 passes in full on Linux (2026-09-26, direct launch, real X keys).
+  - **Still open:**
+    - **Linux audit** of other script-focused widgets: the Select lists (Settings), the command palette, file lists,
+      and the trigger that gets focus back after Escape (`useRestoreFocus`). Any with no visible focus gets a row
+      of its own.
+    - **Windows re-walk of AZ 6** over CDP. It must look exactly as before.
+- **A restored second window sometimes never starts: guarded, not fixed.**
+  - **The bug:** `w1` stays on the *Starting* spinner for good.
+    - **Rate:** about 3 of 16 two-window restores before step C, 7 of 20 after. That difference isn't significant
+      (p ≈ 0.3).
+    - **Log:** nothing from `w1`. Under WebDriver its `plugin:store|load` never returned, and async commands then
+      stalled app-wide while a sync one still answered, so the main thread was alive.
+  - **Done, on `linux-smoke-and-fixes` (plan step C):** `spawn` writes the new window's tabs to `layout.json` at
+    once, and after
+    `restoreTabs` the frontend reports once, so a window that never starts keeps its tabs. Checked: 20 of 20
+    restores kept them, all 7 hangs included.
+  - **Still open:**
+    - **Plan step A, diagnose.** A repro loop that **A/Bs step C** (30 launches with it, 30 without, in case its lock
+      and file write in `spawn` raise the rate). Then thread stacks of a hung process under gdb as a parent (no sudo
+      needed). Then the probes: did the stuck page load (screenshot); is `main` alive (F5 and the log); does it also
+      hang on a second launch or on Ctrl+Shift+N. The earlier store-lock suspect is unlikely: both paths take
+      the locks in the same order. Look first at the async side and at `show_with_theme`'s `win.theme()`, a
+      main-thread round trip.
+    - **Plan step B, fix,** once A names the cause.
+    - **Verify:** 0 hangs in 50 launches; a Linux re-walk of AZ 3a/3b/3c/3d/3f/3h/3i/3k; a Windows re-walk of AZ
+      row 3.
+    - **Whether it happens on Windows** (not seen in the 2026-09-19 walk).
+- **AZ 11 Linux stays unticked** until both bugs pass their re-walks. Then tick it, write the walk record, and move
+  this section to `open-items-done.md`.
+- **Triaged 2026-09-26:** every decision and accepted limit is recorded in the plan's *Decisions* section; the order
+  of the remaining work is its *Order* section. T14 (a test for the `catch` path) is done. T11 was
+  dropped: reporting `main` first would widen an existing crash loop (§P), so the crash-at-launch gap is accepted.
+  Then Phase A with the A/B. If Phase C raises the rate,
+  its write moves onto the build thread (D2). Then the T18 audit and Phase B. Windows: AZ 6 as soon as the branch is
+  up, row 3 after Phase B. macOS (AZ 11 and the WebKit click-focus check, T12): open until a Mac is available.
+
+## P. Added 2026-09-26 — the Linux harness follow-ups, and one row found in review
+
+The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its decisions are in the plan above.
+
+- ~~**Portable fixture script (T2).**~~ Done 2026-09-26 (`linux-smoke-and-fixes`): `smoke-fixtures.sh` uses `awk`
+  instead of GNU `sed`, with the same output.
+- ~~**Promote the direct-launch helpers (D4).**~~ Done 2026-09-26 (`linux-smoke-and-fixes`):
+  `docs/smoke/fixtures/direct.sh`, pointed to from `smoke-linux.md`.
+- **AC :761 walked 2026-09-26 (T6):** the `.deb` passes; the AppImage updates in place only with a workaround (the
+  blank-window bug below); `.rpm` not walked. The row stays unticked
+  (`docs/archive/walks/2026-09-26-group-ac-linux-walk.md`).
+- **ssh under the moved `HOME` (T4):** check once that ssh still finds `~/.ssh`, and correct `smoke-linux.md` if not.
+  (`xclip`, T9, turned out to be installed and is now a listed prerequisite.)
+- **Re-test WebDriver with two windows (T7)** once the restore hang is fixed. If it works, multi-window rows get DOM
+  access back.
+- **Drive live Wayland through AT-SPI (T5):** the OS theme switch, DPI and anything Wayland-only are hand-walked
+  today. `python3-gi`'s `Atspi` reaches the live session. It needs a plan of its own.
+- **Bug found in the AC :761 walk (2026-09-26): the AppImage opens a blank window on Ubuntu 26.04.**
+  - **Symptom:** WebKit's web process aborts with `Could not create default EGL display: EGL_BAD_PARAMETER`. The
+    window stays blank. It affects the published 0.10.11 **and 0.10.12** AppImages.
+  - **Scope:** the same on the Wayland desktop (VMware SVGA II) and on a headless Xvfb display in software, so it isn't
+    GPU- or session-specific. The `.deb` (system WebKitGTK 2.52.6) renders fine.
+  - **Cause, verified:** the AppImage is built on `ubuntu-22.04` (`release.yml:111`) and bundles that system's
+    `libwayland-client` / `-egl` / `-cursor` / `-server`. Those shadow the host's, and the host's Mesa EGL fails
+    against them.
+    - **On X11** (Xvfb, software), either of these makes it render: removing the bundled `libwayland-*` from the
+      extracted 0.10.11 AppImage, or running the real AppImage with `LD_PRELOAD` of the host's
+      `libwayland-client.so.0` and `libwayland-egl.so.1`.
+    - **On the Wayland desktop** (VMware SVGA II), those two preloaded left it blank, though the page ran (the title
+      changed). It rendered with all four host libraries preloaded (`-client`, `-egl`, `-cursor`, `-server`)
+      **plus** `WEBKIT_DISABLE_DMABUF_RENDERER=1`. The same four under XWayland (`GDK_BACKEND=x11`) stayed blank,
+      with no error.
+    - **Not yet separated:** whether native Wayland needs the extra two libraries, the DMA-BUF switch, or both.
+  - **Fix direction:** leave the `libwayland-*` libraries out of the AppImage (the host always has them). Then check
+    whether native Wayland still needs the DMA-BUF renderer off. If it does, the app could set
+    `WEBKIT_DISABLE_DMABUF_RENDERER=1` for itself when `APPIMAGE` is set. Find the
+    supported way in Tauri 2's AppImage bundler (linuxdeploy); failing that, a post-bundle step that strips them and
+    repacks before signing, since the `.sig` covers the final file. Then re-test on Ubuntu 26.04, and on 22.04 so
+    nothing regresses there.
+  - **Also relevant:** the `ubuntu-22.04` runner decision (§E, parked until 2026-12-23), since the gap between build
+    host and user system is the root.
+  - **Workaround until then:** `LD_PRELOAD` of the four host `libwayland-*` libraries plus
+    `WEBKIT_DISABLE_DMABUF_RENDERER=1`.
+- **Row found in review: a repository that crashes the app while loading crashes every later launch.** `openTab`
+  adds the tab, and the layout subscription reports it to `layout.json`, as soon as the backend open returns and
+  before the repository loads (`src/store/tabsStore.ts`, `src/App.tsx`'s `useTabsStore.subscribe`). A crash during
+  the load therefore leaves the path in the file, and every launch reopens it and crashes again until `layout.json`
+  is deleted by hand. That happens with one window or several. "Crashes" means the process ends without a normal
+  exit: a segfault, an abort, OOM, or a panic that isn't contained. Likely fix, a loop breaker:
+  - **Mark the restore in progress** on the Rust side, before `take_layout` hands the layout out.
+  - **Clear the mark** once every window the restore spawned has sent its post-`restoreTabs` report, not just
+    `main`: spawned windows load their own repositories. Rust knows their labels from `spawn` / `pending`.
+    **Also clear it on a normal exit** (`RunEvent::Exit`, which covers Quit and the last window closing). A window
+    stuck on *Starting* (§O) never reports, so without this a clean quit would read as a crash next launch. **And clear
+    it just before `update.install`** (`update.rs`), or in the updater's `on_before_exit` hook. On Windows the updater
+    launches the installer and calls `std::process::exit(0)`, so `RunEvent::Exit` never fires, and the launch after an
+    update would read as a crash (breaking AZ 10). Only a crash or a kill then leaves the mark set.
+  - *This is a sketch from review, verified against Tauri 2.11 and tauri-plugin-updater 2.12. Design and test it
+    properly when the row is picked up: the exit paths (Quit, last window, update restart on each OS, a kill)
+    are the test list.*
+  - **If the previous launch never finished restoring,** open `main` on the start screen once:
+    - move `layout.json` aside rather than taking it (`take_layouts` deletes the file, and the one present is what
+      the crashed launch rewrote);
+    - **skip the `lastOpen` fallback too.** The subscription persists the crashing repository as `lastOpen`, which
+      `restoreTabs` falls back to on an empty layout;
+    - say so in a toast.
+- **Row found in review (T15): a reloaded `main` re-spawns every other window.** A dev reload, or a WebKit
+  web-process crash that reloads the page, runs `restoreTabs` → `takeLayout` again (`src/App.tsx`) and spawns
+  duplicates of every other window. Not new, and unrelated to §O. Likely fix: take the layout once per process
+  (e.g. Rust keeps it after the first `take_layout`), not once per page load.
 
 ## Suggested order, if nothing else decides it
 

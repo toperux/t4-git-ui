@@ -37,7 +37,7 @@ import App from "./App";
 import { useRecentsStore } from "./store/recentsStore";
 import { useTabsStore } from "./store/tabsStore";
 
-const mocked = ipc as unknown as Record<"probeGit" | "takePending" | "takeLayout" | "spawnWindow", ReturnType<typeof vi.fn>>;
+const mocked = ipc as unknown as Record<"probeGit" | "takePending" | "takeLayout" | "spawnWindow" | "setLayout", ReturnType<typeof vi.fn>>;
 const openTab = vi.fn(() => Promise.resolve());
 /** What the kv store holds for `lastOpen` — the pre-tabs way of reopening a repository. */
 let lastOpen: string | null = null;
@@ -97,5 +97,35 @@ describe("App", () => {
     const { findByText, getByText } = render(<App />);
     expect(await findByText(/Found git version 2\.23\.0, which is older than the required git 2\.24\./)).toBeTruthy();
     expect(getByText("Git not found")).toBeTruthy();
+  });
+
+  it("reports its layout once restoring is done, even when no repository opened", async () => {
+    mocked.takePending.mockResolvedValue({ tabs: ["/gone"], active: "/gone" });
+    openTab.mockRejectedValueOnce({ kind: "internal", message: "not a repository" });
+    render(<App />);
+    await settled();
+    expect(mocked.setLayout).toHaveBeenCalledWith({ tabs: [], active: "" });
+    expect(mocked.setLayout).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports nothing when the recents fail to load: restoring never ran, so the layout on disk is untouched", async () => {
+    const load = useRecentsStore.getState().load;
+    useRecentsStore.setState({ load: () => Promise.reject(new Error("store unreadable")) });
+    try {
+      render(<App />);
+      await settled();
+      expect(mocked.takeLayout).not.toHaveBeenCalled();
+      expect(mocked.setLayout).not.toHaveBeenCalled();
+    } finally {
+      useRecentsStore.setState({ load });
+    }
+  });
+
+  it("reports nothing when git is missing: the layout on disk has not been taken yet", async () => {
+    mocked.probeGit.mockResolvedValue({ version: "git version 2.23.0", tooOld: true });
+    const { findByText } = render(<App />);
+    await findByText("Git not found");
+    await settled();
+    expect(mocked.setLayout).not.toHaveBeenCalled();
   });
 });

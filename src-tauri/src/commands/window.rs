@@ -115,6 +115,10 @@ pub fn spawn(
         let state = app.state::<AppState>();
         let label = state.next_window_label();
         state.pending().insert(label.clone(), payload.clone());
+        let mut layouts = state.layouts();
+        spawned(&mut layouts, &label, payload.clone());
+        let list = restorable(&mut layouts, Instant::now());
+        write_layouts(&layout_file(app), &list);
         label
     };
 
@@ -151,6 +155,14 @@ pub fn spawn(
                 tracing::warn!(label = %target, error = %e, "window failed to open");
                 let state = app.state::<AppState>();
                 state.pending().remove(&target);
+                // The tabs go back to the source below, so the entry `spawned` made must not
+                // restore them a second time.
+                {
+                    let mut layouts = state.layouts();
+                    layouts.open.remove(&target);
+                    let list = restorable(&mut layouts, Instant::now());
+                    write_layouts(&layout_file(&app), &list);
+                }
                 // Give the tabs back to the window that let them go, or they are
                 // lost — every one of them, not just the active one.
                 if let Some(source) = &source {
@@ -195,7 +207,20 @@ pub fn set_layout(app: AppHandle, window: Window, layout: Layout) {
     write_layouts(&layout_file(&app), &list);
 }
 
-/// What a close does to the state; `false` for a window that never reported.
+/// A window being created is in the file from the start, not from its first
+/// `set_layout`: one stuck on *Starting* never reports, and its tabs would
+/// otherwise be gone once `main` closes. Its first `set_layout` replaces this.
+///
+/// A torn-off tab is in both entries until the source window reports again, so
+/// a crash inside those milliseconds restores it twice; accepted. At launch
+/// `main` spawns before its own first `set_layout`, so the file then holds only
+/// the spawned window's entry, and a crash right then restores those tabs into
+/// `main` — better than restoring nothing.
+fn spawned(l: &mut Layouts, label: &str, payload: Layout) {
+    l.open.insert(label.to_string(), payload);
+}
+
+/// What a close does to the state; `false` for a window with no entry in `open`.
 fn close(l: &mut Layouts, label: &str, now: Instant) -> bool {
     // A chain that had already run out does not get extended by this close —
     // judged with this window still open: its tabs are what let it run out.
@@ -632,6 +657,48 @@ mod tests {
 
         l.open.insert("main".to_string(), layout(&["c:/a"]));
         assert_eq!(labels(restorable(&mut l, later)), ["main"]);
+    }
+
+    /// A window that never reports (stuck on *Starting*) is still in the file;
+    /// one created with nothing to show is not.
+    #[test]
+    fn a_spawned_window_is_written_before_it_reports() {
+        let path = temp_path("spawned");
+        let mut l = Layouts::default();
+        spawned(&mut l, "w1", layout(&["c:/b"]));
+        spawned(&mut l, "w2", Layout::default());
+        write_layouts(&path, &restorable(&mut l, Instant::now()));
+        assert_eq!(take_layouts(&path), vec![layout(&["c:/b"])]);
+    }
+
+    /// A window whose tabs all failed to open reports an empty layout once
+    /// `restoreTabs` is done, and drops out rather than coming back every launch.
+    #[test]
+    fn an_empty_report_replaces_the_spawned_entry() {
+        let path = temp_path("spawned-empty");
+        let mut l = Layouts::default();
+        spawned(&mut l, "w1", layout(&["c:/b"]));
+        l.open.insert("w1".to_string(), Layout::default());
+        write_layouts(&path, &restorable(&mut l, Instant::now()));
+        assert_eq!(take_layouts(&path), Vec::<Layout>::new());
+    }
+
+    /// Closing a window that never reported is a real close: its tabs join the
+    /// chain and expire after the grace like any other window's.
+    #[test]
+    fn closing_a_spawned_window_puts_it_in_the_chain() {
+        let t0 = Instant::now();
+        let mut l = Layouts {
+            open: HashMap::from([("main".to_string(), layout(&["c:/a"]))]),
+            closed: Vec::new(),
+        };
+        spawned(&mut l, "w1", layout(&["c:/b"]));
+        assert!(close(&mut l, "w1", t0));
+        assert_eq!(labels(restorable(&mut l, t0)), ["main", "w1"]);
+        assert_eq!(
+            labels(restorable(&mut l, t0 + CLOSE_GRACE + Duration::from_secs(1))),
+            ["main"]
+        );
     }
 
     /// No window left is the app on its way out: however long the exit takes,
