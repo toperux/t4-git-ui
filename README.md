@@ -40,6 +40,9 @@ Grab the installer for your platform from the [Releases](../../releases) page:
   access to — an unsigned build re-asks every launch. The first signed release resets those
   grants once.
 - Linux: `.deb`, `.rpm` or `.AppImage`
+  - If the AppImage opens a blank window (seen under XWayland on some GPUs, e.g. a VMware VM),
+    run it with `WEBKIT_DISABLE_DMABUF_RENDERER=1`, on every launch (in the launcher, say). An
+    in-app update's restart keeps it.
 
 Every package has a `.sha256` sidecar next to it.
 

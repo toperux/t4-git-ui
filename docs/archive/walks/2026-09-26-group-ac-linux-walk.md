@@ -38,3 +38,13 @@ The row stays unticked: `.rpm` wasn't walked, and the AppImage works only with t
      The two preloaded libraries alone, and XWayland, stayed blank, although the page ran (the title changed).
    - **Carried through the update:** the in-app restart kept the environment, so the restarted 0.10.12 rendered.
    - **Tracked in** `docs/plans/open-items.md` §P, with the fix direction.
+
+## Later
+
+- **2026-09-27:** finding 1 is fixed on `linux-smoke-and-fixes`, pending a `workflow_dispatch` build and the release
+  walks. The release workflow repacks the AppImage without the bundled `libwayland-client`, the library the host's
+  Mesa fails against.
+- **The desktop result above was a second problem.** The AppImage always runs under XWayland, and on this VM
+  XWayland also needs `WEBKIT_DISABLE_DMABUF_RENDERER=1`: the system `.deb` is blank under `GDK_BACKEND=x11` too.
+  That one is documented in the README, not fixed.
+- See `docs/plans/2026-09-26-appimage-blank-window-plan.md`.

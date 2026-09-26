@@ -81,6 +81,9 @@ Custom titlebar (revisited in M6, native kept) · i18n · plugins.
   Either way **do not switch to `ubuntu-latest`**: the replacement (a `container: ubuntu:22.04` job,
   or `cargo-zigbuild`) has to be picked once for all three t4 repos. Recorded in
   `docs/archive/plans/ci-alignment-round-2.md` §5; nothing breaks on the deprecation date itself.
+  - (2026-09-27) **Whatever replaces it keeps the AppImage repack.** `release.yml` strips the build host's
+    `libwayland-client` from the AppImage (§P). Any older-than-the-user build host needs that, a `container:
+    ubuntu:22.04` job included.
   - (§K, 2026-09-16) **Still pinned** in `checks.yml:28` and `release.yml:111`, and **t4-markdown-viewer
     is in exactly the same state** (asked and answered 2026-09-16: still pinned, no decision recorded,
     the reasoning lives only in its archived `ci-alignment*.md`). So the cross-repo decision is genuinely
@@ -228,40 +231,46 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
 - ~~**Promote the direct-launch helpers (D4).**~~ Done 2026-09-26 (`linux-smoke-and-fixes`):
   `docs/smoke/fixtures/direct.sh`, pointed to from `smoke-linux.md`.
 - **AC :761 walked 2026-09-26 (T6):** the `.deb` passes; the AppImage updates in place only with a workaround (the
-  blank-window bug below); `.rpm` not walked. The row stays unticked
-  (`docs/archive/walks/2026-09-26-group-ac-linux-walk.md`).
+  blank-window bug below); `.rpm` not walked, ruled covered 2026-09-27. The row stays unticked until the AppImage
+  release walks (`docs/archive/walks/2026-09-26-group-ac-linux-walk.md`).
 - **ssh under the moved `HOME` (T4):** check once that ssh still finds `~/.ssh`, and correct `smoke-linux.md` if not.
   (`xclip`, T9, turned out to be installed and is now a listed prerequisite.)
 - **Re-test WebDriver with two windows (T7)** once the restore hang is fixed. If it works, multi-window rows get DOM
   access back.
 - **Drive live Wayland through AT-SPI (T5):** the OS theme switch, DPI and anything Wayland-only are hand-walked
   today. `python3-gi`'s `Atspi` reaches the live session. It needs a plan of its own.
-- **Bug found in the AC :761 walk (2026-09-26): the AppImage opens a blank window on Ubuntu 26.04.**
-  - **Symptom:** WebKit's web process aborts with `Could not create default EGL display: EGL_BAD_PARAMETER`. The
-    window stays blank. It affects the published 0.10.11 **and 0.10.12** AppImages.
-  - **Scope:** the same on the Wayland desktop (VMware SVGA II) and on a headless Xvfb display in software, so it isn't
-    GPU- or session-specific. The `.deb` (system WebKitGTK 2.52.6) renders fine.
-  - **Cause, verified:** the AppImage is built on `ubuntu-22.04` (`release.yml:111`) and bundles that system's
-    `libwayland-client` / `-egl` / `-cursor` / `-server`. Those shadow the host's, and the host's Mesa EGL fails
-    against them.
-    - **On X11** (Xvfb, software), either of these makes it render: removing the bundled `libwayland-*` from the
-      extracted 0.10.11 AppImage, or running the real AppImage with `LD_PRELOAD` of the host's
-      `libwayland-client.so.0` and `libwayland-egl.so.1`.
-    - **On the Wayland desktop** (VMware SVGA II), those two preloaded left it blank, though the page ran (the title
-      changed). It rendered with all four host libraries preloaded (`-client`, `-egl`, `-cursor`, `-server`)
-      **plus** `WEBKIT_DISABLE_DMABUF_RENDERER=1`. The same four under XWayland (`GDK_BACKEND=x11`) stayed blank,
-      with no error.
-    - **Not yet separated:** whether native Wayland needs the extra two libraries, the DMA-BUF switch, or both.
-  - **Fix direction:** leave the `libwayland-*` libraries out of the AppImage (the host always has them). Then check
-    whether native Wayland still needs the DMA-BUF renderer off. If it does, the app could set
-    `WEBKIT_DISABLE_DMABUF_RENDERER=1` for itself when `APPIMAGE` is set. Find the
-    supported way in Tauri 2's AppImage bundler (linuxdeploy); failing that, a post-bundle step that strips them and
-    repacks before signing, since the `.sig` covers the final file. Then re-test on Ubuntu 26.04, and on 22.04 so
-    nothing regresses there.
-  - **Also relevant:** the `ubuntu-22.04` runner decision (§E, parked until 2026-12-23), since the gap between build
-    host and user system is the root.
-  - **Workaround until then:** `LD_PRELOAD` of the four host `libwayland-*` libraries plus
-    `WEBKIT_DISABLE_DMABUF_RENDERER=1`.
+- **Bug found in the AC :761 walk (2026-09-26): the AppImage opens a blank window on Ubuntu 26.04. Fixed on
+  `linux-smoke-and-fixes`, pending a `workflow_dispatch` build and the release walks.**
+  Plan: `docs/plans/2026-09-26-appimage-blank-window-plan.md`.
+  - **Symptom:** WebKit's web process aborts with `Could not create default EGL display: EGL_BAD_PARAMETER`, and the
+    window stays blank. The published 0.10.11 and 0.10.12 AppImages are affected; the `.deb` renders fine.
+  - **Cause:** the AppImage is built on `ubuntu-22.04` and bundles its `libwayland-client` (1.20). The host's Mesa
+    `libEGL_mesa` uses symbols from 1.23+, so every host with a Mesa that new is hit, not only 26.04. Moving the
+    runner wouldn't help: 24.04 ships 1.22.
+  - **Fix:** `release.yml` repacks the AppImage without `libwayland-client` (what the upstream AppImage excludelist
+    drops), rewrites the runtime's `.digest_md5`, re-signs it and verifies the `.sig` against the shipped pubkey.
+    `-server` stays: the bundled WebKit needs it. The release body tells 0.10.12-or-earlier AppImage users to
+    download by hand, since a blank window can't reach the in-app update.
+  - **Untested (accepted 2026-09-27):** an Ubuntu 22.04 host, and the NVIDIA proprietary driver.
+  - **Separate, and not fixed:** the AppImage always runs under XWayland (its GTK hook forces `GDK_BACKEND=x11`).
+    On this VMware SVGA II guest, XWayland also needs `WEBKIT_DISABLE_DMABUF_RENDERER=1`; the system `.deb` under
+    `GDK_BACKEND=x11` is blank too. Decided 2026-09-27: no switch in the app (it would slow every AppImage user).
+    README documents the variable instead.
+  - **Left:**
+    - a `workflow_dispatch` run: the downloaded AppImage renders on Xvfb, and on this desktop with the variable;
+    - the next release: an old AppImage with the `LD_PRELOAD` workaround (the command is in the AC walk record)
+      updates to the fixed one;
+    - the release after: the fixed one updates in place;
+    - then tick AC :761. `.rpm` is ruled covered by the `.deb` walk (2026-09-27): without `APPIMAGE` both take the
+      Download… path (`update.rs:45-50`).
+- **CLI pin drift (triaged 2026-09-27, the AppImage plan's Triage L2):** `release.yml:155` pins `tauri-cli@2.11.4`,
+  while `package-lock.json` has `@tauri-apps/cli` 2.11.5, against the pin's own comment. Align them (bump both). At
+  2.11.5+, add `--app-version "$ver"` to the AppImage re-sign step, since `tauri build` then binds the version into
+  the other signatures.
+- **Only the AppImage's updater `.sig` is verified in CI (triaged 2026-09-27, the AppImage plan's Triage L4).** The
+  Windows `.exe.sig` and the macOS `.app.tar.gz.sig` come straight from the bundler and nothing touches the files
+  after signing, so the risk the AppImage check guards against doesn't apply. To extend it, run
+  `.github/scripts/verify-updater-sig.py` on those legs too.
 - **Row found in review: a repository that crashes the app while loading crashes every later launch.** `openTab`
   adds the tab, and the layout subscription reports it to `layout.json`, as soon as the backend open returns and
   before the repository loads (`src/store/tabsStore.ts`, `src/App.tsx`'s `useTabsStore.subscribe`). A crash during

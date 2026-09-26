@@ -125,7 +125,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file \
-            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev \
+            squashfs-tools python3-cryptography
 
       # Third-party actions are pinned to a commit, not a tag: this job ends up
       # holding the signing key, and a tag or branch can be moved to code
@@ -214,6 +215,55 @@ jobs:
           cargo tauri build --bundles ${{ matrix.bundles }}
           ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
           -- --locked
+
+      # linuxdeploy bundles this runner's libwayland-client (1.20), and a newer
+      # host's Mesa EGL uses symbols 1.20 lacks: EGL_BAD_PARAMETER and a blank
+      # window. Neither the bundler nor linuxdeploy's environment has a hook to
+      # exclude a library, so the image is repacked without it; the script's
+      # header has the detail. Drop this and the re-sign step once Tauri's
+      # linuxdeploy picks up the upstream excludelist (pkg2appimage#559); keep
+      # the verify step, which costs nothing. Moving the runner would not do it:
+      # 24.04 still ships 1.22.
+      #
+      # `-maxdepth 1`: the bundler leaves `T4 Git UI.AppDir` beside the image.
+      - name: Remove libwayland-client from the AppImage
+        id: appimage
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t found < <(find '${{ matrix.bundle_dir }}/appimage' -maxdepth 1 -name '*.AppImage')
+          if [ "${#found[@]}" -ne 1 ]; then
+            echo "expected one .AppImage, found ${#found[@]}: ${found[*]}" >&2
+            exit 1
+          fi
+          .github/scripts/appimage-strip.sh "${found[0]}"
+          echo "file=${found[0]}" >> "$GITHUB_OUTPUT"
+
+      # The repack changed the file the bundler signed, so it is signed again.
+      # The key is in this step alone. `signer sign` overwrites `<file>.sig`.
+      # Add `--app-version` once the pinned CLI is one whose `tauri build` binds
+      # the version into the signature (2.11.5 does): the .sig 2.11.4 writes
+      # carries none, and its `signer sign` has no such flag.
+      - name: Re-sign the AppImage
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          FILE: ${{ steps.appimage.outputs.file }}
+        run: cargo tauri signer sign "$FILE"
+
+      # A .sig left over from before the repack would fail every AppImage
+      # user's update, and nobody would hear of it until they tried. Checked
+      # against the pubkey the app ships with: the Linux counterpart of the
+      # macOS signature check below.
+      - name: Verify the AppImage's updater signature
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          FILE: ${{ steps.appimage.outputs.file }}
+        run: python3 .github/scripts/verify-updater-sig.py "$FILE" "$FILE.sig" src-tauri/tauri.conf.json
 
       # A missing or rejected certificate has to redden the run rather than ship
       # an unsigned .app quietly: the whole point is a signature that stays the
@@ -445,6 +495,12 @@ jobs:
             ```sh
             sudo apt install ./T4-Git-UI_${{ needs.version.outputs.version }}_amd64.deb
             ```
+
+            An AppImage from 0.10.12 or earlier opens a blank window on distributions
+            with a recent Mesa, so it cannot update itself: download this one by hand.
+            If this one is blank too, see the
+            [README's note](https://github.com/${{ github.repository }}#install) on
+            `WEBKIT_DISABLE_DMABUF_RENDERER`.
 
             ### Verifying a download
 

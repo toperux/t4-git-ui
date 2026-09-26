@@ -45,8 +45,9 @@ re-grant once. Self-signed is not notarized, so Gatekeeper still stops the first
 
 The signing path has never been proven on a real run. **Before the first tag after any change to
 the import, build or verify steps, run Release from `workflow_dispatch` and confirm the macOS leg
-is green** — it builds all three platforms without publishing, so a broken signing step costs a
-run instead of a version number.
+is green**; after any change to the AppImage repack, re-sign or verify steps, confirm the Linux leg
+too. It builds all three platforms without publishing, so a broken signing step costs a run
+instead of a version number.
 
 ## Steps
 
@@ -120,6 +121,13 @@ run instead of a version number.
   compare it against the fingerprint in the grep. The bundle is unsigned or signed by something
   else; never get past it by dropping the step, because a release that quietly loses the identity
   resets every Mac user's folder grants. Fix and re-run the macOS job; the tag stays.
+- **`Remove libwayland-client from the AppImage` says the library is not in it.** The bundler
+  changed. Check whether Tauri's linuxdeploy now excludes it itself (the upstream excludelist
+  does); if so, drop the repack and re-sign steps and keep the verify step.
+- **`Verify the AppImage's updater signature` failed.** Never get past it by dropping the step: a
+  `.sig` that doesn't match the file breaks every AppImage user's update, silently. Check the
+  re-sign step ran on the repacked file, and that the signing secrets match the pubkey in
+  `tauri.conf.json`.
 - **`Stage the artifacts` says `no bundle matched`.** The bundle path moved. Add a `find`
   step above it, read the real path off the log, and fix `bundle_dir` in the matrix and in
   `docs/archive/plans/ci-alignment.md`.
