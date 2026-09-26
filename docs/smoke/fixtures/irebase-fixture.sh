@@ -11,7 +11,7 @@
 # the directory first. Close the app before running -- it holds handles on an open repo.
 set -euo pipefail
 
-F=/c/tmp/t4/irebase
+F=${T4_ROOT:-/c/tmp/t4}/irebase
 
 rm -rf "$F"
 mkdir -p "$F"

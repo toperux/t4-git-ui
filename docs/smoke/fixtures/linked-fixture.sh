@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # Builds the linked-checkouts fixture for groups AO (worktrees) and AP (submodules):
+# T4_ROOT defaults to /c/tmp/t4.
 #
-#   /c/tmp/t4/linked          the main worktree, branch main; branches feature / topic / spare
-#   /c/tmp/t4/linked-wt/
+#   $T4_ROOT/linked           the main worktree, branch main; branches feature / topic / spare
+#   $T4_ROOT/linked-wt/
 #     feature                 worktree on `feature`, left dirty (Remove is refused until forced)
 #     newbr                   worktree created with `-b newbr`
 #     locked                  worktree on `topic`, locked with the reason "keep for the walk"
 #     gone                    worktree on `spare` whose directory was then deleted (prunable)
-#   /c/tmp/t4/linked-src      the repository both submodules clone from (two commits)
+#   $T4_ROOT/linked-src       the repository both submodules clone from (two commits)
 #   linked/sub                submodule, pointer moved back one commit and a dirty file inside
 #   linked/sub2               submodule registered but not initialized (deinit'd)
 #
@@ -23,7 +24,7 @@
 # Destructive: wipes the four directories first. Close the app before running.
 set -euo pipefail
 
-T=/c/tmp/t4
+T=${T4_ROOT:-/c/tmp/t4}
 L=$T/linked
 W=$T/linked-wt
 S=$T/linked-src
