@@ -15,6 +15,8 @@ the script now also makes the `conflict` branch (H), `topic/nested` and `origin/
 working tree with `src/a.txt` + `src/lib/b.txt` edited, `deep/one/two/z.txt` untracked, `gone.txt`
 deleted and a CRLF hunk in `crlf-hunks.txt` (E, F, G). Tick as you go; note anything surprising
 with the group letter and bullet number. `docs/smoke/smoke-cdp.md` is how the walks were scripted.
+On Linux, `smoke-fixtures.sh` builds the same repos under `/tmp/t4`, the group `.sh` fixtures follow
+`T4_ROOT=/tmp/t4`, and `docs/smoke/smoke-linux.md` is how to drive the app there.
 Groups AO and AP use their own repository, `C:\tmp\t4\linked`, built by
 `docs/smoke/fixtures/linked-fixture.sh` (worktrees beside it under `linked-wt\`, two submodules).
 
@@ -758,6 +760,13 @@ they stay clear._
       Walked 2026-09-24 on the installed 0.10.10 updating to the published 0.10.11, through `docs/smoke/fixtures/throttle-proxy.mjs` (`docs/archive/walks/2026-09-24-update-walk.md`). The network was the proxy: stopped for the check, cut at 11 % for the install.
 - [ ] **deb / rpm**: on a `.deb` install the button reads **Download…** and opens the releases page
       instead of installing; on the AppImage it installs in place like Windows
+      Walked 2026-09-26 on Ubuntu 26.04.1, published 0.10.11 → 0.10.12
+      (`docs/archive/walks/2026-09-26-group-ac-linux-walk.md`):
+      - `.deb`: passes.
+      - AppImage: installs in place, but only with a workaround. As shipped it opens a blank window (EGL abort
+        from its bundled `libwayland-*`, open-items §P).
+      - `.rpm`: not walked.
+      Unticked until the AppImage bug is fixed and `.rpm` is walked or ruled covered.
 
 ## AD. Stage / unstage the selection from the header (main §4)
 _Shipped 2026-09-11 (this commit). The two header buttons read **Stage selected** / **Unstage selected**
@@ -1818,7 +1827,8 @@ commits the same day; they and the whole of 3 were walked again on the build tha
 bottom-edge / light-theme half of 6 were added and walked after that, 3m with a CDP drag of the repo-name handle, 7's
 native confirm answered with an Enter on the `#32770` dialog; the bottom edge was a second finding — the wrapped
 **Delete** row lost its last line below the window — fixed (the menu re-fits when its size changes) and re-walked.
-Open: 9 (unit-tested only), 10 (needs a published update), 11 (other platforms). The record is
+Open (updated 2026-09-26): 9 (unit-tested only, no hand recipe) and 11 (other platforms; Linux walked 2026-09-26,
+see `docs/plans/open-items.md` §O). 10 was walked 2026-09-24. The record is
 `docs/archive/walks/2026-09-19-group-az-walk.md`._
 
 1. - [x] **A negated ignore rule stages**: `.gitignore` with `*.log` and `!keep.log`; create `keep.log` and `debug.log` → only `keep.log` is listed, and staging it works. The check is libgit2's, so this holds on git 2.24–2.26 too.
@@ -1854,7 +1864,9 @@ Open: 9 (unit-tested only), 10 (needs a published update), 11 (other platforms).
 9. - [ ] **A skipped path says so**: when `git update-index` skips a path of a batch, the toast reads `git skipped <path>; any other paths were staged` and the lists refresh. No hand recipe known — unit-tested (`check_staged`).
 10. - [x] **An update's restart keeps every window**: with two windows open, install an update from the in-app prompt → the relaunch restores both (the restart takes the Quit path, 3k). Needs a published update newer than the build — walk it with group AC. Walked 2026-09-24 on the installed 0.10.10 updating to the published 0.10.11, through `docs/smoke/fixtures/throttle-proxy.mjs` (`docs/archive/walks/2026-09-24-update-walk.md`). Two windows (`work`, `dogfood`) came back within 5 s on 0.10.11.
 11. **Other platforms** — nothing here is OS-specific code, but only Windows was walked. Repeat 3a, 3b, 3d, 3i (close windows, `cat` the file) and 6:
-    - [ ] Linux (WebKitGTK)
+    - [ ] Linux (WebKitGTK) — walked 2026-09-26 on a debug build of `1e795ad`: 3a, 3b, 3d, 3i pass; 6 **fails** (WebKitGTK gives
+      script-focused menu items no `:focus-visible`: no highlight, no wrap), and a restored second window sometimes
+      never starts. `docs/archive/walks/2026-09-26-group-az-linux-walk.md`.
     - [ ] macOS
 
 ## BA. Reset another branch to the right-clicked commit (commit menu)

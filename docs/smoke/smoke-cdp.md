@@ -227,5 +227,6 @@ rebuild through its watcher, but close it first if the rebuild hangs on a locked
 `.playwright-mcp/` directory the MCP server leaves in the repo before committing. Steps that pass
 are ticked in the two smoke docs; findings go into a dated file under `docs/archive/walks/`.
 
-The Linux-only steps were walked on a WebKitGTK build under WSLg — see the "Not walked" section of
-`docs/archive/walks/2026-09-05-full-rewalk.md` for that setup.
+On Linux, WebKitGTK has no CDP: `docs/smoke/smoke-linux.md` drives it over WebDriver instead. The
+Linux-only steps before that were walked by hand on a WebKitGTK build under WSLg — see the "Not
+walked" section of `docs/archive/walks/2026-09-05-full-rewalk.md`.

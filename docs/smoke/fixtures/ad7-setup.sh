@@ -19,7 +19,7 @@
 # globally.
 set -euo pipefail
 
-R="C:/tmp/t4/work"
+R="${T4_ROOT:-C:/tmp/t4}/work"
 g() { git -C "$R" "$@"; }
 say() { printf '\n== %s\n' "$1"; }
 resting() { [ "$(g status --porcelain | wc -l)" -eq 1 ] && g status --porcelain | grep -q '^A  decoy\.txt$'; }
@@ -69,7 +69,7 @@ printf 'control edit\n' >> "$R/crlf.txt"
 
 say "final state"
 g status --short
-cat <<'NOTE'
+sed "s|C:/tmp/t4/work|$R|" <<'NOTE'
 
 Ready. The Unstaged list should show 2 conflicted files + crlf.txt modified.
 

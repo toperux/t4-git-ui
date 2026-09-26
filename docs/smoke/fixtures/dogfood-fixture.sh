@@ -1,13 +1,14 @@
 #!/bin/sh
-# Group BE fixture: two clones of the real GitHub repo — c:/tmp/t4/dogfood (the app's) and
-# c:/tmp/t4/dogfood-other (someone else pushing). Talks to github.com over https, through GCM.
+# Group BE fixture: two clones of the real GitHub repo — $T4_ROOT/dogfood (the app's) and
+# $T4_ROOT/dogfood-other (someone else pushing). Talks to github.com over https, through GCM.
+# T4_ROOT defaults to /c/tmp/t4.
 # Writes only refs/heads/dogfood/* and refs/tags/dogfood-* on GitHub; never main, never a v* tag.
 #   sh dogfood-fixture.sh           clone both, a scratch branch with one commit, the `big` remote
 #   sh dogfood-fixture.sh diverge   the other clone pushes a commit to dogfood/test (BE 1)
 #   sh dogfood-fixture.sh cleanup   delete every dogfood/* branch and dogfood-* tag left on GitHub
 # Close the dogfood tab in the app before re-running setup.
 set -e
-R=/c/tmp/t4
+R=${T4_ROOT:-/c/tmp/t4}
 URL=https://github.com/toperux/t4-git-ui.git
 A="$R/dogfood"
 B="$R/dogfood-other"

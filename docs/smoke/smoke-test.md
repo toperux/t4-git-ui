@@ -30,6 +30,8 @@ pwsh -File docs/smoke/fixtures/smoke-fixtures.ps1   # into C:\tmp\t4; add -Force
 ```
 
 Windows PowerShell works too: `powershell -ExecutionPolicy Bypass -File docs\smoke\fixtures\smoke-fixtures.ps1`.
+On Linux: `bash docs/smoke/fixtures/smoke-fixtures.sh` (into `/tmp/t4`; `--force` to rebuild), and
+`docs/smoke/smoke-linux.md` for driving the app.
 
 It creates a bare `bare.git` "remote", a `work` repo, and a second clone `other` for the divergence
 checks in §5. `work` holds history with a `feature` branch, a merge, the tag `v0.1.0`, one commit

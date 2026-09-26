@@ -16,7 +16,7 @@
 # rather than concluding the teardown failed.
 set -euo pipefail
 
-R="C:/tmp/t4/work"
+R="${T4_ROOT:-C:/tmp/t4}/work"
 g() { git -C "$R" "$@"; }
 
 echo "== abort the merge (no-op if none)"
@@ -55,7 +55,10 @@ ok=1
 [ "$(g status --porcelain | wc -l)" -eq 1 ] || { echo "FAIL: tree is not just 'A decoy.txt'"; ok=0; }
 g status --porcelain | grep -q '^A  decoy\.txt$' || { echo "FAIL: decoy.txt is not a staged add"; ok=0; }
 [ "$(g for-each-ref refs/remotes/slow | wc -l)" -eq 0 ] || { echo "FAIL: refs/remotes/slow left behind"; ok=0; }
-[ "$(g config --get remote.nowhere.url)" = 'C:\tmp\t4\does-not-exist' ] || { echo "FAIL: nowhere.url not byte-exact"; ok=0; }
+# The spelling smoke-fixtures.ps1 writes on Windows, or smoke-fixtures.sh's under T4_ROOT — so leave
+# T4_ROOT unset on Windows: the .ps1 writes backslashes, and this check would fail.
+nowhere=${T4_ROOT:+${T4_ROOT%/}/does-not-exist}
+[ "$(g config --get remote.nowhere.url)" = "${nowhere:-C:\tmp\t4\does-not-exist}" ] || { echo "FAIL: nowhere.url not byte-exact"; ok=0; }
 if g rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1; then echo "FAIL: still mid-merge"; ok=0; fi
 
 [ "$ok" -eq 1 ] && echo "OK: fixture fully restored." || { echo "NOT restored -- inspect before walking anything else."; exit 1; }

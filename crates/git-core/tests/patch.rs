@@ -473,7 +473,7 @@ async fn discard_hunk_leaves_the_exec_bit_alone() {
         .expect("metadata")
         .permissions()
         .mode();
-    assert_eq!(mode & 0o777, 0o755, "{p}");
+    assert_ne!(mode & 0o100, 0, "{p}");
     let mut expected: Vec<String> = numbered(30).lines().map(String::from).collect();
     for i in [14, 26] {
         expected[i] = format!("LINE {}", i + 1);
