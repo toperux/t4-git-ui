@@ -1222,9 +1222,10 @@ Walked 2026-09-13 over CDP in `c:/tmp/t4/work` (two `topic/` folders holding one
       refused (1..999) and the field is disabled under the other two modes
 - [x] **Always expanded** (§2): pick it → everything open again; the app store keeps the choice
       (`sidebarFolders`, `sidebarFoldersMax` in `recents.json`) across a restart
-- [ ] **A manual toggle survives a refresh** (§2, manual): under *Always collapsed* expand `topic`,
+- [x] **A manual toggle survives a refresh** (§2, manual): under *Always collapsed* expand `topic`,
       then Fetch → it stays open; a folder that first appears mid-session (create `x/y`) arrives
-      collapsed
+      collapsed *(Walked 2026-09-26 over CDP on the installed 0.10.12, Fetch of `origin` only;
+      `docs/archive/walks/2026-09-26-phase-1-walk.md`.)*
 
 ## AJ. Toast Retry / Dismiss return the focus (main §3)
 _Shipped 2026-09-13 (`2eb883b`). A failed action's toast remembers the control it started from;
@@ -1252,10 +1253,12 @@ the body click; its buttons and a text selection in the detail are excluded._
 - [x] **The detail stays selectable** (§3): drag across the detail text → the toast stays put and the
       selection is copyable; double-click a word in it → the word selects and the toast is still
       there; click the title, the icon or the padding → it closes
-- [ ] **The buttons still own their clicks** (§3): **Retry** runs once and closes once, not twice;
+- [x] **The buttons still own their clicks** (§3): **Retry** runs once and closes once, not twice;
       the same for **Pull** on a rejected push and **Remove from list** on a dead recent
-      *(2026-09-16: Retry and Pull walked and pass; Remove from list not walked. Adding a dead recent
-      needs the native folder picker, and recents are shared with the installed app.)*
+      *(2026-09-16: Retry and Pull walked and pass. 2026-09-26: Remove from list walked over CDP on the
+      installed 0.10.12, the dead recent seeded into `recents.json` with the app closed (store backed up
+      and restored) — one click, one removal, one toast closed, none added;
+      `docs/archive/walks/2026-09-26-phase-1-walk.md`.)*
 
 ## AK. Files tab: a commit's whole tree, its files' content, a row menu (main §2, §3)
 _Shipped 2026-09-13 (three commits, `feat: Read a revision's whole file list…` onward). The file

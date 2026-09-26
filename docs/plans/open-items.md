@@ -32,30 +32,14 @@ done, move it there._
   scans that looked like this were the stale stat cache, not the tree size.)
 
 ## B. Verification and release
-- **Unticked smoke lines — recounted 2026-09-26: six**, across the two smoke docs. A grep for `- [ ]` also
-  matches `smoke-test-post-v1.md:296`, which is prose. (The four that were records, not work, are marked
-  `[n/a]` since 2026-09-26 — close-out Phase 0.) By what they need:
-  - **By hand on this machine (3):**
-    - a DPI change (`smoke-test.md:283`);
-    - AI's manual folder toggle across a refresh (`smoke-test-post-v1.md:1225`);
-    - the **Remove from list** half of AJ's "buttons own their clicks" (`:1255`). Retry and Pull passed
-      2026-09-16; adding a dead recent needs the native folder picker, and the recents store is shared with
-      the installed app.
-  - **A Linux or macOS machine (3):** AC's deb / rpm box (`:759`), and AZ 11's two platform lines (`:1857`,
-    `:1858`).
-
-- **Before the next tag: walk an update on `tauri-plugin-updater` 2.12.0.** Dependabot #17 (2026-09-26) moved it
-  from 2.11.0. So far it has only compiled and passed CI, and it ships in the next release, so a regression would
-  strand every installed copy of that release. The update is run by the *installed* app's updater, so walk it
-  on a local build of `main` versioned as 0.10.11, updating to the published 0.10.12
-  (`npm run tauri -- build --no-bundle --config "{\"version\":\"0.10.11\"}"`, then Check now / Install, through
-  `docs/smoke/fixtures/throttle-proxy.mjs` for the cut and failed cases — the recipe of the 2026-09-24 update walk).
-  Its release note: 2.12.0 dropped the JS `check` option `allowDowngrades`, which this app never used.
+- **Unticked smoke lines — recounted 2026-09-26: three**, all in `smoke-test-post-v1.md`, all needing a Linux
+  or macOS machine: AC's deb / rpm box (`:759`), and AZ 11's two platform lines (`:1860`, `:1861`). A grep for
+  `- [ ]` also matches `:296`, which is prose. (Four records are marked `[n/a]` since close-out Phase 0; the three
+  this machine could reach were walked in Phase 1 — both in the done file.)
 - **The first real run of 0.10.12's plain-words update errors and Install's confirm** over a typed commit
   message (group BG walked them on local builds only) is the user's update from 0.10.12 to the next release —
   the close-out plan's release gate. It cannot be the 0.10.11 → 0.10.12 update: an update runs the *old* app's
-  code. The row above upgrades the user's install to 0.10.12 anyway, since the local build's updater installs
-  into the same folder.
+  code. (The user's install became 0.10.12 on 2026-09-26, through the Phase 1 updater walk.)
 
 - **Windows code signing** — the NSIS setup is not Authenticode-signed, so every new Windows user meets
   SmartScreen's "Windows protected your PC" and has to pick *More info › Run anyway*. The updater's minisign

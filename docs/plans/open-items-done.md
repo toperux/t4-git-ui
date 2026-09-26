@@ -125,6 +125,27 @@ Text is moved as written; hashes and line numbers are those of the day._
   Tauri's gtk 0.18 pin (`tauri → muda → gtk → atk → glib`), Linux builds only, an API this app
   never calls. **Dismissed 2026-09-10** on exactly that reasoning; no open Dependabot alert remains.
   Revisit only if Tauri's pin starts carrying something this app does call.
+- **Four smoke boxes that were records, not work** — **closed 2026-09-26 as records, marked `[n/a]`** (close-out
+  Phase 0; the smoke legend defines the marker). All in `smoke-test-post-v1.md`:
+  - AG's *a late status does not take you out of the working-tree row* (`:1152`): its recipe is unachievable —
+    git refuses a non-interactive rebase over the dirty tree the box needs;
+  - AG's *no spurious re-walk as the state changes* (`:1163`): the re-walk it saw was correct (HEAD had moved),
+    so what the box observes cannot decide it;
+  - the viewport-anchor walk's 9 (`:1745`): not drivable (a ~90 ms window), covered by `repoStore.test.ts`;
+  - AZ 9, *a skipped path says so* (`:1857`): no hand recipe, covered by `check_staged`.
+
+  (Line numbers after the Phase 1 ticks of the same day, as the entry below uses.)
+- **The updater 2.12.0 walk before the next tag** — **walked 2026-09-26, pass** (close-out Phase 1,
+  `docs/archive/walks/2026-09-26-phase-1-walk.md`). Dependabot #17 moved `tauri-plugin-updater` 2.11.0 → 2.12.0.
+  A local build of `f9034e8` (now `59e9383`, docs-only fixes folded in) versioned 0.10.11 updated itself to the published 0.10.12 through
+  `throttle-proxy.mjs`: offered on launch, *couldn't reach GitHub* offline, refused while a fetch ran, *the
+  download was interrupted* on a cut download with the offer re-enabled, and a full install that restarted into
+  the installed 0.10.12 with both windows (exe and uninstall entry 0.10.12, Check now offers nothing). The next
+  tag is no longer blocked by it. The user's install is 0.10.12 since.
+- **The three smoke boxes this machine could reach** — **walked 2026-09-26, pass** (close-out Phase 1, same
+  record): DPI (`smoke-test.md:283`, a real move to a 150 % monitor, canvases re-rendered at 1.5×), AI's manual
+  folder toggle across a Fetch (`smoke-test-post-v1.md:1225`), and AJ's Remove from list on a dead recent
+  (`:1256`, the dead recent seeded into `recents.json` rather than through the native picker).
 - **macOS notarization** — **closed 2026-09-26, won't do for now** (close-out Phase 0). Needs a paid Apple
   Developer account. The app is signed with the shared self-signed certificate (stable identity, so folder
   grants survive updates), and the release body carries the quarantine step. Reopen when there is a Mac user.

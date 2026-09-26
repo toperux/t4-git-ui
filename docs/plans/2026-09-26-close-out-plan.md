@@ -5,9 +5,10 @@ reason. The rows are grouped by what they need (a decision, a sitting, code, a m
 each group costs one smoke walk and at most one release, not one per row. §C (roadmap) is kept open by
 decision, so the list will not reach fully empty.
 
-**Status:** 2026-09-26. **Phase 0 done 2026-09-26** (`2026-09-26-phase-0-plan.md`). Phase 1 next. Open
-decisions: §J (before Phase 2), the Phase 3 threshold, the Phase 4 reference canvas, and hardware (before
-Phase 5).
+**Status:** 2026-09-26. **Phase 0 done 2026-09-26** (`59e9383`). **Phase 1 done 2026-09-26**
+(`2026-09-26-phase-1-plan.md`, walk record `docs/archive/walks/2026-09-26-phase-1-walk.md`): the next tag is
+unblocked. Phase 1b or 2a next. Open decisions: §J (before Phase 2), the Phase 3 threshold, the Phase 4
+reference canvas, and hardware (before Phase 5).
 
 Row references are to `docs/plans/open-items.md` sections (§A–§M) and the smoke docs' line numbers as of
 2026-09-26. `CF` = `docs/archive/plans/2026-09-12-consolidated-findings.md`.
@@ -23,6 +24,9 @@ Windows signing row re-pointed at Phase 1b; the "user's own update" row re-point
 intro reworded; §C kept open.
 
 ## Phase 1 — release-gate sitting (the user, about an hour)
+
+**Done 2026-09-26**, all green — `docs/archive/walks/2026-09-26-phase-1-walk.md`. The bullets below are the plan
+as written: the DPI box was in fact walked on a real 150 % monitor, and AJ's box is now at `:1256`.
 
 - **First, back up `%APPDATA%\dev.topher.t4gitui`**, before asking the user to close the app — closing windows
   one by one drops tabs from `layout.json`.
@@ -134,10 +138,10 @@ Direction B where it has a screen, `screens/` for the rest.
 
 ## Phase 5 — other hardware (§B, whenever available)
 
-Real Linux (Wayland), macOS rendering, AC's deb / rpm box (`:759`), AZ 11's two platform lines (`:1857`,
-`:1858`), and the §I `window.rs:326` ceiling (tab adoption's pointer position: macOS and X11 could answer
-natively; Wayland cannot). If no machine is coming, decide whether the WSLg walk plus CI's three-OS legs are enough and close
-them on that.
+Real Linux (Wayland), macOS rendering, AC's deb / rpm box (`:759`), AZ 11's two platform lines (`:1860`,
+`:1861`), and the §I `window.rs:326` ceiling (tab adoption's pointer position: macOS and X11 could answer
+natively; Wayland cannot). If no machine is coming, decide whether the WSLg walk plus CI's three-OS legs are
+enough and close them on that.
 
 ## Phase 6 — 2026-12-23: `ubuntu-22.04` (§E)
 

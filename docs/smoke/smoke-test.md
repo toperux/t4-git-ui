@@ -280,7 +280,9 @@ Use `C:\tmp\t4\work` and the bare remote.
 - [x] Any dropdown (Create branch → Start point, the toolbar branch filter): the list is themed like
       the rest of the app, ↑/↓ + `Enter` pick, `Esc` closes the list only — not the dialog
 - [x] Nothing is pure white on a large surface in light theme; nothing is unreadably faint
-- [ ] Drag the window to a monitor with a different DPI → the graph canvases stay crisp
+- [x] Drag the window to a monitor with a different DPI → the graph canvases stay crisp
+      *(Walked 2026-09-26 on the installed 0.10.12: 100 % → 150 % monitor, `devicePixelRatio` 1 → 1.5, all 25
+      graph canvases re-rendered at 1.5× their CSS size; `docs/archive/walks/2026-09-26-phase-1-walk.md`.)*
 
 ## 7. Performance
 
