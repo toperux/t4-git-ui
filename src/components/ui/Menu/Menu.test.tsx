@@ -46,6 +46,30 @@ describe("Menu", () => {
     expect(queryByRole("menu")).toBeNull();
   });
 
+  // WebKitGTK gives no script-focused item `:focus-visible`, so the menu marks keyboard focus itself.
+  it("marks the item the keyboard focused, and only that one", () => {
+    const { getByRole } = render(<Harness />);
+    fireEvent.keyDown(document, { key: "Enter" });
+    fireEvent.click(getByRole("button", { name: "Open" }));
+    const first = getByRole("menuitem", { name: "First" });
+    const second = getByRole("menuitem", { name: "Second" });
+    expect(first.hasAttribute("data-kbd")).toBe(true);
+    fireEvent.keyDown(first, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(second);
+    expect(second.hasAttribute("data-kbd")).toBe(true);
+    expect(first.hasAttribute("data-kbd")).toBe(false);
+  });
+
+  it("opened from the pointer, its first item is focused but not marked", () => {
+    const { getByRole } = render(<Harness />);
+    const open = getByRole("button", { name: "Open" });
+    fireEvent.pointerDown(open);
+    fireEvent.click(open);
+    const first = getByRole("menuitem", { name: "First" });
+    expect(document.activeElement).toBe(first);
+    expect(first.hasAttribute("data-kbd")).toBe(false);
+  });
+
   it("a shortcut chip is a picture, not part of the item's name", () => {
     const { getByRole } = render(
       <Menu open onClose={() => {}} label="History" anchor={null}>
@@ -219,6 +243,24 @@ describe("MenuItem submenu", () => {
 
     fireEvent.keyDown(item, { key: "Enter" });
     expect(document.activeElement).toBe(getByRole("menuitem", { name: "Sixth" }));
+  });
+
+  it("closing the panel from the keyboard marks its item, and a panel opened from a marked item marks its first row", () => {
+    const { getByRole } = render(<SubHarness />);
+    fireEvent.pointerDown(getByRole("button", { name: "Open" }));
+    const item = openMenu(getByRole);
+    act(() => item.focus());
+    fireEvent.pointerDown(item);
+    fireEvent.click(item);
+    expect(getByRole("menuitem", { name: "Sixth" }).hasAttribute("data-kbd")).toBe(false);
+
+    fireEvent.keyDown(getByRole("menuitem", { name: "Sixth" }), { key: "Escape" });
+    expect(document.activeElement).toBe(item);
+    expect(item.hasAttribute("data-kbd")).toBe(true);
+    // The pointer again, so only the item's own mark can carry into the panel.
+    fireEvent.pointerDown(item);
+    fireEvent.click(item);
+    expect(getByRole("menuitem", { name: "Sixth" }).hasAttribute("data-kbd")).toBe(true);
   });
 
   it("Escape closes the panel alone, and nothing around the menu sees the key", () => {
