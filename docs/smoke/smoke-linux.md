@@ -139,6 +139,31 @@ session behind. Re-test WebDriver with two windows once the fix lands:
 The group AZ walk's findings (`docs/archive/walks/2026-09-26-group-az-linux-walk.md`) are the app's own,
 not the harness's: both were reproduced without WebDriver.
 
+## Testing an AppImage
+
+For checking a published or CI-built AppImage (the `packages-Linux` artifact of a `workflow_dispatch` Release run;
+`chmod +x` it, the zip drops the bit). Learned on the blank-window fix
+(`docs/plans/2026-09-26-appimage-blank-window-plan.md`):
+
+- **Launch it isolated:** `HOME=$S/home DISPLAY=:98 setsid dbus-run-session -- ./<file>.AppImage`.
+  - The identifier is the installed app's (`dev.topher.t4gitui`), not `.smoke`. Without its own session bus, a new
+    launch hands off to any copy already running (the installed app, a previous run) and exits: an empty log and
+    no window, which looks like a render failure.
+  - The AppImage forces `GDK_BACKEND=x11` itself (its GTK hook), so it is always X11, under XWayland on a desktop.
+- **Judge the render from a screenshot:** `import -window root`, then `convert <png> -format %k info:`. A blank
+  window is 1–2 colours, and the start screen is several hundred. Grep the log for `EGL_BAD_PARAMETER`.
+- **Kill it by executable path.** Its process shows as a bare `t4-git-ui`, so `pgrep -f` on the file name misses it
+  and copies pile up. Kill the pids whose `readlink /proc/<pid>/exe` starts with `/tmp/.mount_<first 6 characters of
+  the file name>`. That spares an AppImage the user is running.
+- **Never `pkill -f` a pattern that is in your own command line:** it kills the shell running it. Put kill logic in
+  a script written in a separate call.
+- **Inspect without running it:** the payload starts at the ELF's `e_shoff + e_shentsize * e_shnum`, 944632 in
+  0.10.12. `unsquashfs -l -o <offset>` lists it (no `libwayland-client` after the fix). Check the signature with
+  `python3 .github/scripts/verify-updater-sig.py <file> <file>.sig src-tauri/tauri.conf.json`, and the embedded
+  digest with `.github/scripts/appimage-digest.py --check <file>`.
+- **On a VMware guest's desktop** the fixed AppImage still needs `WEBKIT_DISABLE_DMABUF_RENDERER=1` (the README
+  note). Xvfb doesn't.
+
 ## 4. Quit, clean up
 
 - **Quit as a user would** (the Quit path: `layout.json` and `recents.json` written) with:

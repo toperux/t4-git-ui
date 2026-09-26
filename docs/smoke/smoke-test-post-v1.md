@@ -764,9 +764,11 @@ they stay clear._
       (`docs/archive/walks/2026-09-26-group-ac-linux-walk.md`):
       - `.deb`: passes.
       - AppImage: installs in place, but only with a workaround. As shipped it opens a blank window (EGL abort
-        from its bundled `libwayland-*`, open-items §P).
-      - `.rpm`: not walked.
-      Unticked until the AppImage bug is fixed and `.rpm` is walked or ruled covered.
+        from its bundled `libwayland-client`, open-items §P). On a VMware guest's desktop it also needs
+        `WEBKIT_DISABLE_DMABUF_RENDERER=1` (the README note).
+      - `.rpm`: not walked; ruled covered by the `.deb` walk (2026-09-27): without `APPIMAGE` both take
+        the Download… path (`update.rs:45-50`).
+      Unticked until the AppImage fix passes its release walks (open-items §P).
 
 ## AD. Stage / unstage the selection from the header (main §4)
 _Shipped 2026-09-11 (this commit). The two header buttons read **Stage selected** / **Unstage selected**
