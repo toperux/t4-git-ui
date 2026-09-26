@@ -90,6 +90,12 @@ export default function App() {
     try {
       await recents.load();
       await restoreTabs();
+      // Reported once even if no tab opened: the entry `spawn` made for this window has to be replaced,
+      // or a window whose repositories are gone comes back every launch. Only here, once `restoreTabs`
+      // ran: before it, `main` has not taken `layout.json`, and an empty report would erase it.
+      const st = useTabsStore.getState();
+      const active = st.tabs.find((t) => t.id === st.active) ?? null;
+      void setLayout({ tabs: st.tabs.map((t) => t.path), active: active?.path ?? "" }).catch(() => undefined);
     } catch {
       recents.setLastOpen(null);
     }
