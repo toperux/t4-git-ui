@@ -189,5 +189,10 @@ For checking a published or CI-built AppImage (the `packages-Linux` artifact of 
 
 - **The live Wayland desktop:** no xdotool, and the OS theme switch and DPI are not reachable. These rows
   stay hand-walked.
+  - **WebDriver still works there** (2026-09-27): run `tauri-driver` with `GDK_BACKEND=wayland` and no Xvfb or
+    `DISPLAY` override, and the window opens on the user's desktop. `wd.mjs` drives the page, and `shot` captures it.
+  - **GTK's native popups** (a text field's menu) aren't in the shot: ask the user.
+  - **The native picker can't be driven:** seed `layout.json` instead.
+  - See `docs/archive/walks/2026-09-27-linux-wayland-rendering-walk.md`.
 - **`.deb` / `.rpm` / AppImage updates** (`smoke-test-post-v1.md` AC): these need bundled packages (the
   signing key), `sudo dpkg -i`, and a published release newer than the build. Walk them by hand.

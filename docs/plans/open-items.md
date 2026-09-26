@@ -53,7 +53,10 @@ done, move it there._
   fonts, both themes, graph, panels, styled scrollbars (thumb + hover), all five splitters and the
   dock drag, native-menu suppression (toolbar / panel header / statusbar / bare diff body → nothing;
   text field and selected diff text → GTK menu), app context menu on a commit row: all as on Windows.
-  Not seen on real Linux hardware or Wayland yet. macOS rendering: never seen; CI compiles only.
+  **Walked again 2026-09-27 on native Wayland** (Ubuntu 26.04.1, GNOME, a VMware guest; driven by WebDriver, with
+  native menus checked by eye): all of the above pass (`docs/archive/walks/2026-09-27-linux-wayland-rendering-walk.md`).
+  Real GPU hardware and a HiDPI panel are not walked, accepted until a report. macOS rendering: never seen; CI
+  compiles only.
 - UI-vs-canvas comparison pass (v1 plan M6 leftover): screenshots of the real app against the
   screens canvas, one pass, fix what differs or update the canvas.
 
