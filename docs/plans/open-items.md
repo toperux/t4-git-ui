@@ -257,14 +257,16 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
     `GDK_BACKEND=x11` is blank too. Decided 2026-09-27: no switch in the app (it would slow every AppImage user).
     README documents the variable instead.
   - **Left:**
-    - a `workflow_dispatch` run: the downloaded AppImage renders on Xvfb, and on this desktop with the variable;
+    - ~~a `workflow_dispatch` run~~ done 2026-09-27 (run 36257070680): the CI AppImage renders on Xvfb, and on this
+      desktop with the variable;
     - the next release: an old AppImage with the `LD_PRELOAD` workaround (the command is in the AC walk record)
       updates to the fixed one;
     - the release after: the fixed one updates in place;
     - then tick AC :761. `.rpm` is ruled covered by the `.deb` walk (2026-09-27): without `APPIMAGE` both take the
       Download… path (`update.rs:45-50`).
-- **CLI pin drift (triaged 2026-09-27, the AppImage plan's Triage L2):** `release.yml:155` pins `tauri-cli@2.11.4`,
-  while `package-lock.json` has `@tauri-apps/cli` 2.11.5, against the pin's own comment. Align them (bump both). At
+- **CLI pin drift (triaged 2026-09-27, the AppImage plan's Triage L2):** `release.yml:158` pins `tauri-cli@2.11.4`,
+  while `package-lock.json` has `@tauri-apps/cli` 2.11.5, against the pin's own comment. (The macOS leg builds the
+  CLI from source; `--locked` was added 2026-09-27 after the unlocked build broke on a newer `tauri-bundler`.) Align them (bump both). At
   2.11.5+, add `--app-version "$ver"` to the AppImage re-sign step, since `tauri build` then binds the version into
   the other signatures.
 - **Only the AppImage's updater `.sig` is verified in CI (triaged 2026-09-27, the AppImage plan's Triage L4).** The

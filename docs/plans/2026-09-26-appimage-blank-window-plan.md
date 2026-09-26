@@ -16,8 +16,17 @@ _Written 2026-09-26. Source: `docs/plans/open-items.md` §P (the AppImage row) a
   - the result renders on Xvfb, and the original stays blank;
   - the verify script accepts the published pair, and rejects the stripped file, a wrong key, a tampered comment
     and the legacy `Ed` format.
-- **Left:** the `workflow_dispatch` run, the only proof that 2.11.4's `signer sign` reads the key from env (L3) and
-  that the runner's `python3` has `cryptography` (L7). Then the release walks.
+- **`workflow_dispatch` run 36257070680 (2026-09-27): the Linux leg passed.**
+  - Its logs show the original's digest checked, `libwayland-client` removed, the digest rewritten, the re-sign, and
+    the signature verified against the real key. That settles L3 and L7.
+  - The downloaded AppImage matches its sha256 and passes both checks locally. It renders on Xvfb (2/2).
+  - The macOS leg failed before building, for an unrelated reason. `cargo binstall` fell back to a source build of
+    `tauri-cli@2.11.4` without `--locked`, and 2.11.4 doesn't compile against the newest `tauri-bundler`.
+    `--locked` was added; a re-run proves it.
+- **Desktop check (2026-09-27):** the CI AppImage renders on the VMware desktop with
+  `WEBKIT_DISABLE_DMABUF_RENDERER=1`.
+- **Re-run 36258407743 (2026-09-27, `480fed9`): all three legs green**, the macOS one included with `--locked`.
+- **Left:** the release walks.
 
 ## What is known
 
