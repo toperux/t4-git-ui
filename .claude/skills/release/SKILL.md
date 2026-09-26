@@ -68,11 +68,19 @@ run instead of a version number.
 3. **Commit the bump alone**, subject `Bump the version to x.y.z`, body summarising what
    landed since the last tag. Nothing else in that commit.
 
-4. **Push `main` first, then the tag.** In that order: the tag's run checks out the commit,
-   and a tag that arrives before its commit points at nothing on the remote.
+4. **Push `main`, wait for its CI run, then push the tag.** Push `main` first: the tag's run
+   checks out the commit, and a tag that arrives before its commit points at nothing on the
+   remote. Then wait for the CI run of that push to go green on all three OS. The local gate
+   runs on Windows only, and Windows clippy never compiles `#[cfg(unix)]` code — the 14-commit
+   push of 2026-09-13 went red on Linux and macOS after a green local gate (fixed in `db99d93`).
+   A red leg on the tag's own `checks` means moving a `v*` tag (the ruleset off and on again,
+   under *When it goes wrong*) or giving up the number. About 15 minutes. The run can take a few
+   seconds to register: if `gh run list` comes back empty, run it again.
 
    ```sh
    git -C "<repo>" push origin main
+   gh run list --repo toperux/t4-git-ui --workflow CI --commit "$(git -C "<repo>" rev-parse HEAD)"
+   gh run watch <run-id> --repo toperux/t4-git-ui --exit-status
    git -C "<repo>" tag v<x.y.z>
    git -C "<repo>" push origin v<x.y.z>
    ```

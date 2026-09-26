@@ -2,10 +2,11 @@
 
 _Written 2026-09-02, the day after v1 was accepted. This is the one list of what is still open;
 it folds together the v1 plan's "Known gaps", the 2026-09-01 codebase review's deferred rows and
-the README's "Next" line (review item H4). Nothing here is scheduled yet — pick from it._
+the README's "Next" line (review item H4). Since 2026-09-26 every row except §C's roadmap is
+scheduled in `2026-09-26-close-out-plan.md`._
 
 _Done, fixed, walked and closed rows live in `open-items-done.md` (split 2026-09-24), under the same
-section letters — a letter with nothing open left (§D, §F, §G, §K, §N) is only there. When a row here is
+section letters — a letter with nothing open left (§D, §F, §G, §H, §K, §N) is only there. When a row here is
 done, move it there._
 
 ## A. Performance — measure before touching
@@ -31,22 +32,17 @@ done, move it there._
   scans that looked like this were the stale stat cache, not the tree size.)
 
 ## B. Verification and release
-- **Unticked smoke lines — recounted 2026-09-25: ten**, across the two smoke docs. The settings walk's 6 was
-  walked the same day, and a grep for `- [ ]` also matches `smoke-test-post-v1.md:296`, which is prose. By what
-  they need:
+- **Unticked smoke lines — recounted 2026-09-26: six**, across the two smoke docs. A grep for `- [ ]` also
+  matches `smoke-test-post-v1.md:296`, which is prose. (The four that were records, not work, are marked
+  `[n/a]` since 2026-09-26 — close-out Phase 0.) By what they need:
   - **By hand on this machine (3):**
     - a DPI change (`smoke-test.md:283`);
     - AI's manual folder toggle across a refresh (`smoke-test-post-v1.md:1225`);
     - the **Remove from list** half of AJ's "buttons own their clicks" (`:1255`). Retry and Pull passed
       2026-09-16; adding a dead recent needs the native folder picker, and the recents store is shared with
       the installed app.
-  - **A Linux or macOS machine (3):** AC's deb / rpm box (`:759`), and AZ 11's two platform lines (`:1855`,
-    `:1856`).
-  - **Records, not work (4):**
-    - AG's two (`:1152`, `:1163`): one box's recipe is unachievable, and one cannot be decided by what it
-      observes;
-    - the viewport-anchor walk's 9 (`:1742`), which isn't drivable;
-    - AZ 9 (`:1852`), which is unit-tested with no hand recipe.
+  - **A Linux or macOS machine (3):** AC's deb / rpm box (`:759`), and AZ 11's two platform lines (`:1857`,
+    `:1858`).
 
 - **Before the next tag: walk an update on `tauri-plugin-updater` 2.12.0.** Dependabot #17 (2026-09-26) moved it
   from 2.11.0. So far it has only compiled and passed CI, and it ships in the next release, so a regression would
@@ -55,15 +51,17 @@ done, move it there._
   (`npm run tauri -- build --no-bundle --config "{\"version\":\"0.10.11\"}"`, then Check now / Install, through
   `docs/smoke/fixtures/throttle-proxy.mjs` for the cut and failed cases — the recipe of the 2026-09-24 update walk).
   Its release note: 2.12.0 dropped the JS `check` option `allowDowngrades`, which this app never used.
-- **The user's own 0.10.11 → 0.10.12 update** — the first real run of the plain-words update errors and of
-  Install's confirm over a typed commit message (group BG walked them on local builds only). Can be the same
-  sitting as the row above.
+- **The first real run of 0.10.12's plain-words update errors and Install's confirm** over a typed commit
+  message (group BG walked them on local builds only) is the user's update from 0.10.12 to the next release —
+  the close-out plan's release gate. It cannot be the 0.10.11 → 0.10.12 update: an update runs the *old* app's
+  code. The row above upgrades the user's install to 0.10.12 anyway, since the local build's updater installs
+  into the same folder.
 
 - **Windows code signing** — the NSIS setup is not Authenticode-signed, so every new Windows user meets
   SmartScreen's "Windows protected your PC" and has to pick *More info › Run anyway*. The updater's minisign
-  signature is a different thing: it protects updates, not the first download. Fixing it needs a code-signing
-  certificate (paid, or a signing service), then `bundle.windows.certificateThumbprint` / `signCommand` and a
-  release-workflow step, the same shape as the macOS certificate. Recorded 2026-09-24 from group BF. What an unsigned setup
+  signature is a different thing: it protects updates, not the first download. Close-out Phase 1b ports
+  `F:/src/_ pet projects/signing-and-repo-setup.md` (Certum certificate, thumbprint `F06C…8151`, expires
+  2027-09-22) from t4-markdown-viewer. Recorded 2026-09-24 from group BF. What an unsigned setup
   actually met there (BF 3, in Windows Sandbox): **Edge warned on the download**, and running it brought **no
   SmartScreen prompt**. So today the friction is the browser's download warning. SmartScreen on run may still
   differ on a real machine, whose settings the Sandbox need not share.
@@ -72,8 +70,6 @@ done, move it there._
   dock drag, native-menu suppression (toolbar / panel header / statusbar / bare diff body → nothing;
   text field and selected diff text → GTK menu), app context menu on a commit row: all as on Windows.
   Not seen on real Linux hardware or Wayland yet. macOS rendering: never seen; CI compiles only.
-- **macOS notarization** — needs a paid Apple Developer account, so Gatekeeper still asks and the
-  quarantine step remains in the release notes. (Signing is done, 2026-09-11 — see the done file.)
 - UI-vs-canvas comparison pass (v1 plan M6 leftover): screenshots of the real app against the
   screens canvas, one pass, fix what differs or update the canvas.
 
@@ -97,45 +93,55 @@ Custom titlebar (revisited in M6, native kept) · i18n · plugins.
     2027-03-23 brownout. If the Linux leg moves into a `container:`, check rustfmt is in
     the image: the markdown viewer runs `Format` on the Linux leg only.
 
-## H. Added 2026-09-12 — after the push
-- **A `#[cfg(unix)]` block is invisible to Windows clippy.** The 14-commit push of 2026-09-13 went
-  red on Linux and macOS only: a `let mut` flag assigned inside a `#[cfg(unix)]` test block is
-  `unused_assignments` under `-D warnings`, and the local gate never compiles that branch
-  (`db99d93`, `let linked = cfg!(unix)`). Any unix-only test code wants a CI run before a tag.
+## I. Deferred with a reason — the `to revisit` rows and the `ponytail:` ceilings, in one place
 
-## I. Deferred with a reason — the `to revisit` rows, in one place
-
-Lifted from `docs/archive/plans/2026-09-12-consolidated-findings.md` so that file could be
-archived. Each is low, confirmed or plausible, and deliberately not fixed; the reason is the
-condition that reopens it. (Rows closed as will-not-fix or accepted are in the done file.)
+Deferred findings lifted from `docs/archive/plans/2026-09-12-consolidated-findings.md` and later
+reviews, plus the `ponytail:` ceilings in code. Each was low and deferred with a reason; since
+2026-09-26 they are scheduled in the close-out plan (`2026-09-26-close-out-plan.md`), each row
+naming its phase. (Rows closed as will-not-fix or accepted are in the done file.)
 
 - **S1** blame / history ops are registered but nobody cancels them: 20 quick file clicks run
   20 blames to completion. Fix: a per-repo "latest blame" token cancelled by the next.
+  *(Close-out Phase 2.)*
 - **S2** non-UTF-8 paths are dropped from the working-tree listing (lossy decode, then `stat`
   misses) or listed but unreadable. The IPC type is `String`; log the skip at most.
+  *(Close-out Phase 2.)*
 - **S3** `path_history` fails on `CliOutput::truncated`, which also fires for a 4 MB *stderr*.
-  Split the flag if it ever bites.
+  Split the flag if it ever bites. *(Close-out Phase 2.)*
 - **S4** `blameAt` switches tab / seeds / turns blame on before the reveal is known to hit.
-  Reordering races the details-pane effect; toast only.
+  Reordering races the details-pane effect; toast only. *(Close-out Phase 2.)*
 - **E6** O(n²) tree build for a flat directory (`fileTree.ts`, `Sidebar.buildTree`). Measure
-  first; rare shape.
+  first; rare shape. *(Close-out Phase 3, measure first.)*
 - **B3** the interactive-rebase read pass runs a real `rebase -i --autostash`; a kill mid-run
   strands work. Git's clean-tree check precedes the editor, so the read pass needs it; the
-  banner offers `--abort`.
+  banner offers `--abort`. *(Close-out Phase 2.)*
 - **C6** `close_repo` never cancels the repo's in-flight ops — unreachable, the UI refuses
   close/switch while an op runs (comment on `close_repo`). **C6/Q23** clearing `detail` too
   leaves the details pane blank during the round trip — reconsider only if it flickers.
+  *(Close-out Phase 2.)*
 - **R10** selected-mode header after a partial stage; **R12** two stale status/refs pairings
-  where a guard would flicker; **R13** `canSquash` O(n) per row. All wont-for-now, recorded.
-- Three `ponytail:` ceilings in code:
-  - `Menu.tsx`: a submenu panel is `.menu`-wide, so the parent's width stands in;
-  - `log/walker.rs`: a `Refs` spec that never reaches HEAD leaves the working-tree column open;
-  - `App.tsx` (2026-09-25): an update answer that lands between a new window's `lastUpdateCheck()` reply and its
-    `update://checked` listener attaching is missed. Check now covers it.
+  where a guard would flicker *(close-out Phase 2)*; **R13** `canSquash` O(n) per row
+  *(close-out Phase 3, measure first)*.
+- `ponytail:` ceilings in code (seven added 2026-09-26, which were in the code but never listed here):
+  - `crates/git-core/src/log/walker.rs:94` — a `Refs` spec that never reaches HEAD leaves the working-tree
+    column open *(Phase 2)*;
+  - `src/App.tsx:154` (2026-09-25) — an update answer that lands between a new window's `lastUpdateCheck()` reply and its
+    `update://checked` listener attaching is missed. Check now covers it. *(Phase 2)*;
+  - `crates/git-core/src/linked.rs:120` — `snapshot` opens a repository per worktree and re-reads every
+    submodule, no cache *(Phase 3, measure first)*;
+  - `crates/git-core/src/linked.rs:134` — no main row when the main worktree's HEAD can't be read;
+    `worktree list --porcelain` fixes it at a git ≥ 2.36 floor *(Phase 2)*;
+  - `crates/git-core/src/watch.rs:124` — an app-side rewrite of `.gitmodules` does not refresh the Submodules
+    list until the next refs event *(Phase 2)*;
+  - `src-tauri/src/commands/window.rs:326` — the pointer position for tab adoption is Windows-only *(Phase 5)*;
+  - `src/components/ui/Input/Input.tsx:221` — an AltGr character never reaches type-ahead *(Phase 2)*;
+  - `src/screens/RepoWindow/Toolbar.tsx:100` — a rename while in the `icons` tier measures late *(Phase 2)*;
+  - `src/screens/RepoWindow/dialogs/StashDialogs.tsx:39` — a dirty-only submodule is listed as stashed
+    *(Phase 2)*.
 - **F3** (2026-09-20 review, moved from §N) — the hunk buttons stay enabled on a non-UTF-8 file;
   the refusal arrives as a toast naming the reason. Reopen when such repositories are actually
   worked in — the `lossy` flag already exists on the backend (`FileDiff::lossy`,
-  `#[serde(skip)]`), it only needs putting on the wire and a `DisabledHint`.
+  `#[serde(skip)]`), it only needs putting on the wire and a `DisabledHint`. *(Close-out Phase 2.)*
 
 ## J. Added 2026-09-14 — from the UI direction B review
 Direction B (History | Changes view switch + Ctrl+K palette) is the chosen small-window layout;
@@ -146,8 +152,9 @@ canvases under `docs/design/` once it lands.
 
 ## L. Added 2026-09-17 — from the Ctrl+, / auto-close review and walk
 
-Things that existed only in a session transcript. None is scheduled; each is written down so it
-is not rediscovered from scratch. (Two more, the `commitStore` → `viewStore` note and the `smoke-dialog.ps1`
+Things that existed only in a session transcript. None was scheduled; each is written down so it
+is not rediscovered from scratch. **Since 2026-09-26 both rows are scheduled in close-out Phase 2**; the
+"reopen only if" reasoning below is kept as history. (Two more, the `commitStore` → `viewStore` note and the `smoke-dialog.ps1`
 fixture, are in the done file since 2026-09-25.) The walk itself is
 `docs/archive/walks/2026-09-17-autoclose-walk.md`.
 
@@ -165,7 +172,9 @@ fixture, are in the done file since 2026-09-25.) The walk itself is
 
 ## M. Added 2026-09-19 — review of `v0.10.1..HEAD`, its fixes, and the walk of group AZ
 
-The walk is `docs/archive/walks/2026-09-19-group-az-walk.md`. What is left, so it is not rediscovered:
+The walk is `docs/archive/walks/2026-09-19-group-az-walk.md`. What is left, so it is not rediscovered.
+**Since 2026-09-26 these are scheduled in the close-out plan** (the toast, default-remote and menu rows in
+Phase 2, the 1800-file delay in Phase 3, AZ 11 in Phase 5); "left until one bites" below is kept as history.
 
 - **A failed op's toast detail, known limits** (2026-09-26, the Pull fix's review). Without a `fatal:` /
   `error:` line, `classify_failure` takes the first line after a fetch's chatter. Git wraps its advice, so
@@ -179,8 +188,8 @@ The walk is `docs/archive/walks/2026-09-19-group-az-walk.md`. What is left, so i
   the change, but an Enter right after it can still miss it. Fix: skip the `setRemote` once the field was
   touched.
 
-- **Open boxes in group AZ**: 9 (the `git skipped <path>` toast — unit-tested, no hand recipe) and 11 (Linux and
-  macOS: rows 3a, 3b, 3d, 3i and bullet 6, by hand).
+- **Open box in group AZ**: 11 (Linux and macOS: rows 3a, 3b, 3d, 3i and bullet 6, by hand). (9, unit-tested
+  with no hand recipe, is marked `[n/a]` since 2026-09-26.)
 - **Menus.** Rows shift by a line while arrowing over a clipped name. After arrow keys in the grid a
   right-click menu opens with its first item focus-visible, so a clipped first item opens wrapped — the
   same case in which that row always had the accent highlight.
@@ -188,12 +197,6 @@ The walk is `docs/archive/walks/2026-09-19-group-az-walk.md`. What is left, so i
   show in Changes, on 0.10.7 as well. (The libgit2 error-suffix row was fixed 2026-09-25 and is in the done
   file; the walk's native-confirm reading is in §L.)
 
-## Suggested order, if nothing else decides it
+## Order
 
-The `ubuntu-22.04` decision in §E is parked until 2026-12-23 (three months before the 2027-03-23
-brownout). Otherwise:
-1. Linux/macOS rendering when a machine is available — signing is done, and never needed one. CI's
-   ubuntu and macOS legs already run the `#[cfg(unix)]` exec-bit staging test on every code push
-   to `main`; only group G's manual
-   mode-chip check needed a Unix box (done under WSLg 2026-09-05).
-2. The performance items, each only after a measurement on a `git/git` clone says so.
+The order is set by `docs/plans/2026-09-26-close-out-plan.md` (phases 0–6).

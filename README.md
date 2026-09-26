@@ -120,22 +120,21 @@ Ctrl is ⌘ on macOS.
 
 v1 is feature-complete, covered by `cargo test --workspace`, `npm test` and
 `cargo clippy --workspace --all-targets -- -D warnings`, and **accepted on Windows**:
-the `docs/smoke/smoke-test.md` walkthrough was completed end to end on 2026-09-01 apart from the three
-steps this machine cannot reach (Resolve in editor ×2, DPI change), and everything it found is
-fixed. CI is green on Linux, Windows and macOS; macOS is compiled there only (no rendering check,
-signed after v0.5.0 but never notarized) — Linux rendering was walked under WSLg
-(`docs/archive/walks/2026-09-05-full-rewalk.md`) — and the installer has not been tried on a
-clean Windows machine. Deliberate v1 omissions are listed in
+the `docs/smoke/smoke-test.md` walkthrough was completed end to end on 2026-09-01 apart from three
+steps that machine could not reach then (Resolve in editor ×2, DPI change — all walked since), and
+everything it found is fixed. CI is green on Linux, Windows and macOS; macOS is compiled there only
+(no rendering check, signed after v0.5.0 but never notarized) — Linux rendering was walked under WSLg
+(`docs/archive/walks/2026-09-05-full-rewalk.md`) — and the installer was walked on a clean Windows 11
+on 2026-09-24 (smoke group BF). Deliberate v1 omissions are listed in
 `docs/archive/plans/2026-08-31-git-ui-v1-plan.md` › Known gaps.
 
-Since then: seven releases (v0.1.0 through **v0.7.0**), cherry-pick / revert and interactive rebase
-from a commit row, in-app updates — the app checks GitHub for a newer release and installs it on
-Windows, macOS and the AppImage, pointing `.deb` and `.rpm` users at their package manager instead —
-and, in 0.7.0, a Files tab listing the whole revision with a content view, line blame and a
-file-history filter on the graph. Since 0.7.0: worktrees and submodules in the sidebar — open one
-in the window, add / remove / lock a worktree, update a submodule — and a moved submodule pointer
-shows as a change.
+Since then: releases v0.1.0 through **v0.10.12** (the full list, with notes, on GitHub Releases),
+cherry-pick / revert and interactive rebase from a commit row, in-app updates — the app checks
+GitHub for a newer release and installs it on Windows, macOS and the AppImage, pointing `.deb` and
+`.rpm` users at their package manager instead — and, in 0.7.0, a Files tab listing the whole
+revision with a content view, line blame and a file-history filter on the graph. Since 0.7.0:
+worktrees and submodules in the sidebar — open one in the window, add / remove / lock a worktree,
+update a submodule — and a moved submodule pointer shows as a change.
 
-What is still open — deferred features, verification that needs other machines, the three
-suggestions filed as issues (all three shipped in 0.7.0), and the longer roadmap (bisect, multi-repo
-tabs, …) — is listed in one place: `docs/plans/open-items.md`.
+What is still open — deferred features, verification that needs other machines, and the longer
+roadmap (custom titlebar, i18n, plugins) — is listed in one place: `docs/plans/open-items.md`.

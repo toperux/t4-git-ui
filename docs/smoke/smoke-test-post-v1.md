@@ -3,7 +3,7 @@
 Companion to `docs/smoke/smoke-test.md` (the v1 walkthrough, accepted 2026-09-01). Every check below is a
 feature that landed afterwards. The ticks are the record, as in the main doc: ticked = walked and
 passed in its last walk (the 2026-09-05 CDP walks; G2 under WSLg), unticked = never walked here or
-changed since and needs a retest. Each group
+changed since and needs a retest, `[n/a]` = closed without a walk (the box says why). Each group
 names the section of the main walkthrough it belongs to, so it can be run on its own or slotted in
 (B, C and H check out / merge / rebase, which the fixture's dirty tree refuses: start them with
 `git stash -u`, or walk E/F/G first and discard).
@@ -1149,7 +1149,7 @@ refresh are milliseconds apart, so reading after the fact shows the settled stat
 pass whatever happened in between. Arm a `MutationObserver` **before** the action, exactly as group
 AF's banner boxes do, and let the observer's log be the evidence._
 
-- [ ] **A late status does not take you out of the working-tree row** (§2) — **recipe falsified
+- [n/a] **Closed 2026-09-26 as a record: no achievable recipe.** **A late status does not take you out of the working-tree row** (§2) — **recipe falsified
       2026-09-11; not walkable as written.** It wants a dirty tree, the working-tree pseudo-row
       selected, and then a conflicting rebase — but git refuses to start a non-interactive rebase
       over a dirty tree (*"error: Please commit or stash them."*, surfaced as an **Operation failed**
@@ -1160,7 +1160,7 @@ AF's banner boxes do, and let the observer's log be the evidence._
       below and by the direct evidence under **What the AG walk showed**. (For whoever rewrites it:
       the selection class is `_selected_`, checked 2026-09-11; group Z's note above names
       `_rowActive_`, which this grid does not use.)
-- [ ] **No spurious re-walk as the state changes** (§1, §2) — **walked 2026-09-11, partial: this
+- [n/a] **Closed 2026-09-26 as a record: what it observes cannot decide it.** **No spurious re-walk as the state changes** (§1, §2) — **walked 2026-09-11, partial: this
       observable cannot decide it.** A re-walk was seen (rows 10 → 11, "Loading commits… 9"), but
       HEAD had genuinely moved — the rebase detached it at `c172c6d` — so that re-walk is correct
       behaviour, not churn. A jump proves nothing when the commit set legitimately changed underneath
@@ -1739,7 +1739,7 @@ defect (anchoring in one pass never fires, because a restarted walk's first page
 6. - [x] Scroll deep → **Changes** (the grid unmounts) → **History**: back on the same row. Alt+1 / the bar's × take the same path.
 7. - [x] On a dirty repository sitting on the working-tree row, switch tabs and back: the row is in view again, not scrolled one row past it.
 8. - [x] Refresh (F5) with nothing changed, from any scroll position: nothing moves.
-9. - [ ] A reader who scrolls **during** the restart keeps their own scroll: not drivable here (the window between the walk restarting and completing is ~90 ms, and the watcher's own delay jitters more than that). Covered by `repoStore.test.ts` "does not scroll under a reader who moved while the restarted walk's first page loaded". What the walk did see: a scroll landing just *before* the restart re-anchors on the row the reader moved to, which is the same rule.
+9. - [n/a] **Closed 2026-09-26 as a record: not drivable, unit-tested.** A reader who scrolls **during** the restart keeps their own scroll: not drivable here (the window between the walk restarting and completing is ~90 ms, and the watcher's own delay jitters more than that). Covered by `repoStore.test.ts` "does not scroll under a reader who moved while the restarted walk's first page loaded". What the walk did see: a scroll landing just *before* the restart re-anchors on the row the reader moved to, which is the same rule.
 
 ## AX. Settings in three tabs (main §6; group J's controls moved)
 
@@ -1818,7 +1818,7 @@ commits the same day; they and the whole of 3 were walked again on the build tha
 bottom-edge / light-theme half of 6 were added and walked after that, 3m with a CDP drag of the repo-name handle, 7's
 native confirm answered with an Enter on the `#32770` dialog; the bottom edge was a second finding — the wrapped
 **Delete** row lost its last line below the window — fixed (the menu re-fits when its size changes) and re-walked.
-Open: 9 (unit-tested only), 10 (needs a published update), 11 (other platforms). The record is
+Open: 11 (other platforms); 10 was walked 2026-09-24, and 9 is `[n/a]` (unit-tested only). The record is
 `docs/archive/walks/2026-09-19-group-az-walk.md`._
 
 1. - [x] **A negated ignore rule stages**: `.gitignore` with `*.log` and `!keep.log`; create `keep.log` and `debug.log` → only `keep.log` is listed, and staging it works. The check is libgit2's, so this holds on git 2.24–2.26 too.
@@ -1851,7 +1851,7 @@ Open: 9 (unit-tested only), 10 (needs a published update), 11 (other platforms).
 6. - [x] **A clipped menu name is readable from the keyboard**: a branch name longer than the row menu's 280 px; open the row menu with Shift+F10 and arrow onto it → the row wraps and shows the whole name, the rows that fit do not change; with the mouse the row stays one line and the hover `title` still has the full name. Check a two-half item (`Merge X into Y`) reads right when wrapped: one sentence at the row's width. After arrow keys in the grid a right-click menu opens with its first item focus-visible — the grid never gave up the keyboard focus — so a clipped first item opens wrapped; it follows the accent highlight that row always had. At the window's bottom edge (a short window, the menu opened on the last visible row, **End** for the Delete row) the menu moves up as the row wraps, so the row being read is never cut. The light theme reads the same. The sidebar's branch menu has no names in its rows; a submenu's rows (Repository › More recent) are ordinary rows and wrap alike if one ever clips.
 7. - [x] **A conflict under an ignore rule still stages**: a tracked `gen.log` under `*.log` (`git add -f`), changed on two branches, merged → conflicted. Resolve it by hand and **Stage** → staged, no "is ignored" refusal (the index's stages 1–3 count as tracked). On a second such file **Keep `<branch>`'s version** → staged with that side; it runs no ignore check at all.
 8. - [x] **A file that became ignored is still refused**: with an untracked `new.txt` listed and selected, append `new.txt` to `.gitignore` from a terminal and press **Stage** before the list refreshes → "Stage failed — new.txt is ignored", nothing in the index.
-9. - [ ] **A skipped path says so**: when `git update-index` skips a path of a batch, the toast reads `git skipped <path>; any other paths were staged` and the lists refresh. No hand recipe known — unit-tested (`check_staged`).
+9. - [n/a] **Closed 2026-09-26 as a record: no hand recipe, unit-tested.** **A skipped path says so**: when `git update-index` skips a path of a batch, the toast reads `git skipped <path>; any other paths were staged` and the lists refresh. No hand recipe known — unit-tested (`check_staged`).
 10. - [x] **An update's restart keeps every window**: with two windows open, install an update from the in-app prompt → the relaunch restores both (the restart takes the Quit path, 3k). Needs a published update newer than the build — walk it with group AC. Walked 2026-09-24 on the installed 0.10.10 updating to the published 0.10.11, through `docs/smoke/fixtures/throttle-proxy.mjs` (`docs/archive/walks/2026-09-24-update-walk.md`). Two windows (`work`, `dogfood`) came back within 5 s on 0.10.11.
 11. **Other platforms** — nothing here is OS-specific code, but only Windows was walked. Repeat 3a, 3b, 3d, 3i (close windows, `cat` the file) and 6:
     - [ ] Linux (WebKitGTK)

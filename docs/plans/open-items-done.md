@@ -125,6 +125,9 @@ Text is moved as written; hashes and line numbers are those of the day._
   Tauri's gtk 0.18 pin (`tauri → muda → gtk → atk → glib`), Linux builds only, an API this app
   never calls. **Dismissed 2026-09-10** on exactly that reasoning; no open Dependabot alert remains.
   Revisit only if Tauri's pin starts carrying something this app does call.
+- **macOS notarization** — **closed 2026-09-26, won't do for now** (close-out Phase 0). Needs a paid Apple
+  Developer account. The app is signed with the shared self-signed certificate (stable identity, so folder
+  grants survive updates), and the release body carries the quarantine step. Reopen when there is a Mac user.
 
 ## C. Roadmap
 ~~Submodules · worktrees~~ — shipped 2026-09-13, see the Context bullet.
@@ -265,6 +268,12 @@ the path alone. Kept here as the record of what was seen.
 
 ## H. Added 2026-09-12 — after the push
 
+- **A `#[cfg(unix)]` block is invisible to Windows clippy.** The 14-commit push of 2026-09-13 went
+  red on Linux and macOS only: a `let mut` flag assigned inside a `#[cfg(unix)]` test block is
+  `unused_assignments` under `-D warnings`, and the local gate never compiles that branch
+  (`db99d93`, `let linked = cfg!(unix)`). **Became release-skill step 4 on 2026-09-26** (close-out
+  Phase 0): tag only after `main`'s CI is green on all three OS.
+
 - **Three CI test flakes** — found in the rerun history and **fixed 2026-09-25** for v0.10.12 (test-only, no app
   change). Each had passed on its rerun.
   - **macOS `watch::tests::rename_is_reported`** (PR #7, 2026-09-12: `[Refs, Workdir]`) and **macOS
@@ -367,6 +376,9 @@ commits and pushed with the CI port from the markdown viewer (`a904701`).
 - **S5** no Blame on a working-tree target in `FileRowMenu`, while the commit panel offers it — **closed
   2026-09-25 as moot**. The "no working-tree Files surface" decision leaves no working-tree row for that menu
   to be opened on.
+- **`Menu.tsx` ceiling** — **closed 2026-09-26, will not fix** (close-out Phase 0): a submenu panel is
+  `.menu`-wide, so the parent's width stands in for its width. The `ponytail:` comment in `Menu.tsx` still
+  names it. Reopen if a submenu's labels clip.
 
 ## J. Added 2026-09-14 — from the UI direction B review
 - ~~**Stash dialog shows nothing of what it stashes.**~~ `Stash changes…` took a message and two
