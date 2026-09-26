@@ -152,7 +152,10 @@ jobs:
         # `--no-confirm` only. `-y` is its short form, and binstall rejects
         # being given the same argument twice. Pinned to match @tauri-apps/cli
         # in package-lock.json (they share versions); bump both together.
-        run: cargo binstall --no-confirm 'tauri-cli@2.11.4'
+        # `--locked` is passed to `cargo install` when no prebuilt binary is
+        # found (the macOS leg): without it the source build takes the newest
+        # tauri-bundler, which 2.11.4 no longer compiles against.
+        run: cargo binstall --no-confirm --locked 'tauri-cli@2.11.4'
 
       # Staging picks the first file matching each glob, and the cache restores
       # target/ from an earlier run. A leftover installer from a previous
