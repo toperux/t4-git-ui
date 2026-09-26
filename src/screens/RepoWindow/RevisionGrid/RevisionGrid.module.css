@@ -215,6 +215,7 @@
 
 /* Reached from the keyboard the row wraps (Menu.module.css), and the halves stop being flex items: a sentence
    that wraps at the row's width, rather than a name squeezed into six lines of its half. */
-[role="menuitem"]:focus-visible .menuLabel {
+[role="menuitem"]:focus-visible .menuLabel,
+[role="menuitem"][data-kbd]:focus .menuLabel {
   display: block;
 }

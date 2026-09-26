@@ -65,6 +65,31 @@ interface MenuCtx {
 const MenuCtx = createContext<MenuCtx | null>(null);
 
 /**
+ * Whether the last input was a key rather than the pointer. Set in the capture phase, so it is
+ * already current when a handler for that same input opens a menu.
+ */
+let keyInput = false;
+document.addEventListener("keydown", () => (keyInput = true), true);
+document.addEventListener("pointerdown", () => (keyInput = false), true);
+
+/**
+ * Every script focus of a menu item goes through here, marking the item `data-kbd` when the keyboard
+ * put it there. The CSS styles that mark beside `:focus-visible`: WebKitGTK never gives a
+ * script-focused element `:focus-visible`, so without it no item would ever show the focus.
+ */
+function focusItem(el: HTMLElement, kbd: boolean) {
+  el.closest('[role="menu"]')?.querySelectorAll("[data-kbd]").forEach((i) => i.removeAttribute("data-kbd"));
+  el.toggleAttribute("data-kbd", kbd);
+  el.focus();
+}
+
+/** A menu opening now was opened from the keyboard: the last input was a key, or its opener shows keyboard focus. */
+function openedByKey() {
+  const opener = document.activeElement;
+  return keyInput || !!opener?.matches(":focus-visible") || !!opener?.hasAttribute("data-kbd");
+}
+
+/**
  * Outside mousedown / Escape / a scroll or resize under it → `onClose`; first item focused when
  * opened. `anchor` is what the menu is placed from (the trigger's wrapper, or the element under a
  * context menu's click point); only a scroll that moves *that* closes it.
@@ -109,7 +134,8 @@ function useMenuDismiss(
   }, [open, onClose, wrap, menu, anchor]);
 
   useEffect(() => {
-    if (open) menu.current?.querySelector<HTMLElement>(ITEMS)?.focus();
+    const first = open ? menu.current?.querySelector<HTMLElement>(ITEMS) : null;
+    if (first) focusItem(first, openedByKey());
   }, [open, menu]);
 }
 
@@ -166,12 +192,12 @@ function onMenuKeyDown(onClose: () => void) {
     const items = Array.from(e.currentTarget.querySelectorAll<HTMLElement>(ITEMS));
     if (items.length === 0) return;
     if (e.key === "Home" || e.key === "End") {
-      items[e.key === "Home" ? 0 : items.length - 1].focus();
+      focusItem(items[e.key === "Home" ? 0 : items.length - 1], true);
       return;
     }
     const cur = items.indexOf(document.activeElement as HTMLElement);
     const next = e.key === "ArrowDown" ? (cur + 1) % items.length : (cur - 1 + items.length) % items.length;
-    items[next].focus();
+    focusItem(items[next], true);
   };
 }
 
@@ -331,7 +357,8 @@ export function MenuItem({ icon, danger, kbd, submenu, className, children, type
   /** The panel only: focus goes back to the item it belongs to. */
   const closePanel = () => {
     ctx?.setOpenSub(null);
-    btn.current?.focus();
+    // Only Escape and ArrowLeft get here.
+    if (btn.current) focusItem(btn.current, true);
   };
 
   // Beside the parent menu, level with the item, flipped to its left when the viewport is short on
@@ -351,7 +378,8 @@ export function MenuItem({ icon, danger, kbd, submenu, className, children, type
   }, [open, ctx]);
 
   useEffect(() => {
-    if (open && takeFocus.current) panel.current?.querySelector<HTMLElement>(ITEMS)?.focus();
+    const first = open && takeFocus.current ? panel.current?.querySelector<HTMLElement>(ITEMS) : null;
+    if (first) focusItem(first, openedByKey());
   }, [open]);
 
   const target = ctx?.wrap.current ?? null;
