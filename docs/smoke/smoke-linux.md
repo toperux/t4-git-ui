@@ -18,8 +18,8 @@ sudo apt install webkitgtk-webdriver xvfb xdotool imagemagick xclip
 cargo install tauri-driver --locked
 ```
 
-`xclip` reads the Xvfb clipboard: `xclip -display :99 -selection clipboard -o`. The `Copied …` toast carries the copied
-text too, as on Windows.
+`xclip` reads the Xvfb clipboard: `xclip -display :99 -selection clipboard -o`. The `Copied …` toast carries the
+copied text too, as on Windows.
 
 ## Scripts
 
@@ -72,11 +72,29 @@ window state (`~/.config/<id>/`), the logs and, above all, **`~/.gitconfig`** th
 scratchpad. Settings › Signing writes the global git config, and this keeps it out of the user's
 file. Nothing needs backing up or restoring.
 
-The cost: gpg follows `$HOME`, so `~/.gnupg` is not there. A row that really signs needs
+**The cost:** gpg follows `$HOME`, so `~/.gnupg` is not there. A row that really signs with gpg (openpgp) needs
 `GNUPGHOME=$HOME/.gnupg` on the tauri-driver line, **before** `HOME=` — bash applies prefix assignments left
-to right, so after it `$HOME` is already the scratch one (`GNUPGHOME=$HOME/.gnupg HOME=$S/home … tauri-driver`). (ssh
-finds `~/.ssh` from the passwd entry, not `$HOME`, so ssh remotes are unaffected.) If your identity is in
-`~/.config/git/config` rather than `~/.gitconfig`, copy that instead.
+to right, so after it `$HOME` is already the scratch one (`GNUPGHOME=$HOME/.gnupg HOME=$S/home … tauri-driver`).
+
+**ssh transport is unaffected by the move:** it finds `~/.ssh` from the passwd entry, not `$HOME`, so an ssh remote
+behaves as it does outside the harness. Checked 2026-09-27:
+- a decoy `$S/home/.ssh/config` was ignored;
+- a file trace showed config, key and `known_hosts` opened under the real `~/.ssh`, and nothing under the scratch
+  `HOME`;
+- `git ls-remote` of a GitHub ssh remote succeeded with `HOME` moved.
+
+**Using the passwd home also means the moved `HOME` doesn't isolate ssh:** it reads, and can write, the real `~/.ssh`
+(`known_hosts` host-key updates), as any fetch would.
+
+**`~` paths in git config do follow `$HOME`:**
+- `user.signingkey`, when it is an ssh key path (with openpgp it holds a key id);
+- `gpg.ssh.allowedSignersFile`;
+- an `-i ~/…` in `core.sshCommand`, which the shell expands.
+
+None of these was set on the machine checked 2026-09-27, and ssh signing under the moved `HOME` is untested. If you
+sign with ssh (group AR), use absolute paths in the copied `.gitconfig`; `GNUPGHOME` doesn't apply there.
+
+If your identity is in `~/.config/git/config` rather than `~/.gitconfig`, copy that instead.
 
 ```bash
 S=<scratchpad>/app; mkdir -p $S/home; cp ~/.gitconfig $S/home/    # user.name / email for commits
@@ -145,22 +163,30 @@ For checking a published or CI-built AppImage (the `packages-Linux` artifact of 
 `chmod +x` it, the zip drops the bit). Learned on the blank-window fix
 (`docs/plans/2026-09-26-appimage-blank-window-plan.md`):
 
-- **Launch it isolated:** `HOME=$S/home DISPLAY=:98 setsid dbus-run-session -- ./<file>.AppImage`.
+- **Give it a display of its own:** `Xvfb :98 -screen 0 1600x1000x24` in the background, stopped afterwards with
+  `pkill -f '^Xvfb :98'`. The harness app on `:99` has the same window title, and a root screenshot would catch it.
+- **Launch it isolated:**
+  `HOME=$S/home DISPLAY=:98 setsid dbus-run-session -- ./<file>.AppImage > $S/appimage.log 2>&1 &`.
   - The identifier is the installed app's (`dev.topher.t4gitui`), not `.smoke`. Without its own session bus, a new
     launch hands off to any copy already running (the installed app, a previous run) and exits: an empty log and
     no window, which looks like a render failure.
   - The AppImage forces `GDK_BACKEND=x11` itself (its GTK hook), so it is always X11, under XWayland on a desktop.
-- **Judge the render from a screenshot:** `import -window root`, then `convert <png> -format %k info:`. A blank
-  window is 1–2 colours, and the start screen is several hundred. Grep the log for `EGL_BAD_PARAMETER`.
-- **Kill it by executable path.** Its process shows as a bare `t4-git-ui`, so `pgrep -f` on the file name misses it
-  and copies pile up. Kill the pids whose `readlink /proc/<pid>/exe` starts with `/tmp/.mount_<first 6 characters of
-  the file name>`. That spares an AppImage the user is running.
+- **Judge the render from a screenshot (a rough check):** first confirm the window exists
+  (`xdotool search --name 'T4 Git UI'`). Then `import -window root`, then `convert <png> -format %k info:`.
+  - A blank window, or no window, is 1–2 colours; the start screen is several hundred.
+  - Grep `$S/appimage.log` for `EGL_BAD_PARAMETER`.
+- **Kill it by its `APPIMAGE` variable.** Its process shows as a bare `t4-git-ui`, so `pgrep -f` on the file name
+  misses it and copies pile up.
+  - Kill the pids whose environment holds the file's resolved path, which the AppImage runtime exports:
+    `tr '\0' '\n' < /proc/<pid>/environ | grep -qx "APPIMAGE=$(realpath <file>)"`.
+  - The mount directory (`${TMPDIR:-/tmp}/.mount_` plus the first 6 characters of the file name) doesn't tell copies
+    apart: every release's file starts `T4-Git`, so a user's own AppImage would match too.
 - **Never `pkill -f` a pattern that is in your own command line:** it kills the shell running it. Put kill logic in
   a script written in a separate call.
 - **Inspect without running it:** the payload starts at the ELF's `e_shoff + e_shentsize * e_shnum`, 944632 in
   0.10.12. `unsquashfs -l -o <offset>` lists it (no `libwayland-client` after the fix). Check the signature with
   `python3 .github/scripts/verify-updater-sig.py <file> <file>.sig src-tauri/tauri.conf.json`, and the embedded
-  digest with `.github/scripts/appimage-digest.py --check <file>`.
+  digest with `python3 .github/scripts/appimage-digest.py --check <file>`.
 - **On a VMware guest's desktop** the fixed AppImage still needs `WEBKIT_DISABLE_DMABUF_RENDERER=1` (the README
   note). Xvfb doesn't.
 
@@ -189,10 +215,11 @@ For checking a published or CI-built AppImage (the `packages-Linux` artifact of 
 
 - **The live Wayland desktop:** no xdotool, and the OS theme switch and DPI are not reachable. These rows
   stay hand-walked.
-  - **WebDriver still works there** (2026-09-27): run `tauri-driver` with `GDK_BACKEND=wayland` and no Xvfb or
-    `DISPLAY` override, and the window opens on the user's desktop. `wd.mjs` drives the page, and `shot` captures it.
+  - **WebDriver still works there** (2026-09-27): run §2's `tauri-driver` line with `GDK_BACKEND=wayland` in place
+    of `DISPLAY=:99 GDK_BACKEND=x11`, and no Xvfb. The window opens on the user's desktop. `wd.mjs` drives the
+    page, and `shot` captures it.
   - **GTK's native popups** (a text field's menu) aren't in the shot: ask the user.
-  - **The native picker can't be driven:** seed `layout.json` instead.
+  - **The native picker can't be driven:** seed `layout.json` instead (the recipe under "Several windows").
   - See `docs/archive/walks/2026-09-27-linux-wayland-rendering-walk.md`.
 - **`.deb` / `.rpm` / AppImage updates** (`smoke-test-post-v1.md` AC): these need bundled packages (the
   signing key), `sudo dpkg -i`, and a published release newer than the build. Walk them by hand.

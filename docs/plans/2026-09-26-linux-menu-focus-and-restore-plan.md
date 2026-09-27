@@ -252,8 +252,8 @@ this section is the record.
 | T1 | `smoke-fixtures.sh` duplicates the `.ps1` | accepted; the header names the `.ps1` as the source of truth |
 | T2 | `.sh` fixture uses GNU `sed` | **fix now**: portable (e.g. `awk`), so macOS can use it |
 | T3 | `T4_ROOT` set on Windows breaks the ad7 check | accepted; documented at the check |
-| T4 | the harness moves `HOME` (gpg needs `GNUPGHOME`; ssh unverified) | accepted; **verify ssh once** under a moved `HOME` |
-| T5 | live Wayland, OS theme and DPI unreachable on Linux | **build AT-SPI driving** (own plan) |
+| T4 | the harness moves `HOME` (gpg needs `GNUPGHOME`; ssh unverified) | accepted; ssh **verified 2026-09-27**: it uses the passwd home (`smoke-linux.md` §2) |
+| T5 | live Wayland, OS theme and DPI unreachable on Linux | **build AT-SPI driving** (own plan). Since 2026-09-27 WebDriver drives the page on live Wayland; AT-SPI is for native popups, the OS theme and DPI |
 | T6 | AC :761 `.deb`/AppImage update | **walked 2026-09-26:** `.deb` passes; the AppImage passes only with a workaround (blank-window bug, open-items §P); `.rpm` not walked. The row stays unticked |
 | T7 | multi-window rows have no DOM access | re-test WebDriver with two windows after Phase B |
 | T8 | the skill's Windows route is untested | test it on the next Windows walk (T19) |
@@ -296,5 +296,5 @@ gap (a crash then restores `w1`'s tabs into `main`), but it would widen a crash 
 3. **T19, first half:** you walk AZ 6 on Windows through the skill (also T8).
 4. **T17 Phase A with the A/B** (D2 decides from its numbers), and the T18 audit in the same session.
 5. **Phase B**, then T20 (Linux row 3), T19's second half (Windows row 3), and T7 (WebDriver with two windows).
-6. **T4** (the ssh check under a moved `HOME`), whenever convenient.
+6. ~~**T4** (the ssh check under a moved `HOME`).~~ Done 2026-09-27.
 7. **T5 AT-SPI:** its own plan when it's picked up. **T21:** when a Mac is available.

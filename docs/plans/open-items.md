@@ -53,8 +53,9 @@ done, move it there._
   fonts, both themes, graph, panels, styled scrollbars (thumb + hover), all five splitters and the
   dock drag, native-menu suppression (toolbar / panel header / statusbar / bare diff body → nothing;
   text field and selected diff text → GTK menu), app context menu on a commit row: all as on Windows.
-  **Walked again 2026-09-27 on native Wayland** (Ubuntu 26.04.1, GNOME, a VMware guest; driven by WebDriver, with
-  native menus checked by eye): all of the above pass (`docs/archive/walks/2026-09-27-linux-wayland-rendering-walk.md`).
+  **Walked again 2026-09-27 on native Wayland** (Ubuntu 26.04.1, GNOME, a VMware guest; driven by WebDriver, the two
+  GTK menus that should show checked by eye): all of the above pass except the dock's range and collapse, which
+  weren't re-walked (`docs/archive/walks/2026-09-27-linux-wayland-rendering-walk.md`).
   Real GPU hardware and a HiDPI panel are not walked, accepted until a report. macOS rendering: never seen; CI
   compiles only.
 - UI-vs-canvas comparison pass (v1 plan M6 leftover): screenshots of the real app against the
@@ -65,8 +66,8 @@ Custom titlebar (revisited in M6, native kept) · i18n · plugins.
 
 ## E. Added 2026-09-10 — one dated decision
 - **`ubuntu-22.04` retirement — dated, and cross-repo.** **Parked until 2026-12-23** (user,
-  2026-09-24): do not offer it before three months ahead of the first brownout. Deprecated from **2026-09-17**, brownouts
-  2027-03-23 / -03-30 / -04-06 / -04-13, unsupported 2027-04-17 (`actions/runner-images#14254`).
+  2026-09-24): do not offer it before three months ahead of the first brownout. Deprecated from **2026-09-17**,
+  brownouts 2027-03-23 / -03-30 / -04-06 / -04-13, unsupported 2027-04-17 (`actions/runner-images#14254`).
   `release.yml` builds Linux on it deliberately, for the glibc floor the `.deb` links against.
   `checks.yml` pins it only to match that matrix — it bundles nothing, it builds and tests, so the
   glibc reason never applied there; its comment claimed it anyway until corrected on 2026-09-11.
@@ -138,7 +139,8 @@ Direction B (History | Changes view switch + Ctrl+K palette) is the chosen small
 canvases under `docs/design/` once it lands.
 - **Palette search prefixes** — `#` searches commits (subject / SHA), `/` opens a file in the Files
   tab. The first palette ships with actions, views, go-to-branch and recent repositories only.
-- **Per-view sidebar state** (Direction B follow-up): many will hide the sidebar while staging and want it back in History. One `railOverride` per view is a ten-line change in `viewStore` if the first weeks say so.
+- **Per-view sidebar state** (Direction B follow-up): many will hide the sidebar while staging and want it back in
+  History. One `railOverride` per view is a ten-line change in `viewStore` if the first weeks say so.
 
 ## L. Added 2026-09-17 — from the Ctrl+, / auto-close review and walk
 
@@ -247,12 +249,43 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
 - **AC :761 walked 2026-09-26 (T6):** the `.deb` passes; the AppImage updates in place only with a workaround (the
   blank-window bug below); `.rpm` not walked, ruled covered 2026-09-27. The row stays unticked until the AppImage
   release walks (`docs/archive/walks/2026-09-26-group-ac-linux-walk.md`).
-- **ssh under the moved `HOME` (T4):** check once that ssh still finds `~/.ssh`, and correct `smoke-linux.md` if not.
-  (`xclip`, T9, turned out to be installed and is now a listed prerequisite.)
+- ~~**ssh under the moved `HOME` (T4).**~~ Done 2026-09-27 (`linux-smoke-and-fixes`): ssh finds the real `~/.ssh`
+  through the passwd entry, and a GitHub ssh `ls-remote` works with `HOME` moved. `smoke-linux.md` §2 records it,
+  with the caveat that ssh isn't isolated. Triage 2026-09-27: other ssh hosts, a fetch/push through the app itself,
+  the unisolated `~/.ssh` and ssh signing under the moved `HOME` are accepted (the last two are documented in §2).
+  Prompts are the row below.
+- **ssh prompts the app can't answer well (found in the T4 review, 2026-09-27, unverified).**
+  - **The setup:** the git runner (`crates/git-core/src/cli/runner.rs`) sets no `SSH_ASKPASS` or `BatchMode`, and
+    runs git with stdin null. The app has no ssh prompt UI, and a stuck op ends only on Cancel. There is no timeout,
+    by choice (triage 2026-09-27): one would misfire on a slow fetch or clone.
+  - **What ssh does when it has to ask:** it asks about a key's passphrase (with no agent) and about an unknown host
+    key. From a desktop launch, with no terminal, it falls back to `SSH_ASKPASS` (Ubuntu's default is
+    `/usr/bin/ssh-askpass`) when `DISPLAY` or `WAYLAND_DISPLAY` is set.
+    - **No askpass installed** (the 2026-09-27 machine), or no display: it fails at once. Either the key isn't used
+      (`Permission denied (publickey)`), or "Host key verification failed".
+    - **An askpass installed:** a desktop user gets its dialog, and it works. On the harness's Xvfb nobody sees it,
+      so the op hangs until Cancel.
+    - **A terminal launch:** ssh opens the terminal from a background process group, gets stopped, and the op hangs
+      until Cancel. This affects development only.
+  - **Scope:** Linux, and macOS (which fails at once without `DISPLAY`). Windows is unchecked: Git for Windows
+    ships its own askpass.
+  - **https has no prompt either** (added in triage, 2026-09-27). On Linux and macOS, with no helper that can prompt,
+    an https op that needs auth fails at once. `GIT_TERMINAL_PROMPT=0` turns the terminal off, and git asks no
+    askpass unless one is configured (`GIT_ASKPASS`, `core.askPass` or an exported `SSH_ASKPASS`, not ssh's built-in
+    default). osxkeychain and libsecret only store credentials, so a first auth still fails. With an exported
+    `SSH_ASKPASS`, the prompt appears, and on Xvfb it would hang unseen. Windows has GCM, which prompts (done file
+    §B, "Dogfooding, the credential half"; that laptop is Windows, confirmed 2026-09-27). The decision below covers
+    both: `BatchMode` is the ssh half; for https it is a clearer message or an in-app prompt.
+  - **Check once:** a passphrase key with no agent, and a host not in `known_hosts`. Run it on the real desktop, or
+    with `SSH_ASKPASS_REQUIRE=never` to see the plain failure; in the harness, an installed askpass would prompt
+    unseen on Xvfb. Then decide between failing fast with a clear message (`BatchMode=yes`), an in-app prompt, and
+    leaving it as is.
+- ~~**`xclip` (T9).**~~ Done 2026-09-26 (triage): it was installed, and is now a listed prerequisite.
 - **Re-test WebDriver with two windows (T7)** once the restore hang is fixed. If it works, multi-window rows get DOM
   access back.
-- **Drive live Wayland through AT-SPI (T5):** the OS theme switch, DPI and anything Wayland-only are hand-walked
-  today. `python3-gi`'s `Atspi` reaches the live session. It needs a plan of its own.
+- **Drive live Wayland through AT-SPI (T5):** the page itself is now driven on live Wayland through WebDriver
+  (`smoke-linux.md`, "Not reachable here"). What stays hand-walked is GTK's native popups, the OS theme switch
+  and DPI. `python3-gi`'s `Atspi` reaches the live session. It needs a plan of its own.
 - **Bug found in the AC :761 walk (2026-09-26): the AppImage opens a blank window on Ubuntu 26.04. Fixed on
   `linux-smoke-and-fixes`, pending a `workflow_dispatch` build and the release walks.**
   Plan: `docs/plans/2026-09-26-appimage-blank-window-plan.md`.
@@ -280,9 +313,9 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
       Download… path (`update.rs:45-50`).
 - **CLI pin drift (triaged 2026-09-27, the AppImage plan's Triage L2):** `release.yml:158` pins `tauri-cli@2.11.4`,
   while `package-lock.json` has `@tauri-apps/cli` 2.11.5, against the pin's own comment. (The macOS leg builds the
-  CLI from source; `--locked` was added 2026-09-27 after the unlocked build broke on a newer `tauri-bundler`.) Align them (bump both). At
-  2.11.5+, add `--app-version "$ver"` to the AppImage re-sign step, since `tauri build` then binds the version into
-  the other signatures.
+  CLI from source; `--locked` was added 2026-09-27 after the unlocked build broke on a newer `tauri-bundler`.)
+  Align them (bump both). At 2.11.5+, add `--app-version "$ver"` to the AppImage re-sign step, since `tauri build`
+  then binds the version into the other signatures.
 - **Only the AppImage's updater `.sig` is verified in CI (triaged 2026-09-27, the AppImage plan's Triage L4).** The
   Windows `.exe.sig` and the macOS `.app.tar.gz.sig` come straight from the bundler and nothing touches the files
   after signing, so the risk the AppImage check guards against doesn't apply. To extend it, run
