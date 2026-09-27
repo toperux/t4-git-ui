@@ -258,7 +258,7 @@ this section is the record.
 | T5 | live Wayland, OS theme and DPI unreachable on Linux | **build AT-SPI driving** (own plan). Since 2026-09-27 WebDriver drives the page on live Wayland; AT-SPI is for native popups, the OS theme and DPI. Plan written 2026-09-27: `2026-09-27-t5-atspi-plan.md` |
 | T6 | AC :761 `.deb`/AppImage update | **walked 2026-09-26:** `.deb` passes; the AppImage passes only with a workaround (blank-window bug, open-items §P); `.rpm` not walked. The row stays unticked |
 | T7 | multi-window rows have no DOM access | re-test WebDriver with two windows after Phase B |
-| T8 | the skill's Windows route is untested | test it on the next Windows walk (T19) |
+| T8 | the skill's Windows route is untested | **done 2026-09-27**: walked through it for T19; two `cdp.mjs` gaps fixed on the way (F10/Home/End, Enter's text) |
 | T9 | `xclip` missing | **done**: it turned out to be installed (0.13-4build1); it's now in `smoke-linux.md`'s prerequisites |
 | T10 | tear-off overlap: a crash restores the tab twice | accepted |
 | T11 | crash at launch restores `w1`'s tabs into `main` | **accepted** (revised in the second review: the fix would widen an existing crash loop; see below) |
@@ -269,7 +269,7 @@ this section is the record.
 | T16 | `patch.rs` asserts only the owner exec bit | accepted |
 | T17 | the hang's cause and fix (Phases A, B) | next, right after the commits |
 | T18 | Linux audit of other script-focused widgets | **done 2026-09-27**, before T17: ten paths failed after a click, fixed by the shared `data-kbd` mark (`src/lib/kbdFocus.ts`), re-walked (`docs/archive/walks/2026-09-27-t18-linux-focus-audit.md`) |
-| T19 | Windows re-walks | AZ 6 as soon as the branch is up, plus the T18 audit's paths and its two new Windows cases (the fix is shared); row 3 after Phase B |
+| T19 | Windows re-walks | AZ 6 as soon as the branch is up, plus the T18 audit's paths and its two new Windows cases (the fix is shared); row 3 after Phase B. **First half done 2026-09-27** (`docs/archive/walks/2026-09-27-t19-windows-walk.md`): all ten paths and AZ 6 as before; the one visible change (a click then Ctrl+Comma, now ringed) was reversed by the user: a Ctrl or ⌘ shortcut no longer counts as keyboard input, on every OS |
 | T20 | Linux re-walk of AZ row 3, then tick AZ 11 Linux | after Phase B |
 | T21 | macOS: AZ 11 and T12 | open until a Mac is available |
 | T22 | AZ 9 is unit-tested only | **revised in the second review:** stays unticked, a record rather than work (open-items §B). A tick means walked (the skill's rule), and `check_staged`'s test covers only the message, not the toast or the refresh |
@@ -295,7 +295,7 @@ gap (a crash then restores `w1`'s tabs into `main`), but it would widen a crash 
    The gates pass (950 tests).
    T6 (the AC :761 walk) was done the same day: see the T6 row.
 2. **D1:** the branch and the 3 commits.
-3. **T19, first half:** you walk AZ 6 on Windows through the skill (also T8).
+3. ~~**T19, first half:** you walk AZ 6 on Windows through the skill (also T8).~~ Done 2026-09-27.
 4. **T17 Phase A with the A/B** (D2 decides from its numbers). The T18 audit was done 2026-09-27, before it.
 5. **Phase B**, then T20 (Linux row 3), T19's second half (Windows row 3), and T7 (WebDriver with two windows).
 6. ~~**T4** (the ssh check under a moved `HOME`).~~ Done 2026-09-27.

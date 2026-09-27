@@ -210,9 +210,12 @@ both reproduced without WebDriver. Fix plan, with a status section:
       showed no ring on ten paths (the sidebar tree, both tab strips, the diff cursor, Esc back to an opener, …).
       Fixed for every widget at once: `src/lib/kbdFocus.ts` marks keyboard focus `data-kbd` on every `focusin`, and
       each `:focus-visible` rule has a `[data-kbd]:focus` twin. All ten re-walked and pass on Linux.
-    - **Windows re-walk of AZ 6** over CDP. It must look exactly as before. Since the T18 fix is shared, the same walk
-      checks the audit's paths on Windows too (the list is in the audit record), and its two new cases: Tab to a
-      button then click it (the ring stays), and a Ctrl shortcut that moves focus after a click (now ringed).
+    - ~~**Windows re-walk of AZ 6** over CDP.~~ **Done 2026-09-27** (`docs/archive/walks/2026-09-27-t19-windows-walk.md`),
+      against the installed 0.10.12 as the baseline:
+      - AZ 6 and all ten audit paths look as before (Chromium already rang them).
+      - *Tab, then click* was already so on Windows.
+      - The one visible change was a click then **Ctrl+Comma**, which rang Settings' Close. The user decided
+        against it, so a Ctrl or ⌘ shortcut no longer counts as keyboard input (as in Chromium), on every OS.
 - **A restored second window sometimes never starts: guarded, not fixed.**
   - **The bug:** `w1` stays on the *Starting* spinner for good.
     - **Rate:** about 3 of 16 two-window restores before step C, 7 of 20 after. That difference isn't significant

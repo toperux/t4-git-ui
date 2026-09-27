@@ -33,4 +33,21 @@ describe("kbdFocus", () => {
     fireEvent.keyDown(document, { key: "Alt" });
     expect(focusNew().hasAttribute("data-kbd")).toBe(false);
   });
+
+  it("a Ctrl or ⌘ shortcut after the pointer is not a key", () => {
+    fireEvent.pointerDown(document);
+    fireEvent.keyDown(document, { key: ",", ctrlKey: true });
+    expect(focusNew().hasAttribute("data-kbd")).toBe(false);
+    fireEvent.keyDown(document, { key: "k", metaKey: true });
+    expect(focusNew().hasAttribute("data-kbd")).toBe(false);
+  });
+
+  it("a shortcut after a key leaves it a key, and Shift still counts", () => {
+    fireEvent.keyDown(document, { key: "ArrowDown" });
+    fireEvent.keyDown(document, { key: ",", ctrlKey: true });
+    expect(focusNew().hasAttribute("data-kbd")).toBe(true);
+    fireEvent.pointerDown(document);
+    fireEvent.keyDown(document, { key: "F10", shiftKey: true });
+    expect(focusNew().hasAttribute("data-kbd")).toBe(true);
+  });
 });
