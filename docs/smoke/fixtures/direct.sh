@@ -29,7 +29,9 @@ seed() { mkdir -p "$(dirname "$L")"; printf '%s' "$1" > "$L"; }
 lay() { echo "$(ts) layout: $(cat "$L" 2>/dev/null || echo '(none)')"; }
 
 # dlaunch [seconds] — start the app detached on the Xvfb display, then wait.
-dlaunch() { (HOME=$DIRECT_S/home DISPLAY=$XDISPLAY GDK_BACKEND=x11 setsid "$APP" >>"$DIRECT_S/direct.log" 2>&1 &); sleep "${1:-1}"; }
+# No askpass on the invisible display: ssh and git fail at once instead (smoke-linux.md §2).
+dlaunch() { (HOME=$DIRECT_S/home DISPLAY=$XDISPLAY GDK_BACKEND=x11 SSH_ASKPASS_REQUIRE=never GIT_ASKPASS= \
+  setsid "$APP" >>"$DIRECT_S/direct.log" 2>&1 &); sleep "${1:-1}"; }
 # SIGKILL, then wait until it's gone (about 250 ms), so the next launch can't hand off to a dying instance.
 killapp() {
   pkill -9 -fx "$APP"

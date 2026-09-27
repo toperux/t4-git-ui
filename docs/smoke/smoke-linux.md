@@ -99,9 +99,15 @@ If your identity is in `~/.config/git/config` rather than `~/.gitconfig`, copy t
 ```bash
 S=<scratchpad>/app; mkdir -p $S/home; cp ~/.gitconfig $S/home/    # user.name / email for commits
 Xvfb :99 -screen 0 1600x1000x24                                        # background
-HOME=$S/home DISPLAY=:99 GDK_BACKEND=x11 TAURI_WEBVIEW_AUTOMATION=true tauri-driver   # background
+HOME=$S/home DISPLAY=:99 GDK_BACKEND=x11 TAURI_WEBVIEW_AUTOMATION=true \
+  SSH_ASKPASS_REQUIRE=never GIT_ASKPASS= tauri-driver                   # background
 node docs/smoke/wd.mjs start "$PWD/target/debug/t4-git-ui"
 ```
+
+- **No askpass on Xvfb:** `SSH_ASKPASS_REQUIRE=never` and an empty `GIT_ASKPASS` stop ssh (a passphrase, an unknown
+  host) and git (https credentials) from opening an askpass dialog on the invisible display. It would hang the
+  walk until Cancel. They fail at once instead, as they do with no askpass installed
+  (`docs/plans/2026-09-27-ssh-fail-fast-plan.md`).
 
 - **Env doesn't carry between Bash calls**, so each command carries what it needs.
 - **Check ports and displays first:** `ss -ltn | grep -E ':444[45]'` should be empty. Use `:99` unless
@@ -144,7 +150,8 @@ session behind. Re-test WebDriver with two windows once the fix lands:
 - **The helpers are in `docs/smoke/fixtures/direct.sh`:** `S=<scratchpad>/app; . docs/smoke/fixtures/direct.sh`,
   then `seed` / `dlaunch` / `waitfor` / `xclosetitle` / `lay` / `killapp` (its header has an example). What they
   do:
-- **Launch directly:** `HOME=$S/home DISPLAY=:99 GDK_BACKEND=x11 setsid target/debug/t4-git-ui &`,
+- **Launch directly:** `HOME=$S/home DISPLAY=:99 GDK_BACKEND=x11 SSH_ASKPASS_REQUIRE=never GIT_ASKPASS= setsid
+  target/debug/t4-git-ui &` (the askpass guard as in §2),
   with `layout.json` seeded first (`$S/home/.local/share/dev.topher.t4gitui.smoke/layout.json`,
   `[{"tabs":[…],"active":…}, …]`, `main` first).
 - **Read state from the window titles:** `xdotool search --onlyvisible --pid <pid> --name '…'`, where each
@@ -166,7 +173,8 @@ For checking a published or CI-built AppImage (the `packages-Linux` artifact of 
 - **Give it a display of its own:** `Xvfb :98 -screen 0 1600x1000x24` in the background, stopped afterwards with
   `pkill -f '^Xvfb :98'`. The harness app on `:99` has the same window title, and a root screenshot would catch it.
 - **Launch it isolated:**
-  `HOME=$S/home DISPLAY=:98 setsid dbus-run-session -- ./<file>.AppImage > $S/appimage.log 2>&1 &`.
+  `HOME=$S/home DISPLAY=:98 SSH_ASKPASS_REQUIRE=never GIT_ASKPASS= setsid dbus-run-session --
+  ./<file>.AppImage > $S/appimage.log 2>&1 &` (the askpass guard as in §2).
   - The identifier is the installed app's (`dev.topher.t4gitui`), not `.smoke`. Without its own session bus, a new
     launch hands off to any copy already running (the installed app, a previous run) and exits: an empty log and
     no window, which looks like a render failure.

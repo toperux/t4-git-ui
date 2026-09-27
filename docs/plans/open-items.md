@@ -254,7 +254,7 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
   with the caveat that ssh isn't isolated. Triage 2026-09-27: other ssh hosts, a fetch/push through the app itself,
   the unisolated `~/.ssh` and ssh signing under the moved `HOME` are accepted (the last two are documented in §2).
   Prompts are the row below.
-- **ssh prompts the app can't answer well (found in the T4 review, 2026-09-27, unverified).**
+- **ssh prompts the app can't answer well (found in the T4 review; measured 2026-09-27).**
   - **The setup:** the git runner (`crates/git-core/src/cli/runner.rs`) sets no `SSH_ASKPASS` or `BatchMode`, and
     runs git with stdin null. The app has no ssh prompt UI, and a stuck op ends only on Cancel. There is no timeout,
     by choice (triage 2026-09-27): one would misfire on a slow fetch or clone.
@@ -275,11 +275,31 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
     default). osxkeychain and libsecret only store credentials, so a first auth still fails. With an exported
     `SSH_ASKPASS`, the prompt appears, and on Xvfb it would hang unseen. Windows has GCM, which prompts (done file
     §B, "Dogfooding, the credential half"; that laptop is Windows, confirmed 2026-09-27). The decision below covers
-    both: `BatchMode` is the ssh half; for https it is a clearer message or an in-app prompt.
-  - **Check once:** a passphrase key with no agent, and a host not in `known_hosts`. Run it on the real desktop, or
-    with `SSH_ASKPASS_REQUIRE=never` to see the plain failure; in the harness, an installed askpass would prompt
-    unseen on Xvfb. Then decide between failing fast with a clear message (`BatchMode=yes`), an in-app prompt, and
-    leaving it as is.
+    both: a clear message for each.
+  - **Measured 2026-09-27** (`docs/plans/2026-09-27-ssh-prompts-check-and-cli-pin-plan.md`, Part A).
+    - **How:** the app's environment (`LC_ALL=C GIT_TERMINAL_PROMPT=0`, stdin null, no terminal under `setsid`)
+      with `timeout 30`, against GitHub.
+    - **Setup:** `DISPLAY` set; no `SSH_ASKPASS`, `GIT_ASKPASS`, `core.askPass` or credential helper;
+      `/usr/bin/ssh-askpass` missing; `StrictHostKeyChecking ask`.
+    - **A passphrase key, no agent:** 1.4 s. ssh tried the askpass
+      (`exec(/usr/bin/ssh-askpass): No such file or directory`), then `Permission denied (publickey)`.
+    - **The same with `BatchMode=yes`:** 1.4 s, `Permission denied (publickey)`, with no askpass attempt.
+    - **An unknown host key:** 0.9 s. The askpass was attempted, then `Host key verification failed`.
+    - **The same with `BatchMode=yes`:** 0.9 s, `Host key verification failed`.
+    - **https that needs auth:** 0.5 s,
+      `could not read Username for 'https://github.com': terminal prompts disabled`.
+    - **None hangs.** Each exits 128. The ssh cases end with git's `fatal: Could not read from remote repository.`
+    - `BatchMode` changes nothing the user sees here: it only skips the askpass attempt.
+    - The ssh messages don't say why (a passphrase, a new host). The https one is clear enough.
+    - The real `known_hosts` was unchanged (md5), and the scratch one stayed empty.
+    - **Holds for this setup only:** with an askpass installed or exported, ssh and git would show a dialog instead
+      (and hang unseen on Xvfb).
+  - **Decided 2026-09-27: fail fast with a clear message.** The app recognises these failures and names the cause
+    and the fix. The in-app prompt and "leave it as is" were rejected.
+    - **Reversed in planning:** `BatchMode=yes` is dropped. Without an askpass, ssh already fails fast, and
+      `BatchMode` would only remove working askpass dialogs.
+    - Plus the terminal-launch `setsid` fix, and clone classification.
+    - Plan: `docs/plans/2026-09-27-ssh-fail-fast-plan.md`, reviewed and decided; its own PR after #18.
 - ~~**`xclip` (T9).**~~ Done 2026-09-26 (triage): it was installed, and is now a listed prerequisite.
 - **Re-test WebDriver with two windows (T7)** once the restore hang is fixed. If it works, multi-window rows get DOM
   access back.
@@ -316,6 +336,12 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
   CLI from source; `--locked` was added 2026-09-27 after the unlocked build broke on a newer `tauri-bundler`.)
   Align them (bump both). At 2.11.5+, add `--app-version "$ver"` to the AppImage re-sign step, since `tauri build`
   then binds the version into the other signatures.
+- **Turn on `requireSignedVersion` (decided 2026-09-27 to track, not schedule).** From tauri-cli 2.11.5 on, every
+  updater signature carries `version:`, and updater 2.12 rejects a signed version that doesn't match `latest.json`.
+  A signature with no version is still accepted while `requireSignedVersion` is off, which leaves a downgrade
+  bypass: serve an old, version-less signature. The threat is low, since the manifest is served from GitHub
+  releases over HTTPS. **Precondition:** every artifact a `latest.json` can point at carries a version, which is true
+  from the first release built with 2.11.5 (the CLI pin plan, Part B). Then set it in `tauri.conf.json`.
 - **Only the AppImage's updater `.sig` is verified in CI (triaged 2026-09-27, the AppImage plan's Triage L4).** The
   Windows `.exe.sig` and the macOS `.app.tar.gz.sig` come straight from the bundler and nothing touches the files
   after signing, so the risk the AppImage check guards against doesn't apply. To extend it, run
