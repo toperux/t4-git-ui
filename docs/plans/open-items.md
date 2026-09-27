@@ -223,6 +223,10 @@ both reproduced without WebDriver. Fix plan, with a status section:
     once, and after
     `restoreTabs` the frontend reports once, so a window that never starts keeps its tabs. Checked: 20 of 20
     restores kept them, all 7 hangs included.
+    - **Gated since 2026-09-27** (found in #18's review, fixed on the branch): no `layout.json` write happens
+      until `main` has read the last session (`take_layout`). Without the gate, a second launch during startup
+      wrote `[]` over the saved session before `main` read it, and every window and tab of the last session was
+      lost. Plan: `docs/plans/2026-09-27-pr18-windows-plan.md`.
   - **Still open:**
     - **Plan step A, diagnose.** A repro loop that **A/Bs step C** (30 launches with it, 30 without, in case its lock
       and file write in `spawn` raise the rate). Then thread stacks of a hung process under gdb as a parent (no sudo

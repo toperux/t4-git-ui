@@ -92,7 +92,8 @@ export default function App() {
       await restoreTabs();
       // Reported once even if no tab opened: the entry `spawn` made for this window has to be replaced,
       // or a window whose repositories are gone comes back every launch. Only here, once `restoreTabs`
-      // ran: before it, `main` has not taken `layout.json`, and an empty report would erase it.
+      // ran. The backend holds every write until `main` has read `layout.json`, so a report that comes
+      // before that read cannot erase the saved session.
       const st = useTabsStore.getState();
       const active = st.tabs.find((t) => t.id === st.active) ?? null;
       void setLayout({ tabs: st.tabs.map((t) => t.path), active: active?.path ?? "" }).catch(() => undefined);

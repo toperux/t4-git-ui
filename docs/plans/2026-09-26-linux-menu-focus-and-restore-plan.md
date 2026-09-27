@@ -218,7 +218,9 @@ can't pass on C alone.
   - the light theme reads the same.
 
   Still to do: the Windows re-walk (4). The Linux audit (verification 3) was done 2026-09-27: see T18.
-- **Task 2 Phase C: done** (committed on `linux-smoke-and-fixes`); the gates pass. At runtime, in 20 two-window
+- **Task 2 Phase C: done** (committed on `linux-smoke-and-fixes`); the gates pass. **2026-09-27:** its write is
+  now gated on `main` having read the last session. Without the gate, a second launch during startup wiped the
+  saved session. Found in #18's review, fixed on Windows: `docs/plans/2026-09-27-pr18-windows-plan.md`. At runtime, in 20 two-window
   restores, `other` stayed
   in `layout.json` every time, hung or not. One run caught the crash-at-launch state (only `w1`'s entry at 1 s,
   before `main` reported).
