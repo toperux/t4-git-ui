@@ -25,7 +25,8 @@
 .seg:hover {
   color: var(--fg);
 }
-.seg:focus-visible {
+.seg:focus-visible,
+.seg[data-kbd]:focus {
   outline: none;
   box-shadow: var(--focus-ring);
 }

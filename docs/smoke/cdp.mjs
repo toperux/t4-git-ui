@@ -65,13 +65,16 @@ async function drag(label, dx, dy) {
 
 const KEYS = {
   Backquote: { code: "Backquote", key: "`", keyCode: 192 },
-  Enter: { code: "Enter", key: "Enter", keyCode: 13 },
+  Enter: { code: "Enter", key: "Enter", keyCode: 13, text: "\r" },
   Escape: { code: "Escape", key: "Escape", keyCode: 27 },
   Tab: { code: "Tab", key: "Tab", keyCode: 9 },
   1: { code: "Digit1", key: "1", keyCode: 49 },
   2: { code: "Digit2", key: "2", keyCode: 50 },
   R: { code: "KeyR", key: "R", keyCode: 82 },
   F5: { code: "F5", key: "F5", keyCode: 116 },
+  F10: { code: "F10", key: "F10", keyCode: 121 },
+  Home: { code: "Home", key: "Home", keyCode: 36 },
+  End: { code: "End", key: "End", keyCode: 35 },
   ArrowUp: { code: "ArrowUp", key: "ArrowUp", keyCode: 38 },
   ArrowDown: { code: "ArrowDown", key: "ArrowDown", keyCode: 40 },
   ArrowLeft: { code: "ArrowLeft", key: "ArrowLeft", keyCode: 37 },
@@ -85,8 +88,11 @@ async function key(chord) {
   const name = parts.pop();
   const mod = (parts.includes("Alt") ? 1 : 0) | (parts.includes("Ctrl") ? 2 : 0) | (parts.includes("Shift") ? 8 : 0);
   const k = KEYS[name] ?? { code: `Key${name.toUpperCase()}`, key: name.toLowerCase(), keyCode: name.toUpperCase().charCodeAt(0) };
+  // A key with `text` sends it on keyDown, as a real one does: Chromium activates a focused button on
+  // Enter from that char event, not from the bare keyDown.
   for (const type of ["keyDown", "keyUp"]) {
-    await send("Input.dispatchKeyEvent", { type, modifiers: mod, code: k.code, key: k.key, windowsVirtualKeyCode: k.keyCode, nativeVirtualKeyCode: k.keyCode });
+    const text = type === "keyDown" && k.text && !(mod & 3) ? { text: k.text } : {};
+    await send("Input.dispatchKeyEvent", { type, modifiers: mod, code: k.code, key: k.key, windowsVirtualKeyCode: k.keyCode, nativeVirtualKeyCode: k.keyCode, ...text });
   }
   await sleep(400);
   return { key: chord };

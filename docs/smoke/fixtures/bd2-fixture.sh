@@ -1,7 +1,7 @@
 #!/bin/sh
-# Group BD rows 11-16 fixture: c:/tmp/t4/be (+ be-origin.git, be-other.git, be-sub.git). Throwaway.
+# Group BD rows 11-16 fixture: $T4_ROOT/be (+ be-origin.git, be-other.git, be-sub.git). Throwaway; T4_ROOT defaults to /c/tmp/t4.
 set -e
-R=/c/tmp/t4
+R=${T4_ROOT:-/c/tmp/t4}
 rm -rf "$R/be" "$R/be-origin.git" "$R/be-other.git" "$R/be-sub.git" "$R/be-sub-src"
 git init -q --bare -b main "$R/be-origin.git"
 git init -q --bare -b main "$R/be-other.git"

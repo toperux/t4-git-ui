@@ -26,7 +26,8 @@
   background: var(--bg-active);
   color: var(--fg);
 }
-.btn:focus-visible {
+.btn:focus-visible,
+.btn[data-kbd]:focus {
   color: var(--fg);
 }
 .btn:disabled {

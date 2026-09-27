@@ -1,7 +1,7 @@
 #!/bin/sh
-# Group BA fixture: c:/tmp/t4/ba (+ ba-origin.git, ba-wt). Throwaway.
+# Group BA fixture: $T4_ROOT/ba (+ ba-origin.git, ba-wt). Throwaway; T4_ROOT defaults to /c/tmp/t4.
 set -e
-R=/c/tmp/t4
+R=${T4_ROOT:-/c/tmp/t4}
 rm -rf "$R/ba" "$R/ba-origin.git" "$R/ba-wt"
 git init -q --bare "$R/ba-origin.git"
 git init -q -b main "$R/ba"

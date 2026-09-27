@@ -21,7 +21,8 @@
 .row:hover {
   background-color: var(--bg-hover);
 }
-.row:focus-visible {
+.row:focus-visible,
+.row[data-kbd]:focus {
   box-shadow: inset 0 0 0 1px var(--accent);
 }
 /* Selected: accent tint only while the containing pane (`.pane`) has focus. */

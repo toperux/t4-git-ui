@@ -34,7 +34,8 @@
   background: var(--bg-hover);
   color: var(--fg);
 }
-.btn:focus-visible {
+.btn:focus-visible,
+.btn[data-kbd]:focus {
   outline: none;
   box-shadow: var(--focus-ring);
 }

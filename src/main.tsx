@@ -5,6 +5,7 @@ import App from "./App";
 import "./theme/fonts.css";
 import "./theme/tokens.css";
 import "./theme/base.css";
+import "./lib/kbdFocus";
 import { initTheme } from "./theme/theme";
 
 // Persisted override (localStorage 'theme') wins; otherwise follow the OS.

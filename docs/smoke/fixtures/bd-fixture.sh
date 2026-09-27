@@ -1,7 +1,7 @@
 #!/bin/sh
-# Group BD fixture: c:/tmp/t4/bd (+ bd-origin.git). Throwaway.
+# Group BD fixture: $T4_ROOT/bd (+ bd-origin.git). Throwaway; T4_ROOT defaults to /c/tmp/t4.
 set -e
-R=/c/tmp/t4
+R=${T4_ROOT:-/c/tmp/t4}
 rm -rf "$R/bd" "$R/bd-origin.git"
 # `-b main`: a bare HEAD left on `master` makes a clone of it check nothing out.
 git init -q --bare -b main "$R/bd-origin.git"

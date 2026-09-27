@@ -150,7 +150,8 @@
 .collapsedHead:hover {
   background: var(--bg-hover);
 }
-.collapsedHead:focus-visible {
+.collapsedHead:focus-visible,
+.collapsedHead[data-kbd]:focus {
   outline: none;
   box-shadow: inset var(--focus-ring);
 }

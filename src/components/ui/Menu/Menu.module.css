@@ -65,24 +65,28 @@
   cursor: default;
 }
 .item:hover:not(:disabled),
-.item:focus-visible {
+.item:focus-visible,
+.item[data-kbd]:focus {
   background: var(--accent);
   color: var(--fg-on-accent);
   box-shadow: none;
 }
 .item:hover:not(:disabled) .icon,
-.item:focus-visible .icon {
+.item:focus-visible .icon,
+.item[data-kbd]:focus .icon {
   color: inherit;
 }
 /* A name clipped at the menu's width is read on hover (`MenuItem` sets the `title`), and the keyboard
    has no hover — nor does a native tooltip ever show on focus. So the focused row wraps instead:
    `.item`'s fixed height and `nowrap` both have to give way. A row that fits looks no different. */
-.item:focus-visible {
+.item:focus-visible,
+.item[data-kbd]:focus {
   height: auto;
   min-height: var(--row-h);
   white-space: normal;
 }
-.item:focus-visible .grow {
+.item:focus-visible .grow,
+.item[data-kbd]:focus .grow {
   overflow-wrap: anywhere;
 }
 .item:disabled {
@@ -117,7 +121,8 @@
   color: var(--fg-muted);
 }
 .item:hover:not(:disabled) .chev,
-.item:focus-visible .chev {
+.item:focus-visible .chev,
+.item[data-kbd]:focus .chev {
   color: inherit;
 }
 .grow {
@@ -128,7 +133,8 @@
 }
 /* Anatomy lives in components/ui/Kbd; the menu only overrides it on hover / focus. */
 .item:hover:not(:disabled) .kbd,
-.item:focus-visible .kbd {
+.item:focus-visible .kbd,
+.item[data-kbd]:focus .kbd {
   color: inherit;
   background: transparent;
   border-color: transparent;
@@ -150,6 +156,7 @@
   color: var(--chip-remote-fg);
 }
 .item:hover:not(:disabled) .ref,
-.item:focus-visible .ref {
+.item:focus-visible .ref,
+.item[data-kbd]:focus .ref {
   color: inherit;
 }

@@ -26,33 +26,46 @@ import { useUpdateStore } from "./store/updateStore";
 type Phase = { kind: "probing" } | { kind: "gitMissing"; message: string } | { kind: "ready" };
 
 /**
+ * Set while `restoreTabs` runs: the tab subscription holds its `set_layout` reports, so the entry the
+ * backend already has for this window (seeded at `take_layout` in `main`, made by `spawn` in any
+ * other) is not shrunk to the tabs opened so far. The one-shot report after `restoreTabs` sends the
+ * end state. A tab dropped on a window still restoring is in no entry until that report; rare, and
+ * accepted.
+ */
+let restoring = false;
+
+/**
  * What this window opens at launch: the tabs it was created with (a torn-off tab, or one of the
  * windows a layout is being restored into), else — in the main window — the layout the last exit
  * left, which also spawns the other windows. With neither, the repository `lastOpen` names, which is
  * what a first launch after the upgrade to tabs has.
  */
 async function restoreTabs() {
-  const tabs = useTabsStore.getState();
-  const pending = await takePending().catch(() => null);
-  const layout = pending ? [pending] : isMainWindow() ? await takeLayout().catch(() => []) : [];
-  if (layout.length === 0) {
-    const last = useRecentsStore.getState().lastOpen;
-    if (last) await tabs.openTab(last);
-    return;
-  }
-  // The first entry is this window's; every other one gets a window of its own.
-  for (const other of layout.slice(1)) void spawnWindow(other).catch(() => undefined);
-  // Per path: the layout has been taken (the file is gone), so one repository that no longer opens
-  // must not cost every tab after it.
-  for (const path of layout[0].tabs) {
-    try {
-      await tabs.openTab(path);
-    } catch (e) {
-      toastError(toAppError(e), "Couldn't open repository");
+  restoring = true;
+  try {
+    const tabs = useTabsStore.getState();
+    const pending = await takePending().catch(() => null);
+    const layout = pending ? [pending] : isMainWindow() ? await takeLayout().catch(() => []) : [];
+    if (layout.length === 0) {
+      const last = useRecentsStore.getState().lastOpen;
+      if (last) await tabs.openTab(last);
+      return;
     }
+    // The first entry is this window's; every other one gets a window of its own.
+    for (const other of layout.slice(1)) void spawnWindow(other).catch(() => undefined);
+    // Per path: one repository that no longer opens must not cost every tab after it.
+    for (const path of layout[0].tabs) {
+      try {
+        await tabs.openTab(path);
+      } catch (e) {
+        toastError(toAppError(e), "Couldn't open repository");
+      }
+    }
+    const active = useTabsStore.getState().tabs.find((t) => t.path === layout[0].active);
+    if (active) tabs.activate(active.id);
+  } finally {
+    restoring = false;
   }
-  const active = useTabsStore.getState().tabs.find((t) => t.path === layout[0].active);
-  if (active) tabs.activate(active.id);
 }
 
 export default function App() {
@@ -90,6 +103,14 @@ export default function App() {
     try {
       await recents.load();
       await restoreTabs();
+      // Reported once even if no tab opened: the entry `spawn` made for this window, or the one `main`
+      // was seeded with at its read, has to be replaced, or a window whose repositories are gone comes
+      // back every launch. Only here, once `restoreTabs` ran: the subscription waits while restoring.
+      // The backend holds every write until `main` has read `layout.json`, so a report that comes
+      // before that read cannot erase the saved session.
+      const st = useTabsStore.getState();
+      const active = st.tabs.find((t) => t.id === st.active) ?? null;
+      void setLayout({ tabs: st.tabs.map((t) => t.path), active: active?.path ?? "" }).catch(() => undefined);
     } catch {
       recents.setLastOpen(null);
     }
@@ -165,7 +186,7 @@ export default function App() {
       for (const t of st.tabs) if (!prev.tabs.some((p) => p.id === t.id)) recents.touch(t.path, t.name);
       const active = st.tabs.find((t) => t.id === st.active) ?? null;
       recents.setLastOpen(active?.path ?? null);
-      void setLayout({ tabs: st.tabs.map((t) => t.path), active: active?.path ?? "" }).catch(() => undefined);
+      if (!restoring) void setLayout({ tabs: st.tabs.map((t) => t.path), active: active?.path ?? "" }).catch(() => undefined);
     });
     // The backend keeps each window's drafts for Install's confirmation. Sent only when the list
     // changes: the editor's store changes on every keystroke and every diff load. The first list is

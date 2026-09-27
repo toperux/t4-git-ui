@@ -139,10 +139,13 @@ pub fn run() {
         // First, so a second launch is turned away before anything touches the
         // files both would share: it would wipe the temp files an external merge
         // tool still has open (`clean_merge_temp` below assumes a cold start),
-        // consume `layout.json`, and open a repository under a second set of
-        // locks. The second process exits, and what it was started for — another
-        // window — is opened here instead, on the start screen: an empty layout,
-        // so it does not reach for the repository another window already holds.
+        // restore the session in `layout.json` a second time, and open a
+        // repository under a second set of locks. The second process exits, and
+        // what it was started for — another window — is opened here instead, on
+        // the start screen: an empty layout, so it does not reach for the
+        // repository another window already holds. Where single-instance can't
+        // run (no session bus), a second process started before the first write
+        // restores the same session again, where before it got nothing.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             commands::window::spawn(app, None, commands::window::Layout::default(), None);
         }))

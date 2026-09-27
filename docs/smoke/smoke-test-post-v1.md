@@ -15,6 +15,8 @@ the script now also makes the `conflict` branch (H), `topic/nested` and `origin/
 working tree with `src/a.txt` + `src/lib/b.txt` edited, `deep/one/two/z.txt` untracked, `gone.txt`
 deleted and a CRLF hunk in `crlf-hunks.txt` (E, F, G). Tick as you go; note anything surprising
 with the group letter and bullet number. `docs/smoke/smoke-cdp.md` is how the walks were scripted.
+On Linux, `smoke-fixtures.sh` builds the same repos under `/tmp/t4`, the group `.sh` fixtures follow
+`T4_ROOT=/tmp/t4`, and `docs/smoke/smoke-linux.md` is how to drive the app there.
 Groups AO and AP use their own repository, `C:\tmp\t4\linked`, built by
 `docs/smoke/fixtures/linked-fixture.sh` (worktrees beside it under `linked-wt\`, two submodules).
 
@@ -758,6 +760,15 @@ they stay clear._
       Walked 2026-09-24 on the installed 0.10.10 updating to the published 0.10.11, through `docs/smoke/fixtures/throttle-proxy.mjs` (`docs/archive/walks/2026-09-24-update-walk.md`). The network was the proxy: stopped for the check, cut at 11 % for the install.
 - [ ] **deb / rpm**: on a `.deb` install the button reads **Download…** and opens the releases page
       instead of installing; on the AppImage it installs in place like Windows
+      Walked 2026-09-26 on Ubuntu 26.04.1, published 0.10.11 → 0.10.12
+      (`docs/archive/walks/2026-09-26-group-ac-linux-walk.md`):
+      - `.deb`: passes.
+      - AppImage: installs in place, but only with a workaround. As shipped it opens a blank window (EGL abort
+        from its bundled `libwayland-client`, open-items §P). On a VMware guest's desktop it also needs
+        `WEBKIT_DISABLE_DMABUF_RENDERER=1` (the README note).
+      - `.rpm`: not walked; ruled covered by the `.deb` walk (2026-09-27): without `APPIMAGE` both take
+        the Download… path (`update.rs:45-50`).
+      Unticked until the AppImage fix passes its release walks (open-items §P).
 
 ## AD. Stage / unstage the selection from the header (main §4)
 _Shipped 2026-09-11 (this commit). The two header buttons read **Stage selected** / **Unstage selected**
@@ -1214,7 +1225,8 @@ submenu — the kit's first. Walked 2026-09-13 over CDP on a release build with 
 _Shipped 2026-09-13 (`d112ab6`, issue #2). Settings → **Sidebar folders** seeds every branch and
 tag folder's collapse state on repo open and whenever the setting changes; a manual toggle then wins
 for the session. Top-level groups and the per-remote roots are not folders and never collapse.
-Walked 2026-09-13 over CDP in `c:/tmp/t4/work` (two `topic/` folders holding one ref each)._
+Walked 2026-09-13 over CDP in `c:/tmp/t4/work` (two `topic/` folders holding one ref each). The manual-toggle
+row walked 2026-09-26 over CDP (close-out Phase 1), and again 2026-09-27 on Linux; the group is complete._
 
 - [x] **Always collapsed** (§2): pick it → both `topic` folders read `aria-expanded="false"`; the
       remote roots (`origin`, `mirror`, `nowhere`) and the tag group stay open
@@ -1225,7 +1237,10 @@ Walked 2026-09-13 over CDP in `c:/tmp/t4/work` (two `topic/` folders holding one
 - [x] **A manual toggle survives a refresh** (§2, manual): under *Always collapsed* expand `topic`,
       then Fetch → it stays open; a folder that first appears mid-session (create `x/y`) arrives
       collapsed *(Walked 2026-09-26 over CDP on the installed 0.10.12, Fetch of `origin` only;
-      `docs/archive/walks/2026-09-26-phase-1-walk.md`.)*
+      `docs/archive/walks/2026-09-26-phase-1-walk.md`. Walked again 2026-09-27 on a Linux debug build of
+      `1f5fb67` under WebDriver (Xvfb): the local `topic` stayed `aria-expanded="true"` through Fetch, the
+      remote `topic` stayed `"false"`, and `x` arrived `"false"` from the watcher about 0.7 s after
+      `git branch x/y`; `docs/archive/walks/2026-09-27-group-ai-aj-linux-walk.md`.)*
 
 ## AJ. Toast Retry / Dismiss return the focus (main §3)
 _Shipped 2026-09-13 (`2eb883b`). A failed action's toast remembers the control it started from;
@@ -1235,7 +1250,8 @@ when that control is gone). Auto-dismiss never moves the focus. Walked 2026-09-1
 `DisabledHint`-wrapped button was remounted when an operation disabled it, so nothing was left to
 focus — fixed in this commit by keeping the wrapper in the DOM (`display: contents` while idle).
 Since 2026-09-15 a click anywhere on the toast dismisses it as well, so the same focus rule covers
-the body click; its buttons and a text selection in the detail are excluded._
+the body click; its buttons and a text selection in the detail are excluded. The **Remove from list** half
+walked 2026-09-26 over CDP (close-out Phase 1), and again 2026-09-27 on Linux; the group is complete._
 
 - [x] **Dismiss** (§3): plant `index.lock`, click **Unstage all** → *Unstage failed · Index is
       locked* with **Retry**; click × → the focus is on **Unstage all** again, not `<body>`
@@ -1258,7 +1274,9 @@ the body click; its buttons and a text selection in the detail are excluded._
       *(2026-09-16: Retry and Pull walked and pass. 2026-09-26: Remove from list walked over CDP on the
       installed 0.10.12, the dead recent seeded into `recents.json` with the app closed (store backed up
       and restored) — one click, one removal, one toast closed, none added;
-      `docs/archive/walks/2026-09-26-phase-1-walk.md`.)*
+      `docs/archive/walks/2026-09-26-phase-1-walk.md`. 2026-09-27: walked again on a Linux debug build of
+      `1f5fb67` under WebDriver, the dead recent seeded into the harness's own store: the action ran once
+      (a counter on its `onClick`), the toast closed, and the store lost exactly that entry.)*
 
 ## AK. Files tab: a commit's whole tree, its files' content, a row menu (main §2, §3)
 _Shipped 2026-09-13 (three commits, `feat: Read a revision's whole file list…` onward). The file
@@ -1821,7 +1839,8 @@ commits the same day; they and the whole of 3 were walked again on the build tha
 bottom-edge / light-theme half of 6 were added and walked after that, 3m with a CDP drag of the repo-name handle, 7's
 native confirm answered with an Enter on the `#32770` dialog; the bottom edge was a second finding — the wrapped
 **Delete** row lost its last line below the window — fixed (the menu re-fits when its size changes) and re-walked.
-Open: 11 (other platforms); 10 was walked 2026-09-24, and 9 is `[n/a]` (unit-tested only). The record is
+Open (updated 2026-09-26): 11 (other platforms; Linux walked 2026-09-26, see `docs/plans/open-items.md` §O);
+10 was walked 2026-09-24, and 9 is `[n/a]` (unit-tested only). The record is
 `docs/archive/walks/2026-09-19-group-az-walk.md`._
 
 1. - [x] **A negated ignore rule stages**: `.gitignore` with `*.log` and `!keep.log`; create `keep.log` and `debug.log` → only `keep.log` is listed, and staging it works. The check is libgit2's, so this holds on git 2.24–2.26 too.
@@ -1851,13 +1870,15 @@ Open: 11 (other platforms); 10 was walked 2026-09-24, and 9 is `[n/a]` (unit-tes
 
 4. - [x] **A lock that cannot be made is not a Retry**: make `.git` read-only (or deny write), stage a file → the toast shows git's own message (`Permission denied`), not "index is locked" with a Retry. A held `index.lock` (`touch .git/index.lock`) still offers Retry. The same two for **Unstage**, which writes through libgit2: its own `failed to create locked file … Access is denied` (`Permission denied` off Windows), no Retry; the held lock a Retry.
 5. - [x] **History comes back where it was**: scroll the grid to about row 50, Alt+2, Alt+1 → the same rows; do it again with a fetch that brings commits in between → the viewport stays on the same commits. Also with the commit arriving as History mounts (Alt+1 and a `git commit` from a terminal in the same moment).
-6. - [x] **A clipped menu name is readable from the keyboard**: a branch name longer than the row menu's 280 px; open the row menu with Shift+F10 and arrow onto it → the row wraps and shows the whole name, the rows that fit do not change; with the mouse the row stays one line and the hover `title` still has the full name. Check a two-half item (`Merge X into Y`) reads right when wrapped: one sentence at the row's width. After arrow keys in the grid a right-click menu opens with its first item focus-visible — the grid never gave up the keyboard focus — so a clipped first item opens wrapped; it follows the accent highlight that row always had. At the window's bottom edge (a short window, the menu opened on the last visible row, **End** for the Delete row) the menu moves up as the row wraps, so the row being read is never cut. The light theme reads the same. The sidebar's branch menu has no names in its rows; a submenu's rows (Repository › More recent) are ordinary rows and wrap alike if one ever clips.
+6. - [x] **A clipped menu name is readable from the keyboard**: a branch name longer than the row menu's 280 px; open the row menu with Shift+F10 and arrow onto it → the row wraps and shows the whole name, the rows that fit do not change; with the mouse the row stays one line and the hover `title` still has the full name. Check a two-half item (`Merge X into Y`) reads right when wrapped: one sentence at the row's width. After arrow keys in the grid a right-click menu opens with its first item focus-visible — the grid never gave up the keyboard focus — so a clipped first item opens wrapped; it follows the accent highlight that row always had. At the window's bottom edge (a short window, the menu opened on the last visible row, **End** for the Delete row) the menu moves up as the row wraps, so the row being read is never cut. The light theme reads the same. The sidebar's branch menu has no names in its rows; a submenu's rows (Repository › More recent) are ordinary rows and wrap alike if one ever clips. *(Re-walked 2026-09-27 on Windows over CDP on a local build of `639856e`, after the shared `data-kbd` fix: passes, light and dark; `docs/archive/walks/2026-09-27-t19-windows-walk.md`.)*
 7. - [x] **A conflict under an ignore rule still stages**: a tracked `gen.log` under `*.log` (`git add -f`), changed on two branches, merged → conflicted. Resolve it by hand and **Stage** → staged, no "is ignored" refusal (the index's stages 1–3 count as tracked). On a second such file **Keep `<branch>`'s version** → staged with that side; it runs no ignore check at all.
 8. - [x] **A file that became ignored is still refused**: with an untracked `new.txt` listed and selected, append `new.txt` to `.gitignore` from a terminal and press **Stage** before the list refreshes → "Stage failed — new.txt is ignored", nothing in the index.
 9. - [n/a] **Closed 2026-09-26 as a record: no hand recipe, unit-tested.** **A skipped path says so**: when `git update-index` skips a path of a batch, the toast reads `git skipped <path>; any other paths were staged` and the lists refresh. No hand recipe known — unit-tested (`check_staged`).
 10. - [x] **An update's restart keeps every window**: with two windows open, install an update from the in-app prompt → the relaunch restores both (the restart takes the Quit path, 3k). Needs a published update newer than the build — walk it with group AC. Walked 2026-09-24 on the installed 0.10.10 updating to the published 0.10.11, through `docs/smoke/fixtures/throttle-proxy.mjs` (`docs/archive/walks/2026-09-24-update-walk.md`). Two windows (`work`, `dogfood`) came back within 5 s on 0.10.11.
 11. **Other platforms** — nothing here is OS-specific code, but only Windows was walked. Repeat 3a, 3b, 3d, 3i (close windows, `cat` the file) and 6:
-    - [ ] Linux (WebKitGTK)
+    - [ ] Linux (WebKitGTK) — walked 2026-09-26 on a debug build of `1e795ad`: 3a, 3b, 3d, 3i pass; 6 **fails** (WebKitGTK gives
+      script-focused menu items no `:focus-visible`: no highlight, no wrap), and a restored second window sometimes
+      never starts. `docs/archive/walks/2026-09-26-group-az-linux-walk.md`.
     - [ ] macOS
 
 ## BA. Reset another branch to the right-clicked commit (commit menu)

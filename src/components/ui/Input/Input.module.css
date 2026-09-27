@@ -47,7 +47,8 @@
   cursor: text;
   user-select: text;
 }
-.field:focus-visible {
+.field:focus-visible,
+.field[data-kbd]:focus {
   box-shadow: none;
 }
 .field::placeholder {

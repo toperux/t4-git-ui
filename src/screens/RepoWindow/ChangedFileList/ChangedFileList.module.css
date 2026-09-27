@@ -73,10 +73,12 @@
   outline: none;
 }
 /* A selected row carries the focus indication; with no selection the list shows the ring itself. */
-.list:focus-visible {
+.list:focus-visible,
+.list[data-kbd]:focus {
   box-shadow: none;
 }
-.list:focus-visible:not(:has(.selected)) {
+.list:focus-visible:not(:has(.selected)),
+.list[data-kbd]:focus:not(:has(.selected)) {
   box-shadow: inset 0 0 0 1px var(--accent);
 }
 /* Virtualized rows: absolute inside a spacer of the total height (beats TreeRow's own `.row` rule). */
@@ -112,7 +114,8 @@
 .list:focus-within .selected {
   background-color: var(--bg-selected);
 }
-.list:focus-visible .selected {
+.list:focus-visible .selected,
+.list[data-kbd]:focus .selected {
   box-shadow: inset 0 0 0 1px var(--accent);
 }
 /* base.css .tree .row / .tw — indent by depth, and a guide line under each ancestor's chevron
