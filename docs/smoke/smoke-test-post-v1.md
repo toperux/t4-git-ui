@@ -1225,7 +1225,8 @@ submenu — the kit's first. Walked 2026-09-13 over CDP on a release build with 
 _Shipped 2026-09-13 (`d112ab6`, issue #2). Settings → **Sidebar folders** seeds every branch and
 tag folder's collapse state on repo open and whenever the setting changes; a manual toggle then wins
 for the session. Top-level groups and the per-remote roots are not folders and never collapse.
-Walked 2026-09-13 over CDP in `c:/tmp/t4/work` (two `topic/` folders holding one ref each)._
+Walked 2026-09-13 over CDP in `c:/tmp/t4/work` (two `topic/` folders holding one ref each). The manual-toggle
+row walked 2026-09-26 over CDP (close-out Phase 1), and again 2026-09-27 on Linux; the group is complete._
 
 - [x] **Always collapsed** (§2): pick it → both `topic` folders read `aria-expanded="false"`; the
       remote roots (`origin`, `mirror`, `nowhere`) and the tag group stay open
@@ -1236,7 +1237,10 @@ Walked 2026-09-13 over CDP in `c:/tmp/t4/work` (two `topic/` folders holding one
 - [x] **A manual toggle survives a refresh** (§2, manual): under *Always collapsed* expand `topic`,
       then Fetch → it stays open; a folder that first appears mid-session (create `x/y`) arrives
       collapsed *(Walked 2026-09-26 over CDP on the installed 0.10.12, Fetch of `origin` only;
-      `docs/archive/walks/2026-09-26-phase-1-walk.md`.)*
+      `docs/archive/walks/2026-09-26-phase-1-walk.md`. Walked again 2026-09-27 on a Linux debug build of
+      `1f5fb67` under WebDriver (Xvfb): the local `topic` stayed `aria-expanded="true"` through Fetch, the
+      remote `topic` stayed `"false"`, and `x` arrived `"false"` from the watcher about 0.7 s after
+      `git branch x/y`; `docs/archive/walks/2026-09-27-group-ai-aj-linux-walk.md`.)*
 
 ## AJ. Toast Retry / Dismiss return the focus (main §3)
 _Shipped 2026-09-13 (`2eb883b`). A failed action's toast remembers the control it started from;
@@ -1246,7 +1250,8 @@ when that control is gone). Auto-dismiss never moves the focus. Walked 2026-09-1
 `DisabledHint`-wrapped button was remounted when an operation disabled it, so nothing was left to
 focus — fixed in this commit by keeping the wrapper in the DOM (`display: contents` while idle).
 Since 2026-09-15 a click anywhere on the toast dismisses it as well, so the same focus rule covers
-the body click; its buttons and a text selection in the detail are excluded._
+the body click; its buttons and a text selection in the detail are excluded. The **Remove from list** half
+walked 2026-09-26 over CDP (close-out Phase 1), and again 2026-09-27 on Linux; the group is complete._
 
 - [x] **Dismiss** (§3): plant `index.lock`, click **Unstage all** → *Unstage failed · Index is
       locked* with **Retry**; click × → the focus is on **Unstage all** again, not `<body>`
@@ -1269,7 +1274,9 @@ the body click; its buttons and a text selection in the detail are excluded._
       *(2026-09-16: Retry and Pull walked and pass. 2026-09-26: Remove from list walked over CDP on the
       installed 0.10.12, the dead recent seeded into `recents.json` with the app closed (store backed up
       and restored) — one click, one removal, one toast closed, none added;
-      `docs/archive/walks/2026-09-26-phase-1-walk.md`.)*
+      `docs/archive/walks/2026-09-26-phase-1-walk.md`. 2026-09-27: walked again on a Linux debug build of
+      `1f5fb67` under WebDriver, the dead recent seeded into the harness's own store: the action ran once
+      (a counter on its `onClick`), the toast closed, and the store lost exactly that entry.)*
 
 ## AK. Files tab: a commit's whole tree, its files' content, a row menu (main §2, §3)
 _Shipped 2026-09-13 (three commits, `feat: Read a revision's whole file list…` onward). The file

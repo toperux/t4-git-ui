@@ -33,9 +33,9 @@ done, move it there._
 
 ## B. Verification and release
 - **Unticked smoke lines — recounted 2026-09-26: three**, all in `smoke-test-post-v1.md`, all needing a Linux
-  or macOS machine: AC's deb / rpm box (`:759`), and AZ 11's two platform lines (`:1860`, `:1861`). A grep for
-  `- [ ]` also matches `:296`, which is prose. (Four records are marked `[n/a]` since close-out Phase 0; the three
-  this machine could reach were walked in Phase 1 — both in the done file.)
+  or macOS machine: AC's deb / rpm box (`:761`), and AZ 11's two platform lines (`:1879`, `:1882`). A grep for
+  `- [ ]` also matches `:298`, which is prose. (Four records are marked `[n/a]` since close-out Phase 0; the three
+  this machine could reach were walked in Phase 1 — both in the done file. Line numbers refreshed 2026-09-27.)
 - **The first real run of 0.10.12's plain-words update errors and Install's confirm** over a typed commit
   message (group BG walked them on local builds only) is the user's update from 0.10.12 to the next release —
   the close-out plan's release gate. It cannot be the 0.10.11 → 0.10.12 update: an update runs the *old* app's
@@ -55,7 +55,8 @@ done, move it there._
   text field and selected diff text → GTK menu), app context menu on a commit row: all as on Windows.
   **Walked again 2026-09-27 on native Wayland** (Ubuntu 26.04.1, GNOME, a VMware guest; driven by WebDriver, the two
   GTK menus that should show checked by eye): all of the above pass except the dock's range and collapse, which
-  weren't re-walked (`docs/archive/walks/2026-09-27-linux-wayland-rendering-walk.md`).
+  were walked instead under automation on Xvfb, not with real Wayland input
+  (`docs/archive/walks/2026-09-27-linux-wayland-rendering-walk.md` and its addendum).
   Real GPU hardware and a HiDPI panel are not walked, accepted until a report. macOS rendering: never seen; CI
   compiles only.
 - UI-vs-canvas comparison pass (v1 plan M6 leftover): screenshots of the real app against the
@@ -204,10 +205,14 @@ both reproduced without WebDriver. Fix plan, with a status section:
     `:focus-visible`.
   - **Checked:** AZ 6 passes in full on Linux (2026-09-26, direct launch, real X keys).
   - **Still open:**
-    - **Linux audit** of other script-focused widgets: the Select lists (Settings), the command palette, file lists,
-      and the trigger that gets focus back after Escape (`useRestoreFocus`). Any with no visible focus gets a row
-      of its own.
-    - **Windows re-walk of AZ 6** over CDP. It must look exactly as before.
+    - ~~**Linux audit** of other script-focused widgets~~ **Done 2026-09-27**
+      (`docs/archive/walks/2026-09-27-t18-linux-focus-audit.md`). After a click, keys that move focus by script
+      showed no ring on ten paths (the sidebar tree, both tab strips, the diff cursor, Esc back to an opener, …).
+      Fixed for every widget at once: `src/lib/kbdFocus.ts` marks keyboard focus `data-kbd` on every `focusin`, and
+      each `:focus-visible` rule has a `[data-kbd]:focus` twin. All ten re-walked and pass on Linux.
+    - **Windows re-walk of AZ 6** over CDP. It must look exactly as before. Since the T18 fix is shared, the same walk
+      checks the audit's paths on Windows too (the list is in the audit record), and its two new cases: Tab to a
+      button then click it (the ring stays), and a Ctrl shortcut that moves focus after a click (now ringed).
 - **A restored second window sometimes never starts: guarded, not fixed.**
   - **The bug:** `w1` stays on the *Starting* spinner for good.
     - **Rate:** about 3 of 16 two-window restores before step C, 7 of 20 after. That difference isn't significant
@@ -235,8 +240,9 @@ both reproduced without WebDriver. Fix plan, with a status section:
   of the remaining work is its *Order* section. T14 (a test for the `catch` path) is done. T11 was
   dropped: reporting `main` first would widen an existing crash loop (§P), so the crash-at-launch gap is accepted.
   Then Phase A with the A/B. If Phase C raises the rate,
-  its write moves onto the build thread (D2). Then the T18 audit and Phase B. Windows: AZ 6 as soon as the branch is
-  up, row 3 after Phase B. macOS (AZ 11 and the WebKit click-focus check, T12): open until a Mac is available.
+  its write moves onto the build thread (D2). Then Phase B (the T18 audit was done 2026-09-27). Windows: AZ 6 as
+  soon as the branch is up, row 3 after Phase B. macOS (AZ 11 and the WebKit click-focus check, T12): open until a
+  Mac is available.
 
 ## P. Added 2026-09-26 — the Linux harness follow-ups, and one row found in review
 
@@ -305,7 +311,9 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
   access back.
 - **Drive live Wayland through AT-SPI (T5):** the page itself is now driven on live Wayland through WebDriver
   (`smoke-linux.md`, "Not reachable here"). What stays hand-walked is GTK's native popups, the OS theme switch
-  and DPI. `python3-gi`'s `Atspi` reaches the live session. It needs a plan of its own.
+  and DPI. Plan: `docs/plans/2026-09-27-t5-atspi-plan.md`, from a spike on Xvfb (2026-09-27): AT-SPI reaches the
+  page and GTK's text-field menu, and the OS theme switches through `gsettings` in a private session. DPI stays out
+  of reach in a one-display VM.
 - **Bug found in the AC :761 walk (2026-09-26): the AppImage opens a blank window on Ubuntu 26.04. Fixed on
   `linux-smoke-and-fixes`, pending a `workflow_dispatch` build and the release walks.**
   Plan: `docs/plans/2026-09-26-appimage-blank-window-plan.md`.

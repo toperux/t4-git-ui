@@ -43,3 +43,20 @@ compositor and the system WebKitGTK, not a real GPU's drivers. Accepted until a 
 - **Re-read coordinates before each pointer action.** One drag moved a later splitter, and a window focus change
   shifted the layout, which put a double-click on a commit row instead of the diff. It had no effect: the row was
   selected, and the reflog was unchanged.
+
+## Addendum: the dock's range and collapse (2026-09-27)
+
+The one part of the WSLg list not re-walked above. **Walked under automation on Xvfb, not on Wayland:** a WebDriver
+drag is made up inside WebKit and never goes through the compositor, so the live session would test nothing more.
+Real Wayland pointer input on the splitter is unwalked.
+
+- **Build:** a debug build of `1f5fb67`, under WebDriver on Xvfb (`smoke-linux.md` §2), with `/tmp/t4/work` open.
+- **Measured:** the height of the element after `[aria-label="Resize output"]` (the dock panel), after a Fetch gave
+  the dock output. The limits are `RepoWindow.tsx:45-48`.
+
+| Drag | Height | Result |
+|---|---|---|
+| Expand (the header's button) | 200 | **pass**: the default |
+| Up 400 px | 320 | **pass**: stops at the maximum |
+| Release at about 120 px | 160 | **pass**: above the ~94 px midpoint, it clamps to the minimum |
+| Release at about 60 px | 28 | **pass**: below the midpoint, it collapses to the bar; the separator reads `aria-disabled="true"` |

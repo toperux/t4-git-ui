@@ -222,7 +222,8 @@ For checking a published or CI-built AppImage (the `packages-Linux` artifact of 
 ## Not reachable here
 
 - **The live Wayland desktop:** no xdotool, and the OS theme switch and DPI are not reachable. These rows
-  stay hand-walked.
+  stay hand-walked. On Xvfb the OS theme can be switched, in a private D-Bus session through `gsettings`, and AT-SPI
+  reaches GTK's text-field menu: not built yet, see `docs/plans/2026-09-27-t5-atspi-plan.md`.
   - **WebDriver still works there** (2026-09-27): run §2's `tauri-driver` line with `GDK_BACKEND=wayland` in place
     of `DISPLAY=:99 GDK_BACKEND=x11`, and no Xvfb. The window opens on the user's desktop. `wd.mjs` drives the
     page, and `shot` captures it.

@@ -217,7 +217,7 @@ can't pass on C alone.
   - the mouse path is unmarked, one line, full-name `title`;
   - the light theme reads the same.
 
-  Still to do: the Linux audit (verification 3) and the Windows re-walk (4).
+  Still to do: the Windows re-walk (4). The Linux audit (verification 3) was done 2026-09-27: see T18.
 - **Task 2 Phase C: done** (committed on `linux-smoke-and-fixes`); the gates pass. At runtime, in 20 two-window
   restores, `other` stayed
   in `layout.json` every time, hung or not. One run caught the crash-at-launch state (only `w1`'s entry at 1 s,
@@ -253,7 +253,7 @@ this section is the record.
 | T2 | `.sh` fixture uses GNU `sed` | **fix now**: portable (e.g. `awk`), so macOS can use it |
 | T3 | `T4_ROOT` set on Windows breaks the ad7 check | accepted; documented at the check |
 | T4 | the harness moves `HOME` (gpg needs `GNUPGHOME`; ssh unverified) | accepted; ssh **verified 2026-09-27**: it uses the passwd home (`smoke-linux.md` §2) |
-| T5 | live Wayland, OS theme and DPI unreachable on Linux | **build AT-SPI driving** (own plan). Since 2026-09-27 WebDriver drives the page on live Wayland; AT-SPI is for native popups, the OS theme and DPI |
+| T5 | live Wayland, OS theme and DPI unreachable on Linux | **build AT-SPI driving** (own plan). Since 2026-09-27 WebDriver drives the page on live Wayland; AT-SPI is for native popups, the OS theme and DPI. Plan written 2026-09-27: `2026-09-27-t5-atspi-plan.md` |
 | T6 | AC :761 `.deb`/AppImage update | **walked 2026-09-26:** `.deb` passes; the AppImage passes only with a workaround (blank-window bug, open-items §P); `.rpm` not walked. The row stays unticked |
 | T7 | multi-window rows have no DOM access | re-test WebDriver with two windows after Phase B |
 | T8 | the skill's Windows route is untested | test it on the next Windows walk (T19) |
@@ -266,8 +266,8 @@ this section is the record.
 | T15 | a reloaded `main` re-spawns every other window | its own open-items row (§P), not part of this work |
 | T16 | `patch.rs` asserts only the owner exec bit | accepted |
 | T17 | the hang's cause and fix (Phases A, B) | next, right after the commits |
-| T18 | Linux audit of other script-focused widgets | in the same session as T17 |
-| T19 | Windows re-walks | AZ 6 as soon as the branch is up; row 3 after Phase B |
+| T18 | Linux audit of other script-focused widgets | **done 2026-09-27**, before T17: ten paths failed after a click, fixed by the shared `data-kbd` mark (`src/lib/kbdFocus.ts`), re-walked (`docs/archive/walks/2026-09-27-t18-linux-focus-audit.md`) |
+| T19 | Windows re-walks | AZ 6 as soon as the branch is up, plus the T18 audit's paths and its two new Windows cases (the fix is shared); row 3 after Phase B |
 | T20 | Linux re-walk of AZ row 3, then tick AZ 11 Linux | after Phase B |
 | T21 | macOS: AZ 11 and T12 | open until a Mac is available |
 | T22 | AZ 9 is unit-tested only | **revised in the second review:** stays unticked, a record rather than work (open-items §B). A tick means walked (the skill's rule), and `check_staged`'s test covers only the message, not the toast or the refresh |
@@ -294,7 +294,8 @@ gap (a crash then restores `w1`'s tabs into `main`), but it would widen a crash 
    T6 (the AC :761 walk) was done the same day: see the T6 row.
 2. **D1:** the branch and the 3 commits.
 3. **T19, first half:** you walk AZ 6 on Windows through the skill (also T8).
-4. **T17 Phase A with the A/B** (D2 decides from its numbers), and the T18 audit in the same session.
+4. **T17 Phase A with the A/B** (D2 decides from its numbers). The T18 audit was done 2026-09-27, before it.
 5. **Phase B**, then T20 (Linux row 3), T19's second half (Windows row 3), and T7 (WebDriver with two windows).
 6. ~~**T4** (the ssh check under a moved `HOME`).~~ Done 2026-09-27.
-7. **T5 AT-SPI:** its own plan when it's picked up. **T21:** when a Mac is available.
+7. **T5 AT-SPI:** plan written 2026-09-27 (`2026-09-27-t5-atspi-plan.md`); built when it's picked up.
+   **T21:** when a Mac is available.

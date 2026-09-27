@@ -44,7 +44,9 @@ running() { pidof_app >/dev/null && echo "$(ts) app running" || echo "$(ts) app 
 wins() {
   local p; p=$(pidof_app)
   [ -n "$p" ] || { echo "$(ts) (no app)"; return; }
-  for w in $(x xdotool search --onlyvisible --pid "$p" 2>/dev/null); do echo "$(ts) $w $(x xdotool getwindowname "$w")"; done
+  for w in $(x xdotool search --onlyvisible --pid "$p" 2>/dev/null); do
+    echo "$(ts) $w $(x xdotool getwindowname "$w")"
+  done
 }
 
 # waitfor '<title>'... — until every exact title shows (30 s cap). Fails on a timeout, listing what is up.
@@ -52,7 +54,9 @@ waitfor() {
   local t i
   for i in $(seq 60); do
     sleep 0.5
-    for t in "$@"; do x xdotool search --all --onlyvisible --pid "$(pidof_app)" --name "^$t\$" >/dev/null 2>&1 || continue 2; done
+    for t in "$@"; do
+      x xdotool search --all --onlyvisible --pid "$(pidof_app)" --name "^$t\$" >/dev/null 2>&1 || continue 2
+    done
     echo "$(ts) up after ~$((i / 2)) s"; return 0
   done
   echo "$(ts) TIMEOUT (30 s) waiting for: $*"; wins; return 1
