@@ -596,3 +596,13 @@ fixes and the walk added three more. The walk is `docs/archive/walks/2026-09-19-
   line actions are refused when the file changed under the diff, beside a missing final newline,
   and in a non-UTF-8 file; Squash is unavailable with "Always create a merge commit"; Install waits
   for running git operations.
+
+## P. Added 2026-09-26 — the Linux harness follow-ups: the rows since closed
+
+- **T15, a reloaded `main` re-spawns every other window** — **closed 2026-09-27** (`afc40f3`, PR #18's fix batch).
+  - **The cause:** a dev reload, a WebKit web-process crash that reloads the page, or StrictMode's second `probe`
+    under `tauri dev` ran `restoreTabs` → `takeLayout` again, and spawned duplicates of every other window.
+  - **The fix:** `take` now returns only `main`'s own current entry on a second call in the same process, and
+    spawns nothing.
+  - **Walked:** a reload of `main` with two windows up stays at two windows on both OSes. The baseline showed the
+    duplicate (`docs/archive/walks/2026-09-27-pr18-linux-rewalk.md` › *After the fix batch*).

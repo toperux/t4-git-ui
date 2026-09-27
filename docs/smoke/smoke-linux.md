@@ -14,9 +14,16 @@ Discard hunk box both ways, wrote the signing config and quit through the app.
 The README's Tauri packages, Node 24 (`node --version`; the build runs `tsc` and vite), then:
 
 ```bash
-sudo apt install webkitgtk-webdriver xvfb xdotool imagemagick xclip
+sudo apt install xvfb xdotool imagemagick xclip
+# WebKitWebDriver: `webkitgtk-webdriver` (seen on Ubuntu 26.04) or `webkit2gtk-driver` (seen on 24.04);
+# other releases have one of the two
+sudo apt install webkitgtk-webdriver || sudo apt install webkit2gtk-driver
+command -v WebKitWebDriver   # must print a path
 cargo install tauri-driver --locked
 ```
+
+The 26.04 name is the one this doc was first written with, on that host; the 24.04 name is from the WSL re-walk
+(`docs/archive/walks/2026-09-27-pr18-linux-rewalk.md`).
 
 `xclip` reads the Xvfb clipboard: `xclip -display :99 -selection clipboard -o`. The `Copied …` toast carries the
 copied text too, as on Windows.
@@ -142,10 +149,13 @@ The DOM is the one `smoke-cdp.md` § *Selectors that hold* describes, and its tr
 
 ## Several windows: a direct launch
 
-A restored second window sometimes never starts: the app's own bug, about 1 restore in 3 to 5, with or without
-WebDriver (`docs/plans/open-items.md` §O). The one two-window attempt under WebDriver hit it, after which the app's
-async commands stalled. Until that is fixed, multi-window rows run without WebDriver, which also leaves no stale
-session behind. Re-test WebDriver with two windows once the fix lands:
+A restored second window sometimes never starts: the app's own bug, 3 of 16 two-window restores, with or without
+WebDriver (`docs/plans/open-items.md` §O). A later count of 7 of 20 was likely a race in the harness's own
+`killapp`, fixed on 2026-09-27: a relaunch straight after a kill handed off to the dying instance and exited. The
+first two-window attempt under WebDriver (2026-09-26) hit the real hang, after which the app's async commands
+stalled; two on 2026-09-27 (WSL, the reload check) came up, which is not a verdict. Until the hang is fixed,
+multi-window rows run without WebDriver, which also leaves no stale session behind. Re-test WebDriver with two
+windows once the fix lands:
 
 - **The helpers are in `docs/smoke/fixtures/direct.sh`:** `S=<scratchpad>/app; . docs/smoke/fixtures/direct.sh`,
   then `seed` / `dlaunch` / `waitfor` / `xclosetitle` / `lay` / `killapp` (its header has an example). What they

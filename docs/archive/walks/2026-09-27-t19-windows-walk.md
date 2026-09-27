@@ -94,3 +94,44 @@ Ctrl+Comma opens Settings with no ring again, as on the baseline. The code is sh
 macOS too. A plain key after the shortcut still counts: Ctrl+K, then **Escape**, still rings the grid.
 Unit-tested (`kbdFocus.test.ts`: a shortcut after the pointer isn't a key; after a key it leaves it a key; Shift+F10
 still counts), not re-walked in the app.
+
+## Addendum, 2026-09-27: re-walk of the pushed head `f5276b6`
+
+A local `tauri build --no-bundle` of `f5276b6`, walked the same way (store backed up and restored byte-exact).
+
+- **W1, a click then Ctrl+Comma:** Settings' Close has no ring and no mark, as on the baseline. Pass.
+- **W2, Tab then Ctrl+Comma:** Close is ringed (`:focus-visible` and `data-kbd`). Pass.
+- **W3, a click on a grid row, then Ctrl+K, then Escape:** the grid's selected row is ringed. Pass.
+- **W4, a second launch during startup** (the #18 blocker, which the gate fixes). Pass.
+  - **Setup:** `layout.json` seeded with two windows, `work` and `other`. The build was launched, and launched again
+    300 ms later. `layout.json` was polled every 100 ms for 8 s.
+  - **Result:** the file never became `[]`. Both saved windows came back, `main` on `work` and `w2` on `other`. The
+    second launch opened its own empty window, `w1`, on the start screen.
+  - **A first attempt was void.** `dogfood` was in the seed, but `smoke-fixtures.ps1 -Force` had removed it, so its
+    window correctly came back empty. A second attempt was void too: the previous process was still alive, and
+    both launches handed over to it.
+- **W5, Enter in a dialog, for the `cdp.mjs` change:**
+  - Enter on the *Create branch…* item opened the dialog. Typing a name, then Enter, created exactly one branch and
+    one checkout: one reflog entry, the toast *Created and checked out …*, and no "already exists" error.
+  - So sending Enter's text causes no double submit. The branch was deleted afterwards.
+
+## Addendum, 2026-09-27: the fix batch (the Ctrl/⌘ rule narrowed)
+
+- **What "which is what Chromium does" rests on** (the "case B reversed" addendum above):
+  - It was observed for Ctrl+Comma after a click (case B's baseline).
+  - The fix batch added Ctrl+↓ after a click in the sidebar, on the installed 0.10.12: no ring (`:focus-visible`
+    false).
+  - The ⌘ half and macOS are unwalked. `base.css` also ORs WebKit's own `:focus-visible`, which this flag doesn't
+    control.
+- **The rule is now narrower** (`6465201`): a Ctrl/⌘ chord counts only with an arrow, Home, End, PageUp or
+  PageDown. Every other shortcut still leaves the flag as it was.
+- **The result is a visible change on Windows, accepted:** after a click, Ctrl+↓ in the sidebar rings via the mark,
+  where 0.10.12 and Chromium show none.
+- **Walked on a release build of `71789c9`** (the same code as `6465201`, before a comment-only review fold), all
+  pass:
+  - W1–W3 as above.
+  - F6: Ctrl+↓ after a click rings.
+  - A click, then Ctrl+F5 and Ctrl+K twice: the grid gets no mark.
+  - W4 at 0.1 s.
+- **The layout half of the batch** (`afc40f3`) and the Linux side are recorded in
+  `2026-09-27-pr18-linux-rewalk.md` › *After the fix batch*.

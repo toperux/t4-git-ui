@@ -71,7 +71,10 @@ verification step 3 says whether they share the bug; if they do, that goes in a 
 ## Task 2 — a restored second window sometimes never starts
 
 **What is known.**
-- **Rate:** about 3 of 16 two-window restores hang for good; two more take 7–15 s.
+- **Rate:** 3 of 16 two-window restores were real hangs for good; two more take 7–15 s. A later 7 of 20 was likely
+  the `killapp` race, not a real hang (whether those 7 were alive wasn't recorded); the fixed helper cut it to 0 of
+  20. On WSL, 0 of 40 two-window runs hung for real (4 of them, with the old helper, were the race and never
+  reached `spawn`). To be re-measured at Phase A on the native Linux host (D-b).
 - **Where it stops:** the stuck `w1` logs nothing. Under WebDriver its page had loaded (the *Starting* spinner),
   and its first call, `kvGet("gitPath")` → `plugin:store|load`, never returned. In the direct hangs only the title
   is known, and it can't tell: "T4 Git UI" is set by Rust in `spawn`, by `index.html:7`, and by `useWindowTitle`
@@ -102,7 +105,8 @@ verification step 3 says whether they share the bug; if they do, that goes in a 
 
 1. **A repro loop** in the walk's scratch style: seed a two-window `layout.json`, launch directly on Xvfb, and
    poll the window titles for 20 s. Count hangs over 30 launches as the baseline rate. The helpers are in
-   `docs/smoke/fixtures/direct.sh` (`seed`, `dlaunch`, `waitfor`, `killapp`).
+   `docs/smoke/fixtures/direct.sh` (`seed`, `dlaunch`, `waitfor`, `killapp`), whose `killapp` now waits for the
+   single-instance name to drop off the bus, so the next launch can't hand its argv to the dying instance (D-b).
 2. **Stacks of a hung process, without sudo.** `ptrace_scope=1` blocks attaching, but not a parent tracing its
    child. Run the app *under* gdb:
 
@@ -185,10 +189,9 @@ starts then still comes back next launch.
   kept, during the very stall it guards against. Loop-prevention only needs the case where `restoreTabs` ran and no
   tab opened. Test: a pre-inserted entry replaced by an
   empty `set_layout` is no longer written (`write_layouts` filters it).
-- **Crash at launch** *(accepted, T11)*: `main` calls `spawnWindow` (`App.tsx:44`) before any `set_layout` of its
-  own, so the file
-  Phase C writes then holds only `w1`'s entry. A crash right then restores `w1`'s tabs into `main`; today it restores
-  nothing. Better than today; say so in a comment.
+- **Crash at launch** *(accepted as T11; fixed by the PR #18 fix batch's Step 1a, `afc40f3`)*: `main` calls
+  `spawnWindow` (`App.tsx:44` at `f5276b6`) before any `set_layout` of its own, so Phase C's write held only `w1`'s
+  entry. `take` now seeds `main`, so that write holds both, and a crash right then restores both.
 - **Tear-off overlap:** between the spawn and the source window's next `set_layout`, the torn tab is in both
   entries. A crash inside that gap restores it twice. It lasts milliseconds; accept it and say so in a comment.
 - **Insert synchronously** in the block that fills `pending()`, before the build thread starts, and write the
@@ -197,7 +200,7 @@ starts then still comes back next launch.
 **Verification (Task 2, once B and C are both in).** C alone makes a hang recoverable but doesn't stop it, so step 2
 can't pass on C alone.
 1. `cargo test --workspace`, `npm test`, `cargo clippy --workspace --all-targets -- -D warnings`.
-2. The Phase A loop: 0 hangs in 50 launches, and no restore over 3 s.
+2. The Phase A loop, on the native Linux host with the fixed helper: 0 hangs in 50 launches, and no restore over 3 s.
 3. Linux re-walk of AZ 3a, 3b, 3d, 3i (direct launch + `xclose.py`), then 3c, 3f, 3h and 3k, which exercise more
    windows.
 4. Windows: re-walk AZ row 3 over CDP. Nothing may change there. C touches shared code, and so does B if it moves
@@ -224,12 +227,17 @@ can't pass on C alone.
   restores, `other` stayed
   in `layout.json` every time, hung or not. One run caught the crash-at-launch state (only `w1`'s entry at 1 s,
   before `main` reported).
-- **The hang rate on this build was 7 of 20** (4, then 3, in two batches of 10; about 3 of 16 before). That
-  is not significant at these sample sizes (p ≈ 0.3), but Phase C adds a `layouts` lock and a file write inside
-  `spawn`. **Phase A step 1 must A/B it:** the same loop with Phase C's insert disabled, 30 launches each.
+- **The hang rate on this build looked like 7 of 20** (4, then 3, in two batches of 10; 3 of 16 real hangs before).
+  That measurement used a kill-and-relaunch loop that likely raced `killapp`'s own kill against the next launch;
+  whether those 7 were alive wasn't recorded. With the wait added to `killapp`, 0 of 20 raced. On WSL, 0 of 40
+  two-window runs hung for real (4 of them, with the old helper, were the race and never reached `spawn`).
+  **Re-measure at Phase A, on the native Linux host, with the fixed helper** (D-b); only the wording here is
+  corrected now.
 - **Phases A and B: not started.**
 
 ## Decisions — 2026-09-26 (triage after the review loop)
+
+D-a and D-b are the fix batch's decisions (`2026-09-27-pr18-fix-batch-plan.md`).
 
 Two reviewers came back clean on the second pass. Every open decision and accepted limit was triaged with the user;
 this section is the record.
@@ -238,10 +246,12 @@ this section is the record.
 - **D1 Commits:** branch `linux-smoke-and-fixes`, then 3 commits: (a) the `patch.rs` umask fix + the Linux smoke
   harness, skill, smoke docs and walk records; (b) Task 1; (c) Phase C, with `open-items.md` and this plan (so what
   they call done is in the tree they land in).
-- **D2 If Phase C raises the hang rate** (the Phase A A/B): keep the guard, but move the `layouts` insert and the
-  `layout.json` write onto the build thread, **before `builder.build()`**. After it, the window's own first
-  `set_layout` could land first and be overwritten by the stale payload. Only the `pending` insert stays synchronous.
+- **D2 If step C raises the hang rate** (the Phase A A/B, kept only if Phase A's own review still wants one): keep
+  the guard, but move the `layouts` insert and the `layout.json` write onto the build thread, **before
+  `builder.build()`**. After it, the window's own first `set_layout` could land first and be overwritten by the stale
+  payload. Only the `pending` insert stays synchronous.
 - **D3 Walk records** are frozen: later facts go in a dated addendum at the end, as the 2026-09-19 AZ record does.
+  A record not yet pushed may still be corrected in place; pushed records stay addendum-only.
 - **D4 Promote the direct-launch helpers** (seed `layout.json`, launch, wait for window titles, close by title
   through `xclose.py`) to a sourced script in `docs/smoke/fixtures/`, pointed to from `smoke-linux.md`.
 - **D5 A group's italic header paragraph in the smoke docs is live status** (its "Open: …" list is kept current), unlike
@@ -261,29 +271,31 @@ this section is the record.
 | T8 | the skill's Windows route is untested | **done 2026-09-27**: walked through it for T19; two `cdp.mjs` gaps fixed on the way (F10/Home/End, Enter's text) |
 | T9 | `xclip` missing | **done**: it turned out to be installed (0.13-4build1); it's now in `smoke-linux.md`'s prerequisites |
 | T10 | tear-off overlap: a crash restores the tab twice | accepted |
-| T11 | crash at launch restores `w1`'s tabs into `main` | **accepted** (revised in the second review: the fix would widen an existing crash loop; see below) |
+| T11 | crash at launch restores `w1`'s tabs into `main` | **reversed 2026-09-27** (D-a): `main` is now seeded first in `take`, closing the gap and widening the existing crash loop instead; see below |
 | T12 | WebKit: a clicked submenu may inherit the mark | check it on the macOS walk (T21) |
 | T13 | no unit test for `spawn`'s wiring | accepted; the smoke walk is the check |
 | T14 | no test for the `catch` path (`recents.load` rejects) | **add the test** |
-| T15 | a reloaded `main` re-spawns every other window | its own open-items row (§P), not part of this work |
+| T15 | a reloaded `main` re-spawns every other window | **closed 2026-09-27** by the fix batch (`afc40f3`: a second `take` returns `main`'s own entry); the reload was walked on both OSes (`open-items-done.md` §P) |
 | T16 | `patch.rs` asserts only the owner exec bit | accepted |
 | T17 | the hang's cause and fix (Phases A, B) | next, right after the commits |
 | T18 | Linux audit of other script-focused widgets | **done 2026-09-27**, before T17: ten paths failed after a click, fixed by the shared `data-kbd` mark (`src/lib/kbdFocus.ts`), re-walked (`docs/archive/walks/2026-09-27-t18-linux-focus-audit.md`) |
-| T19 | Windows re-walks | AZ 6 as soon as the branch is up, plus the T18 audit's paths and its two new Windows cases (the fix is shared); row 3 after Phase B. **First half done 2026-09-27** (`docs/archive/walks/2026-09-27-t19-windows-walk.md`): all ten paths and AZ 6 as before; the one visible change (a click then Ctrl+Comma, now ringed) was reversed by the user: a Ctrl or ⌘ shortcut no longer counts as keyboard input, on every OS |
+| T19 | Windows re-walks | AZ 6 as soon as the branch is up, plus the T18 audit's paths and its two new Windows cases (the fix is shared); row 3 after Phase B. **First half done 2026-09-27** (`docs/archive/walks/2026-09-27-t19-windows-walk.md`): all ten paths and AZ 6 as before; the one visible change (a click then Ctrl+Comma, now ringed) was reversed by the user: only Ctrl/⌘ + a navigation key (arrows, Home, End, PageUp, PageDown) counts as keyboard input; every other chord stays ignored, the same on every OS |
 | T20 | Linux re-walk of AZ row 3, then tick AZ 11 Linux | after Phase B |
 | T21 | macOS: AZ 11 and T12 | open until a Mac is available |
 | T22 | AZ 9 is unit-tested only | **revised in the second review:** stays unticked, a record rather than work (open-items §B). A tick means walked (the skill's rule), and `check_staged`'s test covers only the message, not the toast or the refresh |
 | T23 | `/tmp/t4` and the `.smoke` build | kept until Phase A |
 
-**T11, dropped in the second review.** Having `main` report its taken layout before spawning closes the crash-at-launch
-gap (a crash then restores `w1`'s tabs into `main`), but it would widen a crash loop that already exists.
+**T11, dropped in the second review, reversed 2026-09-27 (D-a).** Having `main` report its taken layout before
+spawning closes the crash-at-launch gap (a crash then restores `w1`'s tabs into `main`), but widens a crash loop
+that already exists.
 - **The loop today:** `openTab` adds a tab, and the layout subscription reports it, as soon as the backend open
   returns and **before** the repository loads (`tabsStore.ts`). So a repository that crashes the app while loading
   is already in `layout.json` and crashes every later launch. That happens with one window or several.
-- **What T11 adds:** the loop would also cover crashes inside the backend open itself, plus `layout[0]` tabs that
+- **What T11 adds:** the loop also covers crashes inside the backend open itself, plus `layout[0]` tabs that
   `main` hadn't reached yet.
-- **Decision:** the crash-at-launch gap is accepted, like T10, and the `spawned()` doc comment already says so. The
-  existing loop is tracked on its own (open-items §P).
+- **Decision (reversed):** `main` is seeded in `take` (Step 1a of the PR #18 fix batch). A kill or crash during a
+  slow or hung restore is likelier than a repository that crashes `open_repo`, and the crash loop's loop-breaker
+  (open-items §P) is the real fix for the wider loop, so the gap is closed rather than accepted.
 
 ## Order
 
@@ -296,7 +308,8 @@ gap (a crash then restores `w1`'s tabs into `main`), but it would widen a crash 
    T6 (the AC :761 walk) was done the same day: see the T6 row.
 2. **D1:** the branch and the 3 commits.
 3. ~~**T19, first half:** you walk AZ 6 on Windows through the skill (also T8).~~ Done 2026-09-27.
-4. **T17 Phase A with the A/B** (D2 decides from its numbers). The T18 audit was done 2026-09-27, before it.
+4. **T17 Phase A, remeasured on the native Linux host with the fixed helper** (D-b); its own review decides whether
+   to keep the A/B (D2 decides from its numbers if it does). The T18 audit was done 2026-09-27, before it.
 5. **Phase B**, then T20 (Linux row 3), T19's second half (Windows row 3), and T7 (WebDriver with two windows).
 6. ~~**T4** (the ssh check under a moved `HOME`).~~ Done 2026-09-27.
 7. **T5 AT-SPI:** plan written 2026-09-27 (`2026-09-27-t5-atspi-plan.md`); built when it's picked up.

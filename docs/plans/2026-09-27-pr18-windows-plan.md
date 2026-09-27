@@ -7,8 +7,8 @@ session. Its own plans: `2026-09-26-linux-menu-focus-and-restore-plan.md` (T19),
 **Goal:** #18 is safe to merge: the blocker found in its review is fixed on the branch, and the Windows re-walk
 the PR asks for (T19, first half) is done on the fixed build.
 
-**Status:** draft, 2026-09-27; reviewed in a three-pass loop the same day (the last pass clean, no decisions
-open). Waits on a go. Nothing is merged, and nothing is pushed without the user's word.
+**Status:** done 2026-09-27 (`639856e`, `f5276b6`, pushed). The follow-up batch is
+`2026-09-27-pr18-fix-batch-plan.md`, which closed T15 differently: a second `take` returns `main`'s own entry.
 
 ---
 
@@ -197,6 +197,6 @@ The close-out plan and the triage plan are updated on `main`:
   and the keyboard-style right-click menu (already §M);
 - §P's T15 row (a reloaded `main` re-spawns every window) gains a note: with the gate in place, `take` could
   return nothing once `read` is set, which would fix it in one line. Not done here: it changes reload behaviour,
-  out of #18's scope.
+  out of #18's scope (superseded: the fix batch returns `main`'s own entry, T15 closed).
 
 Then the triage plan runs.

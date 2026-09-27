@@ -6,6 +6,9 @@
 #   dlaunch; waitfor 'T4 Git UI - work' 'T4 Git UI - other' || echo hung
 #   xclosetitle 'T4 Git UI - other'; lay; killapp
 #
+#   for i in $(seq 20); do seed '…'; dlaunch
+#     waitfor 'T4 Git UI - work' 'T4 Git UI - other' || running; lay; killapp; done
+#
 # S must be set: HOME=$S/home is where the app keeps its store, so nothing touches yours. APP, XDISPLAY and ID
 # default to the smoke build (`--config '{"identifier":"dev.topher.t4gitui.smoke"}'`), :99 and its identifier.
 
@@ -32,11 +35,16 @@ lay() { echo "$(ts) layout: $(cat "$L" 2>/dev/null || echo '(none)')"; }
 # No askpass on the invisible display: ssh and git fail at once instead (smoke-linux.md §2).
 dlaunch() { (HOME=$DIRECT_S/home DISPLAY=$XDISPLAY GDK_BACKEND=x11 SSH_ASKPASS_REQUIRE=never GIT_ASKPASS= \
   setsid "$APP" >>"$DIRECT_S/direct.log" 2>&1 &); sleep "${1:-1}"; }
-# SIGKILL, then wait until it's gone (about 250 ms), so the next launch can't hand off to a dying instance.
+# SIGKILL, then wait until it's gone, and until the bus has dropped its single-instance name (50-100 ms after the
+# pid): a launch before that hands its argv to the dead instance and exits.
 killapp() {
   pkill -9 -fx "$APP"
-  local i; for i in $(seq 20); do pidof_app >/dev/null || return 0; sleep 0.25; done
-  echo "$(ts) app still running after 5 s"; return 1
+  local i; for i in $(seq 20); do pidof_app >/dev/null || break; sleep 0.25; done
+  pidof_app >/dev/null && { echo "$(ts) app still running after 5 s"; return 1; }
+  # No reachable user bus (or no busctl): a fixed pause, not measured.
+  busctl --user list >/dev/null 2>&1 || { sleep 1; return 0; }
+  for i in $(seq 40); do busctl --user status "$ID.SingleInstance" >/dev/null 2>&1 || return 0; sleep 0.05; done
+  echo "$(ts) $ID.SingleInstance still on the bus after 2 s"; return 1
 }
 running() { pidof_app >/dev/null && echo "$(ts) app running" || echo "$(ts) app exited"; }
 

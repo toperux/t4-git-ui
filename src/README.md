@@ -526,11 +526,12 @@ down to HEAD.
 corrupt value reads as absent rather than throwing) and restores this window's tabs (see `App.tsx` above; `lastOpen` is the
 fallback on the first launch without a `layout.json`). Every tab change touches recents, rewrites `lastOpen` from the active
 tab and reports the window's tabs with `set_layout` (held while the window restores, then sent once). Recents are
-stored already sorted (pinned first, then `lastOpened` desc) and capped at 20 unpinned entries. Opening a recent that no longer resolves shows an error toast with a
-"Remove from list" action. `CloneDialog` calls `clone_repo` and, while it runs, follows `op://event` with `repoId === null`
-— the subscription is awaited *before* `clone_repo` is invoked, so the `started` event that supplies the `opId` used by
-Cancel (`cancel_op`) cannot be missed; later `progress` / `stderr` lines feed the single status line. A cancelled or failed
-clone removes the half-written destination (backend) unless it already existed. The backend opens the clone itself, so success just hands the `RepoSummary` back and the app switches to
+stored already sorted (pinned first, then `lastOpened` desc) and capped at 20 unpinned entries. Opening a recent that
+no longer resolves shows an error toast with a "Remove from list" action. `CloneDialog` calls `clone_repo` and, while
+it runs, follows `op://event` with `repoId === null` — the subscription is awaited *before* `clone_repo` is invoked,
+so the `started` event that supplies the `opId` used by Cancel (`cancel_op`) cannot be missed; later `progress` /
+`stderr` lines feed the single status line. A cancelled or failed clone removes the half-written destination
+(backend) unless it already existed. The backend opens the clone itself, so success just hands the `RepoSummary` back and the app switches to
 `RepoWindow`; a failure returns to the form with the stderr first line in a banner.
 
 ## Operations (M4)

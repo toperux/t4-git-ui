@@ -198,6 +198,8 @@ WebKitGTK 2.52.6, driven under Xvfb (`docs/smoke/smoke-linux.md`). Rows 3a, 3b, 
 both reproduced without WebDriver. Fix plan, with a status section:
 `docs/plans/2026-09-26-linux-menu-focus-and-restore-plan.md`.
 
+The 2026-09-27 fix batch and its decisions (D-a, D-b, R5b): `docs/plans/2026-09-27-pr18-fix-batch-plan.md`.
+
 - **Menus show no keyboard focus on WebKitGTK: fixed** (branch `linux-smoke-and-fixes`).
   - **The bug:** `Menu.tsx` focused items by script, WebKitGTK never gives those `:focus-visible`, and every highlight
     and the clipped-name wrap were keyed on it.
@@ -215,41 +217,57 @@ both reproduced without WebDriver. Fix plan, with a status section:
       - AZ 6 and all ten audit paths look as before (Chromium already rang them).
       - *Tab, then click* was already so on Windows.
       - The one visible change was a click then **Ctrl+Comma**, which rang Settings' Close. The user decided
-        against it, so a Ctrl or ⌘ shortcut no longer counts as keyboard input (as in Chromium), on every OS.
+        against it: only Ctrl/⌘ + a navigation key (arrows, Home, End, PageUp, PageDown) counts as keyboard input;
+        every other Ctrl/⌘ chord is ignored. The same on every OS — a visible change on Windows too (R5b).
 - **A restored second window sometimes never starts: guarded, not fixed.**
   - **The bug:** `w1` stays on the *Starting* spinner for good.
-    - **Rate:** about 3 of 16 two-window restores before step C, 7 of 20 after. That difference isn't significant
-      (p ≈ 0.3).
+    - **Rate:** 3 of 16 two-window restores before step C were real hangs (a live `w1` that never got its
+      repository title; the one under WebDriver on the *Starting* spinner). A later 7 of 20, measured with a
+      kill-and-relaunch loop, likely raced `killapp`'s own kill against the next launch; whether those 7 were alive
+      wasn't recorded. With the wait added to `killapp`, 0 of 20 raced. On WSL, 0 of 40 two-window runs hung for
+      real (4 of them, with the old helper, were the race and never reached `spawn`); re-measure on the native host
+      (D-b).
     - **Log:** nothing from `w1`. Under WebDriver its `plugin:store|load` never returned, and async commands then
       stalled app-wide while a sync one still answered, so the main thread was alive.
   - **Done, on `linux-smoke-and-fixes` (plan step C):** `spawn` writes the new window's tabs to `layout.json` at
     once, and after
     `restoreTabs` the frontend reports once, so a window that never starts keeps its tabs. Checked: 20 of 20
-    restores kept them, all 7 hangs included.
+    restores kept them; if those 7 were the race, the guard checked nothing for them, and it is untested against a
+    real hang.
     - **Gated since 2026-09-27** (found in #18's review, fixed on the branch): no `layout.json` write happens
       until `main` has read the last session (`take_layout`). Without the gate, a second launch during startup
       wrote `[]` over the saved session before `main` read it, and every window and tab of the last session was
       lost. Plan: `docs/plans/2026-09-27-pr18-windows-plan.md`.
+    - **Gated since 2026-09-27** (`afc40f3`, Step 1 of `docs/plans/2026-09-27-pr18-fix-batch-plan.md`): `take` no
+      longer deletes `layout.json` and seeds `main`'s saved entry in memory, so every write from the read on holds
+      it; nothing shrinks while the session restores.
   - **Still open:**
-    - **Plan step A, diagnose.** A repro loop that **A/Bs step C** (30 launches with it, 30 without, in case its lock
-      and file write in `spawn` raise the rate). Then thread stacks of a hung process under gdb as a parent (no sudo
-      needed). Then the probes: did the stuck page load (screenshot); is `main` alive (F5 and the log); does it also
-      hang on a second launch or on Ctrl+Shift+N. The earlier store-lock suspect is unlikely: both paths take
-      the locks in the same order. Look first at the async side and at `show_with_theme`'s `win.theme()`, a
-      main-thread round trip.
+    - **Plan step A, diagnose.** Its premise (step C raised the rate from 3 of 16 to 7 of 20) no longer holds: the 7
+      of 20 was likely the `killapp` race (D-b), not step C. Re-run on the native Linux host with the fixed helper
+      (a 30-launch baseline, no A/B unless Phase A's own review still wants one), then thread stacks of a hung
+      process under gdb as a parent (no sudo needed). Then the probes: did the stuck page load (screenshot); is
+      `main` alive (F5 and the log); does it also hang on a second launch or on Ctrl+Shift+N. The earlier
+      store-lock suspect is unlikely: both paths take the locks in the same order. Look first at the async side and
+      at `show_with_theme`'s `win.theme()`, a main-thread round trip.
     - **Plan step B, fix,** once A names the cause.
-    - **Verify:** 0 hangs in 50 launches; a Linux re-walk of AZ 3a/3b/3c/3d/3f/3h/3i/3k; a Windows re-walk of AZ
-      row 3.
+    - **Verify:** 0 hangs in 50 launches on the native Linux host with the fixed helper; a Linux re-walk of AZ
+      3a/3b/3c/3d/3f/3h/3i/3k; a Windows re-walk of AZ row 3.
     - **Whether it happens on Windows** (not seen in the 2026-09-19 walk).
 - **AZ 11 Linux stays unticked** until both bugs pass their re-walks. Then tick it, write the walk record, and move
   this section to `open-items-done.md`.
 - **Triaged 2026-09-26:** every decision and accepted limit is recorded in the plan's *Decisions* section; the order
-  of the remaining work is its *Order* section. T14 (a test for the `catch` path) is done. T11 was
-  dropped: reporting `main` first would widen an existing crash loop (§P), so the crash-at-launch gap is accepted.
-  Then Phase A with the A/B. If Phase C raises the rate,
-  its write moves onto the build thread (D2). Then Phase B (the T18 audit was done 2026-09-27). Windows: AZ 6 as
+  of the remaining work is its *Order* section. T14 (a test for the `catch` path) is done. T11 was reversed
+  2026-09-27 (D-a): `main` is now seeded first in `take`, so the §P crash loop widens instead, to cover crashes inside
+  `open_repo`; its loop-breaker is the real fix.
+  Then Phase A, remeasured on the native Linux host with the fixed helper (D-b); its own review decides whether to
+  keep the A/B. If step C raises the rate, its write moves onto the build thread (D2). Then Phase B (the T18 audit
+  was done 2026-09-27). Windows: AZ 6 as
   soon as the branch is up, row 3 after Phase B. macOS (AZ 11 and the WebKit click-focus check, T12): open until a
   Mac is available.
+- **F7, accepted 2026-09-27 (the fix batch):** on WebKitGTK, focus moved by script back from a text field after
+  only Ctrl/⌘ chords (a click, then Ctrl+K twice; a paste, then Ctrl+Enter in the commit window) comes back
+  unmarked. Chromium is expected to ring it; unwalked. The fix would be to also mark in `focusin` when
+  `relatedTarget` is an input or textarea.
 
 ## P. Added 2026-09-26 — the Linux harness follow-ups, and one row found in review
 
@@ -314,8 +332,8 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
     - Plus the terminal-launch `setsid` fix, and clone classification.
     - Plan: `docs/plans/2026-09-27-ssh-fail-fast-plan.md`, reviewed and decided; its own PR after #18.
 - ~~**`xclip` (T9).**~~ Done 2026-09-26 (triage): it was installed, and is now a listed prerequisite.
-- **Re-test WebDriver with two windows (T7)** once the restore hang is fixed. If it works, multi-window rows get DOM
-  access back.
+- **Re-test WebDriver with two windows (T7)** once the restore hang is fixed (two came up on 2026-09-27 in WSL; not
+  a verdict). If it works, multi-window rows get DOM access back.
 - **Drive live Wayland through AT-SPI (T5):** the page itself is now driven on live Wayland through WebDriver
   (`smoke-linux.md`, "Not reachable here"). What stays hand-walked is GTK's native popups, the OS theme switch
   and DPI. Plan: `docs/plans/2026-09-27-t5-atspi-plan.md`, from a spike on Xvfb (2026-09-27): AT-SPI reaches the
@@ -361,12 +379,15 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
   Windows `.exe.sig` and the macOS `.app.tar.gz.sig` come straight from the bundler and nothing touches the files
   after signing, so the risk the AppImage check guards against doesn't apply. To extend it, run
   `.github/scripts/verify-updater-sig.py` on those legs too.
-- **Row found in review: a repository that crashes the app while loading crashes every later launch.** `openTab`
-  adds the tab, and the layout subscription reports it to `layout.json`, as soon as the backend open returns and
-  before the repository loads (`src/store/tabsStore.ts`, `src/App.tsx`'s `useTabsStore.subscribe`). A crash during
-  the load therefore leaves the path in the file, and every launch reopens it and crashes again until `layout.json`
-  is deleted by hand. That happens with one window or several. "Crashes" means the process ends without a normal
-  exit: a segfault, an abort, OOM, or a panic that isn't contained. Likely fix, a loop breaker:
+- **Row found in review: a repository that crashes the app while loading crashes every later launch.** Wider since
+  the fix batch: a restored window's tabs are in the file before they open (since Phase C for spawned windows,
+  since the 2026-09-27 seed for `main`), so the loop also covers crashes inside `open_repo`. Raise its priority in
+  the triage plan. Outside a restore, `openTab` adds a tab, and the layout subscription reports it, as soon as the
+  backend open returns and before the repository loads (`src/store/tabsStore.ts`, `src/App.tsx`'s
+  `useTabsStore.subscribe`). A crash during the load therefore leaves the path in the file, and every launch
+  reopens it and crashes again until `layout.json` is deleted by hand. That happens with one window or several.
+  "Crashes" means the process ends without a normal exit: a segfault, an abort, OOM, or a panic that isn't
+  contained. Likely fix, a loop breaker:
   - **Mark the restore in progress** on the Rust side, before `take_layout` hands the layout out.
   - **Clear the mark** once every window the restore spawned has sent its post-`restoreTabs` report, not just
     `main`: spawned windows load their own repositories. Rust knows their labels from `spawn` / `pending`.
@@ -379,15 +400,12 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
     properly when the row is picked up: the exit paths (Quit, last window, update restart on each OS, a kill)
     are the test list.*
   - **If the previous launch never finished restoring,** open `main` on the start screen once:
-    - move `layout.json` aside rather than taking it (`take_layouts` deletes the file, and the one present is what
+    - move `layout.json` aside rather than taking it (`take` now leaves the file in place, and the one present is what
       the crashed launch rewrote);
     - **skip the `lastOpen` fallback too.** The subscription persists the crashing repository as `lastOpen`, which
       `restoreTabs` falls back to on an empty layout;
     - say so in a toast.
-- **Row found in review (T15): a reloaded `main` re-spawns every other window.** A dev reload, or a WebKit
-  web-process crash that reloads the page, runs `restoreTabs` → `takeLayout` again (`src/App.tsx`) and spawns
-  duplicates of every other window. Not new, and unrelated to §O. Likely fix: take the layout once per process
-  (e.g. Rust keeps it after the first `take_layout`), not once per page load.
+- **T15 (a reloaded `main` re-spawns every other window):** closed 2026-09-27, moved to `open-items-done.md` §P.
 
 ## Order
 
