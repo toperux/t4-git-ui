@@ -104,10 +104,10 @@ export const spawnWindow = (payload: Layout, placement: [number, number] | null 
 /** What this window was created to open; `null` in the main window, which reads `takeLayout`. */
 export const takePending = () => call<Layout | null>("take_pending");
 
-/** Reports this window's tabs, for `layout.json` — called on every tab change. */
+/** Reports this window's tabs, for `layout.json` — called on every tab change, and once after a restore. */
 export const setLayout = (layout: Layout) => call<void>("set_layout", { layout });
 
-/** The windows open at the last exit, main's first; consumed, so `[]` on every launch after it. */
+/** The windows open at the last exit, main's first; left in place until the next write. */
 export const takeLayout = () => call<Layout[]>("take_layout");
 
 /** Quits: every window closes at once, and they all come back next launch, whatever was closed before. */
