@@ -8,7 +8,7 @@
 
 **Tech Stack:** React 19 + TypeScript 5.8, zustand 5 (no persist middleware), `react-resizable-panels` 4 (`Group` / `Panel` / `Separator`), CSS modules over `src/theme/tokens.css`, `lucide-react`, vitest 4 + `@testing-library/react` 16 in jsdom. **No `@testing-library/jest-dom`** — assert with `getAttribute` / `hasAttribute` / `textContent`. No `setupFiles`; each test file mocks `../../api/ipc` itself.
 
-**Spec:** `docs/plans/2026-09-14-direction-b-spec.md` (canvas: https://claude.ai/code/artifact/e747c922-c0fa-4143-804b-2d5e09dc7c05)
+**Spec:** `docs/archive/plans/2026-09-14-direction-b-spec.md` (canvas: https://claude.ai/code/artifact/e747c922-c0fa-4143-804b-2d5e09dc7c05)
 
 ## Global Constraints
 
@@ -2392,7 +2392,7 @@ An option's accessible name is its label plus its kbd text, so `getByRole("optio
 - [ ] **Step 4: Smoke group AU** — insert before `## Reporting`:
 
 ```markdown
-## AU. Direction B: views, rail, adaptive toolbar, palette (spec docs/plans/2026-09-14-direction-b-spec.md)
+## AU. Direction B: views, rail, adaptive toolbar, palette (spec docs/archive/plans/2026-09-14-direction-b-spec.md)
 
 Fixture: `c:/tmp/t4/irebase` with a dirty tree (touch two files, stage one), window 1280 × 800.
 

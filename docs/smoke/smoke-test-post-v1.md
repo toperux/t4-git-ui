@@ -1703,7 +1703,7 @@ going blank — harmless, noted._
       commit panel's tree view / Files tab (a nested path) alike, the folder row shows the folder
       icon, bold text and the `--folder-fg` colour, distinct from a leaf row
 
-## AU. Direction B: views, rail, adaptive toolbar, palette (spec docs/plans/2026-09-14-direction-b-spec.md)
+## AU. Direction B: views, rail, adaptive toolbar, palette (spec docs/archive/plans/2026-09-14-direction-b-spec.md)
 
 Fixture: `c:/tmp/t4/irebase` with a dirty tree (touch two files, stage one), window 1280 × 800.
 
@@ -2054,8 +2054,8 @@ The five fixes of `docs/archive/plans/2026-09-25-update-and-staging-fixes.md`. R
 than the build. Build the local build as the previous version, so the latest release is offered:
 `npm run tauri -- build --no-bundle --config "{\"version\":\"<previous>\"}"`.
 
-For rows 2 and 5, launch it behind `docs/smoke/fixtures/throttle-proxy.mjs`: `HTTPS_PROXY` and `HTTP_PROXY` set to
-`http://127.0.0.1:8888` before `smoke-launch.ps1`.
+For rows 2 and 5, launch it behind `docs/smoke/fixtures/throttle-proxy.mjs`:
+`smoke-launch.ps1 -Proxy http://127.0.0.1:8888`.
 - With the proxy stopped, the app is offline.
 - Run it at `200000` B/s and kill it within the first few percent of a download. A late kill lets the setup install
   the release over the installed app.

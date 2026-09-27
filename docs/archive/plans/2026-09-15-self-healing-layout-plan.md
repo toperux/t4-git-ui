@@ -5,7 +5,8 @@ up open-but-empty after a window resize with no way back except a toggle; the si
 override, once set, takes the window width out of the decision for the rest of the session.
 
 **Status:** draft, reviewed 2026-09-15. Task 2 ships **option B plus R1's normalisation**, agreed
-the same day. Every review finding below is resolved. Nothing is implemented yet.
+the same day. Every review finding below is resolved. Nothing was implemented when written.
+**Shipped 2026-09-15** (`f4917d3`).
 
 **Tech stack facts that bind both tasks:** React 19 + TS 5.8, zustand 5 (no persist middleware, so
 every store is per-window-per-session), `react-resizable-panels` 4 (`Group` / `Panel` / `Separator`,

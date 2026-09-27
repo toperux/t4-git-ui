@@ -6,11 +6,12 @@ each group costs one smoke walk and at most one release, not one per row. §C (r
 decision, so the list will not reach fully empty.
 
 **Status:** 2026-09-26. **Phase 0 done 2026-09-26** (`59e9383`). **Phase 1 done 2026-09-26**
-(`2026-09-26-phase-1-plan.md`, walk record `docs/archive/walks/2026-09-26-phase-1-walk.md`): the next tag is
-unblocked. Phase 1b or 2a next. Open decisions: §J (before Phase 2), the Phase 3 threshold, the Phase 4
-reference canvas, and hardware (before Phase 5). **PR #18 merged 2026-09-27** (`5cc5de9`: the Linux harness, the
-WebKitGTK focus fixes, the restore guard and its follow-ups, the AppImage repack). Its rows (§O, §P) are scheduled
-below, mostly in the new *Linux track*; plan updated for it 2026-09-28, with one more open decision (U1–U5).
+(`docs/archive/plans/2026-09-26-phase-1-plan.md`, walk record `docs/archive/walks/2026-09-26-phase-1-walk.md`):
+the next tag is unblocked. Phase 1b or 2a next. Open decisions: §J (before Phase 2), the Phase 3 threshold, the
+Phase 4 reference canvas, and hardware (before Phase 5). **PR #18 merged 2026-09-27** (`5cc5de9`: the Linux
+harness, the WebKitGTK focus fixes, the restore guard and its follow-ups, the AppImage repack). Its rows (§O, §P)
+are scheduled below, mostly in the new *Linux track*; plan updated for it 2026-09-28. **Triage done 2026-09-28**
+(`docs/archive/plans/2026-09-26-triage-plan.md`).
 
 Row references are to `docs/plans/open-items.md` sections (§A–§P), and code and smoke-doc line numbers are as of
 2026-09-28 (`main` after #18). The Phase 1 section keeps its original numbers. `CF` =
@@ -20,11 +21,11 @@ Row references are to `docs/plans/open-items.md` sections (§A–§P), and code 
 
 ## Phase 0 — close by decision (one docs commit, no code)
 
-See `2026-09-26-phase-0-plan.md`. In short: the four record-only smoke boxes marked `[n/a]`; §H becomes a
-release-skill rule (tag only after `main`'s CI is green on all three OS); the `Menu.tsx` ceiling closed as
-won't-fix; seven untracked `ponytail:` ceilings added to §I; macOS notarization closed as won't do for now; the
-Windows signing row re-pointed at Phase 1b; the "user's own update" row re-pointed at the release gate; the §I
-intro reworded; §C kept open.
+See `docs/archive/plans/2026-09-26-phase-0-plan.md`. In short: the four record-only smoke boxes marked `[n/a]`;
+§H becomes a release-skill rule (tag only after `main`'s CI is green on all three OS); the `Menu.tsx` ceiling
+closed as won't-fix; seven untracked `ponytail:` ceilings added to §I; macOS notarization closed as won't do for
+now; the Windows signing row re-pointed at Phase 1b; the "user's own update" row re-pointed at the release
+gate; the §I intro reworded; §C kept open.
 
 ## Phase 1 — release-gate sitting (the user, about an hour)
 
@@ -45,9 +46,11 @@ as written: the DPI box was in fact walked on a real 150 % monitor, and AJ's box
 
 ## Phase 1b — signing and repo setup (§B Windows code signing)
 
-Port `F:/src/_ pet projects/signing-and-repo-setup.md` from t4-markdown-viewer. Needs its own plan, and that
-plan **starts from a diff of this repo's workflows against the doc, not from a copy of it** — part is already
-here:
+Port t4-markdown-viewer's setup — its public `.github/workflows/release.yml` (`toperux/t4-markdown-viewer`) is the
+reference implementation, and the user's `signing-and-repo-setup.md` (a working copy outside the repo) lists the
+repo settings and the verify steps. Needs its own plan, and that plan **starts from a diff of this repo's
+workflows against the doc, not from a copy of it** — part is already here (the *Doc item* numbers are the
+working copy's sections):
 
 | Doc item | This repo today |
 |---|---|
@@ -56,7 +59,7 @@ here:
 | 2b every `uses:` pinned by SHA | partly: rust-toolchain, rust-cache, cargo-binstall, action-gh-release pinned; `checkout@v7`, `setup-node@v7` (both workflows), `upload-artifact@v7`, `download-artifact@v8` not |
 | 2b Tauri CLI `cargo install tauri-cli --version 2.11.4 --locked` | differs: `cargo binstall --no-confirm --locked 'tauri-cli@2.11.4'` (`release.yml:158`; a prebuilt binary, built from source on macOS); decide whether to switch. If the CLI-pin PR (§P, 2.11.5) lands before this phase, start from 2.11.5 |
 | 1a `signing` environment, 1b secrets there, 1c Actions settings | not done |
-| 2b `ssign`, AppImage tool pins | not done. The doc's six tool hashes match tauri-cli 2.11.4 (bundler 2.9.4): re-derive them if the CLI-pin PR lands first. #18's repack also takes `squashfs-tools` and `python3-cryptography` from apt, unpinned (`release.yml:127-129`); U5 proposes pinning them here (an apt `pkg=ver` pin fails once the archive drops that version) |
+| 2b `ssign`, AppImage tool pins | not done. The doc's six tool hashes match tauri-cli 2.11.4 (bundler 2.9.4): re-derive them if the CLI-pin PR lands first. #18's repack also takes `squashfs-tools` and `python3-cryptography` from apt, unpinned (`release.yml:127-129`); pin them by a version floor, not exact versions (triage U5). The Linux build-dependencies step, right after the apt install, fails with a clear message unless squashfs-tools is ≥ 4.5 (`dpkg --compare-versions "$(dpkg-query -W -f='${Version}' squashfs-tools)" ge 1:4.5` — the package has epoch 1, so a bare `4.5` always passes) and `python3 -c 'import cryptography'` succeeds |
 | 2c build / bundle split | partly: the macOS certificate import is already its own macOS-only step (`release.yml:182`); build and bundle are one step holding the updater key (`:212`), and #18 added a second step holding it, "Re-sign the AppImage" (`:251`), which the split keeps after the bundle |
 | 2d signature proofs | partly: macOS done (`Verify the macOS signature`, `release.yml:290`: bundle, `.app.tar.gz`, `.dmg`); Windows not (nothing to prove until signed). Separately, #18 verifies the AppImage's *updater* `.sig` (`.github/scripts/verify-updater-sig.py`, `:269`); extending that to `.exe.sig` / `.app.tar.gz.sig` is §P's row, which fits here |
 | 2e dry-run publish | not done |
@@ -82,6 +85,14 @@ first release after Phase 1b is also the first signed one, so the same update pr
 **The AppImage, from #18 (§P, on the Linux machine):**
 - **At the next release:** an old AppImage started with the `LD_PRELOAD` workaround updates to the fixed one. The
   command is in `docs/archive/walks/2026-09-26-group-ac-linux-walk.md`.
+  - Also compare the fixed AppImage with the old one started above (built without the repack; triage U4).
+    - `unsquashfs -s -o <offset>` on both (the offset: `smoke-linux.md` › *Inspect without running it*) shows the
+      block size and compressor options each used.
+    - Then the size, and the cold start: drop the page cache (`sync; echo 3 | sudo tee /proc/sys/vm/drop_caches`),
+      then time from launch to the window mapped (e.g. `xdotool search --sync --name 'T4 Git'`); take the median
+      of three. The old one runs with its `LD_PRELOAD` workaround.
+    - App code and one library differ too, so only a clear gap counts. Match appimagetool's options only if it
+      differs noticeably.
 - **At the release after:** the fixed one updates in place.
 - **Then tick AC** (`smoke-test-post-v1.md:761`).
 
@@ -100,7 +111,8 @@ Rows marked **design needed** have no agreed fix; the Phase 2 plan decides each 
 |---|---|---|
 | §M default remote overwrites a quick pick | skip `setRemote` in `useDefaultRemote` once the field was touched | §M |
 | §M toast detail cut mid-sentence / `warning:` taken | join lines up to a blank one, skip `warning:`; update `cli::ops::tests::rejected_and_other` | §M |
-| §M menus: row shift on a clipped name, wrapped first item | **design needed**. Since #18 the keyboard-style right-click (first item marked after grid arrows) is on Linux too, through the `data-kbd` mark (U3 proposes folding it here) | §M |
+| §M menus: row shift on a clipped name, wrapped first item | **design needed**. Since #18 the keyboard-style right-click (first item marked after grid arrows) is on Linux too, through the `data-kbd` mark (folded here, triage U3) | §M |
+| §M Esc is dead in Settings after Check now (triage T2) | at the root, in `Dialog`, not only Settings: while a dialog is open and the focus falls to `<body>`, put it back on the dialog's first body field (the rule `Dialog.tsx:88-95` applies when `busy` clears, generalised; the 2a plan picks the trigger, since whether Blink dispatches `focusout` for a disabled control is to be checked). Plus an audit of every dialog for a control that disables itself during its own action, and a test per case found. Constraints: stay quiet while the dialog unmounts, or it fights the cleanup's return of focus to the opener (`Dialog.tsx:77-85`); and when a dialog opens another in the same commit (Commit & Push), the new one's `autoFocus` must win | `Dialog.tsx:88-103`, `SettingsDialog.tsx:160,232` |
 | §L `Ctrl+,` dead while the start screen opens a repo | drop `busy` from the comma arm only | §L |
 | §L Linux `Super+O/N/Q` reach the app | `navigator.platform` split in `useShortcuts`, first platform test there | §L |
 | §I S1 blames never cancelled | per-repo "latest blame" token cancelled by the next | CF:612 |
@@ -114,7 +126,7 @@ Rows marked **design needed** have no agreed fix; the Phase 2 plan decides each 
 | §I R10 selected-mode header after a partial stage | **design needed** — the inverse of X8 | CF:51 (P1-8), CF:274, `smoke-test-post-v1.md:783` |
 | §I R12 two stale status/refs pairings | **design needed** — guarding would flicker | CF:427, `MessageColumn.tsx:46,63`, `CommitPanel.tsx:67-82` |
 | §I `App.tsx` update-answer race | re-query `lastUpdateCheck()` after the listener attaches | `src/App.tsx:175` |
-| §P crash loop: a repository that crashes the app while loading crashes every later launch | the loop breaker sketched in §P (mark the restore in progress; clear it on every window's report, a normal exit and before `update.install`). **Priority raised:** #18's seed widened the loop to crashes inside `open_repo` and to `main`'s tabs not yet reached (D-a). **2a or 2b** is a triage decision (U1) | §P, `src-tauri/src/commands/window.rs` |
+| §P crash loop: a repository that crashes the app while loading crashes every later launch | the loop breaker sketched in §P (mark the restore in progress; clear it on every window's report, a normal exit and before `update.install`). **Priority raised:** #18's seed widened the loop to crashes inside `open_repo` and to `main`'s tabs not yet reached (D-a). **2a** (triage U1) | §P, `src-tauri/src/commands/window.rs` |
 | §I `log/walker.rs` `Refs` spec never reaching HEAD | **design needed** | `crates/git-core/src/log/walker.rs:94` |
 | §I `Input.tsx` AltGr never reaches type-ahead | let a Ctrl+Alt chord with `e.key.length === 1` past the Alt branch | `src/components/ui/Input/Input.tsx:221` |
 | §I `watch.rs` `.gitmodules` rewritten by the app | a `Linked` change kind the watcher and those ops both emit | `crates/git-core/src/watch.rs:124` |
@@ -124,10 +136,12 @@ Rows marked **design needed** have no agreed fix; the Phase 2 plan decides each 
 | §J palette prefixes, per-view sidebar state | build, or drop (decision pending) | §J |
 
 Split into **2a** (the rows with a fix given) and **2b** (the design-needed rows), each with its own release,
-so the known fixes do not wait on the design work. Per part: gates green, one smoke group over CDP, squash,
-then a release through the `release` skill on the user's request, then the release gate above. Phase 1 must
-be done before 2a's release (the updater 2.12 walk gates the next tag). Phase 1b does **not** gate Phase 2:
-signing ships in whichever release follows it.
+so the known fixes do not wait on the design work. 2a's walk also runs triage T8's check: launch the build with
+`smoke-launch.ps1 -Proxy http://127.0.0.1:8888` and `throttle-proxy.mjs` running, and see `CONNECT github.com` in
+the proxy's log (from the launch check, or Settings › **Check now**). Per part: gates green, one smoke group over
+CDP, squash, then a release through the `release` skill on the user's request, then the release gate above.
+Phase 1 must be done before 2a's release (the updater 2.12 walk gates the next tag). Phase 1b does **not** gate
+Phase 2: signing ships in whichever release follows it.
 
 ## Phase 3 — measure once, then fix or close
 
@@ -197,4 +211,5 @@ AppImage tool pins are tied to the builder too — recheck them.
 2. **Phase 3 threshold** — the 250 ms / visible-jank proposal. Before Phase 3.
 3. **Phase 4 reference** — which canvas set rules where they differ. Before Phase 4.
 4. **Hardware** — a Mac coming, or close Phase 5 on CI's macOS leg (Linux has a machine since #18). Before Phase 5.
-5. **U1–U5** — #18's triage items (triage plan). U1 (2a or 2b for the crash loop) before Phase 2's split.
+5. ~~**U1–U5**~~ — decided 2026-09-28 (`docs/archive/plans/2026-09-26-triage-plan.md`): U1 in 2a, U5 a version
+   floor in 1b.

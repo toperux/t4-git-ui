@@ -149,6 +149,10 @@ Text is moved as written; hashes and line numbers are those of the day._
 - **macOS notarization** — **closed 2026-09-26, won't do for now** (close-out Phase 0). Needs a paid Apple
   Developer account. The app is signed with the shared self-signed certificate (stable identity, so folder
   grants survive updates), and the release body carries the quarantine step. Reopen when there is a Mac user.
+- **Close-out triage 2026-09-26 and 2026-09-28** — **done 2026-09-28**. The skips and accepted limits of Phases
+  0–1 and PR #18's leftovers, eighteen decisions (T1–T11, U1–U5, A1, A2), in
+  `docs/archive/plans/2026-09-26-triage-plan.md`. The work they called for: the Settings Esc bug to Phase 2a, the
+  signing row reworded, `smoke-launch.ps1 -Proxy`, U1–U5 carried into the close-out plan, finished plans archived.
 
 ## C. Roadmap
 ~~Submodules · worktrees~~ — shipped 2026-09-13, see the Context bullet.
@@ -606,3 +610,7 @@ fixes and the walk added three more. The walk is `docs/archive/walks/2026-09-19-
     spawns nothing.
   - **Walked:** a reload of `main` with two windows up stays at two windows on both OSes. The baseline showed the
     duplicate (`docs/archive/walks/2026-09-27-pr18-linux-rewalk.md` › *After the fix batch*).
+- **A window that hangs mid-restore loses its remaining tabs** (a review finding of #18, older than it) — **closed
+  2026-09-28** (triage U2), fixed by `afc40f3` (the fix batch's 1b): nothing is reported while a window restores.
+  Its seed A poll never went short, for `main` or a spawned window, on either OS
+  (`docs/archive/walks/2026-09-27-pr18-linux-rewalk.md` › *After the fix batch*).

@@ -44,11 +44,13 @@ done, move it there._
 - **Windows code signing** — the NSIS setup is not Authenticode-signed, so every new Windows user meets
   SmartScreen's "Windows protected your PC" and has to pick *More info › Run anyway*. The updater's minisign
   signature is a different thing: it protects updates, not the first download. Close-out Phase 1b ports
-  `F:/src/_ pet projects/signing-and-repo-setup.md` (Certum certificate, thumbprint `F06C…8151`, expires
-  2027-09-22) from t4-markdown-viewer. Recorded 2026-09-24 from group BF. What an unsigned setup
-  actually met there (BF 3, in Windows Sandbox): **Edge warned on the download**, and running it brought **no
-  SmartScreen prompt**. So today the friction is the browser's download warning. SmartScreen on run may still
-  differ on a real machine, whose settings the Sandbox need not share.
+  t4-markdown-viewer's setup — its public `.github/workflows/release.yml` (`toperux/t4-markdown-viewer`) is the
+  reference implementation, and the user's `signing-and-repo-setup.md` (a working copy outside the repo) lists the
+  repo settings and the verify steps (Certum certificate, thumbprint `F06C…8151`, expires 2027-09-22). Recorded
+  2026-09-24 from group BF. What an unsigned setup actually met there (BF 3, in Windows Sandbox): **Edge warned
+  on the download**, and running it brought **no SmartScreen prompt**. So today the friction is the browser's
+  download warning. SmartScreen on run may still differ on a real machine, whose settings the Sandbox need not
+  share.
 - Linux (WebKitGTK) rendering: walked on 2026-09-05 under WSLg (Ubuntu 24.04, X11 backend) —
   fonts, both themes, graph, panels, styled scrollbars (thumb + hover), all five splitters and the
   dock drag, native-menu suppression (toolbar / panel header / statusbar / bare diff body → nothing;
@@ -187,7 +189,14 @@ below is kept as history.
   is merged (#18, 2026-09-27), see §O.
 - **Menus.** Rows shift by a line while arrowing over a clipped name. After arrow keys in the grid a
   right-click menu opens with its first item focus-visible, so a clipped first item opens wrapped — the
-  same case in which that row always had the accent highlight.
+  same case in which that row always had the accent highlight. Since #18 (the `data-kbd` mark) this happens on
+  Linux too (triage U3).
+- **Esc is dead in Settings after Check now** (triage T2, 2026-09-26; Phase 2a). `Dialog` catches Esc in its
+  form's `onKeyDown` (`Dialog.tsx:97-103`), so it works only while the focus is inside the dialog. **Check now**
+  is `disabled={checking || installing}` (`SettingsDialog.tsx:232`), and disabling the focused button drops the
+  focus to `<body>`. `Dialog` puts it back only when its `busy` prop clears (`Dialog.tsx:88-95`), and Settings
+  passes `busy={installing}` (`:160`), not `checking`. Repro: Settings › Check now → Esc → nothing; a click inside
+  → Esc works. A mouse or keyboard user meets it too.
 - **Seen in the walk, not acted on.** An external `git reset` of 1800 files takes about four seconds to
   show in Changes, on 0.10.7 as well. (The libgit2 error-suffix row was fixed 2026-09-25 and is in the done
   file; the walk's native-confirm reading is in §L.)
@@ -199,7 +208,7 @@ WebKitGTK 2.52.6, driven under Xvfb (`docs/smoke/smoke-linux.md`). Rows 3a, 3b, 
 both reproduced without WebDriver. Fix plan, with a status section:
 `docs/plans/2026-09-26-linux-menu-focus-and-restore-plan.md`.
 
-The 2026-09-27 fix batch and its decisions (D-a, D-b, R5b): `docs/plans/2026-09-27-pr18-fix-batch-plan.md`.
+The 2026-09-27 fix batch and its decisions (D-a, D-b, R5b): `docs/archive/plans/2026-09-27-pr18-fix-batch-plan.md`.
 
 - **Menus show no keyboard focus on WebKitGTK: fixed** (branch `linux-smoke-and-fixes`, merged in #18 on
   2026-09-27).
@@ -239,8 +248,8 @@ The 2026-09-27 fix batch and its decisions (D-a, D-b, R5b): `docs/plans/2026-09-
     - **Gated since 2026-09-27** (found in #18's review, fixed on the branch): no `layout.json` write happens
       until `main` has read the last session (`take_layout`). Without the gate, a second launch during startup
       wrote `[]` over the saved session before `main` read it, and every window and tab of the last session was
-      lost. Plan: `docs/plans/2026-09-27-pr18-windows-plan.md`.
-    - **Gated since 2026-09-27** (`afc40f3`, Step 1 of `docs/plans/2026-09-27-pr18-fix-batch-plan.md`): `take` no
+      lost. Plan: `docs/archive/plans/2026-09-27-pr18-windows-plan.md`.
+    - **Gated since 2026-09-27** (`afc40f3`, Step 1 of `docs/archive/plans/2026-09-27-pr18-fix-batch-plan.md`): `take` no
       longer deletes `layout.json` and seeds `main`'s saved entry in memory, so every write from the read on holds
       it; nothing shrinks while the session restores.
   - **Still open:**
@@ -362,7 +371,7 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
     - ~~a `workflow_dispatch` run~~ done 2026-09-27 (run 36257070680): the CI AppImage renders on Xvfb, and on this
       desktop with the variable;
     - the next release: an old AppImage with the `LD_PRELOAD` workaround (the command is in the AC walk record)
-      updates to the fixed one;
+      updates to the fixed one; also compare its size and cold start with the old one (triage U4);
     - the release after: the fixed one updates in place;
     - then tick AC :761. `.rpm` is ruled covered by the `.deb` walk (2026-09-27): without `APPIMAGE` both take the
       Download… path (`update.rs:45-50`).
@@ -383,9 +392,9 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
   `.github/scripts/verify-updater-sig.py` on those legs too.
 - **Row found in review: a repository that crashes the app while loading crashes every later launch.** Wider since
   the fix batch: a restored window's tabs are in the file before they open (since Phase C for spawned windows,
-  since the 2026-09-27 seed for `main`), so the loop also covers crashes inside `open_repo`. Raise its priority in
-  the triage plan. Outside a restore, `openTab` adds a tab, and the layout subscription reports it, as soon as the
-  backend open returns and before the repository loads (`src/store/tabsStore.ts`, `src/App.tsx`'s
+  since the 2026-09-27 seed for `main`), so the loop also covers crashes inside `open_repo`. Scheduled in Phase 2a
+  (triage U1, 2026-09-28). Outside a restore, `openTab` adds a tab, and the layout subscription reports it, as soon
+  as the backend open returns and before the repository loads (`src/store/tabsStore.ts`, `src/App.tsx`'s
   `useTabsStore.subscribe`). A crash during the load therefore leaves the path in the file, and every launch
   reopens it and crashes again until `layout.json` is deleted by hand. That happens with one window or several.
   "Crashes" means the process ends without a normal exit: a segfault, an abort, OOM, or a panic that isn't

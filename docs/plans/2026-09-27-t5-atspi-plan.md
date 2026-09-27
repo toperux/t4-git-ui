@@ -1,6 +1,6 @@
 # Plan: drive GTK's native parts through AT-SPI (T5)
 
-_Written 2026-09-27, from a spike on Xvfb (`docs/plans/2026-09-27-pr18-linux-extras-plan.md`, item 4). Plan only:
+_Written 2026-09-27, from a spike on Xvfb (`docs/archive/plans/2026-09-27-pr18-linux-extras-plan.md`, item 4). Plan only:
 nothing here is implemented. Source: open-items §P, "Drive live Wayland through AT-SPI (T5)"._
 
 ## What stays hand-walked today

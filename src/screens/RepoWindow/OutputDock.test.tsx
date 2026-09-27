@@ -149,7 +149,7 @@ describe("OutputDock", () => {
 // The dock remembers a height only when a gesture on the separator asked for it *and* the value is
 // one a gesture could have produced. Both halves are pure and tested here; that they meet correctly
 // is a layout question, and jsdom lays out no panels — the CDP walk in
-// docs/plans/2026-09-15-self-healing-layout-plan.md is the check for that.
+// docs/archive/plans/2026-09-15-self-healing-layout-plan.md is the check for that.
 
 describe("isDraggedHeight", () => {
   // Walked 2026-09-15: a drag below the 94px midpoint snaps to the 28px bar while the pointer is

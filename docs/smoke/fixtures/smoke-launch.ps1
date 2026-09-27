@@ -8,6 +8,11 @@
 #   pwsh -File docs/smoke/fixtures/smoke-launch.ps1              # the local release build
 #   pwsh -File docs/smoke/fixtures/smoke-launch.ps1 -Installed   # the installed app instead
 #   pwsh -File docs/smoke/fixtures/smoke-launch.ps1 -Port 9333
+#   pwsh -File docs/smoke/fixtures/smoke-launch.ps1 -Proxy http://127.0.0.1:8888   # behind throttle-proxy.mjs
+#
+# Run it with pwsh -File, not & from an interactive shell: it sets WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS,
+# WEBVIEW2_USER_DATA_FOLDER, and with -Proxy HTTPS_PROXY and HTTP_PROXY, and those would stay set in the
+# calling shell. A leftover HTTPS_PROXY sends a later launch through a dead proxy, silently offline.
 #
 # Close every other instance first. A launch whose browser arguments differ from the process
 # already running never gets its webview: the new process sits without a window and only
@@ -21,6 +26,8 @@ param(
   # WebView2 profile directory. Defaults to a per-port folder under TEMP.
   [string]$DataDir,
   [int]$Port = 9222,
+  # Sets HTTPS_PROXY and HTTP_PROXY for the app (the updater and git over https follow them).
+  [string]$Proxy,
   # Seconds to wait for the window before reporting.
   [int]$WaitSeconds = 4
 )
@@ -44,6 +51,7 @@ New-Item -ItemType Directory -Force -Path $DataDir | Out-Null
 
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=$Port"
 $env:WEBVIEW2_USER_DATA_FOLDER = $DataDir
+if ($Proxy) { $env:HTTPS_PROXY = $Proxy; $env:HTTP_PROXY = $Proxy }
 
 $p = Start-Process -FilePath $Exe -PassThru
 Start-Sleep -Seconds $WaitSeconds
