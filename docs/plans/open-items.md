@@ -117,15 +117,15 @@ naming its phase. (Rows closed as will-not-fix or accepted are in the done file.
 - `ponytail:` ceilings in code (seven added 2026-09-26, which were in the code but never listed here):
   - `crates/git-core/src/log/walker.rs:94` — a `Refs` spec that never reaches HEAD leaves the working-tree
     column open *(Phase 2)*;
-  - `src/App.tsx:154` (2026-09-25) — an update answer that lands between a new window's `lastUpdateCheck()` reply and its
-    `update://checked` listener attaching is missed. Check now covers it. *(Phase 2)*;
+  - `src/App.tsx:175` (2026-09-25) — an update answer that lands between a new window's `lastUpdateCheck()` reply
+    and its `update://checked` listener attaching is missed. Check now covers it. *(Phase 2)*;
   - `crates/git-core/src/linked.rs:120` — `snapshot` opens a repository per worktree and re-reads every
     submodule, no cache *(Phase 3, measure first)*;
   - `crates/git-core/src/linked.rs:134` — no main row when the main worktree's HEAD can't be read;
     `worktree list --porcelain` fixes it at a git ≥ 2.36 floor *(Phase 2)*;
   - `crates/git-core/src/watch.rs:124` — an app-side rewrite of `.gitmodules` does not refresh the Submodules
     list until the next refs event *(Phase 2)*;
-  - `src-tauri/src/commands/window.rs:326` — the pointer position for tab adoption is Windows-only *(Phase 5)*;
+  - `src-tauri/src/commands/window.rs:392` — the pointer position for tab adoption is Windows-only *(Phase 5)*;
   - `src/components/ui/Input/Input.tsx:221` — an AltGr character never reaches type-ahead *(Phase 2)*;
   - `src/screens/RepoWindow/Toolbar.tsx:100` — a rename while in the `icons` tier measures late *(Phase 2)*;
   - `src/screens/RepoWindow/dialogs/StashDialogs.tsx:39` — a dirty-only submodule is listed as stashed
@@ -167,7 +167,8 @@ fixture, are in the done file since 2026-09-25.) The walk itself is
 
 The walk is `docs/archive/walks/2026-09-19-group-az-walk.md`. What is left, so it is not rediscovered.
 **Since 2026-09-26 these are scheduled in the close-out plan** (the toast, default-remote and menu rows in
-Phase 2, the 1800-file delay in Phase 3, AZ 11 in Phase 5); "left until one bites" below is kept as history.
+Phase 2, the 1800-file delay in Phase 3, AZ 11 Linux in the Linux track, macOS in Phase 5); "left until one bites"
+below is kept as history.
 
 - **A failed op's toast detail, known limits** (2026-09-26, the Pull fix's review). Without a `fatal:` /
   `error:` line, `classify_failure` takes the first line after a fetch's chatter. Git wraps its advice, so
@@ -183,7 +184,7 @@ Phase 2, the 1800-file delay in Phase 3, AZ 11 in Phase 5); "left until one bite
 
 - **Open box in group AZ**: 11 (Linux and macOS: rows 3a, 3b, 3d, 3i and bullet 6, by hand). (9, unit-tested
   with no hand recipe, is marked `[n/a]` since 2026-09-26.) Linux was walked 2026-09-26 and failed on 6; the fix
-  is on `linux-smoke-and-fixes`, see §O.
+  is merged (#18, 2026-09-27), see §O.
 - **Menus.** Rows shift by a line while arrowing over a clipped name. After arrow keys in the grid a
   right-click menu opens with its first item focus-visible, so a clipped first item opens wrapped — the
   same case in which that row always had the accent highlight.
@@ -200,7 +201,8 @@ both reproduced without WebDriver. Fix plan, with a status section:
 
 The 2026-09-27 fix batch and its decisions (D-a, D-b, R5b): `docs/plans/2026-09-27-pr18-fix-batch-plan.md`.
 
-- **Menus show no keyboard focus on WebKitGTK: fixed** (branch `linux-smoke-and-fixes`).
+- **Menus show no keyboard focus on WebKitGTK: fixed** (branch `linux-smoke-and-fixes`, merged in #18 on
+  2026-09-27).
   - **The bug:** `Menu.tsx` focused items by script, WebKitGTK never gives those `:focus-visible`, and every highlight
     and the clipped-name wrap were keyed on it.
   - **The fix:** `focusItem` marks a keyboard-focused item `data-kbd`, and the CSS styles `[data-kbd]:focus` beside
@@ -339,8 +341,8 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
   and DPI. Plan: `docs/plans/2026-09-27-t5-atspi-plan.md`, from a spike on Xvfb (2026-09-27): AT-SPI reaches the
   page and GTK's text-field menu, and the OS theme switches through `gsettings` in a private session. DPI stays out
   of reach in a one-display VM.
-- **Bug found in the AC :761 walk (2026-09-26): the AppImage opens a blank window on Ubuntu 26.04. Fixed on
-  `linux-smoke-and-fixes`, pending a `workflow_dispatch` build and the release walks.**
+- **Bug found in the AC :761 walk (2026-09-26): the AppImage opens a blank window on Ubuntu 26.04. Fixed in #18
+  (merged 2026-09-27), pending the release walks.**
   Plan: `docs/plans/2026-09-26-appimage-blank-window-plan.md`.
   - **Symptom:** WebKit's web process aborts with `Could not create default EGL display: EGL_BAD_PARAMETER`, and the
     window stays blank. The published 0.10.11 and 0.10.12 AppImages are affected; the `.deb` renders fine.

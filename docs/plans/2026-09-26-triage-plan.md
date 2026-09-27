@@ -3,10 +3,11 @@
 **Parent:** `docs/plans/2026-09-26-close-out-plan.md`. Runs before Phase 1b / 2a.
 
 **Goal:** every skip and accepted limit collected during Phases 0–1 and their review loop has a recorded
-decision, and the three that need work are done.
+decision, and the three that need work are done. PR #18's items (U1–U5) were added 2026-09-28.
 
 **Status:** decisions taken 2026-09-26 (below); reviewed in a three-pass loop the same day (the last pass
-clean). Waits on a go.
+clean). Waits on a go. **2026-09-28:** PR #18's items added (U1–U5, below); their decisions are pending, taken
+item by item when this plan runs.
 
 ---
 
@@ -25,6 +26,19 @@ clean). Waits on a go.
 | T9 | `%TEMP%\t4-smoke-wv2-9222` (23 MB) left after walks | **Accepted.** One folder per port, reused by every walk; the test profile's settings and WebView2 caches, nothing of the user's |
 | T10 | README says the installer was walked "on a clean Windows 11"; it ran in Windows Sandbox | **Accepted.** Group BF treats the Sandbox image as the clean machine; the record has the details |
 | T11 | A leftover `--click` in one `cdp.mjs` call hit the Settings scrim mid-walk | **Accepted.** No effect, recorded in the walk file; the cause was the command, not the app |
+
+## Added 2026-09-28 — from PR #18 (decisions pending)
+
+`U` numbers, because the Linux restore plan already uses T1–T23. Sources: the review of #18 and its fix batch
+(`2026-09-27-pr18-windows-plan.md`, `2026-09-27-pr18-fix-batch-plan.md`).
+
+| # | Item | Proposal |
+|---|---|---|
+| U1 | The §P crash loop (a repository that crashes the app while loading crashes every later launch) is wider since the seed (D-a): it now covers crashes inside `open_repo` and `main`'s tabs not yet reached | Schedule the loop breaker sketched in §P. **2a or 2b?** The sketch is verified against Tauri 2.11 and the updater 2.12, but its exit paths still need designing and testing, which points at 2b |
+| U2 | "A window that hangs mid-restore loses its remaining tabs" (a review finding of #18, older than it) | **Close:** fixed by the fix batch's 1b (`afc40f3`); nothing is reported while a window restores. Step 7's seed A poll never went short, for `main` or a spawned window, on either OS |
+| U3 | The keyboard-style right-click menu: after grid arrows a right-click menu opens with its first item marked. Since #18 that holds on Linux too, through `data-kbd` | **Fold into §M's menus row** (Phase 2b, design needed): the same case |
+| U4 | The AppImage repack (`.github/scripts/appimage-strip.sh`) runs `mksquashfs -comp zstd` with mksquashfs's defaults (block size, level), not necessarily appimagetool's; the repacked image's size and start time against the original weren't compared | Compare once, at the next release's AppImage walk (the release gate); match appimagetool's options only if it differs noticeably |
+| U5 | That repack's `squashfs-tools` and `python3-cryptography` come from apt, unpinned (`release.yml:127-129`) | **Move to Phase 1b**, as part of 2b's AppImage tool pins (the close-out table notes it there, pending this decision) |
 
 ## Step 1 — T2, record the bug and move it to Phase 2a
 
@@ -67,7 +81,7 @@ Actions settings) are in no workflow file. So name both, without the local path:
   `$env:HTTP_PROXY` are set to it before `Start-Process`, so the launched app inherits them. Add a usage
   line to the header comment (`-Proxy http://127.0.0.1:8888`).
 - `docs/smoke/smoke-cdp.md` *Pulling the network for the app alone* (`:103-108`) and group BG's recipe
-  (`smoke-test-post-v1.md:2036`): use `-Proxy` instead of setting the variables by hand.
+  (`smoke-test-post-v1.md:2057`): use `-Proxy` instead of setting the variables by hand.
 - Run it as `pwsh -File …`, as the header already shows: the variables then live in that child process only.
   Invoked with `&` from an interactive shell, all four would stay set in that shell afterwards — the two it
   sets today (`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`, `WEBVIEW2_USER_DATA_FOLDER`, `:45-46`) and the two

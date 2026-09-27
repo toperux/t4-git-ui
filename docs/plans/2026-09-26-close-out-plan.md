@@ -8,10 +8,13 @@ decision, so the list will not reach fully empty.
 **Status:** 2026-09-26. **Phase 0 done 2026-09-26** (`59e9383`). **Phase 1 done 2026-09-26**
 (`2026-09-26-phase-1-plan.md`, walk record `docs/archive/walks/2026-09-26-phase-1-walk.md`): the next tag is
 unblocked. Phase 1b or 2a next. Open decisions: §J (before Phase 2), the Phase 3 threshold, the Phase 4
-reference canvas, and hardware (before Phase 5).
+reference canvas, and hardware (before Phase 5). **PR #18 merged 2026-09-27** (`5cc5de9`: the Linux harness, the
+WebKitGTK focus fixes, the restore guard and its follow-ups, the AppImage repack). Its rows (§O, §P) are scheduled
+below, mostly in the new *Linux track*; plan updated for it 2026-09-28, with one more open decision (U1–U5).
 
-Row references are to `docs/plans/open-items.md` sections (§A–§M) and the smoke docs' line numbers as of
-2026-09-26. `CF` = `docs/archive/plans/2026-09-12-consolidated-findings.md`.
+Row references are to `docs/plans/open-items.md` sections (§A–§P), and code and smoke-doc line numbers are as of
+2026-09-28 (`main` after #18). The Phase 1 section keeps its original numbers. `CF` =
+`docs/archive/plans/2026-09-12-consolidated-findings.md`.
 
 ---
 
@@ -51,9 +54,12 @@ here:
 | 2a top-level `permissions: contents: read`, write only on `publish` | done (`release.yml:18`) |
 | 2b `github-actions` Dependabot entry | done (`.github/dependabot.yml:4`) |
 | 2b every `uses:` pinned by SHA | partly: rust-toolchain, rust-cache, cargo-binstall, action-gh-release pinned; `checkout@v7`, `setup-node@v7` (both workflows), `upload-artifact@v7`, `download-artifact@v8` not |
-| 2b Tauri CLI `cargo install tauri-cli --version 2.11.4 --locked` | differs: `cargo binstall 'tauri-cli@2.11.4'` (a prebuilt binary); decide whether to switch |
+| 2b Tauri CLI `cargo install tauri-cli --version 2.11.4 --locked` | differs: `cargo binstall --no-confirm --locked 'tauri-cli@2.11.4'` (`release.yml:158`; a prebuilt binary, built from source on macOS); decide whether to switch. If the CLI-pin PR (§P, 2.11.5) lands before this phase, start from 2.11.5 |
 | 1a `signing` environment, 1b secrets there, 1c Actions settings | not done |
-| 2b `ssign`, AppImage tool pins; 2c build / bundle split; 2d signature proofs; 2e dry-run publish | not done |
+| 2b `ssign`, AppImage tool pins | not done. The doc's six tool hashes match tauri-cli 2.11.4 (bundler 2.9.4): re-derive them if the CLI-pin PR lands first. #18's repack also takes `squashfs-tools` and `python3-cryptography` from apt, unpinned (`release.yml:127-129`); U5 proposes pinning them here (an apt `pkg=ver` pin fails once the archive drops that version) |
+| 2c build / bundle split | partly: the macOS certificate import is already its own macOS-only step (`release.yml:182`); build and bundle are one step holding the updater key (`:212`), and #18 added a second step holding it, "Re-sign the AppImage" (`:251`), which the split keeps after the bundle |
+| 2d signature proofs | partly: macOS done (`Verify the macOS signature`, `release.yml:290`: bundle, `.app.tar.gz`, `.dmg`); Windows not (nothing to prove until signed). Separately, #18 verifies the AppImage's *updater* `.sig` (`.github/scripts/verify-updater-sig.py`, `:269`); extending that to `.exe.sig` / `.app.tar.gz.sig` is §P's row, which fits here |
+| 2e dry-run publish | not done |
 
 Then the doc's verify sequence (cold-cache dry run, delete repo-level secrets, dry run again, SHA pinning on
 — only after `checks.yml` is pinned too). Repo-settings changes are outward actions: each needs the user's go.
@@ -73,6 +79,16 @@ first real run of 0.10.12's plain-words update errors and Install's confirm over
 the §B row that asked for it on 0.10.11 → 0.10.12 could not, since an update runs the *old* app's code. The
 first release after Phase 1b is also the first signed one, so the same update proves the new pipeline.
 
+**The AppImage, from #18 (§P, on the Linux machine):**
+- **At the next release:** an old AppImage started with the `LD_PRELOAD` workaround updates to the fixed one. The
+  command is in `docs/archive/walks/2026-09-26-group-ac-linux-walk.md`.
+- **At the release after:** the fixed one updates in place.
+- **Then tick AC** (`smoke-test-post-v1.md:761`).
+
+**If the CLI-pin PR (§P) has landed** before a release, that release is the first whose updater signatures carry
+`version:`, so the gate's updates are its end-to-end check (`2026-09-27-ssh-prompts-check-and-cli-pin-plan.md`,
+Part B step 5).
+
 Releases happen only on the user's request naming the version (the `release` skill), and pushes only on the
 user's word.
 
@@ -84,7 +100,7 @@ Rows marked **design needed** have no agreed fix; the Phase 2 plan decides each 
 |---|---|---|
 | §M default remote overwrites a quick pick | skip `setRemote` in `useDefaultRemote` once the field was touched | §M |
 | §M toast detail cut mid-sentence / `warning:` taken | join lines up to a blank one, skip `warning:`; update `cli::ops::tests::rejected_and_other` | §M |
-| §M menus: row shift on a clipped name, wrapped first item | **design needed** | §M |
+| §M menus: row shift on a clipped name, wrapped first item | **design needed**. Since #18 the keyboard-style right-click (first item marked after grid arrows) is on Linux too, through the `data-kbd` mark (U3 proposes folding it here) | §M |
 | §L `Ctrl+,` dead while the start screen opens a repo | drop `busy` from the comma arm only | §L |
 | §L Linux `Super+O/N/Q` reach the app | `navigator.platform` split in `useShortcuts`, first platform test there | §L |
 | §I S1 blames never cancelled | per-repo "latest blame" token cancelled by the next | CF:612 |
@@ -95,9 +111,10 @@ Rows marked **design needed** have no agreed fix; the Phase 2 plan decides each 
 | §I C6 `close_repo` never cancels ops | **design needed** — unreachable today (`refusedWhileRunning()` blocks close / switch); a fix is defence in depth only | CF:60, CF:340 |
 | §I Q23 blank details pane during the round trip | **design needed** — decided at P1-4 as blank; reconsider only if it flickers | CF:520 |
 | §I F3 hunk buttons on a non-UTF-8 file | put `FileDiff::lossy` on the wire + `DisabledHint` | §I |
-| §I R10 selected-mode header after a partial stage | **design needed** — the inverse of X8 | CF:51 (P1-8), CF:274, `smoke-test-post-v1.md:772` |
+| §I R10 selected-mode header after a partial stage | **design needed** — the inverse of X8 | CF:51 (P1-8), CF:274, `smoke-test-post-v1.md:783` |
 | §I R12 two stale status/refs pairings | **design needed** — guarding would flicker | CF:427, `MessageColumn.tsx:46,63`, `CommitPanel.tsx:67-82` |
-| §I `App.tsx` update-answer race | re-query `lastUpdateCheck()` after the listener attaches | `src/App.tsx:154` |
+| §I `App.tsx` update-answer race | re-query `lastUpdateCheck()` after the listener attaches | `src/App.tsx:175` |
+| §P crash loop: a repository that crashes the app while loading crashes every later launch | the loop breaker sketched in §P (mark the restore in progress; clear it on every window's report, a normal exit and before `update.install`). **Priority raised:** #18's seed widened the loop to crashes inside `open_repo` and to `main`'s tabs not yet reached (D-a). **2a or 2b** is a triage decision (U1) | §P, `src-tauri/src/commands/window.rs` |
 | §I `log/walker.rs` `Refs` spec never reaching HEAD | **design needed** | `crates/git-core/src/log/walker.rs:94` |
 | §I `Input.tsx` AltGr never reaches type-ahead | let a Ctrl+Alt chord with `e.key.length === 1` past the Alt branch | `src/components/ui/Input/Input.tsx:221` |
 | §I `watch.rs` `.gitmodules` rewritten by the app | a `Linked` change kind the watcher and those ops both emit | `crates/git-core/src/watch.rs:124` |
@@ -136,12 +153,35 @@ or update the canvas. **Decide the reference first:** there are two sets, `docs/
 (v1) and `docs/design/canvases/direction-b/`, and Direction B replaced parts of the first. Likely rule:
 Direction B where it has a screen, `screens/` for the rest.
 
+## Linux track — from #18, on the Linux machine (§O, §P)
+
+#18 came from a Linux session on Ubuntu 26.04 (native Wayland, and Xvfb through `docs/smoke/smoke-linux.md`), so
+the Linux rows no longer wait on hardware. Proposed: they run in that session, beside the Windows phases (the
+CLI-pin PR touches only `release.yml` and could run from either):
+- **The restore hang (§O):**
+  - Phase A: diagnose on the native host with the fixed `killapp`; a 30-launch baseline, and no A/B unless A's
+    review wants one (D-b).
+  - Phase B: the fix. Verify with 0 hangs in 50 launches.
+  - Then the AZ row 3 re-walks: Linux (T20) and Windows, which also answers §O's "whether it happens on Windows".
+  - Then tick AZ 11 Linux (`smoke-test-post-v1.md:1879`) and move §O to the done file.
+- **T7:** re-test WebDriver with two windows after Phase B.
+- **T5:** AT-SPI driving (`2026-09-27-t5-atspi-plan.md`).
+- **#18's follow-up PRs, each planned:**
+  - ssh fail-fast (`2026-09-27-ssh-fail-fast-plan.md`).
+  - The CLI-pin bump to 2.11.5 (`2026-09-27-ssh-prompts-check-and-cli-pin-plan.md`, Part B). The first release built
+    with 2.11.5 unlocks `requireSignedVersion` (§P).
+- **The AppImage release walks:** in the gate above.
+
 ## Phase 5 — other hardware (§B, whenever available)
 
-Real Linux (Wayland), macOS rendering, AC's deb / rpm box (`:759`), AZ 11's two platform lines (`:1860`,
-`:1861`), and the §I `window.rs:326` ceiling (tab adoption's pointer position: macOS and X11 could answer
-natively; Wayland cannot). If no machine is coming, decide whether the WSLg walk plus CI's three-OS legs are
-enough and close them on that.
+**Shrunk by #18:** Linux has a machine now (the Linux track), real-Wayland rendering was walked 2026-09-27 (§B),
+and AC's `.deb` is walked (the AppImage part is in the release gate; `.rpm` ruled covered). Left:
+- macOS rendering;
+- AZ 11's macOS line (`smoke-test-post-v1.md:1882`) and T12 (a clicked WebKit submenu may inherit the mark);
+- the §I `window.rs:392` ceiling (tab adoption's pointer position: macOS and X11 could answer natively; Wayland
+  cannot). The X11 half can now be tried on the Linux machine.
+
+If no Mac is coming, decide whether CI's macOS leg is enough for the macOS rows, and close those on that.
 
 ## Phase 6 — 2026-12-23: `ubuntu-22.04` (§E)
 
@@ -156,4 +196,5 @@ AppImage tool pins are tied to the builder too — recheck them.
 1. **§J** — palette prefixes and per-view sidebar state: build or drop. Before Phase 2.
 2. **Phase 3 threshold** — the 250 ms / visible-jank proposal. Before Phase 3.
 3. **Phase 4 reference** — which canvas set rules where they differ. Before Phase 4.
-4. **Hardware** — a Linux / macOS machine coming, or close Phase 5 on WSLg + CI. Before Phase 5.
+4. **Hardware** — a Mac coming, or close Phase 5 on CI's macOS leg (Linux has a machine since #18). Before Phase 5.
+5. **U1–U5** — #18's triage items (triage plan). U1 (2a or 2b for the crash loop) before Phase 2's split.
