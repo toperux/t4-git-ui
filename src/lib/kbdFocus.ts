@@ -7,16 +7,20 @@
  * Whether the last input was a key rather than the pointer. Set in the capture phase, so it is
  * already current when a handler for that same input moves focus. A modifier alone is not a key
  * here: Alt+Tab back into the window would otherwise mark a mouse-focused element. Nor is a Ctrl or
- * ⌘ shortcut (Ctrl+, opening Settings): it leaves the flag as it was, as Chromium does, so a click
- * then a shortcut shows no ring on Windows and Linux alike.
+ * ⌘ shortcut (Ctrl+, opening Settings, Ctrl+F5, Ctrl+Enter): it leaves the flag as it was, so a
+ * click then a shortcut adds no mark on any OS. The exception is Ctrl or ⌘ with a navigation key
+ * (an arrow, Home, End, PageUp, PageDown): the sidebar, the file lists, Settings and the diff and
+ * file views move focus on those whatever the modifier, so they count — our own rule, not the
+ * webview's.
  */
 let keyInput = false;
 const MODIFIERS = new Set([
   "Alt", "AltGraph", "CapsLock", "Control", "Fn", "FnLock", "Hyper", "Meta", "NumLock", "OS", "ScrollLock", "Shift",
   "Super", "Symbol", "SymbolLock",
 ]);
+const NAV = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown"]);
 document.addEventListener("keydown", (e) => {
-  if (!MODIFIERS.has(e.key) && !e.ctrlKey && !e.metaKey) keyInput = true;
+  if (!MODIFIERS.has(e.key) && (!(e.ctrlKey || e.metaKey) || NAV.has(e.key))) keyInput = true;
 }, true);
 document.addEventListener("pointerdown", () => (keyInput = false), true);
 
