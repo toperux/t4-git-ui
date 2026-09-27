@@ -32,7 +32,8 @@
   background: var(--accent);
   border-color: var(--accent);
 }
-.input:focus-visible + .box {
+.input:focus-visible + .box,
+.input[data-kbd]:focus + .box {
   box-shadow: var(--focus-ring);
 }
 .disabled {

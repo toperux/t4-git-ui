@@ -15,6 +15,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { cx } from "../../../lib/cx";
+import { lastInputWasKey } from "../../../lib/kbdFocus";
 import { DisabledHint } from "../DisabledHint/DisabledHint";
 import { Kbd } from "../Kbd/Kbd";
 import s from "./Menu.module.css";
@@ -65,28 +66,21 @@ interface MenuCtx {
 const MenuCtx = createContext<MenuCtx | null>(null);
 
 /**
- * Whether the last input was a key rather than the pointer. Set in the capture phase, so it is
- * already current when a handler for that same input opens a menu.
- */
-let keyInput = false;
-document.addEventListener("keydown", () => (keyInput = true), true);
-document.addEventListener("pointerdown", () => (keyInput = false), true);
-
-/**
  * Every script focus of a menu item goes through here, marking the item `data-kbd` when the keyboard
- * put it there. The CSS styles that mark beside `:focus-visible`: WebKitGTK never gives a
- * script-focused element `:focus-visible`, so without it no item would ever show the focus.
+ * put it there (`lib/kbdFocus` has why). The mark is set after the focus, so it overrides the one
+ * `kbdFocus` gives from the last input: a menu opened by the pointer from a marked opener is still a
+ * keyboard menu.
  */
 function focusItem(el: HTMLElement, kbd: boolean) {
   el.closest('[role="menu"]')?.querySelectorAll("[data-kbd]").forEach((i) => i.removeAttribute("data-kbd"));
-  el.toggleAttribute("data-kbd", kbd);
   el.focus();
+  el.toggleAttribute("data-kbd", kbd);
 }
 
 /** A menu opening now was opened from the keyboard: the last input was a key, or its opener shows keyboard focus. */
 function openedByKey() {
   const opener = document.activeElement;
-  return keyInput || !!opener?.matches(":focus-visible") || !!opener?.hasAttribute("data-kbd");
+  return lastInputWasKey() || !!opener?.matches(":focus-visible") || !!opener?.hasAttribute("data-kbd");
 }
 
 /**

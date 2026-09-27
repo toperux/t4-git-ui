@@ -135,7 +135,8 @@
 .pinned,
 .row:hover .pin,
 .selected .pin,
-.pin:focus-visible {
+.pin:focus-visible,
+.pin[data-kbd]:focus {
   opacity: 1;
 }
 /* On the icon, not the button: beats IconButton's own `.on` / `:hover` colours whatever the

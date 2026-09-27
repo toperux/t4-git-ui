@@ -70,6 +70,17 @@ describe("Menu", () => {
     expect(first.hasAttribute("data-kbd")).toBe(false);
   });
 
+  it("a pointer open from a marked opener still marks the first item", () => {
+    const { getByRole } = render(<Harness />);
+    const open = getByRole("button", { name: "Open" });
+    fireEvent.keyDown(document, { key: "Tab" });
+    act(() => open.focus());
+    expect(open.hasAttribute("data-kbd")).toBe(true);
+    fireEvent.pointerDown(open);
+    fireEvent.click(open);
+    expect(getByRole("menuitem", { name: "First" }).hasAttribute("data-kbd")).toBe(true);
+  });
+
   it("a shortcut chip is a picture, not part of the item's name", () => {
     const { getByRole } = render(
       <Menu open onClose={() => {}} label="History" anchor={null}>

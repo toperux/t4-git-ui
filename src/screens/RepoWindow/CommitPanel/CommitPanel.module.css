@@ -53,10 +53,12 @@
   outline: none;
 }
 /* Row-level indication carries focus while something is selected; otherwise the container shows it. */
-.list:focus-visible {
+.list:focus-visible,
+.list[data-kbd]:focus {
   box-shadow: none;
 }
-.list:focus-visible:not(:has(.selected)) {
+.list:focus-visible:not(:has(.selected)),
+.list[data-kbd]:focus:not(:has(.selected)) {
   box-shadow: inset 0 0 0 1px var(--accent);
 }
 /* Virtualized rows: absolute inside a spacer of the total height (beats TreeRow's own `.row` rule). */
@@ -126,7 +128,8 @@
 .list:focus-within .selected {
   background-color: var(--bg-selected);
 }
-.list:focus-visible .anchor {
+.list:focus-visible .anchor,
+.list[data-kbd]:focus .anchor {
   box-shadow: inset 0 0 0 1px var(--accent);
 }
 /* Mono path, ellipsis at the start: the box is rtl, the text an isolated ltr run. */
@@ -168,7 +171,8 @@
   margin: 0 calc(-1 * var(--space-2)) 0 0;
 }
 .row:hover .action,
-.action:focus-visible {
+.action:focus-visible,
+.action[data-kbd]:focus {
   opacity: 1;
 }
 /* Folder row: TreeRow is a button, so its Stage / Unstage action sits beside it, not inside; the
@@ -246,7 +250,8 @@
   font-weight: var(--weight-medium);
   outline: none;
 }
-.summary:focus-visible {
+.summary:focus-visible,
+.summary[data-kbd]:focus {
   box-shadow: none;
 }
 .summary::placeholder,
@@ -276,7 +281,8 @@
   resize: none;
   outline: none;
 }
-.body:focus-visible {
+.body:focus-visible,
+.body[data-kbd]:focus {
   box-shadow: none;
 }
 .checks {

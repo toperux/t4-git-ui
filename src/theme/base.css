@@ -47,7 +47,8 @@ body {
   background-clip: padding-box;
 }
 
-:focus-visible {
+:focus-visible,
+[data-kbd]:where(:focus) {
   outline: none;
   box-shadow: var(--focus-ring);
 }
