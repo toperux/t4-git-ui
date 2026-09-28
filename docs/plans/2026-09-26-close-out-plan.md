@@ -14,8 +14,8 @@ are scheduled below, mostly in the new *Linux track*; plan updated for it 2026-0
 (`docs/archive/plans/2026-09-26-triage-plan.md`).
 
 Row references are to `docs/plans/open-items.md` sections (§A–§P), and code and smoke-doc line numbers are as of
-2026-09-28 (`main` after #18). The Phase 1 section keeps its original numbers. `CF` =
-`docs/archive/plans/2026-09-12-consolidated-findings.md`.
+2026-09-28 (`main` after #18; `release.yml` cites after the CLI pin change). The Phase 1 section keeps its original
+numbers. `CF` = `docs/archive/plans/2026-09-12-consolidated-findings.md`.
 
 ---
 
@@ -57,11 +57,11 @@ working copy's sections):
 | 2a top-level `permissions: contents: read`, write only on `publish` | done (`release.yml:18`) |
 | 2b `github-actions` Dependabot entry | done (`.github/dependabot.yml:4`) |
 | 2b every `uses:` pinned by SHA | partly: rust-toolchain, rust-cache, cargo-binstall, action-gh-release pinned; `checkout@v7`, `setup-node@v7` (both workflows), `upload-artifact@v7`, `download-artifact@v8` not |
-| 2b Tauri CLI `cargo install tauri-cli --version 2.11.4 --locked` | differs: `cargo binstall --no-confirm --locked 'tauri-cli@2.11.4'` (`release.yml:158`; a prebuilt binary, built from source on macOS); decide whether to switch. If the CLI-pin PR (§P, 2.11.5) lands before this phase, start from 2.11.5 |
+| 2b Tauri CLI `cargo install tauri-cli --version 2.11.4 --locked` | differs: `cargo binstall --no-confirm --locked 'tauri-cli@2.11.5'` (`release.yml:160`; a prebuilt binary, built from source on macOS; 2.11.5 since the CLI pin change, 2026-09-28); decide whether to switch. `checks.yml` now fails a PR whose pin and `package-lock.json` differ |
 | 1a `signing` environment, 1b secrets there, 1c Actions settings | not done |
-| 2b `ssign`, AppImage tool pins | not done. The doc's six tool hashes match tauri-cli 2.11.4 (bundler 2.9.4): re-derive them if the CLI-pin PR lands first. #18's repack also takes `squashfs-tools` and `python3-cryptography` from apt, unpinned (`release.yml:127-129`); pin them by a version floor, not exact versions (triage U5). The Linux build-dependencies step, right after the apt install, fails with a clear message unless squashfs-tools is ≥ 4.5 (`dpkg --compare-versions "$(dpkg-query -W -f='${Version}' squashfs-tools)" ge 1:4.5` — the package has epoch 1, so a bare `4.5` always passes) and `python3 -c 'import cryptography'` succeeds |
-| 2c build / bundle split | partly: the macOS certificate import is already its own macOS-only step (`release.yml:182`); build and bundle are one step holding the updater key (`:212`), and #18 added a second step holding it, "Re-sign the AppImage" (`:251`), which the split keeps after the bundle |
-| 2d signature proofs | partly: macOS done (`Verify the macOS signature`, `release.yml:290`: bundle, `.app.tar.gz`, `.dmg`); Windows not (nothing to prove until signed). Separately, #18 verifies the AppImage's *updater* `.sig` (`.github/scripts/verify-updater-sig.py`, `:269`); extending that to `.exe.sig` / `.app.tar.gz.sig` is §P's row, which fits here |
+| 2b `ssign`, AppImage tool pins | not done. The doc's six tool hashes match tauri-cli 2.11.4 (bundler 2.9.4); the CLI pin change's 2.11.5 locks the same bundler 2.9.4, so check them once rather than re-derive. #18's repack also takes `squashfs-tools` and `python3-cryptography` from apt, unpinned (`release.yml:127-129`); pin them by a version floor, not exact versions (triage U5). The Linux build-dependencies step, right after the apt install, fails with a clear message unless squashfs-tools is ≥ 4.5 (`dpkg --compare-versions "$(dpkg-query -W -f='${Version}' squashfs-tools)" ge 1:4.5` — the package has epoch 1, so a bare `4.5` always passes) and `python3 -c 'import cryptography'` succeeds |
+| 2c build / bundle split | partly: the macOS certificate import is already its own macOS-only step (`release.yml:184`); build and bundle are one step holding the updater key (`:214`), and #18 added a second step holding it, "Re-sign the AppImage" (`:253`), which the split keeps after the bundle |
+| 2d signature proofs | partly: macOS done (`Verify the macOS signature`, `release.yml:293`: bundle, `.app.tar.gz`, `.dmg`); Windows not (nothing to prove until signed). Separately, #18 verifies the AppImage's *updater* `.sig` (`.github/scripts/verify-updater-sig.py`, `:272`); extending that to `.exe.sig` / `.app.tar.gz.sig` is §P's row, which fits here |
 | 2e dry-run publish | not done |
 
 Then the doc's verify sequence (cold-cache dry run, delete repo-level secrets, dry run again, SHA pinning on
@@ -96,9 +96,9 @@ first release after Phase 1b is also the first signed one, so the same update pr
 - **At the release after:** the fixed one updates in place.
 - **Then tick AC** (`smoke-test-post-v1.md:761`).
 
-**If the CLI-pin PR (§P) has landed** before a release, that release is the first whose updater signatures carry
-`version:`, so the gate's updates are its end-to-end check (`2026-09-27-ssh-prompts-check-and-cli-pin-plan.md`,
-Part B step 5).
+**The CLI pin change (§P) landed on `main` 2026-09-28**, so the next release is the first whose updater signatures
+carry `version:`, and the gate's updates are its end-to-end check
+(`docs/archive/plans/2026-09-27-ssh-prompts-check-and-cli-pin-plan.md`, Part B › *Verify › End to end*).
 
 Releases happen only on the user's request naming the version (the `release` skill), and pushes only on the
 user's word.
@@ -171,7 +171,7 @@ Direction B where it has a screen, `screens/` for the rest.
 
 #18 came from a Linux session on Ubuntu 26.04 (native Wayland, and Xvfb through `docs/smoke/smoke-linux.md`), so
 the Linux rows no longer wait on hardware. Proposed: they run in that session, beside the Windows phases (the
-CLI-pin PR touches only `release.yml` and could run from either):
+CLI pin change, `release.yml` and `checks.yml` only, ran from Windows):
 - **The restore hang (§O):**
   - Phase A: diagnose on the native host with the fixed `killapp`; a 30-launch baseline, and no A/B unless A's
     review wants one (D-b).
@@ -182,8 +182,8 @@ CLI-pin PR touches only `release.yml` and could run from either):
 - **T5:** AT-SPI driving (`2026-09-27-t5-atspi-plan.md`).
 - **#18's follow-up PRs, each planned:**
   - ssh fail-fast (`2026-09-27-ssh-fail-fast-plan.md`).
-  - The CLI-pin bump to 2.11.5 (`2026-09-27-ssh-prompts-check-and-cli-pin-plan.md`, Part B). The first release built
-    with 2.11.5 unlocks `requireSignedVersion` (§P).
+  - ~~The CLI-pin bump to 2.11.5~~ **done 2026-09-28** (`docs/archive/plans/2026-09-27-ssh-prompts-check-and-cli-pin-plan.md`,
+    Part B). The first release after it unlocks `requireSignedVersion` (§P).
 - **The AppImage release walks:** in the gate above.
 
 ## Phase 5 — other hardware (§B, whenever available)

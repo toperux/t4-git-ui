@@ -35,6 +35,20 @@ jobs:
           node-version: 24
           cache: npm
 
+      # release.yml installs the Tauri CLI from crates.io at a pinned version, and
+      # package-lock.json has @tauri-apps/cli; they share version numbers and are
+      # bumped together. Dependabot bumps only the lock, so its PR goes red here,
+      # naming both. Platform-independent, so checked once, before the long build.
+      - name: Tauri CLI pin matches package-lock.json
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          pin=$(grep -oP "binstall .*'tauri-cli@\K[^']+" .github/workflows/release.yml) \
+            || { echo "no binstall 'tauri-cli@<version>' line in release.yml" >&2; exit 1; }
+          lock=$(node -p "require('./package-lock.json').packages['node_modules/@tauri-apps/cli'].version")
+          [ "$pin" = "$lock" ] || { echo "release.yml pins tauri-cli@$pin, package-lock.json has @tauri-apps/cli $lock: bump both together" >&2; exit 1; }
+
       - name: Linux build dependencies (Tauri 2)
         if: runner.os == 'Linux'
         run: |

@@ -1,7 +1,7 @@
 # Plan: say why an ssh or https login failed (fail fast with a clear message)
 
 _Written 2026-09-27, revised through review round 2. Source: the open-items row "ssh prompts the app can't answer well",
-measured the same day (Part A of `docs/plans/2026-09-27-ssh-prompts-check-and-cli-pin-plan.md`). The user chose
+measured the same day (Part A of `docs/archive/plans/2026-09-27-ssh-prompts-check-and-cli-pin-plan.md`). The user chose
 "fail fast with a clear message"._
 
 ## What is known

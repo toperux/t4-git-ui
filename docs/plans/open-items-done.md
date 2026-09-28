@@ -614,3 +614,12 @@ fixes and the walk added three more. The walk is `docs/archive/walks/2026-09-19-
   2026-09-28** (triage U2), fixed by `afc40f3` (the fix batch's 1b): nothing is reported while a window restores.
   Its seed A poll never went short, for `main` or a spawned window, on either OS
   (`docs/archive/walks/2026-09-27-pr18-linux-rewalk.md` › *After the fix batch*).
+- **CLI pin drift** (triaged 2026-09-27, the AppImage plan's Triage L2) — **closed 2026-09-28** by the CLI pin change,
+  pushed straight to `main` (`docs/archive/plans/2026-09-27-ssh-prompts-check-and-cli-pin-plan.md`, Part B).
+  - **The drift:** `release.yml` pinned `tauri-cli@2.11.4` while `package-lock.json` had `@tauri-apps/cli` 2.11.5,
+    against the pin's own comment.
+  - **The fix:** the pin is 2.11.5; the AppImage re-sign step passes `--app-version`, so its signature carries
+    `version:` like the others; `checks.yml` fails a PR whose pin and lock differ, so it can't drift again unseen.
+  - **Verified:** the guard against three scratch cases (equal, differ, pin line missing). CI on the push to
+    `main` and a `workflow_dispatch` run of `release.yml` (its `.sig` files ending in `version:`) are recorded here
+    once run. End to end: the next release's gate.

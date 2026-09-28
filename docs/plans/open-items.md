@@ -318,7 +318,7 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
     `SSH_ASKPASS`, the prompt appears, and on Xvfb it would hang unseen. Windows has GCM, which prompts (done file
     §B, "Dogfooding, the credential half"; that laptop is Windows, confirmed 2026-09-27). The decision below covers
     both: a clear message for each.
-  - **Measured 2026-09-27** (`docs/plans/2026-09-27-ssh-prompts-check-and-cli-pin-plan.md`, Part A).
+  - **Measured 2026-09-27** (`docs/archive/plans/2026-09-27-ssh-prompts-check-and-cli-pin-plan.md`, Part A).
     - **How:** the app's environment (`LC_ALL=C GIT_TERMINAL_PROMPT=0`, stdin null, no terminal under `setsid`)
       with `timeout 30`, against GitHub.
     - **Setup:** `DISPLAY` set; no `SSH_ASKPASS`, `GIT_ASKPASS`, `core.askPass` or credential helper;
@@ -375,17 +375,26 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
     - the release after: the fixed one updates in place;
     - then tick AC :761. `.rpm` is ruled covered by the `.deb` walk (2026-09-27): without `APPIMAGE` both take the
       Download… path (`update.rs:45-50`).
-- **CLI pin drift (triaged 2026-09-27, the AppImage plan's Triage L2):** `release.yml:158` pins `tauri-cli@2.11.4`,
-  while `package-lock.json` has `@tauri-apps/cli` 2.11.5, against the pin's own comment. (The macOS leg builds the
-  CLI from source; `--locked` was added 2026-09-27 after the unlocked build broke on a newer `tauri-bundler`.)
-  Align them (bump both). At 2.11.5+, add `--app-version "$ver"` to the AppImage re-sign step, since `tauri build`
-  then binds the version into the other signatures.
+- **The tauri-cli 2.12.0 bump** (added 2026-09-28, the CLI pin plan's B-1 and B-3). Not planned yet. 2.12.0 (bundler
+  2.10.0) came out 2026-09-26; the pin stays on 2.11.5 until a plan checks it (the version binding, `--app-version`,
+  `--locked`, a dispatch run). `checks.yml`'s guard keeps `release.yml`'s pin and `package-lock.json` in step, so
+  Dependabot's npm group PR carrying 2.12.0 will go red on it. **Then:** comment
+  `@dependabot ignore @tauri-apps/cli minor version` on that PR (on the user's word). That closes the group PR; the
+  other bumps come back at the next weekly run. The ignore is stored by GitHub, not in the repo, and covers every
+  later minor too: `@dependabot show @tauri-apps/cli ignore conditions` shows it. Lift it with
+  `@dependabot unignore @tauri-apps/cli` on an open npm group PR, even if the bump is done by hand, or later minors
+  are never proposed. When the ignore is applied, add *ignore active since <date>* here (a docs commit on `main`,
+  pushed on the user's word).
+- **`release.yml`'s macOS signing-order comment names 2.11.5 before a run confirmed it** (the CLI pin change's triage
+  T1, 2026-09-28). The *Verify the macOS signature* comment says the bundler at 2.11.5 signs before it packs the
+  `.app.tar.gz` and `.dmg`. A `workflow_dispatch` run of `release.yml` on `main` confirms it: that step fails red if
+  the order changed. Close this row when that run's macOS leg is green.
 - **Turn on `requireSignedVersion` (decided 2026-09-27 to track, not schedule).** From tauri-cli 2.11.5 on, every
   updater signature carries `version:`, and updater 2.12 rejects a signed version that doesn't match `latest.json`.
   A signature with no version is still accepted while `requireSignedVersion` is off, which leaves a downgrade
   bypass: serve an old, version-less signature. The threat is low, since the manifest is served from GitHub
   releases over HTTPS. **Precondition:** every artifact a `latest.json` can point at carries a version, which is true
-  from the first release built with 2.11.5 (the CLI pin plan, Part B). Then set it in `tauri.conf.json`.
+  from the first release after the CLI pin change (2026-09-28). Then set it in `tauri.conf.json`.
 - **Only the AppImage's updater `.sig` is verified in CI (triaged 2026-09-27, the AppImage plan's Triage L4).** The
   Windows `.exe.sig` and the macOS `.app.tar.gz.sig` come straight from the bundler and nothing touches the files
   after signing, so the risk the AppImage check guards against doesn't apply. To extend it, run

@@ -132,6 +132,7 @@ artifacts**: repack (items 1–4 and 7), sign (5), verify (6).
    `cargo tauri signer sign "$f"`, which overwrites `<file>.sig`.
    - The published `.sig` has no `version:` binding, and 2.11.4 lacks `--app-version`, so this matches today.
    - Add `--app-version "$ver"` if the pinned CLI is bumped to one where `tauri build` binds it (2.11.5 does).
+     **Added 2026-09-28** with the pin at 2.11.5 (the CLI pin change).
 6. **Verify the signature** against the shipped pubkey (`plugins.updater.pubkey` in `tauri.conf.json`), in a step
    with no secrets.
    - A `.sig` for the pre-repack file would break every AppImage user's update silently. It is the Linux
@@ -220,7 +221,7 @@ that way keeps working.
   and host library paths differ by distro.
 - **Moving the release runner:** parked in §E until 2026-12-23. It wouldn't fix this anyway.
 - **The `tauri-cli@2.11.4` pin vs `@tauri-apps/cli` 2.11.5 in `package-lock.json`:** unrelated drift (the pin's
-  comment at `release.yml:151-154`). Noted separately.
+  comment at `release.yml:151-154`). Noted separately. **Done 2026-09-28** (the CLI pin change, straight to `main`).
 
 ## Triage (2026-09-27)
 
@@ -231,7 +232,7 @@ Skipped items and accepted limits from the review of the implementation, decided
 | D1 | Users on a 0.10.12-or-earlier AppImage get a blank window, so they can't update in-app | A permanent line in the release body's Linux section: download by hand; the README covers the DMA-BUF case |
 | D2 | Commit, push and the `workflow_dispatch` run | After this triage |
 | L1 | The runtime's `.digest_md5` goes stale after the repack | Recompute it: `appimage-digest.py` reproduces appimagetool's algorithm, quirks included, checks it on the original and rewrites it |
-| L2 | No `--app-version` binding; CI pins `tauri-cli@2.11.4` while `package-lock.json` has 2.11.5 | Accepted; open-items row: align the pin, then add `--app-version` |
+| L2 | No `--app-version` binding; CI pins `tauri-cli@2.11.4` while `package-lock.json` has 2.11.5 | Accepted; open-items row: align the pin, then add `--app-version`. **Done 2026-09-28** (the CLI pin change, straight to `main`) |
 | L3 | 2.11.4's `signer sign` reading the key from env is unproven | The `workflow_dispatch` run proves it (the verify step fails red otherwise) |
 | L4 | Only the AppImage's updater `.sig` is verified in CI | Accepted; open-items row: extend the check to Windows and macOS later |
 | L5 | No test on an Ubuntu 22.04 host, or with the NVIDIA proprietary driver | Accepted, noted in open-items §P |

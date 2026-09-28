@@ -154,8 +154,10 @@ jobs:
         # in package-lock.json (they share versions); bump both together.
         # `--locked` is passed to `cargo install` when no prebuilt binary is
         # found (the macOS leg): without it the source build takes the newest
-        # tauri-bundler, which 2.11.4 no longer compiles against.
-        run: cargo binstall --no-confirm --locked 'tauri-cli@2.11.4'
+        # tauri-bundler, which the pinned CLI may not compile against (bundler
+        # 2.10.0 broke 2.11.4). checks.yml fails a PR whose package-lock.json
+        # and this pin differ; it reads the version from the line below.
+        run: cargo binstall --no-confirm --locked 'tauri-cli@2.11.5'
 
       # Staging picks the first file matching each glob, and the cache restores
       # target/ from an earlier run. A leftover installer from a previous
@@ -245,9 +247,9 @@ jobs:
 
       # The repack changed the file the bundler signed, so it is signed again.
       # The key is in this step alone. `signer sign` overwrites `<file>.sig`.
-      # Add `--app-version` once the pinned CLI is one whose `tauri build` binds
-      # the version into the signature (2.11.5 does): the .sig 2.11.4 writes
-      # carries none, and its `signer sign` has no such flag.
+      # `--app-version`: from 2.11.5, `tauri build` binds the version into every
+      # other updater signature, and the updater rejects a bound version that
+      # differs from latest.json's. The re-signed AppImage carries it too.
       - name: Re-sign the AppImage
         if: runner.os == 'Linux'
         shell: bash
@@ -255,7 +257,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           FILE: ${{ steps.appimage.outputs.file }}
-        run: cargo tauri signer sign "$FILE"
+          VER: ${{ needs.version.outputs.version }}
+        run: cargo tauri signer sign --app-version "$VER" "$FILE"
 
       # A .sig left over from before the repack would fail every AppImage
       # user's update, and nobody would hear of it until they tried. Checked
@@ -279,7 +282,7 @@ jobs:
       # copies, so checking only the .app would rest on the assumption that the
       # bundler packs them after signing — and that assumption failing is exactly
       # the silent identity regression this step exists to catch. At tauri-cli
-      # 2.11.4 the bundler does sign first: both repacked copies were confirmed to
+      # 2.11.5 the bundler does sign first: both repacked copies were confirmed to
       # carry the certificate. So this guards against a version bump reordering
       # that, rather than doubting the current order.
       #
