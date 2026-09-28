@@ -10,7 +10,7 @@ import { ToastStack } from "../../components/ui/Toast/Toast";
 import { AheadBehind } from "../../components/ui/TreeRow/TreeRow";
 import { prettyUrl } from "../../lib/paths";
 import { useDialogStore } from "../../store/dialogStore";
-import { useOpsStore } from "../../store/opsStore";
+import { selectRunning, useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
 import { useStatusStore } from "../../store/statusStore";
 import { useTabsStore } from "../../store/tabsStore";
@@ -321,10 +321,11 @@ export function DockPanel({
 }
 
 /** Detached HEAD / merge / rebase / conflict banners above the grid (States artboard). */
-function StateBanners() {
+export function StateBanners() {
   const refs = useRepoStore((st) => st.refs);
   const status = useStatusStore((st) => st.status);
   const openDialog = useDialogStore((st) => st.open);
+  const running = useOpsStore(selectRunning);
   const banners = computeBanners(refs, status);
   if (banners.length === 0) return null;
 
@@ -382,11 +383,22 @@ function StateBanners() {
         <Banner
           key={b.id}
           kind={b.kind}
-          actions={b.buttons.map((btn) => (
-            <Button key={btn.label} size="sm" variant={btn.primary ? "primary" : "secondary"} onClick={() => act(btn.action)}>
-              {btn.label}
-            </Button>
-          ))}
+          actions={b.buttons.map((btn) => {
+            // Every button but the two view switches starts an op, or opens a dialog that does.
+            const gated = running && btn.action !== "commitMerge" && btn.action !== "openCommitPanel";
+            return (
+              <Button
+                key={btn.label}
+                size="sm"
+                variant={btn.primary ? "primary" : "secondary"}
+                disabled={gated}
+                title={gated ? "Operation in progress" : undefined}
+                onClick={() => act(btn.action)}
+              >
+                {btn.label}
+              </Button>
+            );
+          })}
         >
           {b.text}
         </Banner>
