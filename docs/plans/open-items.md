@@ -3,7 +3,7 @@
 _Written 2026-09-02, the day after v1 was accepted. This is the one list of what is still open;
 it folds together the v1 plan's "Known gaps", the 2026-09-01 codebase review's deferred rows and
 the README's "Next" line (review item H4). Since 2026-09-26 every row except §C's roadmap is
-scheduled in `2026-09-26-close-out-plan.md`; §Q's accepted limits wait on their reopen triggers, and three of
+scheduled in `2026-09-26-close-out-plan.md`; §Q's accepted limits wait on their reopen triggers, and four of
 them are also in a close-out phase._
 
 _Done, fixed, walked and closed rows live in `open-items-done.md` (split 2026-09-24), under the same
@@ -391,7 +391,8 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
 - **Only the AppImage's updater `.sig` is verified in CI (triaged 2026-09-27, the AppImage plan's Triage L4).** The
   Windows `.exe.sig` and the macOS `.app.tar.gz.sig` come straight from the bundler and nothing touches the files
   after signing, so the risk the AppImage check guards against doesn't apply. To extend it, run
-  `.github/scripts/verify-updater-sig.py` on those legs too. Scheduled in close-out Phase 1b (row 2d), 2026-09-28.
+  `.github/scripts/verify-updater-sig.py` on those legs too, and make it check the signed `version:` on every leg.
+  Scheduled in close-out Phase 1b (row 2d), 2026-09-28.
 - **Row found in review: a repository that crashes the app while loading crashes every later launch.** Wider since
   the fix batch: a restored window's tabs are in the file before they open (since Phase C for spawned windows,
   since the 2026-09-27 seed for `main`), so the loop also covers crashes inside `open_repo`. Scheduled in Phase 2a
@@ -422,7 +423,7 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
 
 ## Q. Accepted limits — open, each with a reopen trigger
 
-_Added 2026-09-28 (`docs/plans/2026-09-28-claude-md-wording-plan.md`)._
+_Added 2026-09-28 (`docs/archive/plans/2026-09-28-claude-md-wording-plan.md`)._
 - **The rule:** an accepted limit with a reopen trigger is open and lives here; one with no trigger is closed and
   lives in `open-items-done.md`, in the section it came from or a new dated section. A row marked "do not
   re-offer" keeps that note here: it is raised again only if its trigger fires.
@@ -476,9 +477,9 @@ The rows below came from elsewhere in this file (the first nine) and from the do
 - **`requireSignedVersion` is off.** A signature with no version is still accepted, which leaves a downgrade bypass:
   serve an old, version-less signature. The threat is low, since the manifest is served from GitHub releases over
   HTTPS. From tauri-cli 2.11.5 on, every updater signature carries `version:`, and updater 2.12 rejects a signed
-  version that doesn't match `latest.json`. Decided 2026-09-27 to track, not schedule. **Reopen:** its precondition
+  version that doesn't match `latest.json`. Tracked from 2026-09-27; scheduled 2026-09-28. **Reopen:** its precondition
   holds — every artifact a `latest.json` can point at carries a version, true from the first release after the CLI
-  pin change (2026-09-28). Then set it in `tauri.conf.json`; the close-out plan's release gate says so. *From §P.*
+  pin change (2026-09-28). Then set it in `tauri.conf.json`: scheduled in close-out Phase 1b (2026-09-28). *From §P.*
 - **macOS notarization: won't do for now.** Needs a paid Apple Developer account. The app is signed with the shared
   self-signed certificate (stable identity, so folder grants survive updates), and the release body carries the
   quarantine step. Closed 2026-09-26 (close-out Phase 0). **Reopen:** there is a Mac user. *From the done file §B.*

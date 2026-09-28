@@ -9,17 +9,42 @@ Phase 5's macOS rows closed on CI's leg, or a Phase 2b design row ending "accept
 "measured, fine" closure is not an accepted limit and still goes to the done file — except `status.rs`, which stays
 in §Q with the numbers.
 
-**Status:** 2026-09-26. **Phase 0 done 2026-09-26** (`59e9383`). **Phase 1 done 2026-09-26**
+**Status:** 2026-09-28. **Phase 0 done 2026-09-26** (`59e9383`). **Phase 1 done 2026-09-26**
 (`docs/archive/plans/2026-09-26-phase-1-plan.md`, walk record `docs/archive/walks/2026-09-26-phase-1-walk.md`):
-the next tag is unblocked. Phase 1b or 2a next. Open decisions: §J (before Phase 2), the Phase 3 threshold, the
-Phase 4 reference canvas, and hardware (before Phase 5). **PR #18 merged 2026-09-27** (`5cc5de9`: the Linux
-harness, the WebKitGTK focus fixes, the restore guard and its follow-ups, the AppImage repack). Its rows (§O, §P)
-are scheduled below, mostly in the new *Linux track*; plan updated for it 2026-09-28. **Triage done 2026-09-28**
-(`docs/archive/plans/2026-09-26-triage-plan.md`).
+the next tag is unblocked. **PR #18 merged 2026-09-27** (`5cc5de9`: the Linux harness, the WebKitGTK focus fixes,
+the restore guard and its follow-ups, the AppImage repack). Its rows (§O, §P) are scheduled below, mostly in the
+new *Linux track*; plan updated for it 2026-09-28. **Triage done 2026-09-28**
+(`docs/archive/plans/2026-09-26-triage-plan.md`). **The CLI pin change done 2026-09-28** (`ee59475`: tauri-cli
+2.11.5, `--app-version` on the AppImage re-sign, the pin guard in `checks.yml`), verified by CI run 36391087334
+and the `workflow_dispatch` run 36391567783 (every `.sig` ends in `version:0.10.12`), recorded in `fda5293`.
+**`CLAUDE.md`'s workflow and open-items §Q** since 2026-09-28 (`430b6da`): every phase, and each row picked up
+outside one, follows `CLAUDE.md`. **Next: the §J decision, then Phase 2a** (see *Order*). Open decisions: §J
+(before Phase 2), the Phase 3 threshold, the Phase 4 reference canvas, and hardware (before Phase 5).
 
 Row references are to `docs/plans/open-items.md` sections (§A–§Q), and code and smoke-doc line numbers are as of
 2026-09-28 (`main` after #18; `release.yml` cites after the CLI pin change). The Phase 1 section keeps its original
 numbers. `CF` = `docs/archive/plans/2026-09-12-consolidated-findings.md`.
+
+## Order
+
+Agreed with the user 2026-09-28 (`docs/archive/plans/2026-09-28-close-out-refresh-plan.md`):
+
+1. §J decision (it decides which rows 2a and 2b carry).
+2. Phase 2a, then a release and the gate: the first release with version-bound signatures, and the first AppImage
+   release walk (with U4).
+3. Phase 1b (signing, and turning on `requireSignedVersion` with its local update test). After 2a, so 2a's known
+   fixes don't wait on the signing setup.
+4. Phase 2b, then a release: the first signed one, and the first with `requireSignedVersion` on; its update walk
+   proves the signed pipeline end to end, and it is the second AppImage walk (then AC ticks). The setting's first
+   real check is the update from 2b's release to the next.
+5. Phase 3 (threshold decision first).
+6. Phase 4 (reference decision first).
+7. Phase 5 (hardware decision first), or earlier, when the hardware is there.
+8. Phase 6, on 2026-12-23.
+
+- In parallel, on the Linux machine: the *Linux track* (the restore hang's Phase A/B, T20, T7, the ssh fail-fast
+  PR, T5).
+- Phase 1b still does not gate Phase 2 (see Phase 2); this only fixes the order chosen.
 
 ---
 
@@ -34,7 +59,7 @@ at Phase 1b; the "user's own update" row re-pointed at the release gate; the §I
 ## Phase 1 — release-gate sitting (the user, about an hour)
 
 **Done 2026-09-26**, all green — `docs/archive/walks/2026-09-26-phase-1-walk.md`. The bullets below are the plan
-as written: the DPI box was in fact walked on a real 150 % monitor, and AJ's box is now at `:1256`.
+as written: the DPI box was in fact walked on a real 150 % monitor, and AJ's box is now at `:1272`.
 
 - **First, back up `%APPDATA%\dev.topher.t4gitui`**, before asking the user to close the app — closing windows
   one by one drops tabs from `layout.json`.
@@ -65,7 +90,7 @@ working copy's sections):
 | 1a `signing` environment, 1b secrets there, 1c Actions settings | not done |
 | 2b `ssign`, AppImage tool pins | not done. The doc's six tool hashes match tauri-cli 2.11.4 (bundler 2.9.4); the CLI pin change's 2.11.5 locks the same bundler 2.9.4, so check them once rather than re-derive. #18's repack also takes `squashfs-tools` and `python3-cryptography` from apt, unpinned (`release.yml:127-129`); pin them by a version floor, not exact versions (triage U5). The Linux build-dependencies step, right after the apt install, fails with a clear message unless squashfs-tools is ≥ 4.5 (`dpkg --compare-versions "$(dpkg-query -W -f='${Version}' squashfs-tools)" ge 1:4.5` — the package has epoch 1, so a bare `4.5` always passes) and `python3 -c 'import cryptography'` succeeds |
 | 2c build / bundle split | partly: the macOS certificate import is already its own macOS-only step (`release.yml:184`); build and bundle are one step holding the updater key (`:214`), and #18 added a second step holding it, "Re-sign the AppImage" (`:253`), which the split keeps after the bundle |
-| 2d signature proofs | partly: macOS done (`Verify the macOS signature`, `release.yml:293`: bundle, `.app.tar.gz`, `.dmg`); Windows not (nothing to prove until signed). Separately, #18 verifies the AppImage's *updater* `.sig` (`.github/scripts/verify-updater-sig.py`, `:272`); **a task of this phase** (since 2026-09-28): extend that check to `.exe.sig` / `.app.tar.gz.sig`, run on the Windows and macOS legs (§P's row) |
+| 2d signature proofs | partly: macOS done (`Verify the macOS signature`, `release.yml:293`: bundle, `.app.tar.gz`, `.dmg`); Windows not (nothing to prove until signed). Separately, #18 verifies the AppImage's *updater* `.sig` (`.github/scripts/verify-updater-sig.py`, `:272`); **a task of this phase** (since 2026-09-28): extend that check to `.exe.sig` / `.app.tar.gz.sig`, run on the Windows and macOS legs (§P's row); and the script fails unless each `.sig`'s trusted comment carries `version:<the release's version>` (the `version` job's output), on every leg |
 | 2e dry-run publish | not done |
 
 Then the doc's verify sequence (cold-cache dry run, delete repo-level secrets, dry run again, SHA pinning on
@@ -74,6 +99,12 @@ Then the doc's verify sequence (cold-cache dry run, delete repo-level secrets, d
 Update the `release` skill to match: Windows is signed now ("What a release does not do", the intro), and
 **every Release run waits for approval** — step 5 gains *approve it under Actions › the run › Review
 deployments*.
+
+Turn on `requireSignedVersion` in `tauri.conf.json` (open-items §Q). It ships in the release after 1b (2b's, per
+*Order*) and acts from the update after that, since the setting works in the app that ships it. Before it ships,
+test it: a local build with it on, versioned below the published 2a release, updates to that release through
+`docs/smoke/fixtures/throttle-proxy.mjs`, as in Phase 1's updater walk. Its first real check is the update from
+2b's release to the next.
 
 The dry run cannot prove an installed copy still updates to a release built this way; the release gate below
 covers it.
@@ -102,9 +133,9 @@ first release after Phase 1b is also the first signed one, so the same update pr
 
 **The CLI pin change (§P) landed on `main` 2026-09-28**, so the next release is the first whose updater signatures
 carry `version:`, and the gate's updates are its end-to-end check
-(`docs/archive/plans/2026-09-27-ssh-prompts-check-and-cli-pin-plan.md`, Part B › *Verify › End to end*). **After
-that first release, turn on `requireSignedVersion`** (open-items §Q, *`requireSignedVersion` is off*): its
-precondition then holds.
+(`docs/archive/plans/2026-09-27-ssh-prompts-check-and-cli-pin-plan.md`, Part B › *Verify › End to end*). After that
+first release, `requireSignedVersion`'s precondition holds (open-items §Q, *`requireSignedVersion` is off*);
+Phase 1b turns it on.
 
 Releases happen only on the user's request naming the version (the `release` skill), and pushes only on the
 user's word.
@@ -145,8 +176,11 @@ Rows marked **design needed** have no agreed fix; the Phase 2 plan decides each 
 Split into **2a** (the rows with a fix given) and **2b** (the design-needed rows), each with its own release,
 so the known fixes do not wait on the design work. 2a's walk also runs triage T8's check: launch the build with
 `smoke-launch.ps1 -Proxy http://127.0.0.1:8888` and `throttle-proxy.mjs` running, and see `CONNECT github.com` in
-the proxy's log (from the launch check, or Settings › **Check now**). Per part: gates green, one smoke group over
-CDP, squash, then a release through the `release` skill on the user's request, then the release gate above.
+the proxy's log (from the launch check, or Settings › **Check now**). Each part runs under `CLAUDE.md`'s
+workflow: its own plan and plan review loop, the user's go, the change committed locally (gates green, one smoke
+group over CDP), the change review loop and triage, then the squash, rehearsed in a throwaway worktree with the
+final tree checked identical. The push and the release (through the `release` skill) each wait on the user's
+word; then the release gate above.
 Phase 1 must be done before 2a's release (the updater 2.12 walk gates the next tag). Phase 1b does **not** gate
 Phase 2: signing ships in whichever release follows it.
 
@@ -177,9 +211,9 @@ Direction B where it has a screen, `screens/` for the rest.
 ## Linux track — from #18, on the Linux machine (§O, §P)
 
 #18 came from a Linux session on Ubuntu 26.04 (native Wayland, and Xvfb through `docs/smoke/smoke-linux.md`), so
-the Linux rows no longer wait on hardware. Proposed: they run in that session, beside the Windows phases (the
+the Linux rows no longer wait on hardware. They run in that session, beside the Windows phases (the
 CLI pin change, `release.yml` and `checks.yml` only, ran from Windows):
-- **The restore hang (§O):**
+- **The restore hang (§O)** (`docs/plans/2026-09-26-linux-menu-focus-and-restore-plan.md`):
   - Phase A: diagnose on the native host with the fixed `killapp`; a 30-launch baseline, and no A/B unless A's
     review wants one (D-b).
   - Phase B: the fix. Verify with 0 hangs in 50 launches.
@@ -189,8 +223,9 @@ CLI pin change, `release.yml` and `checks.yml` only, ran from Windows):
 - **T5:** AT-SPI driving (`2026-09-27-t5-atspi-plan.md`).
 - **#18's follow-up PRs, each planned:**
   - ssh fail-fast (`2026-09-27-ssh-fail-fast-plan.md`).
-  - ~~The CLI-pin bump to 2.11.5~~ **done 2026-09-28** (`docs/archive/plans/2026-09-27-ssh-prompts-check-and-cli-pin-plan.md`,
-    Part B). The first release after it unlocks `requireSignedVersion` (§Q; the release gate above says so).
+  - ~~The CLI-pin bump to 2.11.5~~ **done 2026-09-28**
+    (`docs/archive/plans/2026-09-27-ssh-prompts-check-and-cli-pin-plan.md`, Part B). The first release after it
+    unlocks `requireSignedVersion` (§Q; Phase 1b turns it on).
 - **The AppImage release walks:** in the gate above.
 
 ## Phase 5 — other hardware (§B, whenever available)
