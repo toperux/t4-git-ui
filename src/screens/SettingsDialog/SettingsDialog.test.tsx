@@ -7,7 +7,16 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), ask: vi.fn() }));
 vi.mock("../../api/ipc", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/ipc")>();
   const pending = () => new Promise<never>(() => {});
-  return { ...actual, setGitPath: vi.fn(), getFileDiff: vi.fn(pending), getChangedFiles: vi.fn(pending), getSigning: vi.fn(), setSigning: vi.fn() };
+  return {
+    ...actual,
+    setGitPath: vi.fn(),
+    getFileDiff: vi.fn(pending),
+    getChangedFiles: vi.fn(pending),
+    getSigning: vi.fn(),
+    setSigning: vi.fn(),
+    setTool: vi.fn(pending),
+    checkForUpdate: vi.fn(pending),
+  };
 });
 vi.mock("../../theme/theme", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../theme/theme")>();
@@ -28,6 +37,19 @@ const setThemeMock = theme.setTheme as unknown as ReturnType<typeof vi.fn>;
 
 /** The sections sit on three tabs, and a hidden panel's controls are out of the a11y tree. */
 const goTo = (r: ReturnType<typeof render>, name: string) => fireEvent.click(r.getByRole("tab", { name }));
+
+/**
+ * A focused control that disables itself drops the focus to `<body>` in the webview, outside the
+ * dialog's form; jsdom keeps it on the disabled element, so blur() gets there. Esc must still close.
+ */
+async function escAfterSelfDisable(control: HTMLElement, onClose: ReturnType<typeof vi.fn>) {
+  control.focus();
+  fireEvent.click(control);
+  await waitFor(() => expect((control as HTMLButtonElement).disabled).toBe(true));
+  control.blur();
+  fireEvent.keyDown(document.body, { key: "Escape" });
+  expect(onClose).toHaveBeenCalledTimes(1);
+}
 
 /** Every signing key unset, with the named ones overridden. */
 const signing = (over: Partial<SigningConfig> = {}): SigningConfig =>
@@ -243,6 +265,27 @@ describe("SettingsDialog", () => {
     // The progress it explains stays on screen with them.
     expect(r.getByRole("progressbar", { name: "Downloading update" })).toBeTruthy();
   });
+
+  it("Esc still closes after Check now disables itself", async () => {
+    const onClose = vi.fn();
+    const r = render(<SettingsDialog onClose={onClose} />);
+    await escAfterSelfDisable(r.getByRole("button", { name: "Check now" }), onClose);
+  });
+
+  it("Esc still closes after the git path's Apply disables itself", async () => {
+    mocked.setGitPath.mockReturnValue(new Promise(() => {}));
+    const onClose = vi.fn();
+    const r = render(<SettingsDialog onClose={onClose} />);
+    goTo(r, "Git");
+    await escAfterSelfDisable(r.getByRole("button", { name: "Apply" }), onClose);
+  });
+
+  it("Esc still closes after a tool's Apply disables itself", async () => {
+    const onClose = vi.fn();
+    const r = render(<SettingsDialog onClose={onClose} />);
+    goTo(r, "Diff & merge");
+    await escAfterSelfDisable(r.getByRole("button", { name: "Apply diff tool" }), onClose);
+  });
 });
 
 describe("SettingsDialog ▸ Signing", () => {
@@ -301,6 +344,15 @@ describe("SettingsDialog ▸ Signing", () => {
     await idle();
     fireEvent.click(getByRole("checkbox", { name: "Sign annotated tags" }));
     await waitFor(() => expect(mocked.setSigning).toHaveBeenCalledWith("tag.gpgsign", "true"));
+  });
+
+  it("Esc still closes after a Signing checkbox disables itself", async () => {
+    mocked.setSigning.mockReturnValue(new Promise(() => {}));
+    const onClose = vi.fn();
+    const r = render(<SettingsDialog onClose={onClose} />);
+    goTo(r, "Git");
+    await waitFor(() => expect(mocked.getSigning).toHaveBeenCalled());
+    await escAfterSelfDisable(r.getByRole("checkbox", { name: "Sign commits" }), onClose);
   });
 
   it("an emptied field clears the key instead of writing an empty value", async () => {

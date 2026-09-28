@@ -51,10 +51,12 @@ describe("Dialog", () => {
     const opener = document.createElement("button");
     document.body.appendChild(opener);
     opener.focus();
-    const { getByRole, rerender } = render(<Harness onClose={() => {}} />);
+    const onClose = vi.fn();
+    const onClosePush = vi.fn();
+    const { getByRole, rerender } = render(<Harness onClose={onClose} />);
     expect(document.activeElement).toBe(getByRole("textbox", { name: "Name" }));
     rerender(
-      <Dialog title="Push" onClose={() => {}}>
+      <Dialog title="Push" onClose={onClosePush}>
         <select aria-label="Remote" autoFocus>
           <option>origin</option>
         </select>
@@ -62,7 +64,82 @@ describe("Dialog", () => {
     );
     // The closing dialog's focus-return must not pull it back to the opener (→ Close fallback).
     expect(document.activeElement).toBe(getByRole("combobox", { name: "Remote" }));
+    // Its body listener went with it: Esc on body closes the Push dialog only.
+    (document.activeElement as HTMLElement).blur();
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(onClosePush).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
     opener.remove();
+  });
+
+  // A control that disables itself (Check now) drops the focus to <body>, outside the form: jsdom
+  // keeps it on the disabled element, so these blur() to get there.
+  it("Esc on body closes the dialog", () => {
+    const onClose = vi.fn();
+    render(<Harness onClose={onClose} />);
+    (document.activeElement as HTMLElement).blur();
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("Tab on body focuses the first body field", () => {
+    const { getByRole } = render(<Harness onClose={() => {}} />);
+    (document.activeElement as HTMLElement).blur();
+    fireEvent.keyDown(document.body, { key: "Tab" });
+    expect(document.activeElement).toBe(getByRole("textbox", { name: "Name" }));
+  });
+
+  it("while busy, Esc on body focuses the dialog and doesn't close it", () => {
+    const onClose = vi.fn();
+    const { getByRole } = render(<Harness onClose={onClose} busy />);
+    (document.activeElement as HTMLElement).blur();
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(getByRole("textbox", { name: "Name" }));
+  });
+
+  it("after unmount, Esc on body does nothing and the focus stays on the opener", () => {
+    const opener = document.createElement("button");
+    document.body.appendChild(opener);
+    opener.focus();
+    const onClose = vi.fn();
+    const { unmount } = render(<Harness onClose={onClose} />);
+    unmount();
+    expect(document.activeElement).toBe(opener);
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    fireEvent.keyDown(document.body, { key: "Tab" });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(opener);
+    opener.remove();
+  });
+
+  it("Esc on body stops at the dialog: a popover under it stays open, and the focus returns to the opener", () => {
+    // Stands in for a popover on the screen below: it shuts on any Esc that reaches the document,
+    // and hands the focus to its own button as it goes.
+    const opener = document.createElement("button");
+    const popoverButton = document.createElement("button");
+    document.body.append(opener, popoverButton);
+    const heard: string[] = [];
+    const onPopoverKey = (e: KeyboardEvent) => {
+      heard.push(e.key);
+      popoverButton.focus();
+    };
+    document.addEventListener("keydown", onPopoverKey);
+    try {
+      opener.focus();
+      const onClose = vi.fn();
+      const { unmount } = render(<Harness onClose={onClose} />);
+      (document.activeElement as HTMLElement).blur();
+      fireEvent.keyDown(document.body, { key: "Escape" });
+      expect(onClose).toHaveBeenCalledTimes(1);
+      unmount();
+      expect(heard).toEqual([]);
+      expect(document.activeElement).toBe(opener);
+    } finally {
+      document.removeEventListener("keydown", onPopoverKey);
+      opener.remove();
+      popoverButton.remove();
+    }
   });
 
   it("busy makes Esc and the close button inert", () => {

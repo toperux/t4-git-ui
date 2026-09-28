@@ -85,14 +85,42 @@ export function Dialog({ title, wide, full, onClose, busy, onSubmit, preview, fo
     };
   }, []);
 
+  // The body comes first — the form's own first focusable is the title bar's Close, and Enter on it
+  // throws the fields away.
+  function focusFirst() {
+    const el = ref.current;
+    if (!el) return;
+    (Array.from(bodyRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []).find(reachable) ?? Array.from(el.querySelectorAll<HTMLElement>(FOCUSABLE)).find(reachable))?.focus();
+  }
+
   // A control disabled while `busy` drops the focus to `<body>`: once the action fails and the
-  // dialog is live again, nothing inside it would take Esc or Tab. The body comes first — the
-  // form's own first focusable is the title bar's Close, and Enter on it throws the fields away.
+  // dialog is live again, nothing inside it would take Esc or Tab.
   useEffect(() => {
     const el = ref.current;
     if (busy || !el || el.contains(document.activeElement)) return;
-    (Array.from(bodyRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []).find(reachable) ?? Array.from(el.querySelectorAll<HTMLElement>(FOCUSABLE)).find(reachable))?.focus();
+    focusFirst();
   }, [busy]);
+
+  // A control that disables itself outside `busy` (Check now, Stage all) drops the focus to `<body>`
+  // too, out of reach of the form's `onKeyDown`. Capture phase, and Esc stops there: Menu, SidebarRail
+  // and SearchPopover close on any Esc reaching `document`, and one left open under the dialog must not
+  // close with it (SearchPopover would also take the focus the cleanup above returns to the opener).
+  useEffect(() => {
+    function onDocKey(e: globalThis.KeyboardEvent) {
+      if (e.target !== document.body) return;
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        if (busy) focusFirst();
+        else onClose();
+      } else if (e.key === "Tab") {
+        e.preventDefault();
+        focusFirst();
+      }
+    }
+    document.addEventListener("keydown", onDocKey, true);
+    return () => document.removeEventListener("keydown", onDocKey, true);
+  }, [busy, onClose]);
 
   function onKeyDown(e: KeyboardEvent<HTMLFormElement>) {
     if (e.key === "Escape") {

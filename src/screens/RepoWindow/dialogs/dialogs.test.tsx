@@ -708,6 +708,22 @@ describe("RebaseInteractiveDialog", () => {
     expect(mocked.rebaseTodo).not.toHaveBeenCalled();
   });
 
+  it("Esc still closes after Move up takes a row to the top and disables itself", async () => {
+    mocked.rebaseTodo.mockImplementation(() => Promise.resolve(TODO));
+    const onClose = vi.fn();
+    const { getByRole, getAllByRole } = render(<RebaseInteractiveDialog onClose={onClose} base="origin/main" />);
+    await waitFor(() => expect(getByRole("combobox", { name: "Action for a1" })).toBeTruthy());
+    const up = getAllByRole("button", { name: "Move up" })[1] as HTMLButtonElement;
+    up.focus();
+    fireEvent.click(up);
+    // The same row, now first: its button has nothing above it. The webview drops the focus to
+    // <body> there; jsdom keeps it, so blur().
+    expect(up.disabled).toBe(true);
+    up.blur();
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("reorders the rows and submits the todo git will replay", async () => {
     mocked.rebaseTodo.mockImplementation(() => Promise.resolve(TODO));
     const { getByRole, getAllByRole } = render(<RebaseInteractiveDialog onClose={() => {}} base="origin/main" />);

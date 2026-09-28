@@ -147,6 +147,24 @@ describe("StashesDialog", () => {
     await waitFor(() => expect(ipc.stashPop).toHaveBeenCalledWith("r", 1));
   });
 
+  it("Esc still closes after Apply disables itself", async () => {
+    // The webview drops the focus to <body> when the focused button goes disabled; jsdom keeps it, so blur().
+    (ipc.stashApply as ReturnType<typeof vi.fn>).mockReturnValueOnce(new Promise(() => {}));
+    const onClose = vi.fn();
+    const view = render(
+      <Synced>
+        <StashesDialog onClose={onClose} />
+      </Synced>,
+    );
+    const apply = view.getByRole("button", { name: "Apply" }) as HTMLButtonElement;
+    apply.focus();
+    fireEvent.click(apply);
+    await waitFor(() => expect(apply.disabled).toBe(true));
+    apply.blur();
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("Delete on the list drops the previewed entry, once the confirmation is accepted", async () => {
     const view = open();
     fireEvent.keyDown(view.getByRole("listbox", { name: "Stashes" }), { key: "Delete" });

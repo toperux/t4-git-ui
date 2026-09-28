@@ -35,6 +35,7 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
     recreateConflict: vi.fn(() => Promise.resolve()),
     resolveConflict: vi.fn(() => Promise.resolve()),
     discardHunks: vi.fn(() => Promise.resolve()),
+    stageHunks: vi.fn(() => new Promise(() => {})),
     discardPaths: vi.fn(() => Promise.resolve()),
     openPath: vi.fn(() => Promise.resolve()),
     openDiffTool: vi.fn(() => Promise.resolve("BComp")),
@@ -1324,6 +1325,52 @@ describe("CommitDialog", () => {
     await waitFor(() => expect(useDialogStore.getState().dialog).toEqual({ kind: "push" }));
     expect(useDialogStore.getState().returnFocus).toBe(opener);
     opener.remove();
+  });
+
+  // A focused button that disables itself drops the focus to `<body>` in the webview, outside the
+  // dialog's form; jsdom keeps it on the disabled element, so blur() gets there. Esc must still close.
+  const renderDialog = (onClose: () => void) =>
+    render(
+      <Synced>
+        <CommitDialog onClose={onClose} />
+      </Synced>,
+    );
+  async function pressAndDrop(btn: HTMLElement) {
+    btn.focus();
+    fireEvent.click(btn);
+    await waitFor(() => expect((btn as HTMLButtonElement).disabled).toBe(true));
+    btn.blur();
+  }
+
+  it("Esc still closes after a failed Commit", async () => {
+    mocked.commit.mockRejectedValueOnce({ kind: "other", message: "hook failed" });
+    const onClose = vi.fn();
+    const { getByRole, getByLabelText } = renderDialog(onClose);
+    fireEvent.change(getByLabelText("Summary"), { target: { value: "Fix lanes" } });
+    const commit = getByRole("button", { name: "Commit" });
+    await pressAndDrop(commit);
+    // The commit fails and the button comes back, but the focus stays on <body>.
+    await waitFor(() => expect((commit as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("Esc still closes after Stage all disables itself", async () => {
+    mocked.stagePaths.mockReturnValueOnce(new Promise(() => {}));
+    const onClose = vi.fn();
+    const { getByRole } = renderDialog(onClose);
+    await pressAndDrop(getByRole("button", { name: "Stage all" }));
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("Esc still closes after a hunk's Stage disables itself", async () => {
+    mocked.getFileDiff.mockImplementation((_id: string, _t: unknown, path: string) => Promise.resolve(ONE_HUNK(path)));
+    const onClose = vi.fn();
+    const { findByRole } = renderDialog(onClose);
+    await pressAndDrop(await findByRole("button", { name: "Stage hunk" }));
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
 
