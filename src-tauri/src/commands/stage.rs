@@ -103,6 +103,16 @@ fn as_strs(paths: &[String]) -> Vec<&str> {
     paths.iter().map(String::as_str).collect()
 }
 
+/// `base`, plus `Refs` when the op rewrites `.gitmodules`: the Submodules list
+/// is read with the refs, and the watcher that would map it is suppressed.
+fn kinds_for(base: &[ChangeKind], paths: &[String]) -> Vec<ChangeKind> {
+    let mut kinds = base.to_vec();
+    if paths.iter().any(|p| p == ".gitmodules") {
+        kinds.push(ChangeKind::Refs);
+    }
+    kinds
+}
+
 /// Runs a path-level index op and logs how long it took: one line per click,
 /// so a slow stage of thousands of files can be told apart from the re-scan after it.
 async fn timed<T>(what: &str, n: usize, f: impl Future<Output = T>) -> T {
@@ -201,15 +211,10 @@ pub async fn discard_paths(
     id: RepoId,
     paths: Vec<String>,
 ) -> Result<Vec<String>, AppError> {
-    mutate(
-        &app,
-        &state,
-        &id,
-        &[ChangeKind::Workdir],
-        |handle| async move {
-            blocking(move || Ok(stage::discard_paths(&handle.git2.lock(), &as_strs(&paths))?)).await
-        },
-    )
+    let kinds = kinds_for(&[ChangeKind::Workdir], &paths);
+    mutate(&app, &state, &id, &kinds, |handle| async move {
+        blocking(move || Ok(stage::discard_paths(&handle.git2.lock(), &as_strs(&paths))?)).await
+    })
     .await
 }
 
@@ -233,28 +238,23 @@ async fn run_checkout_merge(
     id: &RepoId,
     paths: Vec<String>,
 ) -> Result<(), AppError> {
-    mutate(
-        app,
-        state,
-        id,
-        &[ChangeKind::Index, ChangeKind::Workdir],
-        |handle| async move {
-            let args = stage::recreate_conflict_args(&as_strs(&paths));
-            let argv: Vec<&str> = args.iter().map(String::as_str).collect();
-            let run = run_git_op(
-                app,
-                state,
-                OpOwner::Repo(&handle.id),
-                &handle.path,
-                &argv,
-                None,
-                false,
-            )
-            .await?;
-            run.out.check(&format!("git {}", argv.join(" ")))?;
-            Ok(())
-        },
-    )
+    let kinds = kinds_for(&[ChangeKind::Index, ChangeKind::Workdir], &paths);
+    mutate(app, state, id, &kinds, |handle| async move {
+        let args = stage::recreate_conflict_args(&as_strs(&paths));
+        let argv: Vec<&str> = args.iter().map(String::as_str).collect();
+        let run = run_git_op(
+            app,
+            state,
+            OpOwner::Repo(&handle.id),
+            &handle.path,
+            &argv,
+            None,
+            false,
+        )
+        .await?;
+        run.out.check(&format!("git {}", argv.join(" ")))?;
+        Ok(())
+    })
     .await
 }
 
@@ -272,50 +272,45 @@ pub async fn resolve_conflict(
     side: stage::ConflictSide,
 ) -> Result<(), AppError> {
     let (app, state) = (&app, state.inner());
-    mutate(
-        app,
-        state,
-        &id,
-        &[ChangeKind::Index, ChangeKind::Workdir],
-        |handle| async move {
-            let h = Arc::clone(&handle);
-            let split = paths.clone();
-            let (present, missing) = blocking(move || {
-                let repo = h.git2.lock();
-                let (present, missing) = stage::split_by_side(&repo, &as_strs(&split), side)?;
-                let own = |v: Vec<&str>| v.into_iter().map(str::to_string).collect::<Vec<_>>();
-                Ok((own(present), own(missing)))
+    let kinds = kinds_for(&[ChangeKind::Index, ChangeKind::Workdir], &paths);
+    mutate(app, state, &id, &kinds, |handle| async move {
+        let h = Arc::clone(&handle);
+        let split = paths.clone();
+        let (present, missing) = blocking(move || {
+            let repo = h.git2.lock();
+            let (present, missing) = stage::split_by_side(&repo, &as_strs(&split), side)?;
+            let own = |v: Vec<&str>| v.into_iter().map(str::to_string).collect::<Vec<_>>();
+            Ok((own(present), own(missing)))
+        })
+        .await?;
+
+        if !present.is_empty() {
+            let args = stage::checkout_side_args(side, &as_strs(&present));
+            let argv: Vec<&str> = args.iter().map(String::as_str).collect();
+            let run = run_git_op(
+                app,
+                state,
+                OpOwner::Repo(&handle.id),
+                &handle.path,
+                &argv,
+                None,
+                false,
+            )
+            .await?;
+            run.out.check(&format!("git {}", argv.join(" ")))?;
+            stage_via_cli(app, state, &handle, &present).await?;
+        }
+        if !missing.is_empty() {
+            blocking(move || {
+                Ok(stage::remove_paths(
+                    &handle.git2.lock(),
+                    &as_strs(&missing),
+                )?)
             })
             .await?;
-
-            if !present.is_empty() {
-                let args = stage::checkout_side_args(side, &as_strs(&present));
-                let argv: Vec<&str> = args.iter().map(String::as_str).collect();
-                let run = run_git_op(
-                    app,
-                    state,
-                    OpOwner::Repo(&handle.id),
-                    &handle.path,
-                    &argv,
-                    None,
-                    false,
-                )
-                .await?;
-                run.out.check(&format!("git {}", argv.join(" ")))?;
-                stage_via_cli(app, state, &handle, &present).await?;
-            }
-            if !missing.is_empty() {
-                blocking(move || {
-                    Ok(stage::remove_paths(
-                        &handle.git2.lock(),
-                        &as_strs(&missing),
-                    )?)
-                })
-                .await?;
-            }
-            Ok(())
-        },
-    )
+        }
+        Ok(())
+    })
     .await
 }
 
@@ -349,8 +344,8 @@ async fn apply_selection(
 ) -> Result<(), AppError> {
     // A discard rewrites the working tree, a stage / unstage the index.
     let kinds = match op {
-        PatchOp::Discard => [ChangeKind::Workdir],
-        _ => [ChangeKind::Index],
+        PatchOp::Discard => kinds_for(&[ChangeKind::Workdir], std::slice::from_ref(&path)),
+        _ => vec![ChangeKind::Index],
     };
     mutate(app, state, id, &kinds, |handle| async move {
         let target = match op {
@@ -611,4 +606,29 @@ pub fn cancel_op(state: State<'_, AppState>, op_id: String) -> bool {
     let found = state.cancel_op(&op_id);
     tracing::info!(op_id, found, "cancel requested");
     found
+}
+
+#[cfg(test)]
+mod tests {
+    use super::kinds_for;
+    use git_core::watch::ChangeKind;
+
+    #[test]
+    fn a_gitmodules_rewrite_also_reports_refs() {
+        let paths = |p: &[&str]| p.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(
+            kinds_for(
+                &[ChangeKind::Workdir],
+                &paths(&["a.txt", "sub/.gitmodules"])
+            ),
+            vec![ChangeKind::Workdir]
+        );
+        assert_eq!(
+            kinds_for(
+                &[ChangeKind::Index, ChangeKind::Workdir],
+                &paths(&["a.txt", ".gitmodules"])
+            ),
+            vec![ChangeKind::Index, ChangeKind::Workdir, ChangeKind::Refs]
+        );
+    }
 }

@@ -121,10 +121,8 @@ fn classify(
         }
         // The submodule list lives in the workdir; the sidebar reads it with the
         // refs, so a hand edit has to reach that path too (status runs on every kind).
-        // ponytail: only the watcher maps it — an app-side rewrite of `.gitmodules`
-        // (discarding it) emits its own declared kinds, so the Submodules list waits
-        // for the next refs event. Upgrade path: a `Linked` change kind the watcher
-        // and those ops both emit.
+        // The app's own rewrites (a discard, a conflict side) run with the watcher
+        // suppressed and add `Refs` themselves (`kinds_for` in src-tauri's stage.rs).
         if rel == Path::new(".gitmodules") {
             return Some(ChangeKind::Refs);
         }
