@@ -4,6 +4,7 @@ use std::sync::Arc;
 use git2::{ErrorCode, Repository, RepositoryInitOptions};
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
+use tokio_util::sync::CancellationToken;
 
 use crate::log::cache::LogCache;
 use crate::refs::AheadBehindCache;
@@ -81,6 +82,11 @@ pub struct RepoHandle {
     /// of waiting), then this one; scans never take `op_lock`, so the two can
     /// never deadlock.
     pub scan_lock: tokio::sync::Mutex<()>,
+    /// The op token of the blame read in flight; the next one cancels it.
+    pub latest_blame: Mutex<Option<CancellationToken>>,
+    /// The op token of the path history (`log --follow`) in flight; the next
+    /// `start_log`, with a path or without, cancels it.
+    pub latest_history: Mutex<Option<CancellationToken>>,
 }
 
 impl RepoHandle {
@@ -108,7 +114,20 @@ impl RepoHandle {
             ahead_behind: Mutex::new(AheadBehindCache::default()),
             op_lock: tokio::sync::Mutex::new(()),
             scan_lock: tokio::sync::Mutex::new(()),
+            latest_blame: Mutex::new(None),
+            latest_history: Mutex::new(None),
         }))
+    }
+
+    /// Makes `token` the running blame's and cancels the one it replaces.
+    pub fn supersede_blame(&self, token: CancellationToken) {
+        supersede(&self.latest_blame, Some(token));
+    }
+
+    /// Makes `token` (`None`: a walk with no path history) the running path
+    /// history's and cancels the one it replaces.
+    pub fn supersede_history(&self, token: Option<CancellationToken>) {
+        supersede(&self.latest_history, token);
     }
 
     /// Opens a second `Repository` handle on the same repo (cheap) for
@@ -123,6 +142,12 @@ impl RepoHandle {
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_else(|| self.id.as_str().to_string())
+    }
+}
+
+fn supersede(slot: &Mutex<Option<CancellationToken>>, token: Option<CancellationToken>) {
+    if let Some(old) = std::mem::replace(&mut *slot.lock(), token) {
+        old.cancel();
     }
 }
 
@@ -351,6 +376,29 @@ mod tests {
         assert!(h.op_lock.try_lock().is_err());
         drop(scan_guard);
         drop(op);
+    }
+
+    #[test]
+    fn a_newer_blame_or_history_cancels_the_older_one() {
+        let t = TempRepo::new();
+        t.commit(&[("a.txt", "a")], "init");
+        let h = RepoHandle::open(t.path()).expect("open");
+
+        let (t1, t2) = (CancellationToken::new(), CancellationToken::new());
+        h.supersede_blame(t1.clone());
+        h.supersede_blame(t2.clone());
+        assert!(t1.is_cancelled());
+        assert!(!t2.is_cancelled());
+
+        let (t1, t2) = (CancellationToken::new(), CancellationToken::new());
+        h.supersede_history(Some(t1.clone()));
+        h.supersede_history(Some(t2.clone()));
+        assert!(t1.is_cancelled());
+        assert!(!t2.is_cancelled());
+        // A walk without a path stops the old `log --follow` too.
+        h.supersede_history(None);
+        assert!(t2.is_cancelled());
+        assert!(h.latest_history.lock().is_none());
     }
 
     #[test]

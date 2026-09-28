@@ -250,7 +250,8 @@ pub async fn get_commit(
 ///
 /// A path filter has no revwalk to spawn: the commits come from
 /// `git log --follow`, which is awaited here (a read, registered as an op only
-/// for the kill handle) before the rows are built off the blocking pool.
+/// for the kill handle) before the rows are built off the blocking pool. Every
+/// `start_log` cancels the path history still running from an earlier one.
 #[tauri::command]
 pub async fn start_log(
     app: AppHandle,
@@ -260,22 +261,29 @@ pub async fn start_log(
     filter: LogFilter,
 ) -> Result<u64, AppError> {
     let handle = state.repo(&id)?;
-    let labels = compute_labels(Arc::clone(&handle)).await?;
+    // Swapped before the labels, so the swaps run in the order the calls
+    // arrived: an older call slow in `compute_labels` can't cancel a newer one.
+    let op = filter.path.as_ref().map(|_| state.begin_op());
+    handle.supersede_history(op.as_ref().map(|(_, token)| token.clone()));
+    let labels = compute_labels(Arc::clone(&handle)).await.inspect_err(|_| {
+        if let Some((op_id, _)) = &op {
+            state.end_op(op_id);
+        }
+    })?;
     let (generation, cancel) = {
         let mut log = handle.log.write();
         let generation = log.begin();
         log.labels = labels;
         (generation, Arc::clone(&log.cancel))
     };
-    let history = match &filter.path {
-        None => None,
-        Some(path) => {
+    let history = match (&filter.path, op) {
+        (Some(path), Some((op_id, token))) => {
             let cli = state.git_cli();
-            let (op_id, token) = state.begin_op();
             let listed = path_history(&cli, &handle.path, &op_id, &spec, path, token).await;
             state.end_op(&op_id);
             Some(listed?)
         }
+        _ => None,
     };
 
     let emit = move |total: usize, complete: bool, error: Option<String>| {

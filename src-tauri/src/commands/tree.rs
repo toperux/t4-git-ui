@@ -57,8 +57,9 @@ pub async fn save_file_as(
 ///
 /// A read: no `op://event` forwarding and no op lock, so it never makes the UI
 /// busy. It is still registered as an op, which is what gives its process tree
-/// the job handle every other `git` we spawn is killed through; the frontend
-/// drops a reply that a newer selection has superseded.
+/// the job handle every other `git` we spawn is killed through. A newer blame
+/// cancels this one (it returns `Cancelled`); the frontend drops a reply that a
+/// newer selection has superseded.
 #[tauri::command]
 pub async fn get_blame(
     state: State<'_, AppState>,
@@ -70,6 +71,7 @@ pub async fn get_blame(
     let handle = state.repo(&id)?;
     let cli = state.git_cli();
     let (op_id, cancel) = state.begin_op();
+    handle.supersede_blame(cancel.clone());
     let result = blame::blame(
         &cli,
         &handle.path,
