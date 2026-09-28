@@ -675,21 +675,35 @@ pub fn classify_failure(code: i32, stdout: &str, stderr: &str) -> OpFailure {
             message: line.to_string(),
         };
     }
-    // Without a `fatal:` / `error:` line git is giving advice, and advice leads with the headline
-    // ("The previous cherry-pick is now empty…") and ends with a hint ("Otherwise, please use…").
-    // A pull's fetch talks first, so its progress and ref-update lines are passed over.
+    // Without a `fatal:` / `error:` line git is giving advice, and advice leads with its first
+    // paragraph ("The previous cherry-pick is now empty…"), wrapped over several lines, and ends
+    // with a hint ("Otherwise, please use…"). A pull's fetch talks first and a `warning:` may come
+    // before the advice, so those are passed over; the paragraph is joined up to its blank line,
+    // four lines at most, or a toast could carry a whole help text.
     let message = stderr
         .lines()
         .map(str::trim)
         .rfind(|l| l.starts_with("fatal:") || l.starts_with("error:"))
+        .map(String::from)
+        .or_else(|| {
+            let para: Vec<&str> = stderr
+                .lines()
+                .skip_while(|l| {
+                    l.trim().is_empty() || is_fetch_chatter(l) || l.trim().starts_with("warning:")
+                })
+                .map(str::trim)
+                .take_while(|l| !l.is_empty())
+                .take(4)
+                .collect();
+            (!para.is_empty()).then(|| para.join(" "))
+        })
         .or_else(|| {
             stderr
                 .lines()
-                .find(|l| !l.trim().is_empty() && !is_fetch_chatter(l))
                 .map(str::trim)
+                .find(|l| !l.is_empty())
+                .map(String::from)
         })
-        .or_else(|| stderr.lines().map(str::trim).find(|l| !l.is_empty()))
-        .map(String::from)
         .unwrap_or_else(|| format!("git exited with code {code}"));
     OpFailure::Other { message }
 }
@@ -1319,22 +1333,43 @@ mod tests {
                 message: "git exited with code 3".into()
             }
         );
-        // Advice without an error line: the headline, not the closing hint.
+        // Advice without an error line: its first paragraph, joined, not the closing hint.
         let empty = "The previous cherry-pick is now empty, possibly due to conflict resolution.\nIf you wish to commit it anyway, use:\n\n    git commit --allow-empty\n\nOtherwise, please use 'git cherry-pick --skip'\n";
         assert_eq!(
             classify_failure(1, "", empty),
             OpFailure::Other {
-                message:
-                    "The previous cherry-pick is now empty, possibly due to conflict resolution."
-                        .into()
+                message: "The previous cherry-pick is now empty, possibly due to conflict resolution. If you wish to commit it anyway, use:".into()
             }
         );
         // A pull's fetch talks before git's advice: the advice, not `remote: Enumerating…`.
-        let pull = "remote: Enumerating objects: 4, done.\nremote: Total 3 (delta 0), reused 0 (delta 0)\nUnpacking objects: 100% (3/3), 250 bytes | 2.00 KiB/s, done.\nFrom c:/tmp/t4/mirror\n   910db56..1a2b3c4  master     -> mirror/master\nYou asked to pull from the remote 'mirror', but did not specify\na branch. Because this is not the default configured remote\n";
+        let pull = "remote: Enumerating objects: 4, done.\nremote: Total 3 (delta 0), reused 0 (delta 0)\nUnpacking objects: 100% (3/3), 250 bytes | 2.00 KiB/s, done.\nFrom c:/tmp/t4/mirror\n   910db56..1a2b3c4  master     -> mirror/master\nYou asked to pull from the remote 'mirror', but did not specify\na branch. Because this is not the default configured remote\nfor your current branch, you must specify a branch on the command line.\n";
         assert_eq!(
             classify_failure(1, "", pull),
             OpFailure::Other {
-                message: "You asked to pull from the remote 'mirror', but did not specify".into()
+                message: "You asked to pull from the remote 'mirror', but did not specify a branch. Because this is not the default configured remote for your current branch, you must specify a branch on the command line.".into()
+            }
+        );
+        // A paragraph with no blank line in it stops at four lines.
+        let long = "one\ntwo\nthree\nfour\nfive\nsix\n";
+        assert_eq!(
+            classify_failure(1, "", long),
+            OpFailure::Other {
+                message: "one two three four".into()
+            }
+        );
+        // A warning ahead of the advice is passed over.
+        let warned = "warning: redirecting to https://example.com/r.git/\nThere is no tracking information for the current branch.\nPlease specify which branch you want to merge with.\n";
+        assert_eq!(
+            classify_failure(1, "", warned),
+            OpFailure::Other {
+                message: "There is no tracking information for the current branch. Please specify which branch you want to merge with.".into()
+            }
+        );
+        // Nothing but a warning: the warning still shows.
+        assert_eq!(
+            classify_failure(1, "", "warning: x\n"),
+            OpFailure::Other {
+                message: "warning: x".into()
             }
         );
         // Nothing but fetch output: its first line still beats a bare exit code.
