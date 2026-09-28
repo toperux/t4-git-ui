@@ -13,7 +13,7 @@ vi.mock("./api/ipc", async (importOriginal) => {
     probeGit: vi.fn(),
     setGitPath: vi.fn(),
     takePending: vi.fn(() => Promise.resolve(null)),
-    takeLayout: vi.fn(() => Promise.resolve([])),
+    takeLayout: vi.fn(() => Promise.resolve({ layouts: [], crashed: false, kept: false })),
     spawnWindow: vi.fn(() => Promise.resolve("w1")),
     setLayout: vi.fn(() => Promise.resolve()),
     getTools: vi.fn(() => Promise.resolve({ diff: null, merge: null })),
@@ -36,6 +36,7 @@ import * as ipc from "./api/ipc";
 import App from "./App";
 import { useRecentsStore } from "./store/recentsStore";
 import { useTabsStore } from "./store/tabsStore";
+import { useToastStore } from "./store/toastStore";
 
 const mocked = ipc as unknown as Record<"probeGit" | "takePending" | "takeLayout" | "spawnWindow" | "setLayout", ReturnType<typeof vi.fn>>;
 const openTab = vi.fn((_path: string) => Promise.resolve());
@@ -53,10 +54,11 @@ beforeEach(() => {
   openTab.mockReset();
   mocked.probeGit.mockResolvedValue({ version: "git version 2.51.0", tooOld: false });
   mocked.takePending.mockResolvedValue(null);
-  mocked.takeLayout.mockResolvedValue([]);
+  mocked.takeLayout.mockResolvedValue({ layouts: [], crashed: false, kept: false });
   useTabsStore.setState({ tabs: [], active: null, saved: {}, openTab: openTab as never });
   lastOpen = null;
   useRecentsStore.setState({ recents: [], lastOpen: null, lastCloneDir: null });
+  useToastStore.setState({ toasts: [] });
 });
 
 /** The launch has several awaits in it; this lets them all settle. */
@@ -64,10 +66,14 @@ const settled = () => act(() => new Promise((r) => setTimeout(r, 0)));
 
 describe("App", () => {
   it("restores every window of the last exit: its own tabs here, a window for each of the others", async () => {
-    mocked.takeLayout.mockResolvedValue([
-      { tabs: ["/a", "/b"], active: "/b" },
-      { tabs: ["/c"], active: "/c" },
-    ]);
+    mocked.takeLayout.mockResolvedValue({
+      layouts: [
+        { tabs: ["/a", "/b"], active: "/b" },
+        { tabs: ["/c"], active: "/c" },
+      ],
+      crashed: false,
+      kept: false,
+    });
     render(<App />);
     await settled();
     expect(openTab.mock.calls).toEqual([["/a"], ["/b"]]);
@@ -75,7 +81,7 @@ describe("App", () => {
   });
 
   it("keeps restoring the rest when one repository will not open", async () => {
-    mocked.takeLayout.mockResolvedValue([{ tabs: ["/gone", "/b"], active: "/b" }]);
+    mocked.takeLayout.mockResolvedValue({ layouts: [{ tabs: ["/gone", "/b"], active: "/b" }], crashed: false, kept: false });
     openTab.mockRejectedValueOnce({ kind: "internal", message: "not a repository" });
     render(<App />);
     await settled();
@@ -110,28 +116,53 @@ describe("App", () => {
     openTab.mockRejectedValueOnce({ kind: "internal", message: "not a repository" });
     render(<App />);
     await settled();
-    expect(mocked.setLayout).toHaveBeenCalledWith({ tabs: [], active: "" });
+    expect(mocked.setLayout).toHaveBeenCalledWith({ tabs: [], active: "" }, true);
     expect(mocked.setLayout).toHaveBeenCalledTimes(1);
   });
 
   it("reports nothing while restoring, then the whole layout once: the saved entry is never shrunk", async () => {
-    mocked.takeLayout.mockResolvedValue([{ tabs: ["/a", "/b"], active: "/b" }]);
+    mocked.takeLayout.mockResolvedValue({ layouts: [{ tabs: ["/a", "/b"], active: "/b" }], crashed: false, kept: false });
     openTabAdds();
     render(<App />);
     await settled();
     expect(mocked.setLayout).toHaveBeenCalledTimes(1);
-    expect(mocked.setLayout).toHaveBeenCalledWith({ tabs: ["/a", "/b"], active: "/b" });
+    expect(mocked.setLayout).toHaveBeenCalledWith({ tabs: ["/a", "/b"], active: "/b" }, true);
   });
 
-  it("reports again after a restore that failed: the hold ends however restoring ends", async () => {
+  it("a last repository that no longer opens still gets the one-shot report, and is forgotten", async () => {
     lastOpen = "/gone";
     openTabAdds();
     openTab.mockRejectedValueOnce({ kind: "internal", message: "not a repository" });
     render(<App />);
     await settled();
-    expect(mocked.setLayout).not.toHaveBeenCalled();
+    expect(mocked.setLayout.mock.calls).toEqual([[{ tabs: [], active: "" }, true]]);
+    expect(useRecentsStore.getState().lastOpen).toBeNull();
+    // The hold ends however restoring ends: later changes are reported, without `restored`.
     await act(() => useTabsStore.getState().openTab("/x"));
-    expect(mocked.setLayout).toHaveBeenCalledWith({ tabs: ["/x"], active: "/x" });
+    expect(mocked.setLayout.mock.calls[1]).toEqual([{ tabs: ["/x"], active: "/x" }]);
+  });
+
+  it("after a launch that died restoring, opens nothing, forgets lastOpen and says so", async () => {
+    lastOpen = "/crasher";
+    mocked.takeLayout.mockResolvedValue({ layouts: [], crashed: true, kept: true });
+    render(<App />);
+    await settled();
+    expect(openTab).not.toHaveBeenCalled();
+    expect(mocked.spawnWindow).not.toHaveBeenCalled();
+    expect(useRecentsStore.getState().lastOpen).toBeNull();
+    const toasts = useToastStore.getState().toasts;
+    expect(toasts).toHaveLength(1);
+    expect(toasts[0]).toMatchObject({ kind: "error", title: "Your last session wasn't reopened" });
+    expect(toasts[0].detail).toMatch(/started empty this time\. Your repositories are still in Recents\. The saved windows are in layout\.crashed\.json\.$/);
+    expect(mocked.setLayout.mock.calls).toEqual([[{ tabs: [], active: "" }, true]]);
+  });
+
+  it("names no file when the crashed launch left none to set aside", async () => {
+    mocked.takeLayout.mockResolvedValue({ layouts: [], crashed: true, kept: false });
+    render(<App />);
+    await settled();
+    const [toast] = useToastStore.getState().toasts;
+    expect(toast.detail).toMatch(/Your repositories are still in Recents\.$/);
   });
 
   it("reports nothing when the recents fail to load: restoring never ran, so the layout on disk is untouched", async () => {

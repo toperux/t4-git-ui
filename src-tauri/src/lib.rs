@@ -145,7 +145,9 @@ pub fn run() {
         // the start screen: an empty layout, so it does not reach for the
         // repository another window already holds. Where single-instance can't
         // run (no session bus), a second process started before the first write
-        // restores the same session again, where before it got nothing.
+        // restores the same session again, where before it got nothing — or,
+        // while the first one is still restoring, takes its restore mark for a
+        // crash and sets the session aside (`commands::window::take`).
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             commands::window::spawn(app, None, commands::window::Layout::default(), None);
         }))
@@ -296,7 +298,12 @@ pub fn run() {
                 .state::<AppState>()
                 .exiting
                 .store(true, Ordering::Relaxed),
-            RunEvent::Exit => shutdown_logging(app),
+            // A normal exit is no crash, whether or not every window of the
+            // restore had reported yet.
+            RunEvent::Exit => {
+                commands::window::end_restore(app);
+                shutdown_logging(app);
+            }
             _ => {}
         });
 }

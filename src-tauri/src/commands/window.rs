@@ -2,7 +2,7 @@
 //! layout every window reports so the next launch can put them all back, and
 //! the screen-space hit test a tab dragged between windows is steered by.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -46,6 +46,11 @@ pub struct Layouts {
     /// while it still says *Starting*, would otherwise write over the saved
     /// session before `main` took it.
     pub read: bool,
+    /// The windows of this launch's restore that have not reported back yet
+    /// ([`settle`]); `None` once the restore is over. While it is `Some`, the
+    /// mark file next to `layout.json` says so on disk — a launch that finds
+    /// the mark knows the one before it died restoring ([`take`]).
+    pub awaiting: Option<HashSet<String>>,
 }
 
 /// What `layout.json` should say at `now`: the open windows plus the closed
@@ -172,10 +177,14 @@ pub fn spawn(
                 state.pending().remove(&target);
                 // The tabs go back to the source below, so the entry `spawned` made must not
                 // restore them a second time.
+                // A window that never opened will never report: the restore
+                // must not wait for it.
                 {
                     let mut layouts = state.layouts();
+                    let path = layout_file(&app);
                     layouts.open.remove(&target);
-                    persist(&mut layouts, &layout_file(&app), Instant::now());
+                    persist(&mut layouts, &path, Instant::now());
+                    settle(&mut layouts, &path, &target);
                 }
                 // Give the tabs back to the window that let them go, or they are
                 // lost — every one of them, not just the active one.
@@ -211,13 +220,18 @@ pub fn take_pending(state: State<'_, AppState>, window: Window) -> Option<Layout
 
 /// What this window has open now. Written out on every change, so the file is
 /// current whichever way the app goes away (the last window closing, a quit, a
-/// crash).
+/// crash). `restored` is the one-shot report after the window's restore: it
+/// counts the window as back ([`settle`]).
 #[tauri::command]
-pub fn set_layout(app: AppHandle, window: Window, layout: Layout) {
+pub fn set_layout(app: AppHandle, window: Window, layout: Layout, restored: Option<bool>) {
     let state = app.state::<AppState>();
     let mut layouts = state.layouts();
+    let path = layout_file(&app);
     layouts.open.insert(window.label().to_string(), layout);
-    persist(&mut layouts, &layout_file(&app), Instant::now());
+    persist(&mut layouts, &path, Instant::now());
+    if restored == Some(true) {
+        settle(&mut layouts, &path, window.label());
+    }
 }
 
 /// A window being created is in the file from the start, not from its first
@@ -233,8 +247,69 @@ pub fn set_layout(app: AppHandle, window: Window, layout: Layout) {
 /// memory only: a second launch during startup spawns an empty window before
 /// `main` reads the layout, and writing it then would replace the saved session
 /// with nothing.
+///
+/// While a restore is running ([`Layouts::awaiting`]), the new window joins it:
+/// the restore is over only once it has reported too.
 fn spawned(l: &mut Layouts, label: &str, payload: Layout) {
     l.open.insert(label.to_string(), payload);
+    if let Some(awaiting) = &mut l.awaiting {
+        awaiting.insert(label.to_string());
+    }
+}
+
+/// The restore mark: `layout.restoring` next to `layout.json`, on disk from
+/// `main`'s first [`take`] until every window of the restore has reported.
+fn mark_file(path: &Path) -> PathBuf {
+    path.with_extension("restoring")
+}
+
+/// Where a session that crashed the app while it was restored is set aside:
+/// `layout.crashed.json`.
+fn crashed_file(path: &Path) -> PathBuf {
+    path.with_extension("crashed.json")
+}
+
+/// Starts a restore: `main` is the one window it waits for so far, and the
+/// mark goes on disk.
+fn arm(l: &mut Layouts, path: &Path) {
+    l.awaiting = Some(HashSet::from(["main".to_string()]));
+    let mark = mark_file(path);
+    if let Some(dir) = mark.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    if let Err(e) = std::fs::write(&mark, "") {
+        tracing::warn!(path = %mark.display(), error = %e, "could not write the restore mark");
+    }
+}
+
+/// `label` is done restoring — it reported, closed, or never opened. The last
+/// one ends the restore. A no-op once the restore is over, or for a window it
+/// never waited for.
+fn settle(l: &mut Layouts, path: &Path, label: &str) {
+    let Some(awaiting) = &mut l.awaiting else {
+        return;
+    };
+    awaiting.remove(label);
+    if awaiting.is_empty() {
+        clear_mark(l, path);
+    }
+}
+
+/// Ends the restore whoever is left: the app is exiting normally, or about to
+/// be replaced by an update. Only this process's own mark: with no restore
+/// running, a mark on disk is a crash the next launch has to find, or another
+/// process's restore (no single-instance).
+fn clear_mark(l: &mut Layouts, path: &Path) {
+    if l.awaiting.take().is_some() {
+        let _ = std::fs::remove_file(mark_file(path));
+    }
+}
+
+/// [`clear_mark`] for `RunEvent::Exit` and the update install.
+pub(crate) fn end_restore(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    let mut layouts = state.layouts();
+    clear_mark(&mut layouts, &layout_file(app));
 }
 
 /// What a close does to the state; `false` for a window with no entry in `open`.
@@ -260,11 +335,15 @@ fn close(l: &mut Layouts, label: &str, now: Instant) -> bool {
 ///
 /// The timer holds nothing: a later close brings its own, and if the app is
 /// gone by then the file already says what should come back.
+///
+/// A window closed before its restore report counts as reported: the restore
+/// must not wait on it.
 pub(crate) fn window_closed(app: &AppHandle, label: &str) {
     let state = app.state::<AppState>();
     let path = layout_file(app);
     {
         let mut layouts = state.layouts();
+        settle(&mut layouts, &path, label);
         let now = Instant::now();
         if !close(&mut layouts, label, now) {
             return;
@@ -284,35 +363,84 @@ pub(crate) fn window_closed(app: &AppHandle, label: &str) {
 /// The layout the last exit left, read and left in place: `main` opens the
 /// first entry itself and spawns a window for each of the others, and the next
 /// write (a `spawn`, or `main`'s one-shot report) replaces the file. Empty on a
-/// first launch — the frontend falls back to `lastOpen` then. Two processes
-/// without single-instance (no reachable session bus) both restore the session.
+/// first launch — the frontend falls back to `lastOpen` then — and after a
+/// launch that died restoring (`crashed`, see [`take`]). Of two processes
+/// without single-instance (no reachable session bus), one started while the
+/// other restores finds its mark and takes that for a crash; accepted.
 #[tauri::command]
-pub fn take_layout(app: AppHandle) -> Vec<Layout> {
+pub fn take_layout(app: AppHandle) -> Taken {
     take(&mut app.state::<AppState>().layouts(), &layout_file(&app))
+}
+
+/// What [`take_layout`] answers.
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+pub struct Taken {
+    pub layouts: Vec<Layout>,
+    /// The launch before this one died while it restored: nothing is restored
+    /// this time.
+    pub crashed: bool,
+    /// With `crashed`: the session was set aside in `layout.crashed.json`
+    /// (false when there was no `layout.json` to set aside).
+    pub kept: bool,
 }
 
 /// Reads the saved session and opens the gate on writes ([`Layouts::read`]),
 /// set after the read, under the lock: a write before the read would replace
 /// the session `main` is about to restore. `main` is seeded with the first
 /// entry, so its tabs are in every write from here rather than from its first
-/// report, which replaces the seed. Nothing is written here: until the next
-/// write, the file on disk is already right.
+/// report, which replaces the seed. Nothing of the session is written here:
+/// until the next write, the file on disk is already right.
 ///
 /// The seed replaces whatever `main` reported before its read, so a tab dragged
 /// onto a `main` still on *Starting* is in no entry until `main`'s one-shot
 /// report; rare, and accepted.
-fn take(l: &mut Layouts, path: &Path) -> Vec<Layout> {
+///
+/// The crash-loop breaker: the first take arms the restore mark, always — with
+/// no saved session too, since the frontend's `lastOpen` fallback can crash as
+/// well. Finding the mark already there means the last launch died before its
+/// restore finished: the session is set aside rather than restored into the
+/// same crash, `main` is not seeded, and the mark is armed again for `main`'s
+/// own (empty) report to clear.
+fn take(l: &mut Layouts, path: &Path) -> Taken {
     // Once per process: a reloaded `main` (or StrictMode's second run in dev)
     // gets its own tabs back and spawns nothing.
     if l.read {
-        return l.open.get("main").cloned().into_iter().collect();
+        return Taken {
+            layouts: l.open.get("main").cloned().into_iter().collect(),
+            ..Default::default()
+        };
     }
-    let out = read_layouts(path);
     l.read = true;
-    if let Some(first) = out.first() {
+    if mark_file(path).exists() {
+        // A rename refused (a scanner or sync client holding `layout.json` on
+        // Windows) falls back to a copy: the session is still kept.
+        let kept = match std::fs::rename(path, crashed_file(path)) {
+            Ok(()) => true,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => false,
+            Err(e) => match std::fs::copy(path, crashed_file(path)) {
+                Ok(_) => true,
+                Err(c) => {
+                    tracing::warn!(path = %path.display(), rename = %e, copy = %c, "could not set the crashed session aside");
+                    false
+                }
+            },
+        };
+        arm(l, path);
+        return Taken {
+            layouts: Vec::new(),
+            crashed: true,
+            kept,
+        };
+    }
+    let layouts = read_layouts(path);
+    if let Some(first) = layouts.first() {
         l.open.insert("main".to_string(), first.clone());
     }
-    out
+    arm(l, path);
+    Taken {
+        layouts,
+        ..Default::default()
+    }
 }
 
 /// Quits the app rather than closing one window: every window goes at once, so
@@ -569,8 +697,20 @@ mod tests {
         }
     }
 
+    /// A layout path of its own per test, with no mark or set-aside session
+    /// left by an earlier run.
     fn temp_path(tag: &str) -> PathBuf {
-        std::env::temp_dir().join(format!("t4-layout-{tag}-{}.json", std::process::id()))
+        let path =
+            std::env::temp_dir().join(format!("t4-layout-{tag}-{}.json", std::process::id()));
+        remove(&path);
+        path
+    }
+
+    /// The layout file, the restore mark and the set-aside session.
+    fn remove(path: &Path) {
+        let _ = std::fs::remove_file(path);
+        let _ = std::fs::remove_file(mark_file(path));
+        let _ = std::fs::remove_file(crashed_file(path));
     }
 
     /// The round trip the relaunch depends on: `main` first whatever the map's
@@ -587,7 +727,7 @@ mod tests {
         let expected = vec![layout(&["c:/a", "c:/c"]), layout(&["c:/b"])];
         assert_eq!(read_layouts(&path), expected);
         assert_eq!(read_layouts(&path), expected);
-        let _ = std::fs::remove_file(&path);
+        remove(&path);
     }
 
     /// A window closed after the main one becomes `main` on the next launch, so
@@ -599,7 +739,7 @@ mod tests {
         map.insert("w1".to_string(), layout(&["c:/b"]));
         write_layouts(&path, &map);
         assert_eq!(read_layouts(&path), vec![layout(&["c:/b"])]);
-        let _ = std::fs::remove_file(&path);
+        remove(&path);
     }
 
     fn labels(map: HashMap<String, Layout>) -> Vec<String> {
@@ -712,7 +852,7 @@ mod tests {
         spawned(&mut l, "w2", Layout::default());
         write_layouts(&path, &restorable(&mut l, Instant::now()));
         assert_eq!(read_layouts(&path), vec![layout(&["c:/b"])]);
-        let _ = std::fs::remove_file(&path);
+        remove(&path);
     }
 
     /// A window whose tabs all failed to open reports an empty layout once
@@ -725,7 +865,7 @@ mod tests {
         l.open.insert("w1".to_string(), Layout::default());
         write_layouts(&path, &restorable(&mut l, Instant::now()));
         assert_eq!(read_layouts(&path), Vec::<Layout>::new());
-        let _ = std::fs::remove_file(&path);
+        remove(&path);
     }
 
     /// Closing a window that never reported is a real close: its tabs join the
@@ -787,7 +927,7 @@ mod tests {
         spawned(&mut l, "w1", Layout::default());
         persist(&mut l, &path, Instant::now());
         assert_eq!(std::fs::read(&path).unwrap(), before);
-        let _ = std::fs::remove_file(&path);
+        remove(&path);
     }
 
     /// A tab adopted by `main` while it still says *Starting* makes it report
@@ -799,7 +939,7 @@ mod tests {
         l.open.insert("main".to_string(), layout(&["c:/z"]));
         persist(&mut l, &path, Instant::now());
         assert_eq!(std::fs::read(&path).unwrap(), before);
-        let _ = std::fs::remove_file(&path);
+        remove(&path);
     }
 
     /// `take` hands back the saved session and opens the gate: the next write
@@ -809,14 +949,14 @@ mod tests {
         let (path, _) = saved_session("take");
         let mut l = Layouts::default();
         assert_eq!(
-            take(&mut l, &path),
+            take(&mut l, &path).layouts,
             vec![layout(&["c:/a"]), layout(&["c:/b"])]
         );
         assert!(l.read);
         l.open.insert("main".to_string(), layout(&["c:/z"]));
         persist(&mut l, &path, Instant::now());
         assert_eq!(read_layouts(&path), vec![layout(&["c:/z"])]);
-        let _ = std::fs::remove_file(&path);
+        remove(&path);
     }
 
     /// Once read, every write goes through as before.
@@ -835,7 +975,7 @@ mod tests {
             read_layouts(&path),
             vec![layout(&["c:/a", "c:/c"]), layout(&["c:/b"])]
         );
-        let _ = std::fs::remove_file(&path);
+        remove(&path);
     }
 
     /// `main` is seeded at its read: the first spawn writes it together with
@@ -851,7 +991,7 @@ mod tests {
             read_layouts(&path),
             vec![layout(&["c:/a"]), layout(&["c:/b"])]
         );
-        let _ = std::fs::remove_file(&path);
+        remove(&path);
     }
 
     /// A single-window session has no spawn to write it again: the read alone
@@ -864,9 +1004,9 @@ mod tests {
             &HashMap::from([("main".to_string(), layout(&["c:/a"]))]),
         );
         let mut l = Layouts::default();
-        assert_eq!(take(&mut l, &path), vec![layout(&["c:/a"])]);
+        assert_eq!(take(&mut l, &path).layouts, vec![layout(&["c:/a"])]);
         assert_eq!(read_layouts(&path), vec![layout(&["c:/a"])]);
-        let _ = std::fs::remove_file(&path);
+        remove(&path);
     }
 
     /// A `main` whose repositories are all gone reports empty once restored,
@@ -880,18 +1020,22 @@ mod tests {
         l.open.insert("main".to_string(), Layout::default());
         persist(&mut l, &path, Instant::now());
         assert_eq!(read_layouts(&path), vec![layout(&["c:/b"])]);
-        let _ = std::fs::remove_file(&path);
+        remove(&path);
     }
 
-    /// No file: nothing to seed, and nothing written.
+    /// No file: nothing to seed, and nothing written — but the restore mark is
+    /// armed all the same: the `lastOpen` fallback can crash too.
     #[test]
     fn a_first_launch_seeds_nothing() {
         let path = temp_path("first");
-        let _ = std::fs::remove_file(&path);
+        remove(&path);
         let mut l = Layouts::default();
-        assert_eq!(take(&mut l, &path), Vec::<Layout>::new());
+        assert_eq!(take(&mut l, &path), Taken::default());
         assert!(!l.open.contains_key("main"));
         assert!(!path.exists());
+        assert!(mark_file(&path).exists());
+        assert_eq!(l.awaiting, Some(HashSet::from(["main".to_string()])));
+        remove(&path);
     }
 
     /// A reloaded `main` takes again in the same process: it gets its own
@@ -904,7 +1048,151 @@ mod tests {
         spawned(&mut l, "w2", layout(&["c:/b"]));
         l.open.insert("main".to_string(), layout(&["c:/z"]));
         persist(&mut l, &path, Instant::now());
-        assert_eq!(take(&mut l, &path), vec![layout(&["c:/z"])]);
-        let _ = std::fs::remove_file(&path);
+        // Its own restore's mark is on disk: no crash for all that.
+        let again = take(&mut l, &path);
+        assert!(!again.crashed);
+        assert_eq!(again.layouts, vec![layout(&["c:/z"])]);
+        remove(&path);
+    }
+
+    /// The restore is over once every window of it has reported — `main` and
+    /// the windows spawned for the other entries — and the mark goes with it.
+    #[test]
+    fn the_mark_clears_once_every_restored_window_reports() {
+        let (path, _) = saved_session("mark-reports");
+        let mut l = Layouts::default();
+        take(&mut l, &path);
+        assert!(mark_file(&path).exists());
+        spawned(&mut l, "w1", layout(&["c:/b"]));
+        settle(&mut l, &path, "main");
+        assert!(mark_file(&path).exists(), "w1 has not reported yet");
+        settle(&mut l, &path, "w1");
+        assert!(!mark_file(&path).exists());
+        assert_eq!(l.awaiting, None);
+        remove(&path);
+    }
+
+    /// A window closed before its report counts as reported (`window_closed`
+    /// settles it), as does one that never opened (`spawn`'s failure branch).
+    #[test]
+    fn a_window_gone_mid_restore_counts_as_reported() {
+        let (path, _) = saved_session("mark-closed");
+        let mut l = Layouts::default();
+        take(&mut l, &path);
+        spawned(&mut l, "w1", layout(&["c:/b"]));
+        spawned(&mut l, "w2", layout(&["c:/c"]));
+        settle(&mut l, &path, "w1");
+        settle(&mut l, &path, "w2");
+        assert!(mark_file(&path).exists(), "main has not reported yet");
+        settle(&mut l, &path, "main");
+        assert!(!mark_file(&path).exists());
+        remove(&path);
+    }
+
+    /// A window spawned after the restore ended is not waited for: the mark
+    /// does not come back.
+    #[test]
+    fn a_spawn_after_the_restore_is_not_awaited() {
+        let (path, _) = saved_session("mark-after");
+        let mut l = Layouts::default();
+        take(&mut l, &path);
+        settle(&mut l, &path, "main");
+        spawned(&mut l, "w1", layout(&["c:/b"]));
+        assert_eq!(l.awaiting, None);
+        settle(&mut l, &path, "w1");
+        assert!(!mark_file(&path).exists());
+        remove(&path);
+    }
+
+    /// Exit and the update install end the restore whoever is left, and the
+    /// reports still to come change nothing.
+    #[test]
+    fn clear_mark_ends_the_restore() {
+        let (path, _) = saved_session("mark-clear");
+        let mut l = Layouts::default();
+        take(&mut l, &path);
+        spawned(&mut l, "w1", layout(&["c:/b"]));
+        clear_mark(&mut l, &path);
+        assert!(!mark_file(&path).exists());
+        assert_eq!(l.awaiting, None);
+        settle(&mut l, &path, "main");
+        settle(&mut l, &path, "w1");
+        assert!(!mark_file(&path).exists());
+        remove(&path);
+    }
+
+    /// With no restore running, a mark on disk is not this process's: another
+    /// process's, or a crash the next launch has to find.
+    #[test]
+    fn clear_mark_leaves_a_mark_it_did_not_set() {
+        let path = temp_path("mark-foreign");
+        std::fs::write(mark_file(&path), "").unwrap();
+        let mut l = Layouts::default();
+        clear_mark(&mut l, &path);
+        assert!(mark_file(&path).exists());
+        remove(&path);
+    }
+
+    /// A launch that died restoring: the session is set aside rather than
+    /// restored into the same crash, `main` is not seeded, and the mark is
+    /// armed again until `main`'s own report.
+    #[test]
+    fn a_restore_that_never_finished_is_set_aside() {
+        let (path, before) = saved_session("trip");
+        std::fs::write(mark_file(&path), "").unwrap();
+        let mut l = Layouts::default();
+        assert_eq!(
+            take(&mut l, &path),
+            Taken {
+                layouts: Vec::new(),
+                crashed: true,
+                kept: true,
+            }
+        );
+        assert!(!l.open.contains_key("main"));
+        assert!(!path.exists());
+        assert_eq!(std::fs::read(crashed_file(&path)).unwrap(), before);
+        assert!(mark_file(&path).exists());
+        settle(&mut l, &path, "main");
+        assert!(!mark_file(&path).exists());
+        remove(&path);
+    }
+
+    /// A `layout.json` held open without delete sharing refuses the rename; the
+    /// session is copied aside instead. Windows only: no portable way to make a
+    /// rename fail while a copy of the same file into the same folder succeeds.
+    #[cfg(windows)]
+    #[test]
+    fn a_refused_rename_copies_the_session_aside() {
+        use std::os::windows::fs::OpenOptionsExt;
+        let (path, before) = saved_session("trip-locked");
+        std::fs::write(mark_file(&path), "").unwrap();
+        // FILE_SHARE_READ only: reads pass, a rename (delete access) does not.
+        let hold = std::fs::OpenOptions::new()
+            .read(true)
+            .share_mode(1)
+            .open(&path)
+            .unwrap();
+        let mut l = Layouts::default();
+        let taken = take(&mut l, &path);
+        drop(hold);
+        assert!(taken.crashed);
+        assert!(taken.kept);
+        assert_eq!(std::fs::read(crashed_file(&path)).unwrap(), before);
+        remove(&path);
+    }
+
+    /// A crash on the `lastOpen` path left no `layout.json`: still a trip,
+    /// with nothing set aside.
+    #[test]
+    fn a_trip_without_a_layout_keeps_nothing() {
+        let path = temp_path("trip-empty");
+        std::fs::write(mark_file(&path), "").unwrap();
+        let mut l = Layouts::default();
+        let taken = take(&mut l, &path);
+        assert!(taken.crashed);
+        assert!(!taken.kept);
+        assert!(!crashed_file(&path).exists());
+        remove(&path);
     }
 }

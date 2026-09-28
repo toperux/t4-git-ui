@@ -196,6 +196,10 @@ pub async fn install_update(app: AppHandle, state: State<'_, AppState>) -> Resul
     // Again: the download is long enough for a push to have started meanwhile.
     refuse_while_busy(&state)?;
 
+    // On Windows `install` ends the process itself, so `RunEvent::Exit` never
+    // clears the restore mark: a restart into the new version must not look
+    // like a crash.
+    crate::commands::window::end_restore(&app);
     update
         .install(bytes)
         .map_err(|e| AppError::Internal(e.to_string()))?;

@@ -1,7 +1,7 @@
 import { open as openFile } from "@tauri-apps/plugin-dialog";
 import { useCallback, useEffect, useState } from "react";
 import { onLogProgress, onOpEvent, onRepoChanged, onSettingsChanged, onTabSpawnFailed, onUpdateChecked } from "./api/events";
-import { lastUpdateCheck, probeGit, setCommitDrafts, setGitPath, setLayout, spawnWindow, takeLayout, takePending, toAppError } from "./api/ipc";
+import { lastUpdateCheck, probeGit, setCommitDrafts, setGitPath, setLayout, spawnWindow, takeLayout, takePending, toAppError, type TakenLayout } from "./api/ipc";
 import { BusyOverlay } from "./components/ui/BusyOverlay/BusyOverlay";
 import { Spinner } from "./components/ui/Spinner/Spinner";
 import { isMainWindow } from "./lib/appWindow";
@@ -39,16 +39,34 @@ let restoring = false;
  * windows a layout is being restored into), else — in the main window — the layout the last exit
  * left, which also spawns the other windows. With neither, the repository `lastOpen` names, which is
  * what a first launch after the upgrade to tabs has.
+ *
+ * If the last launch died while it restored (`crashed`, the backend's crash-loop breaker), nothing
+ * opens: not the layout, which the backend has set aside, and not `lastOpen`, which would reopen the
+ * crasher on the launch after this one.
  */
 async function restoreTabs() {
   restoring = true;
   try {
     const tabs = useTabsStore.getState();
+    const none: TakenLayout = { layouts: [], crashed: false, kept: false };
     const pending = await takePending().catch(() => null);
-    const layout = pending ? [pending] : isMainWindow() ? await takeLayout().catch(() => []) : [];
+    const taken = pending ? { ...none, layouts: [pending] } : isMainWindow() ? await takeLayout().catch(() => none) : none;
+    if (taken.crashed) {
+      useRecentsStore.getState().setLastOpen(null);
+      useToastStore.getState().push({
+        kind: "error",
+        title: "Your last session wasn't reopened",
+        detail:
+          "The app closed while reopening it, so it started empty this time. Your repositories are still in Recents." +
+          (taken.kept ? " The saved windows are in layout.crashed.json." : ""),
+      });
+      return;
+    }
+    const layout = taken.layouts;
     if (layout.length === 0) {
       const last = useRecentsStore.getState().lastOpen;
-      if (last) await tabs.openTab(last);
+      // Caught here, so a repository that no longer opens still gets the one-shot report after this.
+      if (last) await tabs.openTab(last).catch(() => useRecentsStore.getState().setLastOpen(null));
       return;
     }
     // The first entry is this window's; every other one gets a window of its own.
@@ -107,10 +125,11 @@ export default function App() {
       // was seeded with at its read, has to be replaced, or a window whose repositories are gone comes
       // back every launch. Only here, once `restoreTabs` ran: the subscription waits while restoring.
       // The backend holds every write until `main` has read `layout.json`, so a report that comes
-      // before that read cannot erase the saved session.
+      // before that read cannot erase the saved session. `restored`: this window is back, so the
+      // crash-loop breaker stops waiting for it.
       const st = useTabsStore.getState();
       const active = st.tabs.find((t) => t.id === st.active) ?? null;
-      void setLayout({ tabs: st.tabs.map((t) => t.path), active: active?.path ?? "" }).catch(() => undefined);
+      void setLayout({ tabs: st.tabs.map((t) => t.path), active: active?.path ?? "" }, true).catch(() => undefined);
     } catch {
       recents.setLastOpen(null);
     }
