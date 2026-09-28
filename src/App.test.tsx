@@ -29,16 +29,21 @@ vi.mock("./api/events", () => ({
   onTabDragOver: vi.fn(() => () => {}),
   onTabDragOut: vi.fn(() => () => {}),
   onTabAdopt: vi.fn(() => () => {}),
-  onUpdateChecked: vi.fn(() => () => {}),
+  onUpdateCheckedReady: vi.fn(() => Promise.resolve(() => {})),
 }));
 
+import * as events from "./api/events";
 import * as ipc from "./api/ipc";
 import App from "./App";
 import { useRecentsStore } from "./store/recentsStore";
 import { useTabsStore } from "./store/tabsStore";
 import { useToastStore } from "./store/toastStore";
+import { useUpdateStore } from "./store/updateStore";
 
-const mocked = ipc as unknown as Record<"probeGit" | "takePending" | "takeLayout" | "spawnWindow" | "setLayout", ReturnType<typeof vi.fn>>;
+const mocked = ipc as unknown as Record<
+  "probeGit" | "takePending" | "takeLayout" | "spawnWindow" | "setLayout" | "lastUpdateCheck",
+  ReturnType<typeof vi.fn>
+>;
 const openTab = vi.fn((_path: string) => Promise.resolve());
 /** Makes `openTab` add its tab, as the real one does once the repository opened. */
 const openTabAdds = () =>
@@ -176,6 +181,38 @@ describe("App", () => {
     } finally {
       useRecentsStore.setState({ load });
     }
+  });
+
+  it("asks for the last update answer only once the update listener is attached", async () => {
+    let ready!: (unlisten: () => void) => void;
+    vi.mocked(events.onUpdateCheckedReady).mockReturnValueOnce(new Promise((r) => (ready = r)));
+    const info = { version: "9.9.9", installable: true, releaseUrl: "https://example.test/releases/latest" };
+    mocked.lastUpdateCheck.mockResolvedValueOnce({ checked: true, info });
+    render(<App />);
+    await settled();
+    expect(mocked.lastUpdateCheck).not.toHaveBeenCalled();
+    await act(async () => ready(() => {}));
+    await settled();
+    expect(mocked.lastUpdateCheck).toHaveBeenCalledTimes(1);
+    expect(useUpdateStore.getState().info).toEqual(info);
+  });
+
+  it("an update answer heard while the last-answer read is pending wins over that read's reply", async () => {
+    let heard!: (info: unknown) => void;
+    vi.mocked(events.onUpdateCheckedReady).mockImplementationOnce((cb) => {
+      heard = cb as never;
+      return Promise.resolve(() => {});
+    });
+    let reply!: (c: unknown) => void;
+    mocked.lastUpdateCheck.mockReturnValueOnce(new Promise((r) => (reply = r)));
+    const older = { version: "1.0.0", installable: true, releaseUrl: "https://example.test/releases/1" };
+    const newer = { version: "2.0.0", installable: true, releaseUrl: "https://example.test/releases/2" };
+    render(<App />);
+    await settled();
+    act(() => heard(newer));
+    await act(async () => reply({ checked: true, info: older }));
+    await settled();
+    expect(useUpdateStore.getState().info).toEqual(newer);
   });
 
   it("reports nothing when git is missing: the layout on disk has not been taken yet", async () => {

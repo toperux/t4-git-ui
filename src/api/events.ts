@@ -42,12 +42,6 @@ export function emitSettingsChanged() {
   emit("settings://changed").catch((e: unknown) => console.warn("events: could not emit \"settings://changed\"", e));
 }
 
-/**
- * A check came back in some window (`update://checked`), the asking one included. Only the main
- * window checks at launch, so this is how the others learn of a release.
- */
-export const onUpdateChecked = (cb: (info: UpdateInfo | null) => void) => subscribe<UpdateInfo | null>("update://checked", cb);
-
 /** Subscribes to an event the backend addresses to this window alone (`emit_to(label, …)`). */
 const subscribeHere = <T,>(name: string, cb: (payload: T) => void) => subscribe<T>(name, cb, { kind: "Window", label: windowLabel() });
 
@@ -92,6 +86,14 @@ async function subscribeReady<T>(name: string, cb: (payload: T) => void, target?
 /** `onOpEvent` awaited: the first event (`started`, which carries the `opId`) must not be missed. */
 export const onOpEventReady = (cb: (p: OpEvent) => void) =>
   subscribeReady<OpEvent>("op://event", cb, { kind: "Window", label: windowLabel() });
+
+/**
+ * A check came back in some window (`update://checked`), the asking one included. Only the main
+ * window checks at launch, so this is how the others learn of a release. Awaited: a window asks for
+ * the last answer once it listens, so an answer landing in between is heard rather than missed.
+ */
+export const onUpdateCheckedReady = (cb: (info: UpdateInfo | null) => void) =>
+  subscribeReady<UpdateInfo | null>("update://checked", cb);
 
 /**
  * Download percentage of the update being installed (`update://progress`): 0..=100, or `null` while

@@ -1,6 +1,6 @@
 import { open as openFile } from "@tauri-apps/plugin-dialog";
 import { useCallback, useEffect, useState } from "react";
-import { onLogProgress, onOpEvent, onRepoChanged, onSettingsChanged, onTabSpawnFailed, onUpdateChecked } from "./api/events";
+import { onLogProgress, onOpEvent, onRepoChanged, onSettingsChanged, onTabSpawnFailed, onUpdateCheckedReady } from "./api/events";
 import { lastUpdateCheck, probeGit, setCommitDrafts, setGitPath, setLayout, spawnWindow, takeLayout, takePending, toAppError, type TakenLayout } from "./api/ipc";
 import { BusyOverlay } from "./components/ui/BusyOverlay/BusyOverlay";
 import { Spinner } from "./components/ui/Spinner/Spinner";
@@ -169,8 +169,6 @@ export default function App() {
       onOpEvent((e) => useOpsStore.getState().onEvent(e)),
       // Another window wrote a preference: re-read it, or this one keeps a stale theme / diff default.
       onSettingsChanged(() => void useSettingsStore.getState().load()),
-      // A check in any window answers for all of them: only the main window checks at launch.
-      onUpdateChecked((info) => useUpdateStore.getState().learn(info)),
       // The window a tab was moved to never opened (the build fails after `spawn_window` returns):
       // take the tab back rather than lose it.
       onTabSpawnFailed((paths) => {
@@ -190,11 +188,19 @@ export default function App() {
       // strip, which is not rendered with one tab or none.
       listenTabDrags(),
     ];
-    // A window restored at launch, or opened later, may have missed the event: ask for the last answer.
-    // ponytail: an answer landing between this reply and the listener attaching is missed; Check now covers it.
-    void lastUpdateCheck()
+    // A check in any window answers for all of them: only the main window checks at launch. A window
+    // restored at launch, or opened later, may have missed the event: once the listener is attached,
+    // it asks for the last answer, so one landing in between is heard by the listener. An event heard
+    // before the reply is newer than it, or as new: the reply is dropped rather than let it win.
+    let heard = false;
+    const unlistenUpdate = onUpdateCheckedReady((info) => {
+      heard = true;
+      useUpdateStore.getState().learn(info);
+    });
+    void unlistenUpdate
+      .then(() => lastUpdateCheck())
       .then((c) => {
-        if (c.checked) useUpdateStore.getState().learn(c.info);
+        if (c.checked && !heard) useUpdateStore.getState().learn(c.info);
       })
       .catch(() => undefined);
     // Every open lands in recents, and the backend keeps what this window has open so the next
@@ -228,6 +234,7 @@ export default function App() {
     document.addEventListener("contextmenu", onContextMenu);
     return () => {
       unlisten.forEach((fn) => fn());
+      void unlistenUpdate.then((fn) => fn());
       unsubscribe();
       for (const u of unsubscribeDrafts) u();
       document.removeEventListener("contextmenu", onContextMenu);
