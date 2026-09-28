@@ -6,6 +6,7 @@
 // Alt+1 / Alt+2 pick the History | Changes view (spec §1). Ctrl+K opens the command palette, which
 // then owns the keyboard until Ctrl+K (or Esc) closes it again (spec §4).
 import { useEffect } from "react";
+import { ctrlOrCmd } from "../../lib/keys";
 import { useDialogStore } from "../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../store/opsStore";
 import { useTabsStore } from "../../store/tabsStore";
@@ -34,7 +35,7 @@ export function useShortcuts() {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.defaultPrevented || useDialogStore.getState().dialog) return;
-      const ctrl = e.ctrlKey || e.metaKey;
+      const ctrl = ctrlOrCmd(e);
       const palette = usePaletteStore.getState();
       // The palette owns the keyboard while it is open; Ctrl+K is the way in and out.
       if (ctrl && !e.shiftKey && e.key.toLowerCase() === "k") {

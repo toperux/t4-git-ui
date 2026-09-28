@@ -8,6 +8,7 @@ import { Menu, MenuItem } from "../../../components/ui/Menu/Menu";
 import { PanelHeader } from "../../../components/ui/PanelHeader/PanelHeader";
 import { Spinner } from "../../../components/ui/Spinner/Spinner";
 import { cx } from "../../../lib/cx";
+import { ctrlOrCmd } from "../../../lib/keys";
 import { loadHistory, splitMessage } from "../../../lib/msgHistory";
 import { useCommitStore } from "../../../store/commitStore";
 import { useDialogStore } from "../../../store/dialogStore";
@@ -105,7 +106,7 @@ export function MessageColumn({ onExpand, onCommitted, autoFocus }: MessageColum
   );
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
-    if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && canCommit) {
+    if (e.key === "Enter" && ctrlOrCmd(e) && canCommit) {
       e.preventDefault();
       void commitOnly();
     }

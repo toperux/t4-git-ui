@@ -17,7 +17,10 @@ beforeEach(() => {
   useViewStore.getState().__resetForTests();
   usePaletteStore.getState().__resetForTests();
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 describe("useShortcuts", () => {
   it("Ctrl+Shift+R opens the Run git command dialog, not while an op runs", () => {
@@ -52,9 +55,19 @@ describe("useShortcuts", () => {
     expect(useDialogStore.getState().dialog).toEqual({ kind: "settings" });
 
     useDialogStore.setState({ dialog: null });
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)");
     fireEvent.keyDown(window, { key: ",", metaKey: true });
     expect(useDialogStore.getState().dialog).toEqual({ kind: "settings" });
     input.remove();
+  });
+
+  // On Linux Meta is Super, whose chords belong to the desktop.
+  it("Super+Q / Super+, / Super+K do nothing off macOS", () => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Mozilla/5.0 (X11; Linux x86_64)");
+    renderHook(() => useShortcuts());
+    for (const key of ["q", ",", "k"]) expect(fireEvent.keyDown(window, { key, metaKey: true })).toBe(true);
+    expect(useDialogStore.getState().dialog).toBeNull();
+    expect(usePaletteStore.getState().open).toBe(false);
   });
 
   // A comma reaches the handler shifted on layouts that put it behind Shift, and as Ctrl+Alt when

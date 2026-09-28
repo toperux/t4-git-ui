@@ -17,6 +17,7 @@ import { UpdateBadge } from "../../components/ui/UpdateBadge/UpdateBadge";
 import { APP_NAME } from "../../lib/app";
 import { parentDir } from "../../lib/paths";
 import { cx } from "../../lib/cx";
+import { ctrlOrCmd } from "../../lib/keys";
 import { relativeDate } from "../../lib/relativeDate";
 import { filterRecents, useRecentsStore } from "../../store/recentsStore";
 import { useRepoStore } from "../../store/repoStore";
@@ -124,8 +125,8 @@ export function StartScreen() {
   useEffect(() => {
     function onKey(e: globalThis.KeyboardEvent) {
       // `busy`: the picker would come back to an `openPath` that drops the folder without a word.
-      // ⌘ counts as Ctrl here too, as it does in `lib/keys.ts` and `useShortcuts`.
-      if ((!e.ctrlKey && !e.metaKey) || e.altKey || clone || settings || busy) return;
+      // ⌘ counts as Ctrl on macOS here too, as it does in `useShortcuts` (`ctrlOrCmd`).
+      if (!ctrlOrCmd(e) || e.altKey || clone || settings || busy) return;
       const k = e.key.toLowerCase();
       if (k === "o" && !e.shiftKey) void pick();
       else if (k === "o" && e.shiftKey) void startClone();

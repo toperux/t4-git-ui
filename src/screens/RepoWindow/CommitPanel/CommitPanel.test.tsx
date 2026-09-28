@@ -272,6 +272,38 @@ describe("CommitPanel", () => {
     expect(document.activeElement).toBe(emptyUnstaged);
   });
 
+  // On Linux Meta is Super, whose chords belong to the desktop: only Ctrl (or ⌘ on macOS) counts.
+  it("Super+A in a file list selects nothing off macOS", () => {
+    const ua = vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Mozilla/5.0 (X11; Linux x86_64)");
+    try {
+      const { getByRole } = renderPanel();
+      const unstaged = getByRole("listbox", { name: "Unstaged files" });
+      unstaged.focus();
+      fireEvent.keyDown(unstaged, { key: "a", metaKey: true });
+      expect(useCommitStore.getState().selected).toEqual(["a.rs"]);
+      fireEvent.keyDown(unstaged, { key: "a", ctrlKey: true });
+      expect(useCommitStore.getState().selected).toHaveLength(4);
+    } finally {
+      ua.mockRestore();
+    }
+  });
+
+  it("Super+Enter in the message box doesn't commit off macOS", async () => {
+    const ua = vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Mozilla/5.0 (X11; Linux x86_64)");
+    try {
+      useCommitStore.setState({ summary: "Fix lanes" });
+      const { getByLabelText } = renderPanel();
+      const summary = getByLabelText("Summary");
+      fireEvent.keyDown(summary, { key: "Enter", metaKey: true });
+      await act(async () => {});
+      expect(mocked.commit).not.toHaveBeenCalled();
+      fireEvent.keyDown(summary, { key: "Enter", ctrlKey: true });
+      await waitFor(() => expect(mocked.commit).toHaveBeenCalledTimes(1));
+    } finally {
+      ua.mockRestore();
+    }
+  });
+
   it("double-clicking a single selected conflicted row stages it, like the row's own action", () => {
     const { getByRole } = renderPanel();
     const list = getByRole("listbox", { name: "Unstaged files" });

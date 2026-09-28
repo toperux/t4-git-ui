@@ -41,7 +41,10 @@ import { StartScreen } from "./StartScreen";
 
 const NOW = Date.now();
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 beforeEach(() => {
   vi.clearAllMocks();
   events.opCb = null;
@@ -148,8 +151,18 @@ describe("StartScreen", () => {
     fireEvent.click(closers[closers.length - 1]);
     expect(queryByRole("dialog", { name: "Settings" })).toBeNull();
 
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)");
     fireEvent.keyDown(window, { key: ",", metaKey: true });
     expect(getByRole("dialog", { name: "Settings" })).toBeTruthy();
+  });
+
+  // On Linux Meta is Super, whose chords belong to the desktop.
+  it("Super+O / Super+N do nothing off macOS", () => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Mozilla/5.0 (X11; Linux x86_64)");
+    render(<StartScreen />);
+    expect(fireEvent.keyDown(window, { key: "o", metaKey: true })).toBe(true);
+    expect(fireEvent.keyDown(window, { key: "n", metaKey: true })).toBe(true);
+    expect(open).not.toHaveBeenCalled();
   });
 
   it("clone dialog refuses a relative parent folder", async () => {

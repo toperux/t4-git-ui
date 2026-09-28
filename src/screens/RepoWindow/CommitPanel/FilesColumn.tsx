@@ -10,7 +10,7 @@ import { Progress } from "../../../components/ui/Progress/Progress";
 import { StatusGlyph } from "../../../components/ui/StatusGlyph/StatusGlyph";
 import { TreeRow } from "../../../components/ui/TreeRow/TreeRow";
 import { cx } from "../../../lib/cx";
-import { folderKey, mods } from "../../../lib/keys";
+import { ctrlOrCmd, folderKey, mods } from "../../../lib/keys";
 import { clickSelect, EMPTY_SELECTION, moveSelect, selectAll, type Selection } from "../../../lib/multiSelect";
 import { entryStatus, splitStatus, useCommitStore, type ListId } from "../../../store/commitStore";
 import { useStatusStore } from "../../../store/statusStore";
@@ -359,7 +359,7 @@ function FileList({ list, entries, tree }: { list: ListId; entries: StatusEntry[
         break;
       case "a":
       case "A":
-        if (!(e.ctrlKey || e.metaKey)) return;
+        if (!ctrlOrCmd(e)) return;
         select(list, selectAll(all, sel));
         // From a focused folder row: the next Enter should act on the selection, not toggle the folder.
         e.currentTarget.focus();
