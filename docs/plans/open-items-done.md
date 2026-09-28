@@ -620,6 +620,15 @@ fixes and the walk added three more. The walk is `docs/archive/walks/2026-09-19-
     against the pin's own comment.
   - **The fix:** the pin is 2.11.5; the AppImage re-sign step passes `--app-version`, so its signature carries
     `version:` like the others; `checks.yml` fails a PR whose pin and lock differ, so it can't drift again unseen.
-  - **Verified:** the guard against three scratch cases (equal, differ, pin line missing). CI on the push to
-    `main` and a `workflow_dispatch` run of `release.yml` (its `.sig` files ending in `version:`) are recorded here
-    once run. End to end: the next release's gate.
+  - **Verified:**
+    - the guard locally against five scratch cases (equal, differ, pin line missing, a prerelease pin against a plain
+      lock, a prerelease on both sides);
+    - CI on the push to `main` (`ee59475`, run 36391087334): green on all three legs, the guard step included;
+    - a `workflow_dispatch` run of `release.yml` on `main` (run 36391567783): all three build legs green, the macOS
+      signature step included. The `.exe.sig`, `.app.tar.gz.sig` and `.AppImage.sig` trusted comments all end in
+      `version:0.10.12`, and `verify-updater-sig.py` passes on all three against the shipped pubkey (key
+      `957D5D27E85EC730`).
+    - End to end: the next release's gate.
+- **`release.yml`'s macOS signing-order comment named 2.11.5 before a run confirmed it** (the CLI pin change's
+  triage T1) — **closed 2026-09-28**: run 36391567783's *Verify the macOS signature* step passed at tauri-cli
+  2.11.5, so the bundler still signs the `.app` before packing the `.app.tar.gz` and `.dmg`.

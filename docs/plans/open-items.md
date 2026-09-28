@@ -385,10 +385,6 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
   `@dependabot unignore @tauri-apps/cli` on an open npm group PR, even if the bump is done by hand, or later minors
   are never proposed. When the ignore is applied, add *ignore active since <date>* here (a docs commit on `main`,
   pushed on the user's word).
-- **`release.yml`'s macOS signing-order comment names 2.11.5 before a run confirmed it** (the CLI pin change's triage
-  T1, 2026-09-28). The *Verify the macOS signature* comment says the bundler at 2.11.5 signs before it packs the
-  `.app.tar.gz` and `.dmg`. A `workflow_dispatch` run of `release.yml` on `main` confirms it: that step fails red if
-  the order changed. Close this row when that run's macOS leg is green.
 - **Turn on `requireSignedVersion` (decided 2026-09-27 to track, not schedule).** From tauri-cli 2.11.5 on, every
   updater signature carries `version:`, and updater 2.12 rejects a signed version that doesn't match `latest.json`.
   A signature with no version is still accepted while `requireSignedVersion` is off, which leaves a downgrade
