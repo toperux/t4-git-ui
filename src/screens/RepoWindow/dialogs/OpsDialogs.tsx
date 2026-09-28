@@ -1,5 +1,5 @@
 // Push / Pull / Fetch / Merge / Rebase — the dialogs that drive a streaming remote or history op.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as ipc from "../../../api/ipc";
 import type { FfMode, PullMode, ResetMode } from "../../../api/types";
 import { Button } from "../../../components/ui/Button/Button";
@@ -30,17 +30,23 @@ export function useDefaultRemote(remotes: string[], initial?: string) {
     const tracking = remotes.find((r) => upstream?.startsWith(`${r}/`));
     return initial ?? tracking ?? (remotes.includes("origin") ? "origin" : remotes[0]) ?? "";
   });
+  // A pick made before the answer lands wins: the late answer is skipped.
+  const touched = useRef(false);
   useEffect(() => {
     if (initial) return;
     let live = true;
     void defaultRemote().then((r) => {
-      if (live && r) setRemote(r);
+      if (live && r && !touched.current) setRemote(r);
     });
     return () => {
       live = false;
     };
   }, [initial]);
-  return [remote, setRemote] as const;
+  const pick = (r: string) => {
+    touched.current = true;
+    setRemote(r);
+  };
+  return [remote, pick] as const;
 }
 
 export const RemoteField = ({ remotes, value, onChange, all }: { remotes: string[]; value: string; onChange: (v: string) => void; all?: boolean }) => (

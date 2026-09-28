@@ -374,6 +374,21 @@ describe("PullDialog", () => {
   });
 });
 
+describe("useDefaultRemote", () => {
+  it("keeps a remote picked before the default arrives", async () => {
+    let answer!: (r: string) => void;
+    mocked.getDefaultRemote.mockReturnValueOnce(new Promise<string>((res) => (answer = res)));
+    useRepoStore.setState({ refs: { ...REFS, remotes: [...REFS.remotes, { name: "fork", url: null, branches: [] }] } });
+    const { getByRole } = render(<PushDialog onClose={() => {}} />);
+    const dialog = getByRole("dialog", { name: "Push" });
+    fireEvent.click(getByRole("combobox", { name: "Remote" }));
+    fireEvent.click(getByRole("option", { name: "fork" }));
+    expect(preview(dialog)).toBe("git push --progress fork --end-of-options main");
+    await act(async () => answer("origin"));
+    expect(preview(dialog)).toBe("git push --progress fork --end-of-options main");
+  });
+});
+
 describe("CreateBranchDialog", () => {
   it("keeps a start point that is not a known ref (a commit oid from the grid)", async () => {
     const oid = "0123456789abcdef0123456789abcdef01234567";
