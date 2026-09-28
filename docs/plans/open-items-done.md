@@ -391,8 +391,38 @@ commits and pushed with the CI port from the markdown viewer (`a904701`).
   to be opened on.
 - **`Menu.tsx` ceiling** — closed 2026-09-26, will not fix; an accepted limit with a reopen trigger, moved to
   `open-items.md` §Q (*The `Menu.tsx` ceiling*), 2026-09-28.
+- **S1, blame and history ops are never cancelled** — **fixed 2026-09-29** for close-out Phase 2a (`f52c050`;
+  unit-only, not walked). `RepoHandle` gained `latest_blame` / `latest_history` tokens, each superseded (and the
+  older one cancelled) by the next blame or history request.
+- **S3, the truncated flag fires on stderr too** — **fixed 2026-09-29** (`4eba53e`; unit-only, not walked).
+  `CliOutput::truncated` is renamed `stdout_truncated`, set from stdout only.
+- **F3, hunk buttons stay enabled on a non-UTF-8 file** — **fixed 2026-09-29** for close-out Phase 2a (`058b9a7`,
+  walked as smoke group BH 7). `FileDiff::lossy` is on the wire; the commit panel hides hunk buttons and line
+  selection on it, with a note.
+- **The detached-HEAD banner's buttons aren't disabled while an op runs** — **fixed 2026-09-29** for close-out
+  Phase 2a (`d7cfc61`, walked as smoke group BH 9). `StateBanners` gates every banner button that starts an op on
+  `running`, with the *Operation in progress* title, like the grid and sidebar menus. `open-items.md` §Q's *A ref
+  or remote dialog closes…* entry now points here: no known path is left.
+- **`ponytail:` ceiling, `watch.rs:124`** (an app-side rewrite of `.gitmodules` didn't refresh the Submodules list
+  until the next refs event) — **fixed 2026-09-29** for close-out Phase 2a (`4fe4034`, walked as smoke group BH 8).
+  `kinds_for` reports `Refs` for a `.gitmodules` path, so Discard and conflict resolution reload the list.
+- **`ponytail:` ceiling, `App.tsx:175`** (an update answer landing between a new window's `lastUpdateCheck()`
+  reply and its `update://checked` listener attaching could be missed) — **fixed 2026-09-29** (`072b1b8`;
+  unit-only, not walked). The reply is issued only after the listener attaches, and an event heard before the
+  reply wins over it (R2).
+- **`ponytail:` ceiling, `Input.tsx:221`** (an AltGr character never reached type-ahead) — **fixed 2026-09-29**
+  (`efe1896`; unit-only, not walked). A Ctrl+Alt chord with a single-character key now passes the Alt branch. The
+  macOS Option-typed variant is deferred, `open-items.md` §R. The optional hand walk with a real AltGr layout was
+  skipped (triage 2026-09-29, accepted closed): the unit test's synthetic Ctrl+Alt event is what Windows sends.
 
 ## J. Added 2026-09-14 — from the UI direction B review
+
+The open-items §J heading is gone (nothing open is left there); this section now holds the whole history.
+
+- **Per-view sidebar state** (Direction B follow-up) — **fixed 2026-09-29** for close-out Phase 2a (`56bbea5`,
+  walked as smoke group BH 10): `viewStore` keeps a `railOverride` per view, per window, in memory; a sidebar width
+  dragged in one view survives a view switch that hid it.
+- **Palette search prefixes** — moved to `open-items.md` §C (roadmap), 2026-09-28 (close-out Phase 2a decision).
 - ~~**Stash dialog shows nothing of what it stashes.**~~ `Stash changes…` took a message and two
   checkboxes but never listed the working tree it was about to push; the user stashed blind. The
   dialog now lists the files the push will take and its button reads `Stash N files`, and the
@@ -441,6 +471,15 @@ Written after re-reading every row above against the working tree, `git log`, th
 
 ## L. Added 2026-09-17 — from the Ctrl+, / auto-close review and walk
 
+The open-items §L heading is gone (nothing open is left there); this section now holds the whole history.
+
+- **`Ctrl+,` is dead while the start screen is opening a repository.** Accepted 2026-09-28 (Q1), no code; moved to
+  `open-items.md` §Q (*`Ctrl+,` does nothing while the start screen opens a repository*). This is the origin
+  pointer, since the open-items §L section that named it is gone.
+- **Linux `Super+O` / `Super+N` / `Super+Q` reach the app** — **fixed 2026-09-29** for close-out Phase 2a
+  (`11b5b42`; unit-only, not walked; the Linux WebDriver check is in the close-out Linux track). `keys.ts` gained
+  `ctrlOrCmd(e)` (`e.ctrlKey || (e.metaKey && /Mac/.test(navigator.userAgent))`), used at the four spots that had
+  treated `metaKey` alone as Ctrl.
 - **`commitStore` is the only store that writes `viewStore`** — an architectural note, not a defect; moved here
   2026-09-25 because nothing is open about it. The auto-close lives in `commit()` because that is the single
   place every commit route lands; the alternative was threading `onCommitted` through three components. If a
@@ -462,6 +501,17 @@ Written after re-reading every row above against the working tree, `git log`, th
 
 ## M. Added 2026-09-19 — review of `v0.10.1..HEAD`, its fixes, and the walk of group AZ
 
+- **Failure toast detail cut mid-sentence, or a `warning:` line taken instead** — **fixed 2026-09-29** for
+  close-out Phase 2a (`7c7294e`, walked as smoke group BH 6). `classify_failure`'s middle fallback now skips
+  leading empty, fetch-chatter and `warning:` lines, then joins lines up to a blank one, at most 4.
+- **The default remote can overwrite a quick pick** — **fixed 2026-09-29** (`d116c2d`; unit-only, not walked — a
+  millisecond race). `useDefaultRemote` gained a `touched` ref; the late `get_default_remote` answer is skipped
+  once the field was changed by hand.
+- **Esc is dead in Settings after Check now** (triage T2) — **fixed 2026-09-29** for close-out Phase 2a
+  (`5ada2e9`, walked as smoke group BH 4 and BH 5). `Dialog.tsx` gained a document `keydown` listener that acts on
+  Esc / Tab when the focus has fallen to `<body>` (a focused control disabling itself drops it there, and
+  `Dialog`'s own `busy` rule only restores it in one case). Unverified on WebKitGTK, deferred to `open-items.md`
+  §R.
 - **A libgit2 error toast ended in git2's own `; class=Os (2); code=NotFound (-3)`** — **fixed 2026-09-25**
   for v0.10.12. `GitError::Git2` displays `git2::Error::message()` alone, not its `Display`, which appends
   the class and code. The IPC `kind` already says `git`. Test: `error::tests::a_libgit2_error_shows_its_message_alone`.
@@ -618,6 +668,20 @@ fixes and the walk added three more. The walk is `docs/archive/walks/2026-09-19-
       `version:0.10.12`, and `verify-updater-sig.py` passes on all three against the shipped pubkey (key
       `957D5D27E85EC730`).
     - End to end: the next release's gate.
+- **A repository that crashes the app while it restores crashes every later launch** — **fixed 2026-09-29** for
+  close-out Phase 2a (triage U1; `a47763b`, walked as smoke group BH 1–3). A `layout.restoring` mark (plus an
+  in-memory `awaiting` set) is armed by the first `take`; it clears once every restored window reports, on a
+  normal exit, or just before `update.install`. A launch that finds the mark still set moves the session aside as
+  `layout.crashed.json` (copied if the rename is refused), clears `lastOpen`, and shows an error toast instead of
+  reopening it. Three edge cases stay open, accepted limits in `open-items.md` §Q (*A crash after the restore report
+  still loops*, *The breaker can trip without a crash* and *The crash breaker doesn't catch a webview-only
+  crash*).
+  - **Closed accepted limit (decision Q3):** a repository that crashes when opened by hand still costs two
+    crashes before the breaker trips — the breaker covers restores only. No reopen trigger.
+  - **Closed accepted limit (triage 2026-09-29):** the copy-fallback test (`a_refused_rename_copies_the_session_aside`)
+    is Windows only — holding the file with read-only sharing blocks a rename but not a copy, which has no portable
+    equivalent. The lock it guards against (an antivirus or backup tool) is a Windows case, and CI's Windows leg
+    runs it. No reopen trigger.
 - **`release.yml`'s macOS signing-order comment named 2.11.5 before a run confirmed it** (the CLI pin change's
   triage T1) — **closed 2026-09-28**: run 36391567783's *Verify the macOS signature* step passed at tauri-cli
   2.11.5, so the bundler still signs the `.app` before packing the `.app.tar.gz` and `.dmg`.

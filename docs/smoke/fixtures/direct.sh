@@ -27,8 +27,9 @@ x() { DISPLAY=$XDISPLAY "$@"; }
 # Exact full path: an installed /usr/bin/t4-git-ui (or an AppImage) is never matched, so never killed.
 pidof_app() { pgrep -o -fx "$APP"; }   # -o: one pid, and pgrep's own exit status (no pipe to hide it)
 
-# seed '<json>' — write layout.json while the app is down; `main` is the first entry.
-seed() { mkdir -p "$(dirname "$L")"; printf '%s' "$1" > "$L"; }
+# seed '<json>' — write layout.json while the app is down; `main` is the first entry. Also removes a stale
+# layout.restoring mark, which would otherwise trip the crash breaker on the next launch.
+seed() { mkdir -p "$(dirname "$L")"; printf '%s' "$1" > "$L"; rm -f "$(dirname "$L")/layout.restoring"; }
 lay() { echo "$(ts) layout: $(cat "$L" 2>/dev/null || echo '(none)')"; }
 
 # dlaunch [seconds] — start the app detached on the Xvfb display, then wait.

@@ -7,25 +7,35 @@ src/
                            this window's tabs inside one try/catch (a failure lands on the start screen, never on the spinner):
                            `take_pending` (the tabs this window was created with) → else, in `main`, `take_layout` (the windows
                            of the last exit — the first entry's tabs here, `spawn_window` for each of the others) → else the
-                           old `lastOpen`, which is the migration for a first launch without a `layout.json`;
+                           old `lastOpen`, which is the migration for a first launch without a `layout.json`. `take_layout`
+                           also arms the crash-loop breaker (a `layout.restoring` marker next to `layout.json`) and reports
+                           `{ crashed, kept }`: a previous restore that never finished sets the session's file aside to
+                           `layout.crashed.json`, opens nothing (not even `lastOpen`), clears `lastOpen`, and pushes an
+                           error toast (naming the set-aside file when `kept`); a failing `lastOpen` open still clears itself
+                           so the fallback doesn't loop;
                            mirrors `tabsStore` into recents (touch per open, `lastOpen` = the active tab) and reports
-                           `set_layout` on every tab change except while restoring, then once; an event for a repository
-                           that is not the active tab marks that tab stale; `settings://changed` from another window
-                           reloads `settingsStore`; the automatic update check runs in `main` only; `listenTabDrags` is
+                           `set_layout(layout, restored?)` on every tab change except while restoring, then once with
+                           `restored: true` — the one-shot report that clears this window's share of the breaker's mark; an
+                           event for a repository that is not the active tab marks that tab stale; `settings://changed` from
+                           another window reloads `settingsStore`; the automatic update check runs in `main` only, and not
+                           gated on the listener; every window reads the last answer (`lastUpdateCheck()`) once
+                           `onUpdateCheckedReady` resolves, so one that lands while it starts isn't missed, and an event
+                           heard before that read's reply wins over it; `listenTabDrags` is
                            mounted here, not in the strip, so a window with one tab or none can still be dropped on
   api/
     types.ts               TS mirror of the Rust IPC contract (serde camelCase) — edit only together with the Rust structs
     ipc.ts                 `call()` (the one `invoke` wrapper) + one typed function per command, including the start-screen
                            cloneRepo {url,dest,recurseSubmodules,depth?} / initRepo {path} → RepoSummary; every
                            rejection is an AppError {kind, message}; isAppError/toAppError
-    events.ts              onLogProgress / onRepoChanged / onOpEvent / onSettingsChanged / onUpdateChecked (cb) → unlisten
+    events.ts              onLogProgress / onRepoChanged / onOpEvent / onSettingsChanged (cb) → unlisten
                            (`log://progress`, `repo://changed`, `op://event`, `settings://changed` — broadcast by
-                           emitSettingsChanged after a preference is written, so every window re-reads it, `update://checked`
-                           — every successful check's answer, to every window) and onTabSpawnFailed (`tab-spawn-failed` —
-                           the window some moved tabs were promised never opened, so all of them come back here);
-                           onOpEventReady / onUpdateProgressReady (cb) → Promise<unlisten> for callers that must be listening
-                           before they invoke (`op://event`, `update://progress` — the update download's percent, `null` until
-                           the total size is known)
+                           emitSettingsChanged after a preference is written, so every window re-reads it) and
+                           onTabSpawnFailed (`tab-spawn-failed` — the window some moved tabs were promised never opened, so
+                           all of them come back here); onOpEventReady / onUpdateProgressReady / onUpdateCheckedReady (cb) →
+                           Promise<unlisten> for callers that must be listening before they invoke (`op://event`,
+                           `update://progress` — the update download's percent, `null` until the total size is known,
+                           `update://checked` — every successful check's answer, to every window; a new window's own
+                           `lastUpdateCheck()` waits for this listener to attach first, so a fast answer can't land unheard)
   store/
     tabsStore.ts           zustand: tabs [{id, path, name, stale}], active, saved {<RepoId>: Snapshot}; openTab (open_repo first —
                            the id is what a tab is compared by, and `openElsewhere` means another window has it and was
@@ -147,8 +157,8 @@ src/
                            back: the app restarts into the new version — so only its failures land in `error`; asks first
                            when `ipc.commitDrafts()` names a window holding a typed commit message, kept current by each
                            window's own `setCommitDrafts`). learn(info) takes another window's check as this window's own —
-                           fed by App.tsx's onUpdateChecked (`update://checked`) and, for a window opening after the answer
-                           already came back, `ipc.lastUpdateCheck()`.
+                           fed by App.tsx's onUpdateCheckedReady (`update://checked`) and, for a window opening after the
+                           answer already came back, `ipc.lastUpdateCheck()`.
                            Settings › General › Updates and the UpdateBadge on both screens read the same answer
     dialogStore.ts         zustand: one `DialogSpec` at a time — open(spec, {returnFocusTo}) / close(); DialogHost renders it
                            and feeds `returnFocusTo` to `Dialog` through `DialogReturnFocus`
@@ -524,8 +534,10 @@ down to HEAD.
 
 `App` probes git, then `recentsStore.load()` (store plugin `recents.json` through `lib/kv`, `localStorage` fallback; a
 corrupt value reads as absent rather than throwing) and restores this window's tabs (see `App.tsx` above; `lastOpen` is the
-fallback on the first launch without a `layout.json`). Every tab change touches recents, rewrites `lastOpen` from the active
-tab and reports the window's tabs with `set_layout` (held while the window restores, then sent once). Recents are
+fallback on the first launch without a `layout.json`, and is skipped after a crash the breaker caught). Every tab change
+touches recents, rewrites `lastOpen` from the active tab and reports the window's tabs with `set_layout(layout, restored?)`
+(held while the window restores, then sent once with `restored: true`, which also clears this window's share of the
+crash-loop breaker's mark). Recents are
 stored already sorted (pinned first, then `lastOpened` desc) and capped at 20 unpinned entries. Opening a recent that
 no longer resolves shows an error toast with a "Remove from list" action. `CloneDialog` calls `clone_repo` and, while
 it runs, follows `op://event` with `repoId === null` — the subscription is awaited *before* `clone_repo` is invoked,

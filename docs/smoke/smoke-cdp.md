@@ -81,7 +81,9 @@ that way on 2026-09-19.
   list again after a tab change or an adopted tab.
 - **N windows at launch**: write `layout.json` first — `[{"tabs":[…],"active":…}, …]` — with the paths
   exactly as the app writes them (copy the spelling from a file the app wrote: backslashes on Windows). A
-  forward-slash path opens, but its `active` tab is not restored.
+  forward-slash path opens, but its `active` tab is not restored. A kill before the restore report leaves
+  `layout.restoring` next to `layout.json`, which trips the crash breaker on the next launch — delete it as
+  part of seeding.
 - **Closing a window** the way its × does: `WM_CLOSE` posted to the top-level HWND (`EnumWindows`, filtered
   by the build's pid and the title). That is what AZ 3 was walked with; a killed process is row 3h, not a close.
 - **The log file is buffered**: a killed process loses its tail. Close the window properly before reading

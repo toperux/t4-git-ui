@@ -309,7 +309,7 @@ These are recorded in `docs/archive/plans/2026-08-31-git-ui-v1-plan.md` › Know
 - No context menu on the diff body or on the details pane's file list, no interactive rebase / blame /
   file history / submodules / worktrees / bisect / cherry-pick / revert UI, no multi-repo tabs, no i18n
 - Syntax highlighting is per line, so block comments and template strings colour line by line
-- Hunk/line staging of a **non-UTF-8** file may fail or misapply — whole-file staging is fine
+- Hunk/line staging of a **non-UTF-8** file is hidden — the header notes it, and whole-file staging is fine
 - Native OS titlebar (deliberate)
 
 ## Reporting

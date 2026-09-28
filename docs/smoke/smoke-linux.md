@@ -218,7 +218,8 @@ For checking a published or CI-built AppImage (the `packages-Linux` artifact of 
 
   It answers *Session terminated without a reply*; that is the app exiting. Delete
   `$TMPDIR/t4-git-ui-wd-session` afterwards. `wd.mjs stop` kills the app instead, which is not a
-  close.
+  close. A kill before the restore report leaves `layout.restoring` next to `layout.json`, which trips
+  the crash breaker on the next launch — the `seed` helper deletes it.
 - **Stop the harness:**
 
   ```bash

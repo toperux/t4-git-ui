@@ -503,8 +503,8 @@ _Shipped 2026-09-07 (this commit); walked the same day over CDP on the installed
       preview reads `git revert --no-edit -m 1 --end-of-options …`; **Cancel**
 - [x] **An empty pick** (§5): **Cherry-pick 9099161…** on `nested folders` (already in `main`) →
       toast `Operation failed — The previous cherry-pick is now empty, possibly due to conflict
-      resolution.`, the in-progress banner with **Abort** / **Commit** and nothing staged →
-      **Abort** → clean, no banner
+      resolution. If you wish to commit it anyway, use:`, the in-progress banner with **Abort** /
+      **Commit** and nothing staged → **Abort** → clean, no banner
 - [x] **Commit right away off and a conflict** (§5): pick `conflict branch side` with the box
       unticked → toast `1 conflict — resolve in the commit panel`, only the conflicts banner (no
       `CHERRY_PICK_HEAD`, the status bar still says `Clean`), and the editor's Summary reads
@@ -1861,7 +1861,7 @@ Open (updated 2026-09-26): 11 (other platforms; Linux walked 2026-09-26, see `do
    | 3e [x] | Close B, change a tab in A under 4 s later | A (new tabs) + B until the 4 s are up, then A | — |
    | 3f [x] | Close B, close a tab in A, close A, all inside 4 s | A (without that tab) + B | A without that tab, + B |
    | 3g [x] | Close B, open a new window C under 4 s later | A + C + B until the 4 s are up, then A + C | — |
-   | 3h [x] | Close B, kill the process inside the 4 s | A + B | A + B |
+   | 3h [x] | Wait until `layout.restoring` is gone, close B, then kill the process inside the 4 s | A + B | A + B |
    | 3i [x] | Main on the start screen (no tab), B with a tab: close B, wait past 4 s, close main | B, however long the wait | B's tabs, in main |
    | 3j [x] | As 3i, but open a repository in main after the 4 s | main only | main |
    | 3k [x] | Quit (Ctrl+Q) with A and B open | A + B | A + B, as before |
@@ -1934,7 +1934,7 @@ setup where local `dev` tracks `origin/develop`, and a `post-commit` hook `sleep
 
 - [x] 1. Modify `pages/[id].txt` and `pages/i.txt`; Discard `[id].txt` → `i.txt` keeps its edit. Stage both, Unstage `[id].txt` → `i.txt` stays staged.
 - [x] 2. A file committed without a final newline, then a line appended: staging only the appended line is refused with the "missing final newline" reason; staging the hunk works and the index ends in a newline.
-- [x] 3. A Latin-1 file with one changed line: Stage hunk is refused naming UTF-8; staging the whole file works and `git diff --cached` shows the original bytes.
+- [x] 3. A Latin-1 file with one changed line: no hunk buttons or line selection, a header note reads "Not UTF-8 — stage whole file"; staging the whole file works and `git diff --cached` shows the original bytes.
 - [x] 4. With a diff open, rewrite the file from a terminal so its hunks shift, and press Stage hunk inside the same beat (before the panel reloads): refused with "changed since this diff was shown", index untouched. Again with a same-shape edit (one changed line's text replaced, nothing added or removed): refused too. Over CDP the beat is reachable by calling the store action right after the write; by hand it may not be — then tick it as unit-only and say so.
 - [x] 5. Push `dev` (tracks `origin/develop`): preview reads `dev:develop`, `origin/develop` moves, no `origin/dev` appears, the toast names `origin/develop`.
 - [x] 6. Two windows, a repo each: a failing push in window A leaves window B's dock closed and empty. Two clones at once, Cancel in one: the other finishes.
@@ -2086,6 +2086,56 @@ For rows 2 and 5, launch it behind `docs/smoke/fixtures/throttle-proxy.mjs`:
 
 Walked 2026-09-25 over CDP on a local build of the fixes (`8c75071`), versioned as 0.10.10 —
 `docs/archive/walks/2026-09-25-group-bg-walk.md`.
+
+## BH. Close-out Phase 2a: the crash-loop breaker, Esc after a self-disabling control, non-UTF-8 hunks, the
+`.gitmodules` refresh, banner gating, per-view sidebar (Windows over CDP, local `tauri build --no-bundle`)
+
+Before anything: with the installed app closed (`smoke-cdp.md` › *Inside Windows Sandbox* has the general recipe),
+back up `%APPDATA%\dev.topher.t4gitui\` — the local build shares it with the installed app. After the walk: restore
+it, delete `layout.crashed.json` and `layout.restoring` if left, and `cmp` against the backup — a stale mark would
+trip the installed app's next launch.
+
+- [x] 0. Back up the store folder as above.
+- [x] 1. **Breaker:** seed `layout.json` with two windows, launch, kill within ~1 s; if `layout.restoring` exists,
+      the relaunch shows the start screen and the error toast (with the file sentence), `layout.crashed.json` holds
+      the session, `lastOpen` is cleared (the `lastOpen` key in the store folder's `recents.json`), and the mark is
+      gone once `main` is up (if the mark was already gone, repeat with a slow-to-restore second window: a clone
+      with ~150 000 tags keeps the mark ~4 s). A second relaunch opens
+      nothing and shows no toast. Every kill in this row and row 3 that should not trip waits until
+      `layout.restoring` is gone (the report goes out when `startLog` resolves, after the title shows), as row 3h
+      of group AZ does.
+- [x] 2. **Breaker, no kill:** hand-create `layout.restoring` next to a seeded layout; the launch trips the same
+      way.
+- [x] 3. **No false trip:**
+      - after a full restore: kill → restores; Quit → restores; closing windows one by one → restores;
+      - Quit while the second window is still restoring → the relaunch restores, no toast (the `Exit` clear);
+      - close the second window mid-restore, then kill `main` after it's up → no toast (the `window_closed` settle).
+- [x] 4. **Esc after Check now:** Settings from the gear, log `focusout` via `Runtime.evaluate`, Check now, wait
+      for it to disable then finish; record `document.activeElement` (the engine's answer: `<body>` on WebView2) →
+      Esc closes and focus is on the gear; again with Tab first → the Theme select.
+- [x] 5. **Esc after Stage all** in the Commit dialog.
+- [x] 6. **Toast text:** the empty cherry-pick row's toast shows the joined sentence.
+- [x] 7. **Non-UTF-8:** BD 3 reworded (`latin1.txt`, bd fixture): no hunk buttons, the note, whole-file stage works.
+- [x] 8. **Submodules:** bd2 fixture: add a section to `.gitmodules` by hand → the list follows; Discard it → the
+      list reverts with no Refresh. (Removing a section by hand doesn't change the list, even after Refresh:
+      libgit2 also lists gitlinks from the index.)
+- [x] 9. **Banner:** detached HEAD + a long op: **Create branch…** and **Checkout `<default>`** disabled with the
+      *Operation in progress* title; enabled after.
+- [x] 10. **Per-view sidebar** at 1280 wide: toggle in History, switch to Changes (full sidebar), toggle there,
+      back to History (still toggled); a new window follows the width. A sidebar width dragged in one view comes
+      back at that width after a switch that hid it.
+- [x] 11. **T8 proxy check** (triage T8): launch with `smoke-launch.ps1 -Proxy http://127.0.0.1:8888` and
+      `throttle-proxy.mjs` running; `CONNECT github.com` in the proxy's log.
+- [ ] 12. **Update badge in a new window** (optional regression): with an update available, Ctrl+Shift+N shows the
+      badge. Scheduled at 2b's release gate, on the installed 2a app before Install (close-out plan).
+
+Walked 2026-09-29 over CDP on a local release build of `e5d8eb5` (`tauri build --no-bundle`), store folder backed
+up and restored byte-exact (`cmp`) — `docs/archive/walks/2026-09-29-group-bh-walk.md`. Rows 1 and 3 needed a
+slow-to-restore repository: on the small fixtures the mark lives ~200 ms, less than `taskkill` takes; a clone with
+150 000 tags stretched it to ~4.4 s. Row 10 was re-walked on a release build of `713da2d` (the review's width fix)
+and passed: dragged 260 → 400 px in Changes, hidden by History's rail, back at 400; the other way, 400 → 320 in
+History, hidden by Changes' rail, back at 320. Row 12 not reachable: 0.10.12 is the latest release, so no update is
+offered.
 
 ## Reporting
 

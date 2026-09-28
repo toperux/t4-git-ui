@@ -3,13 +3,13 @@
 _Written 2026-09-02, the day after v1 was accepted. This is the one list of what is still open;
 it folds together the v1 plan's "Known gaps", the 2026-09-01 codebase review's deferred rows and
 the README's "Next" line (review item H4). Since 2026-09-26 every row except §C's roadmap is
-scheduled in `2026-09-26-close-out-plan.md`; §Q's accepted limits wait on their reopen triggers, and four of
+scheduled in `2026-09-26-close-out-plan.md`; §Q's accepted limits wait on their reopen triggers, and three of
 them are also in a close-out phase._
 
 _Done, fixed, walked and closed rows live in `open-items-done.md` (split 2026-09-24), under the same
-section letters — a letter with nothing open left (§D, §F, §G, §H, §K, §N) is only there. When a row here is
-done, move it there. Accepted limits with a reopen trigger are open, in §Q (since 2026-09-28); those with none are
-closed, in the done file._
+section letters — a letter with nothing open left (§D, §F, §G, §H, §J, §K, §L, §N) is only there. When a row
+here is done, move it there. Accepted limits with a reopen trigger are open, in §Q (since 2026-09-28); those with
+none are closed, in the done file._
 
 ## A. Performance — measure before touching
 - **`reachers` merged-badge walk** (2026-09-02 review P1): the merged computation walks every commit
@@ -65,6 +65,9 @@ closed, in the done file._
 
 ## C. Roadmap — v1 out-of-scope, unchanged, unscheduled
 Custom titlebar (revisited in M6, native kept) · i18n · plugins.
+- **Palette search prefixes** — `#` searches commits (subject / SHA), `/` opens a file in the Files
+  tab. The first palette ships with actions, views, go-to-branch and recent repositories only. Moved from §J
+  2026-09-28 (close-out Phase 2a decision).
 
 ## E. Added 2026-09-10 — one dated decision
 - **`ubuntu-22.04` retirement — dated, and cross-repo.** **Parked until 2026-12-23** (user,
@@ -94,14 +97,9 @@ reviews, plus the `ponytail:` ceilings in code. Each was low and deferred with a
 naming its phase. (Rows closed as will-not-fix or accepted are in the done file, or in §Q when they carry a
 reopen trigger — the `Menu.tsx` `ponytail:` ceiling among them.)
 
-- **S1** blame / history ops are registered but nobody cancels them: 20 quick file clicks run
-  20 blames to completion. Fix: a per-repo "latest blame" token cancelled by the next.
-  *(Close-out Phase 2.)*
 - **S2** non-UTF-8 paths are dropped from the working-tree listing (lossy decode, then `stat`
   misses) or listed but unreadable. The IPC type is `String`; log the skip at most.
   *(Close-out Phase 2.)*
-- **S3** `path_history` fails on `CliOutput::truncated`, which also fires for a 4 MB *stderr*.
-  Split the flag if it ever bites. *(Close-out Phase 2.)*
 - **S4** `blameAt` switches tab / seeds / turns blame on before the reveal is known to hit.
   Reordering races the details-pane effect; toast only. *(Close-out Phase 2.)*
 - **E6** O(n²) tree build for a flat directory (`fileTree.ts`, `Sidebar.buildTree`). Measure
@@ -113,83 +111,28 @@ reopen trigger — the `Menu.tsx` `ponytail:` ceiling among them.)
   close/switch while an op runs (comment on `close_repo`). *(Close-out Phase 2.)* **Q23**, the details pane blank
   while a newly selected commit loads: an accepted limit, moved to §Q (*Q23: the details pane goes blank when
   another commit is selected*), 2026-09-28.
-- **The detached-HEAD banner's buttons aren't disabled while an op runs** (found 2026-09-28 in the change review of
-  the §Q move, read from the code, not walked). `RepoWindow.tsx:386` renders the banner buttons with no `running`
-  check, unlike every other opener. So with HEAD detached and a Fetch running, **Create branch…** opens its dialog,
-  and Create closes it before `runOp` refuses: the typed name is lost behind *Operation in progress* (§Q, *A ref or
-  remote dialog closes…*). Fix: `disabled={running}` with the *Operation in progress* title on those buttons, like
-  the grid and sidebar menus. When fixed, update §Q's *A ref or remote dialog closes…* entry: no known path left.
-  *(Close-out Phase 2a.)*
 - **R10** selected-mode header after a partial stage; **R12** two stale status/refs pairings
   where a guard would flicker *(close-out Phase 2)*; **R13** `canSquash` O(n) per row
   *(close-out Phase 3, measure first)*.
-- `ponytail:` ceilings in code (seven added 2026-09-26, which were in the code but never listed here):
+- `ponytail:` ceilings in code (seven added 2026-09-26, which were in the code but never listed here; three fixed
+  2026-09-29 in close-out Phase 2a, in the done file):
   - `crates/git-core/src/log/walker.rs:94` — a `Refs` spec that never reaches HEAD leaves the working-tree
     column open *(Phase 2)*;
-  - `src/App.tsx:175` (2026-09-25) — an update answer that lands between a new window's `lastUpdateCheck()` reply
-    and its `update://checked` listener attaching is missed. Check now covers it. *(Phase 2)*;
   - `crates/git-core/src/linked.rs:120` — `snapshot` opens a repository per worktree and re-reads every
     submodule, no cache *(Phase 3, measure first)*;
   - `crates/git-core/src/linked.rs:134` — no main row when the main worktree's HEAD can't be read;
     `worktree list --porcelain` fixes it at a git ≥ 2.36 floor *(Phase 2)*;
-  - `crates/git-core/src/watch.rs:124` — an app-side rewrite of `.gitmodules` does not refresh the Submodules
-    list until the next refs event *(Phase 2)*;
   - `src-tauri/src/commands/window.rs:392` — the pointer position for tab adoption is Windows-only *(Phase 5)*;
-  - `src/components/ui/Input/Input.tsx:221` — an AltGr character never reaches type-ahead *(Phase 2)*;
   - `src/screens/RepoWindow/Toolbar.tsx:100` — a rename while in the `icons` tier measures late *(Phase 2)*;
   - `src/screens/RepoWindow/dialogs/StashDialogs.tsx:39` — a dirty-only submodule is listed as stashed
     *(Phase 2)*.
-- **F3** (2026-09-20 review, moved from §N) — the hunk buttons stay enabled on a non-UTF-8 file;
-  the refusal arrives as a toast naming the reason. Reopen when such repositories are actually
-  worked in — the `lossy` flag already exists on the backend (`FileDiff::lossy`,
-  `#[serde(skip)]`), it only needs putting on the wire and a `DisabledHint`. *(Close-out Phase 2.)*
-
-## J. Added 2026-09-14 — from the UI direction B review
-Direction B (History | Changes view switch + Ctrl+K palette) is the chosen small-window layout;
-canvases under `docs/design/` once it lands.
-- **Palette search prefixes** — `#` searches commits (subject / SHA), `/` opens a file in the Files
-  tab. The first palette ships with actions, views, go-to-branch and recent repositories only.
-- **Per-view sidebar state** (Direction B follow-up): many will hide the sidebar while staging and want it back in
-  History. One `railOverride` per view is a ten-line change in `viewStore` if the first weeks say so.
-
-## L. Added 2026-09-17 — from the Ctrl+, / auto-close review and walk
-
-Things that existed only in a session transcript. None was scheduled; each is written down so it
-is not rediscovered from scratch. **Since 2026-09-26 both rows are scheduled in close-out Phase 2**; the
-"reopen only if" reasoning below is kept as history. (Two more, the `commitStore` → `viewStore` note and the `smoke-dialog.ps1`
-fixture, are in the done file since 2026-09-25.) The walk itself is
-`docs/archive/walks/2026-09-17-autoclose-walk.md`.
-
-- **`Ctrl+,` is dead while the start screen is opening a repository.** `StartScreen`'s handler returns
-  early on `busy`, which is set for the whole of `pick()` / `init()` / `startClone()`, so the chord
-  does nothing between the click and the window swap. Deliberate for the pickers (the OS dialog owns
-  the keyboard anyway) and harmless for the rest — opening Settings over a repository that is half
-  open is worse than a dead key. Reopen it only if the gap ever feels long; the fix is to drop
-  `busy` from the comma arm alone, not from the guard.
-- **Linux `Super+O` / `Super+N` / `Super+Q` reach the app.** Pre-existing, unrelated to this work:
-  `useShortcuts` treats `metaKey` as Ctrl so one branch serves ⌘ on macOS, and on Linux Super is
-  `metaKey` too. The desktop environment usually swallows Super chords first, which is why it has
-  never been reported. A `navigator.platform` split would fix it and would also be the first
-  platform test in that file, so it waits for a real report.
 
 ## M. Added 2026-09-19 — review of `v0.10.1..HEAD`, its fixes, and the walk of group AZ
 
 The walk is `docs/archive/walks/2026-09-19-group-az-walk.md`. What is left, so it is not rediscovered.
-**Since 2026-09-26 these are scheduled in the close-out plan** (the toast, default-remote and menu rows in
-Phase 2, the 1800-file delay in Phase 3, AZ 11 Linux in the Linux track, macOS in Phase 5); "left until one bites"
-below is kept as history.
-
-- **A failed op's toast detail, known limits** (2026-09-26, the Pull fix's review). Without a `fatal:` /
-  `error:` line, `classify_failure` takes the first line after a fetch's chatter. Git wraps its advice, so
-  the toast can stop mid-sentence (*…but did not specify*), and a `warning:` line before the advice
-  (`warning: redirecting to …`) is taken in its place. The dock has the whole text. Joining lines up to a
-  blank one would cut the first, but it would also lengthen the cherry-pick advice headline that
-  `cli::ops::tests::rejected_and_other` pins. So both are left until one bites.
-- **The default remote can overwrite a quick pick** (pre-existing). `useDefaultRemote` sets the answer of
-  `get_default_remote` whenever it lands, even after the Remote field was changed by hand. Since 2026-09-26 the
-  first render already shows the same order from the refs, so the answer rarely differs. The preview follows
-  the change, but an Enter right after it can still miss it. Fix: skip the `setRemote` once the field was
-  touched.
+**Since 2026-09-26 these are scheduled in the close-out plan** (the menu row in Phase 2, the 1800-file delay in
+Phase 3, AZ 11 Linux in the Linux track, macOS in Phase 5); "left until one bites" below is kept as history. The
+toast-detail and default-remote rows are fixed, in the done file's §M.
 
 - **Open box in group AZ**: 11 (Linux and macOS: rows 3a, 3b, 3d, 3i and bullet 6, by hand). (9, unit-tested
   with no hand recipe, is marked `[n/a]` since 2026-09-26.) Linux was walked 2026-09-26 and failed on 6; the fix
@@ -198,15 +141,9 @@ below is kept as history.
   right-click menu opens with its first item focus-visible, so a clipped first item opens wrapped — the
   same case in which that row always had the accent highlight. Since #18 (the `data-kbd` mark) this happens on
   Linux too (triage U3).
-- **Esc is dead in Settings after Check now** (triage T2, 2026-09-26; Phase 2a). `Dialog` catches Esc in its
-  form's `onKeyDown` (`Dialog.tsx:97-103`), so it works only while the focus is inside the dialog. **Check now**
-  is `disabled={checking || installing}` (`SettingsDialog.tsx:232`), and disabling the focused button drops the
-  focus to `<body>`. `Dialog` puts it back only when its `busy` prop clears (`Dialog.tsx:88-95`), and Settings
-  passes `busy={installing}` (`:160`), not `checking`. Repro: Settings › Check now → Esc → nothing; a click inside
-  → Esc works. A mouse or keyboard user meets it too.
 - **Seen in the walk, not acted on.** An external `git reset` of 1800 files takes about four seconds to
   show in Changes, on 0.10.7 as well. (The libgit2 error-suffix row was fixed 2026-09-25 and is in the done
-  file; the walk's native-confirm reading is in §L.)
+  file; the walk's native-confirm reading is in the done file's §L.)
 
 ## O. Added 2026-09-26 — the Linux walk of group AZ 11
 
@@ -393,32 +330,6 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
   after signing, so the risk the AppImage check guards against doesn't apply. To extend it, run
   `.github/scripts/verify-updater-sig.py` on those legs too, and make it check the signed `version:` on every leg.
   Scheduled in close-out Phase 1b (row 2d), 2026-09-28.
-- **Row found in review: a repository that crashes the app while loading crashes every later launch.** Wider since
-  the fix batch: a restored window's tabs are in the file before they open (since Phase C for spawned windows,
-  since the 2026-09-27 seed for `main`), so the loop also covers crashes inside `open_repo`. Scheduled in Phase 2a
-  (triage U1, 2026-09-28). Outside a restore, `openTab` adds a tab, and the layout subscription reports it, as soon
-  as the backend open returns and before the repository loads (`src/store/tabsStore.ts`, `src/App.tsx`'s
-  `useTabsStore.subscribe`). A crash during the load therefore leaves the path in the file, and every launch
-  reopens it and crashes again until `layout.json` is deleted by hand. That happens with one window or several.
-  "Crashes" means the process ends without a normal exit: a segfault, an abort, OOM, or a panic that isn't
-  contained. Likely fix, a loop breaker:
-  - **Mark the restore in progress** on the Rust side, before `take_layout` hands the layout out.
-  - **Clear the mark** once every window the restore spawned has sent its post-`restoreTabs` report, not just
-    `main`: spawned windows load their own repositories. Rust knows their labels from `spawn` / `pending`.
-    **Also clear it on a normal exit** (`RunEvent::Exit`, which covers Quit and the last window closing). A window
-    stuck on *Starting* (§O) never reports, so without this a clean quit would read as a crash next launch. **And clear
-    it just before `update.install`** (`update.rs`), or in the updater's `on_before_exit` hook. On Windows the updater
-    launches the installer and calls `std::process::exit(0)`, so `RunEvent::Exit` never fires, and the launch after an
-    update would read as a crash (breaking AZ 10). Only a crash or a kill then leaves the mark set.
-  - *This is a sketch from review, verified against Tauri 2.11 and tauri-plugin-updater 2.12. Design and test it
-    properly when the row is picked up: the exit paths (Quit, last window, update restart on each OS, a kill)
-    are the test list.*
-  - **If the previous launch never finished restoring,** open `main` on the start screen once:
-    - move `layout.json` aside rather than taking it (`take` now leaves the file in place, and the one present is what
-      the crashed launch rewrote);
-    - **skip the `lastOpen` fallback too.** The subscription persists the crashing repository as `lastOpen`, which
-      `restoreTabs` falls back to on an empty layout;
-    - say so in a toast.
 - **T15 (a reloaded `main` re-spawns every other window):** closed 2026-09-27, moved to `open-items-done.md` §P.
 
 ## Q. Accepted limits — open, each with a reopen trigger
@@ -461,6 +372,18 @@ The rows below came from elsewhere in this file (the first nine) and from the do
 - **No timeout on git ops.** A stuck ssh or https op ends only on Cancel. By choice (triage 2026-09-27): a timeout
   would misfire on a slow fetch or clone. **Reopen:** a report of a hang the ssh fail-fast change doesn't cover.
   *From §P, the ssh prompts row.*
+- **A crash after the restore report still loops.** The report fires when the log walk starts
+  (`repoStore.ts:347`); a crash later in the walk or the refs load happens after the breaker's mark clears.
+  **Reopen:** a loop is reported that gets past the breaker. *From §P.*
+- **The breaker can trip without a crash.** A kill during a slow restore (any OS; on Linux, the §O hang with a
+  second window stuck on *Starting*) can't be told from a crash; and without single-instance (no session bus,
+  `window.rs:287-288`), a second process finds the first one's live mark. Either way the session is set aside
+  once, with the file kept. **Reopen:** the §O fix lands (re-check), or a false trip is reported. *From §P.*
+- **`Ctrl+,` does nothing while the start screen opens a repository.** While a repository opens, the *Opening…*
+  overlay (`App.tsx:232`, `z-index: 50`, above dialogs at 40, swallowing clicks) covers the start screen, so
+  Settings opened then would sit invisible under it, holding the keyboard, until the repo window replaces it.
+  Only Init (`StartScreen.tsx:94-96`) and the overlay's 150 ms fade-in are uncovered. Accepted 2026-09-28 (Q1), no
+  code. **Reopen:** the gap feels long. *From §L (in the done file).*
 - **`status.rs`: no `git status` command-line fallback for very large trees** (a v1 accepted limit). The fallback
   would be `git status --porcelain=v2 -z` behind a flag, only if libgit2 status proves slow on very large trees.
   Measured 2026-09-07: 1.5 s at 47k tracked files (AutoEq), 50 ms at 61k files on disk / 10.7k commits — that is
@@ -524,17 +447,68 @@ The rows below came from elsewhere in this file (the first nine) and from the do
 - **A ref or remote dialog closes, and its input is lost, when its op is refused.** These dialogs call `onClose()`
   before `runOp` (e.g. `src/screens/RepoWindow/dialogs/RefDialogs.tsx:243-244`, `RemoteDialogs.tsx:29-30`); if
   another operation is running, `runOp` refuses with *Operation in progress* (`src/store/opsStore.ts:189-191`) after
-  the dialog has closed. One path reaches it, read from the code on 2026-09-28 (not walked): the detached-HEAD
-  banner's **Create branch…** button stays enabled while an op runs (`RepoWindow.tsx:386`, `banners.ts:52`) — check
-  out a commit, start a Fetch, click it, type a name, Create, and the name is lost behind the toast. Gating that
-  button is deferred to close-out Phase 2a (§I, *The detached-HEAD banner's buttons aren't disabled while an op
-  runs*). Every other opener is gated: the grid and sidebar menus (`RevisionGrid.tsx:310`, `Sidebar.tsx:428`,
-  `:618`), the toolbar, the palette and Ctrl+B; shortcuts are ignored while a dialog is open (`useShortcuts.ts:36`);
-  nothing starts an op in the background. Recorded in the worktrees + submodules notes (shipped 2026-09-13). The
-  fix, when reopened: stay open on a `busy` refusal, as
+  the dialog has closed. No known path is left: the detached-HEAD banner's **Create branch…** button
+  (`RepoWindow.tsx:386`, `banners.ts:52`) was the last ungated opener, fixed 2026-09-29 (`d7cfc61`; the row is now
+  in the done file's §I). Every other opener is gated: the grid and
+  sidebar menus (`RevisionGrid.tsx:310`, `Sidebar.tsx:428`, `:618`), the toolbar, the palette and Ctrl+B; shortcuts
+  are ignored while a dialog is open (`useShortcuts.ts:36`); nothing starts an op in the background. Recorded in
+  the worktrees + submodules notes (shipped 2026-09-13). The fix, when reopened: stay open on a `busy` refusal, as
   `WorktreeDialogs.tsx:150-152` does (`runOp` already returns `error.kind === "busy"`; the source's "`ran` flag on
   `runOp`" is superseded). **Reopen:** it bites — a report of a dialog closing on a refused op. *From the done
   file's context notes.*
+- **The crash breaker doesn't catch a webview-only crash.** It catches the app process dying. If only the webview
+  dies (WebView2's renderer process, WebKit's web process) while the app lives on, the window goes blank, and
+  closing it counts as that window's report (`window_closed` settles it by design), so a repository that kills just
+  the renderer on load still loops. Catching it would need each webview's crash event (WebView2 `ProcessFailed`,
+  WebKitGTK `web-process-terminated`): no Tauri event carries it, so platform code through `with_webview`.
+  Accepted 2026-09-29. **Reopen:** a renderer-crash loop is reported. *From close-out Phase 2a's change review (L1).*
+- **The newer blame or history read can lose the cancel race to an older one sent in the same instant.** Each read
+  cancels the one before it in the order the requests start (`RepoHandle::supersede_blame` / `supersede_history`),
+  but each invoke is its own task on the multi-thread runtime, so two sent in the same JavaScript tick can start in
+  either order; the newer then ends *Cancelled*, shown in the grid or the blame pane. No caller sends two in one
+  tick today. Accepted 2026-09-29. **Reopen:** a *Cancelled* shows for the current blame or history. *From close-out
+  Phase 2a's change review (L2).*
+- **The sidebar comes back at its last actual width, not only a dragged one.** A width is kept across a view switch
+  that hid the sidebar (`RepoWindow.tsx`, the `width` ref), from the panel's `onResize`, so a width a narrow window
+  squeezed comes back squeezed; a 0-px report (a minimised window) is ignored. Recording only drags would need
+  gesture tracking like the output dock's. Accepted 2026-09-29. **Reopen:** a sidebar comes back at a width the
+  user didn't set. *From close-out Phase 2a's change review (R4).*
+- **An older history call can restart a newer one's walk.** `start_log` takes the log generation (`LogCache::begin`)
+  after `compute_labels`, so of two quick path calls the older one, finishing its labels last, takes the newer
+  generation and stops the newer walk; its own `path_history` is then cancelled, and the newer view's next page
+  fetch sees a stale generation and restarts its walk (`repoStore.ts:286-288`). At most a brief reload of the
+  newer history. Accepted 2026-09-29. **Reopen:** a history view flickers or reloads after quick path changes; the
+  fix is to take the generation at the top of `start_log`, with the token swap. *From close-out Phase 2a's change
+  review.*
+- **Two stacked dialogs would both close on one Esc.** Each open `Dialog` adds a capture-phase document `keydown`
+  listener for Esc on `<body>` (`Dialog.tsx`), and `stopPropagation` doesn't stop other listeners on the same node.
+  The app never stacks dialogs today (`DialogHost` renders one; the start screen's Clone and Settings exclude each
+  other; Commit & Push swaps in one commit). Accepted 2026-09-29. **Reopen:** a flow opens a dialog over another;
+  then act only when this form is the last `form[role=dialog]`. *From close-out Phase 2a's change review.*
+- **The sidebar-width test mocks `react-resizable-panels`.** jsdom can't lay out panels, so `RepoWindow.test.tsx`
+  stubs the library; that a real drag reports `onResize` in pixels was checked by smoke group BH 10 and the
+  library's types only. Accepted 2026-09-29. **Reopen:** a `react-resizable-panels` upgrade — re-walk BH 10. *From
+  close-out Phase 2a's change review.*
+- **`cancel_kills_long_running_process` can miss its 800 ms bound under load.** It failed once locally while two
+  builds ran in parallel, passed alone (0.38 s) and in every run since; never seen in CI. Widening the bound would
+  weaken what it proves. Accepted 2026-09-29. **Reopen:** it fails in CI — then widen the bound or retry it. *From
+  close-out Phase 2a's gates.*
+
+## R. Added 2026-09-29 — close-out Phase 2a's change review, deferred
+
+- **Esc after a self-disabling control is unverified on WebKitGTK.** The Phase 2a fix (`Dialog.tsx`, a document
+  `keydown` listener for Esc / Tab on `<body>`) rests on focus falling to `<body>` when the focused button disables
+  itself; walked on WebView2 (BH 4). If WebKitGTK keeps focus on the disabled button and doesn't dispatch keys to
+  it, Esc stays dead there. (WKWebView doesn't focus a button on a mouse click, so `<body>` is already the target
+  there.) *(Close-out Linux track: record `activeElement` after Check now and whether Esc closes Settings; reopen
+  the fix if not.)*
+- **macOS: an Option-typed character never reaches a select's type-ahead.** Option arrives as `altKey` without
+  `ctrlKey`, so `Input.tsx`'s Alt branch swallows it (Phase 2a let only Windows' AltGr, Ctrl+Alt, through).
+  *(Close-out Phase 5, with the macOS rows.)*
+- **Ctrl+Q does nothing on the start screen.** Quit is bound only in a repo window (`useShortcuts.ts:74` and the
+  repo menu); on Windows and Linux the start screen (including a window whose last tab closed while others stay
+  open) has no Quit, only the window's × (macOS likely has Tauri's default app menu, with Quit, not checked). Pre-existing; met in smoke group BH's walk. Fix: a Ctrl+Q arm in `StartScreen`'s key handler
+  calling the same `quit`, plus a test. *(Close-out Phase 2b.)*
 
 ## Order
 
