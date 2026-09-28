@@ -68,7 +68,7 @@ export function Toolbar() {
   const historyPath = useRepoStore((st) => st.filter.path ?? null);
   const tier = useToolbarTier(nameWidth, view === "history" && historyPath ? HISTORY_CHIP_W : 0);
   // The sidebar toggle lives here so it is in one place whichever state the sidebar is in.
-  const railOverride = useViewStore((st) => st.railOverride);
+  const railOverride = useViewStore((st) => st.railOverride[st.view]);
   const toggleRail = useViewStore((st) => st.toggleRail);
   const rail = railOverride ?? layout.railAuto;
   const theme = useTheme();

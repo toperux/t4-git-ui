@@ -1,5 +1,5 @@
 import { CircleCheck, Cloud, GitBranch, TriangleAlert } from "lucide-react";
-import { useCallback, useEffect, useRef, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { Group, Panel, Separator, usePanelRef } from "react-resizable-panels";
 import type { RepoState } from "../../api/types";
 import { Banner } from "../../components/ui/Banner/Banner";
@@ -51,7 +51,7 @@ export function RepoWindow() {
   const view = useViewStore((st) => st.view);
   // The width decides the sidebar unless the user said otherwise with Ctrl+Shift+` (spec §2).
   const railAuto = useLayout().railAuto;
-  const railOverride = useViewStore((st) => st.railOverride);
+  const railOverride = useViewStore((st) => st.railOverride[st.view]);
   // The override holds until the user toggles back to what the width would pick (`toggleRail`), not
   // until a resize happens to pass a width that agrees with it: forced on at 1400, a round trip
   // through 900 must not hand the sidebar back on the way out.
@@ -108,6 +108,9 @@ export function RepoWindow() {
   // With one tab there is nothing to switch to, and the toolbar already names the repository — but a
   // tab dragged here from another window needs somewhere to show its drop caret.
   const stripped = useTabsStore((st) => st.tabs.length > 1 || st.caret !== null);
+  // The sidebar's width, from the 260 design width. Kept here because the panel does not last: the
+  // rail, or a view switch that hides the sidebar, unmounts it.
+  const sidebarW = useRef(260);
   useShortcuts();
 
   return (
@@ -123,11 +126,7 @@ export function RepoWindow() {
                   and the details pane every time the sidebar is toggled or the width crosses the breakpoint. */}
               {!rail && (
                 <>
-                  {/* 260 is the design width, and now held there through a window resize instead of drifting
-                      off it. The range is wide enough that dragging visibly does something. */}
-                  <Panel defaultSize={260} minSize={180} maxSize={560} groupResizeBehavior="preserve-pixel-size" className={s.panel}>
-                    <Sidebar />
-                  </Panel>
+                  <SidebarPanel width={sidebarW} />
                   <Separator className={s.splitH} aria-label="Resize sidebar" />
                 </>
               )}
@@ -188,6 +187,31 @@ export function RepoWindow() {
       <CommandPalette />
       <ToastStack />
     </div>
+  );
+}
+
+/**
+ * The sidebar's panel, back at the width it last had when it comes back from hiding, not at 260.
+ * `width` is read once per mount: a changed `defaultSize` re-registers a panel with the library.
+ */
+function SidebarPanel({ width }: { width: RefObject<number> }) {
+  const [defaultSize] = useState(() => width.current);
+  // Held through a window resize instead of drifting off it. The range is wide enough that dragging
+  // visibly does something.
+  return (
+    <Panel
+      defaultSize={defaultSize}
+      minSize={180}
+      maxSize={560}
+      groupResizeBehavior="preserve-pixel-size"
+      onResize={(size) => {
+        // A 0-px report (a minimised window) is not a width to come back at.
+        if (size.inPixels > 0) width.current = size.inPixels;
+      }}
+      className={s.panel}
+    >
+      <Sidebar />
+    </Panel>
   );
 }
 

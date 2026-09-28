@@ -107,7 +107,7 @@ describe("useShortcuts", () => {
     const input = document.body.appendChild(document.createElement("input"));
     // `key` is layout-dependent once shifted (`~` on a US layout), so the match is on `code`.
     fireEvent.keyDown(input, { key: "~", code: "Backquote", ctrlKey: true, shiftKey: true });
-    expect(useViewStore.getState().railOverride).toBe(true);
+    expect(useViewStore.getState().railOverride.history).toBe(true);
     input.remove();
   });
 

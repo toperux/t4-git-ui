@@ -48,7 +48,7 @@ describe("Toolbar sidebar toggle", () => {
     const { getByRole } = render(<Toolbar />);
     expect(getByRole("button", { name: "Toggle sidebar" }).getAttribute("aria-pressed")).toBe("true");
     fireEvent.click(getByRole("button", { name: "Toggle sidebar" }));
-    expect(useViewStore.getState().railOverride).toBe(true);
+    expect(useViewStore.getState().railOverride.history).toBe(true);
     expect(getByRole("button", { name: "Toggle sidebar" }).getAttribute("aria-pressed")).toBe("false");
   });
 });

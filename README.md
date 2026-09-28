@@ -103,7 +103,7 @@ Ctrl is ⌘ on macOS.
 | Both screens | `Ctrl+,` | Settings |
 | Repo window | `Alt+1` · `Alt+2` | History · Changes |
 | Repo window | `Ctrl+K` | Command palette |
-| Repo window | ``Ctrl+Shift+` `` | Collapse / expand the sidebar |
+| Repo window | ``Ctrl+Shift+` `` | Collapse / expand the sidebar (remembered per view: History, Changes) |
 | Repo window | `F5` · `Ctrl+F5` | Refresh · Fetch |
 | Repo window | `Ctrl+Shift+L` · `Ctrl+Shift+U` | Pull… · Push… |
 | Repo window | `Ctrl+B` | Create branch… |
