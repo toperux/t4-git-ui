@@ -403,6 +403,8 @@ export interface FileDiff {
   /** Octal file modes; a difference is an exec-bit (or symlink) change. */
   oldMode?: string | null;
   newMode?: string | null;
+  /** Some line was not UTF-8: the text is a lossy decode, so only the whole file can be staged. */
+  lossy?: boolean;
 }
 
 /** All fields default on the Rust side (context 3, maxLines 20 000, ignoreWhitespace false). */

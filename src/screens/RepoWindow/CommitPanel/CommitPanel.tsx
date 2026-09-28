@@ -102,9 +102,11 @@ export function DiffColumn() {
   const untracked = list === "unstaged" && entry?.workdir === "untracked";
   // Nor these: a truncated diff's last hunk is cut mid-hunk and the backend rebuilds it untruncated,
   // so the indices name something else; a typechange patch git refuses outright (blob ↔ symlink);
-  // and a 160000 entry has no patchable body at all — a gitlink is one line about a commit.
+  // and a 160000 entry has no patchable body at all — a gitlink is one line about a commit. Nor a
+  // lossy one: its text has U+FFFD where the file has other bytes, and the backend refuses the patch.
   const wholeOnly =
-    (!!diff && (diff.truncated || diff.status === "typechange" || entry?.workdir === "typechange" || entry?.index === "typechange")) || !!entry?.submodule;
+    (!!diff && (diff.truncated || diff.lossy || diff.status === "typechange" || entry?.workdir === "typechange" || entry?.index === "typechange")) ||
+    !!entry?.submodule;
   // Staging an unresolved file marks it resolved and drops its three index stages — git's own
   // behaviour, and no unstage brings them back. The markers are still in the file, so say so and
   // offer the one command that undoes it. Only mid-merge: a marker in a file is otherwise just text.
@@ -131,7 +133,9 @@ export function DiffColumn() {
                 ? "Marked resolved, but the conflict markers are still here"
                 : untracked
                   ? "Untracked — stage whole file"
-                  : undefined,
+                  : diff?.lossy
+                    ? "Not UTF-8 — stage whole file"
+                    : undefined,
             busy,
             onResolve: conflicted ? () => void resolveInEditor(path) : undefined,
             sides: conflicted ? sides : undefined,

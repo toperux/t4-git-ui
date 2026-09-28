@@ -463,7 +463,7 @@ describe("CommitPanel", () => {
     expect(queryByRole("button", { name: "Stage hunk" })).toBeNull();
   });
 
-  it("a truncated or typechanged diff offers no hunk / line actions at all", async () => {
+  it("a truncated, typechanged or non-UTF-8 diff offers no hunk / line actions at all", async () => {
     // The backend rebuilds the file's diff untruncated to apply a patch, so the indices of a cut
     // diff name other hunks; a blob ↔ symlink patch git refuses outright.
     mocked.getFileDiff.mockImplementation((_id: string, _t: unknown, path: string) => Promise.resolve({ ...ONE_HUNK(path), truncated: true }));
@@ -480,6 +480,16 @@ describe("CommitPanel", () => {
     await act(async () => {});
     expect(second.queryByRole("button", { name: "Stage hunk" })).toBeNull();
     expect(second.queryByRole("button", { name: "Discard hunk" })).toBeNull();
+
+    // A lossy decode shows U+FFFD where the file has other bytes: a patch built from it is refused.
+    cleanup();
+    useCommitStore.getState().reset();
+    mocked.getFileDiff.mockImplementation((_id: string, _t: unknown, path: string) => Promise.resolve({ ...ONE_HUNK(path), lossy: true }));
+    const third = renderPanel();
+    await act(async () => {});
+    expect(third.queryByRole("button", { name: "Stage hunk" })).toBeNull();
+    expect(third.queryByRole("button", { name: "Discard hunk" })).toBeNull();
+    expect(third.getByText("Not UTF-8 — stage whole file")).toBeTruthy();
   });
 
   it("click / ctrl / shift build a multi-selection in one list", () => {

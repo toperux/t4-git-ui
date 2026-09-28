@@ -130,8 +130,8 @@ pub struct FileDiff {
     pub old_mode: Option<String>,
     pub new_mode: Option<String>,
     /// Some line was not UTF-8, so `text` holds U+FFFD where the file holds
-    /// other bytes: fine to show, wrong to build a patch from. Backend only.
-    #[serde(skip)]
+    /// other bytes: fine to show, wrong to build a patch from. The frontend
+    /// offers whole-file staging only.
     pub lossy: bool,
 }
 

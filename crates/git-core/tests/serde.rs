@@ -237,9 +237,17 @@ fn diff_shapes_are_camel_case() {
     assert_eq!(v["hunks"][0]["lines"][0]["oldNo"], 1);
     assert_eq!(v["hunks"][0]["lines"][0]["newNo"], Value::Null);
     assert_eq!(v["hunks"][0]["lines"][0]["noNewline"], true);
+    assert_eq!(v["lossy"], false);
     assert!(v.get("old_path").is_none());
     let back: FileDiff = serde_json::from_value(v).expect("de");
     assert_eq!(back, d);
+    // The frontend hides the hunk / line actions on a lossy decode: it has to reach it.
+    let lossy = serde_json::to_value(FileDiff {
+        lossy: true,
+        ..d.clone()
+    })
+    .expect("ser");
+    assert_eq!(lossy["lossy"], true);
 
     let statuses: Vec<Value> = [
         FileStatus::Added,
