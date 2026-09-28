@@ -3,11 +3,13 @@
 _Written 2026-09-02, the day after v1 was accepted. This is the one list of what is still open;
 it folds together the v1 plan's "Known gaps", the 2026-09-01 codebase review's deferred rows and
 the README's "Next" line (review item H4). Since 2026-09-26 every row except §C's roadmap is
-scheduled in `2026-09-26-close-out-plan.md`._
+scheduled in `2026-09-26-close-out-plan.md`; §Q's accepted limits wait on their reopen triggers, and three of
+them are also in a close-out phase._
 
 _Done, fixed, walked and closed rows live in `open-items-done.md` (split 2026-09-24), under the same
 section letters — a letter with nothing open left (§D, §F, §G, §H, §K, §N) is only there. When a row here is
-done, move it there._
+done, move it there. Accepted limits with a reopen trigger are open, in §Q (since 2026-09-28); those with none are
+closed, in the done file._
 
 ## A. Performance — measure before touching
 - **`reachers` merged-badge walk** (2026-09-02 review P1): the merged computation walks every commit
@@ -25,11 +27,8 @@ done, move it there._
   accept a hunk list in one call. Measure first.
 - **Virtualized output dock** (review P5): the dock renders up to 50 ops × 5000 lines as plain
   DOM. Virtualize only if a long-running op's output is visibly slow to scroll.
-- `status.rs` `git status --porcelain=v2 -z` fallback behind a flag, only if libgit2 status proves
-  slow on very large trees (v1 accepted limit). Measured 2026-09-07: 1.5 s at 47k tracked files
-  (AutoEq), 50 ms at 61k files on disk / 10.7k commits — that is the limit, and every watcher event
-  pays it. The `slow status` log line (≥ 250 ms) says whether a real machine hits it. (2026-09-07: the
-  scans that looked like this were the stale stat cache, not the tree size.)
+- `status.rs` `git status` fallback: an accepted limit, moved to §Q (*`status.rs`: no `git status` command-line
+  fallback for very large trees*), 2026-09-28.
 
 ## B. Verification and release
 - **Unticked smoke lines — recounted 2026-09-26: three**, all in `smoke-test-post-v1.md`, all needing a Linux
@@ -59,8 +58,8 @@ done, move it there._
   GTK menus that should show checked by eye): all of the above pass except the dock's range and collapse, which
   were walked instead under automation on Xvfb, not with real Wayland input
   (`docs/archive/walks/2026-09-27-linux-wayland-rendering-walk.md` and its addendum).
-  Real GPU hardware and a HiDPI panel are not walked, accepted until a report. macOS rendering: never seen; CI
-  compiles only.
+  Real GPU hardware and a HiDPI panel: an accepted limit, moved to §Q (*Linux: real GPU hardware and a HiDPI panel
+  not walked*), 2026-09-28. macOS rendering: never seen; CI compiles only.
 - UI-vs-canvas comparison pass (v1 plan M6 leftover): screenshots of the real app against the
   screens canvas, one pass, fix what differs or update the canvas.
 
@@ -87,12 +86,13 @@ Custom titlebar (revisited in M6, native kept) · i18n · plugins.
     2027-03-23 brownout. If the Linux leg moves into a `container:`, check rustfmt is in
     the image: the markdown viewer runs `Format` on the Linux leg only.
 
-## I. Deferred with a reason — the `to revisit` rows and the `ponytail:` ceilings, in one place
+## I. Deferred with a reason — the `to revisit` rows and the `ponytail:` ceilings (accepted ones: §Q)
 
 Deferred findings lifted from `docs/archive/plans/2026-09-12-consolidated-findings.md` and later
 reviews, plus the `ponytail:` ceilings in code. Each was low and deferred with a reason; since
 2026-09-26 they are scheduled in the close-out plan (`2026-09-26-close-out-plan.md`), each row
-naming its phase. (Rows closed as will-not-fix or accepted are in the done file.)
+naming its phase. (Rows closed as will-not-fix or accepted are in the done file, or in §Q when they carry a
+reopen trigger — the `Menu.tsx` `ponytail:` ceiling among them.)
 
 - **S1** blame / history ops are registered but nobody cancels them: 20 quick file clicks run
   20 blames to completion. Fix: a per-repo "latest blame" token cancelled by the next.
@@ -110,9 +110,16 @@ naming its phase. (Rows closed as will-not-fix or accepted are in the done file.
   strands work. Git's clean-tree check precedes the editor, so the read pass needs it; the
   banner offers `--abort`. *(Close-out Phase 2.)*
 - **C6** `close_repo` never cancels the repo's in-flight ops — unreachable, the UI refuses
-  close/switch while an op runs (comment on `close_repo`). **C6/Q23** clearing `detail` too
-  leaves the details pane blank during the round trip — reconsider only if it flickers.
-  *(Close-out Phase 2.)*
+  close/switch while an op runs (comment on `close_repo`). *(Close-out Phase 2.)* **Q23**, the details pane blank
+  while a newly selected commit loads: an accepted limit, moved to §Q (*Q23: the details pane goes blank when
+  another commit is selected*), 2026-09-28.
+- **The detached-HEAD banner's buttons aren't disabled while an op runs** (found 2026-09-28 in the change review of
+  the §Q move, read from the code, not walked). `RepoWindow.tsx:386` renders the banner buttons with no `running`
+  check, unlike every other opener. So with HEAD detached and a Fetch running, **Create branch…** opens its dialog,
+  and Create closes it before `runOp` refuses: the typed name is lost behind *Operation in progress* (§Q, *A ref or
+  remote dialog closes…*). Fix: `disabled={running}` with the *Operation in progress* title on those buttons, like
+  the grid and sidebar menus. When fixed, update §Q's *A ref or remote dialog closes…* entry: no known path left.
+  *(Close-out Phase 2a.)*
 - **R10** selected-mode header after a partial stage; **R12** two stale status/refs pairings
   where a guard would flicker *(close-out Phase 2)*; **R13** `canSquash` O(n) per row
   *(close-out Phase 3, measure first)*.
@@ -275,10 +282,8 @@ The 2026-09-27 fix batch and its decisions (D-a, D-b, R5b): `docs/archive/plans/
   was done 2026-09-27). Windows: AZ 6 as
   soon as the branch is up, row 3 after Phase B. macOS (AZ 11 and the WebKit click-focus check, T12): open until a
   Mac is available.
-- **F7, accepted 2026-09-27 (the fix batch):** on WebKitGTK, focus moved by script back from a text field after
-  only Ctrl/⌘ chords (a click, then Ctrl+K twice; a paste, then Ctrl+Enter in the commit window) comes back
-  unmarked. Chromium is expected to ring it; unwalked. The fix would be to also mark in `focusin` when
-  `relatedTarget` is an input or textarea.
+- **F7, accepted 2026-09-27 (the fix batch):** an accepted limit, moved to §Q (*F7 of the 2026-09-27 fix batch*),
+  2026-09-28.
 
 ## P. Added 2026-09-26 — the Linux harness follow-ups, and one row found in review
 
@@ -291,15 +296,13 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
 - **AC :761 walked 2026-09-26 (T6):** the `.deb` passes; the AppImage updates in place only with a workaround (the
   blank-window bug below); `.rpm` not walked, ruled covered 2026-09-27. The row stays unticked until the AppImage
   release walks (`docs/archive/walks/2026-09-26-group-ac-linux-walk.md`).
-- ~~**ssh under the moved `HOME` (T4).**~~ Done 2026-09-27 (`linux-smoke-and-fixes`): ssh finds the real `~/.ssh`
-  through the passwd entry, and a GitHub ssh `ls-remote` works with `HOME` moved. `smoke-linux.md` §2 records it,
-  with the caveat that ssh isn't isolated. Triage 2026-09-27: other ssh hosts, a fetch/push through the app itself,
-  the unisolated `~/.ssh` and ssh signing under the moved `HOME` are accepted (the last two are documented in §2).
-  Prompts are the row below.
+- **ssh under the moved `HOME` (T4):** done 2026-09-27, moved to `open-items-done.md` §P on 2026-09-28; its
+  accepted cases are in §Q (*Linux harness: ssh cases not covered under the moved `HOME`*). Prompts are the row
+  below.
 - **ssh prompts the app can't answer well (found in the T4 review; measured 2026-09-27).**
   - **The setup:** the git runner (`crates/git-core/src/cli/runner.rs`) sets no `SSH_ASKPASS` or `BatchMode`, and
-    runs git with stdin null. The app has no ssh prompt UI, and a stuck op ends only on Cancel. There is no timeout,
-    by choice (triage 2026-09-27): one would misfire on a slow fetch or clone.
+    runs git with stdin null. The app has no ssh prompt UI, and a stuck op ends only on Cancel. There is no timeout:
+    an accepted limit, moved to §Q (*No timeout on git ops*), 2026-09-28.
   - **What ssh does when it has to ask:** it asks about a key's passphrase (with no agent) and about an unknown host
     key. From a desktop launch, with no terminal, it falls back to `SSH_ASKPASS` (Ubuntu's default is
     `/usr/bin/ssh-askpass`) when `DISPLAY` or `WAYLAND_DISPLAY` is set.
@@ -362,11 +365,10 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
     drops), rewrites the runtime's `.digest_md5`, re-signs it and verifies the `.sig` against the shipped pubkey.
     `-server` stays: the bundled WebKit needs it. The release body tells 0.10.12-or-earlier AppImage users to
     download by hand, since a blank window can't reach the in-app update.
-  - **Untested (accepted 2026-09-27):** an Ubuntu 22.04 host, and the NVIDIA proprietary driver.
-  - **Separate, and not fixed:** the AppImage always runs under XWayland (its GTK hook forces `GDK_BACKEND=x11`).
-    On this VMware SVGA II guest, XWayland also needs `WEBKIT_DISABLE_DMABUF_RENDERER=1`; the system `.deb` under
-    `GDK_BACKEND=x11` is blank too. Decided 2026-09-27: no switch in the app (it would slow every AppImage user).
-    README documents the variable instead.
+  - **Untested:** an accepted limit, moved to §Q (*AppImage fix untested on an Ubuntu 22.04 host and with the
+    NVIDIA proprietary driver*), 2026-09-28.
+  - **Separate, and not fixed:** an accepted limit, moved to §Q (*AppImage always under XWayland; some GPUs need
+    `WEBKIT_DISABLE_DMABUF_RENDERER=1`*), 2026-09-28.
   - **Left:**
     - ~~a `workflow_dispatch` run~~ done 2026-09-27 (run 36257070680): the CI AppImage renders on Xvfb, and on this
       desktop with the variable;
@@ -385,16 +387,11 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
   `@dependabot unignore @tauri-apps/cli` on an open npm group PR, even if the bump is done by hand, or later minors
   are never proposed. When the ignore is applied, add *ignore active since <date>* here (a docs commit on `main`,
   pushed on the user's word).
-- **Turn on `requireSignedVersion` (decided 2026-09-27 to track, not schedule).** From tauri-cli 2.11.5 on, every
-  updater signature carries `version:`, and updater 2.12 rejects a signed version that doesn't match `latest.json`.
-  A signature with no version is still accepted while `requireSignedVersion` is off, which leaves a downgrade
-  bypass: serve an old, version-less signature. The threat is low, since the manifest is served from GitHub
-  releases over HTTPS. **Precondition:** every artifact a `latest.json` can point at carries a version, which is true
-  from the first release after the CLI pin change (2026-09-28). Then set it in `tauri.conf.json`.
+- **Turn on `requireSignedVersion`:** an accepted limit, moved to §Q (*`requireSignedVersion` is off*), 2026-09-28.
 - **Only the AppImage's updater `.sig` is verified in CI (triaged 2026-09-27, the AppImage plan's Triage L4).** The
   Windows `.exe.sig` and the macOS `.app.tar.gz.sig` come straight from the bundler and nothing touches the files
   after signing, so the risk the AppImage check guards against doesn't apply. To extend it, run
-  `.github/scripts/verify-updater-sig.py` on those legs too.
+  `.github/scripts/verify-updater-sig.py` on those legs too. Scheduled in close-out Phase 1b (row 2d), 2026-09-28.
 - **Row found in review: a repository that crashes the app while loading crashes every later launch.** Wider since
   the fix batch: a restored window's tabs are in the file before they open (since Phase C for spawned windows,
   since the 2026-09-27 seed for `main`), so the loop also covers crashes inside `open_repo`. Scheduled in Phase 2a
@@ -422,6 +419,121 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
       `restoreTabs` falls back to on an empty layout;
     - say so in a toast.
 - **T15 (a reloaded `main` re-spawns every other window):** closed 2026-09-27, moved to `open-items-done.md` §P.
+
+## Q. Accepted limits — open, each with a reopen trigger
+
+_Added 2026-09-28 (`docs/plans/2026-09-28-claude-md-wording-plan.md`)._
+- **The rule:** an accepted limit with a reopen trigger is open and lives here; one with no trigger is closed and
+  lives in `open-items-done.md`, in the section it came from or a new dated section. A row marked "do not
+  re-offer" keeps that note here: it is raised again only if its trigger fires.
+- **When one closes** (its trigger fired and it was fixed, or the trigger no longer applies): it moves to
+  `open-items-done.md` §Q; the pointer at its origin stays.
+- **Plans:** accepted-limit tables inside live plans stay in those plans. When a plan is archived, its accepted
+  limits that have a reopen trigger move here, since archived plans are frozen.
+- **Scope:** the rule covers this file, the done file and the plans. A smoke doc's inline "accepted" note describes
+  a walk's expected result and stays where it is.
+
+The rows below came from elsewhere in this file (the first nine) and from the done file (the rest) on
+2026-09-28; each origin keeps a pointer.
+
+- **Linux: real GPU hardware and a HiDPI panel not walked.** The WebKitGTK rendering walks ran under WSLg
+  (2026-09-05) and on a VMware guest (2026-09-27). Accepted 2026-09-27, until a report, in the Wayland rendering walk
+  (`docs/archive/walks/2026-09-27-linux-wayland-rendering-walk.md`, *Not covered*). **Reopen:** a user reports a
+  GPU-specific or HiDPI bug. *From §B, Linux rendering.*
+- **F7 of the 2026-09-27 fix batch: no focus ring after Ctrl/⌘-only chords on WebKitGTK.** Focus moved by script
+  back from a text field after only Ctrl/⌘ chords (a click, then Ctrl+K twice; a paste, then Ctrl+Enter in the
+  commit window) comes back unmarked. Chromium is expected to ring it; unwalked. The fix would be to also mark in
+  `focusin` when `relatedTarget` is an input or textarea. Accepted 2026-09-27 (the fix batch). **Reopen:** a
+  report, or the next WebKitGTK focus work. *From §O.*
+- **Linux harness: ssh cases not covered under the moved `HOME`.** Other ssh hosts, a fetch/push through the app
+  itself, the unisolated `~/.ssh`, and ssh signing under the moved `HOME` (the last two documented in
+  `smoke-linux.md` §2). Accepted in the 2026-09-27 triage of the T4 row (ssh under the moved `HOME`).
+  **Reopen:** a harness walk that needs one of them. *From §P, the T4 row (now in the done file §P).*
+- **AppImage fix untested on an Ubuntu 22.04 host and with the NVIDIA proprietary driver.** Accepted 2026-09-26
+  (the 22.04 host) and 2026-09-27 (NVIDIA), in the AppImage plan (L5). **Reopen:** a report from either. *From §P,
+  the AppImage row.*
+- **AppImage always under XWayland; some GPUs need `WEBKIT_DISABLE_DMABUF_RENDERER=1`.** The AppImage's GTK hook
+  forces `GDK_BACKEND=x11`. On a VMware SVGA II guest, XWayland also needs `WEBKIT_DISABLE_DMABUF_RENDERER=1`; the
+  system `.deb` under `GDK_BACKEND=x11` is blank too. Decided 2026-09-27: no switch in the app (it would slow every
+  AppImage user); the README documents the variable instead. **Reopen:** a report that the README workaround isn't
+  enough, or Tauri's AppImage dropping the forced `GDK_BACKEND=x11`. *From §P, the AppImage row.*
+- **No timeout on git ops.** A stuck ssh or https op ends only on Cancel. By choice (triage 2026-09-27): a timeout
+  would misfire on a slow fetch or clone. **Reopen:** a report of a hang the ssh fail-fast change doesn't cover.
+  *From §P, the ssh prompts row.*
+- **`status.rs`: no `git status` command-line fallback for very large trees** (a v1 accepted limit). The fallback
+  would be `git status --porcelain=v2 -z` behind a flag, only if libgit2 status proves slow on very large trees.
+  Measured 2026-09-07: 1.5 s at 47k tracked files (AutoEq), 50 ms at 61k files on disk / 10.7k commits — that is
+  the limit, and every watcher event pays it. (2026-09-07: the scans that looked like this were the stale stat
+  cache, not the tree size.) Still measured in close-out Phase 3; if it measures fine, it stays here with the
+  numbers added. **Reopen:** the `slow status` log line (≥ 250 ms) shows a real machine hitting it, or Phase 3's
+  measurement crosses its threshold. *From §A.*
+- **Q23: the details pane goes blank when another commit is selected.** Until the new commit's details arrive, the
+  pane is empty instead of keeping the previous commit's on screen. P1-4's fix (`6a95389`) clears `detail` and
+  `error` on a new commit id (`src/screens/RepoWindow/DetailsPane.tsx:170-173`, checked 2026-09-28); the blank was
+  decided at P1-4 (`docs/archive/plans/2026-09-12-consolidated-findings.md`, `:47`, `:233`, `:520`). ("C6/Q23" in §I
+  was a label collision: this Q23 was the second pass's C6, not the consolidated C6, `close_repo`.) Still in
+  close-out Phase 2's table, *design needed*. **Reopen:** it flickers on the smoke walk. *From §I.*
+- **`requireSignedVersion` is off.** A signature with no version is still accepted, which leaves a downgrade bypass:
+  serve an old, version-less signature. The threat is low, since the manifest is served from GitHub releases over
+  HTTPS. From tauri-cli 2.11.5 on, every updater signature carries `version:`, and updater 2.12 rejects a signed
+  version that doesn't match `latest.json`. Decided 2026-09-27 to track, not schedule. **Reopen:** its precondition
+  holds — every artifact a `latest.json` can point at carries a version, true from the first release after the CLI
+  pin change (2026-09-28). Then set it in `tauri.conf.json`; the close-out plan's release gate says so. *From §P.*
+- **macOS notarization: won't do for now.** Needs a paid Apple Developer account. The app is signed with the shared
+  self-signed certificate (stable identity, so folder grants survive updates), and the release body carries the
+  quarantine step. Closed 2026-09-26 (close-out Phase 0). **Reopen:** there is a Mac user. *From the done file §B.*
+- **Push sends a bare branch name.** `git push origin main` is ambiguous when a tag is also named `main`. git
+  refuses that push ("src refspec main matches more than one"), so nothing is ever pushed to the wrong place; the
+  case is rare; and the fix — always `refs/heads/…` — makes every push preview longer, the line the user reads
+  before confirming. Closed 2026-09-20, will not fix (the 2026-09-20 review, F4 / decision D5). **Do not
+  re-offer** unless the trigger fires. **Reopen:** the refusal is reported as confusing. *From the done file §I.*
+- **F7 / Linux residual risk (the 2026-09-20 review): a malformed `DBUS_SESSION_BUS_ADDRESS` panics at startup.**
+  `tauri-plugin-single-instance` 2.4.5 `platform_impl/linux.rs:56` unwraps
+  `zbus::blocking::connection::Builder::session()`. With no session bus at all the address still resolves (zbus
+  falls back to `$XDG_RUNTIME_DIR/bus`, then `/run/user/<euid>/bus`), the connect fails, and the app starts as
+  before — one process per launch, no guard. Only a `DBUS_SESSION_BUS_ADDRESS` that is set but unparseable (empty,
+  no `transport:`) panics at startup. All three launched under WSLg 2026-09-21 on a build of `7cc503b`: with the
+  session bus a second launch hands over (one process, two windows); with the variable unset and an empty
+  `XDG_RUNTIME_DIR` both launches start, two processes; with `DBUS_SESSION_BUS_ADDRESS=garbage` or set empty the app
+  panics at `linux.rs:57`. Accepted by the user 2026-09-21. **Reopen:** a user reports a startup crash on Linux,
+  or the plugin stops unwrapping. *From the done file §I.*
+- **The `Menu.tsx` ceiling: a submenu panel takes the parent's width.** A submenu panel is `.menu`-wide, so the
+  parent's width stands in for its width; the `ponytail:` comment in `Menu.tsx` still names it. Closed 2026-09-26,
+  will not fix (close-out Phase 0). **Reopen:** a submenu's labels clip. *From the done file §I.*
+- **A working-tree write in the 50 ms after an op isn't shown until Refresh.** `watch.rs` drops events stamped
+  before `un-suppress + SUPPRESS_GRACE` as the operation's own, and the post-operation status read has already run.
+  Narrowed 2026-09-21 (`bbb7e7f`, BD 18): inside the grace the watcher drops only the kinds the operation declared,
+  so what is missed is a foreign write *of a declared kind* in those 50 ms — everything, for the operations that
+  declare every kind (pull, merge, checkout). No person is that fast; a tool started by the commit can be, and since
+  `cdba0d3` an operation ends while a hook's backgrounded child may still be writing. Accepted 2026-09-21 (Q12).
+  The fix, when reopened: one more status read a grace after the operation ends, or classify by path instead of by
+  time. **Reopen:** a report of a working-tree write missed after an op, e.g. from a hook's background child
+  (trigger added 2026-09-28; the source names only the fix). *From the done file §N.*
+- **Opening a dirty repository walks the graph twice.** `src/store/repoStore.ts:263`, `startLog({ kind: "all" },
+  {})`, runs before the status is known (the line as of 2026-09-11). The fix needs `open_repo` to report
+  dirtiness, and `status()` is the full scan (1.5 s at 47k tracked files, no early-exit "is it dirty" in libgit2),
+  so it would trade a re-walk in the background, after the grid is up, for a scan the grid waits on. Clean
+  repositories already walk once. Closed 2026-09-11, will not fix. **Do not re-offer** unless the trigger fires.
+  **Reopen:** the walker learns to add the working-tree column without restarting. *From the done file §I (the
+  reasoning is in its §E).*
+- **Dependabot's `glib` 0.18 alert, dismissed.** Unsound `VariantStrIter`, fixed in 0.20; reached through Tauri's gtk
+  0.18 pin (`tauri → muda → gtk → atk → glib`), Linux builds only, an API this app never calls. Dismissed
+  2026-09-10. **Reopen:** Tauri's pin starts carrying something this app does call (worth a look at each Tauri
+  bump). *From the done file §B.*
+- **A ref or remote dialog closes, and its input is lost, when its op is refused.** These dialogs call `onClose()`
+  before `runOp` (e.g. `src/screens/RepoWindow/dialogs/RefDialogs.tsx:243-244`, `RemoteDialogs.tsx:29-30`); if
+  another operation is running, `runOp` refuses with *Operation in progress* (`src/store/opsStore.ts:189-191`) after
+  the dialog has closed. One path reaches it, read from the code on 2026-09-28 (not walked): the detached-HEAD
+  banner's **Create branch…** button stays enabled while an op runs (`RepoWindow.tsx:386`, `banners.ts:52`) — check
+  out a commit, start a Fetch, click it, type a name, Create, and the name is lost behind the toast. Gating that
+  button is deferred to close-out Phase 2a (§I, *The detached-HEAD banner's buttons aren't disabled while an op
+  runs*). Every other opener is gated: the grid and sidebar menus (`RevisionGrid.tsx:310`, `Sidebar.tsx:428`,
+  `:618`), the toolbar, the palette and Ctrl+B; shortcuts are ignored while a dialog is open (`useShortcuts.ts:36`);
+  nothing starts an op in the background. Recorded in the worktrees + submodules notes (shipped 2026-09-13). The
+  fix, when reopened: stay open on a `busy` refusal, as
+  `WorktreeDialogs.tsx:150-152` does (`runOp` already returns `error.kind === "busy"`; the source's "`ran` flag on
+  `runOp`" is superseded). **Reopen:** it bites — a report of a dialog closing on a refused op. *From the done
+  file's context notes.*
 
 ## Order
 

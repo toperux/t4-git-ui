@@ -3,7 +3,11 @@
 **Goal:** empty `open-items.md` — every row either fixed and walked, or moved to `open-items-done.md` with a
 reason. The rows are grouped by what they need (a decision, a sitting, code, a measurement, other hardware), so
 each group costs one smoke walk and at most one release, not one per row. §C (roadmap) is kept open by
-decision, so the list will not reach fully empty.
+decision, and §Q (accepted limits with a reopen trigger, since 2026-09-28) by design, so the list will not reach
+fully empty. A row that closes as an accepted limit with a reopen trigger goes to §Q, not the done file (e.g.
+Phase 5's macOS rows closed on CI's leg, or a Phase 2b design row ending "accept, reconsider if…"). A Phase 3
+"measured, fine" closure is not an accepted limit and still goes to the done file — except `status.rs`, which stays
+in §Q with the numbers.
 
 **Status:** 2026-09-26. **Phase 0 done 2026-09-26** (`59e9383`). **Phase 1 done 2026-09-26**
 (`docs/archive/plans/2026-09-26-phase-1-plan.md`, walk record `docs/archive/walks/2026-09-26-phase-1-walk.md`):
@@ -13,7 +17,7 @@ harness, the WebKitGTK focus fixes, the restore guard and its follow-ups, the Ap
 are scheduled below, mostly in the new *Linux track*; plan updated for it 2026-09-28. **Triage done 2026-09-28**
 (`docs/archive/plans/2026-09-26-triage-plan.md`).
 
-Row references are to `docs/plans/open-items.md` sections (§A–§P), and code and smoke-doc line numbers are as of
+Row references are to `docs/plans/open-items.md` sections (§A–§Q), and code and smoke-doc line numbers are as of
 2026-09-28 (`main` after #18; `release.yml` cites after the CLI pin change). The Phase 1 section keeps its original
 numbers. `CF` = `docs/archive/plans/2026-09-12-consolidated-findings.md`.
 
@@ -23,9 +27,9 @@ numbers. `CF` = `docs/archive/plans/2026-09-12-consolidated-findings.md`.
 
 See `docs/archive/plans/2026-09-26-phase-0-plan.md`. In short: the four record-only smoke boxes marked `[n/a]`;
 §H becomes a release-skill rule (tag only after `main`'s CI is green on all three OS); the `Menu.tsx` ceiling
-closed as won't-fix; seven untracked `ponytail:` ceilings added to §I; macOS notarization closed as won't do for
-now; the Windows signing row re-pointed at Phase 1b; the "user's own update" row re-pointed at the release
-gate; the §I intro reworded; §C kept open.
+closed as won't-fix (in open-items §Q since 2026-09-28); seven untracked `ponytail:` ceilings added to §I; macOS
+notarization closed as won't do for now (in open-items §Q since 2026-09-28); the Windows signing row re-pointed
+at Phase 1b; the "user's own update" row re-pointed at the release gate; the §I intro reworded; §C kept open.
 
 ## Phase 1 — release-gate sitting (the user, about an hour)
 
@@ -61,7 +65,7 @@ working copy's sections):
 | 1a `signing` environment, 1b secrets there, 1c Actions settings | not done |
 | 2b `ssign`, AppImage tool pins | not done. The doc's six tool hashes match tauri-cli 2.11.4 (bundler 2.9.4); the CLI pin change's 2.11.5 locks the same bundler 2.9.4, so check them once rather than re-derive. #18's repack also takes `squashfs-tools` and `python3-cryptography` from apt, unpinned (`release.yml:127-129`); pin them by a version floor, not exact versions (triage U5). The Linux build-dependencies step, right after the apt install, fails with a clear message unless squashfs-tools is ≥ 4.5 (`dpkg --compare-versions "$(dpkg-query -W -f='${Version}' squashfs-tools)" ge 1:4.5` — the package has epoch 1, so a bare `4.5` always passes) and `python3 -c 'import cryptography'` succeeds |
 | 2c build / bundle split | partly: the macOS certificate import is already its own macOS-only step (`release.yml:184`); build and bundle are one step holding the updater key (`:214`), and #18 added a second step holding it, "Re-sign the AppImage" (`:253`), which the split keeps after the bundle |
-| 2d signature proofs | partly: macOS done (`Verify the macOS signature`, `release.yml:293`: bundle, `.app.tar.gz`, `.dmg`); Windows not (nothing to prove until signed). Separately, #18 verifies the AppImage's *updater* `.sig` (`.github/scripts/verify-updater-sig.py`, `:272`); extending that to `.exe.sig` / `.app.tar.gz.sig` is §P's row, which fits here |
+| 2d signature proofs | partly: macOS done (`Verify the macOS signature`, `release.yml:293`: bundle, `.app.tar.gz`, `.dmg`); Windows not (nothing to prove until signed). Separately, #18 verifies the AppImage's *updater* `.sig` (`.github/scripts/verify-updater-sig.py`, `:272`); **a task of this phase** (since 2026-09-28): extend that check to `.exe.sig` / `.app.tar.gz.sig`, run on the Windows and macOS legs (§P's row) |
 | 2e dry-run publish | not done |
 
 Then the doc's verify sequence (cold-cache dry run, delete repo-level secrets, dry run again, SHA pinning on
@@ -98,7 +102,9 @@ first release after Phase 1b is also the first signed one, so the same update pr
 
 **The CLI pin change (§P) landed on `main` 2026-09-28**, so the next release is the first whose updater signatures
 carry `version:`, and the gate's updates are its end-to-end check
-(`docs/archive/plans/2026-09-27-ssh-prompts-check-and-cli-pin-plan.md`, Part B › *Verify › End to end*).
+(`docs/archive/plans/2026-09-27-ssh-prompts-check-and-cli-pin-plan.md`, Part B › *Verify › End to end*). **After
+that first release, turn on `requireSignedVersion`** (open-items §Q, *`requireSignedVersion` is off*): its
+precondition then holds.
 
 Releases happen only on the user's request naming the version (the `release` skill), and pushes only on the
 user's word.
@@ -113,6 +119,7 @@ Rows marked **design needed** have no agreed fix; the Phase 2 plan decides each 
 | §M toast detail cut mid-sentence / `warning:` taken | join lines up to a blank one, skip `warning:`; update `cli::ops::tests::rejected_and_other` | §M |
 | §M menus: row shift on a clipped name, wrapped first item | **design needed**. Since #18 the keyboard-style right-click (first item marked after grid arrows) is on Linux too, through the `data-kbd` mark (folded here, triage U3) | §M |
 | §M Esc is dead in Settings after Check now (triage T2) | at the root, in `Dialog`, not only Settings: while a dialog is open and the focus falls to `<body>`, put it back on the dialog's first body field (the rule `Dialog.tsx:88-95` applies when `busy` clears, generalised; the 2a plan picks the trigger, since whether Blink dispatches `focusout` for a disabled control is to be checked). Plus an audit of every dialog for a control that disables itself during its own action, and a test per case found. Constraints: stay quiet while the dialog unmounts, or it fights the cleanup's return of focus to the opener (`Dialog.tsx:77-85`); and when a dialog opens another in the same commit (Commit & Push), the new one's `autoFocus` must win | `Dialog.tsx:88-103`, `SettingsDialog.tsx:160,232` |
+| §I detached-HEAD banner buttons not disabled while an op runs (found 2026-09-28) | `disabled={running}` with the *Operation in progress* title on the banner buttons, like the grid and sidebar menus | §I, `RepoWindow.tsx:386` |
 | §L `Ctrl+,` dead while the start screen opens a repo | drop `busy` from the comma arm only | §L |
 | §L Linux `Super+O/N/Q` reach the app | `navigator.platform` split in `useShortcuts`, first platform test there | §L |
 | §I S1 blames never cancelled | per-repo "latest blame" token cancelled by the next | CF:612 |
@@ -121,7 +128,7 @@ Rows marked **design needed** have no agreed fix; the Phase 2 plan decides each 
 | §I S4 `blameAt` ordering | **design needed** — reordering races the details-pane effect | CF:615 |
 | §I B3 interactive-rebase read pass `--autostash` | **design needed** — CF proposed dropping `--autostash` from `read_args`; open-items says git's clean-tree check needs it | CF:367, `cli/rebase.rs:274` |
 | §I C6 `close_repo` never cancels ops | **design needed** — unreachable today (`refusedWhileRunning()` blocks close / switch); a fix is defence in depth only | CF:60, CF:340 |
-| §I Q23 blank details pane during the round trip | **design needed** — decided at P1-4 as blank; reconsider only if it flickers | CF:520 |
+| §Q Q23 details pane blank when another commit is selected | **design needed** — decided at P1-4 as blank; reconsider only if it flickers | §Q (since 2026-09-28), CF:520 |
 | §I F3 hunk buttons on a non-UTF-8 file | put `FileDiff::lossy` on the wire + `DisabledHint` | §I |
 | §I R10 selected-mode header after a partial stage | **design needed** — the inverse of X8 | CF:51 (P1-8), CF:274, `smoke-test-post-v1.md:783` |
 | §I R12 two stale status/refs pairings | **design needed** — guarding would flicker | CF:427, `MessageColumn.tsx:46,63`, `CommitPanel.tsx:67-82` |
@@ -150,7 +157,7 @@ timings (`opened repo`, `refs read`, `labels computed`, `walk complete`, `slow s
 
 - §A `reachers` merged-badge walk
 - §A hunk / line diff rebuilds (discard twenty hunks one by one)
-- §A `status.rs` CLI fallback (status time at size)
+- §Q `status.rs` CLI fallback (status time at size; in §Q since 2026-09-28, and it stays there if measured fine)
 - §A output dock scroll with a long op
 - §M the ~4 s delay after an external 1800-file `git reset`
 - §I E6 flat-directory tree build (CF:403), R13 `canSquash` per row (CF:428)
@@ -183,7 +190,7 @@ CLI pin change, `release.yml` and `checks.yml` only, ran from Windows):
 - **#18's follow-up PRs, each planned:**
   - ssh fail-fast (`2026-09-27-ssh-fail-fast-plan.md`).
   - ~~The CLI-pin bump to 2.11.5~~ **done 2026-09-28** (`docs/archive/plans/2026-09-27-ssh-prompts-check-and-cli-pin-plan.md`,
-    Part B). The first release after it unlocks `requireSignedVersion` (§P).
+    Part B). The first release after it unlocks `requireSignedVersion` (§Q; the release gate above says so).
 - **The AppImage release walks:** in the gate above.
 
 ## Phase 5 — other hardware (§B, whenever available)

@@ -3,7 +3,8 @@
 _Split out of `open-items.md` on 2026-09-24 so that file holds only what is still to do. Everything
 here is shipped, fixed, walked, answered, or closed as will-not-fix / accepted. Section letters match
 `open-items.md`, so an older reference to "open-items §N" finds its row in one of the two files.
-Text is moved as written; hashes and line numbers are those of the day._
+Text is moved as written; hashes and line numbers are those of the day. Open accepted limits — those with a
+reopen trigger — are in `open-items.md` §Q (since 2026-09-28); a row moved there leaves a pointer here._
 
 ## Context (from the original list)
 - v1 is accepted on Windows (`docs/smoke/smoke-test.md` walked end to end on 2026-09-01), CI green on
@@ -52,8 +53,8 @@ Text is moved as written; hashes and line numbers are those of the day._
   `.gitmodules` (discarding it) leaves the Submodules list until the next refs event (`watch.rs`
   ponytail note); a conflicted gitlink's diff pane reports *a submodule pointer has no file to
   compare* rather than the two pointers (its ours / theirs items still resolve it); the other
-  dialogs still close on `runOp`'s busy short-circuit (a `ran` flag on `runOp` is the fix if it
-  ever bites). Both leave §C.
+  dialogs closing on `runOp`'s busy short-circuit is an accepted limit, moved to `open-items.md` §Q (*A ref or
+  remote dialog closes, and its input is lost, when its op is refused*), 2026-09-28. Both leave §C.
 - Shipped 2026-09-14, after v0.8.0 (`4f01248..37ce413`, plan
   `docs/archive/plans/2026-09-13-tabs-bisect-gpg.md`): **repository tabs and windows** (one tab per
   open repository, snapshot / restore on switch, stale dot, Move to new window, pointer-capture drag
@@ -121,10 +122,8 @@ Text is moved as written; hashes and line numbers are those of the day._
   **Run** is ticked at the end, and the interactive uninstall offers to delete the app data. **Retry on *Git not found*** cannot see a git installed after launch: git runs from the
   PATH the process started with. Decided 2026-09-24 to fix the wording rather than the lookup, so the screen now
   says *"Install it from git-scm.com, then restart T4 Git UI"* (`GitMissingScreen.tsx`).
-- ~~Dependabot's `glib` 0.18 alert~~ (unsound `VariantStrIter`, fixed in 0.20): reached us through
-  Tauri's gtk 0.18 pin (`tauri → muda → gtk → atk → glib`), Linux builds only, an API this app
-  never calls. **Dismissed 2026-09-10** on exactly that reasoning; no open Dependabot alert remains.
-  Revisit only if Tauri's pin starts carrying something this app does call.
+- ~~Dependabot's `glib` 0.18 alert~~ — dismissed 2026-09-10; an accepted limit with a reopen trigger, moved to
+  `open-items.md` §Q (*Dependabot's `glib` 0.18 alert, dismissed*), 2026-09-28.
 - **Four smoke boxes that were records, not work** — **closed 2026-09-26 as records, marked `[n/a]`** (close-out
   Phase 0; the smoke legend defines the marker). All in `smoke-test-post-v1.md`:
   - AG's *a late status does not take you out of the working-tree row* (`:1152`): its recipe is unachievable —
@@ -146,9 +145,8 @@ Text is moved as written; hashes and line numbers are those of the day._
   record): DPI (`smoke-test.md:283`, a real move to a 150 % monitor, canvases re-rendered at 1.5×), AI's manual
   folder toggle across a Fetch (`smoke-test-post-v1.md:1225`), and AJ's Remove from list on a dead recent
   (`:1256`, the dead recent seeded into `recents.json` rather than through the native picker).
-- **macOS notarization** — **closed 2026-09-26, won't do for now** (close-out Phase 0). Needs a paid Apple
-  Developer account. The app is signed with the shared self-signed certificate (stable identity, so folder
-  grants survive updates), and the release body carries the quarantine step. Reopen when there is a Mac user.
+- **macOS notarization** — closed 2026-09-26, won't do for now; an accepted limit with a reopen trigger, moved to
+  `open-items.md` §Q (*macOS notarization: won't do for now*), 2026-09-28.
 - **Close-out triage 2026-09-26 and 2026-09-28** — **done 2026-09-28**. The skips and accepted limits of Phases
   0–1 and PR #18's leftovers, eighteen decisions (T1–T11, U1–U5, A1, A2), in
   `docs/archive/plans/2026-09-26-triage-plan.md`. The work they called for: the Settings Esc bug to Phase 2a, the
@@ -206,7 +204,8 @@ the path alone. Kept here as the record of what was seen.
     grid waits on — worst on exactly the large repositories it was meant to help. Clean
     repositories already walk once (the flag starts falsy and `walkSeedWanted()` agrees), so only
     dirty ones pay, and defaulting the flag to true just moves the second walk onto clean ones.
-    Revisit only if the walker learns to add the working-tree column without restarting.
+    Revisit only if the walker learns to add the working-tree column without restarting. (In `open-items.md` §Q
+    since 2026-09-28.)
   - ~~`src/components/ui/Input/Input.tsx:142`~~ — `if (e.altKey) return;` cost every dropdown in the
     app its conventional alt-arrow open, so the rebase list could own that chord. **Fixed in
     `b00459a`:** the interactive-rebase list now claims Alt+↑/↓ in the capture phase and stops it
@@ -360,24 +359,13 @@ commits and pushed with the CI port from the markdown viewer (`a904701`).
 
 ## I. Deferred with a reason — the rows since closed
 
-- `src/store/repoStore.ts:263` opening a dirty repository walks the graph twice — **closed
-  2026-09-11, will not fix, do not re-offer** (§E has the reasoning).
-- Push sends a bare branch name (`git push origin main`), which is ambiguous when a tag is also
-  named `main` — **closed 2026-09-20, will not fix, do not re-offer** (2026-09-20 review, F4 /
-  decision D5). git refuses that push ("src refspec main matches more than one"), so nothing is
-  ever pushed to the wrong place; the case is rare; and the fix — always `refs/heads/…` — makes
-  every push preview longer, the line the user reads before confirming. Reopen only if the
-  refusal is actually reported as confusing.
-- **F7 / Linux residual risk** — ACCEPTED by the user 2026-09-21: `tauri-plugin-single-instance`
-  2.4.5 `platform_impl/linux.rs:56` unwraps `zbus::blocking::connection::Builder::session()`. With
-  no session bus at all the address still resolves (zbus falls back to `$XDG_RUNTIME_DIR/bus`,
-  then `/run/user/<euid>/bus`), the connect fails, and the app starts as before — one process per
-  launch, no guard. Only a `DBUS_SESSION_BUS_ADDRESS` that is set but unparseable (empty, no
-  `transport:`) panics at startup. All three launched under WSLg 2026-09-21 on a build of
-  `7cc503b`: with the session bus a second launch hands over (one process, two windows); with the
-  variable unset and an empty `XDG_RUNTIME_DIR` both launches start, two processes; with
-  `DBUS_SESSION_BUS_ADDRESS=garbage` or set empty the app panics at `linux.rs:57`. Reopen if a
-  user reports a startup crash on Linux, or when the plugin stops unwrapping.
+- `src/store/repoStore.ts:263` opening a dirty repository walks the graph twice — closed 2026-09-11, will not
+  fix, do not re-offer (§E has the reasoning); an accepted limit with a reopen trigger, moved to `open-items.md` §Q
+  (*Opening a dirty repository walks the graph twice*), 2026-09-28.
+- Push sends a bare branch name — closed 2026-09-20, will not fix, do not re-offer; an accepted limit with a
+  reopen trigger, moved to `open-items.md` §Q (*Push sends a bare branch name*), 2026-09-28.
+- **F7 / Linux residual risk** — accepted 2026-09-21; an accepted limit with a reopen trigger, moved to
+  `open-items.md` §Q (*F7 / Linux residual risk*), 2026-09-28.
 - **F7 / updater restart** — **walked 2026-09-24** (`docs/archive/walks/2026-09-24-update-walk.md`): the installed
   0.10.10 updated itself to the published 0.10.11 with two windows open. The process was gone and a new one up
   within 5 s, with both windows, on 0.10.11. The single-instance lock let go on the way out, as read from the
@@ -401,9 +389,8 @@ commits and pushed with the CI port from the markdown viewer (`a904701`).
 - **S5** no Blame on a working-tree target in `FileRowMenu`, while the commit panel offers it — **closed
   2026-09-25 as moot**. The "no working-tree Files surface" decision leaves no working-tree row for that menu
   to be opened on.
-- **`Menu.tsx` ceiling** — **closed 2026-09-26, will not fix** (close-out Phase 0): a submenu panel is
-  `.menu`-wide, so the parent's width stands in for its width. The `ponytail:` comment in `Menu.tsx` still
-  names it. Reopen if a submenu's labels clip.
+- **`Menu.tsx` ceiling** — closed 2026-09-26, will not fix; an accepted limit with a reopen trigger, moved to
+  `open-items.md` §Q (*The `Menu.tsx` ceiling*), 2026-09-28.
 
 ## J. Added 2026-09-14 — from the UI direction B review
 - ~~**Stash dialog shows nothing of what it stashes.**~~ `Stash changes…` took a message and two
@@ -529,12 +516,9 @@ fixes and the walk added three more. The walk is `docs/archive/walks/2026-09-19-
 - **Deferred, moved to §I** (two, unchanged from the plan): the hunk buttons staying enabled on a
   non-UTF-8 file (F3); a typed commit message lost to an update restart (F10).
 - **Found on the walk, not fixed** (older than this batch): a working-tree write in the 50 ms after
-  an operation ends is never shown until **Refresh** — `watch.rs` drops every event stamped before
-  `un-suppress + SUPPRESS_GRACE` as the operation's own, and the post-operation status read has
-  already run. No person is that fast; a tool started by the commit can be, and since `cdba0d3` an
-  operation ends while a hook's backgrounded child may still be writing. Reopen with a cheap fix in
-  mind: one more status read a grace after the operation ends, or classify by path instead of by time.
-  (Narrowed 2026-09-21, row 4 below.)
+  an operation ends is never shown until **Refresh**. Narrowed 2026-09-21 (row 4 below); what is left is an
+  accepted limit with a reopen trigger, moved to `open-items.md` §Q (*A working-tree write in the 50 ms after an op
+  isn't shown until Refresh*), 2026-09-28.
 - **From "still open from this batch"** (2026-09-21) — the rows since done:
   1. ~~**BD 8, "in front"**~~ — passed by hand 2026-09-21: the exe double-clicked while the local
      build ran, the new start-screen window came up on top.
@@ -545,8 +529,7 @@ fixes and the walk added three more. The walk is `docs/archive/walks/2026-09-19-
      still open, `open-items.md` §N.)
   4. ~~**The watcher's 50 ms gap**~~ — narrowed 2026-09-21 (`bbb7e7f`, BD 18): inside the grace the
      watcher drops only the kinds the operation declared, so a working-tree write after a stage or a
-     commit shows. What is left, accepted (Q12): a foreign write *of a declared kind* in those 50 ms
-     — everything, for the operations that declare every kind (pull, merge, checkout).
+     commit shows. What is left, accepted (Q12): moved to `open-items.md` §Q, 2026-09-28 (the row above).
   5. ~~**F8's test costs 20 s per Windows `cargo test`**~~ — now `sleep 12` (the assert bound is
      10 s): 8 s back. §I.
   6. ~~`graphify update .`~~ — run 2026-09-21 after the follow-ups.
@@ -571,7 +554,8 @@ fixes and the walk added three more. The walk is `docs/archive/walks/2026-09-19-
   flag and `GIT_LITERAL_PATHSPECS` both, git 2.55), so Update on `subs/[ab]` moved `subs/a`. Now
   `:(literal)<path>`, with a test that runs git. The conflict checkouts and the file history do
   honour the flag (walked).
-- **Closed, will not fix** (one): Push's bare branch name against a same-named tag — see §I.
+- **Closed, will not fix** (one): Push's bare branch name against a same-named tag — see §I (in `open-items.md` §Q
+  since 2026-09-28).
 - **A staged diff's body stayed stale after an outside `git add`** (found on the BD second walk) — **fixed
   2026-09-25** for v0.10.12 (`docs/archive/plans/2026-09-25-update-and-staging-fixes.md` Task 1, walked as BG 1).
   - Reproduced first on 0.10.11: only a rewrite plus `git add` with *no* status read in between was stale. That
@@ -603,6 +587,11 @@ fixes and the walk added three more. The walk is `docs/archive/walks/2026-09-19-
 
 ## P. Added 2026-09-26 — the Linux harness follow-ups: the rows since closed
 
+- ~~**ssh under the moved `HOME` (T4).**~~ Done 2026-09-27 (`linux-smoke-and-fixes`): ssh finds the real `~/.ssh`
+  through the passwd entry, and a GitHub ssh `ls-remote` works with `HOME` moved. `smoke-linux.md` §2 records it,
+  with the caveat that ssh isn't isolated. Its accepted cases (other ssh hosts, a fetch/push through the app itself,
+  the unisolated `~/.ssh`, ssh signing under the moved `HOME`) are in `open-items.md` §Q (*Linux harness: ssh cases
+  not covered under the moved `HOME`*). Moved here 2026-09-28.
 - **T15, a reloaded `main` re-spawns every other window** — **closed 2026-09-27** (`afc40f3`, PR #18's fix batch).
   - **The cause:** a dev reload, a WebKit web-process crash that reloads the page, or StrictMode's second `probe`
     under `tauri dev` ran `restoreTabs` → `takeLayout` again, and spawned duplicates of every other window.
