@@ -75,7 +75,7 @@ pub async fn path_history(
         .run(repo_dir, op_id, &argv, None, cancel, |_| {})
         .await?;
     out.check(&display_cmd(&argv))?;
-    if out.truncated {
+    if out.stdout_truncated {
         // The tail is what survives, so the *oldest* commits would be the ones
         // kept: a history that long is not worth a wrong answer.
         return Err(GitError::Io(std::io::Error::other(format!(

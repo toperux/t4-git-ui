@@ -36,7 +36,7 @@ const DRAIN_GRACE: Duration = Duration::from_millis(500);
 /// The most a child that keeps writing can add to an op after git exited.
 const DRAIN_CAP: Duration = Duration::from_secs(5);
 /// Per-stream cap on the text handed back in [`CliOutput`]: everything before
-/// the last of these bytes is dropped and `truncated` is set.
+/// the last of these bytes is dropped (and, for stdout, `stdout_truncated` is set).
 const MAX_RETAINED: usize = 4 * 1024 * 1024;
 
 /// One streamed event of a running git command.
@@ -74,8 +74,10 @@ pub struct CliOutput {
     pub code: i32,
     pub stdout: String,
     pub stderr: String,
-    /// Output outgrew [`MAX_RETAINED`]; `stdout` / `stderr` are the tail only.
-    pub truncated: bool,
+    /// Stdout outgrew [`MAX_RETAINED`] and `stdout` is its tail only. A long
+    /// stderr (progress, warnings) is cut the same way but doesn't set it, so
+    /// it never makes a caller refuse a stdout that came through whole.
+    pub stdout_truncated: bool,
 }
 
 impl CliOutput {
@@ -334,7 +336,7 @@ impl GitCli {
             None => child.wait().await?,
         };
         let (stdout, out_truncated) = out_task.await.unwrap_or_default();
-        let (stderr, err_truncated) = err_task.await.unwrap_or_default();
+        let (stderr, _) = err_task.await.unwrap_or_default();
         let code = status.code().unwrap_or(-1);
         on_event(CliEvent::Exit {
             code,
@@ -348,7 +350,7 @@ impl GitCli {
             code,
             stdout,
             stderr,
-            truncated: out_truncated || err_truncated,
+            stdout_truncated: out_truncated,
         })
     }
 }
@@ -897,5 +899,29 @@ mod tests {
             "returned after {:?}",
             started.elapsed()
         );
+    }
+
+    /// Past the cap on stderr alone, stdout is still whole.
+    #[tokio::test]
+    async fn a_long_stderr_does_not_mark_stdout_truncated() {
+        if !have_git() {
+            return;
+        }
+        let t = TempRepo::new();
+        let alias = "alias.loud=!yes 0123456789012345678901234567890123456789 | head -c 5000000 >&2; echo ok";
+        let out = GitCli::new("git")
+            .run(
+                t.path(),
+                "op-loud",
+                &["-c", alias, "loud"],
+                None,
+                CancellationToken::new(),
+                |_| {},
+            )
+            .await
+            .expect("run");
+        assert_eq!(out.code, 0);
+        assert!(!out.stdout_truncated);
+        assert_eq!(out.stdout.trim(), "ok", "{:?}", out.stdout);
     }
 }

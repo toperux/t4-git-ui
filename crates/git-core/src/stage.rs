@@ -709,7 +709,7 @@ mod tests {
             code,
             stdout: stdout.into(),
             stderr: stderr.into(),
-            truncated: false,
+            stdout_truncated: false,
         }
     }
 

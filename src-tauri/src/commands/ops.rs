@@ -1195,7 +1195,7 @@ pub async fn remote_tags(
 /// than parsed into a tag pointing at the wrong commit.
 fn remote_tags_of(out: &CliOutput) -> Result<Vec<RemoteTag>, AppError> {
     out.check("git ls-remote --tags")?;
-    if out.truncated {
+    if out.stdout_truncated {
         return Err(GitError::Refused("output too large to parse".into()).into());
     }
     Ok(gitops::parse_ls_remote_tags(&out.stdout))
@@ -1288,12 +1288,12 @@ mod tests {
             code: 0,
             stdout: line.into(),
             stderr: String::new(),
-            truncated: false,
+            stdout_truncated: false,
         };
         assert_eq!(remote_tags_of(&out).expect("parsed").len(), 1);
         // The head is gone, so the first record can be half a line.
         let out = CliOutput {
-            truncated: true,
+            stdout_truncated: true,
             ..out
         };
         assert!(
