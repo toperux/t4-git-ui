@@ -201,7 +201,10 @@ export function Select({ value, onChange, children, disabled, autoFocus, classNa
     // combobox pattern both commit on that chord); every other Alt chord belongs to whatever holds
     // the combobox (the interactive rebase claims Alt+↑/↓ in the capture phase, before this runs).
     // A chord we act on stops here, like Escape below: an ancestor must not act on it as well.
-    if (e.altKey) {
+    // AltGr arrives as Ctrl+Alt on Windows (on Linux it is Level3, and the character usually comes with
+    // neither): a character typed with it is type-ahead, not a chord.
+    const altGr = e.ctrlKey && e.altKey && e.key.length === 1;
+    if (e.altKey && !altGr) {
       if (e.key === "ArrowDown" && !open) {
         e.preventDefault();
         e.stopPropagation();
@@ -218,13 +221,10 @@ export function Select({ value, onChange, children, disabled, autoFocus, classNa
     // shut, but never committing. `show()` would put the active option back on the selected one.
     // Space is text while a buffer is live (`always c…`): picking with it there would commit whatever
     // the letters before it had reached. With no buffer it keeps its open/pick meaning below.
-    // ponytail: an AltGr character arrives as Ctrl+Alt on Windows and Linux and stops at the Alt
-    // branch above, so it never matches. If it bites: let a Ctrl+Alt chord with `e.key.length === 1`
-    // past that branch.
     const now = Date.now();
     // `abs`: a clock set back must not keep a stale buffer alive for good.
     const live = Math.abs(now - typed.current.at) <= 500 ? typed.current.text : "";
-    if (e.key.length === 1 && (e.key !== " " || live) && !e.ctrlKey && !e.metaKey && !e.nativeEvent.isComposing) {
+    if (e.key.length === 1 && (e.key !== " " || live) && (!e.ctrlKey || altGr) && !e.metaKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       const text = live + e.key.toLowerCase();
       typed.current = { text, at: now };

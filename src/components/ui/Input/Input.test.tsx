@@ -408,6 +408,14 @@ describe("Select", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  it("takes a letter typed with AltGr, which arrives as Ctrl+Alt on Windows", () => {
+    const { getByRole, getAllByRole } = render(<List labels={["alpha", "łódź"]} value="alpha" />);
+    const combo = getByRole("combobox", { name: "List" });
+    fireEvent.keyDown(combo, { key: "ł", ctrlKey: true, altKey: true });
+    expect(getByRole("listbox")).toBeTruthy();
+    expect(combo.getAttribute("aria-activedescendant")).toBe(getAllByRole("option")[1].id);
+  });
+
   it("stays shut when what was typed matches nothing", () => {
     const { getByRole, queryByRole } = render(<Harness />);
     fireEvent.keyDown(getByRole("combobox", { name: "Remote" }), { key: "z" });

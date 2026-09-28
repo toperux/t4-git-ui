@@ -87,7 +87,7 @@ export function useShortcuts() {
       // Shift is *not* excluded: a comma is a shifted key on some layouts (Cyrillic ЙЦУКЕН puts it on
       // Shift+/), and no other chord is bound to Ctrl+Shift+, — on a layout where the comma is
       // unshifted, shifting that key yields `<` or `;`, never `,`. `!e.altKey` stays: AltGr arrives as
-      // Ctrl+Alt on Windows and Linux, so without it an AltGr-typed comma would open Settings.
+      // Ctrl+Alt on Windows, so without it an AltGr-typed comma would open Settings.
       if (ctrl && !e.altKey && e.key === ",") {
         e.preventDefault();
         useDialogStore.getState().open({ kind: "settings" });
