@@ -148,7 +148,7 @@ src/
                            tools {diff, merge} come from the global git config instead (get_tools in load(); setTool writes
                            through set_tool and keeps the result, so the diff header follows a Settings change at once).
                            Theme stays in theme/theme.ts
-    updateStore.ts         zustand: info (UpdateInfo{version, installable, releaseUrl} — the release newer than this build, `null`
+    updateStore.ts         zustand: info (UpdateInfo{version, installable} — the release newer than this build, `null`
                            when there is none), checked (a check *came back*: `info === null` alone can't tell "nothing newer"
                            from "nobody asked", and a failed check answers neither), checking, installing,
                            progress (download percent, `null` while the total size is unknown), error;

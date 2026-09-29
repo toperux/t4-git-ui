@@ -4019,6 +4019,7 @@ name = "t4-git-ui"
 version = "0.10.13"
 dependencies = [
  "git-core",
+ "open",
  "serde",
  "serde_json",
  "tauri",

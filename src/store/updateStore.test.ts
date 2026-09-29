@@ -19,7 +19,7 @@ import { useUpdateStore } from "./updateStore";
 const mocked = ipc as unknown as Record<"checkForUpdate" | "installUpdate" | "commitDrafts", ReturnType<typeof vi.fn>>;
 const onProgress = events.onUpdateProgressReady as unknown as ReturnType<typeof vi.fn>;
 
-const release: UpdateInfo = { version: "0.2.0", installable: true, releaseUrl: "https://example.test/v0.2.0" };
+const release: UpdateInfo = { version: "0.2.0", installable: true };
 const unlisten = vi.fn();
 const flush = () => new Promise((r) => setTimeout(r, 0));
 

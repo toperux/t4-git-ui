@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::panic::AssertUnwindSafe;
+use std::process::Stdio;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -415,6 +416,34 @@ pub async fn get_log_page(
     .await
 }
 
+/// Opens `target` (a path or a URL) with the host's handler. Inside an AppImage
+/// the plugin would start the image's own `xdg-open` with the image's
+/// libraries, so the `open` crate's launchers are started here instead, through
+/// [`git_core::host_env`]; the first that starts wins.
+pub(crate) fn open_on_host(target: &str) -> Result<(), tauri_plugin_opener::Error> {
+    if git_core::in_appimage().is_none() {
+        #[allow(clippy::disallowed_methods)]
+        return tauri_plugin_opener::open_url(target, None::<&str>);
+    }
+    let mut last = None;
+    for mut cmd in open::commands(target) {
+        git_core::host_env(&mut cmd);
+        cmd.stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        match cmd.spawn() {
+            Ok(child) => {
+                git_core::tools::detach(child);
+                return Ok(());
+            }
+            Err(e) => last = Some(e),
+        }
+    }
+    Err(last
+        .unwrap_or_else(|| std::io::ErrorKind::NotFound.into())
+        .into())
+}
+
 /// Opens a working-tree file with the OS handler, or reveals it in the file
 /// manager (`reveal`). `path` is repository-relative and validated by
 /// [`repo_relative`]: the opener itself is not scope-restricted.
@@ -445,7 +474,11 @@ pub async fn open_path(
         if reveal {
             opener.reveal_item_in_dir(&abs)
         } else {
-            opener.open_path(abs.to_string_lossy(), None::<&str>)
+            // A detached `xdg-open` starts whatever the file: a missing one is
+            // refused here, as Windows and macOS already do.
+            abs.metadata()
+                .map_err(tauri_plugin_opener::Error::from)
+                .and_then(|_| open_on_host(&abs.to_string_lossy()))
         }
         .map_err(|e| {
             GitError::Io(std::io::Error::other(format!("could not open {path}: {e}"))).into()

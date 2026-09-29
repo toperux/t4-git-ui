@@ -183,6 +183,9 @@ export const lastUpdateCheck = () => call<UpdateCheck>("last_update_check");
 /** Downloads and installs it. Success never resolves — the app restarts into the new version. */
 export const installUpdate = () => call<void>("install_update");
 
+/** Opens the releases page in the browser; the backend builds the link, the page sends none. */
+export const openReleasePage = () => call<void>("open_release_page");
+
 /** Reports the repositories this window holds a typed commit message for; Install asks before a restart loses one. */
 export const setCommitDrafts = (repos: string[]) => call<void>("set_commit_drafts", { repos });
 

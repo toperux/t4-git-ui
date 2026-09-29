@@ -186,7 +186,7 @@ describe("App", () => {
   it("asks for the last update answer only once the update listener is attached", async () => {
     let ready!: (unlisten: () => void) => void;
     vi.mocked(events.onUpdateCheckedReady).mockReturnValueOnce(new Promise((r) => (ready = r)));
-    const info = { version: "9.9.9", installable: true, releaseUrl: "https://example.test/releases/latest" };
+    const info = { version: "9.9.9", installable: true };
     mocked.lastUpdateCheck.mockResolvedValueOnce({ checked: true, info });
     render(<App />);
     await settled();
@@ -205,8 +205,8 @@ describe("App", () => {
     });
     let reply!: (c: unknown) => void;
     mocked.lastUpdateCheck.mockReturnValueOnce(new Promise((r) => (reply = r)));
-    const older = { version: "1.0.0", installable: true, releaseUrl: "https://example.test/releases/1" };
-    const newer = { version: "2.0.0", installable: true, releaseUrl: "https://example.test/releases/2" };
+    const older = { version: "1.0.0", installable: true };
+    const newer = { version: "2.0.0", installable: true };
     render(<App />);
     await settled();
     act(() => heard(newer));

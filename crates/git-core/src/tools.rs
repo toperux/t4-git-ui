@@ -275,7 +275,7 @@ fn substitute(token: &str, vars: &[(&str, &Path)]) -> String {
 /// Waits for `child` on a thread of nobody's interest: the caller does not want
 /// the tool's exit status, but on unix a child nothing reaps stays a zombie
 /// until the app quits.
-pub(crate) fn detach(mut child: std::process::Child) {
+pub fn detach(mut child: std::process::Child) {
     std::thread::spawn(move || {
         let _ = child.wait();
     });

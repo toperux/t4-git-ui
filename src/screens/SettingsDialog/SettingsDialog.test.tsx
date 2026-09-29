@@ -16,6 +16,7 @@ vi.mock("../../api/ipc", async (importOriginal) => {
     setSigning: vi.fn(),
     setTool: vi.fn(pending),
     checkForUpdate: vi.fn(pending),
+    openReleasePage: vi.fn(() => Promise.resolve()),
   };
 });
 vi.mock("../../theme/theme", async (importOriginal) => {
@@ -264,6 +265,14 @@ describe("SettingsDialog", () => {
     }
     // The progress it explains stays on screen with them.
     expect(r.getByRole("progressbar", { name: "Downloading update" })).toBeTruthy();
+  });
+
+  // A .deb / .rpm install can't update itself: the button hands the release page to the browser.
+  it("Download… opens the release page when the update can't be installed", () => {
+    useUpdateStore.setState({ info: { version: "9.9.9", installable: false }, checked: true });
+    const r = render(<SettingsDialog onClose={() => {}} />);
+    fireEvent.click(r.getByRole("button", { name: "Download…" }));
+    expect(ipc.openReleasePage).toHaveBeenCalledTimes(1);
   });
 
   it("Esc still closes after Check now disables itself", async () => {

@@ -186,6 +186,7 @@ pub fn run() {
             commands::update::check_for_update,
             commands::update::last_update_check,
             commands::update::install_update,
+            commands::update::open_release_page,
             commands::update::set_commit_drafts,
             commands::update::commit_drafts,
             commands::window::spawn_window,

@@ -5,10 +5,9 @@
 // number fields apply on Enter (the git path on Apply / Locate… too, since trying it starts a
 // process); the two tool sections have an Apply of their own. The footer only closes.
 import { open as openFile } from "@tauri-apps/plugin-dialog";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { FolderSearch } from "lucide-react";
 import { useEffect, useId, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { toAppError } from "../../api/ipc";
+import { openReleasePage as openReleasePageIpc, toAppError } from "../../api/ipc";
 import { Button } from "../../components/ui/Button/Button";
 import { Checkbox } from "../../components/ui/Checkbox/Checkbox";
 import { Dialog, Field, Options } from "../../components/ui/Dialog/Dialog";
@@ -120,15 +119,15 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
     setBusy(false);
   }
 
-  function openReleasePage(url: string) {
-    void openUrl(url).catch((e: unknown) => toastError(toAppError(e), "Couldn't open the release page"));
+  function openReleasePage() {
+    void openReleasePageIpc().catch((e: unknown) => toastError(toAppError(e), "Couldn't open the release page"));
   }
 
   /** Install it, or — on a .deb / .rpm, where the package manager owns the files — hand it to the browser. */
   function getUpdate() {
     if (!info) return;
     if (info.installable) void install();
-    else openReleasePage(info.releaseUrl);
+    else openReleasePage();
   }
 
   // The one line that answers "am I current?" — so it names this build whenever nothing else is going
@@ -235,7 +234,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
               {/* Nobody should have to accept a version sight unseen: on every install kind but .deb /
                   .rpm the button below installs it, so this is the only way to the release notes. */}
               {info && (
-                <Button variant="ghost" disabled={installing} onClick={() => openReleasePage(info.releaseUrl)}>
+                <Button variant="ghost" disabled={installing} onClick={openReleasePage}>
                   What's new
                 </Button>
               )}

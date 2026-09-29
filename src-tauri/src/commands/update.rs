@@ -11,6 +11,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, State, Window};
 use tauri_plugin_updater::UpdaterExt;
 
+use super::repo::{blocking, open_on_host};
 use crate::{AppError, AppState};
 
 const PROGRESS_EVENT: &str = "update://progress";
@@ -28,10 +29,6 @@ pub struct UpdateInfo {
     /// the package manager's business, and asking the plugin to update one
     /// only produces a failure further along.
     installable: bool,
-    /// Where to send someone whose install cannot update itself, and where the
-    /// real release notes live. `latest.json` is generated before the GitHub
-    /// release exists, so the manifest can carry a link but never the body.
-    release_url: String,
 }
 
 /// The last check's answer, for a window that opens after it came back.
@@ -53,8 +50,18 @@ fn installable() -> bool {
     }
 }
 
+/// Where to send someone whose install cannot update itself, and where the real
+/// release notes live. `latest.json` is generated before the GitHub release
+/// exists, so the manifest can carry a link but never the body.
 fn release_url() -> String {
     format!("{}/releases/latest", env!("CARGO_PKG_REPOSITORY"))
+}
+
+/// Opens the releases page in the host's browser. It takes no URL, so no link
+/// from the page is trusted.
+#[tauri::command]
+pub async fn open_release_page() -> Result<(), AppError> {
+    blocking(|| open_on_host(&release_url()).map_err(|e| AppError::Internal(e.to_string()))).await
 }
 
 /// On Windows the NSIS step kills the whole app: a rebase or a push running in
@@ -122,7 +129,6 @@ pub async fn check_for_update(
     let info = found.map(|update| UpdateInfo {
         version: update.version,
         installable: installable(),
-        release_url: release_url(),
     });
     state.set_last_update(info.clone());
     let _ = app.emit(CHECKED_EVENT, &info);
@@ -225,7 +231,7 @@ pub fn commit_drafts(state: State<'_, AppState>) -> Vec<String> {
 mod tests {
     use super::*;
 
-    /// The link the frontend opens for deb/rpm installs is built from the
+    /// The link opened for deb/rpm installs and What's new is built from the
     /// manifest, so a typo here would ship a dead button.
     #[test]
     fn release_url_points_at_the_releases_page() {
