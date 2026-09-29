@@ -231,7 +231,10 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
   `docs/smoke/fixtures/direct.sh`, pointed to from `smoke-linux.md`.
 - **AC :761 walked 2026-09-26 (T6):** the `.deb` passes; the AppImage updates in place only with a workaround (the
   blank-window bug below); `.rpm` not walked, ruled covered 2026-09-27. The row stays unticked until the AppImage
-  release walks (`docs/archive/walks/2026-09-26-group-ac-linux-walk.md`).
+  release walks (`docs/archive/walks/2026-09-26-group-ac-linux-walk.md`). **2026-09-29:** both release walks since
+  (0.10.12 → 0.10.13, 0.10.13 → 0.10.14) installed in place and rendered without the workaround, but neither came back
+  by itself (the old app runs the restart). The user: AC ticks at 2b's release, whose update from 0.10.14 is the first
+  that can restart by itself.
 - **ssh under the moved `HOME` (T4):** done 2026-09-27, moved to `open-items-done.md` §P on 2026-09-28; its
   accepted cases are in §Q (*Linux harness: ssh cases not covered under the moved `HOME`*). Prompts are the row
   below.
@@ -530,7 +533,9 @@ The rows below came from elsewhere in this file (the first nine) and from the do
   and without strace, and on the desktop); in the five on Xvfb all three image processes held the keepalive. Details:
   `docs/archive/walks/2026-09-29-group-bi-walk.md`. Accepted 2026-09-29. **Reopen:** it is seen again, or a user
   reports a crash at an AppImage quit — then run with `strace -f -e trace=none -e signal=all` attached from launch
-  through the quit. *From the 0.10.14 hotfix's BI re-walk.*
+  through the quit. The same entry came from a 0.10.13 AppImage (no fd change) stopped with SIGTERM, 111 ms before its
+  image unmounted, during the v0.10.14 gate (`docs/archive/walks/2026-09-29-v0.10.14-release-gate-linux.md`), so it
+  isn't unique to the hotfix. *From the 0.10.14 hotfix's BI re-walk.*
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review, deferred
 

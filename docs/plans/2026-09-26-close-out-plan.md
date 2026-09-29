@@ -9,22 +9,26 @@ Phase 5's macOS rows closed on CI's leg, or a Phase 2b design row ending "accept
 "measured, fine" closure is not an accepted limit and still goes to the done file — except `status.rs`, which stays
 in §Q with the numbers.
 
-**Status:** 2026-09-28. **Phase 0 done 2026-09-26** (`59e9383`). **Phase 1 done 2026-09-26**
-(`docs/archive/plans/2026-09-26-phase-1-plan.md`, walk record `docs/archive/walks/2026-09-26-phase-1-walk.md`):
-the next tag is unblocked. **PR #18 merged 2026-09-27** (`5cc5de9`: the Linux harness, the WebKitGTK focus fixes,
-the restore guard and its follow-ups, the AppImage repack). Its rows (§O, §P) are scheduled below, mostly in the
-new *Linux track*; plan updated for it 2026-09-28. **Triage done 2026-09-28**
-(`docs/archive/plans/2026-09-26-triage-plan.md`). **The CLI pin change done 2026-09-28** (`ee59475`: tauri-cli
-2.11.5, `--app-version` on the AppImage re-sign, the pin guard in `checks.yml`), verified by CI run 36391087334
-and the `workflow_dispatch` run 36391567783 (every `.sig` ends in `version:0.10.12`), recorded in `fda5293`.
-**`CLAUDE.md`'s workflow and open-items §Q** since 2026-09-28 (`430b6da`): every phase, and each row picked up
-outside one, follows `CLAUDE.md`. **§J decided 2026-09-28** (prefixes → §C roadmap, per-view sidebar → 2a).
-**Phase 2a done 2026-09-29** (13 commits `d116c2d`–`072b1b8`, smoke group BH walked — see
-`docs/archive/walks/2026-09-29-group-bh-walk.md`). **v0.10.13 released 2026-09-29** (`c02f367`, release run
-36476596805; every `.sig` carries `version:0.10.13`); **its gate passed the same day**: the user's 0.10.12 updated
-through Check now → Install and came back as 0.10.13 with its windows. **Next: the 0.10.14 hotfix
-(`docs/plans/2026-09-29-appimage-env-hotfix-plan.md`), then Phase 1b** (see *Order*). Open decisions: the Phase 3
-threshold, the Phase 4 reference canvas, and hardware (before Phase 5).
+**Status:** 2026-09-29. **Phase 0 done 2026-09-26** (`59e9383`). **Phase 1 done 2026-09-26**
+(`docs/archive/plans/2026-09-26-phase-1-plan.md`, walk record `docs/archive/walks/2026-09-26-phase-1-walk.md`): the
+next tag is unblocked. **PR #18 merged 2026-09-27** (`5cc5de9`: the Linux harness, the WebKitGTK focus fixes, the
+restore guard and its follow-ups, the AppImage repack). Its rows (§O, §P) are scheduled below, mostly in the new
+*Linux track*; plan updated for it 2026-09-28. **Triage done 2026-09-28**
+(`docs/archive/plans/2026-09-26-triage-plan.md`). **The CLI pin change done 2026-09-28** (`ee59475`: tauri-cli 2.11.5,
+`--app-version` on the AppImage re-sign, the pin guard in `checks.yml`), verified by CI run 36391087334 and the
+`workflow_dispatch` run 36391567783 (every `.sig` ends in `version:0.10.12`), recorded in `fda5293`. **`CLAUDE.md`'s
+workflow and open-items §Q** since 2026-09-28 (`430b6da`): every phase, and each row picked up outside one, follows
+`CLAUDE.md`. **§J decided 2026-09-28** (prefixes → §C roadmap, per-view sidebar → 2a). **Phase 2a done 2026-09-29**
+(13 commits `d116c2d`–`072b1b8`, smoke group BH walked — see `docs/archive/walks/2026-09-29-group-bh-walk.md`).
+**v0.10.13 released 2026-09-29** (`c02f367`, release run 36476596805; every `.sig` carries `version:0.10.13`); **its
+gate passed the same day**: the user's 0.10.12 updated through Check now → Install and came back as 0.10.13 with its
+windows. **The 0.10.14 hotfix** (the AppImage's environment no longer reaches the processes it starts;
+`docs/plans/2026-09-29-appimage-env-hotfix-plan.md`, smoke group BI) **released 2026-09-29** (`51433d3`, release run
+36573068704; every `.sig` carries `version:0.10.14`); **its gate passed**: the user's Windows 0.10.13 updated to
+0.10.14 through the app, and on the Linux VM the published 0.10.13 AppImage updated in place and, started by hand as
+the release notes say, fetched over HTTPS and opened files
+(`docs/archive/walks/2026-09-29-v0.10.14-release-gate-linux.md`). **Next: Phase 1b** (see *Order*). Open decisions:
+the Phase 3 threshold, the Phase 4 reference canvas, and hardware (before Phase 5).
 
 Row references are to `docs/plans/open-items.md` sections (§A–§S), and code and smoke-doc line numbers are as of
 2026-09-28 (`main` after #18; `release.yml` cites after the CLI pin change). The Phase 1 section keeps its original
@@ -38,10 +42,11 @@ Agreed with the user 2026-09-28 (`docs/archive/plans/2026-09-28-close-out-refres
    per-view sidebar → 2a.
 2. Phase 2a, then a release and the gate: the first release with version-bound signatures, and the first AppImage
    release walk (with U4).
-3. The 0.10.14 hotfix, ahead of Phase 1b (the user, 2026-09-29): the AppImage's environment no longer reaches the
-   processes it starts (every HTTPS fetch, coreutils hooks, custom tools, *Open* and the relaunch after an update
-   fail from the AppImage on newer hosts). Plan `docs/plans/2026-09-29-appimage-env-hotfix-plan.md`, walked as smoke
-   group BI on the Ubuntu 26.04 VM, then released.
+3. ~~The 0.10.14 hotfix, ahead of Phase 1b~~ Released and gated 2026-09-29. The 0.10.14 hotfix, ahead of Phase 1b (the
+   user, 2026-09-29): the AppImage's environment no longer reaches the processes it starts (every HTTPS fetch,
+   coreutils hooks, custom tools, *Open* and the relaunch after an update fail from the AppImage on newer hosts). Plan
+   `docs/plans/2026-09-29-appimage-env-hotfix-plan.md`, walked as smoke group BI on the Ubuntu 26.04 VM, then
+   released.
 4. Phase 1b (signing, and turning on `requireSignedVersion` with its local update test). After 2a, so 2a's known
    fixes don't wait on the signing setup.
 5. Phase 2b, then a release: the first signed one, and the first with `requireSignedVersion` on; its update walk
@@ -136,7 +141,10 @@ message in the Commit dialog first, so Install asks before it drops the draft (o
   command is in `docs/archive/walks/2026-09-26-group-ac-linux-walk.md`. **Walked 2026-09-29 for v0.10.13** on the
   Ubuntu 26.04.1 VM (`docs/archive/walks/2026-09-29-appimage-release-walk.md`): the update installs in place and the
   repacked file renders without `LD_PRELOAD`; **the automatic restart fails** (open-items §S). U4: no clear gap
-  (same zstd / 128 KiB blocks, +1.4 % size, cold start 0.536 s both) — nothing to match.
+  (same zstd / 128 KiB blocks, +1.4 % size, cold start 0.536 s both) — nothing to match. **Walked again for
+  v0.10.14** (`docs/archive/walks/2026-09-29-v0.10.14-release-gate-linux.md`): 0.10.13 → 0.10.14 installs in place;
+  0.10.13's restart still fails (fixed from 0.10.14 on, so the next release's update is the first to come back by
+  itself).
   - Also compare the fixed AppImage with the old one started above (built without the repack; triage U4).
     - `unsquashfs -s -o <offset>` on both (the offset: `smoke-linux.md` › *Inspect without running it*) shows the
       block size and compressor options each used.
