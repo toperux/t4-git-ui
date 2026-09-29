@@ -303,6 +303,21 @@ pub fn run() {
             // restore had reported yet.
             RunEvent::Exit => {
                 commands::window::end_restore(app);
+                // An update installed into an AppImage (`install_update`): the
+                // new one starts once the plugins let go (single-instance's
+                // D-Bus name), with the host's environment and in the
+                // folder the image was first started from, not the old mount.
+                if app.state::<AppState>().relaunch.load(Ordering::SeqCst) {
+                    let env = app.env();
+                    let started = tauri::process::current_binary(&env).and_then(|exe| {
+                        git_core::host_command(exe)
+                            .args(env.args_os.iter().skip(1))
+                            .spawn()
+                    });
+                    if let Err(e) = started {
+                        tracing::error!(error = %e, "could not relaunch after the update");
+                    }
+                }
                 shutdown_logging(app);
             }
             _ => {}

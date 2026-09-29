@@ -43,6 +43,9 @@ pub struct AppState {
     /// An `install_update` is running: Install in a second window must not
     /// start a second download and a second setup.
     pub installing: AtomicBool,
+    /// An update was installed into this AppImage: the `Exit` arm starts the
+    /// new one, with the host's environment (`install_update`).
+    pub relaunch: AtomicBool,
     next_op: AtomicU64,
     next_window: AtomicU64,
 }
@@ -62,6 +65,7 @@ impl Default for AppState {
             drafts: Mutex::new(HashMap::new()),
             exiting: AtomicBool::new(false),
             installing: AtomicBool::new(false),
+            relaunch: AtomicBool::new(false),
             next_op: AtomicU64::new(1),
             next_window: AtomicU64::new(0),
         }

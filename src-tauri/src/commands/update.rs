@@ -39,12 +39,13 @@ pub struct UpdateCheck {
     pub info: Option<UpdateInfo>,
 }
 
-/// Only an AppImage can rewrite itself in place. The plugin sets `APPIMAGE`
-/// nowhere — the AppImage runtime does — so its absence on Linux means this is
-/// a deb or rpm install.
+/// Only an AppImage can rewrite itself in place. On Linux this asks the same
+/// gate the environment scrub does ([`git_core::in_appimage`]: `APPIMAGE` and
+/// `APPDIR` set, and this program running from inside `APPDIR`); anything else
+/// is a deb or rpm install — one started from an AppImage's terminal included.
 fn installable() -> bool {
     if cfg!(target_os = "linux") {
-        std::env::var_os("APPIMAGE").is_some()
+        git_core::in_appimage().is_some()
     } else {
         true
     }
@@ -142,8 +143,9 @@ pub fn last_update_check(state: State<'_, AppState>) -> UpdateCheck {
 }
 
 /// Download the update, install it, and restart into it. Does not return: the
-/// process is replaced either by `restart` below or, on Windows, by the NSIS
-/// step terminating the app as part of installing.
+/// process is replaced either by `restart` below, on Windows by the NSIS step
+/// terminating the app as part of installing, or, in an AppImage, by exiting
+/// and the `RunEvent::Exit` arm relaunching it.
 ///
 /// The `Update` handle is fetched again rather than parked in `AppState`: it is
 /// one small request, and it keeps a type from a plugin's internals out of this
@@ -210,6 +212,15 @@ pub async fn install_update(app: AppHandle, state: State<'_, AppState>) -> Resul
         .install(bytes)
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
+    // Tauri's restart would start the new AppImage with this one's environment,
+    // and its `#!/usr/bin/env bash` dies on the image's libraries: exit instead,
+    // and the `Exit` arm starts it through `host_command`.
+    if git_core::in_appimage().is_some() {
+        state.relaunch.store(true, Ordering::SeqCst);
+        app.exit(0);
+        std::future::pending::<()>().await;
+        unreachable!();
+    }
     #[allow(clippy::disallowed_methods)]
     app.restart();
 }
@@ -246,7 +257,9 @@ mod tests {
     #[test]
     fn installable_everywhere_except_a_packaged_linux_install() {
         if cfg!(target_os = "linux") {
-            assert_eq!(installable(), std::env::var_os("APPIMAGE").is_some());
+            // A test binary is never under an `APPDIR`, even run from an
+            // AppImage's terminal; the gate itself is tested in git-core.
+            assert!(!installable());
         } else {
             assert!(installable());
         }
