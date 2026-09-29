@@ -307,6 +307,8 @@ pub fn run() {
                 // new one starts once the plugins let go (single-instance's
                 // D-Bus name), with the host's environment and in the
                 // folder the image was first started from, not the old mount.
+                // `host_command` also keeps the old runtime's keepalive pipe
+                // from the new app, so the old image unmounts.
                 if app.state::<AppState>().relaunch.load(Ordering::SeqCst) {
                     let env = app.env();
                     let started = tauri::process::current_binary(&env).and_then(|exe| {

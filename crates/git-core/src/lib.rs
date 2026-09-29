@@ -32,7 +32,8 @@ use std::process::Command;
 /// `Command` made elsewhere (`open::commands`), passed through `host_env`. AppRun also changed into
 /// `$APPDIR/usr`, so the child starts in [`start_dir`] instead: left inside the read-only image, it
 /// would keep the mount busy after Quit or an update's relaunch. A folder the caller sets
-/// afterwards (git's `repo_dir`) wins. Outside an AppImage both do nothing.
+/// afterwards (git's `repo_dir`) wins. The child also drops every descriptor from 3 up that is
+/// not close-on-exec (`drop_inherited_fds`, Linux). Outside an AppImage all three do nothing.
 pub fn host_env(cmd: &mut Command) {
     let Some(appdirs) = in_appimage() else {
         return;
@@ -44,6 +45,8 @@ pub fn host_env(cmd: &mut Command) {
         };
     }
     cmd.current_dir(start_dir(env::var_os("OWD")));
+    #[cfg(target_os = "linux")]
+    drop_inherited_fds(cmd);
 }
 
 /// The folder a child starts in inside an AppImage: `OWD`, the one the image was started from,
@@ -59,6 +62,36 @@ fn start_dir(owd: Option<OsString>) -> PathBuf {
     owd.map(PathBuf::from)
         .filter(|dir| dir.is_absolute() && dir.is_dir() && !in_image(dir))
         .unwrap_or_else(|| "/".into())
+}
+
+/// Makes `cmd`'s child mark every descriptor from 3 up close-on-exec just before it runs the
+/// program, the app's own as well as inherited ones. The AppImage runtime's FUSE daemon unmounts
+/// the image once every read end of its keepalive pipe is closed, and the app inherits one without
+/// `O_CLOEXEC`: passed on, it kept the old image mounted after an update, through the relaunch
+/// until the new app quit, through git and the external tools while they ran, and through what
+/// they leave behind (git's credential-cache daemon, an app xdg-open started) for as long as that
+/// lived. Only the app's own children drop it: WebKit's helper processes keep it, or the image
+/// unmounts under them as they tear down and they die of SIGBUS.
+/// `close_range` is one syscall, no allocation, so it is safe between fork and exec; std has
+/// already put stdio on 0-2 by then, and its exec-error pipe is close-on-exec anyway.
+/// `close_range` exists from Linux 5.9, its `CLOSE_RANGE_CLOEXEC` flag from 5.11. An error
+/// (`ENOSYS` before 5.9, `EINVAL` on 5.9-5.10, `EPERM` under a seccomp filter) is ignored and
+/// leaves the child as it was before this hook.
+#[cfg(target_os = "linux")]
+fn drop_inherited_fds(cmd: &mut Command) {
+    use std::os::unix::process::CommandExt;
+    // SAFETY: the hook makes one raw syscall, which is async-signal-safe and takes no lock.
+    unsafe {
+        cmd.pre_exec(|| {
+            libc::syscall(
+                libc::SYS_close_range,
+                3u32,
+                u32::MAX,
+                libc::CLOSE_RANGE_CLOEXEC,
+            );
+            Ok(())
+        });
+    }
 }
 
 /// `Command::new(program)` with [`host_env`] applied: the one way the app starts a process.
@@ -319,5 +352,29 @@ mod tests {
         );
         let outside = env::temp_dir().join("t4-git-ui");
         assert_eq!(appdir_of(image(), appdir(dir.path()), &outside), None);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn drop_inherited_fds_keeps_an_inherited_pipe_from_the_child() {
+        let mut fds = [0; 2];
+        // SAFETY: pipe writes two ints into `fds`, made without O_CLOEXEC like the keepalive pipe.
+        assert_eq!(unsafe { libc::pipe(fds.as_mut_ptr()) }, 0);
+        let child_has_it = |drop_fds: bool| {
+            let mut cmd = host_command("sh");
+            cmd.arg("-c")
+                .arg(format!("test -e /proc/self/fd/{}", fds[0]));
+            if drop_fds {
+                drop_inherited_fds(&mut cmd);
+            }
+            cmd.status().unwrap().success()
+        };
+        assert!(child_has_it(false));
+        assert!(!child_has_it(true));
+        // SAFETY: the test closes only the two descriptors it made.
+        unsafe {
+            libc::close(fds[0]);
+            libc::close(fds[1]);
+        }
     }
 }
