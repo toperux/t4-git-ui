@@ -207,6 +207,20 @@ For checking a published or CI-built AppImage (the `packages-Linux` artifact of 
   digest with `python3 .github/scripts/appimage-digest.py --check <file>`.
 - **On a VMware guest's desktop** the fixed AppImage still needs `WEBKIT_DISABLE_DMABUF_RENDERER=1` (the README
   note). Xvfb doesn't.
+- **A host program the app starts: run the control first** (smoke group BI). The app's own environment keeps the
+  image's paths (only its children are scrubbed), so it is the unscrubbed one. Run the program under it and see it
+  fail, or a pass proves a changed host rather than the fix:
+  `xargs -0 -a /proc/<app pid>/environ sh -c 'exec env -i "$@" <program>' sh`. Only an AppImage **built on
+  Ubuntu 22.04** reproduces the bug (a CI or release build): one built on a newer host carries that host's
+  libraries, and every control passes.
+- **Check a child's environment:** while it runs (a slow fetch),
+  `tr '\0' '\n' </proc/<git pid>/environ | grep -E 'mount_|APPDIR|APPIMAGE|PYTHONHOME|LD_LIBRARY_PATH'`
+  prints nothing, where the app's own pid shows them all.
+  For *Open*, the host's `xdg-open` hands off to `gio open` and exits within milliseconds, too fast for `ps`, so
+  start `sudo strace -f -qq -e trace=execve -p <app pid> 2>&1 | grep xdg-open` before the click: it shows exactly
+  which `xdg-open` ran: an `= -1 ENOENT` line for each `PATH` folder tried first, then the `execve` line ending
+  `= 0` shows `/usr/bin/xdg-open`, not the mount's copy. The second proof: the opened app's `/proc/<pid>/environ`
+  has no `mount_` path. Use an app not already running: a running one shows its own old environment.
 
 ## 4. Quit, clean up
 
@@ -241,5 +255,10 @@ For checking a published or CI-built AppImage (the `packages-Linux` artifact of 
   - **GTK's native popups** (a text field's menu) aren't in the shot: ask the user.
   - **The native picker can't be driven:** seed `layout.json` instead (the recipe under "Several windows").
   - See `docs/archive/walks/2026-09-27-linux-wayland-rendering-walk.md`.
-- **`.deb` / `.rpm` / AppImage updates** (`smoke-test-post-v1.md` AC): these need bundled packages (the
-  signing key), `sudo dpkg -i`, and a published release newer than the build. Walk them by hand.
+- **`.deb` / `.rpm` updates** (`smoke-test-post-v1.md` AC): these need bundled packages (the signing key),
+  `sudo dpkg -i`, and a published release newer than the build. Walk them by hand.
+- **AppImage updates** can be walked before a release: a `workflow_dispatch` Release run (signed and repacked as a
+  release) of a throwaway branch versioned below the published release, set the release skill's way; without a
+  tag the version job skips its tag checks, so a lower version builds (`release.yml:60-74`). Its `packages-Linux`
+  AppImage then updates to the published one through Settings (group BI 8). Still a hand walk: the push and the
+  run are the user's go.

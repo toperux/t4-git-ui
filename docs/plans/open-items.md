@@ -491,7 +491,46 @@ The rows below came from elsewhere in this file (the first nine) and from the do
 - **`cancel_kills_long_running_process` can miss its 800 ms bound under load.** It failed once locally while two
   builds ran in parallel, passed alone (0.38 s) and in every run since; never seen in CI. Widening the bound would
   weaken what it proves. Accepted 2026-09-29. **Reopen:** it fails in CI — then widen the bound or retry it. *From
-  close-out Phase 2a's gates.*
+  close-out Phase 2a's gates.* It can also fail when git's port 9418 is already taken: its `git daemon` listens on
+  that fixed port, and a WSL test run at the same time shares localhost ports (seen once in the 0.10.14 hotfix's
+  per-commit gates; the retry passed). **Reopen:** that failure in CI — then give the daemon a free port.
+- **A Flatpak or snap build would need its own way to start host programs.** The 0.10.14 scrub (`host_command`)
+  handles an AppImage's environment only; inside a Flatpak or snap sandbox a host program is reached through
+  `flatpak-spawn --host` or not at all. None is planned. Accepted 2026-09-29. **Reopen:** a Flatpak or snap build is
+  planned. *From the 0.10.14 hotfix plan's triage (T6).*
+- ***Open* inside an AppImage parks one thread per open while `xdg-open` runs.** `open_on_host`
+  (`src-tauri/src/commands/repo.rs`) skips the `open` crate's double fork: `git_core::tools::detach`'s thread waits
+  on `xdg-open`, which in its generic fallback can wait for the opened program. A parked thread costs little, and
+  opens are user clicks. Accepted 2026-09-29. **Reopen:** the thread count or memory grows noticeably over a long
+  session. *From the 0.10.14 hotfix plan's triage (T7).*
+- **A blame test failed once on Windows inside the test helper's `index.add_path`.**
+  `blames_the_working_tree_and_marks_the_uncommitted_line` panicked at `test_util.rs:84` during the 0.10.14 hotfix's
+  gates and passed on re-run; the code under test isn't touched by the hotfix. Likely a pre-existing Windows
+  file-timing flake; unconfirmed. Accepted 2026-09-29. **Reopen:** it fails again, locally or in CI — then look at
+  the helper. *From the 0.10.14 hotfix's change review (triage T-B).*
+- **Inside an AppImage, every process the app starts is forked, not `posix_spawn`ed.** Two causes, both from the
+  0.10.14 hotfix (`crates/git-core/src/lib.rs`): std forks whenever a child's `PATH` is changed and the program is
+  named without a path, and `host_env` always rewrites `PATH` inside an AppImage (git by default, the tools' `sh`,
+  `xdg-open`, the VS Code fallback); `drop_inherited_fds`' `pre_exec` hook makes std fork the rest (the relaunch,
+  a git path set in Settings). Each start copies the app's page tables: reasoned at about 1–3 ms, not measured.
+  Under strict overcommit (`vm.overcommit_memory=2`) a fork of a large process can fail with `ENOMEM` (reasoned, not
+  seen). Linux AppImage only. Accepted 2026-09-29. **Reopen:** AppImage users report slow status or refresh on Linux,
+  or a spawn failing with out-of-memory — then measure spawns against 0.10.13. *From the 0.10.14 hotfix's change
+  review (pass 7, after the BI 8 re-walk).*
+- **The end-to-end file-handle test's control doesn't go through git.** `crates/git-core/tests/host_env.rs` checks
+  that an inherited pipe reaches a plain `test` before the fake mount and doesn't reach git's alias after it; if git
+  or `sh` ever closed inherited descriptors themselves, the test would pass without the hook. git's `run_command`
+  closes none today, and with the hook's call removed the test failed (run on WSL, 2026-09-29). Accepted 2026-09-29.
+  **Reopen:** a git upgrade changes how it starts hooks or aliases — then run the same alias before the mount as the
+  control. *From the 0.10.14 hotfix's change review (pass 8).*
+- **One unexplained crash-reporter entry at an AppImage quit.** At the Quit that ended the final build's BI 1–7 walk
+  on the VM, apport logged *executable was modified after program start*, 28 ms before the unmount: most likely a
+  process running from the image (the app or a WebKit helper) crashed as it exited (reasoned, not verified; the
+  process and signal weren't recorded). No dialog. Not reproduced in 6 later quits (the same spawn-heavy sequence with
+  and without strace, and on the desktop); in the five on Xvfb all three image processes held the keepalive. Details:
+  `docs/archive/walks/2026-09-29-group-bi-walk.md`. Accepted 2026-09-29. **Reopen:** it is seen again, or a user
+  reports a crash at an AppImage quit — then run with `strace -f -e trace=none -e signal=all` attached from launch
+  through the quit. *From the 0.10.14 hotfix's BI re-walk.*
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review, deferred
 
@@ -511,18 +550,20 @@ The rows below came from elsewhere in this file (the first nine) and from the do
 
 ## S. Added 2026-09-29 — v0.10.13's AppImage release walk
 
-- **The AppImage's environment leaks into the processes it spawns; the post-update restart fails on Ubuntu 26.04.**
-  The AppImage bundles 22.04's `libsystemd.so.0` (249) and its `AppRun` puts `$APPDIR/usr/lib` on
-  `LD_LIBRARY_PATH`, which every child inherits. Ubuntu 26.04's `/usr/bin/env` (rust-coreutils 0.10.0, a backport
-  installed on the VM 2026-09-29) needs `LIBSYSTEMD_254`, so Tauri's restart (it runs the new AppImage, whose
-  `AppRun` is `#! /usr/bin/env bash`) dies: the app exits and nothing relaunches. The update itself is in place;
-  launching the file by hand works. Reproduced on the VM; `cat` and `ls` fail the same way, `bash`, `dash`, `git`
-  and `ssh` don't. Not a 0.10.13 regression (0.10.12 restarts the same way; it worked on 2026-09-26 before the
-  backport). `.deb` / `.rpm` unaffected. **Scope being checked on the VM** (git hooks, an external tool, a credential
-  helper that call coreutils) before deciding hotfix vs Phase 2b. Fix directions: strip `$APPDIR` paths from the
-  environment of every process the app spawns, and/or drop `libsystemd` in the repack. The restart is the *old*
-  app's, so a fix helps only updates from the release that carries it.
-  `docs/archive/walks/2026-09-29-appimage-release-walk.md` (on the VM, pending).
+- **A failed commit's toast shows a hook's first output line, not why it failed.** When a hook refuses, git prints
+  nothing of its own, and the toast shows stderr's first line (`src/store/toastStore.ts:104-107`); the VM walk saw
+  *hook1 start*. Pre-existing, not from Phase 2a. Fix: in `commit`, when stderr has no `fatal:` / `error:` line,
+  report the last non-empty one (~6 lines + a test); the op log has the full output. Same blind spot in merge /
+  pull (a `pre-merge-commit` hook). Triage T1 of the 0.10.14 hotfix plan. *(Close-out Phase 2b.)*
+- **A custom tool that fails to start still says *Opened …*.** The tool is detached; its exit status is never read
+  (`crates/git-core/src/tools.rs:264-271`). Fix: watch the first ~300 ms for an early non-zero exit (a late one is
+  normal for some tools — kdiff3 unsaved, Beyond Compare *files differ* — so it can't be reported; every open gets
+  ~300 ms slower). Pre-existing; the hotfix removes the trigger seen on the VM. Triage T2 of the 0.10.14 hotfix
+  plan. *(Close-out Phase 2b.)*
+- **Review the limits the 0.10.14 hotfix's change review accepted in bulk.** 21 small items (edge cases,
+  pre-existing behaviour, trades already chosen, doc style) were accepted as closed without a one-by-one ruling, to
+  be looked at later: `docs/plans/open-items-done.md` §T. **Next:** the owner goes through §T and moves any item
+  back here. *(Owner, when time allows.)*
 
 ## Order
 

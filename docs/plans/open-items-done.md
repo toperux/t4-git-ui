@@ -692,3 +692,69 @@ fixes and the walk added three more. The walk is `docs/archive/walks/2026-09-19-
 - **`release.yml`'s macOS signing-order comment named 2.11.5 before a run confirmed it** (the CLI pin change's
   triage T1) — **closed 2026-09-28**: run 36391567783's *Verify the macOS signature* step passed at tauri-cli
   2.11.5, so the bundler still signs the `.app` before packing the `.app.tar.gz` and `.dmg`.
+
+## S. Added 2026-09-29 — v0.10.13's AppImage release walk: the rows since closed
+
+- **Launching the extracted image (`squashfs-root/AppRun`, no `APPIMAGE`) isn't scrubbed.** The 0.10.14 gate
+  (`git_core::in_appimage`) needs `APPIMAGE`, which only the AppImage runtime sets, so an image unpacked with
+  `--appimage-extract` and started through its `AppRun` passes the image's environment on as before. Dev-only.
+  **Closed accepted limit** (triage T5 of `docs/plans/2026-09-29-appimage-env-hotfix-plan.md`, 2026-09-29). No
+  reopen trigger.
+- **The AppImage's environment leaks into the processes it spawns; the post-update restart fails on Ubuntu 26.04.**
+  The AppImage bundles 22.04's `libsystemd.so.0` (249) and its `AppRun` puts `$APPDIR/usr/lib` on
+  `LD_LIBRARY_PATH`, which every child inherits. Ubuntu 26.04's `/usr/bin/env` (rust-coreutils 0.10.0, a backport
+  installed on the VM 2026-09-29) needs `LIBSYSTEMD_254`, so Tauri's restart (it runs the new AppImage, whose
+  `AppRun` is `#! /usr/bin/env bash`) dies: the app exits and nothing relaunches. The update itself is in place;
+  launching the file by hand works. Reproduced on the VM; `cat` and `ls` fail the same way, `bash`, `dash`, `git`
+  and `ssh` don't. Not a 0.10.13 regression (0.10.12 restarts the same way; it worked on 2026-09-26 before the
+  backport). `.deb` / `.rpm` unaffected. **Scope checked on the VM 2026-09-29:** every HTTPS fetch, pull and push
+  fails (the bundled `libnghttp2.so.14` shadows the one the host's `libcurl` needs); hooks that call coreutils
+  fail and a `#!/usr/bin/env bash` hook can't start; a custom diff tool fails silently; git from a terminal and the
+  `.deb` (0.10.11) pass. **Decided 2026-09-29: hotfix 0.10.14**, scrubbing the image's paths from the environment
+  of every process the app starts — plan `docs/plans/2026-09-29-appimage-env-hotfix-plan.md`. The restart is the
+  *old* app's, so the fix helps only updates from 0.10.14 on.
+  `docs/archive/walks/2026-09-29-appimage-release-walk.md` (`41025ce`).
+  **Closed 2026-09-29:** fixed on `hotfix/0.10.14`; smoke group BI rows 1–8 walked green on the final build (Release
+  run 36548652011, after two earlier builds; one unexplained crash-reporter entry at one quit, not reproduced), row 9
+  on Windows (the later changes are Linux-only) — `docs/archive/walks/2026-09-29-group-bi-walk.md`. Ships in 0.10.14.
+
+## T. Added 2026-09-29 — the 0.10.14 hotfix's change review: accepted in bulk, to be reviewed
+
+Accepted as closed by the owner on 2026-09-29 without a one-by-one ruling, kept apart so they can be reviewed later
+(open-items §S points here). From change review passes 1–6 of `docs/plans/2026-09-29-appimage-env-hotfix-plan.md`.
+
+1. `open_on_host` with no launcher at all returns a NotFound error instead of the `open` crate's panic; the
+   launcher list is never empty.
+2. On Linux, *Open* on a broken symlink or an unreadable file now shows *could not open* (D12's check) instead of
+   failing silently.
+3. If the app's exit request fails, Tauri calls `process::exit` without an `Exit` event, so an AppImage doesn't
+   relaunch after an update; the update is in place (already in the plan's step 4).
+4. A user with no `XDG_DATA_DIRS` gets `/usr/share` alone in children (the hook's entry survives the scrub), which
+   drops the spec default `/usr/local/share`.
+5. If `APPDIR` can't be canonicalized, the gate is shut: no scrub, and *Download…* instead of *Install* — fails
+   safe.
+6. A contrived non-root `APPDIR` that contains the program (say `/tmp`) would scrub more than the image's entries.
+7. Each spawn inside an AppImage snapshots the environment, canonicalizes `APPDIR` and checks `OWD` is a folder,
+   blocking, on tokio workers too (the per-spawn check chosen when W1 was reverted).
+8. One Windows clippy error at a squash-rehearsal step didn't reproduce on two re-runs (likely a build-folder race).
+9. W3: a start folder deleted between the check and the spawn fails the spawn with *not found*.
+10. W4 / W5: a relative tool path with a `/`, and relative `PATH` entries such as `.`, are resolved against the
+    image's folder by the tool lookup but against `OWD` by the started tool.
+11. W6: the tool lookup drops empty `PATH` entries even when the scrub leaves `PATH` alone — moot, AppRun always
+    puts an image folder on it.
+12. W7: `host_env`'s doc links to the private `start_dir`, which warns only under `cargo doc` (CI doesn't run it).
+13. W8: tools start in `OWD`, not the repository (`git difftool` uses the worktree's top); no regression.
+14. W9: the relaunch passes the old arguments as given; the app reads none.
+15. No unit test of `host_env` checking the folder per spawn (it would set process variables); `start_dir` is
+    tested and BI 4 walks it.
+16. A user folder literally named `.mount_*` as `OWD` falls back to `/`.
+17. BI 6's environment check on an app started through D-Bus proves nothing (it gets the session's); the strace
+    line is the proof.
+18. No test for the *What's new* button; *Download…* is tested and both call the same function.
+19. The smoke control reads the app's start-up environment only; the image's paths are all there from the start.
+20. Doc style: `clippy.toml` lines (TOML inline tables can't wrap), two close-out table rows and the two launch
+    commands are over 120 characters; BI 5's label *Editor-less git*; close-out item 5's count of AppImage walks;
+    the §S row's record line has no *Record:* lead-in (tidied when it moves); `tools.rs` line citations shift
+    with the code (the dated-line-number convention).
+21. A reviewer's claim that the Linux-only code had never compiled was wrong: the WSL gate built and tested it on
+    every pass. No action.

@@ -2137,6 +2137,81 @@ and passed: dragged 260 → 400 px in Changes, hidden by History's rail, back at
 History, hidden by Changes' rail, back at 320. Row 12 not reachable: 0.10.12 is the latest release, so no update is
 offered.
 
+## BI. The AppImage's environment stays out of the processes it starts (0.10.14 hotfix, Ubuntu 26.04 VM)
+
+Plan: `docs/plans/2026-09-29-appimage-env-hotfix-plan.md` (step 6); BI 9 is walked on Windows. The build is the
+hotfix as an AppImage **built on Ubuntu 22.04** and versioned **0.10.12** (a `workflow_dispatch` Release run of a
+throwaway `walk/0.10.12` branch, the plan's D9): one built on the 26.04 VM would carry 26.04's libraries, and every
+control would pass without the fix. The VM runs Ubuntu 26.04 with the rust-coreutils backport. Before rows 1–6
+and 8, run the control: the same host program under the unscrubbed environment still fails (`smoke-linux.md` ›
+*Testing an AppImage*), so a pass means the fix and not a changed host. BI 3's SSH fetch is a no-regression check
+(ssh was never affected), BI 7 has no control, and BI 9 is Windows.
+
+- [x] 1. **Coreutils hook:** a `pre-commit` hook that runs `cat` and `ls`: the commit goes through.
+- [x] 2. **Env-shebang hooks:** a `#!/usr/bin/env bash` hook and a `#!/usr/bin/env python3` hook: both run.
+- [x] 3. **Remotes:** HTTPS clone, fetch, pull and push against GitHub (a credential helper in use); one SSH fetch.
+- [x] 4. **Tools:** a custom diff tool and a custom merge tool, both meld (itself a Python program); the VS Code
+      fallback if installed. With no meld already running (meld may be single-instance and hand a new start off to
+      the running one), the started meld's `readlink /proc/<pid>/cwd` is the folder the app was first started from,
+      not a `.mount_` path. Not the VS Code fallback's: `code` hands off to a running instance, or forks and exits.
+- [x] 5. **Editor-less git:** an interactive rebase with a reword, and a merge conflict resolved then *continue*.
+- [x] 6. **Open:** *Open* a file from the tree: it opens in the host's default app, and
+      `sudo strace -f -qq -e trace=execve -p <app pid> 2>&1 | grep xdg-open`, started before the click, shows
+      exactly which `xdg-open` ran: an `= -1 ENOENT` line for each `PATH` folder tried first, then the `execve`
+      line ending `= 0` shows `/usr/bin/xdg-open`, not the mount's. Open it in an app not already running (a
+      running one shows its own old environment): the opened app's `/proc/<pid>/environ` has no `mount_` path, and
+      its `readlink /proc/<pid>/cwd` is not a `.mount_` path (the folder the app was first started from, or the
+      session's when D-Bus starts the app). The bundled `xdg-open` also exits 0, so the absence of an error toast
+      proves nothing. The release-page button opens the browser; *Reveal*: the file manager shows the file; *Open*
+      a file deleted since the tree loaded — a *could not open* toast (D12; before the fix, nothing happened).
+- [x] 7. **A child's environment:** `/proc/<git pid>/environ` during a slow fetch: no `mount_` path, no
+      `PYTHONHOME`.
+- [x] 8. **Relaunch after an update:** update the 0.10.12-versioned build to the published 0.10.13 through
+      Settings: the app comes back by itself, on 0.10.13, with its windows;
+      `tr '\0' '\n' </proc/<new pid>/environ | grep ^OWD=` shows the folder the app was first started from, not a
+      `/tmp/.mount_*` path (R1); a few seconds after the old process is gone, `findmnt -l | grep -c '\.mount_T4-Git'`
+      shows 1 (only the new image's mount; other AppImages may be mounted too); after a Quit of the 0.10.12-versioned
+      build itself (a separate run before the update) and after the relaunch, no new `signal 7` line in
+      `/var/log/apport.log` (or `coredumpctl list` where installed) for `WebKitWebProcess` / `WebKitNetworkProcess`
+      (the old image stays mounted until its WebKit helpers exit too; a SIGBUS means it unmounted under them; a Quit
+      of the relaunched app tests 0.10.13, not this build). Walked from a terminal in the desktop
+      session, on the desktop's display (not Xvfb), with the isolated store but without `smoke-linux.md`'s
+      `dbus-run-session` (its bus dies with the old process):
+      `HOME=$S/home WEBKIT_DISABLE_DMABUF_RENDERER=1 SSH_ASKPASS_REQUIRE=never GIT_ASKPASS= setsid ./<file>.AppImage > $S/appimage.log 2>&1 &`
+      — and with no other T4 Git UI running (a running one would take the launch through single-instance, or add a
+      `.mount_T4-Git` mount).
+- [x] 9. **Windows over CDP:** open a file, the release-page button, an HTTPS fetch — unchanged (the gate never
+      fires); open a file deleted since the tree loaded — still a *could not open* toast.
+
+Rows 1–8 walked 2026-09-29 on the Ubuntu 26.04 VM with the `packages-Linux` AppImage of Release run 36531636558
+(`walk/0.10.12` at `f79088d`), isolated `HOME`, the user's store folder and `~/.gitconfig` diffed unchanged after —
+`docs/archive/walks/2026-09-29-group-bi-walk.md`. Every control failed as expected. Row 4's VS Code fallback isn't
+installed here. Rows 5 and 8 were re-walked the same day on Release run 36540556155 (`walk/0.10.12-2` at `712481f`, the
+T-A fix): row 5 with uutils `cp`, `mv` and `true` first on the app's `PATH` (on this host they are GNU by default, and
+the first walk's control passed), its control now failing. Row 8 took three walks. On the first build `findmnt` counted
+**2** `.mount_T4-Git` mounts until the relaunched app quit (triage T-A: the relaunch inherited the old runtime's
+keepalive pipe). The first T-A fix (every inherited fd close-on-exec at startup) brought it to 1, but the old instance's
+WebKitWebProcess and WebKitNetworkProcess then died with SIGBUS on every exit (apport's log: signal 7, 2 exits out of
+2). **Passed 2026-09-29 on Release run 36548652011** (`walk/0.10.12-3` at `6c09b3f`, the narrowed fix: close-on-exec
+only in the children the app starts): the app came back by itself on 0.10.13 with both tabs, `OWD` = the first start
+folder, **1** mount at the old process's exit and after (never 2 at 50 ms sampling), 0 after Quit, and no new `signal 7`
+in apport's log after the relaunch, after a clean Ctrl+Q quit of this build on Xvfb, or after the relaunched app's quit.
+**Rows 1–7 re-walked and passed the same day on that final build** (run 36548652011; its code behaves as the hotfix
+commits on `main`), every control failing again, with uutils `cp`, `mv` and `true` first on `PATH` for the whole
+session; row 3 against a recreated scratch repo, row 6's browser check on the desktop. So **every row 1–8 passed on the
+final build**; the earlier builds' results above are history. A Ctrl+Q of the 0.10.12-versioned build on the desktop
+(the BI 8 addendum) logged nothing in apport. One apport entry at the quit of the Xvfb row 1–7 session is unexplained:
+*executable was modified after program start* (most likely a crash of a process running from the image; not verified,
+signal not recorded); it didn't recur in six later quits — see the walk file.
+
+Row 9 walked 2026-09-29 on a Windows local build of `walk/0.10.12` (`f79088d`, the hotfix/0.10.14 code labelled
+0.10.12), `tauri build --no-bundle` with the identifier `dev.topher.t4gitui.smoke` so it kept its own store folder;
+the real store was never written (`cmp` against the backup, read-only) —
+`docs/archive/walks/2026-09-29-group-bi9-windows-walk.md`. *Open* on `src/a.txt` started Notepad on
+`C:\tmp\t4\work\src\a.txt` with no toast; *What's new* opened *Release T4 Git UI v0.10.13* in Edge; Fetch in an HTTPS
+clone of the GitHub repository fast-forwarded `origin/main`; *Open* on a file deleted with its menu already open gave
+*Couldn't open the file — could not open src/lib/b.txt: The system cannot find the file specified. (os error 2)*.
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the

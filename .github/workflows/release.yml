@@ -508,6 +508,9 @@ jobs:
             [README's note](https://github.com/${{ github.repository }}#install) on
             `WEBKIT_DISABLE_DMABUF_RENDERER`.
 
+            An AppImage from 0.10.13 or earlier doesn't reopen after updating on some
+            distributions; start it again yourself. <!-- drop with the 0.10.12 line -->
+
             ### Verifying a download
 
             Every package ships a `.sha256` sidecar (the `.sig` files and

@@ -22,9 +22,9 @@ outside one, follows `CLAUDE.md`. **§J decided 2026-09-28** (prefixes → §C r
 **Phase 2a done 2026-09-29** (13 commits `d116c2d`–`072b1b8`, smoke group BH walked — see
 `docs/archive/walks/2026-09-29-group-bh-walk.md`). **v0.10.13 released 2026-09-29** (`c02f367`, release run
 36476596805; every `.sig` carries `version:0.10.13`); **its gate passed the same day**: the user's 0.10.12 updated
-through Check now → Install and came back as 0.10.13 with its windows. **Next: the AppImage release walk on the Linux
-machine, then Phase 1b** (see *Order*). Open
-decisions: the Phase 3 threshold, the Phase 4 reference canvas, and hardware (before Phase 5).
+through Check now → Install and came back as 0.10.13 with its windows. **Next: the 0.10.14 hotfix
+(`docs/plans/2026-09-29-appimage-env-hotfix-plan.md`), then Phase 1b** (see *Order*). Open decisions: the Phase 3
+threshold, the Phase 4 reference canvas, and hardware (before Phase 5).
 
 Row references are to `docs/plans/open-items.md` sections (§A–§S), and code and smoke-doc line numbers are as of
 2026-09-28 (`main` after #18; `release.yml` cites after the CLI pin change). The Phase 1 section keeps its original
@@ -38,15 +38,19 @@ Agreed with the user 2026-09-28 (`docs/archive/plans/2026-09-28-close-out-refres
    per-view sidebar → 2a.
 2. Phase 2a, then a release and the gate: the first release with version-bound signatures, and the first AppImage
    release walk (with U4).
-3. Phase 1b (signing, and turning on `requireSignedVersion` with its local update test). After 2a, so 2a's known
+3. The 0.10.14 hotfix, ahead of Phase 1b (the user, 2026-09-29): the AppImage's environment no longer reaches the
+   processes it starts (every HTTPS fetch, coreutils hooks, custom tools, *Open* and the relaunch after an update
+   fail from the AppImage on newer hosts). Plan `docs/plans/2026-09-29-appimage-env-hotfix-plan.md`, walked as smoke
+   group BI on the Ubuntu 26.04 VM, then released.
+4. Phase 1b (signing, and turning on `requireSignedVersion` with its local update test). After 2a, so 2a's known
    fixes don't wait on the signing setup.
-4. Phase 2b, then a release: the first signed one, and the first with `requireSignedVersion` on; its update walk
+5. Phase 2b, then a release: the first signed one, and the first with `requireSignedVersion` on; its update walk
    proves the signed pipeline end to end, and it is the second AppImage walk (then AC ticks). The setting's first
    real check is the update from 2b's release to the next.
-5. Phase 3 (threshold decision first).
-6. Phase 4 (reference decision first).
-7. Phase 5 (hardware decision first), or earlier, when the hardware is there.
-8. Phase 6, on 2026-12-23.
+6. Phase 3 (threshold decision first).
+7. Phase 4 (reference decision first).
+8. Phase 5 (hardware decision first), or earlier, when the hardware is there.
+9. Phase 6, on 2026-12-23.
 
 - In parallel, on the Linux machine: the *Linux track* (the restore hang's Phase A/B, T20, T7, the ssh fail-fast
   PR, T5).
@@ -190,6 +194,8 @@ Rows marked **design needed** have no agreed fix; the Phase 2 plan decides each 
 | §I `StashDialogs.tsx` dirty-only submodule listed | **design needed** — git stashes nothing of its tree | `src/screens/RepoWindow/dialogs/StashDialogs.tsx:39` |
 | ~~§J per-view sidebar state~~ — done 2026-09-29 (`56bbea5`) | one `railOverride` per view, per window, in memory (P8); decided 2026-09-28 (prefixes moved to §C roadmap) | §J |
 | §R Ctrl+Q does nothing on the start screen (Phase 2a triage, 2026-09-29) | a Ctrl+Q arm in `StartScreen`'s key handler calling `quit`, plus a test — **2b** | §R |
+| §S a failed commit's toast shows a hook's first output line (0.10.14 hotfix triage T1) | in `commit`, when stderr has no `fatal:` / `error:` line, report the last non-empty one, plus a test; the same in merge / pull (`pre-merge-commit`) — **2b** | §S, `src/store/toastStore.ts:104-107` |
+| §S a custom tool that fails to start still says *Opened …* (0.10.14 hotfix triage T2) | watch the first ~300 ms for an early non-zero exit (a late one is normal for some tools, so it can't be reported; every open gets ~300 ms slower) — **2b** | §S, `crates/git-core/src/tools.rs:264-271` |
 
 Split into **2a** (the rows with a fix given) and **2b** (the design-needed rows), each with its own release,
 so the known fixes do not wait on the design work. 2a's walk also runs triage T8's check: launch the build with
