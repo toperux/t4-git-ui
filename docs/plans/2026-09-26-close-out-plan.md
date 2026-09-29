@@ -20,10 +20,13 @@ and the `workflow_dispatch` run 36391567783 (every `.sig` ends in `version:0.10.
 **`CLAUDE.md`'s workflow and open-items §Q** since 2026-09-28 (`430b6da`): every phase, and each row picked up
 outside one, follows `CLAUDE.md`. **§J decided 2026-09-28** (prefixes → §C roadmap, per-view sidebar → 2a).
 **Phase 2a done 2026-09-29** (13 commits `d116c2d`–`072b1b8`, smoke group BH walked — see
-`docs/archive/walks/2026-09-29-group-bh-walk.md`). **Next: the Phase 2a release and its gate** (see *Order*). Open
+`docs/archive/walks/2026-09-29-group-bh-walk.md`). **v0.10.13 released 2026-09-29** (`c02f367`, release run
+36476596805; every `.sig` carries `version:0.10.13`); **its gate passed the same day**: the user's 0.10.12 updated
+through Check now → Install and came back as 0.10.13 with its windows. **Next: the AppImage release walk on the Linux
+machine, then Phase 1b** (see *Order*). Open
 decisions: the Phase 3 threshold, the Phase 4 reference canvas, and hardware (before Phase 5).
 
-Row references are to `docs/plans/open-items.md` sections (§A–§R), and code and smoke-doc line numbers are as of
+Row references are to `docs/plans/open-items.md` sections (§A–§S), and code and smoke-doc line numbers are as of
 2026-09-28 (`main` after #18; `release.yml` cites after the CLI pin change). The Phase 1 section keeps its original
 numbers. `CF` = `docs/archive/plans/2026-09-12-consolidated-findings.md`.
 
@@ -121,11 +124,15 @@ the §B row that asked for it on 0.10.11 → 0.10.12 could not, since an update 
 first release after Phase 1b is also the first signed one, so the same update proves the new pipeline.
 
 **At 2b's release, before clicking Install** (triage 2026-09-29): with the installed 2a app, Ctrl+Shift+N opens a
-new window that shows the update badge — then tick smoke group BH 12 (`smoke-test-post-v1.md`).
+new window that shows the update badge — then tick smoke group BH 12 (`smoke-test-post-v1.md`). Also type a commit
+message in the Commit dialog first, so Install asks before it drops the draft (open-items §B).
 
 **The AppImage, from #18 (§P, on the Linux machine):**
 - **At the next release:** an old AppImage started with the `LD_PRELOAD` workaround updates to the fixed one. The
-  command is in `docs/archive/walks/2026-09-26-group-ac-linux-walk.md`.
+  command is in `docs/archive/walks/2026-09-26-group-ac-linux-walk.md`. **Walked 2026-09-29 for v0.10.13** on the
+  Ubuntu 26.04.1 VM (`docs/archive/walks/2026-09-29-appimage-release-walk.md`): the update installs in place and the
+  repacked file renders without `LD_PRELOAD`; **the automatic restart fails** (open-items §S). U4: no clear gap
+  (same zstd / 128 KiB blocks, +1.4 % size, cold start 0.536 s both) — nothing to match.
   - Also compare the fixed AppImage with the old one started above (built without the repack; triage U4).
     - `unsquashfs -s -o <offset>` on both (the offset: `smoke-linux.md` › *Inspect without running it*) shows the
       block size and compressor options each used.
@@ -134,7 +141,8 @@ new window that shows the update badge — then tick smoke group BH 12 (`smoke-t
       of three. The old one runs with its `LD_PRELOAD` workaround.
     - App code and one library differ too, so only a clear gap counts. Match appimagetool's options only if it
       differs noticeably.
-- **At the release after:** the fixed one updates in place.
+- **At the release after:** the fixed one updates in place (and restarts — blocked by open-items §S until fixed; the
+  restart is the *old* app's, so a fix helps only updates from the release that carries it).
 - **Then tick AC** (`smoke-test-post-v1.md:761`).
 
 **The CLI pin change (§P) landed on `main` 2026-09-28**, so the next release is the first whose updater signatures

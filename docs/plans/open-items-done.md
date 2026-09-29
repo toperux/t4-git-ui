@@ -151,6 +151,13 @@ reopen trigger — are in `open-items.md` §Q (since 2026-09-28); a row moved th
   0–1 and PR #18's leftovers, eighteen decisions (T1–T11, U1–U5, A1, A2), in
   `docs/archive/plans/2026-09-26-triage-plan.md`. The work they called for: the Settings Esc bug to Phase 2a, the
   signing row reworded, `smoke-launch.ps1 -Proxy`, U1–U5 carried into the close-out plan, finished plans archived.
+- **The user's own update to the next release (the close-out release gate)** — **done 2026-09-29**: the installed
+  0.10.12 updated to v0.10.13 through Check now → Install and came back as 0.10.13 with its windows; the first
+  update whose signatures carry `version:` (all three `.sig` read `version:0.10.13`).
+  - **Closed accepted item (the user, 2026-09-29):** the real-install run of 0.10.12's plain-words update *errors*
+    didn't happen (the update went the happy path); group BG walked them on local builds
+    (`docs/archive/walks/2026-09-25-group-bg-walk.md`), and 0.10.13 carries the same code. No reopen trigger. The
+    Install-over-a-draft half stays open, `open-items.md` §B (at 2b's gate).
 
 ## C. Roadmap
 ~~Submodules · worktrees~~ — shipped 2026-09-13, see the Context bullet.

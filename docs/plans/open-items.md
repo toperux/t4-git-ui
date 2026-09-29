@@ -35,10 +35,9 @@ none are closed, in the done file._
   or macOS machine: AC's deb / rpm box (`:761`), and AZ 11's two platform lines (`:1879`, `:1882`). A grep for
   `- [ ]` also matches `:298`, which is prose. (Four records are marked `[n/a]` since close-out Phase 0; the three
   this machine could reach were walked in Phase 1 — both in the done file. Line numbers refreshed 2026-09-27.)
-- **The first real run of 0.10.12's plain-words update errors and Install's confirm** over a typed commit
-  message (group BG walked them on local builds only) is the user's update from 0.10.12 to the next release —
-  the close-out plan's release gate. It cannot be the 0.10.11 → 0.10.12 update: an update runs the *old* app's
-  code. (The user's install became 0.10.12 on 2026-09-26, through the Phase 1 updater walk.)
+- **Install's confirm over a typed commit message, on a real install** (group BG walked it on local builds only).
+  The 0.10.12 → 0.10.13 gate (2026-09-29) went the happy path with no draft typed, so it runs at 2b's release gate:
+  type a commit message, then Install. (The error half of this row is closed, in the done file's §B.)
 
 - **Windows code signing** — the NSIS setup is not Authenticode-signed, so every new Windows user meets
   SmartScreen's "Windows protected your PC" and has to pick *More info › Run anyway*. The updater's minisign
@@ -509,6 +508,21 @@ The rows below came from elsewhere in this file (the first nine) and from the do
   repo menu); on Windows and Linux the start screen (including a window whose last tab closed while others stay
   open) has no Quit, only the window's × (macOS likely has Tauri's default app menu, with Quit, not checked). Pre-existing; met in smoke group BH's walk. Fix: a Ctrl+Q arm in `StartScreen`'s key handler
   calling the same `quit`, plus a test. *(Close-out Phase 2b.)*
+
+## S. Added 2026-09-29 — v0.10.13's AppImage release walk
+
+- **The AppImage's environment leaks into the processes it spawns; the post-update restart fails on Ubuntu 26.04.**
+  The AppImage bundles 22.04's `libsystemd.so.0` (249) and its `AppRun` puts `$APPDIR/usr/lib` on
+  `LD_LIBRARY_PATH`, which every child inherits. Ubuntu 26.04's `/usr/bin/env` (rust-coreutils 0.10.0, a backport
+  installed on the VM 2026-09-29) needs `LIBSYSTEMD_254`, so Tauri's restart (it runs the new AppImage, whose
+  `AppRun` is `#! /usr/bin/env bash`) dies: the app exits and nothing relaunches. The update itself is in place;
+  launching the file by hand works. Reproduced on the VM; `cat` and `ls` fail the same way, `bash`, `dash`, `git`
+  and `ssh` don't. Not a 0.10.13 regression (0.10.12 restarts the same way; it worked on 2026-09-26 before the
+  backport). `.deb` / `.rpm` unaffected. **Scope being checked on the VM** (git hooks, an external tool, a credential
+  helper that call coreutils) before deciding hotfix vs Phase 2b. Fix directions: strip `$APPDIR` paths from the
+  environment of every process the app spawns, and/or drop `libsystemd` in the repack. The restart is the *old*
+  app's, so a fix helps only updates from the release that carries it.
+  `docs/archive/walks/2026-09-29-appimage-release-walk.md` (on the VM, pending).
 
 ## Order
 
