@@ -1,0 +1,7 @@
+disallowed-methods = [
+    { path = "std::process::Command::new", reason = "use git_core::host_command: a child of the AppImage must not inherit the image's LD_LIBRARY_PATH / PATH" },
+    { path = "tokio::process::Command::new", reason = "use tokio's Command::from(git_core::host_command(..)): a child of the AppImage must not inherit the image's environment" },
+    { path = "tauri::AppHandle::restart", reason = "spawns the new app with the AppImage's environment; relaunch through git_core::host_command" },
+    { path = "tauri::AppHandle::request_restart", reason = "spawns the new app with the AppImage's environment; relaunch through git_core::host_command" },
+    { path = "tauri::process::restart", reason = "spawns the new app with the AppImage's environment; relaunch through git_core::host_command" },
+]

@@ -12,7 +12,6 @@
 //! entries either way, because that is the shape git itself stores.
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use git2::{Config, ErrorCode, FileMode, ObjectType, Oid, Repository, Tree};
 use serde::{Deserialize, Serialize};
@@ -20,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use crate::conflict;
 use crate::diff::DiffTarget;
 use crate::repo::repo_relative;
-use crate::{map_git2, GitError};
+use crate::{host_command, map_git2, GitError};
 
 /// Which pair of config entries a tool belongs to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -179,7 +178,8 @@ pub fn find_tool_in(roots: &[PathBuf], names: &[String], rels: &[String]) -> Opt
         }
     }
     let path = std::env::var_os("PATH")?;
-    for dir in std::env::split_paths(&path) {
+    let appdirs: Vec<PathBuf> = crate::in_appimage().into_iter().flatten().collect();
+    for dir in host_path_dirs(&path, &appdirs) {
         for name in names {
             for candidate in exe_names(name) {
                 let file = dir.join(candidate);
@@ -190,6 +190,16 @@ pub fn find_tool_in(roots: &[PathBuf], names: &[String], rels: &[String]) -> Opt
         }
     }
     None
+}
+
+/// `PATH`'s folders as they are left on the started tool's `PATH`: inside an AppImage the image's
+/// own come first here, but [`host_env`](crate::host_env) takes them and the empty entries off it.
+fn host_path_dirs(path: &std::ffi::OsStr, appdirs: &[PathBuf]) -> Vec<PathBuf> {
+    std::env::split_paths(path)
+        .filter(|d| {
+            !crate::in_appdir(appdirs, d) && (appdirs.is_empty() || !d.as_os_str().is_empty())
+        })
+        .collect()
 }
 
 /// Splits a tool command line: whitespace separates, double quotes group,
@@ -288,7 +298,7 @@ pub fn spawn_tool(cmd: &str, vars: &[(&str, &Path)]) -> Result<String, GitError>
 
     #[cfg(windows)]
     let mut command = {
-        let mut command = Command::new(&prog);
+        let mut command = host_command(&prog);
         command.args(args);
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -309,7 +319,7 @@ pub fn spawn_tool(cmd: &str, vars: &[(&str, &Path)]) -> Result<String, GitError>
                 return Err(not_found());
             }
         }
-        let mut command = Command::new("sh");
+        let mut command = host_command("sh");
         command.arg("-c").arg(cmd);
         for (name, file) in vars {
             command.env(name, file);
@@ -572,6 +582,33 @@ mod tests {
         b.insert("sub", blob, 0o100_644).expect("insert");
         let after = t.repo.find_tree(b.write().expect("write")).expect("tree");
         assert_eq!(blob_in(Some(&after), "sub").expect("sub"), Some(blob));
+    }
+
+    /// Inside an AppImage the lookup skips the image's folders and the empty entries, as the tool's
+    /// scrubbed `PATH` does; a sibling that only shares the name's prefix stays.
+    #[test]
+    fn the_path_lookup_skips_the_appimage_folders() {
+        let appdirs = [
+            PathBuf::from("/tmp/.mount_t4"),
+            PathBuf::from("/private/tmp/.mount_t4"),
+        ];
+        let path = std::env::join_paths([
+            "/tmp/.mount_t4/usr/bin",
+            "/usr/bin",
+            "",
+            "/private/tmp/.mount_t4/bin",
+            "/tmp/.mount_t4x/bin",
+        ])
+        .expect("join");
+        assert_eq!(
+            host_path_dirs(&path, &appdirs),
+            [
+                PathBuf::from("/usr/bin"),
+                PathBuf::from("/tmp/.mount_t4x/bin")
+            ]
+        );
+        // Outside an AppImage nothing is skipped, the empty entry neither.
+        assert_eq!(host_path_dirs(&path, &[]).len(), 5);
     }
 
     #[test]

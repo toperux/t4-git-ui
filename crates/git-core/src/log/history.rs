@@ -304,7 +304,7 @@ mod tests {
     /// `git -C <dir> <args>`, stdout as text — for the one thing libgit2 has no
     /// equivalent of here, making a stash.
     fn git(dir: &Path, args: &[&str]) -> String {
-        let out = std::process::Command::new("git")
+        let out = crate::host_command("git")
             .arg("-C")
             .arg(dir)
             .args(args)

@@ -21,7 +21,7 @@ use tokio::process::{Child, Command};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-use crate::GitError;
+use crate::{host_command, GitError};
 
 /// Lines per batched event.
 const BATCH_LINES: usize = 200;
@@ -229,7 +229,7 @@ impl GitCli {
             cmd: cmd_line.clone(),
         });
 
-        let mut cmd = Command::new(&self.git_path);
+        let mut cmd = Command::from(host_command(&self.git_path));
         cmd.args(args)
             .current_dir(repo_dir)
             .env("GIT_TERMINAL_PROMPT", "0")

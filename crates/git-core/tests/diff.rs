@@ -3,7 +3,6 @@
 
 use std::fs::File;
 use std::path::Path;
-use std::process::Command;
 use std::time::{Duration, SystemTime};
 
 use git_core::diff::{
@@ -17,7 +16,7 @@ use git_core::GitError;
 /// `git diff [-M] --numstat a b` as sorted `(adds, dels, new_path)`; `None` when
 /// `git` is not installed. Binary entries (`-`) count as 0/0.
 fn git_numstat(dir: &Path, a: &str, b: &str) -> Option<Vec<(u32, u32, String)>> {
-    let out = match Command::new("git")
+    let out = match git_core::host_command("git")
         .arg("-C")
         .arg(dir)
         .args([

@@ -204,7 +204,8 @@ pub async fn install_update(app: AppHandle, state: State<'_, AppState>) -> Resul
         .install(bytes)
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
-    app.restart()
+    #[allow(clippy::disallowed_methods)]
+    app.restart();
 }
 
 /// A window reports the repositories it holds a typed commit message for,

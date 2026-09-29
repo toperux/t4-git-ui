@@ -6,12 +6,11 @@
 //! once the user has resolved it.
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use git2::{FileMode, Oid, Repository};
 
 use crate::tools::Tool;
-use crate::{map_git2, GitError};
+use crate::{host_command, map_git2, GitError};
 
 /// Blob ids of one unmerged path. Any side can be missing: a modify/delete
 /// conflict has no `ours` or no `theirs`, an add/add has no `ancestor`.
@@ -166,7 +165,7 @@ pub fn open_merge_editor(
 
     let mut last: Option<std::io::Error> = None;
     for exe in EDITORS {
-        let mut cmd = Command::new(exe);
+        let mut cmd = host_command(exe);
         cmd.arg("--merge")
             .arg(&ours)
             .arg(&theirs)
