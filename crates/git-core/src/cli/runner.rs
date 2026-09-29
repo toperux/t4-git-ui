@@ -808,7 +808,8 @@ mod tests {
             return;
         }
         let t = TempRepo::new();
-        // `git daemon` listens until killed; port 0 lets the OS pick a free one.
+        // `git daemon` listens until killed. `--port=0` still binds git's default port 9418, so a
+        // parallel run holding it makes the test fail (open-items §Q).
         let cancel = CancellationToken::new();
         let canceller = cancel.clone();
         tokio::spawn(async move {
