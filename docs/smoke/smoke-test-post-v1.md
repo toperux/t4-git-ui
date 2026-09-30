@@ -2243,10 +2243,13 @@ without `-Proxy`. The updater runs the published setup into the owner's own inst
       `version:<the tree's version>`; the draft made, checked and deleted, and no `dry-run-*` tag left. One
       approval started all three legs. The run's AppImage, downloaded into WSL, reports type2-runtime `20251108`
       (`dd6cebe`) under `--appimage-version`.
-- [ ] 5. **Dry run on `main`,** after the four repo-level secrets are deleted and SHA pinning is on: the same list as
-      row 4.
-- [ ] 6. **The dry run's setup by hand:** *Properties › Digital Signatures* on row 4's `T4-Git-UI_<ver>_x64-setup.exe`
-      names "Open Source Developer Christopher Montevirgen" (Certum; the certificate's CN has no comma).
+- [x] 5. **Dry run on `main`,** after the four repo-level secrets are deleted and SHA pinning is on: the same list as
+      row 4. Walked 2026-10-01: run 36753506004 on `main` at `edcc19c`, one approval, every job green, all of row 4's
+      items seen, type2-runtime `dd6cebe`.
+- [x] 6. **The dry run's setup by hand:** *Properties › Digital Signatures* on row 4's `T4-Git-UI_<ver>_x64-setup.exe`
+      names "Open Source Developer Christopher Montevirgen" (Certum; the certificate's CN has no comma). Walked
+      2026-10-01 on row 5's setup (dry run 36753506004 on `main`): named so; `Get-AuthenticodeSignature` `Valid`,
+      thumbprint `F06C…8151`, timestamped by *Certum Timestamp 2026*, on both runs' setups.
 
 ## Reporting
 

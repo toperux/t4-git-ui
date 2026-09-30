@@ -9,7 +9,7 @@ Phase 5's macOS rows closed on CI's leg, or a Phase 2b design row ending "accept
 "measured, fine" closure is not an accepted limit and still goes to the done file — except `status.rs`, which stays
 in §Q with the numbers.
 
-**Status:** 2026-09-29. **Phase 0 done 2026-09-26** (`59e9383`). **Phase 1 done 2026-09-26**
+**Status:** 2026-10-01. **Phase 0 done 2026-09-26** (`59e9383`). **Phase 1 done 2026-09-26**
 (`docs/archive/plans/2026-09-26-phase-1-plan.md`, walk record `docs/archive/walks/2026-09-26-phase-1-walk.md`): the
 next tag is unblocked. **PR #18 merged 2026-09-27** (`5cc5de9`: the Linux harness, the WebKitGTK focus fixes, the
 restore guard and its follow-ups, the AppImage repack). Its rows (§O, §P) are scheduled below, mostly in the new
@@ -27,8 +27,13 @@ windows. **The 0.10.14 hotfix** (the AppImage's environment no longer reaches th
 36573068704; every `.sig` carries `version:0.10.14`); **its gate passed**: the user's Windows 0.10.13 updated to
 0.10.14 through the app, and on the Linux VM the published 0.10.13 AppImage updated in place and, started by hand as
 the release notes say, fetched over HTTPS and opened files
-(`docs/archive/walks/2026-09-29-v0.10.14-release-gate-linux.md`). **Next: Phase 1b** (see *Order*). Open decisions:
-the Phase 3 threshold, the Phase 4 reference canvas, and hardware (before Phase 5).
+(`docs/archive/walks/2026-09-29-v0.10.14-release-gate-linux.md`). **Phase 1b done 2026-10-01**
+(`docs/plans/2026-09-30-phase-1b-plan.md`, walk record `docs/archive/walks/2026-09-30-phase-1b-walk.md`, `main`
+`edcc19c`): the Windows installer signed (Certum), the `signing` environment with approval, every action SHA-pinned
+(and required), the Tauri CLI from crates.io, a `verify` job for all three `.sig` with `version:`, dispatch dry runs
+that publish and delete a draft, and `requireSignedVersion` on; the first signed release is 2b's.
+**Next: Phase 2b**. Open decisions: the Phase 3 threshold, the Phase 4 reference canvas, and hardware (before Phase
+5).
 
 Row references are to `docs/plans/open-items.md` sections (§A–§S), and code and smoke-doc line numbers are as of
 2026-09-28 (`main` after #18; `release.yml` cites after the CLI pin change). The Phase 1 section keeps its original
@@ -47,8 +52,8 @@ Agreed with the user 2026-09-28 (`docs/archive/plans/2026-09-28-close-out-refres
    coreutils hooks, custom tools, *Open* and the relaunch after an update fail from the AppImage on newer hosts). Plan
    `docs/plans/2026-09-29-appimage-env-hotfix-plan.md`, walked as smoke group BI on the Ubuntu 26.04 VM, then
    released.
-4. Phase 1b (signing, and turning on `requireSignedVersion` with its local update test). After 2a, so 2a's known
-   fixes don't wait on the signing setup.
+4. ~~Phase 1b (signing, and turning on `requireSignedVersion` with its local update test).~~ Done 2026-10-01. After
+   2a, so 2a's known fixes don't wait on the signing setup.
 5. Phase 2b, then a release: the first signed one, and the first with `requireSignedVersion` on; its update walk
    proves the signed pipeline end to end, and it is the second AppImage walk (then AC ticks). The setting's first
    real check is the update from 2b's release to the next.

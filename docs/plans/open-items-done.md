@@ -158,6 +158,22 @@ reopen trigger — are in `open-items.md` §Q (since 2026-09-28); a row moved th
     didn't happen (the update went the happy path); group BG walked them on local builds
     (`docs/archive/walks/2026-09-25-group-bg-walk.md`), and 0.10.13 carries the same code. No reopen trigger. The
     Install-over-a-draft half stays open, `open-items.md` §B (at 2b's gate).
+- **Windows code signing** — **done 2026-10-01** (close-out Phase 1b, `docs/plans/2026-09-30-phase-1b-plan.md`).
+  The row as it stood: the NSIS setup is not Authenticode-signed, so every new Windows user meets SmartScreen's
+  "Windows protected your PC" and has to pick *More info › Run anyway*. The updater's minisign signature is a
+  different thing: it protects updates, not the first download. Close-out Phase 1b ports t4-markdown-viewer's
+  setup — its public `.github/workflows/release.yml` (`toperux/t4-markdown-viewer`) is the reference
+  implementation, and the user's `signing-and-repo-setup.md` (a working copy outside the repo) lists the repo
+  settings and the verify steps (Certum certificate, thumbprint `F06C…8151`, expires 2027-09-22). Recorded
+  2026-09-24 from group BF. What an unsigned setup actually met there (BF 3, in Windows Sandbox): **Edge warned on
+  the download**, and running it brought **no SmartScreen prompt**. So today the friction is the browser's download
+  warning. SmartScreen on run may still differ on a real machine, whose settings the Sandbox need not share.
+  - **Closed 2026-10-01:** Release signs the setup and every exe in it with the Certum certificate through `ssign`,
+    in the `signing` environment (the owner approves every run), and *Check the Windows signature* fails the leg
+    unless each is `Valid`, timestamped and carries thumbprint `F06C…8151`. Both dry runs passed it — Release run
+    36674994686 on `phase-1b` and 36753506004 on `main` — and smoke group BJ 4–6 walked them
+    (`docs/archive/walks/2026-09-30-phase-1b-walk.md`). The first signed release is 2b's; its gate checks the
+    installed exe's signature. The certificate's expiry is a dated row in `open-items.md` §E.
 
 ## C. Roadmap
 ~~Submodules · worktrees~~ — shipped 2026-09-13, see the Context bullet.
@@ -692,6 +708,38 @@ fixes and the walk added three more. The walk is `docs/archive/walks/2026-09-19-
 - **`release.yml`'s macOS signing-order comment named 2.11.5 before a run confirmed it** (the CLI pin change's
   triage T1) — **closed 2026-09-28**: run 36391567783's *Verify the macOS signature* step passed at tauri-cli
   2.11.5, so the bundler still signs the `.app` before packing the `.app.tar.gz` and `.dmg`.
+- **Only the AppImage's updater `.sig` is verified in CI** (triaged 2026-09-27, the AppImage plan's Triage L4) —
+  **done 2026-10-01** (close-out Phase 1b, `docs/plans/2026-09-30-phase-1b-plan.md`). The row as it stood: the
+  Windows `.exe.sig` and the macOS `.app.tar.gz.sig` come straight from the bundler and nothing touches the files
+  after signing, so the risk the AppImage check guards against doesn't apply. To extend it, run
+  `.github/scripts/verify-updater-sig.py` on those legs too, and make it check the signed `version:` on every leg.
+  Scheduled in close-out Phase 1b (row 2d), 2026-09-28.
+  - **Closed 2026-10-01:** one `verify` job after `build` (no secrets, read-only; the plan's D2) runs the script on
+    all three `.sig` files — the setup, the `.app.tar.gz` and the AppImage — against the shipped pubkey, and fails
+    unless each trusted comment carries `version:` with the `version` job's output; `publish` needs it. Both dry
+    runs (Release runs 36674994686 on `phase-1b` and 36753506004 on `main`) printed `OK` three times, each with
+    `version:0.10.14`; smoke group BJ 4–5 (`docs/archive/walks/2026-09-30-phase-1b-walk.md`). Its first release
+    run is 2b's.
+
+## Q. Accepted limits — the rows since closed
+
+Accepted limits that had a reopen trigger (`open-items.md` §Q) and have since closed; the pointer at each origin
+stays.
+
+- **`requireSignedVersion` is off.** A signature with no version is still accepted, which leaves a downgrade bypass:
+  serve an old, version-less signature. The threat is low, since the manifest is served from GitHub releases over
+  HTTPS. From tauri-cli 2.11.5 on, every updater signature carries `version:`, and updater 2.12 rejects a signed
+  version that doesn't match `latest.json`. Tracked from 2026-09-27; scheduled 2026-09-28. **Reopen:** its
+  precondition holds — every artifact a `latest.json` can point at carries a version, true from the first release
+  after the CLI pin change (2026-09-28). Then set it in `tauri.conf.json`: scheduled in close-out Phase 1b
+  (2026-09-28). *From `open-items.md` §P.*
+  - **Closed 2026-10-01** (close-out Phase 1b, `docs/plans/2026-09-30-phase-1b-plan.md`; `f27dfef`):
+    `tauri.conf.json` sets `"requireSignedVersion": true`, so the app refuses an update whose signature carries no
+    version. Smoke group BJ 1–3 walked it on a local build (the plan's D4): a version-less 0.10.12 setup offered as
+    0.10.14 was refused with the plugin's `MissingSignedVersion` text, then the published 0.10.14 installed. Both
+    dry runs' `verify` job (Release runs 36674994686 and 36753506004) proved every `.sig` carries `version:`
+    (`docs/archive/walks/2026-09-30-phase-1b-walk.md`). It ships in 2b's release; the update from that release to
+    the next is its first real check.
 
 ## S. Added 2026-09-29 — v0.10.13's AppImage release walk: the rows since closed
 
@@ -758,3 +806,34 @@ Accepted as closed by the owner on 2026-09-29 without a one-by-one ruling, kept 
     with the code (the dated-line-number convention).
 21. A reviewer's claim that the Linux-only code had never compiled was wrong: the WSL gate built and tested it on
     every pass. No action.
+
+## U. Added 2026-10-01 — close-out Phase 1b's change review: accepted, closed
+
+Ruled one by one by the owner; detail in the *Triage* section of `docs/plans/2026-09-30-phase-1b-plan.md`. (T2 and
+T7 were fixed; T3 is an open accepted limit, `open-items.md` §Q, *What the Release build still fetches unpinned*;
+T10 is t4-markdown-viewer's README comma, to be pushed there on the owner's word.)
+
+- **T1** The `signing` environment lets admins bypass its approval (`can_admins_bypass: true`); the owner is the
+  only admin and the only reviewer. Accepted 2026-10-01, no reopen trigger.
+- **T4** `ssign`'s session token (about 30 minutes) is left on the Windows runner's disk; the `verify` job repeats
+  `permissions: contents: read`; its `apt-get install python3-cryptography` is nearly a no-op on `ubuntu-latest`.
+  Accepted 2026-10-01, no reopen trigger.
+- **T5** The `verify` job stops at the first bad `.sig`, so a run with two names only the first. Accepted
+  2026-10-01, no reopen trigger.
+- **T6** Between pushing `main` (O5) and deleting the repo-level secrets (O8), the `release` skill's "not at repo
+  level" was untrue, and `phase-1b` stayed in the environment's branch policy until O6; both temporary, and both
+  ended 2026-10-01. Accepted 2026-10-01, no reopen trigger.
+- **T8** By design: with `requireSignedVersion` on, a future walk can't update to a pre-0.10.13 manifest; a wrong
+  argument count to `verify-updater-sig.py` prints a traceback; the script compares versions literally where the
+  plugin uses semver; README › *Updating* doesn't mention the refusal of a version-less signature. Accepted
+  2026-10-01, no reopen trigger.
+- **T9** Cosmetic: the plan's Step 8 draft wording of the skill's step 5; long plan lines; one long walk-record
+  line; rounded against exact leg times in walk row 4; the close-out plan's Phase 1b table kept as a snapshot.
+  Accepted 2026-10-01, no reopen trigger.
+- **T11** (the review after the squash) `90a0a71`'s comment on the `verify` job speaks of `requireSignedVersion` as
+  on, though it is `f27dfef` that turns it on; the two shipped in one push. Accepted 2026-10-01, no reopen trigger.
+- **The records commit's review** (2026-10-01): the close-out plan's Phase 1b section still points at open-items §Q
+  for the `requireSignedVersion` row, now in this file's §Q (a dated snapshot, as T9); and the walk record is named
+  2026-09-30 though its last rows are dated 2026-10-01 (it notes the UTC difference). Both accepted 2026-10-01, no
+  reopen trigger. (The same review's other two leave-as-is items were fixed: open-items §Q's intro count and §B's
+  unticked-line count.)

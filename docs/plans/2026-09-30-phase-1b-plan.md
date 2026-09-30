@@ -1,12 +1,14 @@
 # Plan: close-out Phase 1b — Windows code signing, the signing environment, `requireSignedVersion`, 2026-09-30
 
-_Written 2026-09-30. Status: **executing on `phase-1b`** since 2026-09-30 (the owner's go); Steps 1–8 committed, BJ
+_Written 2026-09-30. Status: **done 2026-10-01** — O5–O8 done (dry run 36753506004 on `main` green), BJ 1–6
+walked, records committed. Executed on `phase-1b` from 2026-09-30 (the owner's go); Steps 1–8 committed, BJ
 1–4 walked, O1–O4 done (dry run 36674994686 green); change review pass 1 — no blockers, 3 should-fix, 8 nits,
 folded in; R1–R3 ruled (records ship in the squash; the publisher-name fix needs no re-run, actionlint only; the
 same fix committed in t4-markdown-viewer). Pass 2 — 2 should-fix, 5 nits, folded in; R4 ruled (a pre-squash →
 squashed hash map in the records commit). Pass 3 — 3 doc nits, folded in. Pass 4 — clean. Triage T1–T10 ruled
 (below); passes 5–7 on its fixes, the last clean. Squashed 2026-10-01 to 7 commits (rehearsed in a throwaway worktree,
-tree identical); a post-squash review of the grouping and messages found 3 message nits, folded in. D1–D6 decided by the owner 2026-09-30, each as recommended (D1 re-confirmed after
+tree identical); a post-squash review of the grouping and messages found 3 message nits, folded in, and T11
+(accepted, closed). D1–D6 decided by the owner 2026-09-30, each as recommended (D1 re-confirmed after
 pass 1 corrected its cost). Plan review: pass 1 — no blockers, 5 should-fix, 8 nits, folded in; D1 recheck and D6
 ruled. Pass 2 — no blockers, 5 should-fix, 7 nits (one out of scope, taken: the skill's stale "no bypass"), folded in,
 nothing for the owner. Pass 3 — no blockers, 6 should-fix, 10 nits, folded in, nothing for the owner. Pass 4 — 1 should-fix, 5 nits,
@@ -388,6 +390,8 @@ records commit.
 - **T9** cosmetic: the plan's Step 8 draft wording of the skill's step 5; long plan lines; one long walk-record line;
   rounded vs exact leg times in walk row 4; the close-out Phase 1b table as a snapshot — accepted, closed.
 - **T10** t4-markdown-viewer's README comma, committed there as `f5f998e` — pushed later, on the owner's word.
+- **T11** (post-squash review) `90a0a71`'s `verify`-job comment speaks of `requireSignedVersion` as on, though
+  `f27dfef` turns it on; they shipped in one push — accepted, closed.
 
 ## Not in this phase
 

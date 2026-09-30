@@ -3,7 +3,7 @@
 _Written 2026-09-02, the day after v1 was accepted. This is the one list of what is still open;
 it folds together the v1 plan's "Known gaps", the 2026-09-01 codebase review's deferred rows and
 the README's "Next" line (review item H4). Since 2026-09-26 every row except §C's roadmap is
-scheduled in `2026-09-26-close-out-plan.md`; §Q's accepted limits wait on their reopen triggers, and three of
+scheduled in `2026-09-26-close-out-plan.md`; §Q's accepted limits wait on their reopen triggers, and two of
 them are also in a close-out phase._
 
 _Done, fixed, walked and closed rows live in `open-items-done.md` (split 2026-09-24), under the same
@@ -31,24 +31,16 @@ none are closed, in the done file._
   fallback for very large trees*), 2026-09-28.
 
 ## B. Verification and release
-- **Unticked smoke lines — recounted 2026-09-26: three**, all in `smoke-test-post-v1.md`, all needing a Linux
-  or macOS machine: AC's deb / rpm box (`:761`), and AZ 11's two platform lines (`:1879`, `:1882`). A grep for
-  `- [ ]` also matches `:298`, which is prose. (Four records are marked `[n/a]` since close-out Phase 0; the three
+- **Unticked smoke lines — recounted 2026-10-01: four**, all in `smoke-test-post-v1.md`: AC's deb / rpm box
+  (`:761`) and AZ 11's two platform lines (`:1879`, `:1882`), which need a Linux or macOS machine, and BH 12
+  (`:2129`, the update badge in a new window), which needs a published update and runs at 2b's release gate. A grep
+  for `- [ ]` also matches `:298`, which is prose. (Four records are marked `[n/a]` since close-out Phase 0; the three
   this machine could reach were walked in Phase 1 — both in the done file. Line numbers refreshed 2026-09-27.)
 - **Install's confirm over a typed commit message, on a real install** (group BG walked it on local builds only).
   The 0.10.12 → 0.10.13 gate (2026-09-29) went the happy path with no draft typed, so it runs at 2b's release gate:
   type a commit message, then Install. (The error half of this row is closed, in the done file's §B.)
 
-- **Windows code signing** — the NSIS setup is not Authenticode-signed, so every new Windows user meets
-  SmartScreen's "Windows protected your PC" and has to pick *More info › Run anyway*. The updater's minisign
-  signature is a different thing: it protects updates, not the first download. Close-out Phase 1b ports
-  t4-markdown-viewer's setup — its public `.github/workflows/release.yml` (`toperux/t4-markdown-viewer`) is the
-  reference implementation, and the user's `signing-and-repo-setup.md` (a working copy outside the repo) lists the
-  repo settings and the verify steps (Certum certificate, thumbprint `F06C…8151`, expires 2027-09-22). Recorded
-  2026-09-24 from group BF. What an unsigned setup actually met there (BF 3, in Windows Sandbox): **Edge warned
-  on the download**, and running it brought **no SmartScreen prompt**. So today the friction is the browser's
-  download warning. SmartScreen on run may still differ on a real machine, whose settings the Sandbox need not
-  share.
+- **Windows code signing:** done 2026-10-01 (close-out Phase 1b), moved to `open-items-done.md` §B.
 - Linux (WebKitGTK) rendering: walked on 2026-09-05 under WSLg (Ubuntu 24.04, X11 backend) —
   fonts, both themes, graph, panels, styled scrollbars (thumb + hover), all five splitters and the
   dock drag, native-menu suppression (toolbar / panel header / statusbar / bare diff body → nothing;
@@ -333,12 +325,10 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
   `@dependabot unignore @tauri-apps/cli` on an open npm group PR, even if the bump is done by hand, or later minors
   are never proposed. When the ignore is applied, add *ignore active since <date>* here (a docs commit on `main`,
   pushed on the user's word).
-- **Turn on `requireSignedVersion`:** an accepted limit, moved to §Q (*`requireSignedVersion` is off*), 2026-09-28.
-- **Only the AppImage's updater `.sig` is verified in CI (triaged 2026-09-27, the AppImage plan's Triage L4).** The
-  Windows `.exe.sig` and the macOS `.app.tar.gz.sig` come straight from the bundler and nothing touches the files
-  after signing, so the risk the AppImage check guards against doesn't apply. To extend it, run
-  `.github/scripts/verify-updater-sig.py` on those legs too, and make it check the signed `version:` on every leg.
-  Scheduled in close-out Phase 1b (row 2d), 2026-09-28.
+- **Turn on `requireSignedVersion`:** an accepted limit, moved to §Q (*`requireSignedVersion` is off*), 2026-09-28;
+  closed 2026-10-01 (close-out Phase 1b), moved to `open-items-done.md` §Q.
+- **Only the AppImage's updater `.sig` is verified in CI:** done 2026-10-01 (close-out Phase 1b), moved to
+  `open-items-done.md` §P.
 - **T15 (a reloaded `main` re-spawns every other window):** closed 2026-09-27, moved to `open-items-done.md` §P.
 
 ## Q. Accepted limits — open, each with a reopen trigger
@@ -354,8 +344,8 @@ _Added 2026-09-28 (`docs/archive/plans/2026-09-28-claude-md-wording-plan.md`)._
 - **Scope:** the rule covers this file, the done file and the plans. A smoke doc's inline "accepted" note describes
   a walk's expected result and stays where it is.
 
-The rows below came from elsewhere in this file (the first nine) and from the done file (the rest) on
-2026-09-28; each origin keeps a pointer.
+The rows moved in on 2026-09-28 came from elsewhere in this file and from the done file, and later rows from the
+phases that accepted them; each origin keeps a pointer.
 
 - **Linux: real GPU hardware and a HiDPI panel not walked.** The WebKitGTK rendering walks ran under WSLg
   (2026-09-05) and on a VMware guest (2026-09-27). Accepted 2026-09-27, until a report, in the Wayland rendering walk
@@ -406,12 +396,6 @@ The rows below came from elsewhere in this file (the first nine) and from the do
   decided at P1-4 (`docs/archive/plans/2026-09-12-consolidated-findings.md`, `:47`, `:233`, `:520`). ("C6/Q23" in §I
   was a label collision: this Q23 was the second pass's C6, not the consolidated C6, `close_repo`.) Still in
   close-out Phase 2's table, *design needed*. **Reopen:** it flickers on the smoke walk. *From §I.*
-- **`requireSignedVersion` is off.** A signature with no version is still accepted, which leaves a downgrade bypass:
-  serve an old, version-less signature. The threat is low, since the manifest is served from GitHub releases over
-  HTTPS. From tauri-cli 2.11.5 on, every updater signature carries `version:`, and updater 2.12 rejects a signed
-  version that doesn't match `latest.json`. Tracked from 2026-09-27; scheduled 2026-09-28. **Reopen:** its precondition
-  holds — every artifact a `latest.json` can point at carries a version, true from the first release after the CLI
-  pin change (2026-09-28). Then set it in `tauri.conf.json`: scheduled in close-out Phase 1b (2026-09-28). *From §P.*
 - **macOS notarization: won't do for now.** Needs a paid Apple Developer account. The app is signed with the shared
   self-signed certificate (stable identity, so folder grants survive updates), and the release body carries the
   quarantine step. Closed 2026-09-26 (close-out Phase 0). **Reopen:** there is a Mac user. *From the done file §B.*
