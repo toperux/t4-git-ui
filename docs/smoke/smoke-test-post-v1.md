@@ -2212,6 +2212,42 @@ the real store was never written (`cmp` against the backup, read-only) —
 clone of the GitHub repository fast-forwarded `origin/main`; *Open* on a file deleted with its menu already open gave
 *Couldn't open the file — could not open src/lib/b.txt: The system cannot find the file specified. (os error 2)*.
 
+## BJ. Close-out Phase 1b: Windows signing, the signing environment, requireSignedVersion
+
+Plan: `docs/plans/2026-09-30-phase-1b-plan.md` (*Local checks › Group BJ*, *Outward actions* O4 and O8, D4). Rows
+1–3 are a local update test on Windows: a `tauri build --no-bundle` of `phase-1b` versioned **0.10.13**, its
+`--config` pointing `endpoints` at `http://127.0.0.1:8765/latest.json` (with `dangerousInsecureTransportProtocol`),
+`python -m http.server 8765 --bind 127.0.0.1` started in a scratch folder before the launch, and `smoke-launch.ps1`
+without `-Proxy`. The updater runs the published setup into the owner's own install. Before the build, back up
+`%APPDATA%\dev.topher.t4gitui` (the store, with the app open) and then, with it closed,
+`%LOCALAPPDATA%\dev.topher.t4gitui` (the WebView2 profile). Rows 4–6 read the two Release dry runs.
+
+- [x] 1. **Negative:** serve v0.10.12's `latest.json` with `version` set to `0.10.14` (its setup has a `.sig` with no
+      `version:`), then Check now → Install → the download runs (in memory, not observed separately), then a
+      refusal whose text names
+      `requireSignedVersion`. Nothing installed: `%LOCALAPPDATA%\T4 Git UI\t4-git-ui.exe`'s file version is still
+      0.10.14, and the test build's pid is unchanged. Walked 2026-09-30 on a local build of `3cf1a8a`
+      (`docs/archive/walks/2026-09-30-phase-1b-walk.md`): refused within 3 s with the plugin's `MissingSignedVersion`
+      text; pid and installed exe unchanged.
+- [x] 2. **Positive:** copy v0.10.14's `latest.json` over it verbatim, then Install → it installs, restarts as the
+      installed 0.10.14 with the window and its tabs back; Check now → *Up to date*. Walked 2026-09-30: restarted as
+      the installed 0.10.14 with its four tabs; *T4 Git UI 0.10.14 is up to date*.
+- [x] 3. **Restore:** close every window of the installed 0.10.14, restore both folders, and compare them against the
+      backups. Walked 2026-09-30: store identical after `recents.json` was copied back; the profile differed only by
+      the app's own log file.
+- [x] 4. **First dry run** (Release dispatched on `phase-1b`, cold cache; walked 2026-09-30, run 36674994686, all
+      items seen — `docs/archive/walks/2026-09-30-phase-1b-walk.md`): the log shows the six `OK` lines of *Pin
+      the AppImage tools*; ``Installed package `tauri-cli v2.11.5` `` on all three legs; ``Installed package `ssign …` ``
+      on Windows; no `Downloading` in the Linux bundle log; three `Valid | … | F06C…8151` lines in *Check the Windows
+      signature*; *Verify the macOS signature* green; `verify` prints `OK` three times, each comment with
+      `version:<the tree's version>`; the draft made, checked and deleted, and no `dry-run-*` tag left. One
+      approval started all three legs. The run's AppImage, downloaded into WSL, reports type2-runtime `20251108`
+      (`dd6cebe`) under `--appimage-version`.
+- [ ] 5. **Dry run on `main`,** after the four repo-level secrets are deleted and SHA pinning is on: the same list as
+      row 4.
+- [ ] 6. **The dry run's setup by hand:** *Properties › Digital Signatures* on row 4's `T4-Git-UI_<ver>_x64-setup.exe`
+      names "Open Source Developer Christopher Montevirgen" (Certum; the certificate's CN has no comma).
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the

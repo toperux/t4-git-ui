@@ -177,7 +177,10 @@ not the harness's: both were reproduced without WebDriver.
 ## Testing an AppImage
 
 For checking a published or CI-built AppImage (the `packages-Linux` artifact of a `workflow_dispatch` Release run;
-`chmod +x` it, the zip drops the bit). Learned on the blank-window fix
+`chmod +x` it, the zip drops the bit). A dispatch from a branch other than `main` needs the branch added to the
+`signing` environment's deployment-branch policies for the run and removed after, each on the owner's word; the run
+waits for the owner's approval under *Review deployments*, and makes and deletes a draft release (the `release`
+skill's *Checking the packaging*). Learned on the blank-window fix
 (`docs/plans/2026-09-26-appimage-blank-window-plan.md`):
 
 - **Give it a display of its own:** `Xvfb :98 -screen 0 1600x1000x24` in the background, stopped afterwards with
@@ -203,8 +206,8 @@ For checking a published or CI-built AppImage (the `packages-Linux` artifact of 
   a script written in a separate call.
 - **Inspect without running it:** the payload starts at the ELF's `e_shoff + e_shentsize * e_shnum`, 944632 in
   0.10.12. `unsquashfs -l -o <offset>` lists it (no `libwayland-client` after the fix). Check the signature with
-  `python3 .github/scripts/verify-updater-sig.py <file> <file>.sig src-tauri/tauri.conf.json`, and the embedded
-  digest with `python3 .github/scripts/appimage-digest.py --check <file>`.
+  `python3 .github/scripts/verify-updater-sig.py <file> <file>.sig src-tauri/tauri.conf.json <version>`, and the
+  embedded digest with `python3 .github/scripts/appimage-digest.py --check <file>`.
 - **On a VMware guest's desktop** the fixed AppImage still needs `WEBKIT_DISABLE_DMABUF_RENDERER=1` (the README
   note). Xvfb doesn't.
 - **A host program the app starts: run the control first** (smoke group BI). The app's own environment keeps the
@@ -260,5 +263,7 @@ For checking a published or CI-built AppImage (the `packages-Linux` artifact of 
 - **AppImage updates** can be walked before a release: a `workflow_dispatch` Release run (signed and repacked as a
   release) of a throwaway branch versioned below the published release, set the release skill's way; without a
   tag the version job skips its tag checks, so a lower version builds (`release.yml:60-74`). Its `packages-Linux`
-  AppImage then updates to the published one through Settings (group BI 8). Still a hand walk: the push and the
-  run are the user's go.
+  AppImage then updates to the published one through Settings (group BI 8). The branch goes into the `signing`
+  environment's deployment-branch policies for the run and comes out after; the owner approves the run under
+  *Review deployments*; the dispatch also makes and deletes a draft release. Still a hand walk: the push, the policy
+  change and the run are the user's go.

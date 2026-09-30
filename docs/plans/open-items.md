@@ -68,7 +68,7 @@ Custom titlebar (revisited in M6, native kept) · i18n · plugins.
   tab. The first palette ships with actions, views, go-to-branch and recent repositories only. Moved from §J
   2026-09-28 (close-out Phase 2a decision).
 
-## E. Added 2026-09-10 — one dated decision
+## E. Added 2026-09-10 — dated decisions
 - **`ubuntu-22.04` retirement — dated, and cross-repo.** **Parked until 2026-12-23** (user,
   2026-09-24): do not offer it before three months ahead of the first brownout. Deprecated from **2026-09-17**,
   brownouts 2027-03-23 / -03-30 / -04-06 / -04-13, unsupported 2027-04-17 (`actions/runner-images#14254`).
@@ -81,12 +81,17 @@ Custom titlebar (revisited in M6, native kept) · i18n · plugins.
   - (2026-09-27) **Whatever replaces it keeps the AppImage repack.** `release.yml` strips the build host's
     `libwayland-client` from the AppImage (§P). Any older-than-the-user build host needs that, a `container:
     ubuntu:22.04` job included.
-  - (§K, 2026-09-16) **Still pinned** in `checks.yml:28` and `release.yml:111`, and **t4-markdown-viewer
+  - (§K, 2026-09-16) **Still pinned** in `checks.yml:28` and `release.yml:116`, and **t4-markdown-viewer
     is in exactly the same state** (asked and answered 2026-09-16: still pinned, no decision recorded,
     the reasoning lives only in its archived `ci-alignment*.md`). So the cross-repo decision is genuinely
     unmade. The deprecation is a **label warning, not a break** — the first hard failure is the
     2027-03-23 brownout. If the Linux leg moves into a `container:`, check rustfmt is in
     the image: the markdown viewer runs `Format` on the Linux leg only.
+- **The Certum code-signing certificate expires 2027-09-22.** After that, Release fails on Windows — most likely at
+  *Bundle and sign* (Certum's service won't sign with an expired certificate), else at *Check the Windows
+  signature*; releases already signed stay valid (the signatures are timestamped). **Renew by 2027-08-22**, then
+  update the thumbprint in `release.yml` (*Check the Windows signature*) and in t4-markdown-viewer's. Added
+  2026-09-30 (close-out Phase 1b, D5).
 
 ## I. Deferred with a reason — the `to revisit` rows and the `ponytail:` ceilings (accepted ones: §Q)
 
@@ -318,7 +323,9 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
       Download… path (`update.rs:45-50`).
 - **The tauri-cli 2.12.0 bump** (added 2026-09-28, the CLI pin plan's B-1 and B-3). Not planned yet. 2.12.0 (bundler
   2.10.0) came out 2026-09-26; the pin stays on 2.11.5 until a plan checks it (the version binding, `--app-version`,
-  `--locked`, a dispatch run). `checks.yml`'s guard keeps `release.yml`'s pin and `package-lock.json` in step, so
+  `--locked`, a dispatch run). If the bump moves the bundler version (2.12.0 does, to 2.10.0), it also re-derives
+  the six AppImage tool names, URLs and hashes in `release.yml`'s *Pin the AppImage tools* from that bundler's
+  source. `checks.yml`'s guard keeps `release.yml`'s pin and `package-lock.json` in step, so
   Dependabot's npm group PR carrying 2.12.0 will go red on it. **Then:** comment
   `@dependabot ignore @tauri-apps/cli minor version` on that PR (on the user's word). That closes the group PR; the
   other bumps come back at the next weekly run. The ignore is stored by GitHub, not in the repo, and covers every
@@ -536,6 +543,15 @@ The rows below came from elsewhere in this file (the first nine) and from the do
   through the quit. The same entry came from a 0.10.13 AppImage (no fd change) stopped with SIGTERM, 111 ms before its
   image unmounted, during the v0.10.14 gate (`docs/archive/walks/2026-09-29-v0.10.14-release-gate-linux.md`), so it
   isn't unique to the hotfix. *From the 0.10.14 hotfix's BI re-walk.*
+- **What the Release build still fetches unpinned.** `toolchain: stable` (whatever rustup resolves that day); the apt
+  packages, unpinned — only `squashfs-tools` has a version floor (triage U5), `python3-cryptography` an import check;
+  and two downloads the Windows bundler makes during *Bundle and sign* with the keys in env, `nsis-3.11.zip` and
+  `nsis_tauri_utils.dll` v0.5.3 (both from `tauri-apps` GitHub releases; the DLL is then signed with our certificate
+  as an NSIS plugin; seen in dry run 36674994686's log). The bundler checks both against a SHA-1 (read in
+  tauri-bundler 2.9.4, `nsis/mod.rs`). The `Downloading` check on the bundle log runs on Linux
+  only, so a third Windows download would not be caught. Accepted 2026-10-01 (close-out Phase 1b, triage T3).
+  **Reopen:** a bundler change moves either fetch or adds a Windows download, or a toolchain release breaks the build.
+  *From Phase 1b's change review (`docs/plans/2026-09-30-phase-1b-plan.md`, "Not in this phase").*
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review, deferred
 

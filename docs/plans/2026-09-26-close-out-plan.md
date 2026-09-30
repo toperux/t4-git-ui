@@ -119,7 +119,8 @@ Turn on `requireSignedVersion` in `tauri.conf.json` (open-items §Q). It ships i
 *Order*) and acts from the update after that, since the setting works in the app that ships it. Before it ships,
 test it: a local build with it on, versioned below the published 2a release, updates to that release through
 `docs/smoke/fixtures/throttle-proxy.mjs`, as in Phase 1's updater walk. Its first real check is the update from
-2b's release to the next.
+2b's release to the next. (Superseded by the Phase 1b plan's D4, `docs/plans/2026-09-30-phase-1b-plan.md`: a
+negative and a positive case against a local endpoint, no proxy — smoke group BJ 1–3.)
 
 The dry run cannot prove an installed copy still updates to a release built this way; the release gate below
 covers it.
@@ -134,7 +135,11 @@ first release after Phase 1b is also the first signed one, so the same update pr
 
 **At 2b's release, before clicking Install** (triage 2026-09-29): with the installed 2a app, Ctrl+Shift+N opens a
 new window that shows the update badge — then tick smoke group BH 12 (`smoke-test-post-v1.md`). Also type a commit
-message in the Commit dialog first, so Install asks before it drops the draft (open-items §B).
+message in the Commit dialog first, so Install asks before it drops the draft (open-items §B). The Release run
+waits for the owner's approval under *Actions › the run › Review deployments* (Phase 1b's `signing` environment).
+After the update, `Get-AuthenticodeSignature` on the installed `%LOCALAPPDATA%\T4 Git UI\t4-git-ui.exe` shows Status
+`Valid` and thumbprint `F06C1EC1FAC43DFEC92FBE47B0FC959D1CE38151` (Certum). The update from 2b's release to the next
+is `requireSignedVersion`'s first real check.
 
 **The AppImage, from #18 (§P, on the Linux machine):**
 - **At the next release:** an old AppImage started with the `LD_PRELOAD` workaround updates to the fixed one. The
