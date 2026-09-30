@@ -92,6 +92,12 @@ jobs:
     needs: version
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    # Every signing secret lives in the `signing` environment, which only main
+    # and `v*` tags may use, so a run from any other branch fails every leg
+    # rather than build without its keys. Every leg uses it: the updater key
+    # signs all three. The Certum secrets reach only the Windows leg's bundle
+    # step, and the macOS certificate only its import step.
+    environment: signing
     strategy:
       fail-fast: false
       matrix:
@@ -165,13 +171,87 @@ jobs:
         shell: bash
         run: rm -rf "${{ matrix.bundle_dir }}"
 
+      # Windows code signing with the Certum Open Source certificate, whose key
+      # lives in SimplySign's cloud. ssign reaches SimplySign over HTTPS, so
+      # there is no Certum desktop client to install and no GUI login to
+      # script. It is pinned to the commit tested locally, for the same reason
+      # the actions are pinned: it handles the TOTP seed, which can sign as the
+      # project until it is regenerated. The sign command goes in through
+      # --config, not tauri.conf.json, so a local build still works without
+      # credentials. Verbose on both: Tauri swallows the sign command's output
+      # otherwise, so a failed sign says only "failed to run ssign", and
+      # ssign's -v shows which stage failed (login, certificate or signing).
+      #
+      # ssign signs in place by renaming a signed copy over the original, and
+      # on the runner Windows refuses that rename ("Access is denied"). Writing
+      # the file in place works: Tauri patches the exe that way a moment
+      # earlier. So sign.ps1 has ssign write into a separate folder, then
+      # writes the result back in place, as signtool itself does.
+      - name: Set up Windows code signing
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo install --locked --git https://github.com/Le-Syl21/ssign \
+            --rev 585a88e77443f1cbac7fc63b87155982139208b6 ssign
+          # Forward slashes: the path goes inside JSON, where \a is no escape.
+          tmp=$(cygpath -m "$RUNNER_TEMP")
+          cat > "$tmp/sign.ps1" <<'PS1'
+          param([string]$File)
+          $ErrorActionPreference = 'Stop'
+          $out = Join-Path $env:RUNNER_TEMP 'signed'
+          ssign -v -o $out $File
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $signed = Join-Path $out (Split-Path $File -Leaf)
+          [IO.File]::WriteAllBytes($File, [IO.File]::ReadAllBytes($signed))
+          PS1
+          cat > "$tmp/signing.json" <<JSON
+          {"bundle":{"windows":{"signCommand":{"cmd":"pwsh","args":["-NoProfile","-File","$tmp/sign.ps1","%1"]}}}}
+          JSON
+          echo "SIGNING_ARGS=--verbose --config $tmp/signing.json" >> "$GITHUB_ENV"
+
+      # Compile with no secrets in env: every build.rs and proc-macro runs here.
+      # Defence in depth, not a boundary: a malicious build script could still
+      # leave something behind for the steps that hold the keys.
+      #
       # Run from the repo root: the Tauri CLI finds src-tauri/ on its own.
       # Arguments after `--` go to `cargo build`.
-      #
-      # The signing key is what turns `createUpdaterArtifacts` into actual `.sig`
-      # files. With a `pubkey` in the config and no private key the bundler does
-      # not carry on unsigned: it aborts with "A public key has been found, but
-      # no private key" — so a missing secret reddens this step, not staging.
+      - name: Build the app
+        run: >
+          cargo tauri build --no-bundle
+          ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
+          -- --locked
+
+      # The AppImage bundler downloads its tools from moving URLs (master,
+      # `continuous`) and runs them with the updater key in env, but skips any
+      # file already in its cache dir. Seed pinned, hashed copies there — and
+      # the runtime appimagetool would otherwise fetch from `continuous`, which
+      # becomes the head of every AppImage shipped. Names are tauri-bundler
+      # 2.9.4's (tauri-cli 2.11.5); "Bundle and sign" fails if a CLI bump makes
+      # the bundler itself download a tool. A fetch by appimagetool would not
+      # show in that log — the runtime pin is checked by the dry run instead.
+      - name: Pin the AppImage tools
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          dir="${XDG_CACHE_HOME:-$HOME/.cache}/tauri"
+          mkdir -p "$dir"
+          fetch() {
+            curl -fsSL --retry 3 -o "$dir/$1" "$2"
+            echo "$3  $dir/$1" | sha256sum -c -
+            chmod 770 "$dir/$1"
+          }
+          rel=https://github.com
+          raw=https://raw.githubusercontent.com
+          fetch AppRun-x86_64 $rel/tauri-apps/binary-releases/releases/download/apprun-old/AppRun-x86_64 f30140a43a0a59e46db21bdefdf749b9e9f2c6946e92afabbacf98b8ae73fb4f
+          fetch linuxdeploy-x86_64.AppImage $rel/tauri-apps/binary-releases/releases/download/linuxdeploy/linuxdeploy-x86_64.AppImage e762bea85c8eb0d4b3508d46e5c1f037f717d0f9303ae3b4aafc8b04991fa1ef
+          fetch linuxdeploy-plugin-gtk.sh $raw/tauri-apps/linuxdeploy-plugin-gtk/dda522bce37387f1b853d9095713bfaa924c8423/linuxdeploy-plugin-gtk.sh 7804c9eef13e59bf2783aad9882ef9db8f3f3f9e8d631874b1d348d550a3693f
+          fetch linuxdeploy-plugin-gstreamer.sh $raw/tauri-apps/linuxdeploy-plugin-gstreamer/2a2e67491c32995a3f279ad0ecbe77abd512b42a/linuxdeploy-plugin-gstreamer.sh c107b49d84edbffc6ab226ed1007e0626a4f7aa2c3a36b7782bef62351d49e94
+          fetch linuxdeploy-plugin-appimage.AppImage $rel/linuxdeploy/linuxdeploy-plugin-appimage/releases/download/1-alpha-20250213-1/linuxdeploy-plugin-appimage-x86_64.AppImage 992d502a248e14ab185448ddf6f6e7d25558cb84d4623c354c3af350c25fccb3
+          fetch runtime-x86_64 $rel/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64 2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d
+          echo "LDAI_RUNTIME_FILE=$dir/runtime-x86_64" >> "$GITHUB_ENV"
+
       # Tauri's own APPLE_CERTIFICATE importer resolves the identity by scanning
       # for Apple's own certificate names ("Developer ID Application: …" and six
       # siblings). A self-signed one matches none of them, so `identity::list`
@@ -179,7 +259,9 @@ jobs:
       # certificate is therefore imported here and Tauri is handed the identity
       # name alone, which sends it down `with_signing_identity` instead. The
       # secrets stay in this macOS-only step: no other leg needs them, and
-      # whoever holds them can sign as either T4 app.
+      # whoever holds them can sign as either T4 app. It runs after the
+      # compile, so no build script or proc-macro finds the certificate in an
+      # unlocked keychain open to codesign.
       - name: Import the macOS signing certificate
         if: runner.os == 'macOS'
         shell: bash
@@ -202,6 +284,15 @@ jobs:
           sudo security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain "$RUNNER_TEMP/cert.pem"
           rm "$RUNNER_TEMP/cert.p12" "$RUNNER_TEMP/cert.pem"
 
+      # `cargo tauri bundle` compiles nothing; it packages the build above,
+      # signs it, and writes the updater .sig files. Run from the repo root,
+      # as the build.
+      #
+      # The signing key is what turns `createUpdaterArtifacts` into actual `.sig`
+      # files. With a `pubkey` in the config and no private key the bundler does
+      # not carry on unsigned: it aborts with "A public key has been found, but
+      # no private key" — so a missing secret reddens this step, not staging.
+      #
       # macOS keys a folder-access grant (Documents / Desktop / Downloads) to the
       # app's code signature, so an unsigned build asks again on every launch —
       # worse here than in most apps, because the recursive watcher, the git2
@@ -210,15 +301,61 @@ jobs:
       # and *not* notarized, so Gatekeeper still stops the first launch.
       # APPLE_CERTIFICATE must NOT be set here: it would send Tauri back down the
       # importer that cannot resolve this certificate.
-      - name: Build the packages
+      - name: Bundle and sign
+        shell: bash
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           APPLE_SIGNING_IDENTITY: T4 Apps Self-Signed Code Signing
-        run: >
-          cargo tauri build --bundles ${{ matrix.bundles }}
-          ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
-          -- --locked
+          # Read by ssign when Tauri runs the Windows sign command. Windows
+          # only: the other legs share the environment but have no use for the
+          # TOTP seed. The first sign logs in and caches the session on disk,
+          # so the app, the uninstaller and the installer need only one
+          # one-time code.
+          CERTUM_EMAIL: ${{ runner.os == 'Windows' && secrets.CERTUM_EMAIL || '' }}
+          CERTUM_OTP: ${{ runner.os == 'Windows' && secrets.CERTUM_OTP || '' }}
+        run: |
+          cargo tauri bundle --bundles ${{ matrix.bundles }} \
+            ${{ matrix.target && format('--target {0}', matrix.target) || '' }} \
+            ${{ env.SIGNING_ARGS }} 2>&1 | tee "$RUNNER_TEMP/bundle.log"
+          # Every AppImage tool is pinned in "Pin the AppImage tools".
+          if [ "$RUNNER_OS" = Linux ] && grep -q Downloading "$RUNNER_TEMP/bundle.log"; then
+            echo "bundler downloaded a tool the pins do not cover" >&2; exit 1
+          fi
+
+      # The thumbprint, not just a valid signature, so a build signed with
+      # anything else fails here, as in the macOS check below. The installer
+      # is checked, since it is what people download and what the updater
+      # fetches, and so is every exe inside it, the app included. The app in
+      # target/release proves nothing: Tauri signs a patched copy for the
+      # installer and restores the unsigned build output afterwards. 7-Zip
+      # unpacks NSIS installers. The certificate expires 2027-09-22, and
+      # renewing it means updating this.
+      - name: Check the Windows signature
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $thumb = 'F06C1EC1FAC43DFEC92FBE47B0FC959D1CE38151'
+          $installer = @(Get-ChildItem '${{ matrix.bundle_dir }}/nsis/*-setup.exe')
+          if ($installer.Count -ne 1) { throw "expected one installer, found $($installer.Count)" }
+          $unpacked = Join-Path $env:RUNNER_TEMP 'unpacked'
+          7z x $installer[0].FullName "-o$unpacked" -y | Out-Null
+          if ($LASTEXITCODE) { throw '7-Zip could not unpack the installer' }
+          $files = @($installer[0].FullName) +
+            @(Get-ChildItem $unpacked -Recurse -Filter *.exe).FullName
+          if ($files.Count -lt 2) { throw 'no exe inside the installer' }
+          foreach ($f in $files) {
+            $sig = Get-AuthenticodeSignature $f
+            # Printed before checking, so a failure shows what it was signed with.
+            "== $f"
+            "$($sig.Status) | $($sig.SignerCertificate.Subject) | $($sig.SignerCertificate.Thumbprint) | timestamped: $($null -ne $sig.TimeStamperCertificate)"
+            if ($sig.Status -ne 'Valid' -or
+                $sig.SignerCertificate.Thumbprint -ne $thumb -or
+                $null -eq $sig.TimeStamperCertificate) {
+              throw "not signed with the Certum certificate: $f"
+            }
+          }
 
       # linuxdeploy bundles this runner's libwayland-client (1.20), and a newer
       # host's Mesa EGL uses symbols 1.20 lacks: EGL_BAD_PARAMETER and a blank
@@ -246,7 +383,7 @@ jobs:
 
       # The repack changed the file the bundler signed, so it is signed again.
       # The key is in this step alone. `signer sign` overwrites `<file>.sig`.
-      # `--app-version`: from 2.11.5, `tauri build` binds the version into every
+      # `--app-version`: from 2.11.5, `tauri bundle` binds the version into every
       # other updater signature, and the updater rejects a bound version that
       # differs from latest.json's. The re-signed AppImage carries it too.
       - name: Re-sign the AppImage
@@ -471,8 +608,11 @@ jobs:
             `T4-Git-UI_${{ needs.version.outputs.version }}_x64-setup.exe` —
             per-user install, no admin prompt, into `%LOCALAPPDATA%\T4 Git UI`.
 
-            Not code-signed, so SmartScreen shows "Windows protected your PC" the
-            first few times: **More info** → **Run anyway**.
+            Signed with a Certum Open Source certificate, publisher "Open Source
+            Developer Christopher Montevirgen". SmartScreen can still show
+            "Windows protected your PC" while the certificate builds a download
+            reputation: **More info** → **Run anyway**. v0.10.14 and earlier are
+            unsigned.
 
             ### macOS
 
@@ -488,7 +628,7 @@ jobs:
             **System Settings → Privacy & Security → Open Anyway** (on macOS 14 and
             earlier, right-click → **Open** does the same). Signing is what gives the
             app a stable identity, which is what macOS keys Documents / Desktop /
-            Downloads access to; the first signed release resets those grants once.
+            Downloads access to.
 
             The `.app.tar.gz` beside it is what an installed copy downloads when it
             updates itself; there is no reason to fetch it by hand.

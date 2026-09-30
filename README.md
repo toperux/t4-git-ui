@@ -31,14 +31,16 @@ Shipped since v1: cherry-pick / revert from a commit row, interactive rebase, in
 
 Grab the installer for your platform from the [Releases](../../releases) page:
 
-- Windows: `T4-Git-UI_<version>_x64-setup.exe` (NSIS, per-user, no admin prompt)
+- Windows: `T4-Git-UI_<version>_x64-setup.exe` (NSIS, per-user, no admin prompt). Signed with a
+  Certum Open Source certificate, publisher "Open Source Developer Christopher Montevirgen"
+  (v0.10.14 and earlier are unsigned). SmartScreen can still warn while the certificate builds a
+  download reputation: **More info** → **Run anyway**.
 - macOS: `T4-Git-UI_<version>_universal.dmg` (Apple Silicon and Intel). Gatekeeper stops the first
   launch either way: v0.5.0 and earlier are unsigned, and releases after v0.5.0 are signed with a
   self-signed certificate but **not notarized**. Open it from **System Settings → Privacy &
   Security → Open Anyway**; on macOS 14 and earlier, right-click → Open does the same. What
   signing buys is a stable identity, which is what macOS keys Documents / Desktop / Downloads
-  access to — an unsigned build re-asks every launch. The first signed release resets those
-  grants once.
+  access to — an unsigned build re-asks every launch.
 - Linux: `.deb`, `.rpm` or `.AppImage`
   - If the AppImage opens a blank window (seen under XWayland on some GPUs, e.g. a VMware VM),
     run it with `WEBKIT_DISABLE_DMABUF_RENDERER=1`, on every launch (in the launcher, say). An

@@ -11,7 +11,7 @@
 #
 # Why a repack: neither the Tauri bundler's AppImage settings nor linuxdeploy's
 # environment has a way to exclude a library, so the image is unpacked after
-# `cargo tauri build`, the library removed and the squashfs rebuilt behind the
+# `cargo tauri bundle`, the library removed and the squashfs rebuilt behind the
 # same runtime. The runtime's embedded .digest_md5 is rewritten to match
 # (appimage-digest.py); it is checked on the original first, so a change in how
 # appimagetool computes it fails here instead of shipping a wrong one.
