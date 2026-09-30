@@ -3,13 +3,13 @@
 _Written 2026-09-02, the day after v1 was accepted. This is the one list of what is still open;
 it folds together the v1 plan's "Known gaps", the 2026-09-01 codebase review's deferred rows and
 the README's "Next" line (review item H4). Since 2026-09-26 every row except §C's roadmap is
-scheduled in `2026-09-26-close-out-plan.md`; §Q's accepted limits wait on their reopen triggers, and two of
-them are also in a close-out phase._
+scheduled in `2026-09-26-close-out-plan.md`; §Q's accepted limits wait on their reopen triggers, and one of
+them is also in a close-out phase._
 
 _Done, fixed, walked and closed rows live in `open-items-done.md` (split 2026-09-24), under the same
 section letters — a letter with nothing open left (§D, §F, §G, §H, §J, §K, §L, §N) is only there. When a row
 here is done, move it there. Accepted limits with a reopen trigger are open, in §Q (since 2026-09-28); those with
-none are closed, in the done file._
+none are closed, in the done file; most of §V's deferred rows wait on a later fix batch._
 
 ## A. Performance — measure before touching
 - **`reachers` merged-badge walk** (2026-09-02 review P1): the merged computation walks every commit
@@ -93,50 +93,26 @@ reviews, plus the `ponytail:` ceilings in code. Each was low and deferred with a
 naming its phase. (Rows closed as will-not-fix or accepted are in the done file, or in §Q when they carry a
 reopen trigger — the `Menu.tsx` `ponytail:` ceiling among them.)
 
-- **S2** non-UTF-8 paths are dropped from the working-tree listing (lossy decode, then `stat`
-  misses) or listed but unreadable. The IPC type is `String`; log the skip at most.
-  *(Close-out Phase 2.)*
-- **S4** `blameAt` switches tab / seeds / turns blame on before the reveal is known to hit.
-  Reordering races the details-pane effect; toast only. *(Close-out Phase 2.)*
 - **E6** O(n²) tree build for a flat directory (`fileTree.ts`, `Sidebar.buildTree`). Measure
   first; rare shape. *(Close-out Phase 3, measure first.)*
-- **B3** the interactive-rebase read pass runs a real `rebase -i --autostash`; a kill mid-run
-  strands work. Git's clean-tree check precedes the editor, so the read pass needs it; the
-  banner offers `--abort`. *(Close-out Phase 2.)*
-- **C6** `close_repo` never cancels the repo's in-flight ops — unreachable, the UI refuses
-  close/switch while an op runs (comment on `close_repo`). *(Close-out Phase 2.)* **Q23**, the details pane blank
-  while a newly selected commit loads: an accepted limit, moved to §Q (*Q23: the details pane goes blank when
-  another commit is selected*), 2026-09-28.
-- **R10** selected-mode header after a partial stage; **R12** two stale status/refs pairings
-  where a guard would flicker *(close-out Phase 2)*; **R13** `canSquash` O(n) per row
-  *(close-out Phase 3, measure first)*.
-- `ponytail:` ceilings in code (seven added 2026-09-26, which were in the code but never listed here; three fixed
-  2026-09-29 in close-out Phase 2a, in the done file):
-  - `crates/git-core/src/log/walker.rs:94` — a `Refs` spec that never reaches HEAD leaves the working-tree
-    column open *(Phase 2)*;
+- **R13** `canSquash` O(n) per row *(close-out Phase 3, measure first)*.
+- `ponytail:` ceilings in code (nine — seven of them added 2026-09-26; the seven fixed are in the done file, two
+  are left):
   - `crates/git-core/src/linked.rs:120` — `snapshot` opens a repository per worktree and re-reads every
     submodule, no cache *(Phase 3, measure first)*;
-  - `crates/git-core/src/linked.rs:134` — no main row when the main worktree's HEAD can't be read;
-    `worktree list --porcelain` fixes it at a git ≥ 2.36 floor *(Phase 2)*;
-  - `src-tauri/src/commands/window.rs:392` — the pointer position for tab adoption is Windows-only *(Phase 5)*;
-  - `src/screens/RepoWindow/Toolbar.tsx:100` — a rename while in the `icons` tier measures late *(Phase 2)*;
-  - `src/screens/RepoWindow/dialogs/StashDialogs.tsx:39` — a dirty-only submodule is listed as stashed
-    *(Phase 2)*.
+  - `src-tauri/src/commands/window.rs:520` — the pointer position for tab adoption is Windows-only *(Phase 5)*.
 
 ## M. Added 2026-09-19 — review of `v0.10.1..HEAD`, its fixes, and the walk of group AZ
 
 The walk is `docs/archive/walks/2026-09-19-group-az-walk.md`. What is left, so it is not rediscovered.
-**Since 2026-09-26 these are scheduled in the close-out plan** (the menu row in Phase 2, the 1800-file delay in
-Phase 3, AZ 11 Linux in the Linux track, macOS in Phase 5); "left until one bites" below is kept as history. The
-toast-detail and default-remote rows are fixed, in the done file's §M.
+**Since 2026-09-26 these are scheduled in the close-out plan** (the 1800-file delay in Phase 3, AZ 11 Linux in the
+Linux track, macOS in Phase 5); "left until one bites" below is kept as history. The toast-detail and
+default-remote rows are fixed, in the done file's §M; the menu row's fix is in the done file's §M too (close-out
+Phase 2b), its row-shift half accepted in §Q.
 
 - **Open box in group AZ**: 11 (Linux and macOS: rows 3a, 3b, 3d, 3i and bullet 6, by hand). (9, unit-tested
   with no hand recipe, is marked `[n/a]` since 2026-09-26.) Linux was walked 2026-09-26 and failed on 6; the fix
   is merged (#18, 2026-09-27), see §O.
-- **Menus.** Rows shift by a line while arrowing over a clipped name. After arrow keys in the grid a
-  right-click menu opens with its first item focus-visible, so a clipped first item opens wrapped — the
-  same case in which that row always had the accent highlight. Since #18 (the `data-kbd` mark) this happens on
-  Linux too (triage U3).
 - **Seen in the walk, not acted on.** An external `git reset` of 1800 files takes about four seconds to
   show in Changes, on 0.10.7 as well. (The libgit2 error-suffix row was fixed 2026-09-25 and is in the done
   file; the walk's native-confirm reading is in the done file's §L.)
@@ -390,12 +366,6 @@ phases that accepted them; each origin keeps a pointer.
   cache, not the tree size.) Still measured in close-out Phase 3; if it measures fine, it stays here with the
   numbers added. **Reopen:** the `slow status` log line (≥ 250 ms) shows a real machine hitting it, or Phase 3's
   measurement crosses its threshold. *From §A.*
-- **Q23: the details pane goes blank when another commit is selected.** Until the new commit's details arrive, the
-  pane is empty instead of keeping the previous commit's on screen. P1-4's fix (`6a95389`) clears `detail` and
-  `error` on a new commit id (`src/screens/RepoWindow/DetailsPane.tsx:170-173`, checked 2026-09-28); the blank was
-  decided at P1-4 (`docs/archive/plans/2026-09-12-consolidated-findings.md`, `:47`, `:233`, `:520`). ("C6/Q23" in §I
-  was a label collision: this Q23 was the second pass's C6, not the consolidated C6, `close_repo`.) Still in
-  close-out Phase 2's table, *design needed*. **Reopen:** it flickers on the smoke walk. *From §I.*
 - **macOS notarization: won't do for now.** Needs a paid Apple Developer account. The app is signed with the shared
   self-signed certificate (stable identity, so folder grants survive updates), and the release body carries the
   quarantine step. Closed 2026-09-26 (close-out Phase 0). **Reopen:** there is a Mac user. *From the done file §B.*
@@ -497,11 +467,9 @@ phases that accepted them; each origin keeps a pointer.
   on `xdg-open`, which in its generic fallback can wait for the opened program. A parked thread costs little, and
   opens are user clicks. Accepted 2026-09-29. **Reopen:** the thread count or memory grows noticeably over a long
   session. *From the 0.10.14 hotfix plan's triage (T7).*
-- **A blame test failed once on Windows inside the test helper's `index.add_path`.**
-  `blames_the_working_tree_and_marks_the_uncommitted_line` panicked at `test_util.rs:84` during the 0.10.14 hotfix's
-  gates and passed on re-run; the code under test isn't touched by the hotfix. Likely a pre-existing Windows
-  file-timing flake; unconfirmed. Accepted 2026-09-29. **Reopen:** it fails again, locally or in CI — then look at
-  the helper. *From the 0.10.14 hotfix's change review (triage T-B).*
+- **A blame test failed once on Windows inside the test helper's `index.add_path`** — its reopen trigger fired
+  twice on 2026-10-01; no longer an accepted limit, moved to §V (*A Windows flake inside `TempRepo` test helpers*).
+  *From the 0.10.14 hotfix's change review (triage T-B).*
 - **Inside an AppImage, every process the app starts is forked, not `posix_spawn`ed.** Two causes, both from the
   0.10.14 hotfix (`crates/git-core/src/lib.rs`): std forks whenever a child's `PATH` is changed and the program is
   named without a path, and `host_env` always rewrites `PATH` inside an AppImage (git by default, the tools' `sh`,
@@ -536,6 +504,52 @@ phases that accepted them; each origin keeps a pointer.
   only, so a third Windows download would not be caught. Accepted 2026-10-01 (close-out Phase 1b, triage T3).
   **Reopen:** a bundler change moves either fetch or adds a Windows download, or a toolchain release breaks the build.
   *From Phase 1b's change review (`docs/plans/2026-09-30-phase-1b-plan.md`, "Not in this phase").*
+- **On Linux and macOS a tool open holds the repository's git2 lock ~300 ms.** Detecting an early-failing custom
+  tool (exit 126/127 within 300 ms, unix only) waits under the lock; other git2 reads of that repository stall
+  meanwhile. A `ponytail:` comment in `crates/git-core/src/tools.rs` names it. Accepted 2026-10-01 (close-out
+  Phase 2b, D4). **Reopen:** a report of a stall while opening a tool — then narrow the lock (spawn after it's
+  dropped). *From the 2026-10-01 Phase 2b plan (row 3), §S.*
+- **A custom tool that exits at once for another reason still shows *Opened*.** The 300 ms exit-126/127 check
+  (unix only) misses the Windows `.cmd` shim with a missing target, a user-typed macOS `open -a`, and any early
+  exit other than 126/127. Accepted 2026-10-01 (close-out Phase 2b, D17). **Reopen:** a report of a silent failed
+  tool start. *From the 2026-10-01 Phase 2b plan (row 3), §S.*
+- **Arrowing over a clipped menu row wraps it and moves the rows below.** A keyboard-focused menu row whose name
+  clips past 280 px grows to 2+ lines while focused, shifting every row below it. Accepted 2026-10-01 (close-out
+  Phase 2b, D5). **Reopen:** a report, or a menu whose rows commonly clip. *From the 2026-10-01 Phase 2b plan
+  (row 4), §M.*
+- **Changes lists a non-UTF-8 path under a replaced name; staging it, its diff and its history fail.** The Files
+  tab now skips non-UTF-8 paths and says so (a count note); Changes still lists them under a replaced name, since
+  hiding a change is worse than a failing stage. Accepted 2026-10-01 (close-out Phase 2b, D11(a)). **Reopen:** a
+  report. *From the 2026-10-01 Phase 2b plan (row 11), §I.*
+- **A kill during the interactive rebase's read pass leaves the changes in the autostash until Abort.** The read
+  pass (listing the todo) runs a real `rebase -i --autostash`; git's clean-tree check precedes the editor, so the
+  read pass needs the flag. Proven recoverable (`git rebase --abort`) by a unix test. Accepted 2026-10-01
+  (close-out Phase 2b, D12). **Reopen:** a stranded autostash is reported, or the dock's Cancel becomes reachable
+  during the read. *From the 2026-10-01 Phase 2b plan (row 12), §I.*
+- **Closing a window lets its repository's running op finish unseen.** `drop_repo` (from `close_repo` or a closed
+  window) never cancels an in-flight op; letting it finish is the safer failure — killing a rebase, merge or commit
+  halfway strands exactly the autostash row's state. The comment on `drop_repo` is corrected to say so. Accepted
+  2026-10-01 (close-out Phase 2b, D13). **Reopen:** overlapping operations after a reopen, or a request to stop an op by
+  closing its window. *From the 2026-10-01 Phase 2b plan (row 13), §I.*
+- **After a selection shrinks to one row by itself, the header offers Stage all.** The Changes header shows
+  *Stage selected* / *Unstage selected* only at 2+ rows selected; if the selection shrinks to one without a header
+  action (staging one of two selected rows with its own +, or a watcher refresh), the header silently reads
+  *Stage all* — still true when clicked, and Unstage undoes it. Accepted 2026-10-01 (close-out Phase 2b, D14).
+  **Reopen:** a walk or report stages the whole list meaning the shrunken selection. *From the 2026-10-01 Phase 2b
+  plan (row 14), §I.*
+- **Commit can be enabled for a moment after an external merge abort; git refuses.** The staged count (status) and
+  the merging flag (refs) refresh separately; the conflicts pairing's `stranded` is now guarded by `freshStatus`,
+  but `canCommit` isn't — guarding it too would grey Commit for one status scan at every merge/rebase start and
+  end. Accepted 2026-10-01 (close-out Phase 2b, D15). **Reopen:** a failure toast traced to that window. *From the
+  2026-10-01 Phase 2b plan (row 15), §I.*
+- **A mouse-opened menu's unmarked first item is still activated by Enter.** After grid arrows, a mouse
+  right-click opens a `ContextMenu` with its first item focused but no longer keyboard-marked (row 4's fix,
+  `b1241e4`: a pointer-opened menu no longer marks its first item); Enter still activates it, same as a
+  mouse-only session on `main`. Accepted 2026-10-01 (close-out Phase 2b triage, B1). **Reopen:** a report of an
+  unintended action from Enter after a right-click. *From the Phase 2b triage.*
+- **`DetailsPane` double-mounts under React StrictMode in dev, while blame is shown under a path filter.** Dev-only;
+  harmless duplicate work. Accepted 2026-10-01 (close-out Phase 2b triage, B4). **Reopen:** it confuses
+  development. *From the Phase 2b triage.*
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review, deferred
 
@@ -548,27 +562,67 @@ phases that accepted them; each origin keeps a pointer.
 - **macOS: an Option-typed character never reaches a select's type-ahead.** Option arrives as `altKey` without
   `ctrlKey`, so `Input.tsx`'s Alt branch swallows it (Phase 2a let only Windows' AltGr, Ctrl+Alt, through).
   *(Close-out Phase 5, with the macOS rows.)*
-- **Ctrl+Q does nothing on the start screen.** Quit is bound only in a repo window (`useShortcuts.ts:74` and the
-  repo menu); on Windows and Linux the start screen (including a window whose last tab closed while others stay
-  open) has no Quit, only the window's × (macOS likely has Tauri's default app menu, with Quit, not checked). Pre-existing; met in smoke group BH's walk. Fix: a Ctrl+Q arm in `StartScreen`'s key handler
-  calling the same `quit`, plus a test. *(Close-out Phase 2b.)*
 
 ## S. Added 2026-09-29 — v0.10.13's AppImage release walk
 
-- **A failed commit's toast shows a hook's first output line, not why it failed.** When a hook refuses, git prints
-  nothing of its own, and the toast shows stderr's first line (`src/store/toastStore.ts:104-107`); the VM walk saw
-  *hook1 start*. Pre-existing, not from Phase 2a. Fix: in `commit`, when stderr has no `fatal:` / `error:` line,
-  report the last non-empty one (~6 lines + a test); the op log has the full output. Same blind spot in merge /
-  pull (a `pre-merge-commit` hook). Triage T1 of the 0.10.14 hotfix plan. *(Close-out Phase 2b.)*
-- **A custom tool that fails to start still says *Opened …*.** The tool is detached; its exit status is never read
-  (`crates/git-core/src/tools.rs:264-271`). Fix: watch the first ~300 ms for an early non-zero exit (a late one is
-  normal for some tools — kdiff3 unsaved, Beyond Compare *files differ* — so it can't be reported; every open gets
-  ~300 ms slower). Pre-existing; the hotfix removes the trigger seen on the VM. Triage T2 of the 0.10.14 hotfix
-  plan. *(Close-out Phase 2b.)*
 - **Review the limits the 0.10.14 hotfix's change review accepted in bulk.** 21 small items (edge cases,
   pre-existing behaviour, trades already chosen, doc style) were accepted as closed without a one-by-one ruling, to
   be looked at later: `docs/plans/open-items-done.md` §T. **Next:** the owner goes through §T and moves any item
   back here. *(Owner, when time allows.)*
+
+## V. Added 2026-10-01 — close-out Phase 2b
+
+Found in close-out Phase 2b (plan `docs/plans/2026-10-01-phase-2b-plan.md`): the Linux track's two walks the
+plan owed it, every item the triage sent here with a *DEFER §V* ruling (from the BK walk and the review passes),
+and the §Q flake row whose trigger fired.
+
+- **Row 3's unix tool-start walk.** `~/t4-no-such-tool "$LOCAL" "$REMOTE"` on Linux should show an error toast
+  within ~300 ms (exit 127, caught by D3(c)); unwalked, this machine being Windows. *(Linux track.)*
+- **Row 11's non-UTF-8 walk.** `touch $'caf\xe9.txt'; git add .` on Linux, then the Files tab (working tree and
+  at a commit): the file stays out of both listings, with the *N files … aren't shown* note; unwalked. *(Linux
+  track.)*
+- **The Stashes browser's Files tab blame-gutter / "Select in graph" doesn't drill down (triage D-1).** Opened from
+  Changes with a preview on stash X: a blame-gutter hunk click or "Select in graph" calls `blameAt`, which hits another
+  commit Y and clears the preview; the browser's own "lost its preview" effect re-previews stash X, so the browser snaps
+  back to the stash while History's grid behind it moves to Y and stays pinned to the stale Y. Pre-existing, also on
+  `main`. Found in change review pass 6, 2026-10-01. **Next:** a later fix batch.
+- **A closed Stashes browser leaves History's pane on the stash (triage D-2).** Closing the browser after previewing a
+  stash leaves History's details pane on the stash (the grid highlights a commit, the sidebar's Stashes section stays
+  collapsed) — the documented rule, "a previewed stash wins over the selection", working as designed, but confusing.
+  Pre-existing, also on `main`. Found in the BK 9 walk, 2026-10-01. **Next:** the owner's next pass.
+- **Fast back-to-back tab switching can lose the grid selection (triage D-3).** Switching tabs rapidly (×10, once seen
+  at ×3) can bring a tab back selected on HEAD instead of where it was left; no stuck loading, no wrong content shown.
+  Pre-existing, also on `main`. Found in the BK 9 walk, 2026-10-01. **Next:** a later fix batch.
+- **`treeSelection` keys are shared across repos and tabs; a last-tab close in Changes doesn't clear
+  `diffStore` (triage D-4).** Pre-existing, outside the Phase 2b branch — read during change review pass 3,
+  2026-10-01, while checking row 16's fix. At worst, another repo's working tree preselects a same-named file in
+  the Files tab; no wrong content is shown. Not reproduced as a user-visible bug. **Next:** a later fix batch.
+- **Merge banner says "resolve conflicts" after a hook refused a conflict-free merge (triage E1).** A `pre-merge-commit`
+  hook refusing a merge that has no conflicts still shows the conflicts banner's wording. Found in the BK walk,
+  2026-10-01. **Next:** a later fix batch.
+- **Stashes browser's left column clips text (triage E2).** The left (list) column can show *"No changes"* clipped to
+  *"Nc"*, with a horizontal scrollbar, instead of wrapping or eliding. Found in the BK walk, 2026-10-01. **Next:** a
+  later fix batch.
+- **The worktree row menu offers Lock… on the main worktree row (triage E3).** git refuses locking the main worktree;
+  the app's menu doesn't grey the option out. Found in the BK walk, 2026-10-01. **Next:** a later fix batch.
+- **Alt+2 typed into the History search box does nothing (triage F1).** Unclear what, if anything, Alt+2 is meant to do
+  there; found in the BK walk, 2026-10-01. **Next:** a later fix batch.
+- **An empty session's `lastOpen` fallback may only be meant for the first launch (triage F2).** With `layout.json` as
+  `[]`, the app opened a repository (`t4-todo-vault`) from `lastOpen` rather than the start screen; a later launch with
+  the same empty session went to the start screen instead. Whether `lastOpen` should fall back past the first launch
+  wasn't confirmed. Found in the BK walk, 2026-10-01. **Next:** confirm the fallback's intended rule, then a later fix
+  batch.
+- **A Windows flake inside `TempRepo` test helpers.** First seen 2026-09-29
+  (`blames_the_working_tree_and_marks_the_uncommitted_line` panicked at `test_util.rs:84` during the 0.10.14
+  hotfix's gates, passed on re-run; accepted then as likely a pre-existing file-timing flake, unconfirmed). Its
+  reopen trigger fired twice on 2026-10-01, both inside Phase 2b's gates: (a)
+  `blame::tests::a_path_that_is_not_there_is_a_cli_error`, `add_path: "LF would be replaced by CRLF in 'a.txt'"`
+  inside `TempRepo::commit` (passed on re-run); (b) `cli::runner::tests::editor_is_disabled`, `git init: … could
+  not read (expected 55 bytes, read 32)` at `test_util.rs:46` (passed on re-run). Suspected cause (reasoned, not
+  verified): a `config.rs` test (`:173-188`) swaps libgit2's process-wide global-config search path while other
+  tests run in parallel, so a test's `git init` / commit reads a half-written or foreign config. **Next:** confirm
+  the cause in a later batch — e.g. run the config test serially and see whether the flakes stop. *From §Q
+  (accepted 2026-09-29, the 0.10.14 hotfix's change review, triage T-B).*
 
 ## Order
 

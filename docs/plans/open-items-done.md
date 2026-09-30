@@ -437,6 +437,62 @@ commits and pushed with the CI port from the markdown viewer (`a904701`).
   (`efe1896`; unit-only, not walked). A Ctrl+Alt chord with a single-character key now passes the Alt branch. The
   macOS Option-typed variant is deferred, `open-items.md` §R. The optional hand walk with a real AltGr layout was
   skipped (triage 2026-09-29, accepted closed): the unit test's synthetic Ctrl+Alt event is what Windows sends.
+- **`ponytail:` ceiling, `Toolbar.tsx:100`** (a repository switch in the `icons` tier measures the repo-name span late,
+  so the toolbar stays in `icons` after switching to a short-named tab until the window is widened past the old
+  breakpoint) — **fixed 2026-10-01** for close-out Phase 2b (`e4ac54f`, row 5, smoke group BK 4). `.icons .repoName` now
+  hides with `position:absolute; visibility:hidden` instead of `display:none`, so it keeps measuring its real width (up
+  to 160px) while taking no layout space; the `ponytail:` comment is gone; the `w > 0` guard stays, now only for an
+  empty name.
+- **`ponytail:` ceiling, `StashDialogs.tsx:39`** (a dirty-only or moved submodule, or an untracked nested
+  repository, was listed as stashed, though `git stash` changes none of them) — **fixed 2026-10-01** for
+  close-out Phase 2b (`45ab79d`, D6(a), smoke group BK 5). `stashFiles` leaves out every submodule entry with no
+  staged change (dirty-only, moved, untracked nested repositories alike); a submodule with a staged pointer is
+  still kept (git does stash that). Both stash surfaces show a muted note, *Submodules and nested repositories
+  aren't stashed*, when any was left out; only-submodule changes now disable the button with *Nothing to stash*
+  instead of a false *Stashed changes* toast. The `ponytail:` comment is gone.
+- **S4: `blameAt` acts before it knows the reveal hits.** Closing the commit dialog, switching to History, seeding
+  and pinning the file and turning blame on all happened before `revealOid` was awaited, so a miss left every side
+  effect in place (plus a wrong *clear the filter* toast on a stash target, since `refs/stash` isn't walked).
+  **Fixed 2026-10-01** for close-out Phase 2b (`870aff8`, D7(a), smoke group BK 6, change review passes 5–7).
+  `blameAt` reveals first and acts only on a hit, or when the oid is already on screen (`treeTargetOf`); later
+  passes fixed the seed being overwritten when the store already held the blamed commit (computed after the
+  reveal, from what the store still holds) and a tab switch during the reveal, which now returns silently instead
+  of acting on the wrong tab.
+- **`walker.rs:94`: a `Refs` spec that never reaches HEAD** (the working-tree column's lane stayed open to the
+  bottom of the graph) — **fixed by deletion 2026-10-01** for close-out Phase 2b (`dd04cc7`, D9(a)). `RevSpec::Refs`
+  was unreachable from the UI (only `all` / `head` are built); the Rust variant, its TS member, the doc mentions
+  and the `Refs` assertions in five tests are deleted; `chunking_early_stop_and_cancellation`'s `exact` case now uses
+  `t.detach(exact)` with `RevSpec::Head` instead. The `ponytail:` comment is gone.
+- **`linked.rs:134`: no main row when the main worktree's HEAD can't be read** (missing for a bare repository, a
+  `--separate-git-dir` checkout, a submodule's linked worktree, or a corrupt HEAD) — **fixed the submodule case
+  2026-10-01** for close-out Phase 2b (`8292622`, D10(a), smoke group BK 8). The main row's path now opens the
+  common dir itself and takes its `workdir()`, so libgit2 honours `core.worktree` (set in a submodule's config);
+  the comment is corrected (bare has no main row by design, `--separate-git-dir` is unknowable, git's own
+  `worktree list` has the same gap). The `ponytail:` comment is gone.
+- **S2: non-UTF-8 paths.** The Files tab silently missed a non-UTF-8 path from the working-tree listing, and a
+  commit's tree listed it as `caf�.txt` with every click failing; a non-UTF-8 *directory* aborted the whole
+  listing. **Fixed 2026-10-01** for close-out Phase 2b (`7d532a4`, D11(a) + D16, smoke: Linux-only, in
+  `open-items.md` §V). Both listings now skip a non-UTF-8 path (and, for a directory, everything under it, counted
+  as files) and carry a `skipped` count; the Files tab shows *N files with names that aren't UTF-8 aren't shown*.
+  Changes still lists a non-UTF-8 path under a replaced name — accepted, `open-items.md` §Q.
+- **R12, pairing 2 (conflicts): the `stranded` note could offer Restore conflict on a stale status/refs pairing.** Right
+  after a merge commit (`commit()` refreshes status before refs), a brief window (status fresh, refs still *merge*) with
+  markers still in the file could offer *Marked resolved, but the conflict markers are still here* → **Restore
+  conflict**, which could overwrite a finished merge's file. **Fixed 2026-10-01** for close-out Phase 2b (`35b061b`,
+  D15(a)). `stranded` is now also gated on `freshStatus(status, refs.state) !== null`. Pairing 1 (`canCommit`) is left
+  unguarded — accepted, `open-items.md` §Q.
+- **B3** the interactive-rebase read pass runs a real `rebase -i --autostash` — accepted 2026-10-01 (close-out
+  Phase 2b, D12; a unix test proving the recovery, `8ad504e`); an accepted limit with a reopen trigger, moved to
+  `open-items.md` §Q (*A kill during the interactive rebase's read pass leaves the changes in the autostash until
+  Abort*).
+- **C6** `close_repo` never cancels the repo's in-flight ops — accepted 2026-10-01 (close-out Phase 2b, D13; the
+  comment corrected, `45414b1`); an accepted limit with a reopen trigger, moved to `open-items.md` §Q (*Closing a
+  window lets its repository's running op finish unseen*).
+- **R10** selected-mode header after a partial stage — accepted 2026-10-01 (close-out Phase 2b, D14); an accepted
+  limit with a reopen trigger, moved to `open-items.md` §Q (*After a selection shrinks to one row by itself, the
+  header offers Stage all*).
+- **Q23** the details pane blank while a newly selected commit loads — moved to §Q 2026-09-28; closed 2026-10-01
+  (`ce34b92`), done §Q.
 
 ## J. Added 2026-09-14 — from the UI direction B review
 
@@ -549,6 +605,14 @@ The open-items §L heading is gone (nothing open is left there); this section no
   ref updates, `…% (…)` progress) before taking the first line. Test: `cli::ops::tests::rejected_and_other`, the `pull` case.
 - **The "unticked lines, recounted" bullet** (fourteen, 2026-09-19) — superseded 2026-09-25 by §B's recount in
   `open-items.md` (eleven). AZ 10 and AC's two network boxes were walked on 2026-09-24.
+- **Menus: rows shift over a clipped name; the first item opens wrapped.** A mouse right-click after grid arrows opened
+  a `ContextMenu` with its first item marked and highlighted as if by keyboard, wrapped when clipped. **Fixed
+  2026-10-01** for close-out Phase 2b (`b1241e4`, D5(a), smoke group BK 3): a `ContextMenu` opened by a pointer no
+  longer marks its first item (a `byKey` parameter on `useMenuDismiss`, defaulting to `openedByKey`; `ContextMenu`
+  passes `lastInputWasKey`), and the highlight/wrap CSS rules key on `[data-kbd]:focus` only, with an
+  `.item:focus-visible { box-shadow: none }` override so the global focus ring (`theme/base.css`) doesn't land on the
+  natively `:focus-visible` first item. Arrowing onto a clipped row still wraps it and shifts the rows below — accepted,
+  `open-items.md` §Q.
 
 Eight findings, all fixed (staging back on libgit2's ignore check, the `index.lock` match on both the CLI
 and the libgit2 side, window restore, the grid's mount row, clipped menu names); a second review of the
@@ -740,6 +804,23 @@ stays.
     dry runs' `verify` job (Release runs 36674994686 and 36753506004) proved every `.sig` carries `version:`
     (`docs/archive/walks/2026-09-30-phase-1b-walk.md`). It ships in 2b's release; the update from that release to
     the next is its first real check.
+- **Q23: the details pane goes blank when another commit is selected.** Until the new commit's details arrive, the
+  pane is empty instead of keeping the previous commit's on screen. P1-4's fix (`6a95389`) clears `detail` and
+  `error` on a new commit id (`src/screens/RepoWindow/DetailsPane.tsx:170-173`, checked 2026-09-28); the blank was
+  decided at P1-4 (`docs/archive/plans/2026-09-12-consolidated-findings.md`, `:47`, `:233`, `:520`). ("C6/Q23" in §I
+  was a label collision: this Q23 was the second pass's C6, not the consolidated C6, `close_repo`.) Still in
+  close-out Phase 2's table, *design needed*. **Reopen:** it flickers on the smoke walk. *From §I.*
+  - **Closed 2026-10-01** (`ce34b92`, D8 (a), BK 7): the pane now renders the grid row's own fields (summary, author,
+    date, SHA, parents) at once; only the body/committer/*signed* wait for the reply, which (like an error) shows only
+    when it matches the selected oid.
+
+## R. Added 2026-09-29 — close-out Phase 2a's change review: the rows since closed
+
+- **Ctrl+Q does nothing on the start screen.** Quit was bound only in a repo window; on Windows and Linux the start
+  screen (including a window whose last tab closed while others stayed open) had no Quit, only the window's ×. **Closed
+  2026-10-01** (`25dfe4f`, D1(a), smoke group BK 1): a Ctrl+Q arm in `StartScreen`'s key handler calls the same
+  `quitApp()`, armed even while a repository is opening, ignored while Clone or Settings is open. README's shortcuts
+  table lists it (the *Both screens* row). *From `open-items.md` §R (the 2026-10-01 Phase 2b plan, row 1).*
 
 ## S. Added 2026-09-29 — v0.10.13's AppImage release walk: the rows since closed
 
@@ -765,6 +846,22 @@ stays.
   **Closed 2026-09-29:** fixed on `hotfix/0.10.14`; smoke group BI rows 1–8 walked green on the final build (Release
   run 36548652011, after two earlier builds; one unexplained crash-reporter entry at one quit, not reproduced), row 9
   on Windows (the later changes are Linux-only) — `docs/archive/walks/2026-09-29-group-bi-walk.md`. Ships in 0.10.14.
+- **A failed commit's toast shows a hook's first output line, not why it failed.** When a hook refuses, git prints
+  nothing of its own, and the toast showed stderr's first line. **Closed 2026-10-01** (close-out Phase 2b,
+  `acbfae0`, D2(a), smoke group BK 2): `commit` now reports the last non-empty stderr line when there's no
+  `fatal:` / `error:` one; merge and pull instead show git's own line (e.g. *Not committing merge…*), not the
+  hook's last line, through `classify_failure`, which also catches a failing post-checkout hook (checkout, and
+  `worktree add`) with *Checked out, but the post-checkout hook failed: …* instead of showing the success line as
+  a failure. Triage T1 of the 0.10.14 hotfix plan. *From `open-items.md` §S (the 2026-10-01 Phase 2b plan,
+  row 2).*
+- **A custom tool that fails to start still says *Opened …*.** The tool was detached and its exit status never
+  read. **Closed 2026-10-01** (close-out Phase 2b, `237d6d7`, D3(c)/D4(a)/D17; unit-tested; the Linux walk is in
+  `open-items.md` §V): on unix, the first ~300 ms is watched for exit 126/127 (the shell's and loader's "couldn't
+  start" codes), reported as *`<prog>` could not start (exit N) — check the tool's command in Settings*; a late
+  exit (kdiff3 unsaved, Beyond Compare *files differ*) still can't be told apart, so it isn't reported. Windows is
+  unchanged. The ~300 ms under the git2 lock, and the exits the check still misses, are accepted limits in
+  `open-items.md` §Q. Triage T2 of the 0.10.14 hotfix plan. *From `open-items.md` §S (the 2026-10-01 Phase 2b
+  plan, row 3).*
 
 ## T. Added 2026-09-29 — the 0.10.14 hotfix's change review: accepted in bulk, to be reviewed
 
@@ -837,3 +934,39 @@ T10 is t4-markdown-viewer's README comma, to be pushed there on the owner's word
   2026-09-30 though its last rows are dated 2026-10-01 (it notes the UTC difference). Both accepted 2026-10-01, no
   reopen trigger. (The same review's other two leave-as-is items were fixed: open-items §Q's intro count and §B's
   unticked-line count.)
+
+## V. Added 2026-10-01 — close-out Phase 2b: the rows since closed
+
+- **The Stashes browser opened from Changes previewed History's commit, not the stash.** With a commit selected in
+  History, switching to Changes and opening the Stashes browser (Ctrl+Shift+S) showed that commit's file list and
+  diff — Apply / Pop / Drop acted on the stash above another commit's diff. Pre-existing on `main`, found in the
+  BK walk. **Fixed 2026-10-01** for close-out Phase 2b (`6ec35b1`, D18 + D19, smoke group BK 9). `StashesDialog`
+  now loads its own stash target, keyed on the preview's oid, skipping the load only when `diffStore` already
+  holds that same stash. `diffStore.restore` also now bumps its request counters, so a reply still in flight
+  during an outside tab switch can no longer land in the wrong tab's store or leave the first tab stuck on
+  *loading*; the next loader (History's reload, the browser's next open) re-fetches it.
+
+The triage's accepted items, ruled one by one by the owner 2026-10-01 (`docs/plans/2026-10-01-phase-2b-plan.md`,
+*Triage*). No reopen trigger on any of these.
+
+- **A2 (row 7's path-filter blame fix).** The fix for `blameAt`'s reload race is proven by unit tests only; the
+  in-app walk (BK 6) predates the fix. Accepted as sufficient proof.
+- **A4 (a redundant `tier` dependency).** `Toolbar.tsx`'s measuring effect still lists `tier` in its dependency
+  array though it no longer needs it. Left as is.
+- **B2 (the non-UTF-8 skip count includes deleted files).** A non-UTF-8 index entry is counted in `skipped` even
+  when it's gone from disk. Harmless; accepted.
+- **B3 (a post-checkout hook's own `error:` / `fatal:` line shows without the "Checked out" wording).** When the hook
+  itself prints an `error:` or `fatal:` line, `classify_failure` shows that line as-is, without the *Checked out, but
+  the post-checkout hook failed* prefix row 2's fix adds when the output has no `error:` / `fatal:` line. Accepted, per
+  the plan's own condition.
+- **C1 (a blame reveal from A to B back to A within one loop can lose its seed).** A narrow sequencing case in the
+  row-7 fix; accepted.
+- **C2 (a drop-in tab's late `diffStore` reply lands tagged with the old `repoId`).** Harmless — the browser's
+  guard and History's reload both see the mismatched `repoId` and reload. Accepted (documented in row 16's D19).
+- **E4 (a freshly opened repository selects the grid's top row, not HEAD).** Pre-existing behaviour, not a regression;
+  seen in the BK walk. Accepted.
+- **F3 (a tab's × near its centre on a narrow tab closed it under automation).** Not an app fault as found — the CDP
+  driver clicked the centre of a 45px tab, which is the × hit area at that width; maybe worth a wider hit area later,
+  but not a bug. Accepted.
+- **F4 (a Vite build-size warning).** `index-*.js` is 668 kB, over Vite's 500 kB chunk-size warning; checked
+  pre-existing, not from this branch. Accepted.

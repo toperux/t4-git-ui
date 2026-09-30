@@ -2251,6 +2251,76 @@ without `-Proxy`. The updater runs the published setup into the owner's own inst
       2026-10-01 on row 5's setup (dry run 36753506004 on `main`): named so; `Get-AuthenticodeSignature` `Valid`,
       thumbprint `F06C…8151`, timestamped by *Certum Timestamp 2026*, on both runs' setups.
 
+## BK. Close-out Phase 2b: the design-needed rows
+
+Plan: `docs/plans/2026-10-01-phase-2b-plan.md` (each step names its row). Walked over CDP on a local
+`tauri build --no-bundle` of `phase-2b` (`docs/smoke/smoke-cdp.md`), the store folder `%APPDATA%\dev.topher.t4gitui`
+backed up first and restored byte-exact after. `T` below is `${T4_ROOT:-/c/tmp/t4}`, the fixtures' default. Linux-only
+checks (the tool start's exit 126/127, non-UTF-8 names) are open-items §V, for the Linux track.
+
+_Walked 2026-10-01 over CDP on a local release build of `18d7a3b` (Windows 11, `smoke-launch.ps1`, `layout.json`
+seeded per row): all eight pass. BK 7's `main` run used a build of `b8f2e31` from a scratch worktree. BK 8's worktree
+sat in a scratch folder, not `$T/linked-wt/sub-wt` (a local hook refuses worktrees there). One finding on the way, not
+from this phase (it reproduces on `main`): the Stashes browser can preview the grid's selected commit instead of a
+stash. Fixed (plan row 16) and walked as BK 9 the same day on a release build of `95f5b9b`: passes. The record is
+`docs/archive/walks/2026-10-01-group-bk-walk.md`._
+
+- [x] 1. **Ctrl+Q on the start screen** (row 1): on the start screen, Ctrl+Q → the process exits. Two windows, the
+      main one's last tab closed (a secondary window closes itself with its last tab) → Ctrl+Q in it → both close,
+      and a relaunch opens one window, the main one, holding the other window's tabs. With Settings open, Ctrl+Q
+      does nothing. *(Walked 2026-10-01 over CDP on a local release build of `18d7a3b`: the process gone each time;
+      `layout.json` after the two-window quit held only `bk-hooks`, and the relaunch was window `main` with it.)*
+- [x] 2. **Hook failures** (row 2): a scratch repo with two diverged branches (each with its own commit, so a merge
+      can't fast-forward), hooks under `.git/hooks` (Git for Windows runs them without chmod).
+      - A pre-commit that prints two lines and exits 1 → commit in the app → the toast's detail is the **last**
+        line; the dock shows both.
+      - A pre-merge-commit that prints a line and exits 1 → merge the other branch → *Not committing merge; use 'git
+        commit' to complete the merge.*, and the merge banner shows.
+      - A post-checkout that prints a line and exits 1 → checkout another branch → *Operation failed* / *Checked
+        out, but the post-checkout hook failed: <its line>*, and the branch did change (status bar, sidebar).
+      - *(Walked 2026-10-01 over CDP on a local release build of `18d7a3b`, scratch repo `bk-hooks`: all three as
+        written; `MERGE_HEAD` present after the merge, HEAD on `side` after the checkout.)*
+- [x] 3. **Menus opened by the mouse** (row 4): AZ 6's fixture (a branch name over 280 px). Arrow keys in the grid,
+      then a right-click on a row → the first item isn't `[data-kbd]`, is one line tall, has no accent background
+      and a computed `box-shadow` of `none`. Shift+F10 instead → the first item is marked; arrowing onto the clipped
+      row wraps it (the accepted shift, open-items §Q). AZ 6's bottom-edge step still passes. *(Walked 2026-10-01 over
+      CDP on a local release build of `18d7a3b`: right-click → first item 26 px, transparent, `box-shadow: none`,
+      unmarked; Shift+F10 → marked, 57 px; the Merge row 76 px when arrowed onto; at 600 px tall the wrapped Delete
+      row ended at 592.)*
+- [x] 4. **Toolbar tier after a tab switch** (row 5): two repositories, one named `x`, one with a name of 30+
+      characters; `cdp.mjs --inner 1000`. The long-named tab → the `icons` tier; switch to `x` → `tight` (the
+      `.tight` class on `[role=toolbar]`, an inline Branch button); back → `icons`; resize 990 ↔ 1100 → no flapping.
+      *(Walked 2026-10-01 over CDP on a local release build of `18d7a3b`: 990 `icons`, 1100 `tight`, one class per
+      1.5 s rAF sample, five resizes.)*
+- [x] 5. **Stash leaves submodules out** (row 6): `bd2-fixture.sh` leaves both submodules of `$T/be` moved → Stash
+      changes… → *Nothing to stash*, the button disabled, and *Submodules and nested repositories aren't stashed*.
+      Edit `many.txt` → *Stash 1 file* lists only it; stash → the submodules are still in Changes. The Stashes
+      browser's Working tree row shows the same note. *(Walked 2026-10-01 over CDP on a local release build of
+      `18d7a3b`: `git stash show` = `many.txt` only, `subs/[ab]` and `subs/a` still modified; the browser's Stash
+      disabled, title *No changes*.)*
+- [x] 6. **Blame from Changes** (row 7): a text filter in History that hides HEAD, switch to Changes, Blame on a
+      modified file → the toast *Not in the current view…*, and the view, the details tab and blame are unchanged.
+      A stash preview's file row → Blame → the gutter is on, and no toast. *(Walked 2026-10-01 over CDP on a local
+      release build of `18d7a3b`, scratch repo `bk-az`, filter `commit 1`.)*
+- [x] 7. **Details pane never blank** (row 8): a `git/git` clone, with a background loop touching a file every
+      ~200 ms (so status scans keep taking the git2 lock). Grid focused, ArrowDown ×20 over CDP with a
+      `requestAnimationFrame` sampler → frames with the details summary missing: 0. The same run against a build of
+      `main` first, to show the difference. *(Walked 2026-10-01 over CDP: ×20 at 50 ms and at 400 ms, `main`
+      (`b8f2e31`) 40 and 65 blank frames, every step blank for 1–5 frames; `18d7a3b` 0 and 0.)*
+- [x] 8. **Main row for a submodule's worktree** (row 10): after `linked-fixture.sh`, `git -C "$T/linked/sub"
+      worktree add -q --detach "$T/linked-wt/sub-wt"`; open `sub-wt` → the Worktrees list has the submodule
+      checkout as its main row; right-click it → **Open** opens the submodule checkout. At the end, `git -C
+      "$T/linked/sub" worktree remove --force "$T/linked-wt/sub-wt"`. If a local hook refuses worktrees under
+      `$T/linked-wt`, put `sub-wt` in a scratch folder instead. *(Walked 2026-10-01 over CDP on a local release
+      build of `18d7a3b`, the worktree in a scratch folder: the main row was `sub` at `c:/tmp/t4/linked/sub`, and
+      Open added a `sub` tab on `c:\tmp\t4\linked\sub`.)*
+- [x] 9. **Stashes browser opened from Changes** (row 16, D18; found in this group's first walk): in `$T/be`, `git
+      stash clear`, edit `many.txt`, select a commit in History that changed other files (`side pages`), Stash
+      changes… → stash it, Alt+2, Ctrl+Shift+S → the preview of stash@{0} lists only `many.txt` (as `git stash show`
+      does), and its diff is `many.txt`'s. *(Walked 2026-10-01 over CDP on a local release build of `95f5b9b`: one
+      file, `many.txt`, `+ bk9 edit`, as `git stash show --name-only` gives; the same after Working tree and back,
+      and when opened from History.)*
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the

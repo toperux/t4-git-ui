@@ -32,10 +32,12 @@ the release notes say, fetched over HTTPS and opened files
 `edcc19c`): the Windows installer signed (Certum), the `signing` environment with approval, every action SHA-pinned
 (and required), the Tauri CLI from crates.io, a `verify` job for all three `.sig` with `version:`, dispatch dry runs
 that publish and delete a draft, and `requireSignedVersion` on; the first signed release is 2b's.
-**Next: Phase 2b**. Open decisions: the Phase 3 threshold, the Phase 4 reference canvas, and hardware (before Phase
-5).
+**Phase 2b executed 2026-10-01** (`docs/plans/2026-10-01-phase-2b-plan.md`, smoke group BK), not yet pushed or
+released. **Next:** the push and the release — the first signed one, and the first with `requireSignedVersion` on;
+its gate is in *Gate after every close-out release* below. Open decisions: the Phase 3 threshold, the Phase 4
+reference canvas, and hardware (before Phase 5).
 
-Row references are to `docs/plans/open-items.md` sections (§A–§S), and code and smoke-doc line numbers are as of
+Row references are to `docs/plans/open-items.md` sections (§A–§V), and code and smoke-doc line numbers are as of
 2026-09-28 (`main` after #18; `release.yml` cites after the CLI pin change). The Phase 1 section keeps its original
 numbers. `CF` = `docs/archive/plans/2026-09-12-consolidated-findings.md`.
 
@@ -187,33 +189,33 @@ Rows marked **design needed** have no agreed fix; the Phase 2 plan decides each 
 |---|---|---|
 | ~~§M default remote overwrites a quick pick~~ — done 2026-09-29 (`d116c2d`) | skip `setRemote` in `useDefaultRemote` once the field was touched | §M |
 | ~~§M toast detail cut mid-sentence / `warning:` taken~~ — done 2026-09-29 (`7c7294e`) | join lines up to a blank one, skip `warning:`; update `cli::ops::tests::rejected_and_other` | §M |
-| §M menus: row shift on a clipped name, wrapped first item | **design needed**. Since #18 the keyboard-style right-click (first item marked after grid arrows) is on Linux too, through the `data-kbd` mark (folded here, triage U3) | §M |
+| ~~§M menus: row shift on a clipped name, wrapped first item~~ — fixed 2026-10-01 (`b1241e4`); the row shift over a clipped name accepted 2026-10-01 → §Q | a pointer-opened `ContextMenu` no longer marks its first item | §M |
 | ~~§M Esc is dead in Settings after Check now (triage T2)~~ — done 2026-09-29 (`5ada2e9`) | at the root, in `Dialog`, not only Settings: while a dialog is open and the focus falls to `<body>`, put it back on the dialog's first body field (the rule `Dialog.tsx:88-95` applies when `busy` clears, generalised; the 2a plan picks the trigger, since whether Blink dispatches `focusout` for a disabled control is to be checked). Plus an audit of every dialog for a control that disables itself during its own action, and a test per case found. Constraints: stay quiet while the dialog unmounts, or it fights the cleanup's return of focus to the opener (`Dialog.tsx:77-85`); and when a dialog opens another in the same commit (Commit & Push), the new one's `autoFocus` must win | `Dialog.tsx:88-103`, `SettingsDialog.tsx:160,232` |
 | ~~§I detached-HEAD banner buttons not disabled while an op runs (found 2026-09-28)~~ — done 2026-09-29 (`d7cfc61`) | `disabled={running}` with the *Operation in progress* title on the banner buttons, like the grid and sidebar menus | §I, `RepoWindow.tsx:386` |
 | ~~§L `Ctrl+,` dead while the start screen opens a repo~~ — accepted 2026-09-28 (Q1) | **accepted, no code** (Q1) — moved to §Q | §L |
 | ~~§L Linux `Super+O/N/Q` reach the app~~ — done 2026-09-29 (`11b5b42`) | `ctrlOrCmd(e)` helper (`e.ctrlKey \|\| (e.metaKey && /Mac/.test(navigator.userAgent))`) at all four spots (P7) | §L |
 | ~~§I S1 blames never cancelled~~ — done 2026-09-29 (`f52c050`) | per-repo "latest blame" token cancelled by the next | CF:612 |
-| §I S2 non-UTF-8 paths dropped | **design needed** — the IPC type is `String`; CF says "log the skip at most" | CF:613 |
+| ~~§I S2 non-UTF-8 paths dropped~~ — fixed 2026-10-01 (`7d532a4`); Changes listing a non-UTF-8 path under a replaced name accepted 2026-10-01 → §Q | the Files tab skips them, with a count | CF:613 |
 | ~~§I S3 truncated flag fires on stderr~~ — done 2026-09-29 (`4eba53e`) | split the flag | CF:614 |
-| §I S4 `blameAt` ordering | **design needed** — reordering races the details-pane effect | CF:615 |
-| §I B3 interactive-rebase read pass `--autostash` | **design needed** — CF proposed dropping `--autostash` from `read_args`; open-items says git's clean-tree check needs it | CF:367, `cli/rebase.rs:274` |
-| §I C6 `close_repo` never cancels ops | **design needed** — unreachable today (`refusedWhileRunning()` blocks close / switch); a fix is defence in depth only | CF:60, CF:340 |
-| §Q Q23 details pane blank when another commit is selected | **design needed** — decided at P1-4 as blank; reconsider only if it flickers | §Q (since 2026-09-28), CF:520 |
+| ~~§I S4 `blameAt` ordering~~ — fixed 2026-10-01 (`870aff8`) | reveal first, act only on a hit | CF:615 |
+| ~~§I B3 interactive-rebase read pass `--autostash`~~ — accepted 2026-10-01 → §Q | a unix test proves the recovery (`8ad504e`) | CF:367, `cli/rebase.rs:274` |
+| ~~§I C6 `close_repo` never cancels ops~~ — accepted 2026-10-01 → §Q | comment corrected (`45414b1`) | CF:60, CF:340 |
+| ~~§Q Q23 details pane blank when another commit is selected~~ — fixed 2026-10-01 (`ce34b92`) | shows the grid row's fields at once | §Q (since 2026-09-28), CF:520 |
 | ~~§I F3 hunk buttons on a non-UTF-8 file~~ — done 2026-09-29 (`058b9a7`) | put `FileDiff::lossy` on the wire + `DisabledHint` | §I |
-| §I R10 selected-mode header after a partial stage | **design needed** — the inverse of X8 | CF:51 (P1-8), CF:274, `smoke-test-post-v1.md:783` |
-| §I R12 two stale status/refs pairings | **design needed** — guarding would flicker | CF:427, `MessageColumn.tsx:46,63`, `CommitPanel.tsx:67-82` |
+| ~~§I R10 selected-mode header after a partial stage~~ — accepted 2026-10-01 → §Q | the inverse of X8 | CF:51 (P1-8), CF:274, `smoke-test-post-v1.md:783` |
+| ~~§I R12 two stale status/refs pairings~~ — the `stranded` pairing fixed 2026-10-01 (`35b061b`); pairing 1 (`canCommit`) accepted 2026-10-01 → §Q | guarding both would flicker | CF:427, `MessageColumn.tsx:46,63`, `CommitPanel.tsx:67-82` |
 | ~~§I `App.tsx` update-answer race~~ — done 2026-09-29 (`072b1b8`) | re-query `lastUpdateCheck()` after the listener attaches | `src/App.tsx:175` |
 | ~~§P crash loop: a repository that crashes the app while loading crashes every later launch~~ — done 2026-09-29 (`a47763b`) | the loop breaker sketched in §P (mark the restore in progress; clear it on every window's report, a normal exit and before `update.install`). **Priority raised:** #18's seed widened the loop to crashes inside `open_repo` and to `main`'s tabs not yet reached (D-a). **2a** (triage U1) | §P, `src-tauri/src/commands/window.rs` |
-| §I `log/walker.rs` `Refs` spec never reaching HEAD | **design needed** | `crates/git-core/src/log/walker.rs:94` |
+| ~~§I `log/walker.rs` `Refs` spec never reaching HEAD~~ — fixed by deletion 2026-10-01 (`dd04cc7`) | the unused variant is deleted | `crates/git-core/src/log/walker.rs:94` |
 | ~~§I `Input.tsx` AltGr never reaches type-ahead~~ — done 2026-09-29 (`efe1896`) | let a Ctrl+Alt chord with `e.key.length === 1` past the Alt branch | `src/components/ui/Input/Input.tsx:221` |
 | ~~§I `watch.rs` `.gitmodules` rewritten by the app~~ — done 2026-09-29 (`4fe4034`) | ops touching `.gitmodules` report `Refs` (P4), no new kind | `crates/git-core/src/watch.rs:124` |
-| §I `linked.rs` no main row when its HEAD can't be read | **design needed** — `worktree list --porcelain` means a git ≥ 2.36 floor | `crates/git-core/src/linked.rs:134` |
-| §I `Toolbar.tsx` rename in the `icons` tier measures late | **design needed** — taking the 0 width flaps the tier | `src/screens/RepoWindow/Toolbar.tsx:100` |
-| §I `StashDialogs.tsx` dirty-only submodule listed | **design needed** — git stashes nothing of its tree | `src/screens/RepoWindow/dialogs/StashDialogs.tsx:39` |
+| ~~§I `linked.rs` no main row when its HEAD can't be read~~ — the submodule case fixed 2026-10-01 (`8292622`) | opens the common dir itself for its `workdir()` | `crates/git-core/src/linked.rs:134` |
+| ~~§I `Toolbar.tsx` rename in the `icons` tier measures late~~ — fixed 2026-10-01 (`e4ac54f`) | `visibility:hidden` keeps the span measurable | `src/screens/RepoWindow/Toolbar.tsx:100` |
+| ~~§I `StashDialogs.tsx` dirty-only submodule listed~~ — fixed 2026-10-01 (`45ab79d`) | left out of the stash list, with a note | `src/screens/RepoWindow/dialogs/StashDialogs.tsx:39` |
 | ~~§J per-view sidebar state~~ — done 2026-09-29 (`56bbea5`) | one `railOverride` per view, per window, in memory (P8); decided 2026-09-28 (prefixes moved to §C roadmap) | §J |
-| §R Ctrl+Q does nothing on the start screen (Phase 2a triage, 2026-09-29) | a Ctrl+Q arm in `StartScreen`'s key handler calling `quit`, plus a test — **2b** | §R |
-| §S a failed commit's toast shows a hook's first output line (0.10.14 hotfix triage T1) | in `commit`, when stderr has no `fatal:` / `error:` line, report the last non-empty one, plus a test; the same in merge / pull (`pre-merge-commit`) — **2b** | §S, `src/store/toastStore.ts:104-107` |
-| §S a custom tool that fails to start still says *Opened …* (0.10.14 hotfix triage T2) | watch the first ~300 ms for an early non-zero exit (a late one is normal for some tools, so it can't be reported; every open gets ~300 ms slower) — **2b** | §S, `crates/git-core/src/tools.rs:264-271` |
+| ~~§R Ctrl+Q does nothing on the start screen (Phase 2a triage, 2026-09-29)~~ — done 2026-10-01 (`25dfe4f`) | a Ctrl+Q arm in `StartScreen`'s key handler calling `quit`, plus a test | §R |
+| ~~§S a failed commit's toast shows a hook's first output line (0.10.14 hotfix triage T1)~~ — done 2026-10-01 (`acbfae0`) | `commit` reports the last non-empty stderr line; merge / pull show git's own *Not committing merge…*; a failing post-checkout says the checkout happened | §S, `src/store/toastStore.ts:104-107` |
+| ~~§S a custom tool that fails to start still says *Opened …* (0.10.14 hotfix triage T2)~~ — done 2026-10-01 (`237d6d7`) | watch the first ~300 ms for an early non-zero exit on unix (126/127); the ~300 ms lock and other early exits accepted → §Q | §S, `crates/git-core/src/tools.rs:264-271` |
 
 Split into **2a** (the rows with a fix given) and **2b** (the design-needed rows), each with its own release,
 so the known fixes do not wait on the design work. 2a's walk also runs triage T8's check: launch the build with
@@ -273,6 +275,8 @@ CLI pin change, `release.yml` and `checks.yml` only, ran from Windows):
     (`docs/archive/plans/2026-09-27-ssh-prompts-check-and-cli-pin-plan.md`, Part B). The first release after it
     unlocks `requireSignedVersion` (§Q; Phase 1b turns it on).
 - **The AppImage release walks:** in the gate above.
+- **Phase 2b's two Linux walks** (`open-items.md` §V, added 2026-10-01): row 3's unix tool-start walk, row 11's
+  non-UTF-8 walk.
 
 ## Phase 5 — other hardware (§B, whenever available)
 
