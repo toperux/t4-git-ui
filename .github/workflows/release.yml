@@ -132,7 +132,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file \
             libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev \
-            squashfs-tools python3-cryptography
+            squashfs-tools
+          # appimage-strip.sh needs squashfs-tools 4.5+. Debian versions carry
+          # epoch 1, so the floor is 1:4.5: a bare 4.5 would pass any version.
+          dpkg --compare-versions "$(dpkg-query -W -f='${Version}' squashfs-tools)" ge 1:4.5 \
+            || { echo "squashfs-tools $(dpkg-query -W -f='${Version}' squashfs-tools) is older than the 1:4.5 appimage-strip.sh needs" >&2; exit 1; }
 
       # Every action is pinned to a commit, not a tag, GitHub's own included:
       # this job ends up holding the signing key, and a tag or branch can be
@@ -363,8 +367,8 @@ jobs:
       # exclude a library, so the image is repacked without it; the script's
       # header has the detail. Drop this and the re-sign step once Tauri's
       # linuxdeploy picks up the upstream excludelist (pkg2appimage#559); keep
-      # the verify step, which costs nothing. Moving the runner would not do it:
-      # 24.04 still ships 1.22.
+      # the `verify` job's AppImage check, which costs nothing. Moving the
+      # runner would not do it: 24.04 still ships 1.22.
       #
       # `-maxdepth 1`: the bundler leaves `T4 Git UI.AppDir` beside the image.
       - name: Remove libwayland-client from the AppImage
@@ -395,17 +399,6 @@ jobs:
           FILE: ${{ steps.appimage.outputs.file }}
           VER: ${{ needs.version.outputs.version }}
         run: cargo tauri signer sign --app-version "$VER" "$FILE"
-
-      # A .sig left over from before the repack would fail every AppImage
-      # user's update, and nobody would hear of it until they tried. Checked
-      # against the pubkey the app ships with: the Linux counterpart of the
-      # macOS signature check below.
-      - name: Verify the AppImage's updater signature
-        if: runner.os == 'Linux'
-        shell: bash
-        env:
-          FILE: ${{ steps.appimage.outputs.file }}
-        run: python3 .github/scripts/verify-updater-sig.py "$FILE" "$FILE.sig" src-tauri/tauri.conf.json
 
       # A missing or rejected certificate has to redden the run rather than ship
       # an unsigned .app quietly: the whole point is a signature that stays the
@@ -535,8 +528,46 @@ jobs:
           name: packages-${{ runner.os }}
           path: packages/*
 
+  # Every updater .sig, checked against the file it signs, the pubkey the app
+  # ships with, and the version being released. A bad one would fail every
+  # installed copy's update, and nobody would hear of it until they tried: a
+  # .sig left over from before the AppImage repack, say, or one without the
+  # `version:` that requireSignedVersion makes the updater insist on. Its own
+  # job, after all three legs, so one Python setup covers them, it holds no
+  # secrets, and it checks the exact files `publish` ships.
+  verify:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: packages-*
+          path: dist
+          merge-multiple: true
+
+      - name: Install python3-cryptography
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-cryptography
+          python3 -c 'import cryptography'
+
+      - name: Check the updater signatures
+        shell: bash
+        env:
+          VER: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          for suffix in x64-setup.exe universal.app.tar.gz x86_64.AppImage; do
+            f="dist/T4-Git-UI_${VER}_${suffix}"
+            python3 .github/scripts/verify-updater-sig.py "$f" "$f.sig" src-tauri/tauri.conf.json "$VER"
+          done
+
   publish:
-    needs: [version, checks, build]
+    needs: [version, checks, build, verify]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     # The only job that writes anything: it creates the release.

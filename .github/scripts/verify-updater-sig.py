@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
 """Verify a Tauri updater signature against the pubkey in tauri.conf.json.
 
-Usage: verify-updater-sig.py <file> <file.sig> <tauri.conf.json>
+Usage: verify-updater-sig.py <file> <file.sig> <tauri.conf.json> <version>
 
 Both the pubkey and the .sig are base64 of a whole minisign file. Pubkey line 2
 is `Ed` + key id (8 bytes) + key (32). The .sig's line 2 is `ED` (prehashed) +
 key id + signature (64) over blake2b-512 of the file, line 3 the trusted
 comment, and line 4 the global signature over that signature plus the comment.
 
-minisign is not packaged for ubuntu-22.04, so this stands in for it with
-python3-cryptography. Python 3.10: no hashlib.file_digest.
+The trusted comment is tab-separated `key:value` fields, and from tauri-cli
+2.11.5 on it carries `version:<x.y.z>`. The updater, with
+`requireSignedVersion` on, refuses a signature without it or with a version
+other than latest.json's, so it must be the version being released.
+
+Runs in release.yml's `verify` job on ubuntu-latest, with python3-cryptography
+from apt standing in for minisign.
 """
 import base64
 import hashlib
@@ -19,7 +24,7 @@ import sys
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
-path, sig_path, conf_path = sys.argv[1:]
+path, sig_path, conf_path, version = sys.argv[1:]
 
 
 def fail(msg):
@@ -64,5 +69,13 @@ try:
     key.verify(global_sig, sig[10:74] + comment.encode())
 except InvalidSignature:
     fail(f"{sig_path}: the trusted comment's signature is invalid")
+
+# The same parse as the updater plugin's `signed_version`.
+fields = comment.split("\t")
+signed = next((f.removeprefix("version:") for f in fields if f.startswith("version:")), None)
+if signed is None:
+    fail(f"{sig_path}: the trusted comment has no version: field ({comment})")
+if signed != version:
+    fail(f"{sig_path}: signed for version {signed}, expected {version}")
 
 print(f"OK: {path} is signed by key {key_id(pub[2:10])} ({comment})")
