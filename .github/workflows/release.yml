@@ -2,8 +2,8 @@ name: Release
 
 # Tag a commit `v<version>` and push the tag; this builds the packages for all
 # three platforms and publishes them. `workflow_dispatch` builds the same
-# artifacts without releasing, for when you want to check the packaging without
-# burning a version number.
+# artifacts and rehearses the publish with a draft release it then deletes,
+# for when you want to check the packaging without burning a version number.
 on:
   push:
     tags: ['v*']
@@ -79,10 +79,9 @@ jobs:
   # run side by side, and a failure means the artifacts exist but nothing is
   # published.
   #
-  # Tags only. All this job protects is `publish`, and `publish` is itself
-  # tag-only, so on a workflow_dispatch packaging run the matrix would be
-  # three legs guarding nothing. Skipping it here also skips `publish`, which
-  # is what the dispatch wanted anyway.
+  # Tags only. All this job protects is a real release, and a workflow_dispatch
+  # run only ever makes a draft it deletes again, so there the matrix would be
+  # three legs guarding nothing. `publish` expects it skipped on a dispatch.
   checks:
     needs: version
     if: startsWith(github.ref, 'refs/tags/')
@@ -566,9 +565,27 @@ jobs:
             python3 .github/scripts/verify-updater-sig.py "$f" "$f.sig" src-tauri/tauri.conf.json "$VER"
           done
 
+  # On a tag this is the release. On a workflow_dispatch it is a rehearsal:
+  # Dependabot's pull requests run only checks.yml, so a bumped
+  # download-artifact or action-gh-release would otherwise first run on a real
+  # tag, with nothing left to do but re-run it. The rehearsal makes the same
+  # write against a draft and deletes it again.
+  #
+  # `checks` runs on tags only, and a skipped need skips this job too unless
+  # the `if` says otherwise. `!cancelled()` lifts that default, so every need
+  # is checked by hand: a tag needs `checks` passed; a dispatch needs it
+  # skipped, which is what it always is on a branch. A dispatch on a tag ref
+  # runs `checks` and takes the first branch, and is still only a draft: the
+  # release step keys the draft on the event, not the ref.
   publish:
     needs: [version, checks, build, verify]
-    if: startsWith(github.ref, 'refs/tags/')
+    if: >-
+      ${{ !cancelled()
+      && needs.version.result == 'success'
+      && needs.build.result == 'success'
+      && needs.verify.result == 'success'
+      && ((startsWith(github.ref, 'refs/tags/') && needs.checks.result == 'success')
+      || (github.event_name == 'workflow_dispatch' && needs.checks.result == 'skipped')) }}
     runs-on: ubuntu-latest
     # The only job that writes anything: it creates the release.
     permissions:
@@ -627,11 +644,18 @@ jobs:
       # `name` is set here because the default is the bare tag, and every
       # release before this one is titled `T4 Git UI v<x.y.z>` — one unnamed
       # release and the list stops reading as one product.
+      #
+      # On a tag the action names the release after it and publishes. On a
+      # dispatch it makes a draft under a throwaway tag name; a draft only
+      # records the tag as pending, and GitHub creates it on publishing, which
+      # the action skips when `draft` is true.
       - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           files: dist/*
-          draft: false
-          name: T4 Git UI v${{ needs.version.outputs.version }}
+          draft: ${{ github.event_name == 'workflow_dispatch' }}
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && format('dry-run-{0}', github.run_id) || '' }}
+          target_commitish: ${{ github.event_name == 'workflow_dispatch' && github.sha || '' }}
+          name: ${{ github.event_name == 'workflow_dispatch' && format('Dry run — T4 Git UI v{0}', needs.version.outputs.version) || format('T4 Git UI v{0}', needs.version.outputs.version) }}
           generate_release_notes: true
           body: |
             ### Windows
@@ -690,3 +714,40 @@ jobs:
             ```powershell
             Get-FileHash '.\<file>' -Algorithm SHA256
             ```
+
+      # The rehearsal's own check, then its cleanup. It runs whatever failed
+      # above, so a draft left half-uploaded is still removed; if the draft was
+      # never made there is nothing to do, and the step that failed is the
+      # failure the run reports. Not `--cleanup-tag`: the draft never created
+      # its tag, and gh fails deleting a ref that does not exist. A tag found
+      # anyway is removed and fails the run, since a dispatch promised none.
+      - name: Check and delete the dry-run draft
+        if: ${{ always() && github.event_name == 'workflow_dispatch' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: dry-run-${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if ! names=$(gh release view "$TAG" --json assets --jq '.assets[].name' 2>"$RUNNER_TEMP/view.err"); then
+            if grep -q 'release not found' "$RUNNER_TEMP/view.err"; then
+              echo "no $TAG draft to check or delete"
+              exit 0
+            fi
+            cat "$RUNNER_TEMP/view.err" >&2
+            exit 1
+          fi
+          ok=true
+          # Sorted name lists, so a missing, extra or renamed asset all show.
+          if ! diff <(ls dist | sort) <(sort <<<"$names"); then
+            echo "the draft's assets do not match dist/ (< dist, > draft)" >&2
+            ok=false
+          fi
+          gh release delete "$TAG" --yes
+          if gh api "repos/$GH_REPO/git/ref/tags/$TAG" --silent 2>/dev/null; then
+            gh api -X DELETE "repos/$GH_REPO/git/refs/tags/$TAG" --silent
+            echo "the draft created tag $TAG; deleted it" >&2
+            ok=false
+          fi
+          $ok
