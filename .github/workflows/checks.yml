@@ -44,8 +44,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          pin=$(grep -oP "binstall .*'tauri-cli@\K[^']+" .github/workflows/release.yml) \
-            || { echo "no binstall 'tauri-cli@<version>' line in release.yml" >&2; exit 1; }
+          pin=$(grep -oP 'cargo install tauri-cli --version \K\S+' .github/workflows/release.yml) \
+            || { echo "no 'cargo install tauri-cli --version <version>' line in release.yml" >&2; exit 1; }
           lock=$(node -p "require('./package-lock.json').packages['node_modules/@tauri-apps/cli'].version")
           [ "$pin" = "$lock" ] || { echo "release.yml pins tauri-cli@$pin, package-lock.json has @tauri-apps/cli $lock: bump both together" >&2; exit 1; }
 

@@ -146,18 +146,17 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
-      - uses: cargo-bins/cargo-binstall@b874e25ea559687bec77e281e9b271aa1367b624 # v1.23.0
-
       - name: Install the Tauri CLI
-        # `--no-confirm` only. `-y` is its short form, and binstall rejects
-        # being given the same argument twice. Pinned to match @tauri-apps/cli
-        # in package-lock.json (they share versions); bump both together.
-        # `--locked` is passed to `cargo install` when no prebuilt binary is
-        # found (the macOS leg): without it the source build takes the newest
-        # tauri-bundler, which the pinned CLI may not compile against (bundler
-        # 2.10.0 broke 2.11.4). checks.yml fails a PR whose package-lock.json
-        # and this pin differ; it reads the version from the line below.
-        run: cargo binstall --no-confirm --locked 'tauri-cli@2.11.5'
+        # Built from crates.io with the CLI's own lockfile, so every crate is
+        # checksum-verified. rust-cache keeps ~/.cargo/bin, so this is a no-op
+        # only on a warm cache, which a tag run rarely has; ~10 min on a cold one.
+        # Pinned exactly: this job holds the signing key. Pinned to match
+        # @tauri-apps/cli in package-lock.json (they share versions); bump both
+        # together. Without `--locked` the build takes the newest tauri-bundler,
+        # which the pinned CLI may not compile against (bundler 2.10.0 broke
+        # 2.11.4). checks.yml fails a PR whose package-lock.json and this pin
+        # differ; it reads the version from the line below.
+        run: cargo install tauri-cli --version 2.11.5 --locked
 
       # Staging picks the first file matching each glob, and the cache restores
       # target/ from an earlier run. A leftover installer from a previous
