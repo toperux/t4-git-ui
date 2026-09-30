@@ -27,7 +27,7 @@ jobs:
     outputs:
       version: ${{ steps.read.outputs.version }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - id: read
         shell: bash
         run: |
@@ -113,9 +113,9 @@ jobs:
             bundle_dir: target/release/bundle
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
           cache: npm
@@ -128,9 +128,9 @@ jobs:
             libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev \
             squashfs-tools python3-cryptography
 
-      # Third-party actions are pinned to a commit, not a tag: this job ends up
-      # holding the signing key, and a tag or branch can be moved to code
-      # nobody reviewed. Dependabot bumps the pins.
+      # Every action is pinned to a commit, not a tag, GitHub's own included:
+      # this job ends up holding the signing key, and a tag or branch can be
+      # moved to code nobody reviewed. Dependabot bumps the pins.
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
         with:
           toolchain: stable
@@ -394,7 +394,7 @@ jobs:
             echo "$f  $hash"
           done
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: packages-${{ runner.os }}
           path: packages/*
@@ -407,7 +407,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: dist
           merge-multiple: true
