@@ -175,9 +175,13 @@ pub async fn close_repo(
 }
 
 /// Drops the repository, its watcher and its log walk. In-flight operations
-/// are deliberately not cancelled here: the UI refuses close and switch while
-/// one runs (`refusedWhileRunning` in `src/screens/RepoWindow/actions.ts`), so
-/// there is nothing to cancel by the time this command is reachable.
+/// are deliberately not cancelled here. The UI refuses a switch, a tab close
+/// and a detach while one runs (`refusedWhileRunning` in
+/// `src/screens/RepoWindow/actions.ts`), but closing the window (× / Alt+F4)
+/// is not refused and lands here through `on_window_destroyed`: the op, which
+/// holds its own `Arc<RepoHandle>`, then runs to its end unseen. That is the
+/// safer failure — killing a rebase, merge or commit halfway would strand it
+/// (accepted in open-items §Q).
 pub(crate) fn drop_repo(state: &AppState, id: &RepoId) {
     let removed = state
         .repos
