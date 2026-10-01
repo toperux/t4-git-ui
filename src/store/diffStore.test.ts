@@ -305,6 +305,20 @@ describe("diffStore — Files tab", () => {
     expect(useDiffStore.getState().blame).toBeNull();
   });
 
+  it("a seed on the current commit survives a reload the caller says is coming", async () => {
+    mocked.listTree.mockImplementation((_id: string, t: { oid: string }) => Promise.resolve(listing(`tree-${t.oid}`, "a.ts", "b.ts")));
+    useDiffStore.setState({ tab: "files" });
+    await useDiffStore.getState().load("r", commit("X"));
+    await flush();
+
+    // Blame from Changes: X is the store's target, but History's pane mounts and reloads X with the
+    // path filter's file.
+    useDiffStore.getState().selectTreePathAt("X", "b.ts", true);
+    await useDiffStore.getState().load("r", commit("X"), "a.ts");
+    await flush();
+    expect(useDiffStore.getState().treeSelectedPath).toBe("b.ts");
+  });
+
   it("a file seeded by selectTreePathAt survives the reload's own preselect", async () => {
     mocked.listTree.mockImplementation((_id: string, t: { oid: string }) => Promise.resolve(listing(`tree-${t.oid}`, "a.ts", "b.ts")));
     useDiffStore.setState({ tab: "files" });

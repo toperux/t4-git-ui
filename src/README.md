@@ -94,7 +94,9 @@ src/
                            alongside the text whenever it is on, so another file or another commit re-blames, and
                            `toggleWhitespace` does the same (the option *is* blame's `-w`). `selectTreePathAt(oid, path)` writes
                            `treeSelection` for a commit that is not the target yet — what makes the drill-down land on the same
-                           file, since revealing a commit reloads this store from the grid selection
+                           file, since revealing a commit reloads this store from the grid selection; on the current
+                           target it applies at once, and pins through the next load only when the caller passes
+                           `reloads` (blameAt from Changes, another repo's store, or a compare still held after the reveal hits)
     statusStore.ts         zustand: WorkdirStatus; refresh (seq-guarded) / scheduleRefresh (100 ms debounce); onChanged(`repo://changed`):
                            any kind → status; refs|rescan → syncRefs (refreshRefs → walkSeeds moved ? startLog : refs changed ?
                            refreshLabels : nothing) — coalesced into one in-flight run, never rejects;
@@ -323,8 +325,10 @@ src/
                            through runOp; runGit with `quietFailure`: no toast on a
                            non-zero exit unless conflicts / auth / non-fast-forward / diverged, the dock's exit line says it;
                            busyLabel cuts the label by code point with a marker runOp keeps;
-                           blameAt(oid, path) is every way into blame — Files tab + `selectTreePathAt` + the gutter on, then
-                           `revealOid`, which misses under a filter or a `Head`-only spec and toasts "Not in the current view";
+                           blameAt(oid, path) is every way into blame — `revealOid` first, which misses under a filter or a
+                           `Head`-only spec and then only toasts "Not in the current view" (a commit the pane already shows,
+                           a stash preview's or a compare's *to*, counts as a hit); then Files tab + `selectTreePathAt` + the
+                           gutter on;
                            showHistory(path) is every way into file history (§3) — `startLog` with `filter.path`, the caller
                            having resolved the file to its tracked name; openCommitPanel clears both filters, since either flattens
                            the walk and hides the pseudo-row that mounts the panel),

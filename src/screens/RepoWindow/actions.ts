@@ -8,7 +8,7 @@ import { splitArgs } from "../../lib/argv";
 import { useCmdHistoryStore } from "../../store/cmdHistoryStore";
 import { useCommitStore } from "../../store/commitStore";
 import { useDialogStore } from "../../store/dialogStore";
-import { useDiffStore } from "../../store/diffStore";
+import { treeTargetOf, useDiffStore } from "../../store/diffStore";
 import { runOp, selectRunning, useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
 import { useStatusStore } from "../../store/statusStore";
@@ -169,12 +169,35 @@ export async function openInDiffTool(target: DiffTarget, path: string, oldPath: 
  * Every way into blame goes through this: the row menus, and a hunk's own "Select in graph" / "Blame
  * parent" — which is the drill-down, since the Files tab follows the grid selection.
  *
- * The tree selection is seeded *before* the reveal: the details pane reloads `diffStore` from the
- * grid selection in an effect, and `load` would otherwise reset the file to whatever that commit was
- * last left on. `revealOid` misses when the grid is under a text filter or a `Head`-only spec;
- * nothing but the toast happens then.
+ * The reveal comes first, and nothing else happens unless it hits: `revealOid` misses when the grid
+ * is under a text filter or a `Head`-only spec, and then the toast is all — the view, the dialog and
+ * the tab stay as they were. A commit the details pane already shows counts as a hit: a stash
+ * preview's (the walk never holds `refs/stash`) or a compare's *to*. The tree selection is seeded
+ * after the reveal either way: `selectTreePathAt` applies it at once when the pane has already
+ * loaded that commit, and pins it through the pane's `load` when that is still to come.
  */
 export async function blameAt(oid: string, path: string) {
+  const held = useDiffStore.getState();
+  const t = treeTargetOf(held.target);
+  const repoId = useRepoStore.getState().repo?.id;
+  // The repo too: in Changes the store can still hold another tab's commit, and worktrees share oids.
+  const sameRepo = held.repoId === repoId;
+  const onScreen = sameRepo && t?.kind === "commit" && t.oid === oid;
+  const fromHistory = useViewStore.getState().view === "history";
+  const hit = await useRepoStore.getState().revealOid(oid);
+  // Another tab came forward during the reveal: this blame belonged to the one that left.
+  if (useRepoStore.getState().repo?.id !== repoId) return;
+  if (!hit && !onScreen) {
+    useToastStore.getState().push({ kind: "info", title: "Not in the current view — clear the filter" });
+    return;
+  }
+  // Whether the pane reloads after the seed: its reload carries the path filter's file, which would
+  // overwrite it. It does when it mounts (from Changes) or its repo changes; a hit that ends a compare
+  // reloads it too, but the reveal's own state change may have re-rendered it already — only a range
+  // the store still holds means that load is still to come. History before *and* after the reveal: a
+  // view switch during it unmounts the pane, and a remount reloads (a stale pin is the safe side).
+  const inHistory = fromHistory && useViewStore.getState().view === "history";
+  const reloads = !inHistory || !sameRepo || (hit && useDiffStore.getState().target?.kind === "commitRange");
   // The blame shows in the History layout. From the Changes view the click changed nothing on screen;
   // from the commit dialog it changed the view *behind* the dialog. A diff window stays: it is bound to
   // the same store, so it shows the blame itself and a hunk click drills down inside it.
@@ -182,9 +205,8 @@ export async function blameAt(oid: string, path: string) {
   useViewStore.getState().setView("history");
   const diff = useDiffStore.getState();
   diff.setTab("files");
-  diff.selectTreePathAt(oid, path);
+  diff.selectTreePathAt(oid, path, reloads);
   diff.setBlameOn(true);
-  if (!(await useRepoStore.getState().revealOid(oid))) useToastStore.getState().push({ kind: "info", title: "Not in the current view — clear the filter" });
 }
 
 /**

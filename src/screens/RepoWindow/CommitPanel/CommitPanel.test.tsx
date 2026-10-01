@@ -815,7 +815,7 @@ describe("CommitPanel file context menu", () => {
     // The working-tree row renders this panel, not `ChangedFileList`, so it has no Files tab of its
     // own: blame goes to HEAD's version of the file.
     await waitFor(() => expect(revealOid).toHaveBeenCalledWith("h"));
-    expect(useDiffStore.getState()).toMatchObject({ tab: "files", blameOn: true });
+    await waitFor(() => expect(useDiffStore.getState()).toMatchObject({ tab: "files", blameOn: true }));
 
     // A file HEAD has never seen has nothing to blame against.
     fireEvent.contextMenu(rows(container, "Unstaged")[3]); // untracked.txt

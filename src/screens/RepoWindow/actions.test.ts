@@ -164,7 +164,7 @@ describe("History and Blame from a file row", () => {
   const startLog = vi.fn();
   beforeEach(() => {
     useRepoStore.setState({ startLog: startLog as never, revealOid: vi.fn(() => Promise.resolve(true)) as never });
-    useDiffStore.setState({ setTab: vi.fn(), selectTreePathAt: vi.fn(), setBlameOn: vi.fn() } as never);
+    useDiffStore.setState({ target: null, setTab: vi.fn(), selectTreePathAt: vi.fn(), setBlameOn: vi.fn() } as never);
     useViewStore.setState({ view: "changes" });
     useDialogStore.setState({ dialog: { kind: "commit" }, returnFocus: null });
   });
@@ -178,7 +178,7 @@ describe("History and Blame from a file row", () => {
 
   it("Blame does the same from the commit dialog", async () => {
     await blameAt("abc", "a.txt");
-    expect(useDiffStore.getState().selectTreePathAt).toHaveBeenCalledWith("abc", "a.txt");
+    expect(useDiffStore.getState().selectTreePathAt).toHaveBeenCalledWith("abc", "a.txt", true);
     expect(useViewStore.getState().view).toBe("history");
     expect(useDialogStore.getState().dialog).toBeNull();
   });
@@ -187,5 +187,93 @@ describe("History and Blame from a file row", () => {
     useDialogStore.setState({ dialog: { kind: "diff" } });
     await blameAt("abc", "a.txt");
     expect(useDialogStore.getState().dialog).toEqual({ kind: "diff" });
+  });
+
+  it("Blame that can't reveal its commit only says so: the view, the tab and the dialog stay", async () => {
+    useRepoStore.setState({ revealOid: vi.fn(() => Promise.resolve(false)) as never });
+    await blameAt("abc", "a.txt");
+    const diff = useDiffStore.getState();
+    expect(diff.setTab).not.toHaveBeenCalled();
+    expect(diff.setBlameOn).not.toHaveBeenCalled();
+    expect(diff.selectTreePathAt).not.toHaveBeenCalled();
+    expect(useViewStore.getState().view).toBe("changes");
+    expect(useDialogStore.getState().dialog).toEqual({ kind: "commit" });
+    expect(toasts().map((t) => t.title)).toEqual(["Not in the current view — clear the filter"]);
+  });
+
+  // The walk never holds `refs/stash`: a stash preview's Blame misses the reveal, yet its commit is on screen.
+  it("Blame on the stash the pane shows needs no reveal, and toasts nothing", async () => {
+    useRepoStore.setState({ revealOid: vi.fn(() => Promise.resolve(false)) as never });
+    useDiffStore.setState({ repoId: "r", target: { kind: "stash", oid: "abc" } } as never);
+    await blameAt("abc", "a.txt");
+    expect(useDiffStore.getState().setBlameOn).toHaveBeenCalledWith(true);
+    expect(useDiffStore.getState().selectTreePathAt).toHaveBeenCalledWith("abc", "a.txt", true);
+    expect(toasts()).toEqual([]);
+  });
+
+  // The seed outlives the pane's reload only when one is coming: in History, on the commit it already shows,
+  // none is (a pin would void the next row click's own file); from Changes the pane mounts and reloads.
+  it("Blame tells the store whether the pane will reload after the switch", async () => {
+    useViewStore.setState({ view: "history" });
+    useDiffStore.setState({ repoId: "r", target: { kind: "commit", oid: "abc" } } as never);
+    await blameAt("abc", "a.txt");
+    expect(useDiffStore.getState().selectTreePathAt).toHaveBeenLastCalledWith("abc", "a.txt", false);
+
+    // A hit ends the compare: its reload is still to come while the store holds the range...
+    useDiffStore.setState({ target: { kind: "commitRange", from: "x", to: "abc" } } as never);
+    await blameAt("abc", "a.txt");
+    expect(useDiffStore.getState().selectTreePathAt).toHaveBeenLastCalledWith("abc", "a.txt", true);
+
+    // ...but not once the reveal's own re-render has reloaded the pane on the commit.
+    useRepoStore.setState({
+      revealOid: vi.fn(() => {
+        useDiffStore.setState({ target: { kind: "commit", oid: "abc" } } as never);
+        return Promise.resolve(true);
+      }) as never,
+    });
+    useDiffStore.setState({ target: { kind: "commitRange", from: "x", to: "abc" } } as never);
+    await blameAt("abc", "a.txt");
+    expect(useDiffStore.getState().selectTreePathAt).toHaveBeenLastCalledWith("abc", "a.txt", false);
+
+    // A miss keeps the compare (its `to` is on screen): nothing reloads.
+    useRepoStore.setState({ revealOid: vi.fn(() => Promise.resolve(false)) as never });
+    useDiffStore.setState({ target: { kind: "commitRange", from: "x", to: "abc" } } as never);
+    await blameAt("abc", "a.txt");
+    expect(useDiffStore.getState().selectTreePathAt).toHaveBeenLastCalledWith("abc", "a.txt", false);
+  });
+
+  it("a view switch during the reveal still counts as a reload: the pane remounts", async () => {
+    useViewStore.setState({ view: "history" });
+    useDiffStore.setState({ repoId: "r", target: { kind: "commit", oid: "abc" } } as never);
+    useRepoStore.setState({
+      revealOid: vi.fn(() => {
+        useViewStore.setState({ view: "changes" });
+        return Promise.resolve(true);
+      }) as never,
+    });
+    await blameAt("abc", "a.txt");
+    expect(useDiffStore.getState().selectTreePathAt).toHaveBeenLastCalledWith("abc", "a.txt", true);
+  });
+
+  it("a tab switch during the reveal drops the blame: it belonged to the tab that left", async () => {
+    useRepoStore.setState({
+      revealOid: vi.fn(() => {
+        useRepoStore.setState({ repo: { id: "other", name: "o", path: "/o", head: { oid: "b", branch: "main", detached: false } } });
+        return Promise.resolve(false);
+      }) as never,
+    });
+    await blameAt("abc", "a.txt");
+    expect(useDiffStore.getState().setBlameOn).not.toHaveBeenCalled();
+    expect(useViewStore.getState().view).toBe("changes");
+    expect(toasts()).toEqual([]);
+  });
+
+  // In Changes the store can still hold another tab's commit; a worktree of the same repo shares its oids.
+  it("a commit another repository's pane last held is not on screen", async () => {
+    useRepoStore.setState({ revealOid: vi.fn(() => Promise.resolve(false)) as never });
+    useDiffStore.setState({ repoId: "other", target: { kind: "stash", oid: "abc" } } as never);
+    await blameAt("abc", "a.txt");
+    expect(useDiffStore.getState().setBlameOn).not.toHaveBeenCalled();
+    expect(toasts().map((t) => t.title)).toEqual(["Not in the current view — clear the filter"]);
   });
 });

@@ -69,9 +69,10 @@ export interface DiffStore {
    * Remembers `path` as commit `oid`'s file on the Files tab, and selects it right away when that
    * commit is already the target. Blame's drill-down needs the seed: revealing a commit reloads this
    * store from the grid selection in an effect, and `load` would reset the file to whatever the new
-   * target was last left on.
+   * target was last left on. `reloads`: the caller knows the pane reloads `oid` next (it mounts, or
+   * its target changes), so a seed on the current target is pinned through that load too.
    */
-  selectTreePathAt(oid: string, path: string): void;
+  selectTreePathAt(oid: string, path: string, reloads?: boolean): void;
   setBlameOn(on: boolean): void;
   /** Blame of the selected file at the current target (the diff's `ignoreWhitespace` is `-w`). */
   loadBlame(): Promise<void>;
@@ -368,12 +369,12 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
       set({ treeFilter });
     },
 
-    selectTreePathAt(oid, path) {
+    selectTreePathAt(oid, path, reloads = false) {
       treeSelection.set(oid, path);
       const current = targetKey(treeTargetOf(get().target)) === oid;
-      // No reload follows a seed that applies at once, so a pin would outlive it and void the
-      // next row click's own file on this commit.
-      pinned = current ? null : oid;
+      // A seed that applies at once needs no pin — one would outlive it and void the next row click's
+      // own file on this commit — unless the caller knows a reload of it follows anyway.
+      pinned = current && !reloads ? null : oid;
       if (current) get().selectTreePath(path);
     },
 

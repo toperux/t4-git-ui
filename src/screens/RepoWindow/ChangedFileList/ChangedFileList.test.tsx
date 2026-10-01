@@ -245,9 +245,11 @@ describe("ChangedFileList", () => {
 
     fireEvent.contextMenu(getByRole("option", { name: /graph\.rs/ }), { clientX: 1, clientY: 1 });
     fireEvent.click(getByRole("menuitem", { name: "Blame" }));
-    // The Changes tab hands over to the Files tab: that is where the gutter lives.
-    expect(useDiffStore.getState()).toMatchObject({ tab: "files", blameOn: true, treeSelectedPath: "crates/git-core/src/log/graph.rs" });
     await waitFor(() => expect(revealOid).toHaveBeenCalledWith("c"));
+    // The Changes tab hands over to the Files tab, once the reveal hit: that is where the gutter lives.
+    await waitFor(() =>
+      expect(useDiffStore.getState()).toMatchObject({ tab: "files", blameOn: true, treeSelectedPath: "crates/git-core/src/log/graph.rs" }),
+    );
   });
 
   it("History puts the row's path on the walk's filter", () => {

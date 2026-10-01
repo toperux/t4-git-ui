@@ -6,7 +6,8 @@ import { useRepoStore } from "../../../store/repoStore";
 import { useToastStore } from "../../../store/toastStore";
 import { FileContent } from "./FileContent";
 
-// The gutter's entry points reload the store through `blameAt`; nothing here waits for them.
+// The gutter's entry points reload the store through `blameAt`, whose reads never answer here: the
+// tests wait for the state it sets once the reveal hits, not for the reads.
 vi.mock("../../../api/ipc", () => ({
   getChangedFiles: vi.fn(() => new Promise(() => {})),
   listTree: vi.fn(() => new Promise(() => {})),
@@ -134,13 +135,16 @@ describe("FileContent blame gutter", () => {
     // The second row of the first hunk: a continuation row acts on the same commit.
     fireEvent.click(cells(container)[1]);
     await waitFor(() => expect(revealOid).toHaveBeenCalledWith("a".repeat(40)));
-    expect(useDiffStore.getState()).toMatchObject({ tab: "files", blameOn: true });
-    // The reveal moves the grid, and the details pane reloads the store from it: the file was
-    // seeded against that commit, so the drill-down lands on it rather than starting over.
-    void useDiffStore.getState().load("r", { kind: "commit", oid: "a".repeat(40) });
-    expect(useDiffStore.getState().treeSelectedPath).toBe("src/a.rs");
+    // The reveal moves the grid, and the details pane reloads the store from it: the file is seeded
+    // against that commit once the reveal hits, so the drill-down lands on it rather than starting over.
+    // `waitFor` reloads until the seed has landed; the seed-after-load order is diffStore.test's.
+    await waitFor(() => {
+      void useDiffStore.getState().load("r", { kind: "commit", oid: "a".repeat(40) });
+      expect(useDiffStore.getState()).toMatchObject({ tab: "files", blameOn: true, treeSelectedPath: "src/a.rs" });
+    });
 
     // A commit the current walk does not hold (a filter, or a `Head`-only spec): a toast, nothing else.
+    act(() => blamed()); // the reload dropped the hunks
     revealOid.mockResolvedValue(false);
     fireEvent.click(cells(container)[2]);
     await waitFor(() => expect(useToastStore.getState().toasts[0]?.title).toBe("Not in the current view — clear the filter"));
@@ -172,8 +176,10 @@ describe("FileContent blame gutter", () => {
     fireEvent.click(live);
     // Porcelain's `previous`: the commit *and* the name the file had there.
     await waitFor(() => expect(revealOid).toHaveBeenCalledWith("c".repeat(40)));
-    void useDiffStore.getState().load("r", { kind: "commit", oid: "c".repeat(40) });
-    expect(useDiffStore.getState().treeSelectedPath).toBe("old.rs");
+    await waitFor(() => {
+      void useDiffStore.getState().load("r", { kind: "commit", oid: "c".repeat(40) });
+      expect(useDiffStore.getState().treeSelectedPath).toBe("old.rs");
+    });
   });
 
   it("History of this file filters the walk to the name the hunk's commit knew it by", () => {
