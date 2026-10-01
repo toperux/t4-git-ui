@@ -1,7 +1,8 @@
 //! External diff / merge tools: the git-config round trip, the executable
-//! search, and the two sides `open_diff_tool` hands its program. Nothing here
-//! spawns a real tool — the command always names a program that does not exist,
-//! which is what proves the NotFound → `Config` mapping.
+//! search, and the two sides `open_diff_tool` hands its program. No real tool
+//! is spawned: the sides' commands name a program that does not exist, which
+//! is what proves the NotFound → `Config` mapping, and the unix start checks
+//! spawn `sh`.
 
 use std::path::PathBuf;
 
@@ -274,4 +275,42 @@ fn a_file_deleted_in_the_working_tree_gets_an_empty_remote_side() {
         std::fs::read_to_string(dir.join("gone.REMOTE.txt")).expect("REMOTE"),
         ""
     );
+}
+
+/// sh resolves a `~` program itself, so the pre-check skips it and sh's own
+/// exit 127 is what reports it.
+#[cfg(unix)]
+#[test]
+fn a_tool_sh_cannot_find_reports_exit_127() {
+    let err = tools::spawn_tool("~/t4-no-such-tool", &[]).unwrap_err();
+    assert!(
+        matches!(&err, GitError::Config(m) if m.contains("could not start (exit 127)")),
+        "{err:?}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_tool_that_cannot_execute_reports_exit_126() {
+    let err = tools::spawn_tool(r#"sh -c "exit 126""#, &[]).unwrap_err();
+    assert!(
+        matches!(&err, GitError::Config(m) if m.contains("could not start (exit 126)")),
+        "{err:?}"
+    );
+}
+
+/// kdiff3 unsaved, Beyond Compare "files differ": an early exit that isn't a
+/// failed start stays a start.
+#[cfg(unix)]
+#[test]
+fn any_other_early_exit_is_a_start() {
+    assert_eq!(tools::spawn_tool(r#"sh -c "exit 1""#, &[]).unwrap(), "sh");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_tool_still_running_is_left_running_after_the_watch() {
+    let started = std::time::Instant::now();
+    assert_eq!(tools::spawn_tool(r#"sh -c "sleep 2""#, &[]).unwrap(), "sh");
+    assert!(started.elapsed() < std::time::Duration::from_secs(1));
 }

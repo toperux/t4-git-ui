@@ -281,9 +281,11 @@ pub fn detach(mut child: std::process::Child) {
     });
 }
 
-/// Spawns `cmd` with `vars` filled in, without waiting for it — the tool
-/// outlives this call, as the merge editor always has. Returns the program's
-/// file stem, for the toast.
+/// Spawns `cmd` with `vars` filled in; the tool outlives this call, as the
+/// merge editor always has. On unix it watches the first ~300 ms for the
+/// shell's or loader's "could not start" exit (126 / 127) and reports it; any
+/// other exit, or none yet, is a start. Returns the program's file stem, for
+/// the toast.
 pub fn spawn_tool(cmd: &str, vars: &[(&str, &Path)]) -> Result<String, GitError> {
     let mut args = tokenize(cmd).into_iter().map(|t| substitute(&t, vars));
     let prog = args
@@ -329,12 +331,37 @@ pub fn spawn_tool(cmd: &str, vars: &[(&str, &Path)]) -> Result<String, GitError>
 
     match command.spawn() {
         Ok(child) => {
-            detach(child);
-            Ok(Path::new(&prog)
+            let stem = Path::new(&prog)
                 .file_stem()
                 .unwrap_or_default()
                 .to_string_lossy()
-                .into_owned())
+                .into_owned();
+            // ponytail: callers hold the repository's git2 lock, so every tool
+            // open on unix stalls that repository's git2 reads for these
+            // ~300 ms; spawn after the lock is dropped if a stall is reported.
+            #[cfg(unix)]
+            let mut child = child;
+            #[cfg(unix)]
+            {
+                let started = std::time::Instant::now();
+                while started.elapsed() < std::time::Duration::from_millis(300) {
+                    match child.try_wait() {
+                        // Already reaped: nothing left to detach.
+                        Ok(Some(status)) => {
+                            return match status.code() {
+                                Some(code @ (126 | 127)) => Err(GitError::Config(format!(
+                                    "{prog} could not start (exit {code}) — check the tool's command in Settings"
+                                ))),
+                                _ => Ok(stem),
+                            };
+                        }
+                        Ok(None) => std::thread::sleep(std::time::Duration::from_millis(20)),
+                        Err(_) => break,
+                    }
+                }
+            }
+            detach(child);
+            Ok(stem)
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Err(not_found()),
         Err(e) => Err(e.into()),
