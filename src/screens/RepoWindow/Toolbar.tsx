@@ -93,13 +93,11 @@ export function Toolbar() {
   const stashBtn = useRef<HTMLButtonElement>(null);
   const moreBtn = useRef<HTMLButtonElement>(null);
   const repoNameEl = useRef<HTMLSpanElement>(null);
-  // A rename is the one thing that moves the breakpoints, and the tier itself brings the name back
-  // into view, so both belong in the deps.
+  // A rename (in practice a tab switch or a Recent) is the one thing that moves the breakpoints. The
+  // `icons` tier hides the name but keeps its width (Toolbar.module.css), so it measures in every tier.
   useLayoutEffect(() => {
     const w = repoNameEl.current?.getBoundingClientRect().width ?? 0;
-    // ponytail: keep the last width the name actually had. The `icons` tier hides this span, and
-    // taking the 0 would drop the floor, re-show the name, raise it again — a flap. The cost is that
-    // a rename while in `icons` measures late, when the name is next on screen.
+    // An empty name measures 0: keep the last real width.
     if (w > 0) setNameWidth(w);
   }, [repo?.name, tier]);
   const others = recents.filter((r) => r.path !== repo?.path);
