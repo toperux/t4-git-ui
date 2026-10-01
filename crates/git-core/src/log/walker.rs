@@ -35,9 +35,8 @@ fn push_glob(repo: &Repository, walker: &mut Revwalk<'_>, glob: &str) -> Result<
 ///
 /// `All` pushes HEAD + `refs/heads/*` + `refs/remotes/*` + `refs/tags/*`
 /// (so `refs/stash` and `refs/notes` are excluded), skipping refs that don't
-/// peel to a commit; `Head` pushes HEAD only; `Refs` pushes each full ref name
-/// (a missing ref is an error, a ref that doesn't peel to a commit is skipped).
-/// An unborn HEAD yields zero rows for `Head` and is ignored for `All`.
+/// peel to a commit; `Head` pushes HEAD only. An unborn HEAD yields zero rows
+/// for `Head` and is ignored for `All`.
 ///
 /// Under a path filter there is no revwalk at all: `history` is the ordered
 /// `(commit, path there)` list [`super::history::path_history`] got from
@@ -75,15 +74,6 @@ pub fn walk(
             }
             walker.push_head().map_err(map_git2)?;
         }
-        RevSpec::Refs(refs) => {
-            for name in refs {
-                let r = repo.find_reference(name).map_err(map_git2)?;
-                match r.peel_to_commit() {
-                    Ok(c) => walker.push(c.id()).map_err(map_git2)?,
-                    Err(e) => tracing::debug!(name, error = %e, "skipping non-commit ref"),
-                }
-            }
-        }
     }
 
     // A filtered walk has no contiguous topology, so it is laid out flat.
@@ -91,8 +81,6 @@ pub fn walk(
         None
     } else {
         let mut layout = LaneLayout::new();
-        // ponytail: a `Refs` spec that never reaches HEAD leaves this column open to
-        // the bottom; the UI only sends `all` / `head`.
         if filter.working_tree {
             if let Ok(head) = repo.head().and_then(|r| r.peel_to_commit()) {
                 layout.open(head.id());

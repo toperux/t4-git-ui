@@ -128,14 +128,12 @@ pub struct LogRow {
 
 /// Which commits to walk.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", content = "refs", rename_all = "camelCase")]
+#[serde(tag = "kind", rename_all = "camelCase")]
 pub enum RevSpec {
     /// HEAD + all local branches, remote branches and tags.
     All,
     /// HEAD only.
     Head,
-    /// Explicit full ref names (`refs/heads/main`).
-    Refs(Vec<String>),
 }
 
 /// Log filter. `text` is a case-insensitive substring match on summary /

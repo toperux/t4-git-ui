@@ -79,10 +79,6 @@ fn linear() {
     assert!(!m.contains_key(&s(b)));
 
     assert_eq!(oids(&rows(&t, &RevSpec::Head)), vec![s(c), s(b), s(a)]);
-    assert_eq!(
-        oids(&rows(&t, &RevSpec::Refs(vec!["refs/heads/master".into()]))),
-        vec![s(c), s(b), s(a)]
-    );
 }
 
 #[test]
@@ -111,8 +107,6 @@ fn branch_and_merge() {
 
     // Head-only walk skips the feature branch tip? No: C is reachable from M.
     assert_eq!(rows(&t, &RevSpec::Head).len(), 4);
-    let only_feat = rows(&t, &RevSpec::Refs(vec!["refs/heads/feat".into()]));
-    assert_eq!(oids(&only_feat), vec![s(c), s(a)]);
 
     // A whitespace-only text filter is no filter: the graph is still laid out.
     let filter = LogFilter {
@@ -388,20 +382,8 @@ fn tags_are_peeled_and_non_commit_tags_are_skipped() {
     let lm = label_map(&snap);
     assert!(lm[&s(a)].contains(&label("v1", RefKind::Tag, false, None)));
 
-    // `All` still walks (the tree tag is skipped), `Refs` on it yields nothing.
+    // `All` still walks (the tree tag is skipped).
     assert_eq!(oids(&rows(&t, &RevSpec::All)), vec![s(a)]);
-    assert!(rows(&t, &RevSpec::Refs(vec!["refs/tags/treetag".into()])).is_empty());
-    assert!(matches!(
-        walk(
-            &t.repo,
-            &RevSpec::Refs(vec!["refs/heads/nope".into()]),
-            &LogFilter::default(),
-            None,
-            &no_cancel(),
-            |_| true
-        ),
-        Err(GitError::Git2(_))
-    ));
 }
 
 #[test]
@@ -574,7 +556,9 @@ fn chunking_early_stop_and_cancellation() {
             exact = Some(oid);
         }
     }
-    t.branch("exact", exact.expect("exact tip"));
+    // HEAD on the CHUNK_SIZE-th commit: a `Head` walk is exactly CHUNK_SIZE long;
+    // `All` still reaches the tip through `master`.
+    t.detach(exact.expect("exact tip"));
 
     // Callback returning false stops after the first chunk.
     let mut calls = 0;
@@ -597,7 +581,7 @@ fn chunking_early_stop_and_cancellation() {
     let mut calls = 0;
     let n = walk(
         &t.repo,
-        &RevSpec::Refs(vec!["refs/heads/exact".into()]),
+        &RevSpec::Head,
         &LogFilter::default(),
         None,
         &no_cancel(),

@@ -17,11 +17,6 @@ fn rev_spec_round_trips() {
 
     let head: RevSpec = serde_json::from_value(json!({ "kind": "head" })).expect("head");
     assert_eq!(head, RevSpec::Head);
-
-    let v = json!({ "kind": "refs", "refs": ["refs/heads/main"] });
-    let refs: RevSpec = serde_json::from_value(v.clone()).expect("refs");
-    assert_eq!(refs, RevSpec::Refs(vec!["refs/heads/main".into()]));
-    assert_eq!(serde_json::to_value(&refs).expect("ser"), v);
 }
 
 #[test]

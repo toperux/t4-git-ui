@@ -115,8 +115,7 @@ export interface LogRow {
   path?: string | null;
 }
 
-/** `#[serde(tag = "kind", content = "refs")]` */
-export type RevSpec = { kind: "all" } | { kind: "head" } | { kind: "refs"; refs: string[] };
+export type RevSpec = { kind: "all" } | { kind: "head" };
 
 export interface LogFilter {
   /** Case-insensitive substring match on summary / author name / author email. */
