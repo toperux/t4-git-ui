@@ -16,7 +16,7 @@ smoke/
   smoke-linux.md           the same on Linux: WebKitGTK over WebDriver, Xvfb, xdialog.sh
   cdp.mjs                  the CDP driver (Windows), steps in argv order; see smoke-cdp.md
   wd.mjs                   the WebDriver driver (Linux); see smoke-linux.md
-  fixtures/                smoke-fixtures.ps1 (builds C:\tmp\t4), smoke-dialog.ps1, ad7-*.sh, irebase-fixture.sh, linked-fixture.sh, bd-fixture.sh, bd2-fixture.sh, dogfood-fixture.sh, throttle-proxy.mjs, sandbox/ (Windows Sandbox scripts)
+  fixtures/                smoke-fixtures.ps1 (builds C:\tmp\t4), smoke-dialog.ps1, ad7-*.sh, irebase-fixture.sh, linked-fixture.sh, bd-fixture.sh, bd2-fixture.sh, dogfood-fixture.sh, throttle-proxy.mjs, perf-repo.mjs, sandbox/ (Windows Sandbox scripts)
 archive/
   plans/     executed plans and their review records (v1 plan, interactive rebase, Files/blame/history,
              CI alignment, the 2026-09-12 consolidated findings, review2-A–D, the 2026-09-20 review
