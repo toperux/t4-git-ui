@@ -322,3 +322,49 @@ async fn a_failing_hook_leaves_the_amend_exec_paused() {
     assert!(t.repo.path().join("rebase-merge").exists());
     assert_eq!(RepoState::from(t.repo.state()), RepoState::Rebase);
 }
+
+/// B3: the read pass is a real `rebase -i --autostash`. Killed while its editor
+/// runs — after the autostash, before git pops it — it leaves `rebase-merge/`
+/// and the changes only in the autostash; Abort (`rebase --abort`) puts them back.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_read_killed_mid_editor_is_recovered_by_abort() {
+    use std::os::unix::fs::PermissionsExt;
+    if !have_git() {
+        return;
+    }
+    let t = TempRepo::new();
+    let base = t.commit(&[("f.txt", "base\n")], "base");
+    t.commit(&[("a.txt", "a\n")], "A");
+    t.write("f.txt", "dirty\n");
+
+    // Outside the repository: an untracked script in the work tree would
+    // survive the autostash and fail the clean-tree check below. Its path has
+    // no shell metacharacters, so git execs it directly and `$PPID` is git.
+    let dir = tempfile::tempdir().expect("tempdir");
+    let editor = dir.path().join("kill-git.sh");
+    std::fs::write(&editor, "#!/bin/sh\nkill -9 $PPID\n").expect("write editor");
+    std::fs::set_permissions(&editor, std::fs::Permissions::from_mode(0o755)).expect("chmod");
+    let args = [
+        "-c".to_string(),
+        format!("sequence.editor={}", editor.display()),
+        "rebase".into(),
+        "-i".into(),
+        "--autostash".into(),
+        base.to_string(),
+    ];
+    let out = run(&t, &args).await;
+    assert_ne!(out.code, 0, "{}", out.stderr);
+
+    let merge = t.repo.path().join("rebase-merge");
+    assert!(merge.join("autostash").exists(), "{}", out.stderr);
+    assert_eq!(RepoState::from(t.repo.state()), RepoState::Rebase);
+    let f = || std::fs::read_to_string(t.path().join("f.txt")).expect("f.txt");
+    assert_eq!(f(), "base\n", "the changes are only in the autostash");
+
+    let out = run(&t, &["rebase".into(), "--abort".into()]).await;
+    assert_eq!(out.code, 0, "{}", out.stderr);
+    assert!(!merge.exists());
+    assert_eq!(RepoState::from(t.repo.state()), RepoState::Clean);
+    assert_eq!(f(), "dirty\n", "the changes are back");
+}
