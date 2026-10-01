@@ -123,16 +123,19 @@ fn row(
 pub fn snapshot(repo: &Repository, current: &RepoId) -> Result<LinkedSnapshot, GitError> {
     let mut worktrees = Vec::new();
     let main_dir = if repo.is_worktree() {
-        // `commondir` is the main repository's admin directory.
-        repo.commondir().parent().map(Path::to_path_buf)
+        // `commondir` is the main repository's admin directory, and its own
+        // working tree is where libgit2 says: `core.worktree` when set (a
+        // submodule's, under `.git/modules`), none when bare, else the parent.
+        Repository::open(repo.commondir())
+            .ok()
+            .and_then(|r| r.workdir().map(Path::to_path_buf))
     } else {
         repo.workdir().map(Path::to_path_buf)
     };
-    // No head at all means the directory did not open as a repository: a bare
-    // one, or `--separate-git-dir`, where `commondir` sits outside the working
-    // tree. Then there is simply no main row.
-    // ponytail: `worktree list --porcelain` would get that case right, at the
-    // cost of a git ≥ 2.36 floor for its `locked` / `prunable` lines.
+    // No main row when there is no main checkout to show: a bare repository has
+    // none by design; a `--separate-git-dir` checkout is recorded nowhere (git's
+    // own `worktree list` names the git dir), so the parent guessed above does
+    // not open; and a corrupt HEAD reads as nothing.
     if let Some(main) = main_dir.map(|d| row(repo, &d, None, true, current)) {
         if main.head.is_some() {
             worktrees.push(main);
@@ -295,6 +298,51 @@ mod tests {
         let s = snap(t.path());
         assert_eq!(s.worktrees.len(), 2, "{s:?}");
         assert!(s.submodules.is_empty(), "{s:?}");
+    }
+
+    /// A submodule's git dir sits under the superproject's `.git/modules`, so
+    /// its parent is no checkout; `core.worktree` there names the real one.
+    #[test]
+    fn a_submodules_linked_worktree_lists_the_submodule_checkout_as_main() {
+        let src = TempRepo::new();
+        src.commit(&[("s.txt", "s")], "sub tip");
+        let t = TempRepo::new();
+        t.commit(&[("a.txt", "a")], "A");
+        t.add_submodule("sub", &src);
+        let sub = Repository::open(t.path().join("sub")).expect("open sub");
+        let dir = tempfile::tempdir().expect("tempdir");
+        let wt_path = dir.path().join("sub-wt");
+        sub.worktree("sub-wt", &wt_path, None).expect("worktree");
+
+        let s = snap(&wt_path);
+        assert_eq!(s.worktrees.len(), 2, "{s:?}");
+        let main = &s.worktrees[0];
+        assert!(main.main && !main.current, "{main:?}");
+        assert_eq!(
+            RepoId::from_workdir(Path::new(&main.path)).0,
+            RepoId::from_workdir(&t.path().join("sub")).0,
+            "{main:?}"
+        );
+        assert!(main.head.is_some(), "{main:?}");
+        assert!(s.worktrees[1].current, "{s:?}");
+    }
+
+    #[test]
+    fn a_bare_repositorys_worktree_has_no_main_row() {
+        let t = TempRepo::new();
+        t.commit(&[("a.txt", "a")], "A");
+        let dir = tempfile::tempdir().expect("tempdir");
+        let url = t.path().to_string_lossy().replace('\\', "/");
+        let bare = git2::build::RepoBuilder::new()
+            .bare(true)
+            .clone(&url, &dir.path().join("bare.git"))
+            .expect("bare clone");
+        let wt_path = dir.path().join("wt");
+        bare.worktree("wt", &wt_path, None).expect("worktree");
+
+        let s = snap(&wt_path);
+        assert_eq!(s.worktrees.len(), 1, "{s:?}");
+        assert!(!s.worktrees[0].main && s.worktrees[0].current, "{s:?}");
     }
 
     #[test]
