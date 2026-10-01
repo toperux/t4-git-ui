@@ -90,9 +90,10 @@ that way on 2026-09-19.
   the `stage_paths` line.
 - **The CSP blocks an injected `<style>`** — the tag is there and nothing applies. Try a CSS change through
   the CSSOM (`el.style.display = …`) before rebuilding for it.
-- **`:focus-visible` follows CDP key events.** After keys in the grid, a CDP right-click on a row still opens
-  the menu with its first item focus-visible — the grid never gave up the keyboard focus. For a pure mouse
-  path, start from a fresh launch with no key sent.
+- **`:focus-visible` follows CDP key events.** After keys in the grid, a CDP right-click on a row opens the
+  menu with its first item natively `:focus-visible` — the grid never gave up the keyboard focus — but not
+  marked `data-kbd`, and the menu styles items on the mark alone: no highlight, no wrap. Check the mark, not
+  `:focus-visible`. Elsewhere, for a pure mouse path, start from a fresh launch with no key sent.
 - **A tab dragged into another window**: `Input.dispatchMouseEvent` takes coordinates outside the source
   window (the strip captures the pointer). Target = the other window's `screenX/Y` minus this one's, plus
   the point on its strip; press, a dozen `mouseMoved` steps, half a second over the target so the hover

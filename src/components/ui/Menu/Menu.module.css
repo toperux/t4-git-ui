@@ -64,28 +64,32 @@
   white-space: nowrap;
   cursor: default;
 }
+/* Keyed on the `data-kbd` mark alone, not `:focus-visible`: Chromium makes a script-focused item
+   `:focus-visible` when the focus came from a ringed element, so a menu right-clicked open after
+   arrowing through the grid would highlight (and wrap) its first item. Every focus inside a menu is
+   either `focusItem`, which marks it only when the keyboard put it there, or a click, which clears it. */
 .item:hover:not(:disabled),
-.item:focus-visible,
 .item[data-kbd]:focus {
   background: var(--accent);
   color: var(--fg-on-accent);
   box-shadow: none;
 }
+/* That natively `:focus-visible` item would still take the global focus ring (theme/base.css). */
+.item:focus-visible {
+  box-shadow: none;
+}
 .item:hover:not(:disabled) .icon,
-.item:focus-visible .icon,
 .item[data-kbd]:focus .icon {
   color: inherit;
 }
 /* A name clipped at the menu's width is read on hover (`MenuItem` sets the `title`), and the keyboard
    has no hover — nor does a native tooltip ever show on focus. So the focused row wraps instead:
    `.item`'s fixed height and `nowrap` both have to give way. A row that fits looks no different. */
-.item:focus-visible,
 .item[data-kbd]:focus {
   height: auto;
   min-height: var(--row-h);
   white-space: normal;
 }
-.item:focus-visible .grow,
 .item[data-kbd]:focus .grow {
   overflow-wrap: anywhere;
 }
@@ -121,7 +125,6 @@
   color: var(--fg-muted);
 }
 .item:hover:not(:disabled) .chev,
-.item:focus-visible .chev,
 .item[data-kbd]:focus .chev {
   color: inherit;
 }
@@ -133,7 +136,6 @@
 }
 /* Anatomy lives in components/ui/Kbd; the menu only overrides it on hover / focus. */
 .item:hover:not(:disabled) .kbd,
-.item:focus-visible .kbd,
 .item[data-kbd]:focus .kbd {
   color: inherit;
   background: transparent;
@@ -156,7 +158,6 @@
   color: var(--chip-remote-fg);
 }
 .item:hover:not(:disabled) .ref,
-.item:focus-visible .ref,
 .item[data-kbd]:focus .ref {
   color: inherit;
 }

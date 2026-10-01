@@ -68,8 +68,8 @@ const MenuCtx = createContext<MenuCtx | null>(null);
 /**
  * Every script focus of a menu item goes through here, marking the item `data-kbd` when the keyboard
  * put it there (`lib/kbdFocus` has why). The mark is set after the focus, so it overrides the one
- * `kbdFocus` gives from the last input: a menu opened by the pointer from a marked opener is still a
- * keyboard menu.
+ * `kbdFocus` gives from the last input: a dropdown `Menu` opened by the pointer from a marked opener is
+ * still a keyboard menu.
  */
 function focusItem(el: HTMLElement, kbd: boolean) {
   el.closest('[role="menu"]')?.querySelectorAll("[data-kbd]").forEach((i) => i.removeAttribute("data-kbd"));
@@ -77,7 +77,11 @@ function focusItem(el: HTMLElement, kbd: boolean) {
   el.toggleAttribute("data-kbd", kbd);
 }
 
-/** A menu opening now was opened from the keyboard: the last input was a key, or its opener shows keyboard focus. */
+/**
+ * A dropdown `Menu` opening now was opened from the keyboard: the last input was a key, or its opener
+ * shows keyboard focus. A `ContextMenu` asks `lastInputWasKey` alone, as native menus do: a
+ * right-click after arrowing through the grid finds the grid still ringed, yet marks no item.
+ */
 function openedByKey() {
   const opener = document.activeElement;
   return lastInputWasKey() || !!opener?.matches(":focus-visible") || !!opener?.hasAttribute("data-kbd");
@@ -85,8 +89,9 @@ function openedByKey() {
 
 /**
  * Outside mousedown / Escape / a scroll or resize under it → `onClose`; first item focused when
- * opened. `anchor` is what the menu is placed from (the trigger's wrapper, or the element under a
- * context menu's click point); only a scroll that moves *that* closes it.
+ * opened, marked when `byKey` says the keyboard opened the menu. `anchor` is what the menu is placed
+ * from (the trigger's wrapper, or the element under a context menu's click point); only a scroll that
+ * moves *that* closes it.
  */
 function useMenuDismiss(
   open: boolean,
@@ -94,6 +99,7 @@ function useMenuDismiss(
   wrap: RefObject<HTMLElement | null>,
   menu: RefObject<HTMLElement | null>,
   anchor: RefObject<HTMLElement | null> = wrap,
+  byKey: () => boolean = openedByKey,
 ) {
   useEffect(() => {
     if (!open) return;
@@ -129,8 +135,8 @@ function useMenuDismiss(
 
   useEffect(() => {
     const first = open ? menu.current?.querySelector<HTMLElement>(ITEMS) : null;
-    if (first) focusItem(first, openedByKey());
-  }, [open, menu]);
+    if (first) focusItem(first, byKey());
+  }, [open, menu, byKey]);
 }
 
 /**
@@ -284,7 +290,7 @@ export function ContextMenu({ at, onClose, label, children }: ContextMenuProps) 
   if (!at) anchor.current = null;
   else anchor.current ??= (document.elementFromPoint?.(at.x, at.y) as HTMLElement | null) ?? null;
   useRestoreFocus(open);
-  useMenuDismiss(open, onClose, menu, menu, anchor);
+  useMenuDismiss(open, onClose, menu, menu, anchor, lastInputWasKey);
 
   // Clamp to the viewport once the menu has a size — and again when that size changes: a row focused
   // from the keyboard wraps (Menu.module.css), and at the window's bottom edge the taller menu would

@@ -350,7 +350,44 @@ describe("MenuItem submenu", () => {
   });
 });
 
+/** A row that opens a `ContextMenu` on right-click, Shift+F10 or the Menu key alike (`contextmenu`). */
+function CtxHarness() {
+  const [at, setAt] = useState<{ x: number; y: number } | null>(null);
+  return (
+    <>
+      <button onContextMenu={() => setAt({ x: 10, y: 10 })}>Row</button>
+      <ContextMenu at={at} onClose={() => setAt(null)} label="Row actions">
+        <MenuItem>Checkout</MenuItem>
+      </ContextMenu>
+    </>
+  );
+}
+
 describe("ContextMenu", () => {
+  // As native menus on Windows and GTK: a right-click highlights nothing, even after arrowing through
+  // the grid — the opener still shows keyboard focus then, and the dropdown would count that.
+  it("opened by the pointer from a marked opener, its first item is focused but not marked", () => {
+    const { getByRole } = render(<CtxHarness />);
+    const row = getByRole("button", { name: "Row" });
+    fireEvent.keyDown(document, { key: "ArrowDown" });
+    act(() => row.focus());
+    expect(row.hasAttribute("data-kbd")).toBe(true);
+    fireEvent.pointerDown(row);
+    fireEvent.contextMenu(row);
+    const first = getByRole("menuitem", { name: "Checkout" });
+    expect(document.activeElement).toBe(first);
+    expect(first.hasAttribute("data-kbd")).toBe(false);
+  });
+
+  it("opened by Shift+F10, its first item is marked", () => {
+    const { getByRole } = render(<CtxHarness />);
+    const row = getByRole("button", { name: "Row" });
+    act(() => row.focus());
+    fireEvent.keyDown(row, { key: "F10", shiftKey: true });
+    fireEvent.contextMenu(row);
+    expect(getByRole("menuitem", { name: "Checkout" }).hasAttribute("data-kbd")).toBe(true);
+  });
+
   it("Escape closes the menu and not the dialog it was opened from", () => {
     // The menu is portalled to the body, but React still bubbles its keys up to the dialog's form —
     // whose own Escape closes the dialog. A row menu in the commit window must close alone.

@@ -1,7 +1,8 @@
-// Marks keyboard focus with `data-kbd`, which the CSS styles beside `:focus-visible`. WebKitGTK does not
-// count the last input being a key when it decides whether a script focus is `:focus-visible`: after a
-// click, a key that moves focus by script (an arrow in a tree, Escape back to an opener) shows no ring,
-// and even after keys a menu opened from a ringed grid gets none.
+// Marks keyboard focus with `data-kbd`, which the CSS styles beside `:focus-visible` (menu items on the
+// mark alone, Menu.module.css). WebKitGTK does not count the last input being a key when it decides
+// whether a script focus is `:focus-visible`: after a click, a key that moves focus by script (an arrow
+// in a tree, Escape back to an opener) shows no ring, and even after keys a menu opened from a ringed
+// grid gets none.
 
 /**
  * Whether the last input was a key rather than the pointer. Set in the capture phase, so it is
