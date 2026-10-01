@@ -24,6 +24,7 @@ import { useRepoStore } from "../../store/repoStore";
 import { useTabsStore } from "../../store/tabsStore";
 import { toastError, useToastStore } from "../../store/toastStore";
 import pkg from "../../../package.json";
+import { quitApp } from "../RepoWindow/actions";
 import { SettingsDialog } from "../SettingsDialog/SettingsDialog";
 import { CloneDialog } from "./CloneDialog";
 import s from "./StartScreen.module.css";
@@ -124,10 +125,17 @@ export function StartScreen() {
 
   useEffect(() => {
     function onKey(e: globalThis.KeyboardEvent) {
-      // `busy`: the picker would come back to an `openPath` that drops the folder without a word.
       // ⌘ counts as Ctrl on macOS here too, as it does in `useShortcuts` (`ctrlOrCmd`).
-      if (!ctrlOrCmd(e) || e.altKey || clone || settings || busy) return;
+      if (!ctrlOrCmd(e) || e.altKey || clone || settings) return;
       const k = e.key.toLowerCase();
+      // Quit even while a repository is opening: a hung open is when it's wanted.
+      if (k === "q" && !e.shiftKey) {
+        e.preventDefault();
+        quitApp();
+        return;
+      }
+      // `busy`: the picker would come back to an `openPath` that drops the folder without a word.
+      if (busy) return;
       if (k === "o" && !e.shiftKey) void pick();
       else if (k === "o" && e.shiftKey) void startClone();
       else if (k === "n" && !e.shiftKey) void init();

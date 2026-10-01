@@ -19,6 +19,8 @@ vi.mock("../../api/ipc", async (importOriginal) => {
     cancelOp: vi.fn(() => Promise.resolve(true)),
     cloneRepo: vi.fn(pending),
     initRepo: vi.fn(),
+    // Not a bare `vi.fn()`: `quitApp` chains `.catch` onto it, inside the keydown listener.
+    quit: vi.fn(() => Promise.resolve()),
   };
 });
 vi.mock("../../api/events", () => ({
@@ -93,7 +95,7 @@ describe("StartScreen", () => {
     expect(useRecentsStore.getState().recents.find((r) => r.name === "rust")?.pinned).toBe(true);
   });
 
-  it("ignores Ctrl+O while a repo is already opening", () => {
+  it("ignores Ctrl+O while a repo is already opening, but Ctrl+Q still quits", () => {
     // `Once`: `clearAllMocks` clears calls but not implementations, and a never-settling openRepo
     // left installed would keep every later test in this file stuck at `busy`.
     (ipc.openRepo as ReturnType<typeof vi.fn>).mockImplementationOnce(() => new Promise(() => {}));
@@ -103,6 +105,27 @@ describe("StartScreen", () => {
     // The picker would come back to an `openPath` that drops the folder on the floor.
     fireEvent.keyDown(window, { key: "o", ctrlKey: true });
     expect(open).not.toHaveBeenCalled();
+    // Quit isn't held back: a hung open is when it's wanted.
+    expect(fireEvent.keyDown(window, { key: "q", ctrlKey: true })).toBe(false);
+    expect(ipc.quit).toHaveBeenCalledTimes(1);
+  });
+
+  it("Ctrl+Q quits, and ⌘Q does on macOS", () => {
+    render(<StartScreen />);
+    expect(fireEvent.keyDown(window, { key: "q", ctrlKey: true })).toBe(false); // preventDefault
+    expect(ipc.quit).toHaveBeenCalledTimes(1);
+
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)");
+    fireEvent.keyDown(window, { key: "q", metaKey: true });
+    expect(ipc.quit).toHaveBeenCalledTimes(2);
+  });
+
+  it("Ctrl+Q does nothing while Settings is open", () => {
+    const { getByRole } = render(<StartScreen />);
+    fireEvent.click(getByRole("button", { name: "Settings" }));
+    expect(getByRole("dialog", { name: "Settings" })).toBeTruthy();
+    fireEvent.keyDown(window, { key: "q", ctrlKey: true });
+    expect(ipc.quit).not.toHaveBeenCalled();
   });
 
   it("removes a row with the mouse (the X button), without opening it", () => {
@@ -157,12 +180,14 @@ describe("StartScreen", () => {
   });
 
   // On Linux Meta is Super, whose chords belong to the desktop.
-  it("Super+O / Super+N do nothing off macOS", () => {
+  it("Super+O / Super+N / Super+Q do nothing off macOS", () => {
     vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Mozilla/5.0 (X11; Linux x86_64)");
     render(<StartScreen />);
     expect(fireEvent.keyDown(window, { key: "o", metaKey: true })).toBe(true);
     expect(fireEvent.keyDown(window, { key: "n", metaKey: true })).toBe(true);
+    expect(fireEvent.keyDown(window, { key: "q", metaKey: true })).toBe(true);
     expect(open).not.toHaveBeenCalled();
+    expect(ipc.quit).not.toHaveBeenCalled();
   });
 
   it("clone dialog refuses a relative parent folder", async () => {

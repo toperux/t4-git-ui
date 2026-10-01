@@ -102,7 +102,7 @@ Ctrl is ⌘ on macOS.
 |---|---|---|
 | Start screen | `Ctrl+O` / `Ctrl+Shift+O` / `Ctrl+N` | Open / Clone / Initialize |
 | Start screen | `↑` `↓` `Home` `End` `Enter` `Delete` | Navigate recents / open / remove |
-| Both screens | `Ctrl+,` | Settings |
+| Both screens | `Ctrl+,` · `Ctrl+Q` | Settings · Quit |
 | Repo window | `Alt+1` · `Alt+2` | History · Changes |
 | Repo window | `Ctrl+K` | Command palette |
 | Repo window | ``Ctrl+Shift+` `` | Collapse / expand the sidebar (remembered per view: History, Changes) |
