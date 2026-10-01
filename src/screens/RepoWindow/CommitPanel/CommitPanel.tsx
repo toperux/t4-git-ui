@@ -5,6 +5,7 @@ import * as ipc from "../../../api/ipc";
 import { toAppError } from "../../../api/ipc";
 import type { FileDiff } from "../../../api/types";
 import { sideName } from "../../../lib/conflictSides";
+import { freshStatus } from "../../../lib/freshStatus";
 import { useCommitStore } from "../../../store/commitStore";
 import { useDialogStore } from "../../../store/dialogStore";
 import { useRepoStore } from "../../../store/repoStore";
@@ -96,6 +97,7 @@ export function DiffColumn() {
 
   const state = useRepoStore((st) => st.refs?.state);
   const sides = useRepoStore((st) => st.refs?.conflictSides);
+  const fresh = useStatusStore((st) => freshStatus(st.status, state) !== null);
 
   // Conflicted and untracked files can only be staged whole — no hunk or line indices to work with.
   const conflicted = list === "unstaged" && !!entry?.conflicted;
@@ -111,7 +113,10 @@ export function DiffColumn() {
   // behaviour, and no unstage brings them back. The markers are still in the file, so say so and
   // offer the one command that undoes it. Only mid-merge: a marker in a file is otherwise just text.
   const merging = state === "merge" || state === "rebase" || state === "cherryPick" || state === "revert";
-  const stranded = merging && !conflicted && !!diff && hasMarkers(diff);
+  // And only on a status scanned in that state: between a commit's status refresh and its refs
+  // refresh the merge is over, yet the refs still say *merge* — and Restore conflict would then
+  // rewrite a finished file.
+  const stranded = merging && fresh && !conflicted && !!diff && hasMarkers(diff);
   // Discard rewrites the working file: only a plain unstaged diff has one to rewrite (the staged
   // list edits the index, untracked / conflicted files are whole-file anyway, and a gitlink has no
   // body to apply a reversed patch to).

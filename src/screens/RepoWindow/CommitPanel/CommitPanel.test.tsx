@@ -368,9 +368,8 @@ describe("CommitPanel", () => {
     await waitFor(() => expect(ipc.openDiffTool).toHaveBeenLastCalledWith("r", { kind: "staged" }, "both.rs", null));
   });
 
-  it("offers to restore a conflict staged with its markers still in the file", async () => {
-    // What `git add` on an unresolved file leaves behind: not conflicted any more (the stages are
-    // gone, and no unstage brings them back), still full of markers, still mid-merge.
+  /** A staged-over conflict's diff: the markers are still in the file. */
+  const markersDiff = () =>
     mocked.getFileDiff.mockImplementation(() =>
       Promise.resolve({
         path: "a.rs",
@@ -393,6 +392,23 @@ describe("CommitPanel", () => {
         ],
       }),
     );
+
+  // Between `commit()`'s status refresh and its refs refresh the merge is over, but the refs still
+  // say *merge*: Restore conflict would rewrite a finished file.
+  it("offers no conflict restore on a status scanned outside the merge the refs report", async () => {
+    markersDiff();
+    useRepoStore.setState({ refs: { ...REFS, state: "merge" } });
+    const { queryByRole, queryByText } = renderPanel();
+    await act(async () => {});
+    expect(queryByText("Marked resolved, but the conflict markers are still here")).toBeNull();
+    expect(queryByRole("button", { name: "Restore conflict" })).toBeNull();
+  });
+
+  it("offers to restore a conflict staged with its markers still in the file", async () => {
+    // What `git add` on an unresolved file leaves behind: not conflicted any more (the stages are
+    // gone, and no unstage brings them back), still full of markers, still mid-merge.
+    useStatusStore.setState({ status: { ...STATUS, state: "merge" } });
+    markersDiff();
     useRepoStore.setState({ refs: { ...REFS, state: "merge" } });
     const { getByRole, getByText } = renderPanel();
     await act(async () => {});
