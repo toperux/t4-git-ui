@@ -2299,9 +2299,10 @@ stash. Fixed (plan row 16) and walked as BK 9 the same day on a release build of
       `18d7a3b`: `git stash show` = `many.txt` only, `subs/[ab]` and `subs/a` still modified; the browser's Stash
       disabled, title *No changes*.)*
 - [x] 6. **Blame from Changes** (row 7): a text filter in History that hides HEAD, switch to Changes, Blame on a
-      modified file → the toast *Not in the current view…*, and the view, the details tab and blame are unchanged.
-      A stash preview's file row → Blame → the gutter is on, and no toast. *(Walked 2026-10-01 over CDP on a local
-      release build of `18d7a3b`, scratch repo `bk-az`, filter `commit 1`.)*
+      modified file → the toast *Not in the current view…*, and the view, the details tab and blame are unchanged. A
+      stash preview's file row → Blame → the gutter is on, and no toast. *(Walked 2026-10-01 over CDP on a local release
+      build of `18d7a3b`, scratch repo `bk-az`, filter `commit 1`. Re-walked the same day on `f3bc5fa`, the pushed
+      squash: passes, and Blame from Changes under a History path filter opens the blamed file, not the filter's.)*
 - [x] 7. **Details pane never blank** (row 8): a `git/git` clone, with a background loop touching a file every
       ~200 ms (so status scans keep taking the git2 lock). Grid focused, ArrowDown ×20 over CDP with a
       `requestAnimationFrame` sampler → frames with the details summary missing: 0. The same run against a build of
@@ -2314,12 +2315,12 @@ stash. Fixed (plan row 16) and walked as BK 9 the same day on a release build of
       `$T/linked-wt`, put `sub-wt` in a scratch folder instead. *(Walked 2026-10-01 over CDP on a local release
       build of `18d7a3b`, the worktree in a scratch folder: the main row was `sub` at `c:/tmp/t4/linked/sub`, and
       Open added a `sub` tab on `c:\tmp\t4\linked\sub`.)*
-- [x] 9. **Stashes browser opened from Changes** (row 16, D18; found in this group's first walk): in `$T/be`, `git
-      stash clear`, edit `many.txt`, select a commit in History that changed other files (`side pages`), Stash
+- [x] 9. **Stashes browser opened from Changes** (row 16, D18; found in this group's first walk): in `$T/be`,
+      `git stash clear`, edit `many.txt`, select a commit in History that changed other files (`side pages`), Stash
       changes… → stash it, Alt+2, Ctrl+Shift+S → the preview of stash@{0} lists only `many.txt` (as `git stash show`
-      does), and its diff is `many.txt`'s. *(Walked 2026-10-01 over CDP on a local release build of `95f5b9b`: one
-      file, `many.txt`, `+ bk9 edit`, as `git stash show --name-only` gives; the same after Working tree and back,
-      and when opened from History.)*
+      does), and its diff is `many.txt`'s. *(Walked 2026-10-01 over CDP on a local release build of `95f5b9b`: one file,
+      `many.txt`, `+ bk9 edit`, as `git stash show --name-only` gives; the same after Working tree and back, and when
+      opened from History. Re-walked the same day on `f3bc5fa`: passes.)*
 
 ## Reporting
 

@@ -205,3 +205,32 @@ the pre-squash hashes cited in this record, nor `b8f2e31`, exist on `origin/main
 - The fixtures stay in `C:\tmp\t4` (`bk-*`, `be`, `linked`). `be` holds BK 9's stash (`many.txt`), so its stash
   list isn't empty.
 - The store folder is restored; `diff -rq` against the backup is clean.
+
+## Re-walk of BK 6 and BK 9 on the pushed `main` (same day)
+
+Change review changed `blameAt` (`actions.ts`) and `selectTreePathAt` (`diffStore.ts`) after the builds above, so the
+rows they touch were walked again before the release.
+
+**Build:** `target\release\t4-git-ui.exe`, a local `tauri build --no-bundle` of `main` at `f3bc5fa`, the pushed
+squash. Same launch and driver, plus a scratch `--shot` (`Page.captureScreenshot`) and `--tag` step; every screenshot
+read. The store was backed up first; the first two launches opened the start screen with three *Couldn't open* toasts
+(a mis-escaped seed) and then `t4-todo-vault` (a `[]` layout, open-items §V F2), each quit at once untouched, before
+the seed of `bk-az`, `bk-blame` and `be` took.
+
+- **BK 6, filter half** (`bk-az`): pass. Filter `commit 1`, `commit 199` selected; Changes → `f.txt` → Blame: toast
+  *Not in the current view — clear the filter*, the view still Changes. Back in History: `commit 199`, the Changes
+  tab, no blame, the filter kept.
+- **BK 6, stash half** (`bk-az`): pass. Filter cleared; sidebar stash `On main: bk stash` → `f.txt` → Blame: History,
+  the Files tab on `f.txt`, the blame gutter on, *241 lines*, no toast.
+- **Blame under a path filter** (new scratch repo `bk-blame`: `add a and b`, then HEAD `change a and b`; `b.txt`
+  edited): pass. History filtered to `a.txt` (HEAD visible). Changes → `b.txt` → Blame: History, the Files tab with
+  `b.txt` selected and blamed (*2 lines*, `b1` / `b2 changed`), not the filter's `a.txt`, no toast. This is the
+  `reloads` pin the review added.
+- **BK 9** (`be`): pass. `git stash clear`, `many.txt` appended, `side pages` selected; Stash changes… lists only
+  `many.txt` (with the submodule note) → *Stashed changes*, `git stash show --name-only` = `many.txt`. Alt+2,
+  Ctrl+Shift+S: the browser opens on the stash, *1 file changed*, `many.txt`, `31 + bk9 edit`. The same after Working
+  tree and back, and when opened from History (Alt+1, the grid still on `side pages`).
+
+**Cleanup:** quit with Ctrl+Q, no `t4-git-ui.exe` left; the store restored, `diff -rq` against its backup clean. The
+fixtures stay (`bk-blame` added; its HEAD is detached at `change a and b`, from its setup; `be` again holds a
+`many.txt` stash).
