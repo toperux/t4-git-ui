@@ -32,10 +32,15 @@ the release notes say, fetched over HTTPS and opened files
 `edcc19c`): the Windows installer signed (Certum), the `signing` environment with approval, every action SHA-pinned
 (and required), the Tauri CLI from crates.io, a `verify` job for all three `.sig` with `version:`, dispatch dry runs
 that publish and delete a draft, and `requireSignedVersion` on; the first signed release is 2b's.
-**Phase 2b executed 2026-10-01** (`docs/plans/2026-10-01-phase-2b-plan.md`, smoke group BK), not yet pushed or
-released. **Next:** the push and the release — the first signed one, and the first with `requireSignedVersion` on;
-its gate is in *Gate after every close-out release* below. Open decisions: the Phase 3 threshold, the Phase 4
-reference canvas, and hardware (before Phase 5).
+**Phase 2b executed 2026-10-01** (`docs/plans/2026-10-01-phase-2b-plan.md`, smoke group BK). **v0.10.15 released
+2026-10-01** (`db77c78`, release run 36843045866; every `.sig` carries `version:0.10.15`) — the first signed release,
+and the first with `requireSignedVersion` on (the update from v0.10.15 to the next release is its first real check);
+**its Windows gate passed the same day**: the owner's 0.10.14 updated through the updater and came back as 0.10.15 with
+its tabs, `Get-AuthenticodeSignature` `Valid` (`docs/archive/walks/2026-10-01-v0.10.15-release-gate.md`). **The Linux
+AppImage half passed the same day too**: the owner's installed 0.10.14 AppImage updated in place to 0.10.15 and
+**restarted by itself**, the first update that can
+(`docs/archive/walks/2026-10-01-v0.10.15-release-gate-linux.md`). **Next: Phase 3** (threshold decision first). Open
+decisions: the Phase 3 threshold, the Phase 4 reference canvas, and hardware (before Phase 5).
 
 Row references are to `docs/plans/open-items.md` sections (§A–§V), and code and smoke-doc line numbers are as of
 2026-09-28 (`main` after #18; `release.yml` cites after the CLI pin change). The Phase 1 section keeps its original
@@ -56,9 +61,10 @@ Agreed with the user 2026-09-28 (`docs/archive/plans/2026-09-28-close-out-refres
    released.
 4. ~~Phase 1b (signing, and turning on `requireSignedVersion` with its local update test).~~ Done 2026-10-01. After
    2a, so 2a's known fixes don't wait on the signing setup.
-5. Phase 2b, then a release: the first signed one, and the first with `requireSignedVersion` on; its update walk
+5. ~~Phase 2b, then a release: the first signed one, and the first with `requireSignedVersion` on; its update walk
    proves the signed pipeline end to end, and it is the second AppImage walk (then AC ticks). The setting's first
-   real check is the update from 2b's release to the next.
+   real check is the update from 2b's release to the next.~~ v0.10.15 released and its gate walked 2026-10-01 on
+   both platforms; the AppImage half restarted by itself (the third AppImage release walk), and AC ticked.
 6. Phase 3 (threshold decision first).
 7. Phase 4 (reference decision first).
 8. Phase 5 (hardware decision first), or earlier, when the hardware is there.
@@ -148,6 +154,11 @@ After the update, `Get-AuthenticodeSignature` on the installed `%LOCALAPPDATA%\T
 `Valid` and thumbprint `F06C1EC1FAC43DFEC92FBE47B0FC959D1CE38151` (Certum). The update from 2b's release to the next
 is `requireSignedVersion`'s first real check.
 
+**Walked 2026-10-01 for v0.10.15** (`docs/archive/walks/2026-10-01-v0.10.15-release-gate.md`): the new window showed the
+badge (BH 12 ticked); Install asked before dropping a typed commit summary; the installed app updated from 0.10.14 to
+0.10.15 and restarted with its tabs; `Get-AuthenticodeSignature` read `Valid`, thumbprint
+`F06C1EC1FAC43DFEC92FBE47B0FC959D1CE38151`, timestamped.
+
 **The AppImage, from #18 (§P, on the Linux machine):**
 - **At the next release:** an old AppImage started with the `LD_PRELOAD` workaround updates to the fixed one. The
   command is in `docs/archive/walks/2026-09-26-group-ac-linux-walk.md`. **Walked 2026-09-29 for v0.10.13** on the
@@ -166,8 +177,11 @@ is `requireSignedVersion`'s first real check.
     - App code and one library differ too, so only a clear gap counts. Match appimagetool's options only if it
       differs noticeably.
 - **At the release after:** the fixed one updates in place (and restarts — blocked by open-items §S until fixed; the
-  restart is the *old* app's, so a fix helps only updates from the release that carries it).
-- **Then tick AC** (`smoke-test-post-v1.md:761`).
+  restart is the *old* app's, so a fix helps only updates from the release that carries it). **Walked 2026-10-01 for
+  v0.10.15** (`docs/archive/walks/2026-10-01-v0.10.15-release-gate-linux.md`): the installed 0.10.14 AppImage
+  updated in place to 0.10.15 and **restarted by itself**, the first update that can; HTTPS clone and fetch, *Open*
+  and Ctrl+Q all passed.
+- **Then tick AC** (`smoke-test-post-v1.md:761`). **Ticked 2026-10-01**, at the walk above.
 
 **The CLI pin change (§P) landed on `main` 2026-09-28**, so the next release is the first whose updater signatures
 carry `version:`, and the gate's updates are its end-to-end check
@@ -175,8 +189,10 @@ carry `version:`, and the gate's updates are its end-to-end check
 first release, `requireSignedVersion`'s precondition holds (open-items §Q, *`requireSignedVersion` is off*);
 Phase 1b turns it on.
 
-**The crash-loop breaker's update clear (§P row 1)** isn't exercised by 2a's release (0.10.12 does the installing).
-2b's update walk checks it: after updating from 2a's release, the first launch shows no crash toast.
+**The crash-loop breaker's update clear (§P row 1)** isn't exercised by 2a's release (0.10.12 does the installing). 2b's
+update walk checks it: after updating from 2a's release, the first launch shows no crash toast. **Walked 2026-10-01 for
+v0.10.15** (`docs/archive/walks/2026-10-01-v0.10.15-release-gate.md`): no crash toast reported, and the tabs came back,
+which a breaker trip would have prevented.
 
 Releases happen only on the user's request naming the version (the `release` skill), and pushes only on the
 user's word.

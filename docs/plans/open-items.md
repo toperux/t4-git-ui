@@ -31,14 +31,12 @@ none are closed, in the done file; most of §V's deferred rows wait on a later f
   fallback for very large trees*), 2026-09-28.
 
 ## B. Verification and release
-- **Unticked smoke lines — recounted 2026-10-01: four**, all in `smoke-test-post-v1.md`: AC's deb / rpm box
-  (`:761`) and AZ 11's two platform lines (`:1879`, `:1882`), which need a Linux or macOS machine, and BH 12
-  (`:2129`, the update badge in a new window), which needs a published update and runs at 2b's release gate. A grep
-  for `- [ ]` also matches `:298`, which is prose. (Four records are marked `[n/a]` since close-out Phase 0; the three
-  this machine could reach were walked in Phase 1 — both in the done file. Line numbers refreshed 2026-09-27.)
-- **Install's confirm over a typed commit message, on a real install** (group BG walked it on local builds only).
-  The 0.10.12 → 0.10.13 gate (2026-09-29) went the happy path with no draft typed, so it runs at 2b's release gate:
-  type a commit message, then Install. (The error half of this row is closed, in the done file's §B.)
+- **Unticked smoke lines — recounted 2026-10-01: two**, both in `smoke-test-post-v1.md`: AZ 11's two platform lines
+  (`:1882`, `:1885`), which need a Linux or macOS machine. AC (`:761`) ticked 2026-10-01 at the v0.10.15 release
+  gate's AppImage half. BH 12 (the update badge in a new window) ticked 2026-10-01 at the v0.10.15 release gate. A
+  grep for `- [ ]` also matches `:298`, which is prose.
+  (Four records are marked `[n/a]` since close-out Phase 0; the three this machine could reach were walked in Phase 1 —
+  both in the done file. Line numbers refreshed 2026-10-01.)
 
 - **Windows code signing:** done 2026-10-01 (close-out Phase 1b), moved to `open-items-done.md` §B.
 - Linux (WebKitGTK) rendering: walked on 2026-09-05 under WSLg (Ubuntu 24.04, X11 backend) —
@@ -202,12 +200,8 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
   instead of GNU `sed`, with the same output.
 - ~~**Promote the direct-launch helpers (D4).**~~ Done 2026-09-26 (`linux-smoke-and-fixes`):
   `docs/smoke/fixtures/direct.sh`, pointed to from `smoke-linux.md`.
-- **AC :761 walked 2026-09-26 (T6):** the `.deb` passes; the AppImage updates in place only with a workaround (the
-  blank-window bug below); `.rpm` not walked, ruled covered 2026-09-27. The row stays unticked until the AppImage
-  release walks (`docs/archive/walks/2026-09-26-group-ac-linux-walk.md`). **2026-09-29:** both release walks since
-  (0.10.12 → 0.10.13, 0.10.13 → 0.10.14) installed in place and rendered without the workaround, but neither came back
-  by itself (the old app runs the restart). The user: AC ticks at 2b's release, whose update from 0.10.14 is the first
-  that can restart by itself.
+- **AC :761 walked 2026-09-26 (T6):** done 2026-10-01 at the v0.10.15 release gate's AppImage half, moved to
+  `open-items-done.md` §P.
 - **ssh under the moved `HOME` (T4):** done 2026-09-27, moved to `open-items-done.md` §P on 2026-09-28; its
   accepted cases are in §Q (*Linux harness: ssh cases not covered under the moved `HOME`*). Prompts are the row
   below.
@@ -265,30 +259,9 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
   and DPI. Plan: `docs/plans/2026-09-27-t5-atspi-plan.md`, from a spike on Xvfb (2026-09-27): AT-SPI reaches the
   page and GTK's text-field menu, and the OS theme switches through `gsettings` in a private session. DPI stays out
   of reach in a one-display VM.
-- **Bug found in the AC :761 walk (2026-09-26): the AppImage opens a blank window on Ubuntu 26.04. Fixed in #18
-  (merged 2026-09-27), pending the release walks.**
-  Plan: `docs/plans/2026-09-26-appimage-blank-window-plan.md`.
-  - **Symptom:** WebKit's web process aborts with `Could not create default EGL display: EGL_BAD_PARAMETER`, and the
-    window stays blank. The published 0.10.11 and 0.10.12 AppImages are affected; the `.deb` renders fine.
-  - **Cause:** the AppImage is built on `ubuntu-22.04` and bundles its `libwayland-client` (1.20). The host's Mesa
-    `libEGL_mesa` uses symbols from 1.23+, so every host with a Mesa that new is hit, not only 26.04. Moving the
-    runner wouldn't help: 24.04 ships 1.22.
-  - **Fix:** `release.yml` repacks the AppImage without `libwayland-client` (what the upstream AppImage excludelist
-    drops), rewrites the runtime's `.digest_md5`, re-signs it and verifies the `.sig` against the shipped pubkey.
-    `-server` stays: the bundled WebKit needs it. The release body tells 0.10.12-or-earlier AppImage users to
-    download by hand, since a blank window can't reach the in-app update.
-  - **Untested:** an accepted limit, moved to §Q (*AppImage fix untested on an Ubuntu 22.04 host and with the
-    NVIDIA proprietary driver*), 2026-09-28.
-  - **Separate, and not fixed:** an accepted limit, moved to §Q (*AppImage always under XWayland; some GPUs need
-    `WEBKIT_DISABLE_DMABUF_RENDERER=1`*), 2026-09-28.
-  - **Left:**
-    - ~~a `workflow_dispatch` run~~ done 2026-09-27 (run 36257070680): the CI AppImage renders on Xvfb, and on this
-      desktop with the variable;
-    - the next release: an old AppImage with the `LD_PRELOAD` workaround (the command is in the AC walk record)
-      updates to the fixed one; also compare its size and cold start with the old one (triage U4);
-    - the release after: the fixed one updates in place;
-    - then tick AC :761. `.rpm` is ruled covered by the `.deb` walk (2026-09-27): without `APPIMAGE` both take the
-      Download… path (`update.rs:45-50`).
+- **The AppImage blank-window bug** (found in the AC :761 walk, 2026-09-26; fixed in #18, merged 2026-09-27) — **done
+  2026-10-01**, moved to `open-items-done.md` §P: both release walks it waited on (0.10.12 → 0.10.13, 0.10.13 → 0.10.14)
+  landed, and AC ticked at 0.10.14 → 0.10.15.
 - **The tauri-cli 2.12.0 bump** (added 2026-09-28, the CLI pin plan's B-1 and B-3). Not planned yet. 2.12.0 (bundler
   2.10.0) came out 2026-09-26; the pin stays on 2.11.5 until a plan checks it (the version binding, `--app-version`,
   `--locked`, a dispatch run). If the bump moves the bundler version (2.12.0 does, to 2.10.0), it also re-derives
@@ -336,14 +309,14 @@ phases that accepted them; each origin keeps a pointer.
   itself, the unisolated `~/.ssh`, and ssh signing under the moved `HOME` (the last two documented in
   `smoke-linux.md` §2). Accepted in the 2026-09-27 triage of the T4 row (ssh under the moved `HOME`).
   **Reopen:** a harness walk that needs one of them. *From §P, the T4 row (now in the done file §P).*
-- **AppImage fix untested on an Ubuntu 22.04 host and with the NVIDIA proprietary driver.** Accepted 2026-09-26
-  (the 22.04 host) and 2026-09-27 (NVIDIA), in the AppImage plan (L5). **Reopen:** a report from either. *From §P,
-  the AppImage row.*
-- **AppImage always under XWayland; some GPUs need `WEBKIT_DISABLE_DMABUF_RENDERER=1`.** The AppImage's GTK hook
-  forces `GDK_BACKEND=x11`. On a VMware SVGA II guest, XWayland also needs `WEBKIT_DISABLE_DMABUF_RENDERER=1`; the
-  system `.deb` under `GDK_BACKEND=x11` is blank too. Decided 2026-09-27: no switch in the app (it would slow every
-  AppImage user); the README documents the variable instead. **Reopen:** a report that the README workaround isn't
-  enough, or Tauri's AppImage dropping the forced `GDK_BACKEND=x11`. *From §P, the AppImage row.*
+- **AppImage fix untested on an Ubuntu 22.04 host and with the NVIDIA proprietary driver.** Accepted 2026-09-26 (the
+  22.04 host) and 2026-09-27 (NVIDIA), in the AppImage plan (L5). **Reopen:** a report from either. *From §P, the
+  AppImage row (now in the done file §P).*
+- **AppImage always under XWayland; some GPUs need `WEBKIT_DISABLE_DMABUF_RENDERER=1`.** The AppImage's GTK hook forces
+  `GDK_BACKEND=x11`. On a VMware SVGA II guest, XWayland also needs `WEBKIT_DISABLE_DMABUF_RENDERER=1`; the system
+  `.deb` under `GDK_BACKEND=x11` is blank too. Decided 2026-09-27: no switch in the app (it would slow every AppImage
+  user); the README documents the variable instead. **Reopen:** a report that the README workaround isn't enough, or
+  Tauri's AppImage dropping the forced `GDK_BACKEND=x11`. *From §P, the AppImage row (now in the done file §P).*
 - **No timeout on git ops.** A stuck ssh or https op ends only on Cancel. By choice (triage 2026-09-27): a timeout
   would misfire on a slow fetch or clone. **Reopen:** a report of a hang the ssh fail-fast change doesn't cover.
   *From §P, the ssh prompts row.*

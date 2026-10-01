@@ -157,7 +157,11 @@ reopen trigger — are in `open-items.md` §Q (since 2026-09-28); a row moved th
   - **Closed accepted item (the user, 2026-09-29):** the real-install run of 0.10.12's plain-words update *errors*
     didn't happen (the update went the happy path); group BG walked them on local builds
     (`docs/archive/walks/2026-09-25-group-bg-walk.md`), and 0.10.13 carries the same code. No reopen trigger. The
-    Install-over-a-draft half stays open, `open-items.md` §B (at 2b's gate).
+    Install-over-a-draft half closed 2026-10-01 (below).
+  - **Closed 2026-10-01** (*Install's confirm over a typed commit message, on a real install*), at the v0.10.15
+    release gate: with the installed 0.10.14, a commit summary typed in Changes, then Settings › *Update to
+    0.10.15…* asked before dropping the typed message (`docs/archive/walks/2026-10-01-v0.10.15-release-gate.md`).
+    The confirm itself is F10, fixed 2026-09-25 (§I).
 - **Windows code signing** — **done 2026-10-01** (close-out Phase 1b, `docs/plans/2026-09-30-phase-1b-plan.md`).
   The row as it stood: the NSIS setup is not Authenticode-signed, so every new Windows user meets SmartScreen's
   "Windows protected your PC" and has to pick *More info › Run anyway*. The updater's minisign signature is a
@@ -168,12 +172,14 @@ reopen trigger — are in `open-items.md` §Q (since 2026-09-28); a row moved th
   2026-09-24 from group BF. What an unsigned setup actually met there (BF 3, in Windows Sandbox): **Edge warned on
   the download**, and running it brought **no SmartScreen prompt**. So today the friction is the browser's download
   warning. SmartScreen on run may still differ on a real machine, whose settings the Sandbox need not share.
-  - **Closed 2026-10-01:** Release signs the setup and every exe in it with the Certum certificate through `ssign`,
-    in the `signing` environment (the owner approves every run), and *Check the Windows signature* fails the leg
-    unless each is `Valid`, timestamped and carries thumbprint `F06C…8151`. Both dry runs passed it — Release run
-    36674994686 on `phase-1b` and 36753506004 on `main` — and smoke group BJ 4–6 walked them
-    (`docs/archive/walks/2026-09-30-phase-1b-walk.md`). The first signed release is 2b's; its gate checks the
-    installed exe's signature. The certificate's expiry is a dated row in `open-items.md` §E.
+  - **Closed 2026-10-01:** Release signs the setup and every exe in it with the Certum certificate through `ssign`, in
+    the `signing` environment (the owner approves every run), and *Check the Windows signature* fails the leg unless
+    each is `Valid`, timestamped and carries thumbprint `F06C…8151`. Both dry runs passed it — Release run 36674994686
+    on `phase-1b` and 36753506004 on `main` — and smoke group BJ 4–6 walked them
+    (`docs/archive/walks/2026-09-30-phase-1b-walk.md`). The first signed release was v0.10.15 (2b's, 2026-10-01); its
+    gate read the installed exe `Valid`, thumbprint `F06C…8151`, timestamped
+    (`docs/archive/walks/2026-10-01-v0.10.15-release-gate.md`). The certificate's expiry is a dated row in
+    `open-items.md` §E.
 
 ## C. Roadmap
 ~~Submodules · worktrees~~ — shipped 2026-09-13, see the Context bullet.
@@ -783,7 +789,38 @@ fixes and the walk added three more. The walk is `docs/archive/walks/2026-09-19-
     unless each trusted comment carries `version:` with the `version` job's output; `publish` needs it. Both dry
     runs (Release runs 36674994686 on `phase-1b` and 36753506004 on `main`) printed `OK` three times, each with
     `version:0.10.14`; smoke group BJ 4–5 (`docs/archive/walks/2026-09-30-phase-1b-walk.md`). Its first release
-    run is 2b's.
+    run was v0.10.15's (36843045866): all three `.sig` carry `version:0.10.15`.
+- **AC :761, the AppImage half** (`smoke-test-post-v1.md:761`) — **ticked 2026-10-01**, at the v0.10.15 release
+  gate's AppImage half: the installed 0.10.14 AppImage updated in place to 0.10.15 and **restarted by itself**, the
+  first update that can (`docs/archive/walks/2026-10-01-v0.10.15-release-gate-linux.md`). The `.deb` passed and
+  `.rpm` was ruled covered earlier (T6, walked 2026-09-26, `docs/archive/walks/2026-09-26-group-ac-linux-walk.md`).
+  The 0.10.13 and 0.10.14 release walks (2026-09-29) installed in place but neither restarted by itself, so the user
+  held the tick for 2b's release, the first that can.
+- **The AppImage opened a blank window on Ubuntu 26.04** (found in the AC :761 walk, 2026-09-26) — **closed
+  2026-10-01**. Plan: `docs/plans/2026-09-26-appimage-blank-window-plan.md`.
+  - **Symptom:** WebKit's web process aborted with `Could not create default EGL display: EGL_BAD_PARAMETER`, and
+    the window stayed blank. The published 0.10.11 and 0.10.12 AppImages were affected; the `.deb` rendered fine.
+  - **Cause:** the AppImage is built on `ubuntu-22.04` and bundles its `libwayland-client` (1.20). The host's Mesa
+    `libEGL_mesa` uses symbols from 1.23+, so every host with a Mesa that new was hit, not only 26.04. Moving the
+    runner wouldn't have helped: 24.04 ships 1.22.
+  - **Fix:** `release.yml` repacks the AppImage without `libwayland-client` (what the upstream AppImage excludelist
+    drops), rewrites the runtime's `.digest_md5`, re-signs it and verifies the `.sig` against the shipped pubkey.
+    `-server` stays: the bundled WebKit needs it. The release body told 0.10.12-or-earlier AppImage users to
+    download by hand, since a blank window can't reach the in-app update. Merged in #18, 2026-09-27.
+  - **Accepted limits** (still open, in `open-items.md` §Q, 2026-09-28): *AppImage fix untested on an
+    Ubuntu 22.04 host and with the NVIDIA proprietary driver*; *AppImage always under XWayland; some GPUs need
+    `WEBKIT_DISABLE_DMABUF_RENDERER=1`*.
+  - **Left, now all done:**
+    - a `workflow_dispatch` run — done 2026-09-27 (run 36257070680): the CI AppImage renders on Xvfb, and on this
+      desktop with the variable;
+    - the next release: an old AppImage with the `LD_PRELOAD` workaround updates to the fixed one — walked
+      2026-09-29 for v0.10.13 (`docs/archive/walks/2026-09-29-appimage-release-walk.md`); size and cold start
+      compared against the old one (triage U4): no clear gap;
+    - the release after: the fixed one updates in place — walked 2026-09-29 for v0.10.14
+      (`docs/archive/walks/2026-09-29-v0.10.14-release-gate-linux.md`), then 2026-10-01 for v0.10.15, which also
+      restarted by itself (`docs/archive/walks/2026-10-01-v0.10.15-release-gate-linux.md`);
+    - AC ticked 2026-10-01 (row above). `.rpm` is ruled covered by the `.deb` walk (2026-09-27): without `APPIMAGE`
+      both take the Download… path (`update.rs:45-50`).
 
 ## Q. Accepted limits — the rows since closed
 
@@ -802,8 +839,8 @@ stays.
     version. Smoke group BJ 1–3 walked it on a local build (the plan's D4): a version-less 0.10.12 setup offered as
     0.10.14 was refused with the plugin's `MissingSignedVersion` text, then the published 0.10.14 installed. Both
     dry runs' `verify` job (Release runs 36674994686 and 36753506004) proved every `.sig` carries `version:`
-    (`docs/archive/walks/2026-09-30-phase-1b-walk.md`). It ships in 2b's release; the update from that release to
-    the next is its first real check.
+    (`docs/archive/walks/2026-09-30-phase-1b-walk.md`). It shipped in v0.10.15, 2b's release (2026-10-01); the
+    update from v0.10.15 to the next release is its first real check.
 - **Q23: the details pane goes blank when another commit is selected.** Until the new commit's details arrive, the
   pane is empty instead of keeping the previous commit's on screen. P1-4's fix (`6a95389`) clears `detail` and
   `error` on a new commit id (`src/screens/RepoWindow/DetailsPane.tsx:170-173`, checked 2026-09-28); the blank was

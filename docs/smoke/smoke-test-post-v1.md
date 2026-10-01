@@ -758,7 +758,7 @@ they stay clear._
       message lands beside the buttons, the progress bar goes, and **Update to <v>…** can be pressed
       again
       Walked 2026-09-24 on the installed 0.10.10 updating to the published 0.10.11, through `docs/smoke/fixtures/throttle-proxy.mjs` (`docs/archive/walks/2026-09-24-update-walk.md`). The network was the proxy: stopped for the check, cut at 11 % for the install.
-- [ ] **deb / rpm**: on a `.deb` install the button reads **Download…** and opens the releases page
+- [x] **deb / rpm**: on a `.deb` install the button reads **Download…** and opens the releases page
       instead of installing; on the AppImage it installs in place like Windows
       Walked 2026-09-26 on Ubuntu 26.04.1, published 0.10.11 → 0.10.12
       (`docs/archive/walks/2026-09-26-group-ac-linux-walk.md`):
@@ -768,7 +768,10 @@ they stay clear._
         `WEBKIT_DISABLE_DMABUF_RENDERER=1` (the README note).
       - `.rpm`: not walked; ruled covered by the `.deb` walk (2026-09-27): without `APPIMAGE` both take
         the Download… path (`update.rs:45-50`).
-      Unticked until the AppImage fix passes its release walks (open-items §P).
+      - AppImage restart, walked 2026-10-01 on the installed 0.10.14 updating to the published 0.10.15
+        (`docs/archive/walks/2026-10-01-v0.10.15-release-gate-linux.md`): installs in place and restarts by itself,
+        and the old image unmounts. Launched with `WEBKIT_DISABLE_DMABUF_RENDERER=1` (VMware desktop).
+      Ticked 2026-10-01: the AppImage fix passed its release walks (`open-items-done.md` §P).
 
 ## AD. Stage / unstage the selection from the header (main §4)
 _Shipped 2026-09-11 (this commit). The two header buttons read **Stage selected** / **Unstage selected**
@@ -2126,8 +2129,10 @@ trip the installed app's next launch.
       back at that width after a switch that hid it.
 - [x] 11. **T8 proxy check** (triage T8): launch with `smoke-launch.ps1 -Proxy http://127.0.0.1:8888` and
       `throttle-proxy.mjs` running; `CONNECT github.com` in the proxy's log.
-- [ ] 12. **Update badge in a new window** (optional regression): with an update available, Ctrl+Shift+N shows the
-      badge. Scheduled at 2b's release gate, on the installed 2a app before Install (close-out plan).
+- [x] 12. **Update badge in a new window** (optional regression): with an update available, Ctrl+Shift+N shows the
+      badge. Scheduled at 2b's release gate, on the installed 2a app before Install (close-out plan). *(Walked
+      2026-10-01 by the owner on the installed 0.10.14 at the v0.10.15 release gate: the new window showed the badge
+      too; `docs/archive/walks/2026-10-01-v0.10.15-release-gate.md`.)*
 
 Walked 2026-09-29 over CDP on a local release build of `e5d8eb5` (`tauri build --no-bundle`), store folder backed
 up and restored byte-exact (`cmp`) — `docs/archive/walks/2026-09-29-group-bh-walk.md`. Rows 1 and 3 needed a

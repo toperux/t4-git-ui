@@ -1,11 +1,14 @@
 # Plan: close-out Phase 2b — the design-needed rows, 2026-10-01
 
-_Written 2026-10-01. Status: decisions D1–D15 taken by the owner 2026-10-01 (every recommendation); plan review
-pass 1: 9 should-fix / nits fixed, decisions D16–D17 taken; pass 2: 1 should-fix, 11 nits fixed; pass 3: 2
-should-fix, 13 nits fixed (the Linux-track rows placed in a new open-items §V); pass 4: 3 should-fix, 9 nits
-fixed (`worktree add`'s stderr measured); pass 5: clean (4 nits, fixed); pass 6: clean. **Executed on
-`phase-2b` 2026-10-01: BK 1–9 walked green, change review passes 1–10 (pass 10 clean), triaged** (see *Triage*
-below), **squashed** — waiting on the owner's go to push.
+_Written 2026-10-01. Status: decisions D1–D15 taken by the owner 2026-10-01 (every recommendation); plan review pass 1:
+9 should-fix / nits fixed, decisions D16–D17 taken; pass 2: 1 should-fix, 11 nits fixed; pass 3: 2 should-fix, 13 nits
+fixed (the Linux-track rows placed in a new open-items §V); pass 4: 3 should-fix, 9 nits fixed (`worktree add`'s stderr
+measured); pass 5: clean (4 nits, fixed); pass 6: clean. **Executed on `phase-2b` 2026-10-01: BK 1–9 walked green,
+change review passes 1–10 (pass 10 clean), triaged** (see *Triage* below), **squashed**, pushed; **released as v0.10.15
+2026-10-01** (release run 36843045866), its gate passed on both platforms, the AppImage half restarting by itself
+for the first time
+(`docs/archive/walks/2026-10-01-v0.10.15-release-gate.md`,
+`docs/archive/walks/2026-10-01-v0.10.15-release-gate-linux.md`).
 
 **Goal:** settle every Phase 2b row of `docs/plans/2026-09-26-close-out-plan.md` (the Phase 2 table's rows marked
 *design needed*, plus the three rows given to 2b: §R Ctrl+Q, §S hook toast, §S tool start), walk the fixes as smoke
@@ -609,6 +612,11 @@ first, restored byte-exact after). Linux-only steps (row 3's Linux case, row 11)
 track.
 
 ## Release and gate
+
+**Done 2026-10-01, both platforms:** v0.10.15 released; the Windows gate passed (BH 12, Install's confirm,
+the crash-breaker clear, the signature); the VM's AppImage walk passed too, with the first restart-by-itself, and
+AC ticked (`docs/archive/walks/2026-10-01-v0.10.15-release-gate.md`,
+`docs/archive/walks/2026-10-01-v0.10.15-release-gate-linux.md`).
 
 - Version: the owner names it at release time (the `release` skill). The Release run waits for approval under
   *Actions › the run › Review deployments* (the `signing` environment).
