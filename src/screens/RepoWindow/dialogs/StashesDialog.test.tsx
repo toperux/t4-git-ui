@@ -7,7 +7,7 @@ import { useOpsStore } from "../../../store/opsStore";
 import { __resetForTests as resetRepo, useRepoStore } from "../../../store/repoStore";
 import { useStatusStore } from "../../../store/statusStore";
 import { useCommitSync } from "../CommitPanel/CommitPanel";
-import { StashPushDialog } from "./StashDialogs";
+import { StashPushDialog, stashFiles } from "./StashDialogs";
 import { StashesDialog } from "./StashesDialog";
 
 const ok = { opId: "1", code: 0, conflicts: [], failure: null };
@@ -218,6 +218,34 @@ describe("StashesDialog", () => {
     expect(wtRow(view).getAttribute("aria-selected")).toBeNull();
     expect(view.getByRole("button", { name: "Apply" })).toBeTruthy();
   });
+
+  it("a changed submodule alone is nothing to stash, and the form says why", () => {
+    dirty(entry("subs/a", { submodule: true, submoduleDirtyOnly: true }));
+    const view = open();
+    // Nothing stashable: the browser opens on stash@{0}.
+    expect(wtRow(view).getAttribute("aria-selected")).toBeNull();
+    fireEvent.click(wtRow(view));
+    const button = document.querySelector<HTMLButtonElement>('button[title="No changes"]')!;
+    expect(button.disabled).toBe(true);
+    expect(view.getByText("Submodules and nested repositories aren't stashed")).toBeTruthy();
+  });
+});
+
+describe("stashFiles", () => {
+  const paths = (...entries: StatusEntry[]) =>
+    stashFiles({ entries, staged: 0, unstaged: entries.length, untracked: 0, conflicted: 0, state: "clean" }, true).map((e) => e.path);
+
+  // git stashes neither a submodule's own edits nor its checkout moved to another commit, and
+  // `stash -u` leaves a nested repository where it is.
+  it("leaves out a submodule with no staged pointer and a nested repository", () => {
+    expect(paths(entry("dirty", { submodule: true, submoduleDirtyOnly: true }))).toEqual([]);
+    expect(paths(entry("moved", { submodule: true }))).toEqual([]);
+    expect(paths(entry("nested/", { submodule: true, workdir: "untracked" }))).toEqual([]);
+  });
+
+  it("keeps a submodule with a staged pointer, and a plain file", () => {
+    expect(paths(entry("staged", { submodule: true, index: "modified" }), entry("a.txt"))).toEqual(["staged", "a.txt"]);
+  });
 });
 
 describe("StashPushDialog", () => {
@@ -251,6 +279,23 @@ describe("StashPushDialog", () => {
     expect(button.disabled).toBe(true);
     fireEvent.click(button);
     expect(ipc.stashPush).not.toHaveBeenCalled();
+  });
+
+  it("a changed submodule alone is nothing to stash, and says why", () => {
+    dirty(entry("subs/a", { submodule: true }));
+    const view = push();
+    expect(view.getByText("Nothing to stash")).toBeTruthy();
+    expect((view.getByRole("button", { name: "Stash" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(view.getByText("Submodules and nested repositories aren't stashed")).toBeTruthy();
+  });
+
+  it("lists the files beside a changed submodule, not the submodule", () => {
+    dirty(entry("subs/a", { submodule: true }), entry("a.txt"));
+    const view = push();
+    expect(files(view)).toHaveLength(1);
+    expect(view.queryByText("subs/a")).toBe(null);
+    expect(view.getByRole("button", { name: "Stash 1 file" })).toBeTruthy();
+    expect(view.getByText("Submodules and nested repositories aren't stashed")).toBeTruthy();
   });
 
   it("refuses while a conflict is unresolved: git will not write the index", () => {

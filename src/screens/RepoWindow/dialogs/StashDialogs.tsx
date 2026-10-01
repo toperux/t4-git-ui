@@ -32,15 +32,28 @@ export const EMPTY_PUSH: StashPushValues = {
 
 export const stashPushPreview = (v: StashPushValues) => gitCmd(stashPushArgs(v.message.trim() || null, v.untracked, v.keepIndex));
 
+/** An entry with a change the push would consider: tracked, or untracked with `-u`. */
+const pushable = (e: StatusEntry, untracked: boolean) => (e.index !== null || e.workdir !== null) && (untracked || e.workdir !== "untracked");
+
+/**
+ * A submodule with no staged pointer, or an untracked nested repository: git stashes neither — not
+ * a submodule's own edits, not its checkout moved to another commit (`stash -u` prints *Ignoring
+ * path* for a nested repository). A staged pointer is in the index, which git does save.
+ */
+const unstashable = (e: StatusEntry) => e.submodule && e.index === null;
+
 /**
  * What `git stash push` will take: every tracked entry with an index or workdir change (one list —
- * `--keep-index` only leaves the index copy behind) and untracked files only with `-u`; nothing at
- * all while a conflict is unresolved (`stashBlocker`).
- * ponytail: a dirty-only submodule is listed though git stashes nothing of its own tree; the count
- * this replaced had the same blind spot.
+ * `--keep-index` only leaves the index copy behind) and untracked files only with `-u`, less the
+ * submodules git leaves alone (`unstashable`); nothing at all while a conflict is unresolved
+ * (`stashBlocker`).
  */
 export const stashFiles = (status: WorkdirStatus | null, untracked: boolean): StatusEntry[] =>
-  stashBlocker(status) ? [] : (status?.entries ?? []).filter((e) => (e.index !== null || e.workdir !== null) && (untracked || e.workdir !== "untracked"));
+  stashBlocker(status) ? [] : (status?.entries ?? []).filter((e) => pushable(e, untracked) && !unstashable(e));
+
+/** `stashFiles` left a submodule or nested repository out. */
+const stashSkipsSubmodules = (status: WorkdirStatus | null, untracked: boolean): boolean =>
+  !stashBlocker(status) && (status?.entries ?? []).some((e) => pushable(e, untracked) && unstashable(e));
 
 /** Why a push cannot run whatever the tree holds, or `null`: git will not write the index over an unmerged entry. */
 export const stashBlocker = (status: WorkdirStatus | null): string | null => ((status?.conflicted ?? 0) > 0 ? "Resolve conflicts first" : null);
@@ -49,6 +62,12 @@ export const stashBlocker = (status: WorkdirStatus | null): string | null => ((s
 export function useStashFiles(untracked: boolean): StatusEntry[] {
   const status = useStatusStore((st) => st.status);
   return useMemo(() => stashFiles(status, untracked), [status, untracked]);
+}
+
+/** Both push surfaces say why a changed submodule isn't in their list. */
+export function StashSkipNote({ untracked }: { untracked: boolean }) {
+  const skips = useStatusStore((st) => stashSkipsSubmodules(st.status, untracked));
+  return skips ? <span className={s.note}>Submodules and nested repositories aren't stashed</span> : null;
 }
 
 /** Stash button label; plain `Stash` at zero, where the button is disabled anyway. */
@@ -143,6 +162,7 @@ export function StashPushDialog({ onClose }: { onClose: () => void }) {
           ))}
         </div>
       )}
+      <StashSkipNote untracked={values.untracked} />
     </Dialog>
   );
 }

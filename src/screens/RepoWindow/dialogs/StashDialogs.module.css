@@ -33,3 +33,9 @@
   color: var(--fg-muted);
   padding: var(--space-2) var(--space-4);
 }
+/* `StashSkipNote`: a Field's help line. */
+.note {
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
+  color: var(--fg-muted);
+}

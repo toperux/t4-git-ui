@@ -361,8 +361,9 @@ src/
                            Remove (a remote itself), WorktreeDialogs Add (where + an existing or a new branch) /
                            Remove (a refusal re-offers it forced) / Lock, StashDialogs (Stash changes — the fields over the
                            list of files the push will take, `useStashFiles`: tracked changes, untracked while the box is
-                           on, nothing during a conflict since git refuses; the button reads `Stash N files` and is
-                           disabled on nothing — / one entry's
+                           on, nothing during a conflict since git refuses, and no submodule without a staged pointer
+                           nor nested repository, which git doesn't stash — `StashSkipNote` says so on both push
+                           surfaces; the button reads `Stash N files` and is disabled on nothing — / one entry's
                            Apply · Pop · Drop, plus the `StashPushFields` and `StashMenuItems` the browser and the sidebar
                            row menu share), StashesDialog (kind `stashes`, the stash browser as a full-window dialog, from
                            the Stash menu, the Stashes header button, the preview's Open browser or Ctrl+Shift+S: a list

@@ -21,7 +21,7 @@ import { CommitDiff } from "../DetailsPane";
 import d from "../DetailsPane.module.css";
 import w from "../RepoWindow.module.css";
 import { gitCmd, stashClearArgs } from "./gitArgs";
-import { EMPTY_PUSH, StashMenuItems, StashPushFields, stashBlocker, stashFiles, stashLabel, stashPushOp, stashPushPreview, useStashFiles } from "./StashDialogs";
+import { EMPTY_PUSH, StashMenuItems, StashPushFields, StashSkipNote, stashBlocker, stashFiles, stashLabel, stashPushOp, stashPushPreview, useStashFiles } from "./StashDialogs";
 import s from "./StashesDialog.module.css";
 
 const NO_STASHES: Stash[] = [];
@@ -123,6 +123,7 @@ export function StashesDialog({ onClose }: { onClose: () => void }) {
                 <Button className={s.push} variant="primary" disabled={!canPush} title={files.length === 0 ? empty : busy} onClick={submitPush}>
                   {stashLabel(files.length)}
                 </Button>
+                <StashSkipNote untracked={push.untracked} />
               </div>
             ) : (
               <div className={s.bar}>
