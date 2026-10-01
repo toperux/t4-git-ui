@@ -33,7 +33,8 @@ toast/toolbar walks. Steps run in argv order:
 
 ```
 node docs/smoke/cdp.mjs --inner 1280x800 --wait 400 --eval "expr" --eval @file.js \
-                        --drag "Resize sidebar" 60 0 --key Alt+2 --click "sel" --dblclick "sel"
+                        --drag "Resize sidebar" 60 0 --key Alt+2 --click "sel" --dblclick "sel" \
+                        --tag "[role=menuitem]" "^Blame$" --click "[data-w]" --shot <scratch>/shot.png
 ```
 
 `--inner` resizes the real window through `Browser.setWindowBounds` and converges on an exact CSS
@@ -52,6 +53,18 @@ Three more gestures, added for the 2026-09-16 walk:
 `--click` and `--dblclick` dispatch real `Input.dispatchMouseEvent` pairs (`clickCount` 1 then 2).
 Synthetic DOM events do not reach library handlers, which is what made the output dock's
 double-click unprovable in an earlier walk.
+
+Two more steps, added for the 2026-10-01 BK re-walk (`docs/archive/walks/2026-10-01-group-bk-walk.md`):
+- `--tag "<css>" "<regex>"` clears every `data-w` mark, then marks the first element, in document order, that
+  matches the selector and whose `textContent` matches the regex, and prints the first 80 characters of its text.
+  A `--click "[data-w]"` after it clicks that element. The regex has no flags (case-sensitive, unanchored) and
+  `textContent` runs child text together (`Mf.txt+1`), so anchor it with `^` and use a selector narrow enough
+  that no ancestor matches first. When nothing matches it prints `{"tag":null}`, and the next `--click "[data-w]"`
+  throws `no element [data-w]`. Tagging by hand instead, clear the old mark first: `querySelector('[data-w]')`
+  returns the **first** one in the DOM, so an old tag on a grid row makes every later click land on that row.
+- `--shot <file.png>` saves a screenshot of the page viewport through `Page.captureScreenshot`: no title bar, no
+  native `ask()` box, nothing outside the webview (as with `wd.mjs shot`, `smoke-linux.md`). A relative path lands
+  in the working directory and `.gitignore` doesn't cover `*.png`, so write shots to the session's scratch folder.
 
 ### A local build, isolated from the installed app
 
@@ -83,7 +96,10 @@ that way on 2026-09-19.
   exactly as the app writes them (copy the spelling from a file the app wrote: backslashes on Windows). A
   forward-slash path opens, but its `active` tab is not restored. A kill before the restore report leaves
   `layout.restoring` next to `layout.json`, which trips the crash breaker on the next launch — delete it as
-  part of seeding.
+  part of seeding. Write the file with a file tool, not through shell-quoted JSON: a seed escaped through bash and
+  `node -e` came out with mangled paths on 2026-10-01 (three *Couldn't open repository* toasts). And an empty `[]`
+  is not a clean start: a launch can open the most recent repository from `lastOpen` instead of the start screen
+  (open-items §V, F2), so seed the tabs the walk needs.
 - **Closing a window** the way its × does: `WM_CLOSE` posted to the top-level HWND (`EnumWindows`, filtered
   by the build's pid and the title). That is what AZ 3 was walked with; a killed process is row 3h, not a close.
 - **The log file is buffered**: a killed process loses its tail. Close the window properly before reading
@@ -134,8 +150,6 @@ CDP_HOST=$(wsb ip --id <id>):9223 node docs/smoke/cdp.mjs --eval "document.title
 - WebView2 serves CDP on `127.0.0.1` only, hence the port proxy. The page's `webSocketDebuggerUrl` comes back
   with the Sandbox's own address, so `cdp.mjs` needs nothing beyond `CDP_HOST`.
 - A silent install skips the installer's own pages and SmartScreen. Those still want a hand look.
-- Clear the `data-w` marker before tagging the next element. `querySelector('[data-w]')` returns the
-  **first** one in the DOM, so an old tag on a grid row makes every later click land on that row.
 
 ## Selectors that hold
 

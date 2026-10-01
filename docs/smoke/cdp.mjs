@@ -1,11 +1,12 @@
 // Minimal CDP driver for the smoke walks — see docs/smoke/smoke-cdp.md.
 //   node cdp.mjs --inner 1280x800 --wait 400 --eval "expr" --eval @file.js
 //                --drag "Resize sidebar" 60 0 --key Alt+2 --type "status" --reload
+//                --tag "[role=menuitem]" "^Blame$" --click "[data-w]" --shot <scratch>/shot.png
 // Steps run in argv order. --inner resizes the real window (Browser.setWindowBounds) and
 // converges on an exact CSS viewport, because setWindowBounds counts the frame and we don't.
 // Deliberately NOT Playwright: page.setViewportSize installs a device-metrics override that
 // pins the viewport and leaves the window unable to reflow.
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 
 // CDP_HOST reaches an app elsewhere, e.g. inside Windows Sandbox behind a port proxy.
 const HOST = process.env.CDP_HOST ?? "127.0.0.1:9222";
@@ -256,6 +257,15 @@ for (let i = 0; i < args.length; i++) {
     await send("Page.reload");
     await sleep(2500);
     console.log(JSON.stringify({ reloaded: true }));
+  } else if (a === "--shot") {
+    const f = args[++i];
+    const { data } = await send("Page.captureScreenshot", { format: "png" });
+    writeFileSync(f, Buffer.from(data, "base64"));
+    console.log(JSON.stringify({ shot: f }));
+  } else if (a === "--tag") {
+    // --tag "css" "text regex": marks the first match whose text matches as [data-w], clearing old tags.
+    const sel = args[++i], re = args[++i];
+    console.log(JSON.stringify({ tag: await evaluate(`(()=>{document.querySelectorAll("[data-w]").forEach(e=>e.removeAttribute("data-w"));const r=new RegExp(${JSON.stringify(re)});const e=[...document.querySelectorAll(${JSON.stringify(sel)})].find(e=>r.test(e.textContent));if(!e)return null;e.setAttribute("data-w","1");return e.textContent.slice(0,80);})()`) }));
   } else if (a === "--eval") {
     let expr = args[++i];
     if (expr.startsWith("@")) expr = readFileSync(expr.slice(1), "utf8");

@@ -1007,3 +1007,16 @@ The triage's accepted items, ruled one by one by the owner 2026-10-01 (`docs/pla
   but not a bug. Accepted.
 - **F4 (a Vite build-size warning).** `index-*.js` is 668 kB, over Vite's 500 kB chunk-size warning; checked
   pre-existing, not from this branch. Accepted.
+
+## W. Added 2026-10-01 — the smoke helpers' change review: accepted, closed
+
+Ruled one by one by the owner; detail in the *Triage* section of `docs/plans/2026-10-01-smoke-helpers-plan.md`
+(T1, T2, T5, T6, T7 and, from passes 3–6, R1–R4, S1–S4, U1, U3, V1 and V2 were fixed).
+
+- **T3** `docs/reflow.mjs` refuses some ranges that would be safe to rewrap: a multi-line quote, a bare backtick run
+  in prose. A refusal writes nothing and names the line. Accepted 2026-10-01, no reopen trigger. (A line merely
+  starting with `--` / `==` was refused too until R4 narrowed the guard.)
+- **T4** `docs/reflow.mjs` splits words on any whitespace, so a non-breaking space outside a code span becomes a
+  plain space; no doc has one. Accepted 2026-10-01, no reopen trigger.
+- **Y1** `docs/reflow.mjs`'s hand-wrapped header comment has an uneven right edge (within 120). Accepted 2026-10-01,
+  no reopen trigger.

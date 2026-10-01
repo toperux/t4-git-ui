@@ -1579,7 +1579,7 @@ final `bad`, so the chip moved to HEAD and the banner followed)._
       `bad` chip (Bug icon)
 - [x] **Mark good moves HEAD**: right-click `add a` → **Bisect: mark good** → `add a` carries a
       `good` chip, HEAD moves to git's own midpoint and the banner reads *Bisecting — testing
-      <oid7> · 1 good · 1 bad* with **Good** / **Bad** / **Skip** / **Reset**
+      `<oid7>` · 1 good · 1 bad* with **Good** / **Bad** / **Skip** / **Reset**
 - [x] **Banner buttons act on HEAD**: click **Good** (or **Bad**, or **Skip**) on the banner → the
       commit HEAD was sitting on gets the matching chip, HEAD moves again, the banner's counts and
       testing oid follow
