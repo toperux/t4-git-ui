@@ -115,6 +115,8 @@ describe("CommitDetails", () => {
     const getCommit = ipc.getCommit as unknown as ReturnType<typeof vi.fn>;
     const plain = render(<DetailsPane />);
     await plain.findByText("Ship it");
+    // The summary is the grid row's, there before the reply: wait for `getCommit` too.
+    await act(async () => {});
     expect(plain.queryByText("signed")).toBeNull();
     cleanup();
 
@@ -135,6 +137,25 @@ describe("CommitDetails", () => {
     act(() => useRepoStore.setState({ selectedIndex: 1 }));
     expect(await findByText("Later work")).toBeTruthy();
     expect(queryByText("bad object")).toBeNull();
+  });
+
+  // `getCommit` takes the git2 lock, so it can queue behind a status scan: the pane must not blank meanwhile.
+  it("shows the grid row's fields while another commit's detail is on its way", async () => {
+    const later: CommitInfo = { ...DETAIL.info, oid: "b", short: "bbbbbbb", summary: "Later work" };
+    useRepoStore.setState({ rows: [ROW, { row: { ...ROW.row, commit: later }, labels: [] }] });
+    const { findByText, getByText, queryByText } = render(<DetailsPane />);
+    await findByText("Ship it");
+
+    const getCommit = ipc.getCommit as unknown as ReturnType<typeof vi.fn>;
+    let answer!: (d: CommitDetail) => void;
+    getCommit.mockReturnValueOnce(new Promise<CommitDetail>((r) => (answer = r)));
+    act(() => useRepoStore.setState({ selectedIndex: 1 }));
+    expect(getByText("Later work")).toBeTruthy();
+    expect(getByText("b")).toBeTruthy(); // the SHA row: the full oid
+    expect(queryByText("The body")).toBeNull();
+
+    await act(async () => answer({ ...DETAIL, info: later, message: "Later work\n\nThe body\n" }));
+    expect(getByText("The body")).toBeTruthy();
   });
 });
 

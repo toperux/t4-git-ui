@@ -159,32 +159,38 @@ export function CommitDiff({ onExpand }: { onExpand?: (opener: HTMLElement) => v
 function CommitDetails() {
   const repoId = useRepoStore((st) => st.repo?.id ?? null);
   const oid = useRepoStore(selectSelectedOid);
+  // What the grid row already holds: shown at once, while `getCommit` may queue behind a status scan.
+  const rowCommit = useRepoStore((st) => (st.wtSelected || st.selectedIndex === null ? null : (st.rows[st.selectedIndex]?.row.commit ?? null)));
   const labels = useRepoStore((st) => (st.selectedIndex === null ? undefined : st.rows[st.selectedIndex]?.labels));
   const revealOid = useRepoStore((st) => st.revealOid);
   // A lightweight tag is just a name — only an annotated one has a message of its own.
   const tags = useRepoStore((st) => st.refs?.tags);
   const annotations = useMemo(() => (tags ?? []).filter((t) => t.oid === oid && t.message), [tags, oid]);
   const [detail, setDetail] = useState<CommitDetail | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<{ oid: string; message: string } | null>(null);
 
   useEffect(() => {
-    // Blank for the round trip: the previous commit's body — or its error — is not this one's.
+    // The grid row's fields show for the round trip; body, committer and *signed* come with the
+    // reply. Both are keyed by oid below, so the previous commit's detail — or its error — never
+    // shows for this one, not even for the render before this clears them.
     setDetail(null);
-    setError(null);
+    setFailure(null);
     if (!repoId || !oid) return;
     let live = true;
     getCommit(repoId, oid)
       .then((d) => live && setDetail(d))
-      .catch((e: unknown) => live && setError(toAppError(e).message));
+      .catch((e: unknown) => live && setFailure({ oid, message: toAppError(e).message }));
     return () => {
       live = false;
     };
   }, [repoId, oid]);
 
-  const info = detail?.info;
+  const fresh = detail?.info.oid === oid ? detail : null;
+  const error = failure?.oid === oid ? failure.message : null;
+  const info = fresh?.info ?? rowCommit;
   // Body = full message minus the summary line.
-  const body = detail ? detail.message.replace(/^[^\n]*\n?/, "").trim() : "";
-  const committerDiffers = detail && (detail.committerName !== info?.authorName || detail.committerEmail !== info?.authorEmail);
+  const body = fresh ? fresh.message.replace(/^[^\n]*\n?/, "").trim() : "";
+  const committerDiffers = fresh && (fresh.committerName !== info?.authorName || fresh.committerEmail !== info?.authorEmail);
 
   return (
     <div className={s.commit}>
@@ -227,7 +233,7 @@ function CommitDetails() {
                   <>
                     {`${info.authorName} <${info.authorEmail}>`}
                     {/* Presence only: nothing here checks the signature against a key. */}
-                    {detail?.signed && (
+                    {fresh?.signed && (
                       <span className={s.signed} title="This commit carries a signature (not verified)">
                         signed
                       </span>
@@ -235,7 +241,7 @@ function CommitDetails() {
                   </>
                 }
               />
-              {committerDiffers && <Kv k="Committer" v={`${detail.committerName} <${detail.committerEmail}>`} />}
+              {committerDiffers && <Kv k="Committer" v={`${fresh.committerName} <${fresh.committerEmail}>`} />}
               <Kv k="Date" v={`${absoluteDate(info.authorTime)} (${relativeDate(info.authorTime)})`} />
               <Kv k="SHA" v={<span className={`${s.mono} selectable`}>{info.oid}</span>} />
               {info.parents.length > 0 && (
