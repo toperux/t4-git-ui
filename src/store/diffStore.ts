@@ -33,6 +33,8 @@ export interface DiffStore {
   tab: FileTab;
   /** Every file of the target revision; `null` until the Files tab asks for it. */
   tree: TreeEntry[] | null;
+  /** Files `tree` leaves out because their path isn't UTF-8 (`TreeListing.skipped`). */
+  treeSkipped: number;
   treeLoading: boolean;
   treeError: string | null;
   /** Case-insensitive substring on the path; while set, the list is flat and only matches show. */
@@ -120,7 +122,7 @@ let blameSeq = 0;
  * the same tree oid share one array — that is what the oid is for; it cannot spare the *first* call
  * for a commit, since only the reply says which tree the commit has.
  */
-const treeCache = new Map<string, { oid: string | null; entries: TreeEntry[] }>();
+const treeCache = new Map<string, { oid: string | null; entries: TreeEntry[]; skipped: number }>();
 /** Listings kept: a 47k-path tree is a couple of megabytes, and the log is unbounded. */
 const MAX_TREES = 20;
 /** The file each target was last left on, so switching back to it resumes there. */
@@ -129,9 +131,9 @@ const treeSelection = new Map<string, string>();
 let pinned: string | null = null;
 
 /** Caches `entries` for `key`, sharing the array of an equal tree and evicting the oldest listing. */
-function remember(key: string, oid: string | null, entries: TreeEntry[]): TreeEntry[] {
+function remember(key: string, oid: string | null, entries: TreeEntry[], skipped: number): TreeEntry[] {
   const shared = oid === null ? undefined : [...treeCache.values()].find((c) => c.oid === oid)?.entries;
-  const value = { oid, entries: shared ?? entries };
+  const value = { oid, entries: shared ?? entries, skipped };
   treeCache.delete(key);
   treeCache.set(key, value);
   for (const oldest of treeCache.keys()) {
@@ -221,6 +223,7 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
 
     tab: "changes",
     tree: null,
+    treeSkipped: 0,
     treeLoading: false,
     treeError: null,
     treeFilter: "",
@@ -262,6 +265,7 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
         diffLoading: false,
         diffError: null,
         tree: null,
+        treeSkipped: 0,
         treeLoading: false,
         treeError: null,
         // The file this target was last left on; another one starts with no selection.
@@ -335,13 +339,13 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
       const { repoId, target } = get();
       const tree = treeTargetOf(target);
       if (!repoId || !tree) {
-        set({ tree: null, treeLoading: false, treeError: null });
+        set({ tree: null, treeSkipped: 0, treeLoading: false, treeError: null });
         return;
       }
       // The working tree is never served from the cache: it changes under us.
       const cached = tree.kind === "commit" ? treeCache.get(targetKey(tree)) : undefined;
       if (cached) {
-        set({ tree: cached.entries, treeLoading: false, treeError: null });
+        set({ tree: cached.entries, treeSkipped: cached.skipped, treeLoading: false, treeError: null });
         if (get().treeSelectedPath) void loadContent();
         return;
       }
@@ -349,12 +353,12 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
       try {
         const listing = await ipc.listTree(repoId, tree);
         if (seq !== treeSeq) return; // stale
-        const entries = tree.kind === "commit" ? remember(targetKey(tree), listing.oid, listing.entries) : listing.entries;
-        set({ tree: entries, treeLoading: false });
+        const entries = tree.kind === "commit" ? remember(targetKey(tree), listing.oid, listing.entries, listing.skipped) : listing.entries;
+        set({ tree: entries, treeSkipped: listing.skipped, treeLoading: false });
         if (get().treeSelectedPath) void loadContent();
       } catch (e) {
         if (seq !== treeSeq) return;
-        set({ tree: null, treeLoading: false, treeError: toAppError(e).message });
+        set({ tree: null, treeSkipped: 0, treeLoading: false, treeError: toAppError(e).message });
       }
     },
 
@@ -409,6 +413,7 @@ const SNAPSHOT_KEYS = [
   "diffError",
   "tab",
   "tree",
+  "treeSkipped",
   "treeLoading",
   "treeError",
   "treeFilter",

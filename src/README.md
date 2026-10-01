@@ -87,7 +87,9 @@ src/
                            content (read_file), all four seq-guarded like the diff. `loadTree` runs only for the tab on screen and
                            caches listings by target (20 kept, evicted oldest-first; two targets whose reply carried the same tree oid
                            share one array — the oid cannot spare a commit's *first* call, since only the reply names its tree); the
-                           working tree is never cached. `treeSelection` remembers the file per target so switching back resumes there;
+                           working tree is never cached. treeSkipped (the listing's `skipped`, cached with it): files left out because
+                           their path isn't UTF-8 — the Files tab says how many under the list. `treeSelection` remembers the file per
+                           target so switching back resumes there;
                            `__resetTreeCacheForTests()` clears both maps.
                            Blame (§2): blame (get_blame), blameOn (a view mode: it stays on for the session as the selection moves),
                            blameLoading / blameError, seq-guarded too. `setBlameOn(true)` loads; `loadContent` asks for the gutter

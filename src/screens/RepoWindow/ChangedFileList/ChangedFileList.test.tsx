@@ -44,7 +44,7 @@ vi.mock("@tanstack/react-virtual", async (importOriginal) => {
 afterEach(cleanup);
 
 // Every test states the tab it is about; the store is shared across them.
-beforeEach(() => useDiffStore.setState({ tab: "changes", tree: null, treeFilter: "", treeSelectedPath: null, treeLoading: false, treeError: null }));
+beforeEach(() => useDiffStore.setState({ tab: "changes", tree: null, treeFilter: "", treeSelectedPath: null, treeLoading: false, treeError: null, treeSkipped: 0 }));
 
 const FILES: FileChange[] = [
   { path: "crates/git-core/src/log/graph.rs", oldPath: null, status: "modified", additions: 42, deletions: 7, binary: false },
@@ -159,6 +159,18 @@ describe("ChangedFileList", () => {
     expect(container.textContent).toContain("4 files");
     // The status glyph belongs to the Changes tab: nothing here changed.
     expect(container.querySelectorAll('[role="option"] [aria-hidden]').length).toBe(0);
+  });
+
+  it("the Files tab says how many files with non-UTF-8 names it leaves out", () => {
+    useDiffStore.setState({ target: { kind: "commit", oid: "c" }, files: FILES, filesLoading: false, filesError: null, fileListMode: "flat", tab: "files", tree: TREE, treeSkipped: 1 });
+    const { container, rerender } = render(<ChangedFileList />);
+    expect(container.textContent).toContain("1 file with a name that isn't UTF-8 isn't shown");
+    act(() => useDiffStore.setState({ treeSkipped: 3 }));
+    rerender(<ChangedFileList />);
+    expect(container.textContent).toContain("3 files with names that aren't UTF-8 aren't shown");
+    act(() => useDiffStore.setState({ treeSkipped: 0 }));
+    rerender(<ChangedFileList />);
+    expect(container.textContent).not.toContain("UTF-8");
   });
 
   it("Files folders start collapsed; opening one shows what is under it", () => {

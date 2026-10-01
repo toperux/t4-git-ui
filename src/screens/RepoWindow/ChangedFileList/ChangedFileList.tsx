@@ -55,6 +55,7 @@ export function ChangedFileList({ autoFocus }: { autoFocus?: boolean }) {
   const tab = useDiffStore((st) => st.tab);
   const setTab = useDiffStore((st) => st.setTab);
   const tree = useDiffStore((st) => st.tree);
+  const treeSkipped = useDiffStore((st) => st.treeSkipped);
   const treeFilter = useDiffStore((st) => st.treeFilter);
   const setTreeFilter = useDiffStore((st) => st.setTreeFilter);
   const treeSelectedPath = useDiffStore((st) => st.treeSelectedPath);
@@ -321,6 +322,12 @@ export function ChangedFileList({ autoFocus }: { autoFocus?: boolean }) {
         </div>
       )}
       {matches && matches.length > FILTER_CAP && <Banner kind="warning">{matches.length - FILTER_CAP} more matches — narrow the filter</Banner>}
+      {/* The IPC paths are strings: a name that isn't UTF-8 could be listed, but not read. */}
+      {filesTab && !error && treeSkipped > 0 && (
+        <Banner kind="warning">
+          {treeSkipped === 1 ? "1 file with a name that isn't UTF-8 isn't shown" : `${treeSkipped} files with names that aren't UTF-8 aren't shown`}
+        </Banner>
+      )}
       <FileRowMenu menu={menu} onClose={() => setMenu(null)} />
     </div>
   );

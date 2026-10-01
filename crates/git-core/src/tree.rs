@@ -9,7 +9,7 @@
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-use git2::{FileMode, ObjectType, Oid, Repository, Tree, TreeWalkMode, TreeWalkResult};
+use git2::{FileMode, ObjectType, Oid, Repository, Tree};
 use serde::{Deserialize, Serialize};
 
 use crate::diff::DiffOptions;
@@ -57,6 +57,9 @@ pub enum TreeTarget {
 pub struct TreeListing {
     pub entries: Vec<TreeEntry>,
     pub oid: Option<String>,
+    /// Files left out because their path isn't UTF-8 (every IPC path is a
+    /// string, so none of them could be read back); the tab says how many.
+    pub skipped: u32,
 }
 
 /// One file's content at a revision.
@@ -158,7 +161,7 @@ fn workdir(repo: &Repository) -> Result<&Path, GitError> {
 
 /// Every file of `target`, sorted by path (as the status is).
 pub fn list(repo: &Repository, target: &TreeTarget) -> Result<TreeListing, GitError> {
-    let (mut entries, oid) = match target {
+    let ((mut entries, skipped), oid) = match target {
         TreeTarget::Commit { oid } => {
             let tree = tree_of(repo, oid)?;
             let id = tree.id().to_string();
@@ -166,53 +169,86 @@ pub fn list(repo: &Repository, target: &TreeTarget) -> Result<TreeListing, GitEr
         }
         TreeTarget::WorkingTree => (index_entries(repo)?, None),
     };
+    if skipped > 0 {
+        tracing::warn!(
+            skipped,
+            "files with non-UTF-8 paths left out of the listing"
+        );
+    }
     entries.sort_by(|a, b| a.path.cmp(&b.path));
-    Ok(TreeListing { entries, oid })
+    Ok(TreeListing {
+        entries,
+        oid,
+        skipped,
+    })
 }
 
-fn commit_entries(repo: &Repository, tree: &Tree<'_>) -> Result<Vec<TreeEntry>, GitError> {
+/// A commit's files, plus how many were skipped for a non-UTF-8 path. Walked
+/// here rather than with `tree.walk`, which aborts at a directory whose name
+/// isn't UTF-8: such a directory is skipped, and every file under it counted.
+fn commit_entries(repo: &Repository, tree: &Tree<'_>) -> Result<(Vec<TreeEntry>, u32), GitError> {
     // Object headers, not the blobs: 47k paths would otherwise mean 47k
     // inflations for nothing but a size.
     let odb = repo.odb().map_err(map_git2)?;
     let mut out = Vec::new();
-    tree.walk(TreeWalkMode::PreOrder, |root, entry| {
-        if entry.kind() == Some(ObjectType::Tree) {
-            return TreeWalkResult::Ok;
+    let mut skipped = 0;
+    // (tree, its path with a trailing `/`, under a non-UTF-8 name)
+    let mut dirs = vec![(tree.clone(), String::new(), false)];
+    while let Some((tree, root, bad_root)) = dirs.pop() {
+        for entry in tree.iter() {
+            let name = std::str::from_utf8(entry.name_bytes()).ok();
+            let bad = bad_root || name.is_none();
+            let name = name.unwrap_or_default();
+            if entry.kind() == Some(ObjectType::Tree) {
+                let sub = repo.find_tree(entry.id()).map_err(map_git2)?;
+                dirs.push((sub, format!("{root}{name}/"), bad));
+                continue;
+            }
+            if bad {
+                skipped += 1;
+                continue;
+            }
+            let mode = file_mode(u32::try_from(entry.filemode_raw()).unwrap_or(0));
+            out.push(TreeEntry {
+                path: format!("{root}{name}"),
+                // A submodule's commit is not an object here, and a partial clone
+                // may not hold the blob either: an unreadable size shows as 0
+                // rather than failing the whole listing.
+                size: match odb.read_header(entry.id()) {
+                    Ok((size, _)) => size as u64,
+                    Err(_) => 0,
+                },
+                mode: mode_text(mode),
+                kind: kind_of(mode),
+            });
         }
-        let mode = file_mode(u32::try_from(entry.filemode_raw()).unwrap_or(0));
-        let name = String::from_utf8_lossy(entry.name_bytes());
-        out.push(TreeEntry {
-            path: format!("{root}{name}"),
-            // A submodule's commit is not an object here, and a partial clone
-            // may not hold the blob either: an unreadable size shows as 0
-            // rather than failing the whole listing.
-            size: match odb.read_header(entry.id()) {
-                Ok((size, _)) => size as u64,
-                Err(_) => 0,
-            },
-            mode: mode_text(mode),
-            kind: kind_of(mode),
-        });
-        TreeWalkResult::Ok
-    })
-    .map_err(map_git2)?;
-    Ok(out)
+    }
+    Ok((out, skipped))
 }
 
 /// Index entries that still exist on disk, deduped by path: a conflicted file
-/// holds up to three stage entries, and the tab lists files, not stages.
-fn index_entries(repo: &Repository) -> Result<Vec<TreeEntry>, GitError> {
+/// holds up to three stage entries, and the tab lists files, not stages. A
+/// non-UTF-8 path is skipped and counted (once, whatever its stages, and
+/// whether or not it is still on disk: the bytes can't be checked portably).
+fn index_entries(repo: &Repository) -> Result<(Vec<TreeEntry>, u32), GitError> {
     let workdir = workdir(repo)?.to_path_buf();
     let mut index = repo.index().map_err(map_git2)?;
     index.read(false).map_err(map_git2)?;
     let mut out: Vec<TreeEntry> = Vec::with_capacity(index.len());
+    let mut skipped = 0;
+    let mut prev: Option<Vec<u8>> = None;
     for entry in index.iter() {
-        let path = String::from_utf8_lossy(&entry.path).into_owned();
-        // The index is sorted by (path, stage), so the first stage of a
-        // conflict is always the one already pushed.
-        if out.last().is_some_and(|e| e.path == path) {
+        // The index is sorted by (path, stage), so a conflict's later stages
+        // follow its first.
+        if prev.as_ref() == Some(&entry.path) {
             continue;
         }
+        let path = String::from_utf8(entry.path.clone());
+        prev = Some(entry.path);
+        let Ok(path) = path else {
+            skipped += 1;
+            continue;
+        };
         let mode = file_mode(entry.mode);
         // `symlink_metadata`: a symlink is present as itself even when it
         // dangles, and its own length is what the listing shows.
@@ -230,7 +266,7 @@ fn index_entries(repo: &Repository) -> Result<Vec<TreeEntry>, GitError> {
             kind: kind_of(mode),
         });
     }
-    Ok(out)
+    Ok((out, skipped))
 }
 
 /// `path`'s content at `target`: the blob at a commit, the file on disk for the
@@ -414,6 +450,7 @@ pub fn temp_copy(repo: &Repository, oid: &str, path: &str) -> Result<PathBuf, Gi
 mod tests {
     use super::*;
     use crate::test_util::TempRepo;
+    use git2::Signature;
 
     fn entry(id: Oid, mode: u32, stage: u16, path: &[u8]) -> git2::IndexEntry {
         git2::IndexEntry {
@@ -550,6 +587,82 @@ mod tests {
         let listing = list(&t.repo, &TreeTarget::WorkingTree).expect("list");
         let paths: Vec<&str> = listing.entries.iter().map(|e| e.path.as_str()).collect();
         assert_eq!(paths, vec!["c.txt"], "three stages, one row");
+    }
+
+    /// A commit whose tree holds `paths` (raw bytes, `/`-nested), built through
+    /// an in-memory index so no name ever touches the disk.
+    fn commit_raw(t: &TempRepo, paths: &[&[u8]]) -> Oid {
+        let blob = t.repo.blob(b"x").expect("blob");
+        let mut index = git2::Index::new().expect("index");
+        for p in paths {
+            index.add(&entry(blob, 0o100_644, 0, p)).expect("add");
+        }
+        let tree = index.write_tree_to(&t.repo).expect("write tree");
+        let tree = t.repo.find_tree(tree).expect("tree");
+        let sig = Signature::now("Test", "test@example.com").expect("sig");
+        t.repo
+            .commit(None, &sig, &sig, "raw", &tree, &[])
+            .expect("commit")
+    }
+
+    #[test]
+    fn non_utf8_paths_are_skipped_and_counted() {
+        let t = TempRepo::new();
+        t.commit(&[("a.txt", "a\n")], "init");
+        // In the index only, no file on disk: the same on every platform.
+        let mut index = t.repo.index().expect("index");
+        index
+            .add_frombuffer(&entry(Oid::ZERO_SHA1, 0o100_644, 0, b"caf\xe9.txt"), b"x")
+            .expect("add non-UTF-8");
+        index.write().expect("index write");
+        let listing = list(&t.repo, &TreeTarget::WorkingTree).expect("list");
+        let paths: Vec<&str> = listing.entries.iter().map(|e| e.path.as_str()).collect();
+        assert_eq!(paths, vec!["a.txt"]);
+        assert_eq!(listing.skipped, 1);
+
+        // A conflicted one: three stages, counted once (the dedupe is on the raw bytes).
+        let blob = t.repo.blob(b"x").expect("blob");
+        for stage in 1..=3u16 {
+            index
+                .add(&entry(blob, 0o100_644, stage, b"conf\xe9.txt"))
+                .expect("add stage");
+        }
+        index.write().expect("index write");
+        let listing = list(&t.repo, &TreeTarget::WorkingTree).expect("list");
+        assert_eq!(listing.skipped, 2, "caf + conf, each once");
+
+        let oid = commit_raw(&t, &[b"a.txt", b"caf\xe9.txt"]);
+        let listing = list(
+            &t.repo,
+            &TreeTarget::Commit {
+                oid: oid.to_string(),
+            },
+        )
+        .expect("list");
+        let paths: Vec<&str> = listing.entries.iter().map(|e| e.path.as_str()).collect();
+        assert_eq!(paths, vec!["a.txt"]);
+        assert_eq!(listing.skipped, 1);
+    }
+
+    /// `tree.walk` aborts at a non-UTF-8 directory name; the listing skips the
+    /// directory and counts the files under it, nested ones too.
+    #[test]
+    fn a_non_utf8_directory_is_skipped_with_its_files_counted() {
+        let t = TempRepo::new();
+        let oid = commit_raw(
+            &t,
+            &[b"a.txt", b"ok/g.txt", b"d\xe9/f.txt", b"d\xe9/sub/h.txt"],
+        );
+        let listing = list(
+            &t.repo,
+            &TreeTarget::Commit {
+                oid: oid.to_string(),
+            },
+        )
+        .expect("list");
+        let paths: Vec<&str> = listing.entries.iter().map(|e| e.path.as_str()).collect();
+        assert_eq!(paths, vec!["a.txt", "ok/g.txt"]);
+        assert_eq!(listing.skipped, 2);
     }
 
     #[test]

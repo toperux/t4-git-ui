@@ -17,7 +17,7 @@ const commit = (oid: string): DiffTarget => ({ kind: "commit", oid });
 const file = (path: string): FileChange => ({ path, oldPath: null, status: "modified", additions: 1, deletions: 1, binary: false });
 const diffFor = (path: string): FileDiff => ({ path, oldPath: null, status: "modified", binary: false, hunks: [], truncated: false, maxLines: 20_000, additions: 1, deletions: 1 });
 const entry = (path: string): TreeEntry => ({ path, size: 10, mode: "100644", kind: "blob" });
-const listing = (oid: string | null, ...paths: string[]): TreeListing => ({ oid, entries: paths.map(entry) });
+const listing = (oid: string | null, ...paths: string[]): TreeListing => ({ oid, entries: paths.map(entry), skipped: 0 });
 const contentFor = (path: string): FileContent => ({ path, text: "x\n", binary: false, size: 2, truncated: false, maxLines: 20_000, kind: "blob" });
 const blameFor = (path: string): Blame => ({ path, hunks: [] });
 
@@ -134,6 +134,29 @@ describe("diffStore — Files tab", () => {
     expect(treeTargetOf({ kind: "workdir" })).toEqual({ kind: "workingTree" });
     expect(treeTargetOf({ kind: "staged" })).toEqual({ kind: "workingTree" });
     expect(treeTargetOf(null)).toBeNull();
+  });
+
+  it("keeps a listing's skipped count through the cache, and clears it for the next target", async () => {
+    mocked.listTree.mockImplementation((_id: string, t: { oid: string }) =>
+      Promise.resolve({ ...listing(`tree-${t.oid}`, "a.ts"), skipped: t.oid === "c1" ? 2 : 0 }),
+    );
+    useDiffStore.setState({ tab: "files" });
+    await useDiffStore.getState().load("r", commit("c1"));
+    await flush();
+    expect(useDiffStore.getState().treeSkipped).toBe(2);
+
+    // A new target starts at nothing skipped, not at the last commit's count.
+    let answer: (l: TreeListing) => void = () => {};
+    mocked.listTree.mockImplementation(() => new Promise<TreeListing>((r) => (answer = r)));
+    void useDiffStore.getState().load("r", commit("c2"));
+    expect(useDiffStore.getState().treeSkipped).toBe(0);
+    answer(listing("tree-c2", "b.ts"));
+    await flush();
+
+    // Back to c1: served from the cache, with its count.
+    await useDiffStore.getState().load("r", commit("c1"));
+    await flush();
+    expect(useDiffStore.getState().treeSkipped).toBe(2);
   });
 
   it("fetches the tree only for the tab that is on screen, and serves a revisited commit from the cache", async () => {

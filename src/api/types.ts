@@ -440,6 +440,8 @@ export interface TreeListing {
   entries: TreeEntry[];
   /** The tree the list came from — the cache key; `null` for the working tree. */
   oid: string | null;
+  /** Files left out because their path isn't UTF-8 (a skipped directory counts the files under it); `0` for none. */
+  skipped: number;
 }
 
 /** One file's content at a revision. */
