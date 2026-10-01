@@ -430,7 +430,20 @@ export type DiffSnapshot = Pick<DiffStore, (typeof SNAPSHOT_KEYS)[number]>;
 
 export const snapshot = (): DiffSnapshot => pick(useDiffStore.getState(), SNAPSHOT_KEYS);
 
-export const restore = (s: DiffSnapshot) => useDiffStore.setState(s);
+/**
+ * A reply still in flight when tabs switch belongs to the tab that asked: drop it. A tab put away
+ * mid-load has nothing in flight any more, so its target is cleared and the next loader (the details
+ * pane, the stash browser) loads it again.
+ */
+export const restore = (s: DiffSnapshot) => {
+  filesSeq++;
+  diffSeq++;
+  treeSeq++;
+  contentSeq++;
+  blameSeq++;
+  const midLoad = s.filesLoading || s.diffLoading || s.treeLoading || s.contentLoading || s.blameLoading;
+  useDiffStore.setState(midLoad ? { ...s, target: null } : s);
+};
 
 /** Test seam: the module-level listing cache and per-target selection memory. */
 export function __resetTreeCacheForTests() {

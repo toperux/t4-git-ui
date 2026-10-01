@@ -10,6 +10,7 @@ import { ContextMenu } from "../../../components/ui/Menu/Menu";
 import { TreeRow, TREE_PANE_CLASS } from "../../../components/ui/TreeRow/TreeRow";
 import { cx } from "../../../lib/cx";
 import { relativeDate } from "../../../lib/relativeDate";
+import { useDiffStore } from "../../../store/diffStore";
 import { selectRunning, useOpsStore } from "../../../store/opsStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { useStatusStore } from "../../../store/statusStore";
@@ -50,6 +51,16 @@ export function StashesDialog({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     if (preview) lastIndex.current = preview.index;
   }, [preview]);
+  // The details pane loads a preview only in History; opened from Changes nothing else would, and the
+  // list and diff would show whatever that pane last held. Keyed on the oid: a refs refresh re-creates
+  // `preview`.
+  const repoId = useRepoStore((st) => st.repo?.id ?? null);
+  const previewOid = preview?.oid ?? null;
+  useEffect(() => {
+    const diff = useDiffStore.getState();
+    if (!previewOid || (diff.repoId === repoId && diff.target?.kind === "stash" && diff.target.oid === previewOid)) return;
+    void diff.load(repoId, { kind: "stash", oid: previewOid });
+  }, [repoId, previewOid]);
   // Opening with nothing previewed lands on stash@{0}; losing the preview (pop / drop / clear here
   // or in a terminal) lands on whatever now sits where it was, or on the working tree once the
   // list is empty. The pane behind keeps the plain clear.

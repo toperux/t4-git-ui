@@ -80,7 +80,8 @@ src/
                            `preselect` — the history row's own file, seeded into `treeSelection` too so the Files tab follows;
                            a path the changed list names differently falls back to the first file), diff (get_file_diff with `context` — 3 unless Settings says otherwise;
                            setContext reloads),
-                           stale responses dropped via seq counters; view unified|split (localStorage.diffView), ignoreWhitespace,
+                           stale responses dropped via seq counters (`restore`, a tab switch, bumps all five, and a
+                           snapshot taken mid-load comes back with no target so the next loader reloads it); view unified|split (localStorage.diffView), ignoreWhitespace,
                            fileListMode flat|tree (localStorage.fileListMode).
                            Files tab (§1): tab changes|files, tree (list_tree = every file of the target revision — the *to* commit of
                            a compare, the index for any working-tree target, via `treeTargetOf`), treeFilter, treeSelectedPath +
@@ -376,6 +377,8 @@ src/
                            that starts with a Working tree row — selected, the strip above the list is the push form with
                            a full-width `Stash N files` and the two right panels are the commit panel's FilesColumn |
                            DiffColumn; a stash row brings Apply · Pop · Drop… · Clear all… and ChangedFileList | CommitDiff;
+                           a stash row loads its own preview into diffStore, keyed on the oid (the details pane, which
+                           otherwise does, is mounted in History only), unless the store already holds it;
                            a dirty tree opens on the working tree, a clean one on stash@{0}, a push of ours lands on the
                            stash it made; Delete on a stash row drops, ↑/↓ move across the working tree and the entries,
                            and its own effect moves the preview on once an entry is gone),

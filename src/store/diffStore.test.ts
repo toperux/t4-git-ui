@@ -7,7 +7,7 @@ vi.mock("../api/ipc", async (importOriginal) => {
 });
 
 import * as ipc from "../api/ipc";
-import { __resetTreeCacheForTests, treeTargetOf, useDiffStore } from "./diffStore";
+import { __resetTreeCacheForTests, restore, snapshot, treeTargetOf, useDiffStore } from "./diffStore";
 
 type Mock = ReturnType<typeof vi.fn>;
 const mocked = ipc as unknown as { getChangedFiles: Mock; getFileDiff: Mock; listTree: Mock; readFile: Mock; getBlame: Mock };
@@ -42,6 +42,25 @@ beforeEach(() => {
 });
 
 describe("diffStore", () => {
+  it("a tab switch drops a reply still in flight, and a tab put away mid-load loads again", async () => {
+    let answer: (files: FileChange[]) => void = () => {};
+    mocked.getChangedFiles.mockImplementation(() => new Promise<FileChange[]>((r) => (answer = r)));
+    void useDiffStore.getState().load("a", commit("ca"));
+    const tabA = snapshot();
+    expect(tabA.filesLoading).toBe(true);
+
+    // Another tab comes forward while A's reply is still on its way.
+    restore({ ...tabA, repoId: "b", target: commit("cb"), files: [], filesLoading: false });
+    answer([file("a.ts")]);
+    await flush();
+    expect(useDiffStore.getState().files).toEqual([]);
+    expect(mocked.getFileDiff).not.toHaveBeenCalled();
+
+    // Back to A: nothing is in flight for it any more, so its target is cleared for the next loader.
+    restore(tabA);
+    expect(useDiffStore.getState().target).toBeNull();
+  });
+
   it("selects the first file of a commit and loads its diff; a new commit resets the selection", async () => {
     mocked.getChangedFiles.mockImplementation((_id: string, target: { oid: string }) => Promise.resolve([file(`${target.oid}/a.ts`), file(`${target.oid}/b.ts`)]));
     mocked.getFileDiff.mockImplementation((_id: string, _t: unknown, path: string) => Promise.resolve(diffFor(path)));

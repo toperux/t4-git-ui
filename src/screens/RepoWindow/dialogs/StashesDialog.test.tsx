@@ -70,7 +70,7 @@ beforeEach(() => {
   resetRepo();
   useDialogStore.setState({ dialog: null, returnFocus: null });
   useOpsStore.setState({ busy: null });
-  useDiffStore.setState({ files: [], filesLoading: false, filesError: null, selectedPath: null, diff: null, tab: "changes" });
+  useDiffStore.setState({ repoId: null, target: null, files: [], filesLoading: false, filesError: null, selectedPath: null, diff: null, tab: "changes" });
   useStatusStore.setState({ status: null });
   useRepoStore.setState({ repo: { id: "r", name: "r", path: "/r", head: { oid: "a", branch: "main", detached: false } }, refs: refs(STASHES) });
 });
@@ -91,6 +91,25 @@ const rows = (view: ReturnType<typeof render>) => view.getAllByRole("option").sl
 const wtRow = (view: ReturnType<typeof render>) => view.getAllByRole("option")[0];
 
 describe("StashesDialog", () => {
+  it("loads the previewed stash itself, not what the details pane last held", async () => {
+    // Opened from Changes: no details pane is mounted, and the diff store still holds History's commit.
+    useDiffStore.setState({ repoId: "r", target: { kind: "commit", oid: "X" } });
+    const view = open();
+    await waitFor(() => expect(ipc.getChangedFiles).toHaveBeenLastCalledWith("r", { kind: "stash", oid: "s0" }));
+    expect(useDiffStore.getState().target).toEqual({ kind: "stash", oid: "s0" });
+    fireEvent.click(rows(view)[1]);
+    await waitFor(() => expect(ipc.getChangedFiles).toHaveBeenLastCalledWith("r", { kind: "stash", oid: "s1" }));
+  });
+
+  it("leaves a stash the details pane already loaded alone", () => {
+    // Opened from History: the pane behind the scrim has loaded the previewed stash already.
+    useDiffStore.setState({ repoId: "r", target: { kind: "stash", oid: "s0" } });
+    useRepoStore.setState({ preview: STASHES[0] });
+    open();
+    // The commit panel's sync reads the tree's own sides; no stash is fetched again.
+    expect(ipc.getChangedFiles).not.toHaveBeenCalledWith("r", expect.objectContaining({ kind: "stash" }));
+  });
+
   it("lists every entry with its age and untracked mark, and previews stash@{0} on open", () => {
     const view = open();
     expect(rows(view).map((r) => r.getAttribute("title"))).toEqual(["stash@{0}: WIP on main", "stash@{1}: WIP on feature"]);
