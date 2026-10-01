@@ -192,7 +192,7 @@ A large repo (a `git/git` clone, ~85k commits) is useful for the first two perfo
 - [x] With `user.name` unset → a warning line appears and Commit is disabled
 - [x] `touch .git/index.lock` then try to stage → error toast **that stays put** with a Retry action;
       remove the lock, press Retry → succeeds
-- [x] A failing `pre-commit` hook surfaces its first stderr line as a toast, and the full output in
+- [x] A failing `pre-commit` hook surfaces its last line as a toast, and the full output in
       the dock — which **expands by itself**, no click needed
 
 ## 5. Operations (M4)

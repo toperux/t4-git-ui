@@ -34,6 +34,20 @@ pub fn commit_args(
     args
 }
 
+/// The line a failed `git commit` is told by: git's first `error:` / `fatal:`
+/// line (a signing failure prints `error: gpg failed to sign the data`, then a
+/// `fatal:`), else the last non-empty one — a refusing hook's lines are all
+/// git prints, and the hook says why last. Empty when stderr is.
+pub fn failure_line(stderr: &str) -> String {
+    let mut lines = stderr.lines().map(str::trim).filter(|l| !l.is_empty());
+    lines
+        .clone()
+        .find(|l| l.starts_with("error:") || l.starts_with("fatal:"))
+        .or_else(|| lines.next_back())
+        .unwrap_or_default()
+        .to_string()
+}
+
 /// Full message of HEAD (for amend prefill); `None` when HEAD is unborn.
 pub fn head_message(repo: &Repository) -> Result<Option<String>, GitError> {
     match repo.head() {
@@ -143,6 +157,26 @@ mod tests {
             commit_args(f, false, false, Some(false)),
             ["commit", "-F", "msg.txt", "--no-gpg-sign"]
         );
+    }
+
+    #[test]
+    fn failure_line_picks_the_reason() {
+        // A refusing hook: only its own lines, the reason last.
+        assert_eq!(
+            failure_line("hook1 start\nlint failed: x.rs\n\n"),
+            "lint failed: x.rs"
+        );
+        assert_eq!(
+            failure_line(
+                "error: gpg failed to sign the data\nfatal: failed to write commit object\n"
+            ),
+            "error: gpg failed to sign the data"
+        );
+        assert_eq!(
+            failure_line("warning: x\nfatal: no message\n"),
+            "fatal: no message"
+        );
+        assert_eq!(failure_line(""), "");
     }
 
     #[test]

@@ -272,6 +272,23 @@ impl TempRepo {
         self.commit(&[], msg)
     }
 
+    /// Writes hook `name` as `#!/bin/sh` + `body` (executable on unix) and
+    /// points `core.hooksPath` at it by absolute path, so a user's global
+    /// `core.hooksPath` can't hide it and a linked worktree runs it too.
+    pub fn hook(&self, name: &str, body: &str) {
+        let dir = self.repo.path().join("hooks");
+        std::fs::create_dir_all(&dir).expect("mkdir hooks");
+        let hook = dir.join(name);
+        std::fs::write(&hook, format!("#!/bin/sh\n{body}")).expect("write hook");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755))
+                .expect("chmod hook");
+        }
+        self.set_config("core.hooksPath", &dir.to_string_lossy().replace('\\', "/"));
+    }
+
     /// Sets a repo-local config value.
     pub fn set_config(&self, key: &str, value: &str) {
         self.repo

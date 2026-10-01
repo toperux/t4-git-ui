@@ -557,7 +557,15 @@ pub async fn commit(
             )
             .await?;
             drop(file);
-            run.out.check("git commit")?;
+            // One line for the toast; the dock keeps the whole output.
+            if run.out.code != 0 {
+                return Err(GitError::Cli {
+                    cmd: "git commit".into(),
+                    code: run.out.code,
+                    stderr: commit::failure_line(&run.out.stderr),
+                }
+                .into());
+            }
 
             let oid = blocking(move || Ok(refs::head_info(&handle.git2.lock())?.oid))
                 .await?

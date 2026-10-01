@@ -557,7 +557,8 @@ Every branch / remote / stash operation goes through `opsStore.runOp(busy, fn, o
 another op is in flight (the backend enforces the same with `AppError::busy`), awaits the command, and classifies the
 outcome: a streamed op resolves with `OpResult` whose `failure` is a *result*, not a rejection — `conflicts` toasts
 "N conflicts — resolve in the commit panel" and selects the working-tree row, `nonFastForward` (a rejected push) offers a Pull action while `diverged` (an `--ff-only` pull that already fetched) just says so,
-`authFailed` points at the credential helper, `rejected` / `other` show git's message. Rejections are `AppError`s:
+`authFailed` points at the credential helper, `rejected` / `other` show git's message (a failing post-checkout hook:
+*Checked out, but the post-checkout hook failed: <its last line>*). Rejections are `AppError`s:
 `refused` (a safety check, e.g. an unmerged branch) is handed to `onRefused` so the Delete-branch dialog can re-offer
 itself as a force delete, `cancelled` is an info toast, everything else goes through `toastError`. Afterwards it refreshes
 the status and calls `statusStore.syncRefs()`, which relabels the walk or restarts it when its seeds moved (the backend's own

@@ -632,6 +632,15 @@ const DIVERGED_PATTERNS: &[&str] = &[
     "not possible to fast-forward",
 ];
 
+/// Git's own stderr lines for a checkout that happened. `worktree add` prints
+/// `Preparing worktree`; its `HEAD is now at` goes to stdout.
+const CHECKOUT_DONE: &[&str] = &[
+    "Switched to",
+    "Already on",
+    "HEAD is now at",
+    "Preparing worktree",
+];
+
 const CONFLICT_HINTS: &[&str] = &[
     "Automatic merge failed",
     "fix conflicts and then",
@@ -675,16 +684,40 @@ pub fn classify_failure(code: i32, stdout: &str, stderr: &str) -> OpFailure {
             message: line.to_string(),
         };
     }
+    let lines: Vec<&str> = stderr.lines().map(str::trim).collect();
+    let error = lines
+        .iter()
+        .rfind(|l| l.starts_with("fatal:") || l.starts_with("error:"));
+    // A failing post-checkout hook: git checked out and said so, then exited with the hook's code.
+    // Any line, not the first: leaving a detached commit behind prints a warning ahead of it.
+    if error.is_none() {
+        if let Some(i) = lines
+            .iter()
+            .position(|l| CHECKOUT_DONE.iter().any(|p| l.starts_with(p)))
+        {
+            let message = match lines[i + 1..].iter().rfind(|l| !l.is_empty()) {
+                Some(hook) => format!("Checked out, but the post-checkout hook failed: {hook}"),
+                None => "Checked out, but the post-checkout hook failed".to_string(),
+            };
+            return OpFailure::Other { message };
+        }
+    }
+    // A refusing pre-merge-commit hook prints its own lines, then git's `Not committing merge…`:
+    // that one says what happened.
+    //
     // Without a `fatal:` / `error:` line git is giving advice, and advice leads with its first
     // paragraph ("The previous cherry-pick is now empty…"), wrapped over several lines, and ends
     // with a hint ("Otherwise, please use…"). A pull's fetch talks first and a `warning:` may come
     // before the advice, so those are passed over; the paragraph is joined up to its blank line,
     // four lines at most, or a toast could carry a whole help text.
-    let message = stderr
-        .lines()
-        .map(str::trim)
-        .rfind(|l| l.starts_with("fatal:") || l.starts_with("error:"))
-        .map(String::from)
+    let message = error
+        .map(|l| l.to_string())
+        .or_else(|| {
+            lines
+                .iter()
+                .find(|l| l.starts_with("Not committing merge"))
+                .map(|l| l.to_string())
+        })
         .or_else(|| {
             let para: Vec<&str> = stderr
                 .lines()

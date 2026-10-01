@@ -7,8 +7,9 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use git2::{Repository, RepositoryInitOptions};
-use git_core::cli::ops::{self, FfMode, MergeOpts, OpFailure, PickOpts, PullMode};
+use git_core::cli::ops::{self, FfMode, MergeOpts, OpFailure, PickOpts, PullMode, WorktreeBranch};
 use git_core::cli::{CliEvent, CliOutput, GitCli};
+use git_core::commit;
 use git_core::refs::{self, snapshot, RepoState};
 use git_core::status::status;
 use git_core::test_util::TempRepo;
@@ -607,6 +608,130 @@ async fn cancel_kills_push_and_its_hook() {
         remote.find_reference("refs/heads/master").is_err(),
         "push went through"
     );
+}
+
+// ---- hooks: what a refusing or failing hook leaves the toast ----
+
+#[tokio::test]
+async fn a_refusing_pre_commit_is_told_by_its_last_line() {
+    if !have_git() {
+        return;
+    }
+    let t = TempRepo::new();
+    t.commit(&[("f.txt", "1\n")], "A");
+    t.write("f.txt", "2\n");
+    t.stage(&["f.txt"]);
+    t.hook(
+        "pre-commit",
+        "echo 'hook1 start'\necho 'lint failed: f.txt'\nexit 1\n",
+    );
+    let msg = t.repo.path().join("t4-msg.txt");
+    std::fs::write(&msg, "B\n").unwrap();
+    let (out, _) = run(t.path(), &commit::commit_args(&msg, false, false, None)).await;
+    assert_ne!(out.code, 0, "{}", out.stdout);
+    // Git adds no line of its own: the hook's lines are all there is.
+    assert!(
+        !out.stderr
+            .lines()
+            .any(|l| l.starts_with("error:") || l.starts_with("fatal:")),
+        "{}",
+        out.stderr
+    );
+    assert_eq!(commit::failure_line(&out.stderr), "lint failed: f.txt");
+}
+
+#[tokio::test]
+async fn a_refusing_pre_merge_commit_says_not_committing_merge() {
+    if !have_git() {
+        return;
+    }
+    let t = TempRepo::new();
+    let base = t.commit(&[("f.txt", "base\n")], "base");
+    t.branch("side", base);
+    t.checkout("side");
+    t.commit(&[("g.txt", "g\n")], "side");
+    t.checkout("master");
+    t.commit(&[("h.txt", "h\n")], "master");
+    t.hook("pre-merge-commit", "echo 'no merges today'\nexit 1\n");
+
+    let (out, _) = run(t.path(), &ops::merge("side", &MergeOpts::default())).await;
+    assert_eq!(
+        failure(&out),
+        OpFailure::Other {
+            message: "Not committing merge; use 'git commit' to complete the merge.".into()
+        },
+        "{}",
+        out.stderr
+    );
+    reload(&t);
+    assert_eq!(RepoState::from(t.repo.state()), RepoState::Merge);
+}
+
+#[tokio::test]
+async fn a_failing_post_checkout_reports_the_checkout_and_the_hook() {
+    if !have_git() {
+        return;
+    }
+    let t = TempRepo::new();
+    let a = t.commit(&[("f.txt", "1\n")], "A");
+    t.branch("side", a);
+    t.hook(
+        "post-checkout",
+        "echo 'hook: step one'\necho 'hook: lfs missing'\nexit 1\n",
+    );
+    let failed = OpFailure::Other {
+        message: "Checked out, but the post-checkout hook failed: hook: lfs missing".into(),
+    };
+
+    // From a branch: the checkout happened.
+    let (out, _) = run(t.path(), &ops::checkout("side", None, false, false)).await;
+    assert_eq!(failure(&out), failed, "{}", out.stderr);
+    assert_eq!(t.repo.head().unwrap().shorthand().unwrap(), "side");
+
+    // From a detached HEAD leaving a commit behind: git's warning comes first.
+    t.detach(a);
+    t.commit(&[("g.txt", "g\n")], "left behind");
+    let (out, _) = run(t.path(), &ops::checkout("master", None, false, false)).await;
+    assert!(
+        out.stderr.contains("leaving 1 commit behind"),
+        "{}",
+        out.stderr
+    );
+    assert_eq!(failure(&out), failed, "{}", out.stderr);
+    assert_eq!(t.repo.head().unwrap().shorthand().unwrap(), "master");
+
+    // `worktree add`: `Preparing worktree` on stderr, `HEAD is now at` on stdout.
+    let wt = tempfile::tempdir().unwrap();
+    let path = wt.path().join("wt");
+    let (out, _) = run(
+        t.path(),
+        &ops::worktree_add(
+            &path.to_string_lossy(),
+            WorktreeBranch::Existing(&a.to_string()),
+            true,
+        ),
+    )
+    .await;
+    assert!(
+        out.stderr.starts_with("Preparing worktree"),
+        "{}",
+        out.stderr
+    );
+    assert_eq!(failure(&out), failed, "{}", out.stderr);
+    assert!(path.join("f.txt").exists());
+
+    // A silent hook: no detail to add.
+    t.hook("post-checkout", "exit 1\n");
+    let (out, _) = run(t.path(), &ops::checkout("side", None, false, false)).await;
+    assert_eq!(
+        failure(&out),
+        OpFailure::Other {
+            message: "Checked out, but the post-checkout hook failed".into()
+        },
+        "{}",
+        out.stderr
+    );
+    assert_eq!(t.repo.head().unwrap().shorthand().unwrap(), "side");
 }
 
 // ---- git2-backed ref mutations (no CLI) ----
