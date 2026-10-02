@@ -886,3 +886,40 @@ fn stash_target_holds_the_staged_unstaged_and_untracked_changes() {
         vec![(DiffLineKind::Add, "c1")]
     );
 }
+
+/// A file name that isn't UTF-8 (Linux: names are bytes) is listed lossily;
+/// the scan keeps its raw bytes, so the commit panel's path list still finds
+/// the file and its line counts appear.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_non_utf8_path_keeps_its_line_counts() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+
+    let t = TempRepo::new();
+    let raw = b"caf\xe9.txt";
+    let name = Path::new(OsStr::from_bytes(raw));
+    std::fs::write(t.path().join(name), "a\n").expect("write");
+    let mut index = t.repo.index().expect("index");
+    index.add_path(name).expect("add");
+    index.write().expect("index write");
+    t.commit_index("A");
+    std::fs::write(t.path().join(name), "a\nb\n").expect("edit");
+
+    let s = status(&t.repo).expect("status");
+    let lossy = "caf\u{FFFD}.txt".to_string();
+    assert_eq!(s.entries[0].path, lossy);
+    assert_eq!(s.raw_paths.get(&lossy).map(Vec::as_slice), Some(&raw[..]));
+
+    let listed = vec![lossy.clone()];
+    // As the frontend sends it, the lossy name matches no file.
+    let as_sent = git_core::status::path_bytes(&listed, None);
+    assert!(
+        changed_files(&t.repo, &DiffTarget::Unstaged, Some(&as_sent))
+            .expect("as sent")
+            .is_empty()
+    );
+    let swapped = git_core::status::path_bytes(&listed, Some(&s));
+    let files = changed_files(&t.repo, &DiffTarget::Unstaged, Some(&swapped)).expect("swapped");
+    assert_eq!(triples(&files), vec![(1, 0, lossy)]);
+}

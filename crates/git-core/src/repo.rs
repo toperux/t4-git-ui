@@ -8,6 +8,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::log::cache::LogCache;
 use crate::refs::AheadBehindCache;
+use crate::status::ScanGate;
 use crate::GitError;
 
 /// Identifies an open repository: the canonical working-directory path
@@ -82,6 +83,8 @@ pub struct RepoHandle {
     /// of waiting), then this one; scans never take `op_lock`, so the two can
     /// never deadlock.
     pub scan_lock: tokio::sync::Mutex<()>,
+    /// One status scan at a time, and its last result (see [`ScanGate`]).
+    pub scan: ScanGate,
     /// The op token of the blame read in flight; the next one cancels it.
     pub latest_blame: Mutex<Option<CancellationToken>>,
     /// The op token of the path history (`log --follow`) in flight; the next
@@ -114,6 +117,7 @@ impl RepoHandle {
             ahead_behind: Mutex::new(AheadBehindCache::default()),
             op_lock: tokio::sync::Mutex::new(()),
             scan_lock: tokio::sync::Mutex::new(()),
+            scan: ScanGate::default(),
             latest_blame: Mutex::new(None),
             latest_history: Mutex::new(None),
         }))

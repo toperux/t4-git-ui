@@ -3,6 +3,11 @@
 //! The plan's `git status --porcelain=v2 -z` fallback for very large trees is
 //! not implemented yet; add it behind a flag if libgit2 proves too slow.
 
+use std::collections::HashMap;
+use std::future::Future;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+
 use git2::{FileMode, Repository, Status, StatusOptions};
 use serde::{Deserialize, Serialize};
 
@@ -64,6 +69,70 @@ pub struct WorkdirStatus {
     /// A status whose `state` disagrees with the current refs predates the change
     /// and says nothing about the new one — the UI has to wait for the next scan.
     pub state: RepoState,
+    /// The paths that weren't UTF-8: the lossy `path` an entry carries → the
+    /// bytes it was read from, so a path list built from the entries can name
+    /// the file (see [`path_bytes`]). Backend only.
+    #[serde(skip)]
+    pub raw_paths: HashMap<String, Vec<u8>>,
+}
+
+/// `paths` as the bytes to diff by: each one `status` read from a non-UTF-8
+/// path is swapped back for its raw bytes, the rest stay as they are (a path
+/// no scan listed keeps its lossy bytes and matches no file).
+pub fn path_bytes<'a>(paths: &'a [String], status: Option<&'a WorkdirStatus>) -> Vec<&'a [u8]> {
+    paths
+        .iter()
+        .map(|p| {
+            status
+                .and_then(|s| s.raw_paths.get(p))
+                .map_or(p.as_bytes(), Vec::as_slice)
+        })
+        .collect()
+}
+
+/// One status scan at a time per repository, at most one queued behind it.
+///
+/// Every request takes a number, then waits for the gate (fair: first come,
+/// first served). If the last finished scan started after the request was
+/// numbered, its result answers it; otherwise the request runs a scan, which
+/// answers every request numbered before it started. So no caller gets a
+/// status older than its request, and a burst of watcher batches costs two
+/// scans, not one each. Errors are not shared: the next waiter scans again.
+#[derive(Default)]
+pub struct ScanGate {
+    requests: AtomicU64,
+    /// The start number and result of the last finished scan.
+    last: tokio::sync::Mutex<Option<(u64, Arc<WorkdirStatus>)>>,
+    /// The last result, readable without waiting out a running scan.
+    latest: parking_lot::Mutex<Option<Arc<WorkdirStatus>>>,
+}
+
+impl ScanGate {
+    /// The status as of now: `scan` runs only when no scan that started after
+    /// this call has finished.
+    pub async fn run<F, Fut, E>(&self, scan: F) -> Result<Arc<WorkdirStatus>, E>
+    where
+        F: FnOnce() -> Fut,
+        Fut: Future<Output = Result<WorkdirStatus, E>>,
+    {
+        let n = self.requests.fetch_add(1, Ordering::SeqCst) + 1;
+        let mut last = self.last.lock().await;
+        if let Some((started, status)) = last.as_ref() {
+            if *started >= n {
+                return Ok(Arc::clone(status));
+            }
+        }
+        let started = self.requests.load(Ordering::SeqCst);
+        let status = Arc::new(scan().await?);
+        *last = Some((started, Arc::clone(&status)));
+        *self.latest.lock() = Some(Arc::clone(&status));
+        Ok(status)
+    }
+
+    /// The last finished scan's result, `None` before the first.
+    pub fn latest(&self) -> Option<Arc<WorkdirStatus>> {
+        self.latest.lock().clone()
+    }
 }
 
 /// `<mtime ms>:<size>` of a working-tree file — the pair git's own index cache
@@ -166,6 +235,7 @@ pub fn status_with(repo: &Repository, refresh: bool) -> Result<WorkdirStatus, Gi
         untracked: 0,
         conflicted: 0,
         state,
+        raw_paths: HashMap::new(),
     };
     for e in statuses.iter() {
         let s = e.status();
@@ -179,11 +249,15 @@ pub fn status_with(repo: &Repository, refresh: bool) -> Result<WorkdirStatus, Gi
         // index and again in the workdir reports its final name).
         let wt = e.index_to_workdir();
         let hi = e.head_to_index();
-        let path = wt
+        let raw = wt
             .as_ref()
-            .and_then(|d| file_path(&d.new_file()))
-            .or_else(|| hi.as_ref().and_then(|d| file_path(&d.new_file())))
-            .unwrap_or_else(|| String::from_utf8_lossy(e.path_bytes()).into_owned());
+            .and_then(|d| d.new_file().path_bytes())
+            .or_else(|| hi.as_ref().and_then(|d| d.new_file().path_bytes()))
+            .unwrap_or_else(|| e.path_bytes());
+        let path = String::from_utf8_lossy(raw).into_owned();
+        if std::str::from_utf8(raw).is_err() {
+            out.raw_paths.insert(path.clone(), raw.to_vec());
+        }
         let old_path = if s.contains(Status::WT_RENAMED) {
             wt.as_ref().and_then(|d| file_path(&d.old_file()))
         } else if s.contains(Status::INDEX_RENAMED) {
@@ -269,4 +343,96 @@ pub fn status_with(repo: &Repository, refresh: bool) -> Result<WorkdirStatus, Gi
     entries.sort_by(|a, b| a.path.cmp(&b.path));
     out.entries = entries;
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicU64, Ordering::SeqCst};
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use super::*;
+
+    /// A status that says which scan made it.
+    fn scan_no(n: u64) -> WorkdirStatus {
+        WorkdirStatus {
+            entries: Vec::new(),
+            staged: n as u32,
+            unstaged: 0,
+            untracked: 0,
+            conflicted: 0,
+            state: RepoState::Clean,
+            raw_paths: HashMap::new(),
+        }
+    }
+
+    #[tokio::test]
+    async fn eight_requests_at_once_run_at_most_two_scans() {
+        let gate = Arc::new(ScanGate::default());
+        let scans = Arc::new(AtomicU64::new(0));
+        let mut set = tokio::task::JoinSet::new();
+        for _ in 0..8 {
+            let (gate, scans) = (Arc::clone(&gate), Arc::clone(&scans));
+            set.spawn(async move {
+                gate.run(|| async {
+                    let n = scans.fetch_add(1, SeqCst) + 1;
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                    Ok::<_, GitError>(scan_no(n))
+                })
+                .await
+                .expect("scan")
+                .staged
+            });
+        }
+        let mut got = Vec::new();
+        while let Some(r) = set.join_next().await {
+            got.push(r.expect("task"));
+        }
+        assert_eq!(got.len(), 8);
+        assert!(scans.load(SeqCst) <= 2, "{} scans", scans.load(SeqCst));
+        assert_eq!(gate.latest().map(|s| s.staged), got.iter().max().copied());
+    }
+
+    #[tokio::test]
+    async fn a_request_made_during_a_scan_gets_a_later_one() {
+        let gate = ScanGate::default();
+        let scans = AtomicU64::new(0);
+        let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+        let (release_tx, release_rx) = tokio::sync::oneshot::channel::<()>();
+        let first = gate.run(|| async {
+            let n = scans.fetch_add(1, SeqCst) + 1;
+            started_tx.send(()).expect("started");
+            release_rx.await.expect("release");
+            Ok::<_, GitError>(scan_no(n))
+        });
+        let second = async {
+            started_rx.await.expect("first scan running");
+            let req =
+                gate.run(|| async { Ok::<_, GitError>(scan_no(scans.fetch_add(1, SeqCst) + 1)) });
+            // `run` numbers the request on its first poll; the first scan ends after that.
+            let (r, ()) = tokio::join!(req, async { release_tx.send(()).expect("release") });
+            r
+        };
+        let (first, second) = tokio::join!(first, second);
+        assert_eq!(first.expect("first").staged, 1);
+        assert_eq!(
+            second.expect("second").staged,
+            2,
+            "not the scan that was running"
+        );
+    }
+
+    #[test]
+    fn path_bytes_swaps_a_lossy_path_for_its_raw_bytes() {
+        let mut st = scan_no(1);
+        st.raw_paths
+            .insert("caf\u{FFFD}.txt".into(), b"caf\xe9.txt".to_vec());
+        let paths = vec!["a.txt".to_string(), "caf\u{FFFD}.txt".to_string()];
+        assert_eq!(
+            path_bytes(&paths, Some(&st)),
+            vec![&b"a.txt"[..], &b"caf\xe9.txt"[..]]
+        );
+        // No scan yet: the lossy bytes go in as they are.
+        assert_eq!(path_bytes(&paths, None)[1], "caf\u{FFFD}.txt".as_bytes());
+    }
 }

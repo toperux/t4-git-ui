@@ -5,7 +5,7 @@ use git_core::conflict;
 use git_core::diff::{self, DiffOptions, DiffTarget, FileChange, FileDiff};
 use git_core::status::{self, WorkdirStatus};
 use git_core::tools::{self, ToolKind};
-use git_core::RepoId;
+use git_core::{RepoHandle, RepoId};
 use tauri::State;
 
 use super::repo::blocking;
@@ -24,10 +24,16 @@ pub async fn get_changed_files(
     paths: Option<Vec<String>>,
 ) -> Result<Vec<FileChange>, AppError> {
     let handle = state.repo(&id)?;
+    // A path the status read lossily (not UTF-8) names no file: the last
+    // scan's raw bytes stand in for it.
+    let lossy = paths
+        .as_ref()
+        .is_some_and(|p| p.iter().any(|s| s.contains('\u{FFFD}')));
+    let latest = lossy.then(|| handle.scan.latest()).flatten();
     blocking(move || {
-        let paths: Option<Vec<&[u8]>> = paths
+        let paths = paths
             .as_ref()
-            .map(|p| p.iter().map(|s| s.as_bytes()).collect());
+            .map(|p| status::path_bytes(p, latest.as_deref()));
         Ok(diff::changed_files(
             &handle.open_private()?,
             &target,
@@ -91,9 +97,20 @@ pub async fn open_merge_editor(
 /// fill the file, since status refreshes on every watcher event.
 const SLOW_STATUS: Duration = Duration::from_millis(250);
 
+/// One scan at a time per repository ([`git_core::status::ScanGate`]): a burst
+/// of watcher batches shares a scan instead of starting one each.
 #[tauri::command]
-pub async fn get_status(state: State<'_, AppState>, id: RepoId) -> Result<WorkdirStatus, AppError> {
+pub async fn get_status(
+    state: State<'_, AppState>,
+    id: RepoId,
+) -> Result<Arc<WorkdirStatus>, AppError> {
     let handle = state.repo(&id)?;
+    let h = Arc::clone(&handle);
+    handle.scan.run(|| scan(h)).await
+}
+
+/// One libgit2 scan, run by the gate holder.
+async fn scan(handle: Arc<RepoHandle>) -> Result<WorkdirStatus, AppError> {
     // The scan writes the refreshed stat cache back at the end, and libgit2
     // does not check whether the index changed on disk in between: a mutation
     // that ran during the scan would be silently undone. Holding `git2` covers
@@ -104,7 +121,9 @@ pub async fn get_status(state: State<'_, AppState>, id: RepoId) -> Result<Workdi
     // without the write-back, so status stays live during a long push. A
     // `git add` typed in a terminal during the scan is still exposed, as with
     // any libgit2 index write. Free: hold the guard for the whole scan — that
-    // is what makes an op starting now wait for the write-back.
+    // is what makes an op starting now wait for the write-back. Taken when
+    // the scan starts, not while it waits for the gate: a queued request
+    // holding it would make an op wait behind a scan that hasn't started.
     let scan_guard = handle.scan_lock.try_lock();
     let refresh = scan_guard.is_ok();
     let h = Arc::clone(&handle);

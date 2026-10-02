@@ -307,6 +307,7 @@ fn diff_shapes_are_camel_case() {
         untracked: 0,
         conflicted: 0,
         state: git_core::refs::RepoState::CherryPick,
+        raw_paths: [("caf\u{FFFD}".to_string(), b"caf\xe9".to_vec())].into(),
     })
     .expect("ser");
     assert_eq!(ws["state"], "cherryPick");
@@ -316,6 +317,8 @@ fn diff_shapes_are_camel_case() {
     assert_eq!(ws["entries"][0]["workdirStamp"], "1700000000000:12");
     assert_eq!(ws["entries"][0]["indexStamp"], "abc");
     assert_eq!(ws["staged"], 1);
+    // Backend only: the lossy → raw path map never goes on the wire.
+    assert!(ws.get("rawPaths").is_none() && ws.get("raw_paths").is_none());
 
     // Options: all fields default, camelCase keys.
     let o: DiffOptions = serde_json::from_value(json!({ "ignoreWhitespace": true })).expect("de");
