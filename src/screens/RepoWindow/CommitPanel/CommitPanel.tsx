@@ -155,14 +155,17 @@ export function DiffColumn() {
     [path, list, conflicted, untracked, wholeOnly, stranded, canDiscard, busy, diff, sides, resolveConflict, stageHunk, stageLines, discardHunk, discardLines],
   );
 
+  // A staged rename's old path is the index's preimage only: the unstaged side of an `RM` entry is
+  // the new name in the index against the file on disk.
+  const oldPath = list === "staged" ? (entry?.oldPath ?? null) : null;
   // The merge tool is a conflict's route, an untracked file has nothing on the other side, and a
   // gitlink is a directory no diff tool can open.
-  const external = path && !conflicted && !untracked && !entry?.submodule ? () => void openInDiffTool({ kind: list }, path, entry?.oldPath ?? null) : undefined;
+  const external = path && !conflicted && !untracked && !entry?.submodule ? () => void openInDiffTool({ kind: list }, path, oldPath) : undefined;
 
   return (
     <DiffViewer
       path={path}
-      oldPath={entry?.oldPath ?? null}
+      oldPath={oldPath}
       stats={stats ?? null}
       diff={diff}
       loading={loading}

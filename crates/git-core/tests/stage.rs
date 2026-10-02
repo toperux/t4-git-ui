@@ -191,8 +191,11 @@ async fn stage_and_unstage_rename_both_halves() {
     assert!(entry(&t, "old.txt").is_none());
 
     unstage_paths(&t.repo, &["old.txt", "new.txt"]).unwrap();
+    // Unstaged, the rename is a deletion plus an untracked file again, as `git status` lists it.
     let e = entry(&t, "new.txt").unwrap();
-    assert_eq!((e.index, e.workdir), (None, Some(FileStatus::Renamed)));
+    assert_eq!((e.index, e.workdir), (None, Some(FileStatus::Untracked)));
+    let e = entry(&t, "old.txt").unwrap();
+    assert_eq!((e.index, e.workdir), (None, Some(FileStatus::Deleted)));
 }
 
 #[tokio::test]

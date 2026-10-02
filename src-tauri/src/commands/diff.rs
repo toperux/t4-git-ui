@@ -11,17 +11,30 @@ use tauri::State;
 use super::repo::blocking;
 use crate::{AppError, AppState};
 
-/// On a private handle: the line counts read every changed file (seconds for a
+/// On a private handle: the line counts read every listed file (seconds for a
 /// few thousand large ones), and on the shared one they held up the status
-/// refresh — and the stage / unstage after it — for all that time.
+/// refresh — and the stage / unstage after it — for all that time. `paths`
+/// (the status's paths) limits the diff to them, so a stale but unchanged
+/// file is never re-hashed.
 #[tauri::command]
 pub async fn get_changed_files(
     state: State<'_, AppState>,
     id: RepoId,
     target: DiffTarget,
+    paths: Option<Vec<String>>,
 ) -> Result<Vec<FileChange>, AppError> {
     let handle = state.repo(&id)?;
-    blocking(move || Ok(diff::changed_files(&handle.open_private()?, &target)?)).await
+    blocking(move || {
+        let paths: Option<Vec<&[u8]>> = paths
+            .as_ref()
+            .map(|p| p.iter().map(|s| s.as_bytes()).collect());
+        Ok(diff::changed_files(
+            &handle.open_private()?,
+            &target,
+            paths.as_deref(),
+        )?)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -31,8 +44,8 @@ pub async fn get_file_diff(
     target: DiffTarget,
     path: String,
     opts: Option<DiffOptions>,
-    // The status entry's `oldPath` for a working-tree rename: without it the
-    // two halves are only paired by diffing the whole tree.
+    // The status entry's `oldPath` for a staged rename: the diff of the two
+    // paths pairs them, and the working-tree targets build no other diff.
     old_path: Option<String>,
 ) -> Result<FileDiff, AppError> {
     let handle = state.repo(&id)?;

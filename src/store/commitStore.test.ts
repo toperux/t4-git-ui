@@ -177,6 +177,13 @@ describe("commitStore.syncWithStatus", () => {
     expect(mocked.getChangedFiles).toHaveBeenCalledTimes(4);
   });
 
+  it("limits the unstaged counts to the unstaged list's paths, and sends no list for the staged ones", async () => {
+    // A staged-only file may be stale on disk yet unchanged: listed, the diff would re-hash it.
+    await sync([entry("a.rs"), { ...entry("b.rs"), index: "modified" }, { ...entry("s.rs", null), index: "modified" }]);
+    expect(mocked.getChangedFiles).toHaveBeenCalledWith(REPO.id, { kind: "unstaged" }, ["a.rs", "b.rs"]);
+    expect(mocked.getChangedFiles).toHaveBeenCalledWith(REPO.id, { kind: "staged" });
+  });
+
   it("keeps the shown diff object for hunks equal in value, replaces it for a nested difference", async () => {
     await sync([entry("a.rs")]);
     const shown = useCommitStore.getState().diff;
@@ -311,11 +318,11 @@ describe("commitStore mutations", () => {
 
     await useCommitStore.getState().discardHunk(1);
     expect(ask.mock.calls[0][0]).toContain("Discard this hunk from a.rs?");
-    expect(mocked.discardHunks).toHaveBeenCalledWith(REPO.id, "a.rs", [1], 8, seenOf(diff("a.rs", "a"), [1]), undefined);
+    expect(mocked.discardHunks).toHaveBeenCalledWith(REPO.id, "a.rs", [1], 8, seenOf(diff("a.rs", "a"), [1]));
 
     await useCommitStore.getState().discardLines([[0, 1]]);
     expect(ask.mock.calls[1][0]).toContain("Discard 1 selected line from a.rs?");
-    expect(mocked.discardLines).toHaveBeenCalledWith(REPO.id, "a.rs", [[0, 1]], 8, seenOf(diff("a.rs", "a"), [0]), undefined);
+    expect(mocked.discardLines).toHaveBeenCalledWith(REPO.id, "a.rs", [[0, 1]], 8, seenOf(diff("a.rs", "a"), [0]));
 
     // Declined → nothing leaves the store.
     ask.mockResolvedValue(false);
@@ -323,9 +330,25 @@ describe("commitStore mutations", () => {
     expect(mocked.discardHunks).toHaveBeenCalledTimes(1);
   });
 
-  it("tells the backend a renamed entry's old path, so it can pair the halves without the whole diff", async () => {
-    await sync([{ ...entry("new.txt", "renamed"), oldPath: "old.txt" }]);
-    expect(mocked.getFileDiff).toHaveBeenLastCalledWith(REPO.id, { kind: "unstaged" }, "new.txt", { context: 3 }, "old.txt");
+  /** A staged rename edited again on disk (`RM`): a row in both lists. */
+  const rm: StatusEntry = { ...entry("new.txt", "modified"), index: "renamed", oldPath: "old.txt" };
+
+  /** A fresh `RM` status (a mutation's refresh empties the mocked one), its row shown from `list`. */
+  async function showRm(list: "unstaged" | "staged") {
+    await sync([rm]);
+    useCommitStore.getState().select(list, { selected: ["new.txt"], anchor: "new.txt" });
+    await flush();
+  }
+
+  it("tells the backend a staged rename's old path, from the staged list only", async () => {
+    await sync([{ ...entry("new.txt", null), index: "renamed", oldPath: "old.txt" }]);
+    expect(mocked.getFileDiff).toHaveBeenLastCalledWith(REPO.id, { kind: "staged" }, "new.txt", { context: 3 }, "old.txt");
+
+    // The unstaged side of an `RM` entry is the new name in the index against the disk: no other half.
+    await showRm("unstaged");
+    expect(mocked.getFileDiff).toHaveBeenLastCalledWith(REPO.id, { kind: "unstaged" }, "new.txt", { context: 3 }, undefined);
+    await showRm("staged");
+    expect(mocked.getFileDiff).toHaveBeenLastCalledWith(REPO.id, { kind: "staged" }, "new.txt", { context: 3 }, "old.txt");
 
     // Anything else has no other half to name.
     await sync([entry("a.rs")]);
@@ -333,25 +356,25 @@ describe("commitStore mutations", () => {
   });
 
   it("sends the same rename hint with a hunk / line action, so the patch is cut from the diff on screen", async () => {
-    // Without it the backend rebuilds an unhinted diff — a whole-file add of the new name, whose
-    // hunk 0 is a different change from the one the user clicked.
-    const renamed = { ...entry("new.txt", "renamed"), oldPath: "old.txt" };
-
-    await sync([renamed]);
+    // Without it the backend rebuilds an unhinted diff — an addition of the new name, whose hunk 0
+    // is a different change from the one the user clicked.
+    await showRm("staged");
     await useCommitStore.getState().stageHunk(0);
-    expect(mocked.stageHunks).toHaveBeenLastCalledWith(REPO.id, "new.txt", [0], false, 3, seenOf(diff("new.txt", "a"), [0]), "old.txt");
-
-    await sync([renamed]);
+    expect(mocked.stageHunks).toHaveBeenLastCalledWith(REPO.id, "new.txt", [0], true, 3, seenOf(diff("new.txt", "a"), [0]), "old.txt");
+    await showRm("staged");
     await useCommitStore.getState().stageLines([[0, 1]]);
-    expect(mocked.stageLines).toHaveBeenLastCalledWith(REPO.id, "new.txt", [[0, 1]], false, 3, seenOf(diff("new.txt", "a"), [0]), "old.txt");
+    expect(mocked.stageLines).toHaveBeenLastCalledWith(REPO.id, "new.txt", [[0, 1]], true, 3, seenOf(diff("new.txt", "a"), [0]), "old.txt");
 
-    await sync([renamed]);
+    // The unstaged list's actions, discards included, have none to send.
+    await showRm("unstaged");
+    await useCommitStore.getState().stageHunk(0);
+    expect(mocked.stageHunks).toHaveBeenLastCalledWith(REPO.id, "new.txt", [0], false, 3, seenOf(diff("new.txt", "a"), [0]), undefined);
+    await showRm("unstaged");
     await useCommitStore.getState().discardHunk(0);
-    expect(mocked.discardHunks).toHaveBeenLastCalledWith(REPO.id, "new.txt", [0], 3, seenOf(diff("new.txt", "a"), [0]), "old.txt");
-
-    await sync([renamed]);
+    expect(mocked.discardHunks).toHaveBeenLastCalledWith(REPO.id, "new.txt", [0], 3, seenOf(diff("new.txt", "a"), [0]));
+    await showRm("unstaged");
     await useCommitStore.getState().discardLines([[0, 1]]);
-    expect(mocked.discardLines).toHaveBeenLastCalledWith(REPO.id, "new.txt", [[0, 1]], 3, seenOf(diff("new.txt", "a"), [0]), "old.txt");
+    expect(mocked.discardLines).toHaveBeenLastCalledWith(REPO.id, "new.txt", [[0, 1]], 3, seenOf(diff("new.txt", "a"), [0]));
   });
 
   it("a context change rebuilds the panel diff, and the rebuilt one's context is what the next action sends", async () => {
@@ -466,32 +489,6 @@ describe("commitStore mutations", () => {
     mocked.discardPaths.mockClear();
     await expect(useCommitStore.getState().discard(["a.rs"])).resolves.toBe(false);
     expect(mocked.discardPaths).not.toHaveBeenCalled();
-  });
-
-  it("discarding a working-tree rename sends both halves, and still names one file in the prompt", async () => {
-    // `status_file` can't pair the two halves, so the old name has to travel with the new one or
-    // the rename target is deleted and the source never restored.
-    const renamed = { ...entry("new.txt", "renamed"), oldPath: "old.txt" };
-    useStatusStore.setState({ status: status([renamed]), error: null });
-
-    await expect(useCommitStore.getState().discard(["new.txt"])).resolves.toBe(true);
-    expect(mocked.discardPaths).toHaveBeenCalledWith(REPO.id, ["new.txt", "old.txt"]);
-    // The prompt counts what the user picked, not what the payload grew to.
-    expect(ask.mock.calls[0][0]).toContain("Discard changes in new.txt?");
-  });
-
-  it("pairs the rename halves against the status as it is when the confirmation is answered", async () => {
-    // The prompt blocks nothing: a `repo://changed` can land while it is up, and a stale pairing
-    // would discard a path the user no longer sees (or miss the half they do).
-    useStatusStore.setState({ status: status([{ ...entry("new.txt", "renamed"), oldPath: "old.txt" }]), error: null });
-    ask.mockImplementationOnce(async () => {
-      // The user renamed it again before answering.
-      useStatusStore.setState({ status: status([{ ...entry("new.txt", "renamed"), oldPath: "older.txt" }]), error: null });
-      return true;
-    });
-
-    await expect(useCommitStore.getState().discard(["new.txt"])).resolves.toBe(true);
-    expect(mocked.discardPaths).toHaveBeenCalledWith(REPO.id, ["new.txt", "older.txt"]);
   });
 
   it("keeping one side of a conflict names the branch in the confirmation before overwriting the file", async () => {

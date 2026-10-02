@@ -194,12 +194,13 @@ export const commitDrafts = () => call<string[]>("commit_drafts");
 
 // --- src-tauri/src/commands/diff.rs ---
 
-export const getChangedFiles = (id: RepoId, target: DiffTarget) =>
-  call<FileChange[]>("get_changed_files", { id, target });
+/** `paths` limits the diff to those files (none: everything; an empty list: nothing). */
+export const getChangedFiles = (id: RepoId, target: DiffTarget, paths?: string[]) =>
+  call<FileChange[]>("get_changed_files", { id, target, paths });
 
 /**
  * Hunks of one file (a renamed file is also found by its old path). `oldPath` — the status entry's,
- * for a working-tree rename — is what pairs the two halves without diffing the whole tree.
+ * for a staged rename — is what pairs the two halves; the working-tree lists build no other diff.
  */
 export const getFileDiff = (id: RepoId, target: DiffTarget, path: string, opts?: DiffOptions, oldPath?: string) =>
   call<FileDiff>("get_file_diff", { id, target, path, opts, oldPath });
@@ -278,12 +279,12 @@ export const stageLines = (id: RepoId, path: string, lines: [number, number][], 
   call<void>("stage_lines", { id, path, oldPath, lines, seen, reverse, context });
 
 /** Throws `hunks` of the `unstaged` diff away — the working file loses them, the index keeps what is staged. */
-export const discardHunks = (id: RepoId, path: string, hunks: number[], context: number, seen: SeenHunk[], oldPath?: string) =>
-  call<void>("discard_hunks", { id, path, oldPath, hunks, seen, context });
+export const discardHunks = (id: RepoId, path: string, hunks: number[], context: number, seen: SeenHunk[]) =>
+  call<void>("discard_hunks", { id, path, hunks, seen, context });
 
 /** `[hunkIndex, lineIndexWithinHunk]` pairs of the `unstaged` diff; same rule as `discardHunks`. */
-export const discardLines = (id: RepoId, path: string, lines: [number, number][], context: number, seen: SeenHunk[], oldPath?: string) =>
-  call<void>("discard_lines", { id, path, oldPath, lines, seen, context });
+export const discardLines = (id: RepoId, path: string, lines: [number, number][], context: number, seen: SeenHunk[]) =>
+  call<void>("discard_lines", { id, path, lines, seen, context });
 
 /**
  * `git commit` via the CLI (hook output streams as `op://event`); resolves with the new HEAD oid.

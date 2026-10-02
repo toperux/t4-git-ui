@@ -15,7 +15,8 @@ use crate::{map_git2, GitError};
 pub struct StatusEntry {
     /// Current path (`/`-separated, repo-relative).
     pub path: String,
-    /// Old path when renamed (in the index or the working directory).
+    /// Old path of a staged rename (the index side; a working-tree rename
+    /// is listed as a deletion plus an untracked file).
     pub old_path: Option<String>,
     /// HEAD → index change, `None` when nothing is staged.
     pub index: Option<FileStatus>,
@@ -133,7 +134,9 @@ pub fn status_with(repo: &Repository, refresh: bool) -> Result<WorkdirStatus, Gi
     opts.include_untracked(true)
         .recurse_untracked_dirs(true)
         .renames_head_to_index(true)
-        .renames_index_to_workdir(true)
+        // As `git status` shows it: a file renamed on disk is a deletion plus
+        // an untracked file (and the untracked files are not read for it).
+        .renames_index_to_workdir(false)
         .include_ignored(false)
         // Included, so a moved submodule pointer shows up as a change at all.
         // The cost is a status scan inside each initialized submodule per scan;

@@ -110,7 +110,7 @@ fn commit_vs_parent_add_modify_delete() {
     t.remove("gone.txt");
     let b = t.commit_index("B");
 
-    let files = changed_files(&t.repo, &commit(b)).expect("changed_files");
+    let files = changed_files(&t.repo, &commit(b), None).expect("changed_files");
     assert_eq!(paths(&files), vec!["gone.txt", "keep.txt", "new.txt"]);
     let gone = find(&files, "gone.txt");
     assert_eq!(
@@ -140,6 +140,7 @@ fn commit_vs_parent_add_modify_delete() {
             from: a.to_string(),
             to: b.to_string(),
         },
+        None,
     )
     .expect("range");
     assert_eq!(range, files);
@@ -228,7 +229,7 @@ fn rename_with_small_edit() {
     t.stage(&["src/new.txt"]);
     let b = t.commit_index("B");
 
-    let files = changed_files(&t.repo, &commit(b)).expect("changed_files");
+    let files = changed_files(&t.repo, &commit(b), None).expect("changed_files");
     assert_eq!(files.len(), 1);
     let f = &files[0];
     assert_eq!(f.status, FileStatus::Renamed);
@@ -263,8 +264,12 @@ fn rename_with_small_edit() {
     ));
 }
 
+/// A file renamed on disk without `git mv` is a deletion plus an untracked
+/// file, as `git status` shows it: the status, the line counts and the diff
+/// agree, and none of them pairs the two. Staged, the rename is one row, and
+/// the diff told its old path reads it as one.
 #[test]
-fn workdir_rename_pairs_in_the_unstaged_diff() {
+fn a_workdir_rename_is_a_deletion_plus_an_untracked_file() {
     let t = TempRepo::new();
     let body: String = (1..=12).map(|i| format!("line {i}\n")).collect();
     t.commit(&[("old.txt", body.as_str())], "A");
@@ -272,47 +277,212 @@ fn workdir_rename_pairs_in_the_unstaged_diff() {
     std::fs::rename(t.path().join("old.txt"), t.path().join("new.txt")).expect("rename");
 
     let s = status(&t.repo).expect("status");
-    assert_eq!(s.entries.len(), 1);
-    assert_eq!(s.entries[0].path, "new.txt");
-    assert_eq!(s.entries[0].workdir, Some(FileStatus::Renamed));
-    assert_eq!(s.entries[0].old_path.as_deref(), Some("old.txt"));
+    let rows: Vec<(&str, Option<FileStatus>, Option<&str>)> = s
+        .entries
+        .iter()
+        .map(|e| (e.path.as_str(), e.workdir, e.old_path.as_deref()))
+        .collect();
+    assert_eq!(
+        rows,
+        vec![
+            ("new.txt", Some(FileStatus::Untracked), None),
+            ("old.txt", Some(FileStatus::Deleted), None),
+        ]
+    );
 
-    let files = changed_files(&t.repo, &DiffTarget::Unstaged).expect("unstaged");
-    assert_eq!(files.len(), 1, "{files:?}");
-    assert_eq!(files[0].status, FileStatus::Renamed);
-    assert_eq!(files[0].path, "new.txt");
-    assert_eq!(files[0].old_path.as_deref(), Some("old.txt"));
+    let files = changed_files(&t.repo, &DiffTarget::Unstaged, None).expect("unstaged");
+    assert_eq!(
+        triples(&files),
+        vec![(12, 0, "new.txt".into()), (0, 12, "old.txt".into())]
+    );
+    assert_eq!(find(&files, "old.txt").status, FileStatus::Deleted);
+    assert_eq!(find(&files, "new.txt").status, FileStatus::Untracked);
+    assert!(files.iter().all(|f| f.old_path.is_none()));
 
-    // The unstaged diff has to agree, by either half of the pair — told the old
-    // path, as the panel tells it from the status entry.
-    for p in ["new.txt", "old.txt"] {
-        let d = file_diff(
+    let one = |p: &str| {
+        file_diff(
             &t.repo,
             &DiffTarget::Unstaged,
             p,
-            Some("old.txt"),
+            None,
             &DiffOptions::default(),
         )
-        .unwrap_or_else(|e| panic!("file_diff {p}: {e:?}"));
-        assert_eq!(d.status, FileStatus::Renamed, "by {p}");
-        assert_eq!(d.path, "new.txt", "by {p}");
-        assert_eq!(d.old_path.as_deref(), Some("old.txt"), "by {p}");
-        // 100% similar: nothing to show.
-        assert!(d.hunks.is_empty(), "by {p}: {:?}", d.hunks);
-    }
+        .unwrap_or_else(|e| panic!("file_diff {p}: {e:?}"))
+    };
+    assert_eq!(one("old.txt").status, FileStatus::Deleted);
+    let new = one("new.txt");
+    assert_eq!((new.status, new.old_path), (FileStatus::Untracked, None));
 
-    // Without the hint the single-path diff answers on its own: an untracked
-    // file never costs a scan of every other untracked file, which is exactly
-    // why the pairing above needs telling.
+    // Both halves staged: one rename, and the hinted staged diff pairs it.
+    t.stage(&["new.txt"]);
+    let mut index = t.repo.index().expect("index");
+    index.remove_path(Path::new("old.txt")).expect("remove");
+    index.write().expect("index write");
+    let s = status(&t.repo).expect("status");
+    assert_eq!(s.entries.len(), 1, "{:?}", s.entries);
+    assert_eq!(s.entries[0].index, Some(FileStatus::Renamed));
+    assert_eq!(s.entries[0].old_path.as_deref(), Some("old.txt"));
     let d = file_diff(
         &t.repo,
-        &DiffTarget::Unstaged,
+        &DiffTarget::Staged,
         "new.txt",
-        None,
+        Some("old.txt"),
         &DiffOptions::default(),
     )
-    .expect("file_diff new.txt");
-    assert_eq!(d.status, FileStatus::Untracked);
+    .expect("staged");
+    assert_eq!(d.status, FileStatus::Renamed);
+    assert_eq!(d.old_path.as_deref(), Some("old.txt"));
+}
+
+/// The commit panel's counts diff only the paths the status lists.
+#[test]
+fn changed_files_takes_a_path_list() {
+    let t = TempRepo::new();
+    t.commit(
+        &[("a.txt", "a\n"), ("b.txt", "b\n"), ("d/c.txt", "c\n")],
+        "A",
+    );
+    t.write("a.txt", "a\nA\n");
+    t.write("b.txt", "b\nB\n");
+    t.write("d/c.txt", "c\nC\n");
+    // An untracked file in an untracked folder: the status lists the file, not the folder.
+    t.write("new/n.txt", "n\nN\n");
+
+    let listed: &[&[u8]] = &[b"a.txt", b"d/c.txt", b"new/n.txt"];
+    let files = changed_files(&t.repo, &DiffTarget::Unstaged, Some(listed)).expect("listed");
+    assert_eq!(
+        triples(&files),
+        vec![
+            (1, 0, "a.txt".into()),
+            (1, 0, "d/c.txt".into()),
+            (2, 0, "new/n.txt".into())
+        ]
+    );
+    assert!(changed_files(&t.repo, &DiffTarget::Unstaged, Some(&[]))
+        .expect("empty")
+        .is_empty());
+    assert_eq!(
+        changed_files(&t.repo, &DiffTarget::Unstaged, None)
+            .expect("all")
+            .len(),
+        4
+    );
+}
+
+/// A staged rename libgit2 scores under its threshold still reads as the
+/// rename the status (git) shows, when the panel hands over the old path.
+#[test]
+fn a_hinted_staged_rename_pairs_below_the_similarity_threshold() {
+    let t = TempRepo::new();
+    let body: String = (1..=10).map(|i| format!("line {i}\n")).collect();
+    t.commit(&[("old.txt", body.as_str())], "A");
+    let edited: String = std::iter::once("line 1\n".to_string())
+        .chain((2..=10).map(|i| format!("other {i}\n")))
+        .collect();
+    t.rename_file("old.txt", "new.txt");
+    t.write("new.txt", edited);
+    t.stage(&["new.txt"]);
+
+    let opts = DiffOptions::default();
+    let narrow = file_diff(&t.repo, &DiffTarget::Staged, "new.txt", None, &opts).expect("narrow");
+    assert_eq!(
+        narrow.status,
+        FileStatus::Added,
+        "libgit2 alone does not pair it"
+    );
+
+    let d = file_diff(
+        &t.repo,
+        &DiffTarget::Staged,
+        "new.txt",
+        Some("old.txt"),
+        &opts,
+    )
+    .expect("hinted");
+    assert_eq!(d.status, FileStatus::Renamed);
+    assert_eq!(d.path, "new.txt");
+    assert_eq!(d.old_path.as_deref(), Some("old.txt"));
+    assert_eq!((d.additions, d.deletions), (9, 9));
+    assert_eq!(
+        (d.old_mode.as_deref(), d.new_mode.as_deref()),
+        (Some("100644"), Some("100644"))
+    );
+}
+
+fn index_entry(id: git2::Oid, mode: u32, path: &[u8]) -> git2::IndexEntry {
+    git2::IndexEntry {
+        ctime: git2::IndexTime::new(0, 0),
+        mtime: git2::IndexTime::new(0, 0),
+        dev: 0,
+        ino: 0,
+        mode,
+        uid: 0,
+        gid: 0,
+        file_size: 0,
+        id,
+        flags: 0,
+        flags_extended: 0,
+        path: path.to_vec(),
+    }
+}
+
+/// Commits `entry` at `from` (index only), then moves it to `to` in the index.
+fn staged_move(t: &TempRepo, id: git2::Oid, mode: u32, from: &str, to: &str) {
+    let mut index = t.repo.index().expect("index");
+    index
+        .add(&index_entry(id, mode, from.as_bytes()))
+        .expect("add");
+    index.write().expect("index write");
+    t.commit_index("A");
+    let mut index = t.repo.index().expect("index");
+    index.remove_path(Path::new(from)).expect("remove");
+    index
+        .add(&index_entry(id, mode, to.as_bytes()))
+        .expect("add");
+    index.write().expect("index write");
+}
+
+/// libgit2 never pairs a symlink; git reads a staged one moved as `R100`.
+#[test]
+fn a_hinted_staged_symlink_rename_pairs_with_its_modes() {
+    let t = TempRepo::new();
+    let target = t.repo.blob(b"some/target").expect("blob");
+    staged_move(&t, target, 0o120_000, "link", "link2");
+
+    let d = file_diff(
+        &t.repo,
+        &DiffTarget::Staged,
+        "link2",
+        Some("link"),
+        &DiffOptions::default(),
+    )
+    .expect("hinted");
+    assert_eq!(d.status, FileStatus::Renamed);
+    assert_eq!(d.old_path.as_deref(), Some("link"));
+    assert_eq!(
+        (d.old_mode.as_deref(), d.new_mode.as_deref()),
+        (Some("120000"), Some("120000"))
+    );
+    assert!(d.hunks.is_empty(), "{:?}", d.hunks);
+}
+
+/// A gitlink has no blob in the superproject to build a patch from: a staged
+/// submodule move keeps the narrow result, its new path Added.
+#[test]
+fn a_hinted_staged_submodule_move_keeps_the_narrow_result() {
+    let t = TempRepo::new();
+    let pointer = git2::Oid::from_str("1111111111111111111111111111111111111111").expect("oid");
+    staged_move(&t, pointer, 0o160_000, "sub", "sub2");
+
+    let d = file_diff(
+        &t.repo,
+        &DiffTarget::Staged,
+        "sub2",
+        Some("sub"),
+        &DiffOptions::default(),
+    )
+    .expect("hinted");
+    assert_eq!(d.status, FileStatus::Added);
     assert_eq!(d.old_path, None);
 }
 
@@ -320,7 +490,7 @@ fn workdir_rename_pairs_in_the_unstaged_diff() {
 fn root_commit_is_all_added() {
     let t = TempRepo::new();
     let a = t.commit(&[("a.txt", "1\n2\n"), ("d/b.txt", "x\n")], "root");
-    let files = changed_files(&t.repo, &commit(a)).expect("changed_files");
+    let files = changed_files(&t.repo, &commit(a), None).expect("changed_files");
     assert_eq!(paths(&files), vec!["a.txt", "d/b.txt"]);
     assert!(files.iter().all(|f| f.status == FileStatus::Added));
     assert_eq!(
@@ -347,7 +517,7 @@ fn binary_file_has_no_hunks() {
     t.write("blob.bin", [0u8, 1, 2, 3, 0, 255, 10, 0]);
     t.stage(&["blob.bin"]);
     let b = t.commit_index("B");
-    let files = changed_files(&t.repo, &commit(b)).expect("changed_files");
+    let files = changed_files(&t.repo, &commit(b), None).expect("changed_files");
     assert_eq!(files.len(), 1);
     assert_eq!(
         (files[0].binary, files[0].additions, files[0].deletions),
@@ -367,7 +537,7 @@ fn binary_file_has_no_hunks() {
 
     // Modified binary in the workdir too.
     t.write("blob.bin", [0u8, 9, 9, 9]);
-    let files = changed_files(&t.repo, &DiffTarget::Unstaged).expect("unstaged");
+    let files = changed_files(&t.repo, &DiffTarget::Unstaged, None).expect("unstaged");
     assert_eq!(files.len(), 1);
     assert!(files[0].binary);
     assert_eq!(files[0].status, FileStatus::Modified);
@@ -385,7 +555,7 @@ fn crlf_lines_keep_carriage_return() {
     t.stage(&["w.txt"]);
     let b = t.commit_index("B");
 
-    let files = changed_files(&t.repo, &commit(b)).expect("changed_files");
+    let files = changed_files(&t.repo, &commit(b), None).expect("changed_files");
     assert_eq!(triples(&files), vec![(2, 1, "w.txt".into())]);
     if let Some(expected) = git_numstat(t.path(), &a.to_string(), &b.to_string()) {
         assert_eq!(triples(&files), expected);
@@ -424,11 +594,11 @@ fn staged_unstaged_workdir_and_status() {
     t.write("b.txt", "b1\nB2\n");
     t.write("dir/c.txt", "c1\nc2\n");
 
-    let staged = changed_files(&t.repo, &DiffTarget::Staged).expect("staged");
+    let staged = changed_files(&t.repo, &DiffTarget::Staged, None).expect("staged");
     assert_eq!(triples(&staged), vec![(1, 0, "a.txt".into())]);
     assert_eq!(staged[0].status, FileStatus::Modified);
 
-    let unstaged = changed_files(&t.repo, &DiffTarget::Unstaged).expect("unstaged");
+    let unstaged = changed_files(&t.repo, &DiffTarget::Unstaged, None).expect("unstaged");
     assert_eq!(
         triples(&unstaged),
         vec![(1, 1, "b.txt".into()), (2, 0, "dir/c.txt".into())]
@@ -436,7 +606,7 @@ fn staged_unstaged_workdir_and_status() {
     assert_eq!(find(&unstaged, "dir/c.txt").status, FileStatus::Untracked);
     assert_eq!(find(&unstaged, "b.txt").status, FileStatus::Modified);
 
-    let workdir = changed_files(&t.repo, &DiffTarget::Workdir).expect("workdir");
+    let workdir = changed_files(&t.repo, &DiffTarget::Workdir, None).expect("workdir");
     assert_eq!(
         triples(&workdir),
         vec![
@@ -521,12 +691,12 @@ fn unborn_head_staged_is_added() {
     let t = TempRepo::new();
     t.write("first.txt", "hello\n");
     t.stage(&["first.txt"]);
-    let staged = changed_files(&t.repo, &DiffTarget::Staged).expect("staged");
+    let staged = changed_files(&t.repo, &DiffTarget::Staged, None).expect("staged");
     assert_eq!(triples(&staged), vec![(1, 0, "first.txt".into())]);
     assert_eq!(staged[0].status, FileStatus::Added);
-    let workdir = changed_files(&t.repo, &DiffTarget::Workdir).expect("workdir");
+    let workdir = changed_files(&t.repo, &DiffTarget::Workdir, None).expect("workdir");
     assert_eq!(triples(&workdir), vec![(1, 0, "first.txt".into())]);
-    assert!(changed_files(&t.repo, &DiffTarget::Unstaged)
+    assert!(changed_files(&t.repo, &DiffTarget::Unstaged, None)
         .expect("unstaged")
         .is_empty());
     let s = status(&t.repo).expect("status");
@@ -697,7 +867,7 @@ fn stash_target_holds_the_staged_unstaged_and_untracked_changes() {
     let target = DiffTarget::Stash {
         oid: oid.to_string(),
     };
-    let files = changed_files(&t.repo, &target).expect("changed_files");
+    let files = changed_files(&t.repo, &target, None).expect("changed_files");
     assert_eq!(paths(&files), vec!["a.txt", "b.txt", "c.txt"]);
     assert_eq!(find(&files, "a.txt").status, FileStatus::Modified);
     assert_eq!(find(&files, "b.txt").status, FileStatus::Modified);

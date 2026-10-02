@@ -194,12 +194,13 @@ fn head_tree(repo: &Repository) -> Result<Option<Tree<'_>>, GitError> {
 }
 
 /// Builds the libgit2 diff for `target` with renames detected; `paths`
-/// (repo-relative, exact) restricts it, empty means everything.
+/// (repo-relative, exact, as bytes: a path that isn't UTF-8 still matches)
+/// restricts it, empty means everything.
 fn build_diff<'r>(
     repo: &'r Repository,
     target: &DiffTarget,
     opts: &DiffOptions,
-    paths: &[&str],
+    paths: &[&[u8]],
 ) -> Result<git2::Diff<'r>, GitError> {
     let mut o = git2::DiffOptions::new();
     o.context_lines(opts.context)
@@ -260,10 +261,10 @@ fn build_diff<'r>(
     }
     .map_err(map_git2)?;
     let mut find = DiffFindOptions::new();
-    // `for_untracked`: a file renamed on disk without `git mv` is a delete plus
-    // an untracked add, and only then is the untracked half a rename candidate
-    // (no effect on the tree-to-tree targets, which have no untracked side).
-    find.renames(true).copies(false).for_untracked(true);
+    // No `for_untracked`: a file renamed on disk without `git mv` stays a
+    // deletion plus an untracked file, as `git status` (and so the status
+    // list) shows it — and no untracked file is read as a rename candidate.
+    find.renames(true).copies(false);
     diff.find_similar(Some(&mut find)).map_err(map_git2)?;
     Ok(diff)
 }
@@ -296,8 +297,20 @@ fn patch_for<'d>(diff: &git2::Diff<'d>, idx: usize) -> Result<Option<Patch<'d>>,
 /// Changed files of `target` with per-file line counts (renames detected).
 /// One pass over the diff with a line callback: the counts come out without
 /// a `Patch` (every line, as a struct) being built per file.
-pub fn changed_files(repo: &Repository, target: &DiffTarget) -> Result<Vec<FileChange>, GitError> {
-    let diff = build_diff(repo, target, &DiffOptions::default(), &[])?;
+///
+/// `paths` limits it to those paths (the ones the status lists), so a stale
+/// but unchanged working-tree file is never re-hashed; `None` is everything,
+/// and an empty list is nothing.
+pub fn changed_files(
+    repo: &Repository,
+    target: &DiffTarget,
+    paths: Option<&[&[u8]]>,
+) -> Result<Vec<FileChange>, GitError> {
+    if paths.is_some_and(<[_]>::is_empty) {
+        // An empty pathspec would diff everything.
+        return Ok(Vec::new());
+    }
+    let diff = build_diff(repo, target, &DiffOptions::default(), paths.unwrap_or(&[]))?;
     // Shared by the three callbacks (libgit2 calls them one at a time).
     let out: RefCell<Vec<FileChange>> = RefCell::new(Vec::with_capacity(diff.deltas().len()));
     // Index into `out` of the delta the callbacks are currently on; `None`
@@ -352,9 +365,9 @@ fn locate<'d>(diff: &git2::Diff<'d>, path: &str) -> Option<usize> {
 }
 
 /// Hunks of one file of `target`, addressed by its new path (a renamed file
-/// is also found by its old path). `old_path` — the other half of a
-/// working-tree rename, from the caller's status entry — joins the pathspec so
-/// the pair is detected without the whole diff being built.
+/// is also found by its old path). `old_path` — the other half of a staged
+/// rename, from the caller's status entry — joins the pathspec so the pair is
+/// detected without the whole diff being built.
 pub fn file_diff(
     repo: &Repository,
     target: &DiffTarget,
@@ -368,15 +381,14 @@ pub fn file_diff(
         }
     }
     // The diff of this one path (plus the hinted half) first: cheap, no other
-    // content is loaded. An unhinted rename's other half is outside that
-    // pathspec, so an `Added` or `Deleted` result may really be a rename: only
-    // then is the whole diff built, where rename detection can pair it up. An
-    // `Untracked` result is left alone — pairing it would mean diffing every
-    // untracked file in the tree, which is what the hint is for.
-    let paths = match old_path {
-        Some(old) => vec![path, old],
-        None => vec![path],
-    };
+    // content is loaded. The working-tree targets stop there: the status hands
+    // over the other half of every rename it reports, and it reports none on
+    // the working tree. A commit, range or stash has no status to ask, so an
+    // `Added` or `Deleted` result there may really be a rename: only then is
+    // the whole diff built, where rename detection can pair it up — a
+    // tree-to-tree diff skips unchanged subtrees.
+    let mut paths = vec![path.as_bytes()];
+    paths.extend(old_path.map(str::as_bytes));
     let mut diff = build_diff(repo, target, opts, &paths)?;
     let mut idx = locate(&diff, path);
     let maybe_rename = idx.is_some_and(|i| {
@@ -385,9 +397,18 @@ pub fn file_diff(
             Some(Delta::Added | Delta::Deleted)
         )
     });
-    if idx.is_none() || maybe_rename {
+    let from_trees = matches!(
+        target,
+        DiffTarget::Commit { .. } | DiffTarget::CommitRange { .. } | DiffTarget::Stash { .. }
+    );
+    if from_trees && (idx.is_none() || maybe_rename) {
         diff = build_diff(repo, target, opts, &[])?;
         idx = locate(&diff, path);
+    }
+    if let (DiffTarget::Staged, Some(old), true) = (target, old_path, maybe_rename) {
+        if let Some(d) = hinted_rename(repo, &diff, path, old, opts)? {
+            return Ok(d);
+        }
     }
     let idx = idx.ok_or_else(|| {
         GitError::Git2(git2::Error::new(
@@ -404,6 +425,65 @@ pub fn file_diff(
         mode_text(delta.new_file().mode()),
     );
     file_diff_from_patch(patch, path, old_path, delta.status().into(), modes, opts)
+}
+
+/// A hinted staged rename libgit2 would not pair — its similarity under the
+/// threshold, a score of 0, or a symlink — read as the status reads it (git
+/// pairs it): the patch from HEAD's old blob to the index's new one, status
+/// Renamed. `None` for any other shape (a stale hint) and for a pair that
+/// isn't two blobs (a submodule move has no blob to read): the narrow diff
+/// stands.
+fn hinted_rename(
+    repo: &Repository,
+    diff: &git2::Diff<'_>,
+    path: &str,
+    old: &str,
+    opts: &DiffOptions,
+) -> Result<Option<FileDiff>, GitError> {
+    let side = |status: Delta, p: &str| {
+        diff.deltas()
+            .find(|d| d.status() == status && d.new_file().path_bytes() == Some(p.as_bytes()))
+    };
+    let (Some(deleted), Some(added)) = (side(Delta::Deleted, old), side(Delta::Added, path)) else {
+        return Ok(None);
+    };
+    let (old_file, new_file) = (deleted.old_file(), added.new_file());
+    let blob = |m: FileMode| {
+        matches!(
+            m,
+            FileMode::Blob | FileMode::BlobExecutable | FileMode::Link
+        )
+    };
+    if !blob(old_file.mode()) || !blob(new_file.mode()) {
+        return Ok(None);
+    }
+    let old_blob = repo.find_blob(old_file.id()).map_err(map_git2)?;
+    let new_blob = repo.find_blob(new_file.id()).map_err(map_git2)?;
+    let mut o = git2::DiffOptions::new();
+    o.context_lines(opts.context)
+        .ignore_whitespace(opts.ignore_whitespace);
+    // The paths are what libgit2 looks attributes and the diff driver up by.
+    let patch = Patch::from_blobs(
+        &old_blob,
+        Some(std::path::Path::new(old)),
+        &new_blob,
+        Some(std::path::Path::new(path)),
+        Some(&mut o),
+    )
+    .map_err(map_git2)?;
+    let patch = Some(patch).filter(|p| !p.delta().flags().is_binary());
+    // The blob patch's own delta reads 100644 on both sides: the modes come
+    // from the two-path diff.
+    let modes = (mode_text(old_file.mode()), mode_text(new_file.mode()));
+    file_diff_from_patch(
+        patch,
+        path.to_string(),
+        Some(old.to_string()),
+        FileStatus::Renamed,
+        modes,
+        opts,
+    )
+    .map(Some)
 }
 
 /// Hunks — or the binary marker — of one patch that has already been located.

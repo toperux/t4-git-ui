@@ -326,9 +326,10 @@ enum PatchOp {
 
 /// Builds the patch for `selection` from the stage-able diff of `path`
 /// (`Staged` for an unstage, `Unstaged` otherwise) and applies it. `old_path`
-/// is the rename hint the frontend loaded the shown diff with: without the
-/// same hint the rebuild here is a different diff, and the indices would point
-/// at other hunks. `seen` is how a rebuild that no longer matches the shown
+/// is the rename hint the frontend loaded the shown diff with (a staged
+/// rename's old path; none for the unstaged list): without the same hint the
+/// rebuild here is a different diff, and the indices would point at other
+/// hunks. `seen` is how a rebuild that no longer matches the shown
 /// diff is caught — see `patch::check_seen`.
 #[allow(clippy::too_many_arguments)]
 async fn apply_selection(
@@ -461,13 +462,11 @@ pub async fn stage_lines(
 /// Throws away `hunks` of the unstaged diff of `path` — the working file loses
 /// them, the index keeps whatever is staged. Not undoable.
 #[tauri::command]
-#[allow(clippy::too_many_arguments)]
 pub async fn discard_hunks(
     app: AppHandle,
     state: State<'_, AppState>,
     id: RepoId,
     path: String,
-    old_path: Option<String>,
     hunks: Vec<usize>,
     seen: Vec<(usize, usize, String)>,
     context: u32,
@@ -477,7 +476,7 @@ pub async fn discard_hunks(
         &state,
         &id,
         path,
-        old_path,
+        None,
         PatchSelection::Hunks(hunks),
         seen,
         PatchOp::Discard,
@@ -488,13 +487,11 @@ pub async fn discard_hunks(
 
 /// `lines` are `[hunkIndex, lineIndexWithinHunk]` pairs of the unstaged diff.
 #[tauri::command]
-#[allow(clippy::too_many_arguments)]
 pub async fn discard_lines(
     app: AppHandle,
     state: State<'_, AppState>,
     id: RepoId,
     path: String,
-    old_path: Option<String>,
     lines: Vec<[usize; 2]>,
     seen: Vec<(usize, usize, String)>,
     context: u32,
@@ -505,7 +502,7 @@ pub async fn discard_lines(
         &state,
         &id,
         path,
-        old_path,
+        None,
         PatchSelection::Lines(lines),
         seen,
         PatchOp::Discard,

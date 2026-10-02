@@ -21,7 +21,7 @@ fn main() {
     let target = DiffTarget::Commit { oid: head.clone() };
 
     let t0 = Instant::now();
-    let files = changed_files(&repo, &target).expect("changed_files");
+    let files = changed_files(&repo, &target, None).expect("changed_files");
     let listed = t0.elapsed();
 
     let largest = files

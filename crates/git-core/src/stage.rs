@@ -195,8 +195,8 @@ pub fn discard_paths(repo: &Repository, paths: &[&str]) -> Result<Vec<String>, G
     let workdir = workdir(repo)?;
     let mut restore: Vec<&str> = Vec::new();
     let mut discarded = Vec::new();
-    // A working-tree rename arrives as both halves from the caller: `status_file` runs single-path
-    // with no rename detection, so it reports `WT_NEW` / `WT_DELETED` and can never pair them.
+    // `status_file` runs single-path with no rename detection: a file renamed on disk is `WT_NEW`
+    // under its new name and `WT_DELETED` under its old one — the two rows the status lists.
     for p in paths {
         // A directory, so nothing to discard: a gitlink, where git has no discard either
         // (`submodule update` is the reset), or an untracked nested repository, whose
@@ -684,8 +684,9 @@ mod tests {
         assert!(e.submodule);
     }
 
-    /// Why the caller sends both halves: `status_file` sees only `WT_NEW` for the
-    /// new name, so a one-path discard deletes it and leaves the old one missing.
+    /// Why a working-tree rename is two rows: `status_file` sees only `WT_NEW` for
+    /// the new name, so its discard deletes it and leaves the old one missing —
+    /// the old name's own row (a deletion) is what restores it.
     #[test]
     fn discard_of_only_the_new_name_leaves_the_old_one_missing() {
         let t = TempRepo::new();

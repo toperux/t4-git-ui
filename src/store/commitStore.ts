@@ -26,7 +26,7 @@ export interface StatusLists {
 }
 
 /** Unstaged = workdir change or conflict; staged = index change. A file may be in both. */
-export function splitStatus(status: WorkdirStatus | null): StatusLists {
+export function splitStatus(status: Pick<WorkdirStatus, "entries"> | null): StatusLists {
   const entries = status?.entries ?? [];
   return {
     unstaged: entries.filter((e) => e.workdir !== null || e.conflicted),
@@ -134,7 +134,7 @@ let diffSeq = 0;
 let statsSeq = 0;
 /** The `StatusEntry` the shown diff was loaded for — an unrelated `repo://changed` must not reload it. */
 let diffEntry: StatusEntry | null = null;
-/** Entry list the current stats belong to, plus the one-in-flight guard (`get_changed_files` walks the tree). */
+/** Entry list the current stats belong to, plus the one-in-flight guard (`get_changed_files` reads every listed file). */
 let statsFor: StatusEntry[] | null = null;
 let statsInflight = false;
 let statsPending: StatusEntry[] | null = null;
@@ -152,15 +152,17 @@ const NO_ORDER = { unstaged: null, staged: null };
 const PENDING = new Set<RepoState>(["merge", "cherryPick", "revert"]);
 
 /**
- * The other half of a working-tree rename of `path`, which is what lets the backend pair the two
- * from that file's diff alone instead of diffing every untracked file in the tree. Every call that
+ * The old path of a staged rename of `path`, which is what lets the backend pair the two halves
+ * from the diff of those two paths alone. Staged list only: the status shows a working-tree rename
+ * as a deletion plus an untracked file, so the unstaged list has none to send. Every call that
  * makes the backend build the diff of a file — the panel's own load, and each hunk / line action,
  * which resolves its indices against a rebuild — has to send the same hint, or they are two
  * different diffs.
  */
-function renameHint(path: string | null): string | undefined {
+function renameHint(path: string | null, list: ListId): string | undefined {
+  if (list !== "staged") return undefined;
   const e = path ? useStatusStore.getState().status?.entries.find((x) => x.path === path) : undefined;
-  return e?.workdir === "renamed" ? (e.oldPath ?? undefined) : undefined;
+  return e?.index === "renamed" ? (e.oldPath ?? undefined) : undefined;
 }
 
 /** Every hunk a selection touches, as the shown diff has it — the backend rebuilds the diff and refuses when they differ. A hunk the diff does not have prints as nothing, which no rebuild matches. */
@@ -196,7 +198,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
     // the backend rebuilds the diff to resolve the indices, and another context merges / splits hunks.
     const context = useDiffStore.getState().context;
     try {
-      const diff = await ipc.getFileDiff(id, { kind: list }, anchor, { context }, renameHint(anchor));
+      const diff = await ipc.getFileDiff(id, { kind: list }, anchor, { context }, renameHint(anchor, list));
       if (mySeq !== diffSeq) return;
       // Identical content → keep the old object: `DiffViewer` keys its scroll / line selection off it.
       // Only for the same target, though — a selection made against the unstaged diff means something
@@ -210,7 +212,11 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
     }
   }
 
-  /** `get_changed_files` walks the whole tree twice: only on a real entry change, one call at a time. */
+  /**
+   * `get_changed_files` reads every listed file: only on a real entry change, one call at a time. The
+   * unstaged counts diff just the unstaged list's paths, so a stale but unchanged file is never
+   * re-hashed; the staged ones (tree to index) touch no working-tree file.
+   */
   async function loadStats(entries: StatusEntry[]) {
     if (eqDeep(entries, statsFor)) return;
     if (statsInflight) {
@@ -224,7 +230,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
     const byPath = (files: FileChange[]) => Object.fromEntries(files.map((f) => [f.path, f]));
     try {
       const [unstaged, staged] = await Promise.all([
-        ipc.getChangedFiles(id, { kind: "unstaged" }).catch(() => []),
+        ipc.getChangedFiles(id, { kind: "unstaged" }, splitStatus({ entries }).unstaged.map((e) => e.path)).catch(() => []),
         ipc.getChangedFiles(id, { kind: "staged" }).catch(() => []),
       ]);
       if (mySeq !== statsSeq) return;
@@ -408,21 +414,8 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       // No confirmation available (no Tauri dialog plugin) → treat it as declined; nothing is lost.
       const ok = await ask(message, { title: untracked === n ? "Delete files" : "Discard changes", kind: "warning", cancelLabel: "Cancel", okLabel: untracked === n ? "Delete" : "Discard" }).catch(() => false);
       if (!ok) return false;
-      // A working-tree rename is one row here but two halves on disk, and `status_file` cannot pair
-      // them back up — so the old name rides along or it is never restored. After the prompt: the
-      // user picked one file and the wording above must keep saying so. The tree can have moved
-      // while the prompt was up, so the pairing reads the status of now, not the one it was worded on.
-      const fresh = useStatusStore.getState().status?.entries ?? [];
-      const targets = [
-        ...new Set(
-          paths.flatMap((p) => {
-            const e = fresh.find((x) => x.path === p);
-            return e?.workdir === "renamed" && e.oldPath ? [p, e.oldPath] : [p];
-          }),
-        ),
-      ];
       // `false` too when another mutation was already running: nothing was discarded.
-      return await run("Discard failed", (id) => ipc.discardPaths(id, targets));
+      return await run("Discard failed", (id) => ipc.discardPaths(id, paths));
     },
 
     async resolveConflict(paths, side, label) {
@@ -440,14 +433,14 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       const { diffPath, diffList, diffContext, diff } = get();
       if (!diffPath) return;
       const reverse = diffList === "staged";
-      await run(reverse ? "Unstage failed" : "Stage failed", (id) => ipc.stageHunks(id, diffPath, [hunk], reverse, diffContext, seenHunks(diff, [hunk]), renameHint(diffPath)));
+      await run(reverse ? "Unstage failed" : "Stage failed", (id) => ipc.stageHunks(id, diffPath, [hunk], reverse, diffContext, seenHunks(diff, [hunk]), renameHint(diffPath, diffList)));
     },
 
     async stageLines(lines) {
       const { diffPath, diffList, diffContext, diff } = get();
       if (!diffPath || lines.length === 0) return;
       const reverse = diffList === "staged";
-      await run(reverse ? "Unstage failed" : "Stage failed", (id) => ipc.stageLines(id, diffPath, lines, reverse, diffContext, seenHunks(diff, lines.map(([h]) => h)), renameHint(diffPath)));
+      await run(reverse ? "Unstage failed" : "Stage failed", (id) => ipc.stageLines(id, diffPath, lines, reverse, diffContext, seenHunks(diff, lines.map(([h]) => h)), renameHint(diffPath, diffList)));
     },
 
     async discardHunk(hunk) {
@@ -456,7 +449,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       // No confirmation available → declined; a discard has no undo.
       const ok = await ask(`Discard this hunk from ${diffPath}? This cannot be undone.`, { title: "Discard hunk", kind: "warning", cancelLabel: "Cancel", okLabel: "Discard" }).catch(() => false);
       if (!ok || !stillShown(diff)) return;
-      await run("Discard failed", (id) => ipc.discardHunks(id, diffPath, [hunk], diffContext, seenHunks(diff, [hunk]), renameHint(diffPath)));
+      await run("Discard failed", (id) => ipc.discardHunks(id, diffPath, [hunk], diffContext, seenHunks(diff, [hunk])));
     },
 
     async discardLines(lines) {
@@ -465,7 +458,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       const n = lines.length;
       const ok = await ask(`Discard ${n} selected line${n === 1 ? "" : "s"} from ${diffPath}? This cannot be undone.`, { title: "Discard lines", kind: "warning", cancelLabel: "Cancel", okLabel: "Discard" }).catch(() => false);
       if (!ok || !stillShown(diff)) return;
-      await run("Discard failed", (id) => ipc.discardLines(id, diffPath, lines, diffContext, seenHunks(diff, lines.map(([h]) => h)), renameHint(diffPath)));
+      await run("Discard failed", (id) => ipc.discardLines(id, diffPath, lines, diffContext, seenHunks(diff, lines.map(([h]) => h))));
     },
 
     setSummary: (summary) => set({ summary }),

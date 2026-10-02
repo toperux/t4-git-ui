@@ -368,6 +368,29 @@ describe("CommitPanel", () => {
     await waitFor(() => expect(ipc.openDiffTool).toHaveBeenLastCalledWith("r", { kind: "staged" }, "both.rs", null));
   });
 
+  it("a staged rename edited on disk names its old path in the staged list only", async () => {
+    // `RM`: the index no longer holds the old name, so the unstaged side is the new name against the disk.
+    const rm = { path: "moved.rs", oldPath: "old.rs", index: "renamed", workdir: "modified", conflicted: false, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1", indexStamp: null } as const;
+    useStatusStore.setState({ status: { ...STATUS, entries: [rm] } });
+    // Left pending, as the default mock: a loaded diff's own `oldPath` would drive the header instead.
+    mocked.getFileDiff.mockImplementation(() => new Promise(() => {}));
+    const { getByRole, queryAllByText } = renderPanel();
+    // The diff header, not the row label, which keeps `old → new` in both lists.
+    const header = () => queryAllByText((_, el) => el?.tagName === "SPAN" && el.textContent === "old.rs → moved.rs" && !el.closest('[role="listbox"]'));
+
+    fireEvent.click(getByRole("listbox", { name: "Unstaged files" }).querySelector('[role="option"]')!);
+    await act(async () => {});
+    fireEvent.click(getByRole("button", { name: "Open in diff tool" }));
+    await waitFor(() => expect(ipc.openDiffTool).toHaveBeenLastCalledWith("r", { kind: "unstaged" }, "moved.rs", null));
+    expect(header()).toHaveLength(0);
+
+    fireEvent.click(getByRole("listbox", { name: "Staged files" }).querySelector('[role="option"]')!);
+    await act(async () => {});
+    fireEvent.click(getByRole("button", { name: "Open in diff tool" }));
+    await waitFor(() => expect(ipc.openDiffTool).toHaveBeenLastCalledWith("r", { kind: "staged" }, "moved.rs", "old.rs"));
+    expect(header().length).toBeGreaterThan(0);
+  });
+
   /** A staged-over conflict's diff: the markers are still in the file. */
   const markersDiff = () =>
     mocked.getFileDiff.mockImplementation(() =>
@@ -456,7 +479,7 @@ describe("CommitPanel", () => {
     await act(async () => {});
 
     fireEvent.click(getByRole("button", { name: "Discard hunk" }));
-    await waitFor(() => expect(mocked.discardHunks).toHaveBeenCalledWith("r", "a.rs", [0], 3, [[0, 2, hunkPrint(hunk)]], undefined));
+    await waitFor(() => expect(mocked.discardHunks).toHaveBeenCalledWith("r", "a.rs", [0], 3, [[0, 2, hunkPrint(hunk)]]));
     expect(ask.mock.calls[0][0]).toContain("Discard this hunk from a.rs?");
 
     // The staged diff edits the index: unstaging is the only thing on offer there.

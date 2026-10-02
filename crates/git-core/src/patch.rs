@@ -619,7 +619,15 @@ mod tests {
         t.rename_file("old.txt", "new.txt");
         t.write("new.txt", "a\nB\n");
         t.stage(&["new.txt"]);
-        let d = staged(&t, "new.txt");
+        // With the old path, as the panel sends it for a staged rename.
+        let d = file_diff(
+            &t.repo,
+            &DiffTarget::Staged,
+            "new.txt",
+            Some("old.txt"),
+            &DiffOptions::default(),
+        )
+        .expect("file_diff");
         assert_eq!(d.status, FileStatus::Renamed);
         assert_eq!(d.old_path.as_deref(), Some("old.txt"));
 
