@@ -819,15 +819,20 @@ mod tests {
             return;
         }
         let t = TempRepo::new();
-        // `git daemon` listens until killed. `--port=0` still binds git's default port 9418, so a
-        // parallel run holding it makes the test fail (open-items §Q).
+        // `git daemon` listens until killed. `--port=0` still binds git's default port 9418, so it
+        // gets a port the OS just handed out and was let go.
+        let port = std::net::TcpListener::bind("127.0.0.1:0")
+            .and_then(|l| l.local_addr())
+            .expect("free port")
+            .port();
         let cancel = CancellationToken::new();
         let canceller = cancel.clone();
-        tokio::spawn(async move {
+        let cancelled_at = tokio::spawn(async move {
             tokio::time::sleep(Duration::from_millis(300)).await;
+            let at = Instant::now();
             canceller.cancel();
+            at
         });
-        let started = Instant::now();
         let base = t.path().to_string_lossy().into_owned();
         let res = GitCli::new("git")
             .run(
@@ -836,7 +841,7 @@ mod tests {
                 &[
                     "daemon",
                     "--listen=127.0.0.1",
-                    "--port=0",
+                    &format!("--port={port}"),
                     &format!("--base-path={base}"),
                     "--export-all",
                     &base,
@@ -846,11 +851,12 @@ mod tests {
                 |_| {},
             )
             .await;
-        let elapsed = started.elapsed();
+        let done = Instant::now();
         assert!(matches!(res, Err(GitError::Cancelled)), "{res:?}");
-        // 300 ms until cancel + at most 500 ms to die.
+        // Only cancel -> return is timed (the kill itself measured 3-11 ms).
+        let elapsed = done - cancelled_at.await.expect("canceller");
         assert!(
-            elapsed < Duration::from_millis(800),
+            elapsed < Duration::from_millis(500),
             "cancel took {elapsed:?}"
         );
     }
