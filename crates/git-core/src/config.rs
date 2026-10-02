@@ -163,56 +163,8 @@ mod tests {
         );
     }
 
-    /// The global file is process-wide state, so this is the one test that touches
-    /// it: libgit2's three search paths are pointed at an empty temp directory for
-    /// the round trip and reset afterwards — the user's own `~/.gitconfig` is never
-    /// read or written.
-    #[test]
-    fn global_round_trip_and_signing_entries() {
-        let home = tempfile::tempdir().expect("tempdir");
-        const LEVELS: [ConfigLevel; 3] =
-            [ConfigLevel::System, ConfigLevel::Global, ConfigLevel::XDG];
-        // Restores the paths on the way out, a failed assertion included — otherwise the
-        // rest of the run would keep reading the temp directory.
-        struct Reset;
-        impl Drop for Reset {
-            fn drop(&mut self) {
-                for level in LEVELS {
-                    let _ = unsafe { git2::opts::reset_search_path(level) };
-                }
-            }
-        }
-        let _reset = Reset;
-        for level in LEVELS {
-            // Safe here: `_reset` restores the paths, and no other test writes them.
-            unsafe { git2::opts::set_search_path(level, home.path()) }.expect("search path");
-        }
-
-        set_global("user.signingkey", "ABCD1234").unwrap();
-        set_global("commit.gpgsign", "true").unwrap();
-        let global = signing(None).expect("signing");
-        assert_eq!(global["user.signingkey"].value.as_deref(), Some("ABCD1234"));
-        assert!(!global["user.signingkey"].local);
-        assert_eq!(global["gpg.format"].value, None);
-        assert_eq!(global.len(), SIGNING_KEYS.len());
-
-        // A repository's own entry wins over the global one, and says so.
-        let t = TempRepo::new();
-        set_local(&t.repo, "commit.gpgsign", "false").unwrap();
-        let repo = signing(Some(&t.repo)).expect("signing");
-        assert_eq!(repo["commit.gpgsign"].value.as_deref(), Some("false"));
-        assert!(repo["commit.gpgsign"].local);
-        assert_eq!(repo["user.signingkey"].value.as_deref(), Some("ABCD1234"));
-        assert!(!repo["user.signingkey"].local);
-
-        unset_global("user.signingkey").unwrap();
-        // Removing a key that was never set is not an error.
-        unset_global("gpg.ssh.program").unwrap();
-        assert_eq!(
-            signing(None).expect("signing")["user.signingkey"].value,
-            None
-        );
-    }
+    // The global round trip is `tests/global_config.rs`: libgit2's search paths are
+    // process-wide, so it runs in its own process.
 
     #[test]
     fn default_remote_prefers_tracking_then_origin_then_first() {
