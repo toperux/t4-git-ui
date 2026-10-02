@@ -5,6 +5,7 @@ import type { FileChange, TreeEntry } from "../../../api/types";
 import { useDiffStore } from "../../../store/diffStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { ChangedFileList } from "./ChangedFileList";
+import { buildFileTree } from "./fileTree";
 
 vi.mock("../../../api/ipc", () => ({
   getChangedFiles: vi.fn(() => new Promise(() => {})),
@@ -19,6 +20,11 @@ vi.mock("../../../api/ipc", () => ({
 // The row menu's native save dialog; `ask` / `open` are what `actions.ts` imports from the plugin.
 vi.mock("@tauri-apps/plugin-dialog", () => ({ save: vi.fn(() => Promise.resolve("C:/out/main.rs")), ask: vi.fn(), open: vi.fn() }));
 vi.mock("@tauri-apps/plugin-clipboard-manager", () => ({ writeText: vi.fn(() => Promise.resolve()) }));
+// The real build, counted: an expand must not run it again.
+vi.mock("./fileTree", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./fileTree")>();
+  return { ...actual, buildFileTree: vi.fn(actual.buildFileTree) };
+});
 
 // jsdom has no layout: give the virtualizer a viewport so it renders rows.
 const scrolls = vi.hoisted(() => ({ offsets: [] as number[] }));
@@ -183,6 +189,20 @@ describe("ChangedFileList", () => {
     fireEvent.click(getByTitle("src"));
     expect(getByTitle("src").getAttribute("aria-expanded")).toBe("true");
     expect(leaves().map((r) => r.textContent?.replace(/\s+/g, ""))).toEqual(["lib.rs20B", "main.rs30B", "readme.md12B"]);
+  });
+
+  it("an expand or collapse re-flattens the tree it has, without building it again", () => {
+    useDiffStore.setState({ target: { kind: "commit", oid: "c" }, files: [], filesLoading: false, filesError: null, fileListMode: "tree", tab: "files", tree: TREE });
+    const { getByTitle } = render(<ChangedFileList />);
+    const build = vi.mocked(buildFileTree);
+    const before = build.mock.calls.length;
+    expect(before).toBeGreaterThan(0);
+
+    fireEvent.click(getByTitle("src"));
+    expect(getByTitle("src").getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(getByTitle("src"));
+    expect(getByTitle("src").getAttribute("aria-expanded")).toBe("false");
+    expect(build.mock.calls.length).toBe(before);
   });
 
   it("the filter flattens the Files tab to matches and clearing it restores the tree", () => {

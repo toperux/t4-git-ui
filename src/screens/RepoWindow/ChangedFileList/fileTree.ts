@@ -14,24 +14,35 @@ export interface FileNode<T = FileChange> {
   file?: T;
 }
 
+/** `localeCompare`'s order, without its per-call collator setup. */
+const byName = new Intl.Collator().compare;
+
 export function buildFileTree<T extends { path: string }>(files: T[]): FileNode<T>[] {
   const root: FileNode<T> = { name: "", path: "", children: [] };
+  // Each folder's subfolders by name (files are never looked up): a scan of `children` per path
+  // segment is quadratic in a wide folder.
+  const folders = new Map<FileNode<T>, Map<string, FileNode<T>>>([[root, new Map()]]);
   for (const f of files) {
     const parts = f.path.split("/");
     let node = root;
     parts.forEach((part, i) => {
       const last = i === parts.length - 1;
-      let child = last ? undefined : node.children.find((c) => c.name === part && !c.file);
+      const sub = folders.get(node)!;
+      let child = last ? undefined : sub.get(part);
       if (!child) {
         child = { name: part, path: parts.slice(0, i + 1).join("/"), children: [] };
         if (last) child.file = f;
+        else {
+          sub.set(part, child);
+          folders.set(child, new Map());
+        }
         node.children.push(child);
       }
       node = child;
     });
   }
   const sort = (nodes: FileNode<T>[]) => {
-    nodes.sort((a, b) => Number(!!a.file) - Number(!!b.file) || a.name.localeCompare(b.name));
+    nodes.sort((a, b) => Number(!!a.file) - Number(!!b.file) || byName(a.name, b.name));
     nodes.forEach((n) => sort(n.children));
   };
   sort(root.children);

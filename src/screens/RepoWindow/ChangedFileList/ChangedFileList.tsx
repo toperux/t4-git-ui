@@ -79,18 +79,20 @@ export function ChangedFileList({ autoFocus }: { autoFocus?: boolean }) {
   // A filter flattens to the matching files: folder rows would mostly hold nothing.
   const matches = useMemo(() => (needle ? items.filter((f) => f.path.toLowerCase().includes(needle)) : null), [needle, items]);
   const treeView = mode === "tree" && !matches;
+  // Built once per listing: an expand or collapse only re-flattens it.
+  const nodes = useMemo(() => (treeView ? buildFileTree(items) : null), [items, treeView]);
 
   const rows = useMemo<Row[]>(() => {
     const flat = (list: Item[]): Row[] => list.map((f) => ({ kind: "file", file: f, label: f.path, depth: undefined }));
     // Capped: a one-letter filter over a big tree is thousands of rows nobody reads, and the count
     // of the rest is on the banner under the list.
     if (matches) return flat(matches.slice(0, FILTER_CAP));
-    if (!treeView) return flat(items);
+    if (!nodes) return flat(items);
     // `flattenTree` asks "is this folder collapsed?", which on the Files tab is the negation of its
     // own state.
     const folded = filesTab ? { has: (p: string) => !opened.has(p) } : collapsed;
-    return flattenTree(buildFileTree(items), folded);
-  }, [matches, treeView, items, filesTab, opened, collapsed]);
+    return flattenTree(nodes, folded);
+  }, [matches, nodes, items, filesTab, opened, collapsed]);
 
   // The files on screen — the ↑/↓ ring (a collapsed folder's are skipped).
   const visible = useMemo(() => rows.flatMap((r) => (r.kind === "file" ? [r.file.path] : [])), [rows]);

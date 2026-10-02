@@ -1,8 +1,46 @@
 import { describe, expect, it } from "vitest";
 import type { FileChange } from "../../../api/types";
-import { buildFileTree, flattenTree, hiddenSlot } from "./fileTree";
+import { buildFileTree, flattenTree, hiddenSlot, type FileNode } from "./fileTree";
 
 const f = (path: string): FileChange => ({ path, oldPath: null, status: "modified", additions: 1, deletions: 0, binary: false });
+
+/** The build before the per-folder `Map` and the shared collator: the reference for its output. */
+function referenceBuild<T extends { path: string }>(files: T[]): FileNode<T>[] {
+  const root: FileNode<T> = { name: "", path: "", children: [] };
+  for (const f of files) {
+    const parts = f.path.split("/");
+    let node = root;
+    parts.forEach((part, i) => {
+      const last = i === parts.length - 1;
+      let child = last ? undefined : node.children.find((c) => c.name === part && !c.file);
+      if (!child) {
+        child = { name: part, path: parts.slice(0, i + 1).join("/"), children: [] };
+        if (last) child.file = f;
+        node.children.push(child);
+      }
+      node = child;
+    });
+  }
+  const sort = (nodes: FileNode<T>[]) => {
+    nodes.sort((a, b) => Number(!!a.file) - Number(!!b.file) || a.name.localeCompare(b.name));
+    nodes.forEach((n) => sort(n.children));
+  };
+  sort(root.children);
+  const compact = (nodes: FileNode<T>[]): void => {
+    nodes.forEach((n, i) => {
+      if (n.file) return;
+      let node = n;
+      while (node.children.length === 1 && !node.children[0].file) {
+        const child = node.children[0];
+        node = { name: `${node.name}/${child.name}`, path: child.path, chain: [...(node.chain ?? [node.path]), child.path], children: child.children };
+      }
+      nodes[i] = node;
+      compact(node.children);
+    });
+  };
+  compact(root.children);
+  return root.children;
+}
 
 describe("buildFileTree", () => {
   it("nests by / with folders first, alphabetical", () => {
@@ -55,6 +93,25 @@ describe("buildFileTree", () => {
       ["b/c", "a/b/c", false],
       ["d.rs", "a/d.rs", true],
     ]);
+  });
+
+  it("builds the same tree as the reference build", () => {
+    // Compacted chains, a file and a folder of one name, sibling folders, non-ASCII and mixed-case
+    // names, fed in a shuffled order.
+    const names = ["a", "B", "b", "é", "e", "z", "Ä", "日本", "ж"];
+    const paths = ["deep/one/two/three/x.rs", "deep/one/two/three/y.rs", "a", "a/b", "a/b/c/d/e.rs"];
+    for (const p of names) for (const q of names) for (const r of names.slice(0, 4)) paths.push(`${p}/${q}/${r}.ts`, `${p}/${q}.md`);
+    let seed = 42;
+    const rand = () => (seed = (seed * 16807) % 2147483647);
+    const files = paths
+      .map((p) => ({ key: rand(), file: f(p) }))
+      .sort((x, y) => x.key - y.key)
+      .map((x) => x.file);
+    const tree = buildFileTree(files);
+    expect(tree).toEqual(referenceBuild(files));
+    // The generator reached every case it names.
+    expect(tree.find((n) => n.name === "deep/one/two/three")).toBeTruthy();
+    expect(tree.filter((n) => n.path === "a").map((n) => !!n.file)).toEqual([false, true]);
   });
 });
 
