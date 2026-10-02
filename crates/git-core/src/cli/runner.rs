@@ -32,9 +32,9 @@ const BATCH_AGE: Duration = Duration::from_millis(50);
 /// is a child it spawned that kept the handles (a hook's `daemon &`), and that
 /// can be hours. Measured from the last line, not from the exit: a loaded
 /// machine still draining git's own output is never cut short.
-const DRAIN_GRACE: Duration = Duration::from_millis(500);
+pub(crate) const DRAIN_GRACE: Duration = Duration::from_millis(500);
 /// The most a child that keeps writing can add to an op after git exited.
-const DRAIN_CAP: Duration = Duration::from_secs(5);
+pub(crate) const DRAIN_CAP: Duration = Duration::from_secs(5);
 /// Per-stream cap on the text handed back in [`CliOutput`]: everything before
 /// the last of these bytes is dropped (and, for stdout, `stdout_truncated` is set).
 const MAX_RETAINED: usize = 4 * 1024 * 1024;
@@ -196,6 +196,47 @@ impl Batch {
     }
 }
 
+/// `git <args>` in `repo_dir` with every setting a git run gets here, so no
+/// caller can drift from another: no prompt, no editor, `LC_ALL=C`, no
+/// optional locks, piped stdout / stderr, killed with its handle, no console
+/// window on Windows and its own process group on Unix. stdin is the caller's.
+pub(crate) fn git_command(git_path: &str, repo_dir: &Path, args: &[&str]) -> Command {
+    let mut cmd = Command::from(host_command(git_path));
+    cmd.args(args)
+        .current_dir(repo_dir)
+        .env("GIT_TERMINAL_PROMPT", "0")
+        // No tty to edit in: a command that wants a message (`commit`,
+        // `tag -a`, `rebase --continue`) fails with "empty message"
+        // instead of popping the user's editor or stalling until Cancel.
+        .env("GIT_EDITOR", "true")
+        // The env var beats `-c sequence.editor`, which is how the
+        // interactive rebase hands git its todo list.
+        .env_remove("GIT_SEQUENCE_EDITOR")
+        .env("LC_ALL", "C")
+        .env("GIT_FLUSH", "1")
+        .env("GIT_OPTIONAL_LOCKS", "0")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
+    #[cfg(windows)]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    #[cfg(unix)]
+    cmd.process_group(0);
+    cmd
+}
+
+/// Spawns `cmd`; a missing executable is [`GitError::GitNotFound`].
+pub(crate) fn spawn(cmd: &mut Command) -> Result<Child, GitError> {
+    match cmd.spawn() {
+        Ok(c) => Ok(c),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Err(GitError::GitNotFound),
+        Err(e) => Err(e.into()),
+    }
+}
+
 impl GitCli {
     pub fn new(git_path: impl Into<String>) -> Self {
         GitCli {
@@ -229,43 +270,13 @@ impl GitCli {
             cmd: cmd_line.clone(),
         });
 
-        let mut cmd = Command::from(host_command(&self.git_path));
-        cmd.args(args)
-            .current_dir(repo_dir)
-            .env("GIT_TERMINAL_PROMPT", "0")
-            // No tty to edit in: a command that wants a message (`commit`,
-            // `tag -a`, `rebase --continue`) fails with "empty message"
-            // instead of popping the user's editor or stalling until Cancel.
-            .env("GIT_EDITOR", "true")
-            // The env var beats `-c sequence.editor`, which is how the
-            // interactive rebase hands git its todo list.
-            .env_remove("GIT_SEQUENCE_EDITOR")
-            .env("LC_ALL", "C")
-            .env("GIT_FLUSH", "1")
-            .env("GIT_OPTIONAL_LOCKS", "0")
-            .stdin(if stdin.is_some() {
-                Stdio::piped()
-            } else {
-                Stdio::null()
-            })
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .kill_on_drop(true);
-        #[cfg(windows)]
-        {
-            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-            cmd.creation_flags(CREATE_NO_WINDOW);
-        }
-        #[cfg(unix)]
-        cmd.process_group(0);
-
-        let mut child = match cmd.spawn() {
-            Ok(c) => c,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                return Err(GitError::GitNotFound)
-            }
-            Err(e) => return Err(e.into()),
-        };
+        let mut cmd = git_command(&self.git_path, repo_dir, args);
+        cmd.stdin(if stdin.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        });
+        let mut child = spawn(&mut cmd)?;
         let tree = ProcessTree::attach(&child);
         tracing::debug!(op_id, cmd = %cmd_line, pid = ?child.id(), "spawned git");
 
@@ -448,7 +459,7 @@ fn drain(pending: &mut Vec<u8>, eof: bool, kind: Kind, tx: &mpsc::UnboundedSende
 }
 
 /// Handle used to kill the spawned process and everything it spawned.
-struct ProcessTree {
+pub(crate) struct ProcessTree {
     #[cfg(windows)]
     job: Option<job::Job>,
     #[cfg(unix)]
@@ -457,7 +468,7 @@ struct ProcessTree {
 
 impl ProcessTree {
     #[cfg(windows)]
-    fn attach(child: &Child) -> Self {
+    pub(crate) fn attach(child: &Child) -> Self {
         let job = child
             .raw_handle()
             .and_then(|h| match job::Job::new().and_then(|j| j.assign(h).map(|_| j)) {
@@ -471,13 +482,13 @@ impl ProcessTree {
     }
 
     #[cfg(unix)]
-    fn attach(child: &Child) -> Self {
+    pub(crate) fn attach(child: &Child) -> Self {
         ProcessTree {
             pgid: child.id().map(|p| p as i32),
         }
     }
 
-    fn kill(&self, child: &mut Child) {
+    pub(crate) fn kill(&self, child: &mut Child) {
         #[cfg(windows)]
         if let Some(job) = &self.job {
             job.terminate();

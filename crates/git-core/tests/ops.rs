@@ -11,7 +11,7 @@ use git_core::cli::ops::{self, FfMode, MergeOpts, OpFailure, PickOpts, PullMode,
 use git_core::cli::{CliEvent, CliOutput, GitCli};
 use git_core::commit;
 use git_core::refs::{self, snapshot, RepoState};
-use git_core::status::status;
+use git_core::status::{scan, WorkdirStatus};
 use git_core::test_util::TempRepo;
 use git_core::GitError;
 use tempfile::TempDir;
@@ -26,6 +26,12 @@ fn have_git() -> bool {
         }
         Err(e) => panic!("git --version failed: {e}"),
     }
+}
+
+/// The status scan, awaited: these are `#[tokio::test]`s, where the sync
+/// `status()` would nest a runtime.
+async fn status(t: &TempRepo) -> Result<WorkdirStatus, GitError> {
+    scan(&GitCli::new("git"), t.path(), CancellationToken::new()).await
 }
 
 /// A bare repository usable as a local remote; `.1` is its path as a URL.
@@ -251,13 +257,13 @@ async fn merge_conflict_is_classified_then_abort_cleans() {
         other => panic!("{other:?}\n{}\n{}", out.stdout, out.stderr),
     }
     reload(&t);
-    let st = status(&t.repo).unwrap();
+    let st = status(&t).await.unwrap();
     assert_eq!(st.conflicted, 1);
     assert_eq!(ops::parse_conflicts(&st), ["f.txt"]);
     assert_eq!(RepoState::from(t.repo.state()), RepoState::Merge);
 
     run_ok(&t, &ops::merge_abort()).await;
-    let st = status(&t.repo).unwrap();
+    let st = status(&t).await.unwrap();
     assert_eq!((st.conflicted, st.staged, st.unstaged), (0, 0, 0));
     assert_eq!(RepoState::from(t.repo.state()), RepoState::Clean);
     assert_eq!(head(&t), master);
@@ -302,13 +308,13 @@ async fn rebase_conflict_then_abort_restores_head() {
         out.stderr
     );
     reload(&t);
-    assert_eq!(ops::parse_conflicts(&status(&t.repo).unwrap()), ["f.txt"]);
+    assert_eq!(ops::parse_conflicts(&status(&t).await.unwrap()), ["f.txt"]);
     assert_eq!(RepoState::from(t.repo.state()), RepoState::Rebase);
 
     run_ok(&t, &ops::rebase_abort()).await;
     assert_eq!(RepoState::from(t.repo.state()), RepoState::Clean);
     assert_eq!(head(&t), feat);
-    assert_eq!(status(&t.repo).unwrap().conflicted, 0);
+    assert_eq!(status(&t).await.unwrap().conflicted, 0);
 
     // Resolve and continue: the editor is disabled so this cannot hang.
     let (out, _) = run(t.path(), &ops::rebase("master")).await;
@@ -360,7 +366,7 @@ async fn cherry_pick_lands_the_commit_stages_it_with_n_and_aborts_on_conflict() 
         ),
     )
     .await;
-    let st = status(&t.repo).unwrap();
+    let st = status(&t).await.unwrap();
     assert_eq!((st.staged, st.conflicted), (1, 0));
     assert_eq!(RepoState::from(t.repo.state()), RepoState::Clean);
     assert_eq!(head(&t), master);
@@ -378,11 +384,11 @@ async fn cherry_pick_lands_the_commit_stages_it_with_n_and_aborts_on_conflict() 
         other => panic!("{other:?}\n{}\n{}", out.stdout, out.stderr),
     }
     reload(&t);
-    assert_eq!(ops::parse_conflicts(&status(&t.repo).unwrap()), ["f.txt"]);
+    assert_eq!(ops::parse_conflicts(&status(&t).await.unwrap()), ["f.txt"]);
     assert_eq!(RepoState::from(t.repo.state()), RepoState::CherryPick);
 
     run_ok(&t, &ops::cherry_pick_abort()).await;
-    let st = status(&t.repo).unwrap();
+    let st = status(&t).await.unwrap();
     assert_eq!((st.conflicted, st.staged, st.unstaged), (0, 0, 0));
     assert_eq!(RepoState::from(t.repo.state()), RepoState::Clean);
     assert_eq!(head(&t), master);
@@ -921,7 +927,7 @@ async fn staging_an_unresolved_file_is_undone_by_checkout_merge() {
         out.stderr
     );
     reload(&t);
-    assert_eq!(status(&t.repo).unwrap().conflicted, 1);
+    assert_eq!(status(&t).await.unwrap().conflicted, 1);
 
     // `git add` on an unmerged path *is* "mark resolved": the three stages go, and
     // no reset brings them back — the markers just sit in the file as a change.
@@ -932,13 +938,13 @@ async fn staging_an_unresolved_file_is_undone_by_checkout_merge() {
     )
     .await;
     reload(&t);
-    let st = status(&t.repo).unwrap();
+    let st = status(&t).await.unwrap();
     assert_eq!(st.conflicted, 0);
     assert_eq!(st.unstaged, 1);
 
     run_ok(&t, &git_core::stage::recreate_conflict_args(&["f.txt"])).await;
     reload(&t);
-    assert_eq!(status(&t.repo).unwrap().conflicted, 1);
+    assert_eq!(status(&t).await.unwrap().conflicted, 1);
     let body = std::fs::read_to_string(t.path().join("f.txt")).expect("read");
     assert!(body.contains("<<<<<<<"), "{body}");
 }

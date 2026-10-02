@@ -18,11 +18,12 @@ use git_core::cli::ops::{
 use git_core::cli::rebase::{self, RebaseFlags, RebaseTodo, TodoStep};
 use git_core::cli::{CliEvent, CliOutput};
 use git_core::repo::repo_relative;
-use git_core::status::status;
+use git_core::status;
 use git_core::watch::ChangeKind;
 use git_core::{config, refs, GitError, RepoHandle, RepoId};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State, Window};
+use tokio_util::sync::CancellationToken;
 
 use super::repo::{blocking, open_repo, RepoSummary};
 use super::stage::mutate;
@@ -162,11 +163,11 @@ async fn run_and_classify(
     }
     let mut failure = gitops::classify_failure(run.out.code, &run.out.stdout, &run.out.stderr);
     let found = if check_conflicts {
-        // `status`, not `get_status`: this runs inside the op, which already
-        // holds `scan_lock` — going through the command would see it taken and
-        // skip the write-back this scan is entitled to.
-        let h = Arc::clone(&handle);
-        blocking(move || Ok(gitops::parse_conflicts(&status(&h.git2.lock())?))).await?
+        // A scan of its own, not `get_status`: this op's own result, not one
+        // shared through the gate — and a fresh token, so closing the window
+        // doesn't fail the op's conflict check.
+        let st = status::scan(&state.git_cli(), &handle.path, CancellationToken::new()).await?;
+        gitops::parse_conflicts(&st)
     } else {
         Vec::new()
     };

@@ -1,5 +1,5 @@
 use std::path::{Component, Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
 use git2::{ErrorCode, Repository, RepositoryInitOptions};
 use parking_lot::{Mutex, RwLock};
@@ -75,14 +75,18 @@ pub struct RepoHandle {
     pub ahead_behind: Mutex<AheadBehindCache>,
     /// Serializes mutating operations (stage / commit / branch ops) per repo.
     pub op_lock: tokio::sync::Mutex<()>,
-    /// Held by a status scan that writes the refreshed stat cache back, and by
-    /// a mutating operation for its whole run — CLI-backed ops touch the index
-    /// as a subprocess, so `git2` alone does not stop a scan from writing a
-    /// pre-mutation index over one. An operation takes `op_lock` *first* (so a
-    /// mutation issued during another op still fails fast with `Busy` instead
-    /// of waiting), then this one; scans never take `op_lock`, so the two can
-    /// never deadlock.
-    pub scan_lock: tokio::sync::Mutex<()>,
+    /// Held by a mutating operation for its whole run, and by the stat-cache
+    /// repair (`git update-index --refresh`) a slow status scan starts: an op
+    /// started during a repair waits for it rather than failing on
+    /// `index.lock`. The scan itself takes no lock. An operation takes
+    /// `op_lock` *first* (so a mutation issued during another op still fails
+    /// fast with `Busy` instead of waiting), then this one; the repair never
+    /// takes `op_lock`, so the two can never deadlock.
+    ///
+    /// Shared by every handle on one git directory (see [`shared_scan_lock`]):
+    /// an op on a reopened repository waits for a repair or an op the closed
+    /// handle left running.
+    pub scan_lock: Arc<tokio::sync::Mutex<()>>,
     /// One status scan at a time, and its last result (see [`ScanGate`]).
     pub scan: ScanGate,
     /// The op token of the blame read in flight; the next one cancels it.
@@ -108,6 +112,7 @@ impl RepoHandle {
         };
         let (id, path) = RepoId::from_workdir(workdir);
         let git_dir = repo.path().to_path_buf();
+        let scan_lock = shared_scan_lock(&git_dir);
         Ok(Arc::new(RepoHandle {
             id,
             path,
@@ -116,7 +121,7 @@ impl RepoHandle {
             log: RwLock::new(LogCache::default()),
             ahead_behind: Mutex::new(AheadBehindCache::default()),
             op_lock: tokio::sync::Mutex::new(()),
-            scan_lock: tokio::sync::Mutex::new(()),
+            scan_lock,
             scan: ScanGate::default(),
             latest_blame: Mutex::new(None),
             latest_history: Mutex::new(None),
@@ -147,6 +152,32 @@ impl RepoHandle {
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_else(|| self.id.as_str().to_string())
     }
+}
+
+/// Every handle's `scan_lock`, by git directory. `Weak`: an entry no handle
+/// and no guard holds any more is dropped on the next lookup.
+static SCAN_LOCKS: Mutex<Vec<(String, Weak<tokio::sync::Mutex<()>>)>> =
+    parking_lot::const_mutex(Vec::new());
+
+/// The `scan_lock` of `git_dir`, shared with every other open handle on it — and
+/// with a repair a closed one left running. Keyed as [`RepoId`] keys a workdir:
+/// `repo.path()` keeps the spelling it was opened with, so `F:\x` and recents'
+/// `f:\x` would otherwise be two locks.
+fn shared_scan_lock(git_dir: &Path) -> Arc<tokio::sync::Mutex<()>> {
+    let canonical = std::fs::canonicalize(git_dir).unwrap_or_else(|_| git_dir.to_path_buf());
+    let key = normalize_workdir_string(canonical.to_string_lossy().into_owned());
+    let mut locks = SCAN_LOCKS.lock();
+    locks.retain(|(_, lock)| lock.strong_count() > 0);
+    if let Some(lock) = locks
+        .iter()
+        .find(|(k, _)| *k == key)
+        .and_then(|(_, lock)| lock.upgrade())
+    {
+        return lock;
+    }
+    let lock = Arc::new(tokio::sync::Mutex::new(()));
+    locks.push((key, Arc::downgrade(&lock)));
+    lock
 }
 
 fn supersede(slot: &Mutex<Option<CancellationToken>>, token: Option<CancellationToken>) {
@@ -344,42 +375,72 @@ mod tests {
         assert_eq!(heads(&wt), vec![a.to_string()]);
     }
 
-    /// The order `mutate` (src-tauri) takes the two locks in, and what a status
-    /// scan sees while an op holds them.
+    /// The order `mutate` (src-tauri) takes the two locks in, and what a
+    /// stat-cache repair sees while an op holds them.
     #[tokio::test]
-    async fn an_op_takes_the_op_lock_first_then_waits_out_one_scan() {
+    async fn an_op_takes_the_op_lock_first_then_waits_out_one_repair() {
         let t = TempRepo::new();
         t.commit(&[("a.txt", "a")], "init");
         let h = RepoHandle::open(t.path()).expect("open");
 
-        // A scan that will write the refreshed index back holds `scan_lock`
-        // and never takes `op_lock`.
-        let scan = h.scan_lock.lock().await;
+        // A repair (`git update-index --refresh`) holds `scan_lock` and never
+        // takes `op_lock`.
+        let repair = h.scan_lock.lock().await;
 
         // `op_lock` first: a mutation issued during *another op* still fails
         // fast with `Busy` rather than waiting silently.
         let op = h.op_lock.try_lock().expect("no other op is running");
-        // Then `scan_lock`: the op waits for the scan instead of racing its
-        // index write-back.
+        // Then `scan_lock`: the op waits for the repair instead of failing on
+        // its `index.lock`.
         assert!(
             tokio::time::timeout(std::time::Duration::from_millis(50), h.scan_lock.lock())
                 .await
                 .is_err(),
-            "the op took scan_lock while a scan held it"
+            "the op took scan_lock while a repair held it"
         );
 
-        drop(scan);
+        drop(repair);
         let scan_guard =
             tokio::time::timeout(std::time::Duration::from_secs(5), h.scan_lock.lock())
                 .await
-                .expect("the op proceeds once the scan finishes");
+                .expect("the op proceeds once the repair finishes");
 
-        // Op in flight, holding both: a scan starting now finds `scan_lock`
-        // taken and runs without the write-back, and a second mutation is busy.
+        // Op in flight, holding both: a slow scan ending now finds `scan_lock`
+        // taken and starts no repair, and a second mutation is busy.
         assert!(h.scan_lock.try_lock().is_err());
         assert!(h.op_lock.try_lock().is_err());
         drop(scan_guard);
         drop(op);
+    }
+
+    /// L5: a repair the closed handle started still holds the lock, so an op on
+    /// the reopened handle waits for it as on the old one — however the path
+    /// is spelled (recents keep a lowercase drive letter).
+    #[tokio::test]
+    async fn a_reopened_handle_shares_the_scan_lock_a_guard_still_holds() {
+        let t = TempRepo::new();
+        t.commit(&[("a.txt", "a")], "init");
+        let old = RepoHandle::open(t.path()).expect("open");
+        let guard = Arc::clone(&old.scan_lock).try_lock_owned().expect("free");
+        drop(old);
+
+        let reopened = RepoHandle::open(t.path()).expect("reopen");
+        assert!(reopened.scan_lock.try_lock().is_err(), "a second lock");
+        #[cfg(windows)]
+        {
+            let s = t.path().to_string_lossy().into_owned();
+            let mut flipped: Vec<char> = s.chars().collect();
+            flipped[0] = if flipped[0].is_ascii_lowercase() {
+                flipped[0].to_ascii_uppercase()
+            } else {
+                flipped[0].to_ascii_lowercase()
+            };
+            let other = RepoHandle::open(flipped.into_iter().collect::<String>()).expect("reopen");
+            assert!(other.scan_lock.try_lock().is_err(), "keyed by spelling");
+        }
+
+        drop(guard);
+        assert!(reopened.scan_lock.try_lock().is_ok());
     }
 
     #[test]

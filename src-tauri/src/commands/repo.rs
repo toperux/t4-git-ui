@@ -76,7 +76,7 @@ fn summary(handle: &RepoHandle, head: HeadInfo) -> RepoSummary {
 
 /// Ref labels per commit oid. Its own `Repository` like the walk's, off the
 /// shared `git2` mutex: labels are the last thing the grid waits for on open,
-/// and the mutex has the status scan and `get_refs` queued on it.
+/// and a file diff can hold the mutex for hundreds of milliseconds.
 async fn compute_labels(
     handle: Arc<RepoHandle>,
 ) -> Result<Arc<HashMap<String, Vec<RefLabel>>>, AppError> {
@@ -174,7 +174,9 @@ pub async fn close_repo(
     Ok(())
 }
 
-/// Drops the repository, its watcher and its log walk. In-flight operations
+/// Drops the repository, its watcher and its log walk, and kills its running
+/// status scan — safe, since a scan holds no lock (a stat-cache repair it
+/// started runs on). In-flight operations
 /// are deliberately not cancelled here. The UI refuses a switch, a tab close
 /// and a detach while one runs (`refusedWhileRunning` in
 /// `src/screens/RepoWindow/actions.ts`), but closing the window (× / Alt+F4)
@@ -200,6 +202,9 @@ pub(crate) fn drop_repo(state: &AppState, id: &RepoId) {
         // Bump the generation and raise the cancel flag so an in-flight walk
         // stops at its next commit and abandons its result.
         handle.log.write().begin();
+        // A reopen gets a new handle: a stale tree's scan would otherwise run
+        // on for minutes beside the new one's.
+        handle.scan.cancel();
         tracing::info!(id = %id, "closed repo");
     }
 }
@@ -209,9 +214,10 @@ pub async fn get_refs(state: State<'_, AppState>, id: RepoId) -> Result<RefsSnap
     let handle = state.repo(&id)?;
     blocking(move || {
         let t = Instant::now();
-        // Its own `Repository`, like the labels: the status scan can hold the
-        // shared lock for seconds on a big tree, and the sidebar must not wait
-        // for it. Costs a cold object cache (~100 ms instead of ~20 ms here).
+        // Its own `Repository`, like the labels: a file diff can hold the
+        // shared lock for hundreds of milliseconds on a big tree, and the
+        // sidebar must not wait for it. Costs a cold object cache (~100 ms
+        // instead of ~20 ms here).
         let mut repo = handle.open_private()?;
         let snap = refs::snapshot_with(&mut repo, &mut handle.ahead_behind.lock())?;
         tracing::info!(id = %handle.id, elapsed = ?t.elapsed(), "refs read");

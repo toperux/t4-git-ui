@@ -390,6 +390,18 @@ mod tests {
     use crate::status::{status, StatusEntry};
     use crate::test_util::TempRepo;
 
+    /// The status scan is `git status`: each test that calls [`entry`] needs git.
+    fn have_git() -> bool {
+        match crate::git_version("git") {
+            Ok(_) => true,
+            Err(GitError::GitNotFound) => {
+                eprintln!("git not on PATH; skipping");
+                false
+            }
+            Err(e) => panic!("git --version failed: {e}"),
+        }
+    }
+
     fn entry(t: &TempRepo, path: &str) -> Option<StatusEntry> {
         status(&t.repo)
             .expect("status")
@@ -409,6 +421,9 @@ mod tests {
     /// failed write has to be rolled back too — git still has the path staged.
     #[test]
     fn a_locked_index_leaves_the_path_staged() {
+        if !have_git() {
+            return;
+        }
         let t = TempRepo::new();
         t.commit(&[("f.txt", "v0\n")], "base");
         t.write("f.txt", "v1\n");
@@ -446,6 +461,9 @@ mod tests {
 
     #[test]
     fn unstage_on_unborn_head_removes_entries() {
+        if !have_git() {
+            return;
+        }
         let t = TempRepo::new();
         t.write("a.txt", "a\n");
         t.stage(&["a.txt"]);
@@ -460,6 +478,9 @@ mod tests {
 
     #[test]
     fn discard_restores_from_index_and_keeps_staged() {
+        if !have_git() {
+            return;
+        }
         let t = TempRepo::new();
         // Don't let a global `core.autocrlf` rewrite what the checkout puts on disk.
         t.set_config("core.autocrlf", "false");
@@ -514,6 +535,9 @@ mod tests {
 
     #[test]
     fn unstage_takes_a_bracketed_name_literally() {
+        if !have_git() {
+            return;
+        }
         let t = TempRepo::new();
         t.commit(&[("[id].txt", "v0\n"), ("i.txt", "v0\n")], "base");
         t.write("[id].txt", "v1\n");
@@ -597,6 +621,9 @@ mod tests {
 
     #[test]
     fn discard_of_a_workdir_rename_restores_the_old_name() {
+        if !have_git() {
+            return;
+        }
         let t = TempRepo::new();
         // Don't let a global `core.autocrlf` rewrite what the checkout puts on disk.
         t.set_config("core.autocrlf", "false");
@@ -658,6 +685,9 @@ mod tests {
     /// silent no-op on a gitlink) and must not take the rest of the batch down with it.
     #[test]
     fn discard_skips_a_submodule_but_still_discards_the_file_beside_it() {
+        if !have_git() {
+            return;
+        }
         let src = TempRepo::new();
         let first = src.commit(&[("s.txt", "1\n")], "s1");
         src.commit(&[("s.txt", "2\n")], "s2");
@@ -689,6 +719,9 @@ mod tests {
     /// the old name's own row (a deletion) is what restores it.
     #[test]
     fn discard_of_only_the_new_name_leaves_the_old_one_missing() {
+        if !have_git() {
+            return;
+        }
         let t = TempRepo::new();
         t.commit(&[("old.txt", "same content\nfor rename\n")], "base");
         std::fs::rename(t.path().join("old.txt"), t.path().join("new.txt")).unwrap();

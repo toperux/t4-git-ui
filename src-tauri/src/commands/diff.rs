@@ -1,9 +1,10 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use git_core::cli::GitCli;
 use git_core::conflict;
 use git_core::diff::{self, DiffOptions, DiffTarget, FileChange, FileDiff};
-use git_core::status::{self, WorkdirStatus};
+use git_core::status::{self, ScanStart, WorkdirStatus};
 use git_core::tools::{self, ToolKind};
 use git_core::{RepoHandle, RepoId};
 use tauri::State;
@@ -98,42 +99,60 @@ pub async fn open_merge_editor(
 const SLOW_STATUS: Duration = Duration::from_millis(250);
 
 /// One scan at a time per repository ([`git_core::status::ScanGate`]): a burst
-/// of watcher batches shares a scan instead of starting one each.
+/// of watcher batches shares a scan instead of starting one each. The scan
+/// takes no lock — neither `scan_lock` nor the index's — so it can't undo an
+/// op's index write, and an op never waits for it.
 #[tauri::command]
 pub async fn get_status(
     state: State<'_, AppState>,
     id: RepoId,
 ) -> Result<Arc<WorkdirStatus>, AppError> {
     let handle = state.repo(&id)?;
+    let git = state.git_cli();
     let h = Arc::clone(&handle);
-    handle.scan.run(|| scan(h)).await
+    handle.scan.run(|start| scan(h, git, start)).await
 }
 
-/// One libgit2 scan, run by the gate holder.
-async fn scan(handle: Arc<RepoHandle>) -> Result<WorkdirStatus, AppError> {
-    // The scan writes the refreshed stat cache back at the end, and libgit2
-    // does not check whether the index changed on disk in between: a mutation
-    // that ran during the scan would be silently undone. Holding `git2` covers
-    // only the libgit2-side mutations (stage / unstage / discard); the
-    // CLI-backed ones (`git apply --cached`, `git commit`, merge, rebase…)
-    // touch the index as a subprocess, and `scan_lock` is what serialises the
-    // scan against those. Taken (an op is in flight, or about to be): scan
-    // without the write-back, so status stays live during a long push. A
-    // `git add` typed in a terminal during the scan is still exposed, as with
-    // any libgit2 index write. Free: hold the guard for the whole scan — that
-    // is what makes an op starting now wait for the write-back. Taken when
-    // the scan starts, not while it waits for the gate: a queued request
-    // holding it would make an op wait behind a scan that hasn't started.
-    let scan_guard = handle.scan_lock.try_lock();
-    let refresh = scan_guard.is_ok();
-    let h = Arc::clone(&handle);
-    blocking(move || {
+/// One `git status`, run by the gate holder; a slow one starts the stat-cache
+/// repair (see [`repair`]).
+async fn scan(
+    handle: Arc<RepoHandle>,
+    git: GitCli,
+    start: ScanStart,
+) -> Result<WorkdirStatus, AppError> {
+    let (status, elapsed) = status::scan_timed(&git, &handle.path, start.cancel).await?;
+    if elapsed >= SLOW_STATUS {
+        tracing::info!(id = %handle.id, entries = status.entries.len(), elapsed = ?elapsed, "slow status");
+    }
+    if handle.scan.wants_repair(start.index, elapsed) {
+        repair(&handle, git);
+    }
+    Ok(status)
+}
+
+/// The scan never writes the index, so a stale stat cache stays stale and
+/// every scan re-hashes those files: after a slow scan, `git update-index -q
+/// --refresh` rewrites it, in the background. It holds `scan_lock` for its run
+/// (an op started meanwhile waits for it, as for any op) — taken here without
+/// waiting: an op holding it refreshes the status itself when it ends, and a
+/// repair holding it ends with its own rescan, so a taken lock starts nothing
+/// and records nothing. A closing repository doesn't stop it.
+fn repair(handle: &Arc<RepoHandle>, git: GitCli) {
+    let Ok(guard) = Arc::clone(&handle.scan_lock).try_lock_owned() else {
+        return;
+    };
+    let h = Arc::clone(handle);
+    tauri::async_runtime::spawn(async move {
         let t = Instant::now();
-        let status = status::status_with(&h.git2.lock(), refresh)?;
-        if t.elapsed() >= SLOW_STATUS {
-            tracing::info!(id = %h.id, entries = status.entries.len(), refresh, elapsed = ?t.elapsed(), "slow status");
+        match status::repair(&git, &h.path).await {
+            Ok(code) => {
+                tracing::info!(id = %h.id, code, elapsed = ?t.elapsed(), "status repair");
+                h.scan.repaired(code);
+            }
+            Err(e) => {
+                tracing::info!(id = %h.id, error = %e, elapsed = ?t.elapsed(), "status repair")
+            }
         }
-        Ok(status)
-    })
-    .await
+        drop(guard);
+    });
 }

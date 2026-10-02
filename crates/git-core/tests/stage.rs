@@ -7,7 +7,7 @@ use std::path::Path;
 use git_core::cli::GitCli;
 use git_core::diff::FileStatus;
 use git_core::stage::{check_staged, refuse_ignored, stage_paths_args, stage_stdin, unstage_paths};
-use git_core::status::{status, StatusEntry};
+use git_core::status::{scan, StatusEntry, WorkdirStatus};
 use git_core::test_util::TempRepo;
 use git_core::GitError;
 use tokio_util::sync::CancellationToken;
@@ -42,8 +42,15 @@ async fn stage(t: &TempRepo, paths: &[&str]) -> Result<(), GitError> {
     check_staged(&out)
 }
 
-fn entry(t: &TempRepo, path: &str) -> Option<StatusEntry> {
-    status(&t.repo)
+/// The status scan, awaited: these are `#[tokio::test]`s, where the sync
+/// `status()` would nest a runtime.
+async fn status(t: &TempRepo) -> Result<WorkdirStatus, GitError> {
+    scan(&GitCli::new("git"), t.path(), CancellationToken::new()).await
+}
+
+async fn entry(t: &TempRepo, path: &str) -> Option<StatusEntry> {
+    status(t)
+        .await
         .expect("status")
         .entries
         .into_iter()
@@ -71,13 +78,20 @@ async fn stage_and_unstage_add_modify_delete() {
 
     stage(&t, &["m.txt", "new.txt", "d.txt"]).await.unwrap();
     assert_eq!(
-        entry(&t, "m.txt").unwrap().index,
+        entry(&t, "m.txt").await.unwrap().index,
         Some(FileStatus::Modified)
     );
-    assert_eq!(entry(&t, "new.txt").unwrap().index, Some(FileStatus::Added));
-    assert_eq!(entry(&t, "d.txt").unwrap().index, Some(FileStatus::Deleted));
+    assert_eq!(
+        entry(&t, "new.txt").await.unwrap().index,
+        Some(FileStatus::Added)
+    );
+    assert_eq!(
+        entry(&t, "d.txt").await.unwrap().index,
+        Some(FileStatus::Deleted)
+    );
     assert_eq!(index_content(&t, "m.txt").as_deref(), Some("m2\n"));
-    assert!(status(&t.repo)
+    assert!(status(&t)
+        .await
         .unwrap()
         .entries
         .iter()
@@ -85,11 +99,11 @@ async fn stage_and_unstage_add_modify_delete() {
 
     // libgit2 picks up git's write before resetting from it.
     unstage_paths(&t.repo, &["m.txt", "new.txt", "d.txt"]).unwrap();
-    let e = entry(&t, "m.txt").unwrap();
+    let e = entry(&t, "m.txt").await.unwrap();
     assert_eq!((e.index, e.workdir), (None, Some(FileStatus::Modified)));
-    let e = entry(&t, "new.txt").unwrap();
+    let e = entry(&t, "new.txt").await.unwrap();
     assert_eq!((e.index, e.workdir), (None, Some(FileStatus::Untracked)));
-    let e = entry(&t, "d.txt").unwrap();
+    let e = entry(&t, "d.txt").await.unwrap();
     assert_eq!((e.index, e.workdir), (None, Some(FileStatus::Deleted)));
 }
 
@@ -108,12 +122,12 @@ async fn a_locked_index_is_index_locked_and_stages_nothing() {
         stage(&t, &["f.txt"]).await,
         Err(GitError::IndexLocked)
     ));
-    let e = entry(&t, "f.txt").unwrap();
+    let e = entry(&t, "f.txt").await.unwrap();
     assert_eq!((e.index, e.workdir), (None, Some(FileStatus::Modified)));
 
     std::fs::remove_file(&lock).unwrap();
     stage(&t, &["f.txt"]).await.unwrap();
-    let e = entry(&t, "f.txt").unwrap();
+    let e = entry(&t, "f.txt").await.unwrap();
     assert_eq!((e.index, e.workdir), (Some(FileStatus::Modified), None));
 }
 
@@ -140,14 +154,14 @@ async fn an_ignored_untracked_file_refuses_the_batch_but_a_tracked_one_stages() 
         stage(&t, &["a.txt", "debug.log"]).await,
         Err(GitError::Refused(m)) if m == "debug.log is ignored"
     ));
-    let e = entry(&t, "a.txt").unwrap();
+    let e = entry(&t, "a.txt").await.unwrap();
     assert_eq!((e.index, e.workdir), (None, Some(FileStatus::Modified)));
     assert!(index_content(&t, "debug.log").is_none());
 
     // Matching an ignore pattern does not un-track a file that is in the index.
     stage(&t, &["kept.log"]).await.unwrap();
     assert_eq!(
-        entry(&t, "kept.log").unwrap().index,
+        entry(&t, "kept.log").await.unwrap().index,
         Some(FileStatus::Modified)
     );
 }
@@ -166,7 +180,7 @@ async fn a_negated_ignore_rule_stages() {
 
     stage(&t, &["keep.log"]).await.unwrap();
     assert_eq!(
-        entry(&t, "keep.log").unwrap().index,
+        entry(&t, "keep.log").await.unwrap().index,
         Some(FileStatus::Added)
     );
     assert!(matches!(
@@ -185,16 +199,16 @@ async fn stage_and_unstage_rename_both_halves() {
     std::fs::rename(t.path().join("old.txt"), t.path().join("new.txt")).unwrap();
 
     stage(&t, &["old.txt", "new.txt"]).await.unwrap();
-    let e = entry(&t, "new.txt").unwrap();
+    let e = entry(&t, "new.txt").await.unwrap();
     assert_eq!(e.index, Some(FileStatus::Renamed));
     assert_eq!(e.old_path.as_deref(), Some("old.txt"));
-    assert!(entry(&t, "old.txt").is_none());
+    assert!(entry(&t, "old.txt").await.is_none());
 
     unstage_paths(&t.repo, &["old.txt", "new.txt"]).unwrap();
     // Unstaged, the rename is a deletion plus an untracked file again, as `git status` lists it.
-    let e = entry(&t, "new.txt").unwrap();
+    let e = entry(&t, "new.txt").await.unwrap();
     assert_eq!((e.index, e.workdir), (None, Some(FileStatus::Untracked)));
-    let e = entry(&t, "old.txt").unwrap();
+    let e = entry(&t, "old.txt").await.unwrap();
     assert_eq!((e.index, e.workdir), (None, Some(FileStatus::Deleted)));
 }
 
@@ -206,7 +220,10 @@ async fn stage_on_an_unborn_head() {
     let t = TempRepo::new();
     t.write("a.txt", "a\n");
     stage(&t, &["a.txt"]).await.unwrap();
-    assert_eq!(entry(&t, "a.txt").unwrap().index, Some(FileStatus::Added));
+    assert_eq!(
+        entry(&t, "a.txt").await.unwrap().index,
+        Some(FileStatus::Added)
+    );
 }
 
 /// Paths, not pathspecs: `f[1].txt` is not a glob that also takes `f1.txt`.
@@ -221,10 +238,10 @@ async fn a_glob_character_in_a_name_matches_only_that_file() {
     t.write("f1.txt", "y\n");
     stage(&t, &["f[1].txt"]).await.unwrap();
     assert_eq!(
-        entry(&t, "f[1].txt").unwrap().index,
+        entry(&t, "f[1].txt").await.unwrap().index,
         Some(FileStatus::Added)
     );
-    assert_eq!(entry(&t, "f1.txt").unwrap().index, None);
+    assert_eq!(entry(&t, "f1.txt").await.unwrap().index, None);
 }
 
 /// Gone from disk and index alike (staged by a terminal since the list was
@@ -239,7 +256,7 @@ async fn a_path_gone_everywhere_is_a_no_op() {
     t.write("f.txt", "v1\n");
     stage(&t, &["gone.txt", "f.txt"]).await.unwrap();
     assert_eq!(
-        entry(&t, "f.txt").unwrap().index,
+        entry(&t, "f.txt").await.unwrap().index,
         Some(FileStatus::Modified)
     );
 }
@@ -263,7 +280,7 @@ async fn a_nested_repository_is_refused() {
         .commit(Some("HEAD"), &sig, &sig, "inner", &tree, &[])
         .unwrap();
     assert_eq!(
-        entry(&t, "sub/").unwrap().workdir,
+        entry(&t, "sub/").await.unwrap().workdir,
         Some(FileStatus::Untracked)
     );
 
@@ -291,13 +308,16 @@ async fn a_moved_submodule_pointer_stages() {
         .set_head_detached(first)
         .unwrap();
     assert_eq!(
-        entry(&t, "sub").unwrap().workdir,
+        entry(&t, "sub").await.unwrap().workdir,
         Some(FileStatus::Modified)
     );
 
     stage(&t, &["sub"]).await.unwrap();
     // Only the index side: the checkout's files still hold `s2`, so it stays dirty.
-    assert_eq!(entry(&t, "sub").unwrap().index, Some(FileStatus::Modified));
+    assert_eq!(
+        entry(&t, "sub").await.unwrap().index,
+        Some(FileStatus::Modified)
+    );
     let mut index = t.repo.index().unwrap();
     index.read(false).unwrap();
     assert_eq!(index.get_path(Path::new("sub"), 0).unwrap().id, first);

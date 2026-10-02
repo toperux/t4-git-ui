@@ -5,13 +5,27 @@ use std::fs::File;
 use std::path::Path;
 use std::time::{Duration, SystemTime};
 
+use git_core::cli::GitCli;
 use git_core::diff::{
     changed_files, file_diff, DiffLineKind, DiffOptions, DiffTarget, FileChange, FileStatus,
 };
 use git_core::refs::snapshot;
-use git_core::status::status;
+use git_core::status::{repair, scan, status};
 use git_core::test_util::TempRepo;
 use git_core::GitError;
+use tokio_util::sync::CancellationToken;
+
+/// The status scan is `git status`: a test that reads it needs git.
+fn have_git() -> bool {
+    match git_core::git_version("git") {
+        Ok(_) => true,
+        Err(GitError::GitNotFound) => {
+            eprintln!("git not on PATH; skipping");
+            false
+        }
+        Err(e) => panic!("git --version failed: {e}"),
+    }
+}
 
 /// `git diff [-M] --numstat a b` as sorted `(adds, dels, new_path)`; `None` when
 /// `git` is not installed. Binary entries (`-`) count as 0/0.
@@ -270,6 +284,9 @@ fn rename_with_small_edit() {
 /// the diff told its old path reads it as one.
 #[test]
 fn a_workdir_rename_is_a_deletion_plus_an_untracked_file() {
+    if !have_git() {
+        return;
+    }
     let t = TempRepo::new();
     let body: String = (1..=12).map(|i| format!("line {i}\n")).collect();
     t.commit(&[("old.txt", body.as_str())], "A");
@@ -587,6 +604,9 @@ fn crlf_lines_keep_carriage_return() {
 
 #[test]
 fn staged_unstaged_workdir_and_status() {
+    if !have_git() {
+        return;
+    }
     let t = TempRepo::new();
     t.commit(&[("a.txt", "a1\na2\n"), ("b.txt", "b1\nb2\n")], "A");
     t.write("a.txt", "a1\na2\na3\n");
@@ -688,6 +708,9 @@ fn staged_unstaged_workdir_and_status() {
 
 #[test]
 fn unborn_head_staged_is_added() {
+    if !have_git() {
+        return;
+    }
     let t = TempRepo::new();
     t.write("first.txt", "hello\n");
     t.stage(&["first.txt"]);
@@ -769,6 +792,9 @@ fn context_option_widens_hunks() {
 
 #[test]
 fn a_conflicted_file_shows_the_markers_git_left_on_disk() {
+    if !have_git() {
+        return;
+    }
     let t = TempRepo::new();
     let base = t.commit(&[("f.txt", "base\n")], "base");
     t.branch("feat", base);
@@ -805,21 +831,17 @@ fn a_conflicted_file_shows_the_markers_git_left_on_disk() {
     assert!(text.contains(&"feat"), "{text:?}");
 }
 
-/// A tracked file whose mtime moved but whose content did not is rehashed by the first scan and
-/// remembered: the scan writes the refreshed stat data back like `git status` does, so the next
-/// one (from a fresh `Repository`, as the app's status command opens one per scan) compares stat
-/// data only. Without `update_index` every scan rehashed every touched file — 2.4 s on a
-/// 3000-file tree, forever.
-#[test]
-fn status_persists_the_refreshed_stat_cache() {
+/// A tracked file whose mtime moved but whose content did not is re-hashed by every scan while
+/// its stat data is stale. The scan itself never writes the index (it takes no lock, so it can't
+/// undo an op's write or fail a terminal's `git add`): the stat-cache repair, run after a slow
+/// scan, is what rewrites it, so the next scan compares stat data only.
+#[tokio::test]
+async fn a_scan_leaves_the_index_unwritten_and_the_repair_refreshes_it() {
+    if !have_git() {
+        return;
+    }
     let t = TempRepo::new();
-    t.commit(
-        &[(
-            "a.txt", "a
-",
-        )],
-        "A",
-    );
+    t.commit(&[("a.txt", "a\n")], "A");
     // Well in the past: an mtime at or after the index's own is "racy" and rehashed regardless.
     let then = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000_000);
     File::options()
@@ -828,20 +850,33 @@ fn status_persists_the_refreshed_stat_cache() {
         .expect("open")
         .set_modified(then)
         .expect("set mtime");
+    let index_file = t.repo.path().join("index");
+    let before = std::fs::read(&index_file).expect("read index");
+    let cached_mtime = || {
+        git2::Repository::open(t.path())
+            .expect("open")
+            .index()
+            .expect("index")
+            .get_path(Path::new("a.txt"), 0)
+            .expect("entry")
+            .mtime
+            .seconds() as u64
+    };
 
-    let s = status(&t.repo).expect("status");
+    let git = GitCli::new("git");
+    let s = scan(&git, t.path(), CancellationToken::new())
+        .await
+        .expect("status");
     assert_eq!((s.unstaged, s.entries.len()), (0, 0));
-    let fresh = git2::Repository::open(t.path()).expect("open");
-    let entry = fresh
-        .index()
-        .expect("index")
-        .get_path(Path::new("a.txt"), 0)
-        .expect("entry");
     assert_eq!(
-        entry.mtime.seconds() as u64,
-        1_000_000_000,
-        "stat cache written back"
+        std::fs::read(&index_file).expect("read index"),
+        before,
+        "the scan wrote the index"
     );
+    assert_ne!(cached_mtime(), 1_000_000_000);
+
+    assert_eq!(repair(&git, t.path()).await.expect("repair"), 0);
+    assert_eq!(cached_mtime(), 1_000_000_000, "stat cache refreshed");
 }
 
 #[test]
@@ -893,6 +928,9 @@ fn stash_target_holds_the_staged_unstaged_and_untracked_changes() {
 #[cfg(target_os = "linux")]
 #[test]
 fn a_non_utf8_path_keeps_its_line_counts() {
+    if !have_git() {
+        return;
+    }
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt;
 

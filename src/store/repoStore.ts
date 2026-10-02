@@ -342,8 +342,8 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
           preview: null,
           reveal: null,
         });
-        // The spinner waits for the grid only: on a large repository the refs snapshot queues
-        // behind the status scan, and the sidebar tolerates `refs === null` (it says so).
+        // The spinner waits for the grid only: on a large repository the refs snapshot can lag
+        // it, and the sidebar tolerates `refs === null` (it says so).
         await get().startLog({ kind: "all" }, {});
         void get()
           .refreshRefs()

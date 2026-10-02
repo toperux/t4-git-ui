@@ -877,6 +877,19 @@ describe("CommitPanel file context menu", () => {
     expect(item.getAttribute("title")).toBe("The file has never been committed");
   });
 
+  it("an intent-to-add file (a working-tree addition) has nothing to blame or follow either", () => {
+    const ita = { path: "ita.rs", oldPath: null, index: null, workdir: "added", conflicted: false, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1", indexStamp: null } as const;
+    useStatusStore.setState({ status: { ...STATUS, entries: [ita] } });
+    useRepoStore.setState({ refs: REFS });
+    const { getByRole, container } = renderPanel();
+    fireEvent.contextMenu(rows(container, "Unstaged")[0]);
+    for (const name of ["Blame", "History"]) {
+      const item = getByRole("menuitem", { name });
+      expect(item.hasAttribute("disabled")).toBe(true);
+      expect(item.getAttribute("title")).toBe("The file has never been committed");
+    }
+  });
+
   it("a selection that is not conflicted through and through offers neither side", () => {
     useRepoStore.setState({ refs: { ...REFS, state: "merge", conflictSides: { ours: "main", theirs: "feature" } } });
     const { getByRole, container } = renderPanel();

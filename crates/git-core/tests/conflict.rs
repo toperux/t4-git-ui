@@ -151,6 +151,9 @@ fn a_configured_merge_tool_that_is_not_installed_is_a_config_error() {
 /// working file leaves every other field of the entry alone.
 #[test]
 fn resolving_a_conflict_on_disk_moves_the_stamp_and_nothing_else() {
+    if !have_git() {
+        return;
+    }
     let t = conflicted();
     let before = entry(&t, "f.txt");
     assert!(before.conflicted);

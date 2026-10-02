@@ -159,7 +159,7 @@ export function CommitDiff({ onExpand }: { onExpand?: (opener: HTMLElement) => v
 function CommitDetails() {
   const repoId = useRepoStore((st) => st.repo?.id ?? null);
   const oid = useRepoStore(selectSelectedOid);
-  // What the grid row already holds: shown at once, while `getCommit` may queue behind a status scan.
+  // What the grid row already holds: shown at once, while `getCommit` may queue behind a file diff on the git2 lock.
   const rowCommit = useRepoStore((st) => (st.wtSelected || st.selectedIndex === null ? null : (st.rows[st.selectedIndex]?.row.commit ?? null)));
   const labels = useRepoStore((st) => (st.selectedIndex === null ? undefined : st.rows[st.selectedIndex]?.labels));
   const revealOid = useRepoStore((st) => st.revealOid);

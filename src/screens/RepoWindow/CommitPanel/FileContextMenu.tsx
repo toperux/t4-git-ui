@@ -51,7 +51,8 @@ export function FileContextMenu({ list, paths, entries, menu, onClose, act, disc
   // Blame from here resolves the working-tree file to HEAD: the working-tree row renders this panel,
   // not `ChangedFileList`, so it has no Files tab of its own. A file that HEAD has never seen (or an
   // unborn HEAD) has nothing to blame against; a rename is blamed under the name HEAD knows.
-  const newFile = !single || single.workdir === "untracked" || single.index === "added";
+  // An intent-to-add file (`git add -N`) is a working-tree addition: HEAD has never seen it either.
+  const newFile = !single || single.workdir === "untracked" || single.index === "added" || single.workdir === "added";
   const blameOid = newFile ? null : head;
   // Blame and History both want the *tracked* path — a rename's pre-rename name is what the commits
   // behind it know the file as, and `--follow` starts from there too.

@@ -150,7 +150,9 @@ async function fetchStatus(): Promise<boolean> {
     return true;
   } catch (e) {
     if (mySeq !== seq) return false;
-    useStatusStore.setState({ error: toAppError(e).message });
+    const err = toAppError(e);
+    // A scan killed because its repository closed (`drop_repo`) is no error to show.
+    if (err.kind !== "cancelled") useStatusStore.setState({ error: err.message });
     return false;
   }
 }

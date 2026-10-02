@@ -55,8 +55,11 @@ pub(crate) fn emit_changed(app: &AppHandle, id: &RepoId, change: &RepoChange) {
 ///
 /// `op_lock` first, `scan_lock` second, both held for the whole op: reversed,
 /// a click during a long push would wait on the scan lock instead of coming
-/// back `Busy`. Waiting on `scan_lock` costs at most one status scan, and a
-/// scan never takes `op_lock`, so the pair cannot deadlock.
+/// back `Busy`. Waiting on `scan_lock` costs at most one stat-cache repair (a
+/// status scan takes no lock) — or, on a reopened handle, an op the closed one
+/// left running, waited out with no `Busy` (the lock is shared per git dir;
+/// Phase 3 plan, Q20). A repair never takes `op_lock`, so the pair cannot
+/// deadlock.
 pub(crate) async fn mutate<T, F, Fut>(
     app: &AppHandle,
     state: &AppState,

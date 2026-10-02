@@ -139,7 +139,7 @@ describe("CommitDetails", () => {
     expect(queryByText("bad object")).toBeNull();
   });
 
-  // `getCommit` takes the git2 lock, so it can queue behind a status scan: the pane must not blank meanwhile.
+  // `getCommit` takes the git2 lock, so it can queue behind a file diff: the pane must not blank meanwhile.
   it("shows the grid row's fields while another commit's detail is on its way", async () => {
     const later: CommitInfo = { ...DETAIL.info, oid: "b", short: "bbbbbbb", summary: "Later work" };
     useRepoStore.setState({ rows: [ROW, { row: { ...ROW.row, commit: later }, labels: [] }] });

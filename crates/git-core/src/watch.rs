@@ -105,6 +105,16 @@ fn classify(
     repo: &Repository,
 ) -> Option<ChangeKind> {
     if let Some(rel) = git_dirs.iter().find_map(|d| path.strip_prefix(d).ok()) {
+        // git's builtin fsmonitor daemon writes a cookie under `fsmonitor--daemon/`
+        // (the repository's, a submodule's, a linked worktree's) on every query:
+        // read as a change it would start a scan, which queries again — a loop.
+        // Only under the git directory: a folder above it may carry the name.
+        if rel
+            .components()
+            .any(|c| c.as_os_str() == "fsmonitor--daemon")
+        {
+            return None;
+        }
         if rel.extension().is_some_and(|e| e == "lock") {
             return None;
         }
@@ -385,6 +395,61 @@ mod tests {
         assert!(
             rx.recv_timeout(Duration::from_millis(600)).is_err(),
             "unexpected change"
+        );
+    }
+
+    #[test]
+    fn fsmonitor_daemon_cookies_are_silent() {
+        let t = TempRepo::new();
+        let gd = t.repo.path().to_path_buf();
+        let wd = t.path().to_path_buf();
+        let dirs = [gd.clone()];
+        for cookie in [
+            gd.join("fsmonitor--daemon/cookies/1234-0"),
+            gd.join("modules/sub/fsmonitor--daemon/cookies/1234-1"),
+            gd.join("worktrees/wt/fsmonitor--daemon/cookies/1234-2"),
+        ] {
+            assert_eq!(classify(&cookie, &wd, &dirs, &t.repo), None, "{cookie:?}");
+        }
+        // Everything else under the git directory still reads as it did.
+        assert_eq!(
+            classify(&gd.join("refs/heads/x"), &wd, &dirs, &t.repo),
+            Some(ChangeKind::Refs)
+        );
+    }
+
+    /// The rule looks under the git directory only: a repository that lives in
+    /// a folder of that name still gets its events.
+    #[test]
+    fn a_repo_in_a_folder_named_fsmonitor_daemon_still_gets_events() {
+        let tmp = tempfile::tempdir().unwrap();
+        let wd = tmp.path().join("fsmonitor--daemon");
+        let repo = Repository::init(&wd).unwrap();
+        let gd = repo.path().to_path_buf();
+        let dirs = [gd.clone()];
+        assert_eq!(
+            classify(&wd.join("a.txt"), &wd, &dirs, &repo),
+            Some(ChangeKind::Workdir)
+        );
+        assert_eq!(
+            classify(&gd.join("refs/heads/x"), &wd, &dirs, &repo),
+            Some(ChangeKind::Refs)
+        );
+        assert_eq!(
+            classify(&gd.join("fsmonitor--daemon/cookies/1"), &wd, &dirs, &repo),
+            None
+        );
+        // A nested `.git` (an old-style submodule) is not one of `dirs`: libgit2's
+        // built-in `.git` ignore drops it.
+        for p in [
+            wd.join("sub/.git/fsmonitor--daemon/cookies/1"),
+            wd.join("sub/.git/index"),
+        ] {
+            assert_eq!(classify(&p, &wd, &dirs, &repo), None, "{p:?}");
+        }
+        assert_eq!(
+            classify(&wd.join("sub/x.txt"), &wd, &dirs, &repo),
+            Some(ChangeKind::Workdir)
         );
     }
 

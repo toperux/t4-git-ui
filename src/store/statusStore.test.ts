@@ -222,6 +222,15 @@ describe("statusStore", () => {
     expect(useStatusStore.getState().error).toBeNull();
   });
 
+  it("a scan cancelled by the repository's close leaves `error` unset", async () => {
+    await useStatusStore.getState().refresh();
+    mocked.getStatus.mockRejectedValue({ kind: "cancelled", message: "cancelled" });
+    await useStatusStore.getState().refresh();
+    expect(useStatusStore.getState().error).toBeNull();
+    expect(useStatusStore.getState().status?.entries).toHaveLength(2);
+    mocked.getStatus.mockResolvedValue(status(1));
+  });
+
   it("refresh with no repo open clears the status", async () => {
     await useStatusStore.getState().refresh();
     expect(useStatusStore.getState().status).not.toBeNull();
