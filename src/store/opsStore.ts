@@ -11,6 +11,11 @@ import { toastError, useToastStore } from "./toastStore";
 
 export const MAX_OPS = 50;
 export const MAX_LINES = 5000;
+/**
+ * Lines the dock keeps in all: past it the oldest ops go. 50 × 5000 rows made a ~0.7 s GC pause
+ * while scrolling the dock (Blink's part of a major GC, at 250k rows).
+ */
+export const MAX_TOTAL_LINES = 25_000;
 /** Lines dropped per trim: the array is cut every `CHUNK` lines, not on every event. */
 const CHUNK = 500;
 /** Stands in for everything an op printed before the last `MAX_LINES` lines. */
@@ -34,7 +39,7 @@ export interface OpRecord {
 }
 
 export interface OpsStore {
-  /** Oldest first, at most `MAX_OPS`. */
+  /** Oldest first, at most `MAX_OPS` and `MAX_TOTAL_LINES` lines in all. */
   ops: OpRecord[];
   /** Dock expanded. */
   open: boolean;
@@ -51,6 +56,18 @@ const cancelled = new Set<string>();
 
 /** Test-only: the set is private, and nothing else can show that an id was forgotten. */
 export const __cancelledForTests = (): ReadonlySet<string> => cancelled;
+
+/** Drops the oldest ops until `ops` holds at most `MAX_TOTAL_LINES` lines; the newest and running ones stay. */
+function capTotal(ops: OpRecord[]): OpRecord[] {
+  let total = 0;
+  for (const o of ops) total += o.lines.length;
+  if (total <= MAX_TOTAL_LINES) return ops;
+  return ops.filter((o, i) => {
+    if (total <= MAX_TOTAL_LINES || o.running || i === ops.length - 1) return true;
+    total -= o.lines.length;
+    return false;
+  });
+}
 
 export const selectLastOp = (s: OpsStore) => s.ops[s.ops.length - 1] ?? null;
 
@@ -102,7 +119,8 @@ export const useOpsStore = create<OpsStore>()((set, get) => ({
     }
     const copy = ops.slice();
     copy[i] = next;
-    set(reveal ? { ops: copy, open: true } : { ops: copy });
+    const kept = capTotal(copy);
+    set(reveal ? { ops: kept, open: true } : { ops: kept });
   },
 
   async cancel(opId) {

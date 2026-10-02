@@ -58,6 +58,13 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+/* An off-screen op (up to 5000 lines, opsStore) skips layout and paint: a scroll through a full log
+   lays out a few blocks, not every row. Selection and copy still reach them; the bottom op is on
+   screen, so the auto-scroll lands on its real height. */
+.op {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 2000px;
+}
 .op + .op {
   margin-top: var(--space-3);
 }

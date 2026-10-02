@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OpResult, RepoSummary } from "../api/types";
 import { useDialogStore } from "./dialogStore";
-import { __cancelledForTests, MAX_LINES, MAX_OPS, runOp, TRUNCATED, useOpsStore } from "./opsStore";
+import { __cancelledForTests, MAX_LINES, MAX_OPS, MAX_TOTAL_LINES, runOp, TRUNCATED, useOpsStore } from "./opsStore";
 import { __resetForTests as resetRepo, useRepoStore } from "./repoStore";
 import { __resetForTests as resetStatus } from "./statusStore";
 import { useToastStore } from "./toastStore";
@@ -150,6 +150,24 @@ describe("opsStore", () => {
     const ops = useOpsStore.getState().ops;
     expect(ops).toHaveLength(MAX_OPS);
     expect(ops[0].opId).toBe("5");
+  });
+
+  it("drops the oldest finished ops once the dock passes MAX_TOTAL_LINES, never a running or the newest one", () => {
+    const st = useOpsStore.getState();
+    const run = (id: string, lines: number, exit = true) => {
+      st.onEvent({ repoId: "r", opId: id, event: { kind: "started", opId: id, cmd: id } });
+      for (let i = 0; i < lines; i += 1000) st.onEvent({ repoId: "r", opId: id, event: batch(1000, i) });
+      if (exit) st.onEvent({ repoId: "r", opId: id, event: { kind: "exit", code: 0, elapsedMs: 1 } });
+    };
+    run("running", 4000, false);
+    for (const id of ["a", "b", "c", "d", "e"]) run(id, 4000);
+    // 24,000 lines: nothing goes yet.
+    expect(useOpsStore.getState().ops.map((o) => o.opId)).toEqual(["running", "a", "b", "c", "d", "e"]);
+    // The newest grows past the cap: the oldest finished op ("a") goes, the running one stays.
+    run("f", 2000, false);
+    const ops = useOpsStore.getState().ops;
+    expect(ops.map((o) => o.opId)).toEqual(["running", "b", "c", "d", "e", "f"]);
+    expect(ops.reduce((n, o) => n + o.lines.length, 0)).toBeLessThanOrEqual(MAX_TOTAL_LINES);
   });
 });
 

@@ -141,8 +141,8 @@ src/
     cmdHistoryStore.ts     zustand: lines typed into "Run git command…" / the dock prompt, newest first, global across
                            repositories (lib/kv `cmdHistory`, 50 entries); pushCmd (dedupe → front, cap)
     opsStore.ts            zustand: OpRecord[] from `op://event` (started/stdout/stderr/progress-redraw/exit), max 50 ops × 5000 lines,
-                           cancel(opId), dock open (a non-zero exit opens it, unless that op was cancelled),
-                           `busy` (statusbar text of the running op) + selectRunning;
+                           25,000 lines in all, cancel(opId), dock open (a non-zero exit opens it, unless that op was
+                           cancelled), `busy` (statusbar text of the running op) + selectRunning;
                            runOp(busy, fn, {success, onRefused}) — the single entry point for every branch/remote/stash op
     settingsStore.ts       zustand: diffContext / ignoreWhitespace / gitPath (+ gitVersion, gitError) / autoUpdateCheck (ask GitHub
                            at launch; nothing stored means on, so only opting out is persisted) / autoCloseChanges (same rule:
