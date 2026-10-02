@@ -602,6 +602,58 @@ fn remote_of(known: &[String], name: &str) -> String {
         .unwrap_or_default()
 }
 
+/// The full upstream ref of local branch `refname` (`refs/remotes/origin/main`,
+/// or `refs/heads/main` for a local upstream), by libgit2's rules but from one
+/// config snapshot: `branch_upstream_name` takes a fresh snapshot of the whole
+/// config per call, which holds a section per branch, so a refresh cost the
+/// square of the branch count. `remotes` holds each remote looked up once.
+fn upstream_ref<'r>(
+    repo: &'r Repository,
+    cfg: &git2::Config,
+    remotes: &mut HashMap<String, Option<git2::Remote<'r>>>,
+    refname: &str,
+) -> Option<String> {
+    let name = refname.strip_prefix("refs/heads/")?;
+    let get = |key: &str| {
+        cfg.get_string(&format!("branch.{name}.{key}"))
+            .ok()
+            .filter(|v| !v.is_empty())
+    };
+    let (remote, merge) = (get("remote")?, get("merge")?);
+    if remote == "." {
+        return Some(merge);
+    }
+    let remote = remotes
+        .entry(remote)
+        .or_insert_with_key(|r| repo.find_remote(r).ok())
+        .as_ref()?;
+    let fetch = || {
+        remote
+            .refspecs()
+            .filter(|s| s.direction() == git2::Direction::Fetch)
+    };
+    // libgit2 gives no upstream when a negative refspec matches, and matches
+    // against destinations it rewrote to full `refs/…` names, which
+    // `refspecs()` doesn't return: such a remote's branches take its own path.
+    let plain = |s: &git2::Refspec<'_>| {
+        let dst = s
+            .str()
+            .ok()
+            .and_then(|full| full.rfind(':').map(|i| &full[i + 1..]));
+        !s.src_bytes().starts_with(b"^") && dst.is_some_and(|d| d.starts_with("refs/"))
+    };
+    if !fetch().all(|s| plain(&s)) {
+        return repo
+            .branch_upstream_name(refname)
+            .ok()
+            .and_then(|buf| buf.as_str().ok().map(String::from));
+    }
+    let spec = fetch().find(|s| s.src_matches(&merge))?;
+    spec.transform(&merge)
+        .ok()
+        .and_then(|buf| buf.as_str().ok().map(String::from))
+}
+
 /// Reads branches, remotes, tags and stashes. Needs `&mut` for `stash_foreach`.
 pub fn snapshot(repo: &mut Repository) -> Result<RefsSnapshot, GitError> {
     snapshot_with(repo, &mut AheadBehindCache::default())
@@ -632,6 +684,11 @@ fn collect(
     let state = repo.state().into();
 
     let mut local = Vec::new();
+    let cfg = repo
+        .config()
+        .and_then(|mut c| c.snapshot())
+        .map_err(map_git2)?;
+    let mut remotes_seen = HashMap::new();
     for entry in repo.branches(Some(BranchType::Local)).map_err(map_git2)? {
         let (branch, _) = entry.map_err(map_git2)?;
         let Some(name) = branch.name().map_err(map_git2)?.map(String::from) else {
@@ -642,25 +699,24 @@ fn collect(
         };
         let oid = commit.id();
         // Config-only lookup so a pruned tracking ref still reports as "gone".
-        let upstream = branch
+        let upstream_full = branch
             .get()
             .name()
             .ok()
-            .and_then(|refname| repo.branch_upstream_name(refname).ok())
-            .and_then(|buf| buf.as_str().ok().map(String::from))
-            .map(|full| {
-                full.strip_prefix("refs/remotes/")
-                    .or_else(|| full.strip_prefix("refs/heads/"))
-                    .unwrap_or(&full)
-                    .to_string()
-            });
+            .and_then(|refname| upstream_ref(repo, &cfg, &mut remotes_seen, refname));
+        let upstream = upstream_full.as_deref().map(|full| {
+            full.strip_prefix("refs/remotes/")
+                .or_else(|| full.strip_prefix("refs/heads/"))
+                .unwrap_or(full)
+                .to_string()
+        });
         let mut gone = false;
         let (mut ahead, mut behind) = (0, 0);
-        if upstream.is_some() {
-            match branch
-                .upstream()
+        if let Some(full) = upstream_full.as_deref() {
+            match repo
+                .find_reference(full)
+                .and_then(|up| up.peel_to_commit())
                 .ok()
-                .and_then(|up| up.get().peel_to_commit().ok())
             {
                 Some(up_commit) => {
                     if let Some(cache) = cache.as_mut() {
@@ -683,6 +739,8 @@ fn collect(
             merged_into: None,
         });
     }
+    // Its remotes borrow `repo`, which `stash_foreach` below needs `&mut`.
+    drop(remotes_seen);
     local.sort_by(|a, b| natural_cmp(&a.name, &b.name));
 
     // Remotes (config) + remote-tracking branches grouped by longest remote-name prefix.
@@ -1122,8 +1180,11 @@ pub fn delete_tag(repo: &Repository, name: &str) -> Result<(), GitError> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::{
-        children_first, label_map, natural_cmp, snapshot, ConflictSides, RefKind, RepoState,
+        children_first, label_map, natural_cmp, snapshot, upstream_ref, ConflictSides, RefKind,
+        RepoState,
     };
     use crate::test_util::TempRepo;
 
@@ -1318,6 +1379,105 @@ mod tests {
         assert_eq!(out[0], merge);
         assert_eq!(out[3], base);
         assert!(out[1..3].contains(&master) && out[1..3].contains(&feature));
+    }
+
+    /// The one-snapshot lookup gives what `branch_upstream_name` and
+    /// `Branch::upstream` give, case by case.
+    #[test]
+    fn upstream_lookup_matches_libgit2() {
+        let mut t = TempRepo::new();
+        let c1 = t.commit(&[("a.txt", "a\n")], "c1");
+        t.remote("origin");
+        t.remote("team/fork");
+        t.remote("custom");
+        t.remote("neg");
+        t.remote("short");
+        let set = |k: &str, v: &str| t.set_config(k, v);
+        set("remote.custom.fetch", "+refs/heads/*:refs/remotes/mirror/*");
+        t.repo
+            .config()
+            .unwrap()
+            .set_multivar("remote.neg.fetch", "^$", "^refs/heads/secret")
+            .unwrap();
+        set("remote.short.fetch", "+refs/heads/*:remotes/short/*");
+        for r in [
+            "origin/main",
+            "team/fork/main",
+            "mirror/main",
+            "neg/main",
+            "neg/secret",
+            "short/main",
+        ] {
+            t.reference(&format!("refs/remotes/{r}"), c1);
+        }
+        let track = |branch: &str, remote: &str, merge: Option<&str>| {
+            t.branch(branch, c1);
+            set(&format!("branch.{branch}.remote"), remote);
+            if let Some(m) = merge {
+                set(&format!("branch.{branch}.merge"), m);
+            }
+        };
+        track("remote-up", "origin", Some("refs/heads/main"));
+        track("local-up", ".", Some("refs/heads/master"));
+        track("custom-up", "custom", Some("refs/heads/main"));
+        track("gone-up", "origin", Some("refs/heads/pruned"));
+        track("no-merge", "origin", None);
+        track("empty", "", Some("refs/heads/main"));
+        track("missing", "nope", Some("refs/heads/main"));
+        track("release/1.2", "origin", Some("refs/heads/main"));
+        track("twice", "origin", Some("refs/heads/pruned"));
+        t.repo
+            .config()
+            .unwrap()
+            .set_multivar("branch.twice.merge", "^$", "refs/heads/main")
+            .unwrap();
+        track("slash", "team/fork", Some("refs/heads/main"));
+        track("neg-up", "neg", Some("refs/heads/secret"));
+        track("neg-other", "neg", Some("refs/heads/main"));
+        track("short-up", "short", Some("refs/heads/main"));
+
+        let cfg = t.repo.config().unwrap().snapshot().unwrap();
+        let mut remotes = HashMap::new();
+        let mut got = HashMap::new();
+        for b in t.repo.branches(Some(git2::BranchType::Local)).unwrap() {
+            let (b, _) = b.unwrap();
+            let refname = b.get().name().unwrap().to_string();
+            let want = t
+                .repo
+                .branch_upstream_name(&refname)
+                .ok()
+                .and_then(|buf| buf.as_str().ok().map(String::from));
+            let new = upstream_ref(&t.repo, &cfg, &mut remotes, &refname);
+            assert_eq!(new, want, "{refname}");
+            got.insert(b.name().unwrap().unwrap().to_string(), new);
+        }
+        drop(remotes);
+        let full = |s: &str| Some(s.to_string());
+        assert_eq!(got["remote-up"], full("refs/remotes/origin/main"));
+        assert_eq!(got["local-up"], full("refs/heads/master"));
+        assert_eq!(got["custom-up"], full("refs/remotes/mirror/main"));
+        assert_eq!(got["release/1.2"], full("refs/remotes/origin/main"));
+        assert_eq!(got["twice"], full("refs/remotes/origin/main"));
+        assert_eq!(got["slash"], full("refs/remotes/team/fork/main"));
+        assert_eq!(got["short-up"], full("refs/remotes/short/main"));
+        for none in ["no-merge", "empty", "missing", "neg-up"] {
+            assert_eq!(got[none], None, "{none}");
+        }
+
+        // `gone` follows `Branch::upstream` failing on a configured upstream.
+        let snap = snapshot(&mut t.repo).unwrap();
+        for b in &snap.local {
+            let lib = t
+                .repo
+                .find_branch(&b.name, git2::BranchType::Local)
+                .unwrap()
+                .upstream()
+                .and_then(|u| u.get().peel_to_commit());
+            assert_eq!(b.gone, b.upstream.is_some() && lib.is_err(), "{}", b.name);
+        }
+        let gone = snap.local.iter().find(|b| b.name == "gone-up").unwrap();
+        assert!(gone.gone);
+        assert_eq!(gone.upstream.as_deref(), Some("origin/pruned"));
     }
 
     #[test]
