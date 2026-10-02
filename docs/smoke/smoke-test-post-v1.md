@@ -2327,6 +2327,156 @@ stash. Fixed (plan row 16) and walked as BK 9 the same day on a release build of
       `many.txt`, `+ bk9 edit`, as `git stash show --name-only` gives; the same after Working tree and back, and when
       opened from History. Re-walked the same day on `f3bc5fa`: passes.)*
 
+## BL. Close-out Phase 3: the performance fixes
+
+Plan: `docs/plans/2026-10-01-phase-3-plan.md` (*Stage B — fix*; each step names its row or fix). Walked over CDP on a
+local `tauri build --no-bundle` of the throwaway branch `phase-3b-time` (`phase-3b` plus Stage A's `p3` timing lines,
+never pushed or merged), launched with `smoke-launch.ps1` (`docs/smoke/smoke-cdp.md`). The store folder
+`%APPDATA%\dev.topher.t4gitui` is backed up before the installed app is closed, and restored byte-exact after. Fixtures:
+Stage A's (`perf-synth`, `perf-git`, `perf-reset`), under `T` = `${T4_ROOT:-/c/tmp/t4}`. Judged as in Stage A: a step
+fails at ≥ 250 ms on a real action, or jank (a frame gap ≥ 100 ms, or > 10 % of frames over 50 ms). Timings are taken
+on Windows only; step 10 checks behavior on Linux.
+
+- [ ] 1. **Refs read and merged badges** (fixes 1a, 1b), `perf-synth` and `perf-git`:
+      - Commit → the sidebar's ahead count painted; checkout; cached F5. `refs read` < 250 ms each, and the commit's
+        toast → sidebar painted < 250 ms.
+      - A forward tip move onto a new commit no tip reaches (a fetch's shape), 5 times, a new message each time:
+        `git commit-tree '<b>^{tree}' -p origin/<b> -m p3-<n>`, then `git update-ref refs/remotes/origin/<b> <new>`.
+        Use the full ref name: a bare `origin/<b>` creates a stray `.git/origin/<b>`. `refs read` < 250 ms each.
+      - A fetch-like move bringing a merge whose side branch forks in `origin/<b>`'s own history: check no branch tip
+        sits on `origin/<b>~5` (after the 5 moves it is the tip from before this step; `at-main-1` / `at-master-1` sit
+        one below it — go deeper until no tip does), then side = `git commit-tree '<b>^{tree}' -p origin/<b>~5
+        -m p3-s<n>`, merge = `git commit-tree '<b>^{tree}' -p origin/<b> -p <side> -m p3-m<n>`,
+        `git update-ref refs/remotes/origin/<b> <merge>`. `refs read` < 250 ms. (The quotes keep PowerShell from reading
+        `{tree}` as a script block.)
+      - Before any fallback walk: the merged badges on `perf-synth` read over CDP; then this build closed, the installed
+        app (0.10.15) launched with `smoke-launch.ps1 -Installed` on the same ref state, its badges read: they match.
+      - The installed app closed, this build relaunched: a backward tip move (`git update-ref
+        refs/remotes/origin/<b> origin/<b>~1`) takes the full walk — recorded as is.
+      - After (untimed): every moved `origin/<b>` back to its oid from before the step (on `perf-synth`, its local).
+- [ ] 2. **Line staging on deletions** (fix 2), `perf-synth`: stage one line of a working-tree deletion, and unstage one
+      line of a staged deletion → updated < 250 ms after the click, each.
+- [ ] 3. **A staged rename** (fix 2): `git mv` a file → its diff reads as a rename, and its lines unstage. After
+      (untimed): `git reset --hard` in `perf-synth` (else step 4's touch recreates step 2's deleted files as empty
+      Modified rows).
+- [ ] 4. **Status through git** (fix 3, fix 2's B2 / D-10, Q12), `perf-synth`:
+      - A warm edit → one scan (`p3 status`), < 250 ms.
+      - Stale: the tab closed, every file touched (`git ls-files -z | xargs -0 touch`), the repo reopened → Changes
+        current within the scan's time, then one `status repair` line; the scans after it (a queued one, the repair's
+        rescan) start no repair, and none follows. The warm edit is kept, so the list has a real change: the commit
+        panel's line counts appear < 1 s after the list, before or after the repair.
+      - A file renamed on disk (no `git mv`) → a deletion plus an untracked file, line counts matching; both staged →
+        one rename.
+      - That rename edited on disk → its Unstaged row's external diff tool gets the staged content on the left. Needs a
+        diff tool in the global git config (`diff.guitool` / `diff.tool`): use the one set; if none, back up
+        `~/.gitconfig` before picking one in Settings › Diff tool and restore it after (Settings writes the real global
+        config). The tool is a real window CDP can't see, so read the `LOCAL` file the app writes instead:
+        `<new name's stem>.LOCAL.<ext>` in the newest folder under `%TEMP%/t4-git-ui-diff/`, holding the staged
+        content (the old bug: an empty `<old name's stem>.LOCAL.<ext>`). Close the tool after.
+      - With 12k changes (Stage A's row 6a setup): the counts call's `p3 changed files` line, recorded.
+- [ ] 5. **One scan at a time** (fix 5), `perf-reset`: the `git add -u` control, the mixed reset, then `reset --hard` →
+      Changes < 250 ms later than the control; no two scans overlap in the log (each `p3 status` starts — its end minus
+      its elapsed — after the previous one ended).
+- [ ] 6. **The output dock at the cap** (fix 4), `perf-git`: the dock filled to the cap (50 ops of `git log -n 5000`; it
+      keeps 25,000 lines in all, Q24), 5 scroll samples → no jank. A gap ≥ 100 ms, or only the 10 % clause failing →
+      put to the owner (the 25,000-line cap, Q24, is already in).
+- [ ] 7. **The Files tab** (fix 6a), `perf-synth`: expand, collapse and revisit < 250 ms; the first visit recorded (an
+      accepted limit, B3). The pure timing script's `buildFileTree` + `compact` copy re-made from fix 6a's `fileTree.ts`
+      (checked line by line) and run over CDP on the three 6a inputs; the script kept with the walk record.
+- [ ] 8. **Closing a tab stops its scan** (T7): the first stale scan of `perf-synth` (no `status repair` in the log
+      since the touch). Just before the close, a `git.exe` whose command line holds `status --porcelain=v2` is listed
+      (if not, the scan already ended: record "not exercised", not a pass). Close the tab → within a second no such
+      process, and no `<gitdir>/index.lock`.
+- [ ] 9. **fsmonitor** (fix 3), `perf-git`: `git config core.fsmonitor true`, the repo opened and left idle a minute →
+      no repeating scans in the log. After: the config removed and `git fsmonitor--daemon stop`.
+- [ ] 10. **Linux** (the VM's remote session): `phase-3b`, pushed as a side branch on the owner's go, fetched and built
+      and launched per `docs/smoke/smoke-linux.md` §1–2 (debug build, `.smoke` identifier, own `HOME`), with
+      `NO_COLOR=1 … tauri-driver > $S/app.log 2>&1`. No timing lines; behavior only.
+      - First, a `perf-git` open: its `opened repo` line is in `$S/app.log`. If not, rebuild without `--debug` (still
+        `.smoke`), start `target/release/t4-git-ui` (§2's pid `pgrep` and §4's cleanup patterns change with it), and
+        read the log under `$S/home/.local/share/dev.topher.t4gitui.smoke/logs/`.
+      - Fixtures on the VM: `node docs/smoke/fixtures/perf-repo.mjs <dir>/perf-synth --files 100000` and a `perf-git`
+        clone.
+      - Step 4's behavior: the list is right; after the stale reopen, Changes current, then exactly one `status repair`
+        line and none after — or none at all if the open's `slow status` elapsed is under 1 s or there is no
+        `slow status` line (recorded as such); the deletion + untracked rows with matching counts, one rename once
+        staged.
+      - Step 8: no `status --porcelain=v2` in `pgrep -ax git` after the close, with the same before-the-close check.
+      - Step 6: the dock at the cap scrolls and selects; `CSS.supports("content-visibility", "auto")` read in the page
+        (true, or the dock recorded as working without it).
+      - If any of step 7's Windows pure-timing medians is ≥ 125 ms: the same script re-timed through `wd.mjs eval`, the
+        file handed over in the request.
+- [ ] 11. **macOS** (the Mac's remote session, Q27): the pushed `phase-3b` (`8246a97`; this step's text came later, in a
+      docs-only commit, and is handed over in the request) checked out detached, built with `npm ci` and
+      `npm run tauri build -- --debug --no-bundle --config '{"identifier":"dev.topher.t4gitui.smoke"}'`; the commit
+      built recorded. `$S` is an absolute plain folder under the home folder (not `/tmp`, `$TMPDIR`, Desktop, Documents
+      or Downloads: they resolve under `/private` or raise file-access prompts), and the fixtures live under it too:
+      `node docs/smoke/fixtures/perf-repo.mjs $S/perf-synth --files 100000` and a `perf-git` clone. `command -v git`
+      recorded. No timing lines; behavior only.
+      - **Preflight:**
+        `osascript -e 'tell application "System Events" to get name of every window of (first process whose frontmost is true)'`
+        runs with no error and returns a list (possibly `{}`; a UI read, so it needs both Automation and Accessibility).
+        Any error stops the walk until the owner fixes it: -1743 is Automation; -25211, or -1719 whose message says
+        "assistive access", is Accessibility (a bare -1719 "Invalid index" means no process was frontmost: retry once);
+        -1712 is a consent prompt waiting; a key sent without Accessibility fails with 1002. And an app launched from
+        the session shows a window.
+      - **Launch** `<n>` (`first`, `s8`, `s9`; a redo takes a new name, `s8b`, so the earlier attempt's logs stay), from
+        the repo root, each with its own log files: `rm -f $S/git-trace-<n>.log` (`GIT_TRACE` appends), then
+        `NO_COLOR=1 HOME=$S/home GIT_TRACE=$S/git-trace-<n>.log nohup target/debug/t4-git-ui > $S/app-<n>.log 2>&1 &` (a
+        debug build logs to stderr, in UTC; `GIT_TRACE` logs every git the app runs, in local time). The app's store,
+        logs and the git global config then live under `$S/home` (WebKit's own cache may not). Before each launch,
+        `$S/home/Library/Application Support/dev.topher.t4gitui.smoke/layout.json` is seeded with
+        `[{"tabs":[<paths>],"active":"<one of them>"}]` — the per-launch seeds below, the paths as `realpath` prints
+        them (the restore matches `active` against canonical paths). The seeded tabs opening shows the scratch `HOME`
+        was honored; if they don't, stop and report, checking first for `layout.restoring` / `layout.crashed.json` in
+        that folder (a killed launch makes the next one treat it as a crash and open nothing).
+      - **Keystrokes** (⌘W, ⌘Q, and the redo's palette keys): one `osascript` run sets
+        `frontmost of (first process whose unix id is <pid>)` to true, polls up to ~1 s until the frontmost process's
+        `unix id` is `<pid>`, then sends the key — if it never is, no key is sent and the run aborts (a stray ⌘W/⌘Q
+        would hit the owner's apps). Each key's time is logged in UTC
+        (`node -e 'console.log(new Date().toISOString())'`). The app is quit with ⌘Q (never killed), and relaunched only
+        once `layout.restoring` is gone. Other git tools of the owner's are closed during the walk.
+      - **First:** seed `[{"tabs":["<perf-git>"],"active":"<perf-git>"}]`; its `opened repo` line and `probed git`
+        (git's version) in `$S/app-first.log`.
+      - **Step 8:** seed `[{"tabs":["<perf-git>","<perf-synth>"],"active":"<perf-synth>"}]` (`perf-synth` last, so its
+        stale scan starts as the last `opened repo` line lands), every `perf-synth` file touched with the app quit, then
+        the launch. One script, started with the launch: it waits for `opened repo` lines for both ids (canonical paths)
+        in the launch's log and the title `T4 Git UI - perf-synth` (System Events), and polls
+        `pgrep -fl 'status --porcelain=v2'` for a process whose parent is the app's pid and whose working directory is
+        `perf-synth` (`lsof -a -p <pid> -d cwd -Fn`); it then records `ps -axo pid,ppid,pgid,command | grep porcelain`
+        once and sends ⌘W at once. After ⌘W it polls for a second for any `status --porcelain=v2` process whose working
+        directory is `perf-synth`, with no parent filter (a child the kill missed would be re-parented to launchd). A
+        `perf-git` scan the tab switch starts is expected and ignored.
+        - **Pass**, all read before the ⌘Q (quitting logs `closed repo` for `perf-git` too): within a second no
+          `perf-synth` scan process, no `<gitdir>/index.lock`, the app still running, the title `T4 Git UI - perf-git`,
+          exactly one `closed repo` line (for `perf-synth`), and no `slow status` or `status repair` line for
+          `perf-synth` in the launch's log (a 100k-file stale scan that completed would log `slow status`; a killed one
+          logs nothing).
+        - **Not exercised** (not a pass): the process never showed (the `ps` line recorded anyway), or a `slow status`
+          line for `perf-synth` is logged before the ⌘W (it then hit a later scan).
+        - **⌘W closed the window instead** (macOS's default Window › Close Window item is ⌘W too; the app's own handler
+          isn't proven to win in WKWebView; the last window closing ends the app): a product finding, recorded; the redo
+          closes the tab through the command palette instead (⌘K is no macOS menu key; no mouse clicks on the owner's
+          screen): as soon as both `opened repo` lines and the `perf-synth` title are in, before the process poll, the
+          script sends ⌘K and then `Close tab` as one guarded `keystroke "Close tab"`; then, where it would send ⌘W, it
+          sends only Return. In the redo, "the ⌘W" in the script and the clauses above means that Return.
+        - **Redo** (either case, once): ⌘Q if still running; wait until no `git` with working directory `perf-synth` is
+          left (a repair runs on after a close); seed again; touch every file again; launch `s8b`.
+      - **Step 9:** seed `[{"tabs":["<perf-git>"],"active":"<perf-git>"}]`, `git config core.fsmonitor true` set before
+        the launch (a config write on an open repo fires its own refresh). Within the first ~10 s after the open:
+        `$S/app-s9.log` has a `watcher started` line for `perf-git` (a `watcher unavailable` line instead: "not
+        exercised"), `git fsmonitor--daemon status` reports it watching and `ls -l .git/fsmonitor--daemon.ipc` shows the
+        socket (if either fails: "not exercised"). No git runs in `perf-git` other than these two checks until the
+        control (a `git status` or `git diff` there refreshes the index, which the app sees as a change). Pass: any
+        number of `built-in: git status` lines in `$S/git-trace-s9.log` and `refs read` lines in `$S/app-s9.log` in the
+        first ~10 s (the open, its refresh, the socket's creation — a refs change by `classify`'s rule), then none for
+        the remaining ≥ 50 s; then a control: one line appended to a tracked file → a new `built-in: git status` line
+        within ~2 s (`git checkout -- <file>` after). After: the config removed and `git fsmonitor--daemon stop`.
+      - **Scope:** the walk proves close → cancel → kill on macOS. Whether the scan has children here is read from the
+        recorded `ps` line (`git` may be the Xcode shim at `/usr/bin/git`); reaching a whole process group is the Unix
+        unit test's (`crates/git-core/tests/status.rs`, run on macOS CI). The record says so.
+      - **After:** no `t4-git-ui` or `git` process of the walk left; `$S` kept until the report is in.
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the
