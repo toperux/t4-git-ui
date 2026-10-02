@@ -199,18 +199,25 @@ pub fn natural_cmp(a: &str, b: &str) -> Ordering {
 /// fixed oids never changes, so an entry never goes stale; the map is just
 /// cleared when it grows past a few thousand pairs.
 ///
-/// `merged`: every branch's `merged_into`, keyed by the exact list of branches
-/// (name, tip, is HEAD, upstream) it was computed for — one walk per change
-/// of refs.
+/// `reach`: over the distinct tip oids, the other tip oids each one has as an
+/// ancestor — what every branch's `merged_into` is derived from, on every
+/// call. Names, the HEAD flag and upstreams are not in it, so a checkout costs
+/// nothing, and a new tip oid is added by a walk of the commits only it
+/// reaches ([`update_reach`]) rather than the whole walk again.
 #[derive(Debug, Default)]
 pub struct AheadBehindCache {
     pairs: HashMap<(Oid, Oid), (usize, usize)>,
-    merged: Option<(MergedKey, Vec<Option<String>>)>,
+    reach: Option<Reach>,
+    /// How many times the whole walk ([`reachers`]) ran, for the tests.
+    full_walks: usize,
 }
 
-/// The branches (name, tip, is HEAD, upstream) a `merged` entry was computed
-/// for; `upstream` is in because it decides who counts as a counterpart.
-type MergedKey = Vec<(String, Oid, bool, Option<String>)>;
+/// `reach[a]`: the tip oids other than `a` that `a` has as an ancestor.
+type Reach = HashMap<Oid, HashSet<Oid>>;
+
+/// More new tip oids than this at once (a fetch moving many branches): one
+/// whole walk instead of a walk per oid, each hiding every tip.
+const MAX_NEW_TIPS: usize = 16;
 
 impl AheadBehindCache {
     const MAX: usize = 4096;
@@ -352,6 +359,139 @@ fn children_first(run: Vec<git2::Commit<'_>>) -> Vec<git2::Commit<'_>> {
     ordered
 }
 
+/// The whole walk over the distinct tip oids `oids`, as a [`Reach`]: `reachers`'
+/// `out[i]` (who reaches `i`) is the matrix's column `i`, so it is transposed.
+fn full_reach(repo: &Repository, oids: &[Oid]) -> Result<Reach, GitError> {
+    let mut reach: Reach = oids.iter().map(|&o| (o, HashSet::new())).collect();
+    if oids.len() < 2 {
+        return Ok(reach);
+    }
+    let bits = reachers(repo, oids)?;
+    for (i, by) in bits.iter().enumerate() {
+        for (j, &o) in oids.iter().enumerate() {
+            if by[j / 64] & (1 << (j % 64)) != 0 {
+                reach
+                    .get_mut(&o)
+                    .expect("every oid has a row")
+                    .insert(oids[i]);
+            }
+        }
+    }
+    Ok(reach)
+}
+
+/// Adds tip oid `n` to `reach` by walking the commits only it reaches: every
+/// cached oid hidden. `Ok(false)` when that can't answer and the whole walk
+/// has to: `n` is reached by a cached tip (the walk yields nothing — a
+/// backward move, a reset), or the walk stops at a commit no cached tip on its
+/// boundary covers (an amend, a branch off an untipped commit).
+fn add_tip(repo: &Repository, reach: &mut Reach, n: Oid) -> Result<bool, git2::Error> {
+    // libgit2 keeps pushed and hidden commits in reverse push order: hiding
+    // the oldest first and pushing `n` last puts the newest at the head, so
+    // the walk reaches `n` before marking most of the history uninteresting
+    // (`n` pushed first: 425-470 ms on a 100k history, sorted: 9-13 ms).
+    let mut by_time: Vec<(i64, Oid)> = reach
+        .keys()
+        .map(|&o| repo.find_commit(o).map(|c| (c.time().seconds(), o)))
+        .collect::<Result<_, _>>()?;
+    by_time.sort();
+    let mut walk = repo.revwalk()?;
+    for (_, o) in by_time {
+        walk.hide(o)?;
+    }
+    walk.push(n)?;
+    let only_n: HashSet<Oid> = walk.collect::<Result<_, _>>()?;
+    if only_n.is_empty() {
+        return Ok(false);
+    }
+    // The parents the walk stopped at: cached tips, and commits under them.
+    let (mut tips, mut under) = (HashSet::new(), HashSet::new());
+    for &c in &only_n {
+        for p in repo.find_commit(c)?.parent_ids() {
+            if !only_n.contains(&p) {
+                if reach.contains_key(&p) {
+                    tips.insert(p);
+                } else {
+                    under.insert(p);
+                }
+            }
+        }
+    }
+    // A commit under the boundary (a merged pull request's fork point) adds no
+    // tip when it is an ancestor of a boundary tip: all of them in one walk,
+    // which yields nothing when each is covered.
+    if !under.is_empty() {
+        let mut walk = repo.revwalk()?;
+        for &q in &under {
+            walk.push(q)?;
+        }
+        for &p in &tips {
+            walk.hide(p)?;
+        }
+        if walk.next().transpose()?.is_some() {
+            return Ok(false);
+        }
+    }
+    let mut row = HashSet::new();
+    for p in &tips {
+        row.insert(*p);
+        row.extend(reach[p].iter().copied());
+    }
+    reach.insert(n, row);
+    Ok(true)
+}
+
+/// Brings `cache.reach` to the tip oid set `oids` (distinct): the new oids are
+/// added against the old matrix first, oldest commit first, each counting as
+/// cached for the next; the oids no tip has any more are dropped after, so a
+/// plain commit still finds its old tip on the boundary.
+///
+/// ponytail: the whole walk still runs for a backward move, a reset, an amend,
+/// a branch or fetched branch based on a commit no boundary tip reaches, and
+/// more than [`MAX_NEW_TIPS`] new oids (the grid's *Create branch here…* and
+/// *Reset … to here…* on a non-tip row among them); revisit if a refresh
+/// after one of those measures ≥ 250 ms (open-items §Q).
+fn update_reach(
+    repo: &Repository,
+    cache: &mut AheadBehindCache,
+    oids: &[Oid],
+) -> Result<(), GitError> {
+    let incremental = |reach: &mut Reach| -> Result<bool, git2::Error> {
+        let mut new: Vec<(i64, Oid)> = Vec::new();
+        for &o in oids {
+            if !reach.contains_key(&o) {
+                new.push((repo.find_commit(o)?.time().seconds(), o));
+            }
+        }
+        if new.len() > MAX_NEW_TIPS {
+            return Ok(false);
+        }
+        new.sort();
+        for (_, n) in new {
+            if !add_tip(repo, reach, n)? {
+                return Ok(false);
+            }
+        }
+        let keep: HashSet<Oid> = oids.iter().copied().collect();
+        reach.retain(|o, _| keep.contains(o));
+        for row in reach.values_mut() {
+            row.retain(|o| keep.contains(o));
+        }
+        Ok(true)
+    };
+    if let Some(reach) = cache.reach.as_mut() {
+        // An error (a dropped tip's commit pruned by `gc`) is the whole walk's
+        // to report, not this one's.
+        if incremental(reach).unwrap_or(false) {
+            return Ok(());
+        }
+    }
+    cache.reach = None;
+    cache.full_walks += 1;
+    cache.reach = Some(full_reach(repo, oids)?);
+    Ok(())
+}
+
 /// Sets every branch's `merged_into` to the branch whose tip reaches it —
 /// the current branch when that is one, else the first local, else the first
 /// remote one — ignoring the branch's own counterparts (see
@@ -393,49 +533,55 @@ fn fill_merged_into(
             });
         }
     }
-    let key: MergedKey = tips
+    let mut seen = HashSet::new();
+    let oids: Vec<Oid> = tips
         .iter()
-        .map(|t| (t.name.clone(), t.oid, t.is_head, t.upstream.clone()))
+        .map(|t| t.oid)
+        .filter(|o| seen.insert(*o))
         .collect();
-    let merged = match &cache.merged {
-        Some((k, v)) if *k == key => v.clone(),
-        _ => {
-            let bits = if tips.len() < 2 {
-                Vec::new()
-            } else {
-                reachers(repo, &tips.iter().map(|t| t.oid).collect::<Vec<_>>())?
-            };
-            // A local upstream (`--track main`) is a merge target, not a copy.
-            let counterpart = |a: &Tip, b: &Tip| {
-                a.short == b.short
-                    || (b.remote && a.upstream.as_deref() == Some(&b.name))
-                    || (a.remote && b.upstream.as_deref() == Some(&a.name))
-            };
-            let merged: Vec<Option<String>> = tips
-                .iter()
-                .enumerate()
-                .map(|(i, t)| {
-                    if t.is_head {
-                        return None;
-                    }
-                    let reached_by = |j: usize| bits[i][j / 64] & (1 << (j % 64)) != 0;
-                    let mut pick: Option<&Tip> = None;
-                    for (j, other) in tips.iter().enumerate() {
-                        if j == i || !reached_by(j) || counterpart(t, other) {
-                            continue;
-                        }
-                        if other.is_head {
-                            return Some(other.name.clone());
-                        }
-                        pick.get_or_insert(other);
-                    }
-                    pick.map(|p| p.name.clone())
-                })
-                .collect();
-            cache.merged = Some((key, merged.clone()));
-            merged
-        }
+    update_reach(repo, cache, &oids)?;
+    let reach = cache.reach.as_ref().expect("update_reach fills it");
+    // A local upstream (`--track main`) is a merge target, not a copy.
+    let counterpart = |a: &Tip, b: &Tip| {
+        a.short == b.short
+            || (b.remote && a.upstream.as_deref() == Some(&b.name))
+            || (a.remote && b.upstream.as_deref() == Some(&a.name))
     };
+    // A bitset row per distinct oid (bit `j`: reaches `oids[j]`), so the pair
+    // loop below tests a bit instead of hashing.
+    let idx: HashMap<Oid, usize> = oids.iter().enumerate().map(|(i, o)| (*o, i)).collect();
+    let mut rows = vec![vec![0u64; oids.len().div_ceil(64)]; oids.len()];
+    for (a, row) in reach {
+        let r = &mut rows[idx[a]];
+        for b in row {
+            let j = idx[b];
+            r[j / 64] |= 1 << (j % 64);
+        }
+    }
+    let at: Vec<usize> = tips.iter().map(|t| idx[&t.oid]).collect();
+    let merged: Vec<Option<String>> = tips
+        .iter()
+        .enumerate()
+        .map(|(i, t)| {
+            if t.is_head {
+                return None;
+            }
+            let me = at[i];
+            // Tips on one commit reach each other.
+            let reached_by = |j: usize| at[j] == me || rows[at[j]][me / 64] & (1 << (me % 64)) != 0;
+            let mut pick: Option<&Tip> = None;
+            for (j, other) in tips.iter().enumerate() {
+                if j == i || !reached_by(j) || counterpart(t, other) {
+                    continue;
+                }
+                if other.is_head {
+                    return Some(other.name.clone());
+                }
+                pick.get_or_insert(other);
+            }
+            pick.map(|p| p.name.clone())
+        })
+        .collect();
     let mut it = merged.into_iter();
     for b in local.iter_mut() {
         b.merged_into = it.next().flatten();
@@ -1180,11 +1326,13 @@ pub fn delete_tag(repo: &Repository, name: &str) -> Result<(), GitError> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
+
+    use git2::Oid;
 
     use super::{
-        children_first, label_map, natural_cmp, snapshot, upstream_ref, ConflictSides, RefKind,
-        RepoState,
+        children_first, full_reach, label_map, natural_cmp, snapshot, snapshot_with, update_reach,
+        upstream_ref, AheadBehindCache, ConflictSides, Reach, RefKind, RepoState,
     };
     use crate::test_util::TempRepo;
 
@@ -1478,6 +1626,202 @@ mod tests {
         let gone = snap.local.iter().find(|b| b.name == "gone-up").unwrap();
         assert!(gone.gone);
         assert_eq!(gone.upstream.as_deref(), Some("origin/pruned"));
+    }
+
+    /// The incremental matrix and the whole walk both equal a brute-force one
+    /// (`graph_descendant_of` per pair) after every move of random histories.
+    #[test]
+    fn incremental_reach_matches_the_whole_walk_and_brute_force() {
+        for seed in 1..=8u64 {
+            random_moves(seed, 60);
+        }
+    }
+
+    struct Rng(u64);
+    impl Rng {
+        fn next(&mut self, n: usize) -> usize {
+            // xorshift64
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            (self.0 % n as u64) as usize
+        }
+    }
+
+    fn random_moves(seed: u64, moves: usize) {
+        let t = TempRepo::new();
+        let repo = &t.repo;
+        let tree = repo
+            .find_tree(repo.treebuilder(None).unwrap().write().unwrap())
+            .unwrap();
+        let mut rng = Rng(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1);
+        let mut clock = 1_700_000_000i64;
+        let mut serial = 0;
+        // Non-decreasing commit times, with runs in one second.
+        let mut mk = |rng: &mut Rng, parents: &[Oid]| -> Oid {
+            clock += rng.next(2) as i64;
+            serial += 1;
+            let sig =
+                git2::Signature::new("T", "t@example.com", &git2::Time::new(clock, 0)).unwrap();
+            let parents: Vec<git2::Commit<'_>> = parents
+                .iter()
+                .map(|p| repo.find_commit(*p).unwrap())
+                .collect();
+            let refs: Vec<&git2::Commit<'_>> = parents.iter().collect();
+            repo.commit(None, &sig, &sig, &format!("c{serial}"), &tree, &refs)
+                .unwrap()
+        };
+        let mut all = vec![mk(&mut rng, &[])];
+        for _ in 0..10 {
+            let p = *all.last().unwrap();
+            all.push(mk(&mut rng, &[p]));
+        }
+        let mut tips: Vec<Oid> = (0..20).map(|_| all[rng.next(all.len())]).collect();
+        let mut cache = AheadBehindCache::default();
+        for step in 0..moves {
+            let i = rng.next(tips.len());
+            let name;
+            match rng.next(11) {
+                0 => {
+                    name = "commit";
+                    tips[i] = mk(&mut rng, &[tips[i]]);
+                }
+                1 => {
+                    name = "fast-forward";
+                    for _ in 0..=rng.next(3) {
+                        tips[i] = mk(&mut rng, &[tips[i]]);
+                    }
+                }
+                2 => {
+                    name = "backward";
+                    if let Ok(p) = repo.find_commit(tips[i]).unwrap().parent_id(0) {
+                        tips[i] = p;
+                    }
+                }
+                3 => {
+                    name = "amend";
+                    let parents: Vec<Oid> =
+                        repo.find_commit(tips[i]).unwrap().parent_ids().collect();
+                    tips[i] = mk(&mut rng, &parents);
+                }
+                4 => {
+                    name = "merge";
+                    let j = rng.next(tips.len());
+                    if tips[j] != tips[i] {
+                        tips[i] = mk(&mut rng, &[tips[i], tips[j]]);
+                    }
+                }
+                5 => {
+                    // A fetch bringing a merged pull request whose side branch
+                    // forks mid-history.
+                    name = "merged PR";
+                    let mut q = tips[i];
+                    for _ in 0..=rng.next(4) {
+                        if let Ok(p) = repo.find_commit(q).unwrap().parent_id(0) {
+                            q = p;
+                        }
+                    }
+                    let side = mk(&mut rng, &[q]);
+                    tips[i] = mk(&mut rng, &[tips[i], side]);
+                }
+                6 => {
+                    name = "batch";
+                    for _ in 0..2 + rng.next(4) {
+                        let k = rng.next(tips.len());
+                        tips[k] = mk(&mut rng, &[tips[k]]);
+                    }
+                }
+                7 => {
+                    name = "batch > 16";
+                    while tips.len() < 18 {
+                        tips.push(all[0]);
+                    }
+                    for tip in tips.iter_mut().take(17) {
+                        *tip = mk(&mut rng, &[*tip]);
+                    }
+                }
+                8 => {
+                    name = "new branch at an existing oid";
+                    tips.push(all[rng.next(all.len())]);
+                }
+                9 => {
+                    name = "delete";
+                    if tips.len() > 2 {
+                        tips.swap_remove(i);
+                    }
+                }
+                _ => name = "checkout",
+            }
+            all.extend(tips.iter().copied());
+            let mut seen = HashSet::new();
+            let oids: Vec<Oid> = tips.iter().copied().filter(|o| seen.insert(*o)).collect();
+            update_reach(repo, &mut cache, &oids).unwrap();
+            // Every ancestor of each tip, by parents: `graph_descendant_of` per
+            // pair is the same answer at ~0.5 s a step in a debug build.
+            let mut brute: Reach = HashMap::new();
+            for &a in &oids {
+                let mut seen = HashSet::new();
+                let mut stack: Vec<Oid> = repo.find_commit(a).unwrap().parent_ids().collect();
+                while let Some(c) = stack.pop() {
+                    if seen.insert(c) {
+                        stack.extend(repo.find_commit(c).unwrap().parent_ids());
+                    }
+                }
+                let row = oids.iter().copied().filter(|b| *b != a && seen.contains(b));
+                brute.insert(a, row.collect());
+            }
+            let at = format!("seed {seed}, step {step} ({name})");
+            assert_eq!(cache.reach.as_ref(), Some(&brute), "incremental, {at}");
+            assert_eq!(full_reach(repo, &oids).unwrap(), brute, "whole walk, {at}");
+        }
+        // The incremental path ran, not only the fallback.
+        assert!(
+            cache.full_walks < moves / 2,
+            "{} whole walks",
+            cache.full_walks
+        );
+    }
+
+    /// The moves the incremental path is for never run the whole walk; the
+    /// badges still match a snapshot taken without the cache.
+    #[test]
+    fn a_checkout_a_commit_a_fast_forward_and_a_merged_pr_walk_no_more() {
+        let mut t = TempRepo::new();
+        let c: Vec<Oid> = (1..=5)
+            .map(|i| t.commit(&[("a", &i.to_string())], &format!("c{i}")))
+            .collect();
+        t.remote("origin");
+        t.reference("refs/remotes/origin/master", c[4]);
+        t.branch("feat", c[2]);
+        t.branch("old", c[1]);
+        let mut cache = AheadBehindCache::default();
+        let mut check = |t: &mut TempRepo, what: &str| {
+            let cached = snapshot_with(&mut t.repo, &mut cache).unwrap();
+            let fresh = snapshot(&mut t.repo).unwrap();
+            assert_eq!(cached, fresh, "{what}");
+            assert_eq!(cache.full_walks, 1, "{what}");
+        };
+        check(&mut t, "open");
+
+        t.checkout("feat");
+        check(&mut t, "checkout");
+
+        t.commit(&[("f", "1")], "on feat");
+        check(&mut t, "commit");
+
+        t.checkout("master");
+        t.commit(&[("a", "6")], "c6");
+        t.commit(&[("a", "7")], "c7");
+        check(&mut t, "fast-forward onto new commits");
+
+        // origin/master gets a merged pull request forked from c4, where no tip sits.
+        t.detach(c[3]);
+        let side = t.commit(&[("s", "1")], "side");
+        t.detach(c[4]);
+        let merge = t.merge_commit("merge pr", &[c[4], side]);
+        t.reference("refs/remotes/origin/master", merge);
+        t.checkout("master");
+        check(&mut t, "merged pull request");
     }
 
     #[test]
