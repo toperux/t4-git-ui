@@ -45,7 +45,7 @@ function tabStrip() {
     `<div class="tabstrip">
       <span class="tab is-active">${icon('folder-git-2', 14)}<span class="name">t4-git-ui</span><span class="close">${icon('x', 12)}</span></span>
       <span class="tab is-hover">${icon('folder-git-2', 14)}<span class="name">libgit2</span><span class="close is-hover">${icon('x', 12)}</span></span>
-      <span class="tab">${icon('folder-git-2', 14)}<span class="name">mbk-portal</span><span class="stale" title="Changed in the background"></span></span>
+      <span class="tab">${icon('folder-git-2', 14)}<span class="name">big-repo</span><span class="stale" title="Changed in the background"></span></span>
       <span class="drop-caret"></span>
       <span class="tab is-dragging">${icon('folder-git-2', 14)}<span class="name">work</span></span>
       <span class="add">${icon('plus', 16)}</span>
@@ -149,7 +149,7 @@ function tableHeader() {
       <span class="col" style="width: 110px;">Author</span>
       <span class="col" style="width: 80px;">Date</span>
       <span class="col" style="width: 64px;">SHA</span>
-    </div><div class="row"><span style="width: 80px;"></span><span class="grow">Fix lane dedupe when parent already expected</span><span style="width: 110px;" class="meta">Topher M.</span><span style="width: 80px;" class="meta">2h ago</span><span style="width: 64px;" class="meta mono">a1b2c3d</span></div>
+    </div><div class="row"><span style="width: 80px;"></span><span class="grow">Fix lane dedupe when parent already expected</span><span style="width: 110px;" class="meta">Sam Doe</span><span style="width: 80px;" class="meta">2h ago</span><span style="width: 64px;" class="meta mono">a1b2c3d</span></div>
     <div class="row"><span style="width: 80px;"></span><span class="grow faint">—</span><span style="width: 110px;" class="meta faint">—</span><span style="width: 80px;" class="meta faint">—</span><span style="width: 64px;" class="meta mono faint">—</span></div></div>`);
 }
 
@@ -180,7 +180,7 @@ function overlays() {
         </div>
         <div class="menu submenu" style="margin-left: 2px;">
           <div class="menu-item">${icon('folder-git-2')}<span class="grow">libgit2</span></div>
-          <div class="menu-item">${icon('folder-git-2')}<span class="grow">mbk-portal</span></div>
+          <div class="menu-item">${icon('folder-git-2')}<span class="grow">big-repo</span></div>
           <div class="menu-item">${icon('folder-git-2')}<span class="grow">work</span></div>
         </div>
       </div>
@@ -200,7 +200,7 @@ function chipsBadges() {
         `<span style="width: 12px;"></span>`,
         `<span class="ab">${icon('arrow-up', 12)}2 ${icon('arrow-down', 12)}5</span>`,
         `<span style="width: 12px;"></span>`,
-        `<span class="sm">Topher M. <span class="signed">signed</span></span>`,
+        `<span class="sm">Sam Doe <span class="signed">signed</span></span>`,
       ], 8)}
     </div>`);
 }
@@ -247,7 +247,7 @@ function headers() {
 function statusFeedback() {
   return section('Status bar · Toast · Banner · Progress · Spinner', 'status bar 24px — HEAD, ahead/behind and the remote left; running op, log progress, working-tree counts and tree state right · toasts 360px top-center, 5s, actions under the detail · banners full-width at the top of the content',
     `<div style="display: flex; flex-direction: column; gap: 12px;">
-      <div class="statusbar" style="border: 1px solid var(--border); border-radius: 6px;"><span class="item">${icon('git-branch', 12)}main</span><span class="item ab">${icon('arrow-up', 12)}2 ${icon('arrow-down', 12)}5</span><span class="item">${icon('cloud', 12)}origin · github.com/topher/t4-git-ui</span><span class="grow"></span><span class="item"><span class="spinner sm"></span>Loading commits… 4096</span><span class="item">3 unstaged · 1 staged · 2 conflicted</span><span class="item">${icon('check-circle', 12)}Clean</span></div>
+      <div class="statusbar" style="border: 1px solid var(--border); border-radius: 6px;"><span class="item">${icon('git-branch', 12)}main</span><span class="item ab">${icon('arrow-up', 12)}2 ${icon('arrow-down', 12)}5</span><span class="item">${icon('cloud', 12)}origin · github.com/owner/t4-git-ui</span><span class="grow"></span><span class="item"><span class="spinner sm"></span>Loading commits… 4096</span><span class="item">3 unstaged · 1 staged · 2 conflicted</span><span class="item">${icon('check-circle', 12)}Clean</span></div>
       <div style="display: flex; gap: 12px; flex-wrap: wrap;">
         <div class="toast error">${icon('x-circle')}<div class="grow"><div class="t">Push rejected</div><div class="d">origin/main has 3 new commits. Pull first.</div><div class="actions"><span class="btn secondary sm">Retry</span><span class="btn ghost sm">Dismiss</span></div></div><span class="icon-btn">${icon('x', 14)}</span></div>
         <div class="toast info">${icon('info')}<div class="grow"><div class="t">Refreshed remote tags</div><div class="d">origin 42 · mirror 41</div></div><span class="icon-btn">${icon('x', 14)}</span></div>

@@ -3,7 +3,7 @@
 The Linux counterpart of `smoke-cdp.md`. WebKitGTK has no CDP, so the page is driven over WebDriver:
 `tauri-driver` launches a debug build through `WebKitWebDriver`, and `docs/smoke/wd.mjs` talks to it.
 The app runs on a headless Xvfb display, where `xdotool` reaches what WebDriver cannot: the native GTK
-dialogs, real OS keys, window size. Adapted from t4-markdown-viewer's drive-app skill.
+dialogs, real OS keys, window size. Adapted from the sibling app's drive-app skill.
 
 Proven 2026-09-26 on Ubuntu (GNOME, Wayland host) against 0.10.12. The run opened `work` through the
 folder picker, right-clicked a grid row, double-clicked the working-tree row, staged a hunk, answered a

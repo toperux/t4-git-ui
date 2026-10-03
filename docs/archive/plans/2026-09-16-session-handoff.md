@@ -169,7 +169,7 @@ What is reliably remembered about the lost set, as gist only:
 **Recommendation:** do not try to reconstruct `B3`–`B7` / `C8`–`C12` from memory. If that coverage
 matters, re-run the review over the four unpushed commits — it is a bounded diff and the second pass
 will be cheaper than archaeology. The full session transcript is at
-`C:\Users\toper\.claude\projects\F--src---pet-projects-t4-git-ui\21524aa8-14d5-42ca-8f70-b8824dbab9b3.jsonl`
+`C:\Users\me\.claude\projects\F--src---pet-projects-t4-git-ui\21524aa8-14d5-42ca-8f70-b8824dbab9b3.jsonl`
 if someone wants to dig further, but an extraction pass over its assistant text blocks already came
 back empty for these labels.
 

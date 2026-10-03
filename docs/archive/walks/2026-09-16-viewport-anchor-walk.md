@@ -6,7 +6,7 @@ restart (`repoStore.reselect`) and snapshotted per tab. The scroll position was:
 a grid that outlives both a tab switch and a walk restart, and nothing put it back.
 
 Driven over CDP (`docs/smoke/smoke-cdp.md`) against a local `tauri build --no-bundle` launched with
-`smoke-launch.ps1` in its own WebView2 profile. Repositories: `c:/tmp/t4/mbk-clone` (10 956 commits,
+`smoke-launch.ps1` in its own WebView2 profile. Repositories: `c:/tmp/t4/big-repo-clone` (10 956 commits,
 clean) and this repo in a second tab (dirty, so it carries the working-tree row). Row height 26px,
 window 1280x800, so the grid scroller is 358px — about 13 rows.
 
@@ -49,7 +49,7 @@ version looked correct. `src/store/repoStore.test.ts` now carries the short-page
 
 | Step | Before | After |
 |---|---|---|
-| mbk-clone at row 100 → switch to the other tab → back | `scrollTop` 2600 → 2600, `2b02702` on top | same |
+| big-repo-clone at row 100 → switch to the other tab → back | `scrollTop` 2600 → 2600, `2b02702` on top | same |
 | A commit arrives while the viewport is at row 100 | 2600, top row **changed** `2b02702` → `cd6a8b8` | **2626**, top row still `2b02702` |
 | That commit removed again (`reset --hard HEAD~1`) | — | 2626 → **2600**, still `2b02702` |
 | At the top (`scrollTop` 0) when a commit arrives | — | stays **0**, the new commit `c5de855` comes into view, and the selection follows its own commit to row 1 |

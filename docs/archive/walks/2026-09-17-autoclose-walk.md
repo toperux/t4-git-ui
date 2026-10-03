@@ -6,7 +6,7 @@ empties the tree) in full, plus the two group **AX** bullets the settings-tabs w
 (`docs/smoke/smoke-cdp.md`) against a local `tauri build --no-bundle` of the three unpushed commits
 `9a9c0ac` / `19f9b8e` / `2781004`, launched with `docs/smoke/fixtures/smoke-launch.ps1` so its own
 `WEBVIEW2_USER_DATA_FOLDER` kept the installed 0.10.4 out of it. Fixture `c:/tmp/t4/irebase` for
-everything except AY 11, which needs `c:/tmp/t4/mbk-clone` (3004 files). Dark theme.
+everything except AY 11, which needs `c:/tmp/t4/big-repo-clone` (3004 files). Dark theme.
 
 The assertion in every AY bullet is which view the window is on afterwards, read as the toolbar
 `ViewSwitch`'s own labels (`History | Changes<N>`, `*` marking the active one) together with whether
@@ -37,7 +37,7 @@ AX 4's focusable counts were edited after the first walk and are still **not** r
 | 8 paused rebase | **pass, and this is the one the review fix was for** — see below |
 | 9 discard / terminal stash | **pass** both ways — stayed open. See the native-dialog note below |
 | 10 setting off | **pass** — unchecked, the commit left nothing and the view stayed on the empty state; after a restart it was still unchecked; re-checked and **left checked** |
-| 11 slow repo | **closed** — the `fetchStatus` seq-guard race did not show on `mbk-clone` |
+| 11 slow repo | **closed** — the `fetchStatus` seq-guard race did not show on `big-repo-clone` |
 
 ## AY 8, walked both ways
 
@@ -118,9 +118,9 @@ a text-matched click on "Commit" finds the banner's before the panel's — a CDP
 - `c:/tmp/t4/irebase` — reset to its snapshot HEAD `c172c6d` with `M a.txt` + `A dirty.txt` re-applied
   from patches, the walk's `ay7-side` / `ay8-pick` branches deleted and its one stash dropped.
   Verified byte-for-byte against the snapshot's `git status --porcelain`.
-- `c:/tmp/t4/mbk-clone` — `reset --hard HEAD~1`, back to `4832f67fb housekeeping`, clean.
+- `c:/tmp/t4/big-repo-clone` — `reset --hard HEAD~1`, back to `4832f67fb housekeeping`, clean.
 - `%APPDATA%/dev.topher.t4gitui/layout.json` — the five-tab session is restored from a backup taken
   before the start-screen step closed every tab, byte-identical. Reaching the start screen at all
   means closing them, and that file is shared with the installed app.
 - Settings › General › Changes — left **checked**, as AY 10 requires. `recents.json` carries the
-  walk's own openings (`mbk-clone`), which is ordinary use of a recents list.
+  walk's own openings (`big-repo-clone`), which is ordinary use of a recents list.

@@ -21,7 +21,7 @@ function settingsDialog() {
       ${sec('Diff', `${field('Context lines', '<span class="input" style="width: 96px;"><span>3</span></span>', 'Lines of unchanged context around each hunk (0–100).')}
         <div style="display: flex; flex-direction: column; gap: var(--space-4);">${check(false, 'Ignore whitespace by default')}</div>`)}
       ${sec('Diff tool', `${field('Tool', select('VS Code'), 'Opens a file’s two sides in the tool you pick here.')}
-        ${field('Path', inline(input('C:\\Users\\topher\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe'), locate, '<span class="btn secondary">Suggest</span>'), 'Found on this machine. Runs as <span class="mono" style="font-size: var(--text-xs);">"Code.exe" --wait --diff "$LOCAL" "$REMOTE"</span>')}`)}
+        ${field('Path', inline(input('C:\\Users\\me\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe'), locate, '<span class="btn secondary">Suggest</span>'), 'Found on this machine. Runs as <span class="mono" style="font-size: var(--text-xs);">"Code.exe" --wait --diff "$LOCAL" "$REMOTE"</span>')}`)}
       ${sec('Merge tool', field('Tool', select('None'), 'Opens a conflict’s three sides in the tool you pick here.'))}
     </div>
     <div class="dialog-foot"><span class="grow"></span><span class="btn primary">Close</span></div>

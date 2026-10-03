@@ -127,7 +127,7 @@ first (`docs/archive/walks/2026-10-01-phase-3-measure.md`) and walked as smoke g
   folder pickers, clone Cancel, theme flash / switch / first frame, the large-repo checks; over CDP:
   "Git not found", I's tag push; Resolve in editor ×2 over CDP with VSCodium). What is left is in
   `open-items.md` §B.
-- ~~macOS signing~~ — **done 2026-09-11**: a self-signed certificate shared with t4-markdown-viewer,
+- ~~macOS signing~~ — **done 2026-09-11**: a self-signed certificate shared with the sibling app,
   `APPLE_CERTIFICATE` / `APPLE_CERTIFICATE_PASSWORD` set on the repo, and a verify step that reddens
   the macOS leg rather than ship an unsigned bundle. Signing is what keeps the app's identity
   stable, which is what macOS keys folder-access grants to. Everything published up to v0.5.0 is
@@ -197,16 +197,16 @@ first (`docs/archive/walks/2026-10-01-phase-3-measure.md`) and walked as smoke g
     release gate: with the installed 0.10.14, a commit summary typed in Changes, then Settings › *Update to
     0.10.15…* asked before dropping the typed message (`docs/archive/walks/2026-10-01-v0.10.15-release-gate.md`).
     The confirm itself is F10, fixed 2026-09-25 (§I).
-- **Windows code signing** — **done 2026-10-01** (close-out Phase 1b, `docs/plans/2026-09-30-phase-1b-plan.md`).
-  The row as it stood: the NSIS setup is not Authenticode-signed, so every new Windows user meets SmartScreen's
-  "Windows protected your PC" and has to pick *More info › Run anyway*. The updater's minisign signature is a
-  different thing: it protects updates, not the first download. Close-out Phase 1b ports t4-markdown-viewer's
-  setup — its public `.github/workflows/release.yml` (`toperux/t4-markdown-viewer`) is the reference
-  implementation, and the user's `signing-and-repo-setup.md` (a working copy outside the repo) lists the repo
-  settings and the verify steps (Certum certificate, thumbprint `F06C…8151`, expires 2027-09-22). Recorded
-  2026-09-24 from group BF. What an unsigned setup actually met there (BF 3, in Windows Sandbox): **Edge warned on
-  the download**, and running it brought **no SmartScreen prompt**. So today the friction is the browser's download
-  warning. SmartScreen on run may still differ on a real machine, whose settings the Sandbox need not share.
+- **Windows code signing** — **done 2026-10-01** (close-out Phase 1b, `docs/plans/2026-09-30-phase-1b-plan.md`). The row
+  as it stood: the NSIS setup is not Authenticode-signed, so every new Windows user meets SmartScreen's "Windows
+  protected your PC" and has to pick *More info › Run anyway*. The updater's minisign signature is a different thing: it
+  protects updates, not the first download. Close-out Phase 1b ports the sibling app's setup — its
+  `.github/workflows/release.yml` is the reference implementation, and the user's `signing-and-repo-setup.md` (a working
+  copy outside the repo) lists the repo settings and the verify steps (Certum certificate, thumbprint `F06C…8151`,
+  expires 2027-09-22). Recorded 2026-09-24 from group BF. What an unsigned setup actually met there (BF 3, in Windows
+  Sandbox): **Edge warned on the download**, and running it brought **no SmartScreen prompt**. So today the friction is
+  the browser's download warning. SmartScreen on run may still differ on a real machine, whose settings the Sandbox need
+  not share.
   - **Closed 2026-10-01:** Release signs the setup and every exe in it with the Certum certificate through `ssign`, in
     the `signing` environment (the owner approves every run), and *Check the Windows signature* fails the leg unless
     each is `Valid`, timestamped and carries thumbprint `F06C…8151`. Both dry runs passed it — Release run 36674994686
@@ -377,7 +377,7 @@ the path alone. Kept here as the record of what was seen.
     waiting for it. The bound is now 3 s.
 
 The 61 items of §G are landed (29 follow-ups from a second review pass too), squashed to nine
-commits and pushed with the CI port from the markdown viewer (`a904701`).
+commits and pushed with the CI port from the sibling app (`a904701`).
 
 - ~~**The main ruleset's bypass list — check it.**~~ Answered 2026-09-12: the owner is on the
   bypass list by design, so the PR and review rules apply to bots and everyone else, not to them.
@@ -687,7 +687,7 @@ fixes and the walk added three more. The walk is `docs/archive/walks/2026-09-19-
   with a plain `fs::write`, not tmp + rename: the grace timer's write could be cut by a process exit in
   the same few microseconds, and an unreadable file restores nothing. A `set_layout` that lands after its
   window's `Destroyed` re-inserts the label for the session (older than this work). Decided against:
-  de-duplicating a repository held by both a closed entry and a live window, and t4-markdown-viewer's
+  de-duplicating a repository held by both a closed entry and a live window, and the sibling app's
   counter design (a report from another window inside the grace drops the closed one).
 - **Staging, accepted cost.** libgit2 reads the ignore files per path: 1861 untracked files under 61 nested
   `.gitignore` stage in 0.62 s against 0.48 s on 0.10.7; 1800 modified files in 0.57 s against 0.60 s.
@@ -1025,7 +1025,7 @@ Accepted as closed by the owner on 2026-09-29 without a one-by-one ruling, kept 
 
 Ruled one by one by the owner; detail in the *Triage* section of `docs/plans/2026-09-30-phase-1b-plan.md`. (T2 and
 T7 were fixed; T3 is an open accepted limit, `open-items.md` §Q, *What the Release build still fetches unpinned*;
-T10 is t4-markdown-viewer's README comma, to be pushed there on the owner's word.)
+T10 is the sibling app's README comma, to be pushed there on the owner's word.)
 
 - **T1** The `signing` environment lets admins bypass its approval (`can_admins_bypass: true`); the owner is the
   only admin and the only reviewer. Accepted 2026-10-01, no reopen trigger.

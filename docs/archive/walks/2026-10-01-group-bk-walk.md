@@ -132,9 +132,9 @@ walked later the same day on a build of `95f5b9b`; its own section below) (`docs
 - **Driver slip:** a CDP click at the centre of the narrow `x` tab (45 px) landed on its × and closed the tab, with
   no prompt. Re-seeded and re-walked with a click 10 px into the label. Not an app fault, but a 45 px tab puts its
   × close to the centre.
-- A layout of `[]` behaved two ways on two launches. The first launch, made right after the seed, opened
-  `t4-todo-vault` (the owner's most recent repository). Later launches with `[]`, written by the app's own quit,
-  opened the start screen. Not investigated.
+- A layout of `[]` behaved two ways on two launches. The first launch, made right after the seed, opened the owner's
+  most recent repository. Later launches with `[]`, written by the app's own quit, opened the start screen. Not
+  investigated.
 - Alt+2 typed in the History search box did nothing (the view stayed History); a click on the Changes switch worked.
   This may be on purpose for a text field.
 - The merge banner says *resolve conflicts, then commit to finish* after a hook-refused merge that has no conflicts.
@@ -211,11 +211,11 @@ the pre-squash hashes cited in this record, nor `b8f2e31`, exist on `origin/main
 Change review changed `blameAt` (`actions.ts`) and `selectTreePathAt` (`diffStore.ts`) after the builds above, so the
 rows they touch were walked again before the release.
 
-**Build:** `target\release\t4-git-ui.exe`, a local `tauri build --no-bundle` of `main` at `f3bc5fa`, the pushed
-squash. Same launch and driver, plus a scratch `--shot` (`Page.captureScreenshot`) and `--tag` step; every screenshot
-read. The store was backed up first; the first two launches opened the start screen with three *Couldn't open* toasts
-(a mis-escaped seed) and then `t4-todo-vault` (a `[]` layout, open-items §V F2), each quit at once untouched, before
-the seed of `bk-az`, `bk-blame` and `be` took.
+**Build:** `target\release\t4-git-ui.exe`, a local `tauri build --no-bundle` of `main` at `f3bc5fa`, the pushed squash.
+Same launch and driver, plus a scratch `--shot` (`Page.captureScreenshot`) and `--tag` step; every screenshot read. The
+store was backed up first; the first two launches opened the start screen with three *Couldn't open* toasts (a
+mis-escaped seed) and then the owner's most recent repository (a `[]` layout, open-items §V F2), each quit at once
+untouched, before the seed of `bk-az`, `bk-blame` and `be` took.
 
 - **BK 6, filter half** (`bk-az`): pass. Filter `commit 1`, `commit 199` selected; Changes → `f.txt` → Blame: toast
   *Not in the current view — clear the filter*, the view still Changes. Back in History: `commit 199`, the Changes

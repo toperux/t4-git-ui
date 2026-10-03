@@ -4,7 +4,7 @@ _Written 2026-09-30. Status: **done 2026-10-01** — O5–O8 done (dry run 36753
 walked, records committed. Executed on `phase-1b` from 2026-09-30 (the owner's go); Steps 1–8 committed, BJ
 1–4 walked, O1–O4 done (dry run 36674994686 green); change review pass 1 — no blockers, 3 should-fix, 8 nits,
 folded in; R1–R3 ruled (records ship in the squash; the publisher-name fix needs no re-run, actionlint only; the
-same fix committed in t4-markdown-viewer). Pass 2 — 2 should-fix, 5 nits, folded in; R4 ruled (a pre-squash →
+same fix committed in the sibling app). Pass 2 — 2 should-fix, 5 nits, folded in; R4 ruled (a pre-squash →
 squashed hash map in the records commit). Pass 3 — 3 doc nits, folded in. Pass 4 — clean. Triage T1–T10 ruled
 (below); passes 5–7 on its fixes, the last clean. Squashed 2026-10-01 to 7 commits (rehearsed in a throwaway worktree,
 tree identical); a post-squash review of the grouping and messages found 3 message nits, folded in, and T11
@@ -24,7 +24,7 @@ the app refuses an update whose signature carries no version. Rows closed: open-
 `docs/plans/2026-09-26-close-out-plan.md` › *Phase 1b*.
 
 Sources: the user's `F:/src/_ pet projects/signing-and-repo-setup.md` (*doc §n* below) and its reference
-implementation, `t4-markdown-viewer/.github/workflows/release.yml` (*ref:n*, read 2026-09-30). Line numbers here are
+implementation, the sibling app's `.github/workflows/release.yml` (*ref:n*, read 2026-09-30). Line numbers here are
 as of `ff79e41`. Branch: `phase-1b` off `main`, one commit per step while working, squashed at the end
 (`CLAUDE.md` step 7).
 
@@ -245,7 +245,7 @@ dry-run draft* (`ref:549-584`) verbatim. The header comment (`release.yml:3-6`) 
   Certum Open Source certificate, publisher "Open Source Developer Christopher Montevirgen" (the CN, no comma —
   change review pass 1); SmartScreen can still
   warn while the certificate builds a download reputation (**More info** → **Run anyway**); v0.10.14 and earlier are
-  unsigned. (The t4-markdown-viewer README's wording, adapted.)
+  unsigned. (The sibling app's README wording, adapted.)
 
 ### Step 8 — docs
 
@@ -270,7 +270,7 @@ entry came with Step 5); the docs commit's names the walk record, BJ 1–4 walke
   *Build the packages* at `:34` and `:39` becomes *Bundle and sign*); *When it goes wrong*'s import bullet
   (`:126-127`: "before anything is built" — the import now runs after the compile, before the bundle);
   step 5 (**every Release run waits for approval** — *Actions › the run › Review deployments*, one approval for the
-  three legs (t4-markdown-viewer's runs 36391238373 and 36263384387 each show one approval covering all three; O4
+  three legs (the sibling app's runs 36391238373 and 36263384387 each show one approval covering all three; O4
   records ours); nine jobs with `verify`; the CLI and `ssign`
   install from source on a cold cache, ~10 min more — no "Installed package" line to expect on a warm one); *Checking the packaging without spending a version* (a dispatch now rehearses the publish with a draft it
   deletes; it runs from `main` only, or from a branch added to the environment for the run — D3); *When it goes
@@ -389,7 +389,7 @@ records commit.
   mention the version-bound refusal — accepted, closed.
 - **T9** cosmetic: the plan's Step 8 draft wording of the skill's step 5; long plan lines; one long walk-record line;
   rounded vs exact leg times in walk row 4; the close-out Phase 1b table as a snapshot — accepted, closed.
-- **T10** t4-markdown-viewer's README comma, committed there as `f5f998e` — pushed later, on the owner's word.
+- **T10** the sibling app's README comma, committed there as `f5f998e` — pushed later, on the owner's word.
 - **T11** (post-squash review) `90a0a71`'s `verify`-job comment speaks of `requireSignedVersion` as on, though
   `f27dfef` turns it on; they shipped in one push — accepted, closed.
 

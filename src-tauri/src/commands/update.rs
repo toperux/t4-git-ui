@@ -2,8 +2,8 @@
 //!
 //! Wrapping the updater plugin's Rust API in app commands is what keeps
 //! `capabilities/default.json` untouched: app-defined commands are not
-//! permission-gated the way plugin commands are. The sibling app
-//! t4-markdown-viewer wraps it the same way, so the two stay one pattern.
+//! permission-gated the way plugin commands are. The sibling app wraps it
+//! the same way, so the two stay one pattern.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 

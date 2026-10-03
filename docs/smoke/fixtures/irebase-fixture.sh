@@ -16,8 +16,8 @@ F=${T4_ROOT:-/c/tmp/t4}/irebase
 rm -rf "$F"
 mkdir -p "$F"
 git -C "$F" init -q -b main
-git -C "$F" config user.name "Christopher Montevirgen"
-git -C "$F" config user.email "topher.m@gmail.com"
+git -C "$F" config user.name "Sam Doe"
+git -C "$F" config user.email "dev@example.com"
 
 c() { git -C "$F" add -A && git -C "$F" commit -q -m "$1"; }
 

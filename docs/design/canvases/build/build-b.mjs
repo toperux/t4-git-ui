@@ -182,7 +182,7 @@ function message({ width = 340, flex = false, compact = false, empty = false } =
     <div class="panel-header" style="flex: none;">${icon('git-commit', 14)}<span class="grow">Commit message</span><span class="icon-btn">${icon('history', 14)}</span></div>
     <div style="padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; flex: 1;">
       ${msgBox(compact ? 76 : 0, empty)}
-      ${compact ? '' : `<div style="display: flex; flex-direction: column; gap: 6px;"><span class="check"><span class="checkbox"></span>Amend last commit</span><span class="check"><span class="checkbox"></span>Add Signed-off-by</span><span class="input select"><span class="val">Sign: as configured</span>${icon('chevron-down', 14, 'chevron')}</span></div><div class="xs muted">${empty ? 'Topher M. · nothing staged' : 'Topher M. · will commit 2 staged files'}</div>`}
+      ${compact ? '' : `<div style="display: flex; flex-direction: column; gap: 6px;"><span class="check"><span class="checkbox"></span>Amend last commit</span><span class="check"><span class="checkbox"></span>Add Signed-off-by</span><span class="input select"><span class="val">Sign: as configured</span>${icon('chevron-down', 14, 'chevron')}</span></div><div class="xs muted">${empty ? 'Sam Doe · nothing staged' : 'Sam Doe · will commit 2 staged files'}</div>`}
       <div style="display: flex; gap: 8px; margin-top: auto; align-items: center;">${compact ? `<span class="icon-btn" title="Amend, sign-off, message history">${icon('ellipsis', 14)}</span>` : ''}<span class="btn primary ${empty ? 'is-disabled' : ''}" style="flex: 1;">${icon('check', 14)}Commit</span><span class="btn secondary ${empty ? 'is-disabled' : ''}">Commit &amp; Push</span></div>
     </div>
   </div>`;
@@ -263,7 +263,7 @@ const EMPTY_GROUPS = [
   { label: 'Recent', items: [['archive', 'Stash changes…', '', true], ['git-branch', 'Checkout feature/lane-graph'], ['terminal', 'Run git command…', 'Ctrl+Shift+R']] },
   { label: 'Views', items: [['history', 'History', 'Alt+1'], ['git-commit', 'Changes', 'Alt+2']] },
   { label: 'Go to branch', items: [['git-branch', 'main <span class="xs muted">· current</span>'], ['git-branch', 'feature/lane-graph'], ['cloud', 'origin/main'], ['ellipsis', '<span class="muted">+1 more…</span>']] },
-  { label: 'Repositories', items: [['folder-git', 'libgit2 <span class="xs muted">· recent</span>'], ['folder-git', 'mbk-portal <span class="xs muted">· recent</span>']] },
+  { label: 'Repositories', items: [['folder-git', 'libgit2 <span class="xs muted">· recent</span>'], ['folder-git', 'big-repo <span class="xs muted">· recent</span>']] },
 ];
 
 // ---------- full-window dialogs ----------

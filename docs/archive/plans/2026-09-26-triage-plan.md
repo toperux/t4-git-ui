@@ -73,10 +73,9 @@ No hand check needed: the repro is known.
 The local doc cannot simply be replaced: the Phase 1b table's *Doc item* numbers (1a–1c, 2a–2e) and "the
 doc's verify sequence" are its sections, and the repo settings it covers (the `signing` environment, secrets,
 Actions settings) are in no workflow file. So name both, without the local path:
-- `open-items.md` §B, Windows code signing: *ports t4-markdown-viewer's setup — its public
-  `.github/workflows/release.yml` (`toperux/t4-markdown-viewer`) is the reference implementation, and the
-  user's `signing-and-repo-setup.md` (a working copy outside the repo) lists the repo settings and the verify
-  steps*. Keep the Certum facts (thumbprint `F06C…8151`, expires 2027-09-22).
+- `open-items.md` §B, Windows code signing: *ports the sibling app's setup — its `.github/workflows/release.yml` is the
+  reference implementation, and the user's `signing-and-repo-setup.md` (a working copy outside the repo) lists the repo
+  settings and the verify steps*. Keep the Certum facts (thumbprint `F06C…8151`, expires 2027-09-22).
 - Close-out plan, Phase 1b's first line: the same wording. Its table keeps the doc's section numbers, now
   read as "the working copy's sections"; the Phase 1b plan carries whatever it needs into the repo.
 

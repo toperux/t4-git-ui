@@ -300,7 +300,7 @@ jobs:
       # app's code signature, so an unsigned build asks again on every launch —
       # worse here than in most apps, because the recursive watcher, the git2
       # reads and every spawned `git` are charged to the parent. Shared with
-      # t4-markdown-viewer; the app identifier keeps the two distinct. Self-signed
+      # the sibling app; the app identifier keeps the two distinct. Self-signed
       # and *not* notarized, so Gatekeeper still stops the first launch.
       # APPLE_CERTIFICATE must NOT be set here: it would send Tauri back down the
       # importer that cannot resolve this certificate.

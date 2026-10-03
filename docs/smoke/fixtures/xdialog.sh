@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Answers the app's native GTK dialogs under Xvfb, the Linux counterpart of smoke-dialog.ps1
-# (see docs/smoke/smoke-linux.md). Taken from t4-markdown-viewer's drive-app skill.
+# (see docs/smoke/smoke-linux.md). Taken from the sibling app's drive-app skill.
 #   xdialog.sh <pid> --dump                          list the app's visible windows and titles
 #   xdialog.sh <pid> --title <regex> <path>          folder picker: type the path, pick it
 #   xdialog.sh <pid> --title <regex> --ok|--cancel   ask() box: Return or Escape

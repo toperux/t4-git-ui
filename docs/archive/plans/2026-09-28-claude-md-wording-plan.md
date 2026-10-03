@@ -1,4 +1,4 @@
-# Plan: the markdown viewer's CLAUDE.md wording, and an Accepted limits section in open-items
+# Plan: the sibling app's CLAUDE.md wording, and an Accepted limits section in open-items
 
 _Written 2026-09-28. Status: **executed 2026-09-28**, on the owner's go. The plan was reviewed until a pass found
 nothing (pass 6; passes 1–5: 19, 11, 5, 7 and 2 findings, owner decisions O1–O13). The change review ran in
@@ -8,28 +8,28 @@ close-out Phase 2a (§I), on the owner's call. Branch `claude-md-draft` (the dra
 `main` on 2026-09-28 because it wasn't ready to go live)._
 
 **Goal:**
-- The draft `CLAUDE.md` takes the markdown viewer's wording, except where this repo's conventions differ. The
+- The draft `CLAUDE.md` takes the sibling app's wording, except where this repo's conventions differ. The
   rules themselves don't change, apart from filling one gap (step 5 never said to fix the findings).
 - `docs/plans/open-items.md` gets a section for open accepted limits (D1), with one rule for what goes there:
   **an accepted limit with a reopen trigger is open (§Q); one with no trigger is closed (the done file)** (O3, O6).
   The accepted items with a trigger now recorded elsewhere in `open-items.md` (D3, O10: scheduled ones too) and in
   `open-items-done.md` (O3, O6, O7) move there.
 
-**Source:** `F:/src/_ pet projects/t4-markdown-viewer/CLAUDE.md` (2026-09-28).
+**Source:** the sibling app's `CLAUDE.md` (2026-09-28).
 
 Labels AL1–AL17 below are this plan's only; the files get bold titles, not numbers (the review's Q1–Q32 IDs are
 cited live, so a "Q1" would collide).
 
-## Part 1 — `CLAUDE.md` (O1: the viewer's wording, except the kept list)
+## Part 1 — `CLAUDE.md` (O1: the sibling app's wording, except the kept list)
 
-Take the viewer's text for every line, then apply only these differences:
+Take the sibling app's text for every line, then apply only these differences:
 
 **Kept from this repo:**
 - the title `# CLAUDE.md`;
 - step 1's "**Prompt.** The owner says what needs to happen or be implemented.";
 - step 2's plan path: `docs/plans/YYYY-MM-DD-<name>-plan.md` (every plan in `docs/plans/` is dated);
 - lines hard-wrapped at about 117 columns, like the repo's other docs;
-- step 5's list: "every finding that was skipped, and every limit to propose for acceptance" (O5), not the viewer's
+- step 5's list: "every finding that was skipped, and every limit to propose for acceptance" (O5), not the sibling app's
   "every accepted limit found": a limit is accepted only once the owner decides it in triage.
 
 **Step 6's Defer and Accept targets, mapped to this repo:**
@@ -39,7 +39,7 @@ Take the viewer's text for every line, then apply only these differences:
   limits*). With none, it's a closed accepted item kept for reference: `docs/plans/open-items-done.md`, in the section
   it came from or a new dated section.
 
-**What that brings in from the viewer** (for the review to check against): the intro line ("Follow these steps in
+**What that brings in from the sibling app** (for the review to check against): the intro line ("Follow these steps in
 order. Don't skip a step, and don't merge two steps into one."); step 3's and step 5's "fix what the review finds /
 the findings, and review again" and "When a finding needs a decision, ask the owner at once"; step 5's "Collect …
 show the list to the owner"; step 6's heading and bold **Fix it / Defer it / Accept it**; step 7's "Only once the
@@ -47,7 +47,7 @@ review-fix loops are done, squash related commits into logical ones for the push
 open a PR" goes) and "A go on the task is not a go to push; each needs the owner's go-ahead at that moment".
 
 **D2, "owner":** every place the draft means the person who decides — today `:5`, `:6`, `:9` ("the user's to
-make"), `:11` ("a user edit" → "an edit by the owner", as the viewer has it), `:12`, `:18`, `:30`, `:31`. Kept:
+make"), `:11` ("a user edit" → "an edit by the owner", as the sibling app has it), `:12`, `:18`, `:30`, `:31`. Kept:
 `:36`, "what the user sees" (someone using the app). D2 covers `CLAUDE.md` only; `open-items.md` and the plans keep
 "the user".
 
@@ -158,13 +158,13 @@ do, not as a limit); §C custom titlebar (stays in open-items §C).
 ## Decisions (the owner, 2026-09-28)
 
 - **D1:** open accepted items get their own section in `open-items.md`.
-- **D2:** "owner", as the markdown viewer has it (in `CLAUDE.md`).
+- **D2:** "owner", as the sibling app has it (in `CLAUDE.md`).
 - **D3:** the existing open accepted items move in this change.
-- **O1:** take the viewer's wording except the kept list.
+- **O1:** take the sibling app's wording except the kept list.
 - **O2:** the `.sig` row isn't moved; it becomes a Phase 1b task.
 - **O3:** the done file's accepted rows with a reopen trigger move too.
 - **O4:** the T4 row moves to the done file.
-- **O5:** step 5 says "every limit to propose for acceptance", one more difference from the viewer.
+- **O5:** step 5 says "every limit to propose for acceptance", one more difference from the sibling app.
 - **O6:** "do not re-offer" rows with a trigger move too (AL8, AL12); the rule is trigger or no trigger.
 - **O7:** the `glib` alert and the `runOp` note move (AL13, AL14).
 - **O8:** the close-out plan's Phase 0 summary gets a "(in open-items §Q since 2026-09-28)" note.
@@ -177,7 +177,7 @@ do, not as a limit); §C custom titlebar (stays in open-items §C).
 
 ## Verify
 
-- **`CLAUDE.md` vs the viewer's:** join each file's wrapped lines first, then `git diff --no-index --word-diff`;
+- **`CLAUDE.md` vs the sibling app's:** join each file's wrapped lines first, then `git diff --no-index --word-diff`;
   the only differences are the kept list and step 6's Defer and Accept targets.
 - **Line width:** no added or changed line over 120 characters (existing long lines are out of scope).
 - **Consistency:** these agree with the rule and with §Q: `open-items.md:1-10`, `:90`, `:95`, §Q's intro, the `.sig`

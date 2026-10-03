@@ -1,7 +1,7 @@
 # Pane resize walk — 2026-09-15
 
 The `preserve-pixel-size` change ("resizing the window moves only the commit grid and the diff"),
-walked over CDP against a local release build of the working tree, `mbk-portal` open in History view.
+walked over CDP against a local release build of the working tree, `big-repo` open in History view.
 
 Driven by a hand-rolled CDP script rather than the Playwright MCP server: `browser_resize` calls
 `page.setViewportSize`, which installs a device-metrics emulation override that pins the viewport and

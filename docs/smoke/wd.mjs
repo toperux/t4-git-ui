@@ -1,5 +1,5 @@
 // WebDriver counterpart of cdp.mjs, for Linux (WebKitGTK through tauri-driver) — see
-// docs/smoke/smoke-linux.md. Taken from t4-markdown-viewer's drive-app skill.
+// docs/smoke/smoke-linux.md. Taken from the sibling app's drive-app skill.
 // node wd.mjs start <app> [args…] | eval "<expr>" | click "<css selector>"
 //   | rclick "<sel>" | dblclick "<sel>"
 //   | key <Key>[+<Key>…] (e.g. key ArrowRight, key Control+o) | drag "x,y x,y …"

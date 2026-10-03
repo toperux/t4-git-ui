@@ -48,7 +48,7 @@ function chips(t) {
         `<span class="chip bisect bad">${icon('bug', 11)}bad</span>`,
         `<span class="chip bisect">${icon('bug', 11)}skip</span>`,
         `<span style="width: 12px;"></span>`,
-        `<span class="sm">Topher M. <span class="signed">signed</span></span>`,
+        `<span class="sm">Sam Doe <span class="signed">signed</span></span>`,
       ], 8)}
       <div class="xs muted">A bisect mark is a chip whose <em>name is its state</em>: <span class="mono">good</span> takes <span class="mono">--success-soft</span>/<span class="mono">--success</span>, <span class="mono">bad</span> takes <span class="mono">--danger-soft</span>/<span class="mono">--danger-text</span>, and <span class="mono">skip</span> stays the plain remote grey. Icon is <span class="mono">Bug</span> for all three. The <span class="signed">signed</span> marker beside a commit's author is not a ref, so it is not a Chip kind — same shape on <span class="mono">--success-soft</span>/<span class="mono">--success</span>.</div>
       <div class="xs muted">Local + its tracking remote on the same commit → one chip with a remote segment (“feature/lane-graph · origin”; several remotes comma-joined). An upstream not named after its branch is spelled out (“feature · origin/trunk”), or the segment would name a branch that may not be the upstream. Remote ahead/behind → separate <span class="chip remote" style="height: 16px;">origin/x</span> chip on its own row.</div>

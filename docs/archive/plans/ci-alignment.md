@@ -2,10 +2,9 @@
 
 ## Context
 
-This repo is one of three t4 projects whose GitHub Actions workflows are being aligned to a
-single shared shape. The other two — `t4-claude-session-browser` (pure Rust, egui) and
-`t4-markdown-viewer` (Tauri 2, no npm) — are out of scope here and have their own copies of
-this plan. Everything below is self-contained; the shared shape is authoritative.
+This repo is one of three t4 projects whose GitHub Actions workflows are being aligned to a single shared shape. The
+other two — an egui app (pure Rust) and a Tauri app (Tauri 2, no npm) — are out of scope here and have their own copies
+of this plan. Everything below is self-contained; the shared shape is authoritative.
 
 git-ui is a Tauri 2 app with an npm/vite/TypeScript frontend, laid out as a cargo workspace
 (`crates/git-core`, `src-tauri`; version in the root `Cargo.toml` under `[workspace.package]`,

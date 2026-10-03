@@ -28,10 +28,10 @@ export function build(theme) {
         <div style="display: flex; align-items: center; gap: 8px;"><span class="label">Recent</span><div style="flex: 1;"></div><span class="input" style="width: 220px; height: var(--control-h-sm);">${icon('search', 14)}<span class="ph">Filter repositories</span></span></div>
         <div class="list">
           ${repo('is-selected', 't4-git-ui', 'F:\\src\\_ pet projects\\t4-git-ui', '2h ago', true)}
-          ${repo('', 'git', 'C:\\Users\\toper\\src\\git', 'Yesterday', true)}
-          ${repo('is-hover', 'rust', 'C:\\Users\\toper\\src\\rust', 'Aug 28')}
-          ${repo('', 'GitExtensions', 'C:\\Users\\toper\\src\\gitextensions', 'Aug 22')}
-          ${repo('', 'dotfiles', 'C:\\Users\\toper\\dotfiles', 'Aug 12')}
+          ${repo('', 'git', 'C:\\Users\\me\\src\\git', 'Yesterday', true)}
+          ${repo('is-hover', 'rust', 'C:\\Users\\me\\src\\rust', 'Aug 28')}
+          ${repo('', 'GitExtensions', 'C:\\Users\\me\\src\\gitextensions', 'Aug 22')}
+          ${repo('', 'dotfiles', 'C:\\Users\\me\\dotfiles', 'Aug 12')}
         </div>
         <div class="xs faint">Enter opens · Del removes from list · ${icon('pin', 11)} keeps at top</div>
       </div>

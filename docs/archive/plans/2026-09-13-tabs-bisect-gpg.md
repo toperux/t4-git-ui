@@ -49,7 +49,7 @@ window; every window is a full T4 Git window. A worktree's or submodule's **Open
   switch (*audit:* an open dialog references the active repo). A `repo://changed` / `log://progress`
   for an inactive id only flags that tab **stale** (dot on the tab); activation runs the normal
   refresh. Hot tabs rejected: re-keys every selector for no visible gain.
-- **Detach — decided (revised 2026-09-13): drag and drop, ported from t4-markdown-viewer.**
+- **Detach — decided (revised 2026-09-13): drag and drop, ported from the sibling app.**
   Drag a tab within the strip to reorder; drag it out of the strip to tear it off into a new
   window at the cursor; drag it over another T4 Git window's strip to move it there (Windows
   only — see the DnD section). **Move to new window** stays in the tab menu (+ Ctrl+Shift+N) as
@@ -64,7 +64,7 @@ window; every window is a full T4 Git window. A worktree's or submodule's **Open
 - **D4 — decided: restore windows + their tabs on launch.** *Audit 2 — the layout is owned by
   Rust, not `recents.json`:* every window writes the same store file, a window only knows its
   own tabs, and "user closed one window" must not be confused with "app quit closed them all".
-  So, markdown-viewer's `session.rs` shape: each window calls `set_layout(window, { tabs,
+  So, the sibling app's `session.rs` shape: each window calls `set_layout(window, { tabs,
   active })` on every tab change; `AppState.layouts: HashMap<label, Layout>`; `Destroyed` drops
   the label's entry unless the app is exiting; `RunEvent::ExitRequested` writes the map to
   `layout.json` in the app data dir. On launch `main` reads it (`take_layout`), opens the first
@@ -99,26 +99,26 @@ window; every window is a full T4 Git window. A worktree's or submodule's **Open
   built invisible on a worker thread, main window's size, `Placement::Cursor(x, y)` or default;
   the payload is parked in `AppState.pending: HashMap<label, { tabs: Vec<String>, active }>`
   (*audit:* a window restored from the layout carries N tabs, a tear-off carries one) and the
-  new window pulls it with `take_pending()` on startup (markdown-viewer's shape — no URL-encoding
+  new window pulls it with `take_pending()` on startup (the sibling app's shape — no URL-encoding
   of paths). On build failure emit `tab-spawn-failed { path }` back to the source so it keeps
   its tab.
 - *Audit:* `tauri-plugin-window-state` restores **every** window on creation, so a torn-off
   `w1` would snap to its saved frame instead of the cursor. Restrict the plugin to `main`
   (`Builder::with_filter(|label| label == "main")` — **verify** the installed version has it,
   else `with_denylist` of `w1..w9`); secondary windows keep no frame across launches and open
-  at the main window's size, offset. Persisting their frames like markdown-viewer's `Frame` is
+  at the main window's size, offset. Persisting their frames like the sibling app's `Frame` is
   the upgrade if asked.
-  `capabilities/default.json` `windows: ["main", "w*"]` (the glob is what markdown-viewer ships).
+  `capabilities/default.json` `windows: ["main", "w*"]` (the glob is what the sibling app ships).
 - No native menu exists (the toolbar is HTML), so nothing is per-window there. The updater dialog
   runs in whichever window checked; guard the automatic check with "main window only" so two
   windows do not both prompt.
 
-### Drag and drop (ported from `t4-markdown-viewer`, `src/app.js:1325-1586` + `main.rs:290-842`)
+### Drag and drop (ported from the sibling app, `src/app.js:1325-1586` + `main.rs:290-842`)
 HTML5 DnD cannot cross a webview, so it is **pointer capture** on the strip, a **ghost chip**
 that follows the cursor once the tab leaves the strip, and Rust doing the **screen-space
 hit-test** of other windows. Same constants: 5 px start threshold, 24 px strip slack before a
 drag counts as detached, 30 ms probe throttle.
-- **Rust commands** (copy from markdown-viewer, adjust the payload to `{ path }`):
+- **Rust commands** (copy from the sibling app, adjust the payload to `{ path }`):
   - `window_origin() -> { x, y, scale, exact }` — `inner_position()`; Wayland has no exact
     position (`exact: false`, x/y 0), which disables cross-window drops there.
   - `drag_over(x, y) -> Option<label>` — `window_at(x, y)` excluding the source; on target change
@@ -156,7 +156,7 @@ drag counts as detached, 30 ms probe throttle.
   { cursor: grabbing }`.
 - **Tab payload is only `{ path }`**: the repo's state lives in the backend handle, and the
   window-local slices (selection, commit draft) are dropped on the hop. Carrying the `Snapshot`
-  across is a follow-up if it bites (markdown-viewer carries history + scroll; a commit draft is
+  across is a follow-up if it bites (the sibling app carries history + scroll; a commit draft is
   the one thing worth carrying here).
 
 ### Frontend
@@ -184,7 +184,7 @@ drag counts as detached, 30 ms probe throttle.
   tab removed on `spawned`/`adopted`, kept on `none`, Escape reverts), `recentsStore.test.ts`
   layout migration, Rust `holders` refcount (two labels open, one closes → handle alive; last
   closes → gone; destroyed event → gone; `drop_tab` moves the label without dropping the handle).
-  markdown-viewer has no DnD tests; these are new. *Audit:* jsdom has no `setPointerCapture` /
+  the sibling app has no DnD tests; these are new. *Audit:* jsdom has no `setPointerCapture` /
   `releasePointerCapture` — stub both on `Element.prototype` in the test's setup.
 
 ### Smoke
@@ -204,11 +204,11 @@ drag counts as detached, 30 ms probe throttle.
 - ~~`tauri-plugin-window-state` restores `w<n>` positions by label …~~ *audit:* wrong — it
   restores on creation, which fights the cursor placement; see the filter in Backend.
 - Cross-window adoption is Windows-only (`WindowFromPoint`); macOS / Linux get reorder and
-  tear-off, and "Move to new window". Same ceiling as markdown-viewer; no `ponytail:` needed
+  tear-off, and "Move to new window". Same ceiling as the sibling app; no `ponytail:` needed
   beyond the `window_at` stub's comment.
 - The Win32 hit-test needs `Win32_UI_WindowsAndMessaging` — *audit:* `windows-sys 0.61` is
   already a `cfg(windows)` dependency of git-core; add the same crate + that feature under
-  `src-tauri`'s `[target.'cfg(windows)'.dependencies]`, no new crate (port markdown-viewer's
+  `src-tauri`'s `[target.'cfg(windows)'.dependencies]`, no new crate (port the sibling app's
   calls to `windows-sys` if it uses `windows`).
 - Memory: N handles + N watchers + N row arrays per window. No cap.
 

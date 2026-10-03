@@ -15,9 +15,9 @@ The walk of `smoke-test-post-v1.md` › group BH, the Phase 2a fixes (`docs/plan
   didn't cause.
 - **Fixtures:**
   - `smoke-fixtures.ps1 -Force` (`work`, `other`), `bd-fixture.sh` (`bd`) and `bd2-fixture.sh` (`be`).
-  - `c:\tmp\t4\mbk-clone`, a local clone of a 12k-commit repository.
-  - `c:\tmp\t4\slowrefs`, a clone of `mbk-clone` with 150 000 lightweight tags (`update-ref --stdin`, then `pack-refs`).
-    It was made for rows 1 and 3 and deleted afterwards.
+  - `c:\tmp\t4\big-repo-clone`, a local clone of a 12k-commit repository.
+  - `c:\tmp\t4\slowrefs`, a clone of `big-repo-clone` with 150 000 lightweight tags (`update-ref --stdin`, then
+    `pack-refs`). It was made for rows 1 and 3 and deleted afterwards.
 - **Store folder:** the installed app was closed. The caller had already backed up `%APPDATA%\dev.topher.t4gitui\`
   (`.window-state.json`, `layout.json`, `recents.json`, `x.json`). After the walk, `layout.crashed.json` was deleted
   (no `layout.restoring` was left) and the four files were copied back. `cmp` found all four byte-identical and the
@@ -26,7 +26,7 @@ The walk of `smoke-test-post-v1.md` › group BH, the Phase 2a fixes (`docs/plan
 ## Why rows 1 and 3 needed a slow repository
 
 - **The mark is short-lived on small repositories.** `layout.restoring` lives from ~420 ms to ~620 ms after the
-  launch, for `work` + `other` and also for `mbk-clone` + `work`.
+  launch, for `work` + `other` and also for `big-repo-clone` + `work`.
 - **`taskkill` is slower than that.** It takes ~350 ms itself, so three attempts killed the app just after the mark
   was cleared, even when fired 50–100 ms after the mark appeared. In all three the mark existed at the check before
   the kill and was gone after it, the session restored, and there was no toast. That is also a no-false-trip result.
@@ -58,7 +58,7 @@ The walk of `smoke-test-post-v1.md` › group BH, the Phase 2a fixes (`docs/plan
   to the seed. Walked twice. The first run didn't read `lastOpen` back before the launch. In the second, the hand
   edit had garbled it to `c:\tmp\t4work` (shell escaping), which is still non-null, and it was cleared to null.
 - **3: pass,** in five cases:
-  - **Kill after a full restore** (`mbk-clone` + `work`, mark gone): both windows back, no toast.
+  - **Kill after a full restore** (`big-repo-clone` + `work`, mark gone): both windows back, no toast.
   - **Quit** (Ctrl+Q): both back, no toast.
   - **Windows closed one by one** (`WM_CLOSE`, 1 s apart): both back, no toast.
   - **Quit while the second window is still restoring** (`work` + `slowrefs`): Ctrl+Q went to `work` with the mark

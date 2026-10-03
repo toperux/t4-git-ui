@@ -43,7 +43,7 @@ function message() {
         <span class="check"><span class="checkbox"></span>Add Signed-off-by</span>
         <span class="input select"><span class="val">Sign: as configured</span>${icon('chevron-down', 14, 'chevron')}</span>
       </div>
-      <div class="xs muted" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Topher M. &lt;topher.m@gmail.com&gt; · will commit 2 staged files</div>
+      <div class="xs muted" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Sam Doe &lt;dev@example.com&gt; · will commit 2 staged files</div>
       <div style="display: flex; gap: 8px; margin-top: auto;">
         <span class="btn primary" style="flex: 1;">${icon('check', 14)}Commit</span>
         <span class="btn secondary">Commit &amp; Push</span>

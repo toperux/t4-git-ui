@@ -90,8 +90,8 @@ puts the focus back on the list and `↓` moves; the dock reopened at 300 after 
   same outside write. The diff lost its markers on its own within a second, the row stayed `C`
   and the Resolve button stayed until the file is staged. Pass.
 - **K12 POSIX `file://`** on the WebKitGTK build under WSLg (`docs/archive/walks/…`, recipe in memory):
-  Clone… from `file:///home/toperux/bare.git` into `/home/toperux/clones` → statusbar
-  `origin · /home/toperux/bare`, leading slash kept; the Windows app cloning
+  Clone… from `file:///home/me/bare.git` into `/home/me/clones` → statusbar
+  `origin · /home/me/bare`, leading slash kept; the Windows app cloning
   `file:///C:/tmp/t4/bare.git` reads `origin · C:/tmp/t4/bare`. Pass. Along the way the Linux
   clone dialog also kept its fields and the URL focus after a failed clone (K2 holds there too).
 - Still unticked: main §6 DPI change — needs a second monitor at another scale.

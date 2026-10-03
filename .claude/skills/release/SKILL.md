@@ -45,7 +45,7 @@ the app** compiles with no secrets in env; the keys reach only the steps after i
   signature** then checks the installer and every exe in it against the certificate's thumbprint.
 
 `APPLE_CERTIFICATE` and `APPLE_CERTIFICATE_PASSWORD` are the macOS pair — a self-signed
-certificate shared with t4-markdown-viewer; the identity name sits in the workflow, not in a
+certificate shared with the sibling app; the identity name sits in the workflow, not in a
 secret. **Import the macOS signing certificate** consumes them, and a missing or wrong one fails
 there, after the compile and before the bundle. They are deliberately *not* passed to **Bundle
 and sign**: Tauri's own importer only resolves Apple-issued certificate names, so handing it

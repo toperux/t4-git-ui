@@ -52,16 +52,16 @@ Custom titlebar (revisited in M6, native kept) · i18n · plugins.
   - (2026-09-27) **Whatever replaces it keeps the AppImage repack.** `release.yml` strips the build host's
     `libwayland-client` from the AppImage (§P). Any older-than-the-user build host needs that, a `container:
     ubuntu:22.04` job included.
-  - (§K, 2026-09-16) **Still pinned** in `checks.yml:28` and `release.yml:116`, and **t4-markdown-viewer
+  - (§K, 2026-09-16) **Still pinned** in `checks.yml:28` and `release.yml:116`, and **the sibling app
     is in exactly the same state** (asked and answered 2026-09-16: still pinned, no decision recorded,
     the reasoning lives only in its archived `ci-alignment*.md`). So the cross-repo decision is genuinely
     unmade. The deprecation is a **label warning, not a break** — the first hard failure is the
     2027-03-23 brownout. If the Linux leg moves into a `container:`, check rustfmt is in
-    the image: the markdown viewer runs `Format` on the Linux leg only.
+    the image: the sibling app runs `Format` on the Linux leg only.
 - **The Certum code-signing certificate expires 2027-09-22.** After that, Release fails on Windows — most likely at
   *Bundle and sign* (Certum's service won't sign with an expired certificate), else at *Check the Windows
   signature*; releases already signed stay valid (the signatures are timestamped). **Renew by 2027-08-22**, then
-  update the thumbprint in `release.yml` (*Check the Windows signature*) and in t4-markdown-viewer's. Added
+  update the thumbprint in `release.yml` (*Check the Windows signature*) and in the sibling app's. Added
   2026-09-30 (close-out Phase 1b, D5).
 
 ## I. Deferred with a reason — the `to revisit` rows and the `ponytail:` ceilings (accepted ones: §Q)

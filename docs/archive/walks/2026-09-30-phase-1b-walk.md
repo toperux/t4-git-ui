@@ -25,8 +25,8 @@ WebView2 profile were copied aside first. Launched with `smoke-launch.ps1` (isol
    it verifies, `updater.rs:740-746`; the download itself was not observed separately.)
 2. **Positive** — pass. v0.10.14's `latest.json` copied over the served file byte for byte (`cmp`). **Check now**
    → *Version 0.10.14 is available*, **Update to 0.10.14…** → the installed setup ran: at 12:36:11 pid 60984 was
-   gone and pid 60652 up, running `C:\Users\toper\AppData\Local\T4 Git UI\t4-git-ui.exe`, file version 0.10.14,
-   the window back with its four tabs (`ssign`, `t4-git-ui`, `t4-markdown-viewer`, `t4-todo-vault`). **Check now**
+   gone and pid 60652 up, running `C:\Users\me\AppData\Local\T4 Git UI\t4-git-ui.exe`, file version 0.10.14,
+   the window back with its four tabs (`ssign`, `t4-git-ui` and two other repositories). **Check now**
    there (the real endpoint) → *T4 Git UI 0.10.14 is up to date*. The restarted app inherited the launch's
    environment: it answered on CDP 9222 and used the isolated WebView2 profile, so the owner's profile was never
    opened by it.

@@ -133,7 +133,7 @@ export function statusbar({
   ab = true,
   detached = false,
   unborn = false,
-  remote = 'origin · github.com:topher/t4-git-ui',
+  remote = 'origin · github.com:owner/t4-git-ui',
   busy = null,
   loading = null,
   counts = null,
@@ -185,19 +185,19 @@ export function graph(theme, rows, { laneW = 13, rowH = 26, lanes = 3 } = {}) {
 /** Standard demo history (14 rows). */
 export const DEMO_ROWS = [
   { lane: 0, color: 0, kind: 'wt', lines: [[0, 0, 0]], subj: 'Working tree · 4 changes', wt: true },
-  { lane: 0, color: 0, kind: 'head', lines: [[0, 0, 0]], subj: 'Dedupe lanes when parent already expected', chips: 'head', author: 'Topher M.', date: '2h ago', sha: 'a1b2c3d' },
-  { lane: 0, color: 0, kind: 'commit', lines: [[0, 0, 0], [0, 1, 1]], subj: 'Merge branch ‘feature/lane-graph’ into main', chips: 'origin', author: 'Topher M.', date: '3h ago', sha: '9f8e7d6' },
-  { lane: 1, color: 1, kind: 'commit', lines: [[0, 0, 0], [1, 1, 1]], subj: 'Emit MergeInto lines for octopus parents', chips: 'feature', author: 'Topher M.', date: 'Yesterday', sha: '5c4b3a2' },
+  { lane: 0, color: 0, kind: 'head', lines: [[0, 0, 0]], subj: 'Dedupe lanes when parent already expected', chips: 'head', author: 'Sam Doe', date: '2h ago', sha: 'a1b2c3d' },
+  { lane: 0, color: 0, kind: 'commit', lines: [[0, 0, 0], [0, 1, 1]], subj: 'Merge branch ‘feature/lane-graph’ into main', chips: 'origin', author: 'Sam Doe', date: '3h ago', sha: '9f8e7d6' },
+  { lane: 1, color: 1, kind: 'commit', lines: [[0, 0, 0], [1, 1, 1]], subj: 'Emit MergeInto lines for octopus parents', chips: 'feature', author: 'Sam Doe', date: 'Yesterday', sha: '5c4b3a2' },
   { lane: 0, color: 0, kind: 'commit', lines: [[0, 0, 0], [1, 1, 1]], subj: 'Cache log pages by generation', author: 'Ada L.', date: 'Yesterday', sha: '1e2d3c4' },
-  { lane: 1, color: 1, kind: 'commit', lines: [[0, 0, 0], [1, 1, 1]], subj: 'Lane layout: eager dedupe of first parent', author: 'Topher M.', date: 'Aug 29', sha: '7d6c5b4' },
-  { lane: 1, color: 1, kind: 'commit', lines: [[0, 0, 0], [1, 0, 1]], subj: 'Start lane graph module', chips: 'more', author: 'Topher M.', date: 'Aug 29', sha: '3b2a1f0' },
+  { lane: 1, color: 1, kind: 'commit', lines: [[0, 0, 0], [1, 1, 1]], subj: 'Lane layout: eager dedupe of first parent', author: 'Sam Doe', date: 'Aug 29', sha: '7d6c5b4' },
+  { lane: 1, color: 1, kind: 'commit', lines: [[0, 0, 0], [1, 0, 1]], subj: 'Start lane graph module', chips: 'more', author: 'Sam Doe', date: 'Aug 29', sha: '3b2a1f0' },
   { lane: 0, color: 0, kind: 'commit', lines: [[0, 0, 0]], subj: 'Refs: label map with synced remote rule', author: 'Ada L.', date: 'Aug 28', sha: 'c4d5e6f' },
   { lane: 1, color: 2, kind: 'commit', lines: [[0, 0, 0], [1, 1, 2]], subj: 'Retry on index.lock', chips: 'hotfix', author: 'Ada L.', date: 'Aug 28', sha: 'b7a6c5d' },
-  { lane: 0, color: 0, kind: 'commit', lines: [[0, 0, 0], [1, 1, 2]], subj: 'Status: porcelain v2 fallback behind flag', chips: 'v011', author: 'Topher M.', date: 'Aug 27', sha: '0f1e2d3' },
-  { lane: 0, color: 0, kind: 'commit', lines: [[0, 0, 0], [1, 0, 2]], subj: 'Diff: two sources (display vs stage-able)', author: 'Topher M.', date: 'Aug 26', sha: '6a5b4c3' },
-  { lane: 0, color: 0, kind: 'commit', lines: [[0, 0, 0]], subj: 'git-core: error type + git_version probe', author: 'Topher M.', date: 'Aug 22', sha: 'd9e8f7a' },
-  { lane: 0, color: 0, kind: 'commit', lines: [[0, 0, 0]], subj: 'Tauri 2 shell, plugins, tracing', chips: 'v010', author: 'Topher M.', date: 'Aug 21', sha: '2c3d4e5' },
-  { lane: 0, color: 0, kind: 'commit', lines: [], subj: 'Initial workspace', author: 'Topher M.', date: 'Aug 20', sha: '0a1b2c3' },
+  { lane: 0, color: 0, kind: 'commit', lines: [[0, 0, 0], [1, 1, 2]], subj: 'Status: porcelain v2 fallback behind flag', chips: 'v011', author: 'Sam Doe', date: 'Aug 27', sha: '0f1e2d3' },
+  { lane: 0, color: 0, kind: 'commit', lines: [[0, 0, 0], [1, 0, 2]], subj: 'Diff: two sources (display vs stage-able)', author: 'Sam Doe', date: 'Aug 26', sha: '6a5b4c3' },
+  { lane: 0, color: 0, kind: 'commit', lines: [[0, 0, 0]], subj: 'git-core: error type + git_version probe', author: 'Sam Doe', date: 'Aug 22', sha: 'd9e8f7a' },
+  { lane: 0, color: 0, kind: 'commit', lines: [[0, 0, 0]], subj: 'Tauri 2 shell, plugins, tracing', chips: 'v010', author: 'Sam Doe', date: 'Aug 21', sha: '2c3d4e5' },
+  { lane: 0, color: 0, kind: 'commit', lines: [], subj: 'Initial workspace', author: 'Sam Doe', date: 'Aug 20', sha: '0a1b2c3' },
 ];
 
 /** A page that has not arrived: the row is there, its cells are `—` in --fg-faint. */
@@ -335,23 +335,23 @@ export const diffBar = (n = 2, verb = 'Stage') =>
 export function fileContent({ path = 'crates/git-core/src/log/graph.rs', blame = true, lines = 26 } = {}) {
   const bl = (age, label) => `<span class="bl" style="--age: ${age};">${label ? `<span class="grow">${label}</span>` : ''}</span>`;
   const src = [
-    [5, 'a1b2c3d Topher M. 2h ago', `${K('use')} ${T('git2')}${P('::')}{${T('Oid')}, ${T('Repository')}};`],
+    [5, 'a1b2c3d Sam Doe 2h ago', `${K('use')} ${T('git2')}${P('::')}{${T('Oid')}, ${T('Repository')}};`],
     [5, '', ``],
     [5, '', `${C('/// One row of the lane layout: which column the commit sits on, and')}`],
     [5, '', `${C('/// the lines that leave it.')}`],
-    [4, '9f8e7d6 Topher M. 3h ago', `${K('pub')} ${K('struct')} ${T('RowLayout')} {`],
+    [4, '9f8e7d6 Sam Doe 3h ago', `${K('pub')} ${K('struct')} ${T('RowLayout')} {`],
     [4, '', `    ${K('pub')} lane: ${T('u16')},`],
     [4, '', `    ${K('pub')} lines: ${T('Vec')}${P('&lt;')}${T('GraphLine')}${P('&gt;')},`],
     [4, '', `}`],
     [4, '', ``],
-    [3, '5c4b3a2 Topher M. yesterday', `${K('impl')} ${T('LaneLayout')} {`],
+    [3, '5c4b3a2 Sam Doe yesterday', `${K('impl')} ${T('LaneLayout')} {`],
     [3, '', `    ${K('pub')} ${K('fn')} ${F('push')}(&amp;${K('mut')} ${K('self')}, oid: ${T('Oid')}) -&gt; ${T('RowLayout')} {`],
     [3, '', `        ${K('let')} matches = ${K('self')}.${F('expecting')}(oid);`],
     [2, '1e2d3c4 Ada L. Aug 28', `        ${K('let')} lane = ${K('match')} matches.${F('first')}() {`],
     [2, '', `            ${T('Some')}(&amp;l) =&gt; l,`],
     [2, '', `            ${T('None')} =&gt; ${K('self')}.${F('new_column')}(oid),`],
     [2, '', `        };`],
-    [1, '0a1b2c3 Topher M. Aug 20', `        ${K('let')} ${K('mut')} lines = ${T('Vec')}${P('::')}${F('new')}();`],
+    [1, '0a1b2c3 Sam Doe Aug 20', `        ${K('let')} ${K('mut')} lines = ${T('Vec')}${P('::')}${F('new')}();`],
     [1, '', `        ${K('for')} &amp;j ${K('in')} matches.${F('iter')}().${F('skip')}(${N('1')}) {`],
     [1, '', `            lines.${F('push')}(${F('merge_line')}(j, lane));`],
     [1, '', `        }`],
@@ -432,7 +432,7 @@ Fixes #12.</div>
         <div class="sm" style="color: var(--fg); white-space: pre-line;">Lane dedupe, and the log cache behind it.</div>
       </div>
       <div style="display: flex; flex-direction: column; gap: 4px; padding-top: 6px; border-top: 1px solid var(--border);">
-        ${kv('Author', 'Topher M. &lt;topher.m@gmail.com&gt;<span class="signed" title="This commit carries a signature (not verified)">signed</span>')}
+        ${kv('Author', 'Sam Doe &lt;dev@example.com&gt;<span class="signed" title="This commit carries a signature (not verified)">signed</span>')}
         ${kv('Committer', 'Ada L. &lt;ada@example.com&gt;')}
         ${kv('Date', 'Aug 31, 2026 14:02 (2h ago)')}
         ${kv('SHA', '<span class="mono" style="font-size: 12px;">a1b2c3d4e5f60718293a4b5c6d7e8f9012345678</span>')}

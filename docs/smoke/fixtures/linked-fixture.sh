@@ -32,7 +32,7 @@ S=$T/linked-src
 rm -rf "$L" "$W" "$S"
 mkdir -p "$L" "$W" "$S"
 
-ident() { git -C "$1" config user.name "Christopher Montevirgen"; git -C "$1" config user.email "topher.m@gmail.com"; }
+ident() { git -C "$1" config user.name "Sam Doe"; git -C "$1" config user.email "dev@example.com"; }
 
 # the submodule source
 git -C "$S" init -q -b main

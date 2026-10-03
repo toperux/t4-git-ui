@@ -108,11 +108,10 @@ as written: the DPI box was in fact walked on a real 150 % monitor, and AJ's box
 
 ## Phase 1b — signing and repo setup (§B Windows code signing)
 
-Port t4-markdown-viewer's setup — its public `.github/workflows/release.yml` (`toperux/t4-markdown-viewer`) is the
-reference implementation, and the user's `signing-and-repo-setup.md` (a working copy outside the repo) lists the
-repo settings and the verify steps. Needs its own plan, and that plan **starts from a diff of this repo's
-workflows against the doc, not from a copy of it** — part is already here (the *Doc item* numbers are the
-working copy's sections):
+Port the sibling app's setup — its `.github/workflows/release.yml` is the reference implementation, and the user's
+`signing-and-repo-setup.md` (a working copy outside the repo) lists the repo settings and the verify steps. Needs its
+own plan, and that plan **starts from a diff of this repo's workflows against the doc, not from a copy of it** — part is
+already here (the *Doc item* numbers are the working copy's sections):
 
 | Doc item | This repo today |
 |---|---|

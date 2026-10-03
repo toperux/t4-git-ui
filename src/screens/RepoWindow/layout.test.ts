@@ -17,7 +17,7 @@ describe("layoutFor", () => {
 });
 
 describe("toolbarTierFor", () => {
-  // A 70px name ("mbk-portal") is what the floors were measured against: 1237 full, 999 tight.
+  // A 70px name (10 characters) is what the floors were measured against: 1237 full, 999 tight.
   it("carries its breakpoints with the repo name", () => {
     expect(toolbarTierFor(1280, 70)).toBe("full");
     expect(toolbarTierFor(1238, 70)).toBe("full");

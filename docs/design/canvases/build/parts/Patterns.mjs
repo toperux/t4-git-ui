@@ -30,7 +30,7 @@ function graphSvg(t, { selectedLane = 0 } = {}) {
 }
 
 function gridRows(t) {
-  const subj = (s, txt, chips = '', author = 'Topher M.', date = '2h ago', sha = 'a1b2c3d', italic = false) =>
+  const subj = (s, txt, chips = '', author = 'Sam Doe', date = '2h ago', sha = 'a1b2c3d', italic = false) =>
     `<div class="row ${s}" style="padding-left: 0; padding-right: 8px; gap: 8px;"><span class="grow" style="display: flex; align-items: center; gap: 6px; ${italic ? 'color: var(--fg-muted); font-style: italic;' : ''}">${chips ? `<span style="display: inline-flex; gap: 4px; flex: none;">${chips}</span>` : ''}<span style="overflow: hidden; text-overflow: ellipsis;">${txt}</span></span><span class="meta" style="width: 110px;">${author}</span><span class="meta" style="width: 80px;">${date}</span><span class="meta mono" style="width: 64px;">${sha}</span></div>`;
   return section('Revision grid row', 'graph column 13px/lane, width animating to the lanes in view (gone under a text filter) · row 26px · ref chips first (HEAD, current, local, remote, tag, stash, bisect; max 3 then a “+N” button that opens a popover of the rest), then subject · local + tracking remote on the same commit collapse into one chip (rows 4, 6) · author 110 · date 80 · sha 64 mono · working-tree pseudo-row italic on top (“Working tree · 4 changes”, or “Working tree · merge to commit” mid-operation) · Ctrl+click a second row for a compare, tinting both · pages not yet arrived draw “—” in --fg-faint',
     `<div class="list" style="display: flex; padding-left: 4px;">
@@ -38,11 +38,11 @@ function gridRows(t) {
       <div style="flex: 1; min-width: 0;">
         ${subj('', 'Working tree · 4 changes', '', '', '', '', true)}
         ${subj('is-selected', 'Dedupe lanes when parent already expected', `<span class="chip head">HEAD</span><span class="chip local current">${icon('git-branch', 11)}main</span>`)}
-        ${subj('', 'Merge branch ‘feature/lane-graph’', `<span class="chip remote">${icon('cloud', 11)}origin/main</span>`, 'Topher M.', '3h ago', '9f8e7d6')}
-        ${subj('', 'Emit MergeInto lines for octopus parents', `<span class="chip local">${icon('git-branch', 11)}feature/lane-graph<span class="rem">${icon('cloud', 11)}origin</span></span><span class="chip stash">${icon('archive', 11)}stash@{0}</span>`, 'Topher M.', 'Yesterday', '5c4b3a2')}
+        ${subj('', 'Merge branch ‘feature/lane-graph’', `<span class="chip remote">${icon('cloud', 11)}origin/main</span>`, 'Sam Doe', '3h ago', '9f8e7d6')}
+        ${subj('', 'Emit MergeInto lines for octopus parents', `<span class="chip local">${icon('git-branch', 11)}feature/lane-graph<span class="rem">${icon('cloud', 11)}origin</span></span><span class="chip stash">${icon('archive', 11)}stash@{0}</span>`, 'Sam Doe', 'Yesterday', '5c4b3a2')}
         ${subj('is-hover', 'Cache log pages by generation', `<span class="chip bisect bad">${icon('bug', 11)}bad</span>`, 'Ada L.', 'Yesterday', '1e2d3c4')}
         ${subj('', 'Hotfix: index lock retry', `<span class="chip local">${icon('git-branch', 11)}hotfix-index-lock<span class="rem">${icon('cloud', 11)}origin</span></span><span class="chip tag">${icon('tag', 11)}v0.1.1</span><span class="chip remote">${icon('cloud', 11)}upstream/hotfix</span><span class="chip remote">+2</span>`, 'Ada L.', 'Aug 28', 'b7a6c5d')}
-        ${subj('', 'Initial workspace', `<span class="chip tag">${icon('tag', 11)}v0.1.0</span><span class="chip bisect good">${icon('bug', 11)}good</span>`, 'Topher M.', 'Aug 20', '0a1b2c3')}
+        ${subj('', 'Initial workspace', `<span class="chip tag">${icon('tag', 11)}v0.1.0</span><span class="chip bisect good">${icon('bug', 11)}good</span>`, 'Sam Doe', 'Aug 20', '0a1b2c3')}
         ${subj('', '<span class="faint">—</span>', '', '<span class="faint">—</span>', '<span class="faint">—</span>', '<span class="faint">—</span>')}
       </div>
     </div>`);
@@ -112,10 +112,10 @@ function diffAnatomy() {
         <div class="diff" style="border: 0; border-radius: 0;">${line('', '', 12, ' ', 'let mut walk = …')}${line('add', '', 13, '+', 'walk.push_head()?;')}${line('add', '', 14, '+', 'walk.push_glob(<span class="emph">"heads/*"</span>)?;')}${line('', '', 15, ' ', 'walk.set_sorting(…')}</div>
       </div>
       <div class="diff">
-        <div class="dl">${bl(5, 'Topher M. · 2h')}<span class="no">12</span><span class="tx">pub fn walk(repo: &Repository) {</span></div>
+        <div class="dl">${bl(5, 'Sam Doe · 2h')}<span class="no">12</span><span class="tx">pub fn walk(repo: &Repository) {</span></div>
         <div class="dl">${bl(5, '')}<span class="no">13</span><span class="tx">    let mut walk = repo.revwalk()?;</span></div>
         <div class="dl">${bl(2, 'Ada L. · Aug 28')}<span class="no">14</span><span class="tx">    walk.set_sorting(Sort::TIME)?;</span></div>
-        <div class="dl">${bl(1, 'Topher M. · Aug 20')}<span class="no">15</span><span class="tx">}<span class="nonl">\\ No newline at end of file</span></span></div>
+        <div class="dl">${bl(1, 'Sam Doe · Aug 20')}<span class="no">15</span><span class="tx">}<span class="nonl">\\ No newline at end of file</span></span></div>
       </div>
       <div class="xs muted">Side-by-side pairs consecutive −/+ runs; the unpaired side shows an empty 20px filler row. The blame label sits on a hunk’s first row and the tint alone on the rest — <span class="mono">--accent</span> at <span class="mono">--age × 4%</span>, five steps, oldest to newest.</div>
     </div>`);
@@ -128,7 +128,7 @@ function outputDock() {
       <div class="output" style="border-radius: 0;"><div class="cmd">$ git push --progress origin main</div><div>Enumerating objects: 12, done.</div><div class="stderr">Counting objects: 100% (12/12), done.</div><div class="stderr">Writing objects:  58% (7/12), 1.2 MiB | 600 KiB/s</div></div>
       <div class="prompt"><span class="command-input"><span class="prefix">$ git</span><span class="ph">rebase --onto …</span></span></div>
     </div>
-    <div class="output" style="margin-top: 8px;"><div class="cmd">$ git fetch --progress origin</div><div>From github.com:topher/t4-git-ui</div><div>   a1b2c3d..9f8e7d6  main -&gt; origin/main</div><div class="ok" style="display: flex; align-items: center; gap: 4px;">${icon('check', 12)}exit 0 · 1.1s</div></div>
+    <div class="output" style="margin-top: 8px;"><div class="cmd">$ git fetch --progress origin</div><div>From github.com:owner/t4-git-ui</div><div>   a1b2c3d..9f8e7d6  main -&gt; origin/main</div><div class="ok" style="display: flex; align-items: center; gap: 4px;">${icon('check', 12)}exit 0 · 1.1s</div></div>
     <div class="output" style="margin-top: 8px;"><div class="cmd">$ git push origin main</div><div class="stderr">! [rejected] main -&gt; main (fetch first)</div><div class="err" style="display: flex; align-items: center; gap: 4px;">${icon('x', 12)}exit 1 · 0.8s</div></div>
     <div class="xs muted" style="margin-top: 8px;">The prompt holds a mono CommandInput with ↑ history and ref completion. With no operation yet the body reads “No output yet”.</div>`);
 }
@@ -156,7 +156,7 @@ function detailsPane() {
     `<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start;">
       <div class="list">
         <div class="panel-header">${icon('git-commit', 14)}<span class="grow">Commit</span><span class="icon-btn">${icon('copy', 14)}</span></div>
-        ${kv('Author', 'Topher M. <span class="signed">signed</span>')}
+        ${kv('Author', 'Sam Doe <span class="signed">signed</span>')}
         ${kv('Committer', 'Ada L.')}
         ${kv('Parents', '<a class="mono" href="#">9f8e7d6</a> <a class="mono" href="#">5c4b3a2</a>')}
       </div>

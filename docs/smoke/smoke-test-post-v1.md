@@ -17,6 +17,7 @@ deleted and a CRLF hunk in `crlf-hunks.txt` (E, F, G). Tick as you go; note anyt
 with the group letter and bullet number. `docs/smoke/smoke-cdp.md` is how the walks were scripted.
 On Linux, `smoke-fixtures.sh` builds the same repos under `/tmp/t4`, the group `.sh` fixtures follow
 `T4_ROOT=/tmp/t4`, and `docs/smoke/smoke-linux.md` is how to drive the app there.
+`big-repo` and `c:/tmp/t4/big-repo-clone` stand for any large real repository and a local clone of it.
 Groups AO and AP use their own repository, `C:\tmp\t4\linked`, built by
 `docs/smoke/fixtures/linked-fixture.sh` (worktrees beside it under `linked-wt\`, two submodules).
 
@@ -907,7 +908,7 @@ half from CDP, and the visual half only once someone has really seen one.
       for Commit & Push). Every one reported `boxesMatch: true`, i.e. the wrapper's box equals the
       button's, which settles the "has the toolbar row reflowed?" half without a separate
       measurement. If re-walking again, the race-free alternative is a **clean** repo
-      (`c:/tmp/t4/other` or `mbk-clone`; `work` never qualifies, `decoy.txt` is permanently staged),
+      (`c:/tmp/t4/other` or `big-repo-clone`; `work` never qualifies, `decoy.txt` is permanently staged),
       where the commit button sits disabled at "No changes" (`Toolbar.tsx:259`) indefinitely
 - [x] **A disabled item in a dropdown menu** (§2) — **walked 2026-09-11 on the rebuilt binary,
       passes**, after two failed attempts described below. With a `slow` fetch in flight the
@@ -1357,7 +1358,7 @@ revision grid, shown as a chip beside the search field ("History: <basename> ×"
 title). The walker lists `git log --follow --format=%H --name-status -z` instead of a revwalk and
 builds rows from those oids, each carrying the path the file had at that commit, which the details
 pane preselects on both tabs. Walked 2026-09-13 over CDP in `c:/tmp/t4/work` and read-only in
-`c:/tmp/t4/mbk-clone` (a real rename) on a release build. One finding (last bullet), fixed in
+`c:/tmp/t4/big-repo-clone` (a real rename) on a release build. One finding (last bullet), fixed in
 `5e99ca8`. **Not walked:** the working-tree row under a history filter — it is hidden like under
 a text filter even when the file is modified (plan §3's edge case, not kept in this round)._
 
@@ -1375,7 +1376,7 @@ a text filter even when the file is modified (plan §3's edge case, not kept in 
       History of this file · Copy SHA**
 - [x] **Chip × keeps the selection** (§3): with `zxc` selected, × → the full walk (24 rows), `zxc`
       still selected, no chip
-- [x] **Rename follow** (§3, `mbk-clone`): Files → filter `html-css` → `reviews/old/html-css.md` →
+- [x] **Rename follow** (§3, `big-repo-clone`): Files → filter `html-css` → `reviews/old/html-css.md` →
       **History** → four rows across the rename; the oldest (`d153469`) preselects
       `reviews/html-css.md` on both tabs; back to HEAD → `reviews/old/html-css.md`; × → the full
       walk, HEAD still selected
@@ -1625,7 +1626,7 @@ kept showing the values it had loaded, and the save created a file holding only 
       from Settings → the file exists afterwards with that value in it
 
 ## AS. Repository tabs, windows, drag and drop (main §1, §6)
-_Any two or three repositories from recents (`mbk-portal`, `c:/tmp/t4/linked`, `c:/tmp/t4/irebase`).
+_Any two or three repositories from recents (`big-repo`, `c:/tmp/t4/linked`, `c:/tmp/t4/irebase`).
 The layout lives in `%APPDATA%\dev.topher.t4gitui\layout.json`. Walked 2026-09-14 over CDP on a
 release build of `37ce413`; the two rows marked ⌂ need a real pointer and an uncovered second window
 (a maximized browser over the app makes the hit test answer "not ours", which is correct) — walked
@@ -1677,7 +1678,7 @@ restarts, the preview stays)._
 
 ## AT. Stash preview and browser, sidebar headers, folder rows (main §2, §4)
 _`c:/tmp/t4/irebase` or any repo with stashes — `git stash` a dirty tree first if it has none. Walked
-2026-09-14 over CDP on `653e90b` (irebase for the stash rows, mbk-portal for the sidebar rows); the
+2026-09-14 over CDP on `653e90b` (irebase for the stash rows, big-repo for the sidebar rows); the
 native confirms were answered with a SendKeys Enter on the `#32770` dialog. All rows pass. Observed:
 with the last stash gone the browser's file list and diff show the grid's selected commit rather than
 going blank — harmless, noted._
@@ -1743,7 +1744,7 @@ nothing selected) was fixed and re-walked the same day.
 
 ## AW. The viewport keeps its place across a tab switch, a view switch and a pull (0.10.x fixes)
 
-Fixture: a repository with **more than 500 commits** — the walk used `c:/tmp/t4/mbk-clone`
+Fixture: a repository with **more than 500 commits** — the walk used `c:/tmp/t4/big-repo-clone`
 (10 956) — plus a second tab on any other repository, one of them dirty. Window 1280 x 800, so the
 grid scroller is about 13 rows of 26px. New commits arrive from a terminal, not from the app:
 `git -C <repo> commit --allow-empty -m probe`, undone with `git reset --hard HEAD~1`.
@@ -1821,7 +1822,7 @@ afterwards: the toolbar `ViewSwitch` says so, and so does whether `ChangesBar` i
    is an operation still unfinished after the commit, which is what a rebase `edit` stop is.
 9. - [x] **Discard** the last change instead of committing it, and `git stash` the last change from a terminal → **stays** open both times. The trigger is a commit, not "the tree went clean". Discard's confirmation is a native `ask()` modal, invisible to the DOM and to CDP — see `smoke-cdp.md` for how to answer one, and note that a walk which leaves it unanswered looks exactly like a Discard that does nothing.
 10. - [x] Uncheck the setting, commit the last change → stays in Changes on the empty state. Restart the app → still unchecked. Re-check it, and leave it checked.
-11. - [x] On `c:/tmp/t4/mbk-clone` (3004 files, a slow status scan) commit the last change and note whether it closes. A status fetch overtaken by the watcher's own refresh is dropped by `fetchStatus`'s seq guard, and the answer then reads the pre-commit tree and keeps the view open — accepted, and this is the one place it could show. Walked: it **closed**, so the race did not show here.
+11. - [x] On `c:/tmp/t4/big-repo-clone` (3004 files, a slow status scan) commit the last change and note whether it closes. A status fetch overtaken by the watcher's own refresh is dropped by `fetchStatus`'s seq guard, and the answer then reads the pre-commit tree and keeps the view open — accepted, and this is the one place it could show. Walked: it **closed**, so the race did not show here.
 
 ## AZ. Review fixes after 0.10.1: staging, the index lock, window restore, the grid's row, clipped menu names
 
@@ -1852,7 +1853,7 @@ Open (updated 2026-09-26): 11 (other platforms; Linux walked 2026-09-26, see `do
    have a tab, plus the windows closed in the last four seconds — a chain, where the four seconds is the
    gap allowed between two closes, not the time a close-all may take. The chain only runs out while some
    open window has a tab, and a window that closes with no tab left is no part of it. A, B, C are windows with a tab each; tick a row when both columns hold. The
-   table is shared with t4-markdown-viewer (`docs/plans/session-review-fixes.md`, Task 3), rows 3e–3g
+   table is shared with the sibling app (`docs/plans/session-review-fixes.md`, Task 3), rows 3e–3g
    being where the two designs were compared.
 
    | | Sequence | `layout.json` | Next launch |
