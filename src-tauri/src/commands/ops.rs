@@ -1252,7 +1252,7 @@ pub async fn clone_repo(
         true,
     )
     .await
-    .map_err(&cleanup)?;
+    .map_err(cleanup)?;
     run.out
         .check(&format!("git clone {url}"))
         .map_err(|e| cleanup(AppError::from(e)))?;
