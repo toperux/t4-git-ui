@@ -10,43 +10,45 @@ Phase 5's macOS rows closed on CI's leg, or a Phase 2b design row ending "accept
 in §Q with the numbers.
 
 **Status:** 2026-10-03. **Phase 0 done 2026-09-26** (`59e9383`). **Phase 1 done 2026-09-26**
-(`docs/archive/plans/2026-09-26-phase-1-plan.md`, walk record `docs/archive/walks/2026-09-26-phase-1-walk.md`): the
-next tag is unblocked. **PR #18 merged 2026-09-27** (`5cc5de9`: the Linux harness, the WebKitGTK focus fixes, the
-restore guard and its follow-ups, the AppImage repack). Its rows (§O, §P) are scheduled below, mostly in the new
-*Linux track*; plan updated for it 2026-09-28. **Triage done 2026-09-28**
-(`docs/archive/plans/2026-09-26-triage-plan.md`). **The CLI pin change done 2026-09-28** (`ee59475`: tauri-cli 2.11.5,
-`--app-version` on the AppImage re-sign, the pin guard in `checks.yml`), verified by CI run 36391087334 and the
-`workflow_dispatch` run 36391567783 (every `.sig` ends in `version:0.10.12`), recorded in `fda5293`. **`CLAUDE.md`'s
-workflow and open-items §Q** since 2026-09-28 (`430b6da`): every phase, and each row picked up outside one, follows
-`CLAUDE.md`. **§J decided 2026-09-28** (prefixes → §C roadmap, per-view sidebar → 2a). **Phase 2a done 2026-09-29**
-(13 commits `d116c2d`–`072b1b8`, smoke group BH walked — see `docs/archive/walks/2026-09-29-group-bh-walk.md`).
-**v0.10.13 released 2026-09-29** (`c02f367`, release run 36476596805; every `.sig` carries `version:0.10.13`); **its
-gate passed the same day**: the user's 0.10.12 updated through Check now → Install and came back as 0.10.13 with its
-windows. **The 0.10.14 hotfix** (the AppImage's environment no longer reaches the processes it starts;
-`docs/plans/2026-09-29-appimage-env-hotfix-plan.md`, smoke group BI) **released 2026-09-29** (`51433d3`, release run
-36573068704; every `.sig` carries `version:0.10.14`); **its gate passed**: the user's Windows 0.10.13 updated to
-0.10.14 through the app, and on the Linux VM the published 0.10.13 AppImage updated in place and, started by hand as
-the release notes say, fetched over HTTPS and opened files
+(`docs/archive/plans/2026-09-26-phase-1-plan.md`, walk record `docs/archive/walks/2026-09-26-phase-1-walk.md`): the next
+tag is unblocked. **PR #18 merged 2026-09-27** (`5cc5de9`: the Linux harness, the WebKitGTK focus fixes, the restore
+guard and its follow-ups, the AppImage repack). Its rows (§O, §P) are scheduled below, mostly in the new *Linux track*;
+plan updated for it 2026-09-28. **Triage done 2026-09-28** (`docs/archive/plans/2026-09-26-triage-plan.md`). **The CLI
+pin change done 2026-09-28** (`ee59475`: tauri-cli 2.11.5, `--app-version` on the AppImage re-sign, the pin guard in
+`checks.yml`), verified by CI run 36391087334 and the `workflow_dispatch` run 36391567783 (every `.sig` ends in
+`version:0.10.12`), recorded in `fda5293`. **`CLAUDE.md`'s workflow and open-items §Q** since 2026-09-28 (`430b6da`):
+every phase, and each row picked up outside one, follows `CLAUDE.md`. **§J decided 2026-09-28** (prefixes → §C roadmap,
+per-view sidebar → 2a). **Phase 2a done 2026-09-29** (13 commits `d116c2d`–`072b1b8`, smoke group BH walked — see
+`docs/archive/walks/2026-09-29-group-bh-walk.md`). **v0.10.13 released 2026-09-29** (`c02f367`, release run 36476596805;
+every `.sig` carries `version:0.10.13`); **its gate passed the same day**: the user's 0.10.12 updated through Check now
+→ Install and came back as 0.10.13 with its windows. **The 0.10.14 hotfix** (the AppImage's environment no longer
+reaches the processes it starts; `docs/plans/2026-09-29-appimage-env-hotfix-plan.md`, smoke group BI) **released
+2026-09-29** (`51433d3`, release run 36573068704; every `.sig` carries `version:0.10.14`); **its gate passed**: the
+user's Windows 0.10.13 updated to 0.10.14 through the app, and on the Linux VM the published 0.10.13 AppImage updated in
+place and, started by hand as the release notes say, fetched over HTTPS and opened files
 (`docs/archive/walks/2026-09-29-v0.10.14-release-gate-linux.md`). **Phase 1b done 2026-10-01**
 (`docs/plans/2026-09-30-phase-1b-plan.md`, walk record `docs/archive/walks/2026-09-30-phase-1b-walk.md`, `main`
-`edcc19c`): the Windows installer signed (Certum), the `signing` environment with approval, every action SHA-pinned
-(and required), the Tauri CLI from crates.io, a `verify` job for all three `.sig` with `version:`, dispatch dry runs
-that publish and delete a draft, and `requireSignedVersion` on; the first signed release is 2b's.
-**Phase 2b executed 2026-10-01** (`docs/plans/2026-10-01-phase-2b-plan.md`, smoke group BK). **v0.10.15 released
-2026-10-01** (`db77c78`, release run 36843045866; every `.sig` carries `version:0.10.15`) — the first signed release,
-and the first with `requireSignedVersion` on (the update from v0.10.15 to the next release is its first real check);
-**its Windows gate passed the same day**: the owner's 0.10.14 updated through the updater and came back as 0.10.15 with
-its tabs, `Get-AuthenticodeSignature` `Valid` (`docs/archive/walks/2026-10-01-v0.10.15-release-gate.md`). **The Linux
-AppImage half passed the same day too**: the owner's installed 0.10.14 AppImage updated in place to 0.10.15 and
-**restarted by itself**, the first update that can
-(`docs/archive/walks/2026-10-01-v0.10.15-release-gate-linux.md`). **Phase 3 done 2026-10-03**
-(`docs/plans/2026-10-01-phase-3-plan.md`, walk records `docs/archive/walks/2026-10-01-phase-3-measure.md` and
-`docs/archive/walks/2026-10-03-group-bl-walk.md`, smoke group BL): rows 1–5 and 6a fixed, plus T7; 6b, 7 and 8
-measured fine; pushed to `main` as `6ca9960..625b886` plus `cb886f4` (a clippy 1.99 fix), CI green; its release not
-cut yet. **Next:** Phase 3's release, then Phase 4 (reference decision first). Open decisions: the Phase 4 reference
-canvas, and hardware (before Phase 5).
+`edcc19c`): the Windows installer signed (Certum), the `signing` environment with approval, every action SHA-pinned (and
+required), the Tauri CLI from crates.io, a `verify` job for all three `.sig` with `version:`, dispatch dry runs that
+publish and delete a draft, and `requireSignedVersion` on; the first signed release is 2b's. **Phase 2b executed
+2026-10-01** (`docs/plans/2026-10-01-phase-2b-plan.md`, smoke group BK). **v0.10.15 released 2026-10-01** (`db77c78`,
+release run 36843045866; every `.sig` carries `version:0.10.15`) — the first signed release, and the first with
+`requireSignedVersion` on (the update from v0.10.15 to the next release is its first real check); **its Windows gate
+passed the same day**: the owner's 0.10.14 updated through the updater and came back as 0.10.15 with its tabs,
+`Get-AuthenticodeSignature` `Valid` (`docs/archive/walks/2026-10-01-v0.10.15-release-gate.md`). **The Linux AppImage
+half passed the same day too**: the owner's installed 0.10.14 AppImage updated in place to 0.10.15 and **restarted by
+itself**, the first update that can (`docs/archive/walks/2026-10-01-v0.10.15-release-gate-linux.md`). **Phase 3 done
+2026-10-03** (`docs/plans/2026-10-01-phase-3-plan.md`, walk records `docs/archive/walks/2026-10-01-phase-3-measure.md`
+and `docs/archive/walks/2026-10-03-group-bl-walk.md`, smoke group BL): rows 1–5 and 6a fixed, plus T7; 6b, 7 and 8
+measured fine; pushed to `main` as `6ca9960..625b886` plus `cb886f4` (a clippy 1.99 fix), CI green. **v0.10.16 released
+2026-10-03** (`f53e8bf`, release run 37109623419; the green `verify` job checked that every `.sig` carries
+`version:0.10.16`); **its gate passed the same day**, the Windows half on a VM rather than the owner's desktop, the
+Linux half on the usual Ubuntu VM (`docs/archive/walks/2026-10-03-v0.10.16-release-gate.md` and
+`docs/archive/walks/2026-10-03-v0.10.16-release-gate-linux.md`) — also `requireSignedVersion`'s first real check (the
+first update out of a build with it on), which passed. **Next:** Phase 4 (reference decision first). Open decisions: the
+Phase 4 reference canvas, and hardware (before Phase 5).
 
-Row references are to `docs/plans/open-items.md` sections (§A–§V), and code and smoke-doc line numbers are as of
+Row references are to `docs/plans/open-items.md` sections (§A–§X), and code and smoke-doc line numbers are as of
 2026-09-28 (`main` after #18; `release.yml` cites after the CLI pin change). The Phase 1 section keeps its original
 numbers. `CF` = `docs/archive/plans/2026-09-12-consolidated-findings.md`.
 
@@ -69,8 +71,8 @@ Agreed with the user 2026-09-28 (`docs/archive/plans/2026-09-28-close-out-refres
    proves the signed pipeline end to end, and it is the second AppImage walk (then AC ticks). The setting's first
    real check is the update from 2b's release to the next.~~ v0.10.15 released and its gate walked 2026-10-01 on
    both platforms; the AppImage half restarted by itself (the third AppImage release walk), and AC ticked.
-6. ~~Phase 3 (threshold decision first).~~ Done 2026-10-03 (pushed as `6ca9960..625b886` plus `cb886f4`); its
-   release not cut yet.
+6. ~~Phase 3 (threshold decision first).~~ Done 2026-10-03 (pushed as `6ca9960..625b886` plus `cb886f4`).
+   **v0.10.16 released and its gate passed 2026-10-03.**
 7. Phase 4 (reference decision first).
 8. Phase 5 (hardware decision first), or earlier, when the hardware is there.
 9. Phase 6, on 2026-12-23.
@@ -163,6 +165,11 @@ badge (BH 12 ticked); Install asked before dropping a typed commit summary; the 
 0.10.15 and restarted with its tabs; `Get-AuthenticodeSignature` read `Valid`, thumbprint
 `F06C1EC1FAC43DFEC92FBE47B0FC959D1CE38151`, timestamped.
 
+**Walked 2026-10-03 for v0.10.16** (`docs/archive/walks/2026-10-03-v0.10.16-release-gate.md`), on a Windows VM rather
+than the owner's own machine: the update to 0.10.16 restarted the app by itself with its tab;
+`Get-AuthenticodeSignature` read `Valid`, thumbprint `F06C…8151`, timestamped. This is also `requireSignedVersion`'s
+first real check — 0.10.15 is the first build with it on, so this is the first update it checked — and it passed.
+
 **The AppImage, from #18 (§P, on the Linux machine):**
 - **At the next release:** an old AppImage started with the `LD_PRELOAD` workaround updates to the fixed one. The
   command is in `docs/archive/walks/2026-09-26-group-ac-linux-walk.md`. **Walked 2026-09-29 for v0.10.13** on the
@@ -186,6 +193,10 @@ badge (BH 12 ticked); Install asked before dropping a typed commit summary; the 
   updated in place to 0.10.15 and **restarted by itself**, the first update that can; HTTPS clone and fetch, *Open*
   and Ctrl+Q all passed.
 - **Then tick AC** (`smoke-test-post-v1.md:761`). **Ticked 2026-10-01**, at the walk above.
+
+**Walked again 2026-10-03 for v0.10.16** (`docs/archive/walks/2026-10-03-v0.10.16-release-gate-linux.md`), on the
+usual Ubuntu VM: the installed 0.10.15 AppImage updated in place to 0.10.16 and
+restarted by itself; HTTPS clone and fetch, *Open* and Ctrl+Q all passed.
 
 **The CLI pin change (§P) landed on `main` 2026-09-28**, so the next release is the first whose updater signatures
 carry `version:`, and the gate's updates are its end-to-end check

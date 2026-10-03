@@ -32,6 +32,12 @@ none are closed, in the done file; most of §V's deferred rows wait on a later f
   not walked*), 2026-09-28. macOS rendering: never seen; CI compiles only.
 - UI-vs-canvas comparison pass (v1 plan M6 leftover): screenshots of the real app against the
   screens canvas, one pass, fix what differs or update the canvas.
+- **The updater writes nothing to the app log.** A check, a download and an install left no line in the app log on
+  Windows in the v0.10.16 gate (2026-10-03), which followed them only through the UI, process ids and file times (the
+  Linux walk checked its log for `ERROR`/`WARN` only). Reasoned from the code: check, download and install errors reach
+  only the UI (`AppError`, `commands/update.rs`), and only a failed relaunch is logged (`lib.rs:320`), so an update that
+  fails on a user's machine before the relaunch leaves no trace of its stage. Nothing failed. **Reopen:** an update
+  failure reported, or met in a walk, whose stage the log can't tell.
 
 ## C. Roadmap — v1 out-of-scope, unchanged, unscheduled
 Custom titlebar (revisited in M6, native kept) · i18n · plugins.
@@ -651,6 +657,13 @@ and the §Q flake row whose trigger fired.
   in its own test binary (`crates/git-core/tests/global_config.rs`). Case (a), the CRLF `add_path` error, has a
   different cause, unknown. **Next:** none until it recurs. **Reopen:** the CRLF `add_path` error seen again in a test
   run. *From §Q (accepted 2026-09-29, the 0.10.14 hotfix's change review, triage T-B).*
+- **The AppImage's bundled GLib can't load the host's GIO modules.** On Ubuntu 26.04 both 0.10.15 and 0.10.16 print on
+  stderr `Failed to load module` for `libgvfsdbus.so` (`undefined symbol: g_task_set_static_name`),
+  `libdconfsettings.so` (`g_assertion_message_cmpint`) and `libgioremote-volume-monitor.so` — seen in the v0.10.16 gate
+  walk, 2026-10-03; likely the bundled GLib being older than the host's (reasoned, not checked). Open (`xdg-open` →
+  `gio open`) and an HTTPS fetch worked; features that go through GVFS (network locations, trash on a mount) or dconf
+  were not tried. **Reopen:** a Linux report of a feature failing that goes through GVFS or dconf, or a change to the
+  bundled GLib. *From the v0.10.16 gate.*
 
 ## X. Added 2026-10-03 — close-out Phase 3
 

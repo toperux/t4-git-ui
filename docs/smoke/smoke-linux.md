@@ -50,6 +50,9 @@ copied text too, as on Windows.
   `XDISPLAY` to change the display, not `DISPLAY`: the desktop session always sets that one.
   - `<pid> --dump`: the app's visible windows and their titles.
   - `<pid> --title '^Open repository$' /tmp/t4/work/`: a folder picker. One call picks it.
+  - The desktop portal's GTK4 folder picker (the *Open repository* dialog when a portal serves it) ignores the
+    path `xdialog.sh` types: navigate it by double-clicking folders and pressing **Open** (found in the v0.10.16
+    gate walk, 2026-10-03).
   - `<pid> --title '^Discard hunk$' --ok|--cancel`: an `ask()` box. Return is the affirmative button
     (**Discard**) and Escape is Cancel. Both were checked against the file's checksum.
 - `docs/smoke/fixtures/xclose.py <window id>`: closes a window as its title-bar × does, by sending

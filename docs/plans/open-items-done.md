@@ -891,13 +891,13 @@ stays.
   precondition holds — every artifact a `latest.json` can point at carries a version, true from the first release
   after the CLI pin change (2026-09-28). Then set it in `tauri.conf.json`: scheduled in close-out Phase 1b
   (2026-09-28). *From `open-items.md` §P.*
-  - **Closed 2026-10-01** (close-out Phase 1b, `docs/plans/2026-09-30-phase-1b-plan.md`; `f27dfef`):
-    `tauri.conf.json` sets `"requireSignedVersion": true`, so the app refuses an update whose signature carries no
-    version. Smoke group BJ 1–3 walked it on a local build (the plan's D4): a version-less 0.10.12 setup offered as
-    0.10.14 was refused with the plugin's `MissingSignedVersion` text, then the published 0.10.14 installed. Both
-    dry runs' `verify` job (Release runs 36674994686 and 36753506004) proved every `.sig` carries `version:`
-    (`docs/archive/walks/2026-09-30-phase-1b-walk.md`). It shipped in v0.10.15, 2b's release (2026-10-01); the
-    update from v0.10.15 to the next release is its first real check.
+  - **Closed 2026-10-01** (close-out Phase 1b, `docs/plans/2026-09-30-phase-1b-plan.md`; `f27dfef`): `tauri.conf.json`
+    sets `"requireSignedVersion": true`, so the app refuses an update whose signature carries no version. Smoke group BJ
+    1–3 walked it on a local build (the plan's D4): a version-less 0.10.12 setup offered as 0.10.14 was refused with the
+    plugin's `MissingSignedVersion` text, then the published 0.10.14 installed. Both dry runs' `verify` job (Release
+    runs 36674994686 and 36753506004) proved every `.sig` carries `version:`
+    (`docs/archive/walks/2026-09-30-phase-1b-walk.md`). It shipped in v0.10.15, 2b's release (2026-10-01); the update
+    from v0.10.15 to the next release is its first real check — passed 2026-10-03 in the v0.10.16 gate.
 - **Q23: the details pane goes blank when another commit is selected.** Until the new commit's details arrive, the
   pane is empty instead of keeping the previous commit's on screen. P1-4's fix (`6a95389`) clears `detail` and
   `error` on a new commit id (`src/screens/RepoWindow/DetailsPane.tsx:170-173`, checked 2026-09-28); the blank was
