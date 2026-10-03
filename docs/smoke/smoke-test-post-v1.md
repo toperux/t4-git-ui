@@ -2337,7 +2337,15 @@ Stage A's (`perf-synth`, `perf-git`, `perf-reset`), under `T` = `${T4_ROOT:-/c/t
 fails at ≥ 250 ms on a real action, or jank (a frame gap ≥ 100 ms, or > 10 % of frames over 50 ms). Timings are taken
 on Windows only; step 10 checks behavior on Linux.
 
-- [ ] 1. **Refs read and merged badges** (fixes 1a, 1b), `perf-synth` and `perf-git`:
+_Walked 2026-10-02 over CDP on local release builds of `phase-3b-time` (Windows 11, `smoke-launch.ps1`): steps 1–9 on
+`bf75367` (`phase-3b` `b6e3da6` plus the `p3` lines). Steps 1 and 6 failed; fixed (Q22, Q24) and re-walked the same
+day on `420b545` (`ba6d754` plus the lines): pass. Step 10 walked 2026-10-03 in the Linux VM's session on a debug build
+of the pushed `phase-3b` (`8246a97`), re-walked there on the same build after two slips (C-10); step 11 the same day
+on the owner's Mac, on `8246a97` too. All eleven pass; the sub-items not exercised are named in each note. The
+store was restored byte-exact after each Windows walk. The record, with the pre-squash commits mapped to `main`, is
+`docs/archive/walks/2026-10-03-group-bl-walk.md`._
+
+- [x] 1. **Refs read and merged badges** (fixes 1a, 1b), `perf-synth` and `perf-git`:
       - Commit → the sidebar's ahead count painted; checkout; cached F5. `refs read` < 250 ms each, and the commit's
         toast → sidebar painted < 250 ms.
       - A forward tip move onto a new commit no tip reaches (a fetch's shape), 5 times, a new message each time:
@@ -2354,12 +2362,22 @@ on Windows only; step 10 checks behavior on Linux.
       - The installed app closed, this build relaunched: a backward tip move (`git update-ref
         refs/remotes/origin/<b> origin/<b>~1`) takes the full walk — recorded as is.
       - After (untimed): every moved `origin/<b>` back to its oid from before the step (on `perf-synth`, its local).
-- [ ] 2. **Line staging on deletions** (fix 2), `perf-synth`: stage one line of a working-tree deletion, and unstage one
-      line of a staged deletion → updated < 250 ms after the click, each.
-- [ ] 3. **A staged rename** (fix 2): `git mv` a file → its diff reads as a rename, and its lines unstage. After
+      - *(Walked 2026-10-02 over CDP on `bf75367`: failed on `perf-synth` — toast → sidebar 597 ms, refs read 576 ms
+        after a commit, 535 ms after a forward move, 507 ms after the merge move — while `perf-git` passed (toast →
+        sidebar 75 ms, forward 71, merge 74); the badges matched 0.10.15's (662 rows). Fixed (Q22: the hide-walk's
+        order, a bitset loop) and re-walked the same day on `420b545`: pass. `perf-synth`: toast → sidebar 68.5 ms, refs
+        read 61 after a commit, ~62 after a checkout, ~89 on F5, 74 after a forward move, 71 after the merge move;
+        `perf-git` 70 / 53 / ~55 / ~72 / 59 / 63 ms; the badges match again. The backward move took the full walk, 498
+        ms of a 555 ms refs read on `perf-synth`.)*
+- [x] 2. **Line staging on deletions** (fix 2), `perf-synth`: stage one line of a working-tree deletion, and unstage one
+      line of a staged deletion → updated < 250 ms after the click, each. *(Walked 2026-10-02 over CDP on `bf75367`:
+      stage 218 ms, unstage 216 ms median (worst 220 / 221); the rebuild 4–5.5 ms, the rest the status scan and the
+      reload.)*
+- [x] 3. **A staged rename** (fix 2): `git mv` a file → its diff reads as a rename, and its lines unstage. After
       (untimed): `git reset --hard` in `perf-synth` (else step 4's touch recreates step 2's deleted files as empty
-      Modified rows).
-- [ ] 4. **Status through git** (fix 3, fix 2's B2 / D-10, Q12), `perf-synth`:
+      Modified rows). *(Walked 2026-10-02 over CDP on `bf75367`: the staged row and its diff header read
+      `src/d4/f4.txt → src/d4/f4-moved.txt`; one line unstaged in 233 ms, the index still `R100`.)*
+- [x] 4. **Status through git** (fix 3, fix 2's B2 / D-10, Q12), `perf-synth`:
       - A warm edit → one scan (`p3 status`), < 250 ms.
       - Stale: the tab closed, every file touched (`git ls-files -z | xargs -0 touch`), the repo reopened → Changes
         current within the scan's time, then one `status repair` line; the scans after it (a queued one, the repair's
@@ -2374,22 +2392,40 @@ on Windows only; step 10 checks behavior on Linux.
         `<new name's stem>.LOCAL.<ext>` in the newest folder under `%TEMP%/t4-git-ui-diff/`, holding the staged
         content (the old bug: an empty `<old name's stem>.LOCAL.<ext>`). Close the tool after.
       - With 12k changes (Stage A's row 6a setup): the counts call's `p3 changed files` line, recorded.
-- [ ] 5. **One scan at a time** (fix 5), `perf-reset`: the `git add -u` control, the mixed reset, then `reset --hard` →
+      - *(Walked 2026-10-02 over CDP on `bf75367`: a warm edit 89 ms, one scan per edit. Stale: the scan 4.79 s, the
+        list painted with it, the counts 129 ms after the list, then one `status repair` (2.8 s), its rescan starting
+        none and no other repair in the whole walk (no queued scan this time). The rename on disk read `D −2` +
+        `U +2`, one `R` row once staged. The diff tool's `LOCAL` file held the staged content; it went to the owner's
+        already-running VSCodium window, so the walk didn't close the tool. The 12k counts call: 9.4–10 s per call
+        (one 35 s call failed), where review pass 9's bench had +12 ms — the same on `main`, recorded as an open row
+        (Q23), not judged here.)*
+- [x] 5. **One scan at a time** (fix 5), `perf-reset`: the `git add -u` control, the mixed reset, then `reset --hard` →
       Changes < 250 ms later than the control; no two scans overlap in the log (each `p3 status` starts — its end minus
-      its elapsed — after the previous one ended).
-- [ ] 6. **The output dock at the cap** (fix 4), `perf-git`: the dock filled to the cap (50 ops of `git log -n 5000`; it
+      its elapsed — after the previous one ended). *(Walked 2026-10-02 over CDP on `bf75367`: the control 413 ms, the
+      mixed reset 397 ms (worst 407), `reset --hard` 97 ms (worst 229); no overlap in the walk's 230 scans.)*
+- [x] 6. **The output dock at the cap** (fix 4), `perf-git`: the dock filled to the cap (50 ops of `git log -n 5000`; it
       keeps 25,000 lines in all, Q24), 5 scroll samples → no jank. A gap ≥ 100 ms, or only the 10 % clause failing →
-      put to the owner (the 25,000-line cap, Q24, is already in).
-- [ ] 7. **The Files tab** (fix 6a), `perf-synth`: expand, collapse and revisit < 250 ms; the first visit recorded (an
+      put to the owner (the 25,000-line cap, Q24, is already in). *(Walked 2026-10-02 over CDP on `bf75367`, before
+      the cap (50 ops, 250,100 rows): failed, one 696 ms gap in 10 samples, a major GC (Q24). Re-walked the same day
+      on `420b545`, with the cap: pass — 5 ops / 25,010 rows held from op 10 on, the worst gap in 10 samples 49.2 ms,
+      no frame over 50 ms; it follows the newest op, and text selects.)*
+- [x] 7. **The Files tab** (fix 6a), `perf-synth`: expand, collapse and revisit < 250 ms; the first visit recorded (an
       accepted limit, B3). The pure timing script's `buildFileTree` + `compact` copy re-made from fix 6a's `fileTree.ts`
-      (checked line by line) and run over CDP on the three 6a inputs; the script kept with the walk record.
-- [ ] 8. **Closing a tab stops its scan** (T7): the first stale scan of `perf-synth` (no `status repair` in the log
+      (checked line by line) and run over CDP on the three 6a inputs; the script kept with the walk record. *(Walked
+      2026-10-02 over CDP on `bf75367`: expand ~26 ms, collapse 21, revisit 28 (worst 32 / 26 / 29); the first visit
+      274 ms (worst 300), recorded. The pure script: the 100k listing 35.7 ms (Stage A 141.6), every median under
+      125 ms, so step 10 had no re-time to do.)*
+- [x] 8. **Closing a tab stops its scan** (T7): the first stale scan of `perf-synth` (no `status repair` in the log
       since the touch). Just before the close, a `git.exe` whose command line holds `status --porcelain=v2` is listed
       (if not, the scan already ended: record "not exercised", not a pass). Close the tab → within a second no such
-      process, and no `<gitdir>/index.lock`.
-- [ ] 9. **fsmonitor** (fix 3), `perf-git`: `git config core.fsmonitor true`, the repo opened and left idle a minute →
-      no repeating scans in the log. After: the config removed and `git fsmonitor--daemon stop`.
-- [ ] 10. **Linux** (the VM's remote session): `phase-3b`, pushed as a side branch on the owner's go, fetched and built
+      process, and no `<gitdir>/index.lock`. *(Walked 2026-10-02 over CDP on `bf75367`, exercised: the scan listed
+      before the close and gone at the first poll after; its `p3 status` line ended `ok=false` 5 ms after
+      `closed repo`; no `index.lock`.)*
+- [x] 9. **fsmonitor** (fix 3), `perf-git`: `git config core.fsmonitor true`, the repo opened and left idle a minute →
+      no repeating scans in the log. After: the config removed and `git fsmonitor--daemon stop`. *(Walked 2026-10-02
+      over CDP on `bf75367`: 70 s idle, no scan after the open's (one watch batch, which emitted nothing), the daemon
+      running; the config removed and the daemon stopped after.)*
+- [x] 10. **Linux** (the VM's remote session): `phase-3b`, pushed as a side branch on the owner's go, fetched and built
       and launched per `docs/smoke/smoke-linux.md` §1–2 (debug build, `.smoke` identifier, own `HOME`), with
       `NO_COLOR=1 … tauri-driver > $S/app.log 2>&1`. No timing lines; behavior only.
       - First, a `perf-git` open: its `opened repo` line is in `$S/app.log`. If not, rebuild without `--debug` (still
@@ -2406,7 +2442,18 @@ on Windows only; step 10 checks behavior on Linux.
         (true, or the dock recorded as working without it).
       - If any of step 7's Windows pure-timing medians is ≥ 125 ms: the same script re-timed through `wd.mjs eval`, the
         file handed over in the request.
-- [ ] 11. **macOS** (the Mac's remote session, Q27): the pushed `phase-3b` (`8246a97`; this step's text came later, in a
+      - *(Walked 2026-10-03 in the Linux VM's session on a debug build of `8246a97` (Ubuntu, kernel 7.0, WebKitGTK
+        2.52.6, git 2.53.0; the fixtures in a folder under the home folder, since `/tmp` is too small a tmpfs there):
+        `opened repo` was in `$S/app.log`, so the debug build stayed. Step 6: 5 ops / 25,010 rows, scroll, wheel and a
+        4-line selection right, `content-visibility` supported. Step 4: the warm edit as git lists it; the stale reopen
+        → one `status repair` (7.2 s) and none after; `D −2` + `U +2`, one `R` once staged. Step 8: the scan listed,
+        then gone after Ctrl+W, no `index.lock`. That walk had two slips (a `git status` between a touch and the
+        reopen, one broad-selector click), so it was re-walked the same day on the same build (C-10): steps 4 (a
+        13.5 s stale scan, then exactly one repair, 0.5 s), 6 and 8 pass; step 8's first attempt was not exercised
+        (the scan ended before the close), its retry passed. Not done, by the step's rule: step 4's 12k counts call and
+        Q12 diff-tool check, and step 7's re-time (every Windows median under 125 ms). The re-walk's quit after step 6
+        aborted WebKit's web process, open-items §X.)*
+- [x] 11. **macOS** (the Mac's remote session, Q27): the pushed `phase-3b` (`8246a97`; this step's text came later, in a
       docs-only commit, and is handed over in the request) checked out detached, built with `npm ci` and
       `npm run tauri build -- --debug --no-bundle --config '{"identifier":"dev.topher.t4gitui.smoke"}'`; the commit
       built recorded. `$S` is an absolute plain folder under the home folder (not `/tmp`, `$TMPDIR`, Desktop, Documents
@@ -2476,6 +2523,12 @@ on Windows only; step 10 checks behavior on Linux.
         recorded `ps` line (`git` may be the Xcode shim at `/usr/bin/git`); reaching a whole process group is the Unix
         unit test's (`crates/git-core/tests/status.rs`, run on macOS CI). The record says so.
       - **After:** no `t4-git-ui` or `git` process of the walk left; `$S` kept until the report is in.
+      - *(Walked 2026-10-03 in the owner's Mac's session on a debug build of `8246a97`, Homebrew git 2.56.0 (not the
+        Xcode shim): the first launch logged `opened repo` and `probed git`, the scratch `HOME` honored. Step 8, no
+        redo: the scan listed by `ps` in its own process group, with no children; ⌘W closed the tab, not the window;
+        within a second no `perf-synth` scan, no `index.lock`, the app on `perf-git`, one `closed repo`, no
+        `slow status` or `status repair`. Step 9: watcher, daemon and socket up; 2 `git status` runs and 2 refs reads
+        in the first 10 s, none in the next 52 s; the control edit scanned ~0.6 s later.)*
 
 ## Reporting
 

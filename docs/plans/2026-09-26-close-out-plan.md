@@ -9,7 +9,7 @@ Phase 5's macOS rows closed on CI's leg, or a Phase 2b design row ending "accept
 "measured, fine" closure is not an accepted limit and still goes to the done file — except `status.rs`, which stays
 in §Q with the numbers.
 
-**Status:** 2026-10-01. **Phase 0 done 2026-09-26** (`59e9383`). **Phase 1 done 2026-09-26**
+**Status:** 2026-10-03. **Phase 0 done 2026-09-26** (`59e9383`). **Phase 1 done 2026-09-26**
 (`docs/archive/plans/2026-09-26-phase-1-plan.md`, walk record `docs/archive/walks/2026-09-26-phase-1-walk.md`): the
 next tag is unblocked. **PR #18 merged 2026-09-27** (`5cc5de9`: the Linux harness, the WebKitGTK focus fixes, the
 restore guard and its follow-ups, the AppImage repack). Its rows (§O, §P) are scheduled below, mostly in the new
@@ -39,8 +39,12 @@ and the first with `requireSignedVersion` on (the update from v0.10.15 to the ne
 its tabs, `Get-AuthenticodeSignature` `Valid` (`docs/archive/walks/2026-10-01-v0.10.15-release-gate.md`). **The Linux
 AppImage half passed the same day too**: the owner's installed 0.10.14 AppImage updated in place to 0.10.15 and
 **restarted by itself**, the first update that can
-(`docs/archive/walks/2026-10-01-v0.10.15-release-gate-linux.md`). **Next: Phase 3** (threshold decision first). Open
-decisions: the Phase 3 threshold, the Phase 4 reference canvas, and hardware (before Phase 5).
+(`docs/archive/walks/2026-10-01-v0.10.15-release-gate-linux.md`). **Phase 3 done 2026-10-03**
+(`docs/plans/2026-10-01-phase-3-plan.md`, walk records `docs/archive/walks/2026-10-01-phase-3-measure.md` and
+`docs/archive/walks/2026-10-03-group-bl-walk.md`, smoke group BL): rows 1–5 and 6a fixed, plus T7; 6b, 7 and 8
+measured fine; pushed to `main` as `6ca9960..625b886` plus `cb886f4` (a clippy 1.99 fix), CI green; its release not
+cut yet. **Next:** Phase 3's release, then Phase 4 (reference decision first). Open decisions: the Phase 4 reference
+canvas, and hardware (before Phase 5).
 
 Row references are to `docs/plans/open-items.md` sections (§A–§V), and code and smoke-doc line numbers are as of
 2026-09-28 (`main` after #18; `release.yml` cites after the CLI pin change). The Phase 1 section keeps its original
@@ -65,7 +69,8 @@ Agreed with the user 2026-09-28 (`docs/archive/plans/2026-09-28-close-out-refres
    proves the signed pipeline end to end, and it is the second AppImage walk (then AC ticks). The setting's first
    real check is the update from 2b's release to the next.~~ v0.10.15 released and its gate walked 2026-10-01 on
    both platforms; the AppImage half restarted by itself (the third AppImage release walk), and AC ticked.
-6. Phase 3 (threshold decision first).
+6. ~~Phase 3 (threshold decision first).~~ Done 2026-10-03 (pushed as `6ca9960..625b886` plus `cb886f4`); its
+   release not cut yet.
 7. Phase 4 (reference decision first).
 8. Phase 5 (hardware decision first), or earlier, when the hardware is there.
 9. Phase 6, on 2026-12-23.
@@ -246,6 +251,14 @@ Phase 2: signing ships in whichever release follows it.
 
 ## Phase 3 — measure once, then fix or close
 
+**Done 2026-10-03** — `docs/plans/2026-10-01-phase-3-plan.md`, walk records
+`docs/archive/walks/2026-10-01-phase-3-measure.md` (Stage A) and `docs/archive/walks/2026-10-03-group-bl-walk.md`
+(smoke group BL, on Windows, Linux and macOS); pushed to `main` as `6ca9960..625b886` plus `cb886f4` (a clippy 1.99
+fix), CI green. The merged-badge walk, the hunk / line rebuilds, `status.rs`, the output dock, the 1800-file reset
+and the Files / Changes trees were fixed; the sidebar tree, `canSquash` and the `linked.rs` snapshot measured fine
+(the last kept in open-items §Q). The threshold was decided as proposed (the plan's T1). The bullets below are the
+plan as written.
+
 One sitting on a `git/git` clone plus the synthetic 100k-commit / 330-branch repo, reading the app log's
 timings (`opened repo`, `refs read`, `labels computed`, `walk complete`, `slow status`).
 
@@ -318,7 +331,8 @@ AppImage tool pins are tied to the builder too — recheck them.
 
 1. ~~**§J** — palette prefixes and per-view sidebar state: build or drop. Before Phase 2.~~ Decided 2026-09-28:
    prefixes → §C roadmap, per-view sidebar → build in 2a.
-2. **Phase 3 threshold** — the 250 ms / visible-jank proposal. Before Phase 3.
+2. ~~**Phase 3 threshold** — the 250 ms / visible-jank proposal. Before Phase 3.~~ Decided 2026-10-01 as proposed (the
+   Phase 3 plan's T1).
 3. **Phase 4 reference** — which canvas set rules where they differ. Before Phase 4.
 4. **Hardware** — a Mac coming, or close Phase 5 on CI's macOS leg (Linux has a machine since #18). Before Phase 5.
 5. ~~**U1–U5**~~ — decided 2026-09-28 (`docs/archive/plans/2026-09-26-triage-plan.md`): U1 in 2a, U5 a version

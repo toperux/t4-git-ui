@@ -82,6 +82,41 @@ reopen trigger — are in `open-items.md` §Q (since 2026-09-28); a row moved th
   app's staging must not interleave) and the refs snapshot reads on a private `Repository`: one
   slow scan, then 50 ms, and the sidebar never waits for it.
 
+The three rows below were closed 2026-10-03 by close-out Phase 3 (`docs/plans/2026-10-01-phase-3-plan.md`), measured
+first (`docs/archive/walks/2026-10-01-phase-3-measure.md`) and walked as smoke group BL
+(`docs/archive/walks/2026-10-03-group-bl-walk.md`). The fixtures: `perf-synth` (100k commits, 332 local branches,
+100k files) and `perf-git` (a git/git clone).
+
+- **`reachers` merged-badge walk** (2026-09-02 review P1): the merged computation walked every commit newer than the
+  *oldest* tip — remote branches included — and reran whenever any tip oid changed (every commit, fetch, checkout).
+  (The row also said "under the git2 mutex": stale — `get_refs` opens a private `Repository` and takes only the
+  `ahead_behind` cache lock; corrected here.) **Fixed 2026-10-02** for close-out Phase 3 (`f2e5d02` fix 1a,
+  `c6bfdef` fix 1b; smoke group BL 1). Stage A: on `perf-synth` a commit's toast → sidebar took 2346 ms median and
+  every refs read ~1.8–1.9 s — the walk ~0.5 s of it, the floor ~1.1 s of per-branch upstream lookups, each taking a
+  fresh config snapshot; on `perf-git` 787 ms. Fix 1a reads the upstreams from one config snapshot per refresh; fix 1b
+  keeps a reachability matrix over the distinct tip oids and adds a new tip with one hiding walk (B1, X1, Q22), falling
+  back to the full walk on a backward move and the like (an accepted limit, `open-items.md` §Q). BL 1's re-walk: on
+  `perf-synth` toast → sidebar 68.5 ms (worst 74.5), refs read 61 ms after a commit, ~62 after a checkout, ~89 on F5,
+  74 after a fetch-like move and 71 after a merged-PR move; on `perf-git` 70 / 53 ms; the merged badges identical to
+  0.10.15's (662 rows). The matrix at thousands of branches is a §Q row (Q25).
+- **Hunk / line diff rebuilds** (2026-09-03 review P1): every hunk / line stage, unstage and discard rebuilt the
+  file's diff, and for a path that looked added / deleted the whole-repo diff a second time, to find a rename's other
+  half. **Fixed 2026-10-02** for close-out Phase 3 (`f3cc948`, fix 2; smoke group BL 2, BL 3). Stage A: on `perf-git`
+  a hunk stage, a line stage and a hunk discard took 98 / 124 / ~42 ms (fine); on `perf-synth` a line of a
+  working-tree deletion 918 ms (the whole-repo rebuild 225–304 ms, per action and again for the reload), a line
+  unstage of a staged deletion 398 ms. The commit panel's Staged and Unstaged diffs no longer rebuild the whole
+  repository: a staged rename's old path comes from the status, and the working tree no longer pairs renames (B2,
+  D-2). BL 2: 218 / 216 ms median (the rebuild 4–5.5 ms; the rest is the status scan and the reload). No per-burst
+  cache or hunk list was needed.
+- **Virtualized output dock** (review P5): the dock renders 25,000 lines in all (Q24) as plain DOM. Virtualize only if a
+  long-running op's output is visibly slow to scroll. **Fixed 2026-10-02** for close-out Phase 3 (`6d1a7d5`, fix 4;
+  smoke group BL 6). Stage A on `perf-git`: no jank up to 10 ops, frame gaps of 654 / 784 ms in 2 of 5 scroll samples at
+  the 50-op cap. Fix 4 sets `content-visibility: auto` on each op block (the browser skips the off-screen ones) and
+  drops the oldest finished ops once the total passes 25,000 lines (Q24; the newest op and running ops are never
+  dropped); not virtualized. BL 6's first walk, before the cap (50 ops, 250,100 rows), still had one 696 ms gap in 10
+  samples, a major GC; at the cap (5 ops, 25,010 rows) the worst of 10 samples was 49.2 ms, no frame over 50 ms. On
+  WebKitGTK (BL 10) the dock at the cap scrolls and selects, and supports `content-visibility`.
+
 ## B. Verification and release
 - **Walk `docs/smoke/smoke-test-post-v1.md`** (this machine): every feature shipped on 2026-09-02 —
   ten groups, A–J — walked 2026-09-05/06, see docs/archive/walks/2026-09-05-full-rewalk.md. Group K (the
@@ -499,6 +534,22 @@ commits and pushed with the CI port from the markdown viewer (`a904701`).
   header offers Stage all*).
 - **Q23** the details pane blank while a newly selected commit loads — moved to §Q 2026-09-28; closed 2026-10-01
   (`ce34b92`), done §Q.
+- **E6** O(n²) tree build for a flat directory (`fileTree.ts`, `Sidebar.buildTree`) — **fixed 2026-10-02 for the
+  Files and Changes trees** for close-out Phase 3 (`785a9f1`, fix 6a; smoke group BL 7), and **closed as measured
+  fine for the sidebar** (row 6b). The row's shape was wrong: `buildFileTree` is quadratic in sibling *folders*, not
+  in a flat directory's files; `Sidebar.buildTree` in the refs of one folder. Stage A on `perf-synth` (100k files): a
+  Files tab first visit 520 ms, a revisit 245 ms and a folder expand 255 ms — every expand rebuilt the whole tree; the
+  100k build alone 141.6 ms (142 on WebKitGTK). Fix 6a looks folders up in a `Map`, sorts with one `Intl.Collator`,
+  and builds once per listing. BL 7: expand ~26 ms, collapse 21, revisit 28, the build 35.7 ms; the first visit 274 ms
+  (worst 300), an accepted limit (`open-items.md` §Q, B3). The sidebar's build: 0.3 / 2.3 / 22.0 ms at 330 / 1000 /
+  5000 refs in one folder (WebKitGTK the same).
+- **R13** `canSquash` O(n) per row — **closed 2026-10-02 as measured fine** (close-out Phase 3, row 7). On
+  `perf-rebase` (1 pick + 499 fixups): `canSquash` + `validate` for every row 4.2 ms (5 on WebKitGTK); the dialog's
+  render ~64 ms of its open, one action change 24.4 ms. The ~400 ms backend todo read under the open is a new row,
+  `open-items.md` §X.
+- **`ponytail:` ceiling, `linked.rs:120`** (the worktree / submodule snapshot, no cache) — measured fine 2026-10-02
+  for close-out Phase 3 (row 8), the comment kept; an accepted limit with a reopen trigger, moved to `open-items.md`
+  §Q (*`linked.rs:120`: the worktree / submodule snapshot has no cache*), 2026-10-03 (Q16).
 
 ## J. Added 2026-09-14 — from the UI direction B review
 
@@ -619,6 +670,12 @@ The open-items §L heading is gone (nothing open is left there); this section no
   `.item:focus-visible { box-shadow: none }` override so the global focus ring (`theme/base.css`) doesn't land on the
   natively `:focus-visible` first item. Arrowing onto a clipped row still wraps it and shifts the rows below — accepted,
   `open-items.md` §Q.
+- **An external `git reset` of 1800 files took about four seconds to show in Changes** (seen in the AZ walk, on 0.10.7
+  as well) — **fixed 2026-10-02** for close-out Phase 3 (`9be1867` fix 5, `a369138` fix 3; smoke group BL 5). Stage A
+  on `perf-reset` (1800 tracked files): the `git add -u` control 424 ms, a mixed reset 2540 ms, `reset --hard` 5889 ms
+  — each watcher batch started another scan while earlier ones still ran (7–10 at once). Fix 5 runs one scan at a time
+  per repository, with at most one queued; fix 3 makes each scan cheaper. BL 5: the control 413 ms, a mixed reset 397
+  ms (worst 407), `reset --hard` 97 ms (worst 229); no two of the walk's 230 scans overlapped.
 
 Eight findings, all fixed (staging back on libgit2's ignore check, the `index.lock` match on both the CLI
 and the libgit2 side, window restore, the grid's mount row, clipped menu names); a second review of the
@@ -850,6 +907,29 @@ stays.
   - **Closed 2026-10-01** (`ce34b92`, D8 (a), BK 7): the pane now renders the grid row's own fields (summary, author,
     date, SHA, parents) at once; only the body/committer/*signed* wait for the reply, which (like an error) shows only
     when it matches the selected oid.
+- **`status.rs`: no `git status` command-line fallback for very large trees** (a v1 accepted limit). The fallback
+  would be `git status --porcelain=v2 -z` behind a flag, only if libgit2 status proves slow on very large trees.
+  Measured 2026-09-07: 1.5 s at 47k tracked files, 50 ms at 61k files on disk / 10.7k commits — that is the limit,
+  and every watcher event pays it. (2026-09-07: the scans that looked like this were the stale stat cache, not the
+  tree size.) Still measured in close-out Phase 3; if it measures fine, it stays here with the numbers added.
+  **Reopen:** the `slow status` log line (≥ 250 ms) shows a real machine hitting it, or Phase 3's measurement crosses
+  its threshold. *From §A.* (The repository's name, beside the 47k count, removed 2026-10-03 — Phase 3's R2.)
+  - **Closed 2026-10-03** (close-out Phase 3, fix 3, `a369138`; smoke group BL 4): Phase 3's measurement crossed it.
+    On `perf-synth` (100k files) libgit2's scan took 268 ms warm, twice per edit (its own index write raised a second
+    scan), and 552 s with every file touched (~5.5 ms per stale file); `git status --porcelain=v2 -z` on the same tree
+    199–208 ms and 5.92 s. Status now always runs through `git status --porcelain=v2 -z`, with no index lock (D-1), and
+    a slow scan starts a background stat-cache repair. BL 4: warm 89 ms, once per edit; stale 4.79 s, then one 2.8 s
+    repair. Its ceilings are new `open-items.md` §Q rows (the stale entries, fsmonitor's state, the repair's lock,
+    scans before a repair).
+- **`cancel_kills_long_running_process` can miss its 800 ms bound under load.** It failed once locally while two
+  builds ran in parallel, passed alone (0.38 s) and in every run since; never seen in CI. Widening the bound would
+  weaken what it proves. Accepted 2026-09-29. **Reopen:** it fails in CI — then widen the bound or retry it. *From
+  close-out Phase 2a's gates.* It can also fail when git's port 9418 is already taken: its `git daemon` listens on
+  that fixed port, and a WSL test run at the same time shares localhost ports (seen once in the 0.10.14 hotfix's
+  per-commit gates; the retry passed). **Reopen:** that failure in CI — then give the daemon a free port.
+  - **Closed 2026-10-02** (close-out Phase 3, Q21; `0c9608a`), fixed instead of widened: the branch's heavier tests
+    made it flaky in the gates. The test now binds a free port for its `git daemon` and times only cancel → return
+    (< 500 ms; the kill itself measured 3–11 ms).
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review: the rows since closed
 
@@ -982,6 +1062,14 @@ T10 is t4-markdown-viewer's README comma, to be pushed there on the owner's word
   holds that same stash. `diffStore.restore` also now bumps its request counters, so a reply still in flight
   during an outside tab switch can no longer land in the wrong tab's store or leave the first tab stuck on
   *loading*; the next loader (History's reload, the browser's next open) re-fetches it.
+- **The `TempRepo` flake's case (b)** (`cli::runner::tests::editor_is_disabled`, `git init: … could not read
+  (expected 55 bytes, read 32)` at `test_util.rs:46`, in Phase 2b's gates; the row is `open-items.md` §V, *A Windows
+  flake inside `TempRepo` test helpers*) — **closed 2026-10-03** for close-out Phase 3 (C-5; `e3ba77e`). Cause,
+  reasoned from the error text, not reproduced: the global-config test pointed libgit2's process-wide config search
+  path at a temp folder while other lib tests ran. That test moved into its own test binary
+  (`crates/git-core/tests/global_config.rs`), which also redirects libgit2's ProgramData config level, so a
+  machine-wide `C:\ProgramData\Git\config` can't leak into it (C-9; not part of the cause). **Reopen:** the
+  `git init … expected N bytes` error seen again. Case (a), the CRLF `add_path` error, stays open there.
 
 The triage's accepted items, ruled one by one by the owner 2026-10-01 (`docs/plans/2026-10-01-phase-2b-plan.md`,
 *Triage*). No reopen trigger on any of these.
@@ -1020,3 +1108,76 @@ Ruled one by one by the owner; detail in the *Triage* section of `docs/plans/202
   plain space; no doc has one. Accepted 2026-10-01, no reopen trigger.
 - **Y1** `docs/reflow.mjs`'s hand-wrapped header comment has an uneven right edge (within 120). Accepted 2026-10-01,
   no reopen trigger.
+
+## X. Added 2026-10-03 — close-out Phase 3: fixed, recorded and accepted, closed
+
+Ruled by the owner 2026-10-02 and 2026-10-03; detail in `docs/plans/2026-10-01-phase-3-plan.md` (*Stage B
+decisions*). The rows Phase 3 closed are in §A, §I, §M, §Q and §V above, its open rows in `open-items.md` §Q and §X.
+The walk records are `docs/archive/walks/2026-10-01-phase-3-measure.md` and
+`docs/archive/walks/2026-10-03-group-bl-walk.md`. No reopen trigger on any of these.
+
+- **T7, closing a repository stops its status scan** — **fixed 2026-10-02** (`a369138`, with fix 3; smoke group BL 8,
+  BL 10, BL 11). Found in Stage A: five quick reopens of a stale `perf-synth` left five scans running for up to 20
+  minutes. `drop_repo` cancels the handle's token, and the scan kills its process tree (a job object on Windows, the
+  process group on Unix) and returns `Cancelled`. Walked on Windows (the scan gone 5 ms after `closed repo`), Linux
+  and macOS, with no `index.lock` left.
+- **L9** T7's kill on Windows also ends an `fsmonitor--daemon` the scan started; git restarts it on the next query.
+  Accepted 2026-10-02.
+- **Q12, the commit panel's external diff tool and diff header take the old path for staged renames only** — **fixed
+  2026-10-02** (`f3cc948`, with fix 2; BL 4). An unstaged-list row of a staged rename edited on disk (`RM`) sent the
+  old name, which the index no longer holds, so the tool's left side was empty.
+- **Q13** the row label keeps `old → new` in both lists (`FilesColumn.tsx:540`), while Q12's header shows the plain
+  path. Accepted 2026-10-02.
+- **Recorded behavior changes** (status through git, fix 3, and fix 2):
+  - B2 + D-2: a working-tree rename shows as a deletion plus an untracked file, as `git status` shows it, with
+    matching line counts (the unstaged diff no longer pairs untracked files); a staged rename is still one row.
+  - Intent-to-add (`git add -N`): reads as working-tree Added (before: a staged empty Added plus an unstaged
+    Modified). Its Discard and a deleted one are an open row, `open-items.md` §X.
+  - Q14: an untracked nested repository (`? x/`) reads as a submodule; its row skips Discard with the submodule note,
+    and the stash dialog shows its nested-repository note.
+  - Status needs the git executable: without it Changes shows an error where libgit2 worked (the start screen already
+    reports *Git executable not found*).
+  - D-5 and D-11 are backend-only (no untracked pairing for the `Workdir` target, which no screen uses): no visible
+    change.
+- **States where git's answer replaces libgit2's** (measured by review pass 18; git's lines for the staged symlink
+  rename and the submodule move by passes 30 and 32; libgit2 not pairing them read from `diff_tform.c:561-562`):
+  - a staged symlink rename and a staged submodule move: git pairs them, libgit2 didn't (L6, Q19);
+  - sparse-checkout / skip-worktree files missing from disk: libgit2 listed each as an unstaged deletion, git lists
+    nothing — the largest visible change;
+  - clean filter drivers such as git-lfs: libgit2 showed a touched file Modified, git shows it clean;
+  - `submodule.<name>.ignore` in `.git/config`: git honors it, libgit2 only `.gitmodules`';
+  - a conflicted gitlink: libgit2 added an untracked `sub/` row, git doesn't;
+  - a tracked file replaced by a nested repository: git shows one `.T` submodule row with commits, `.D` only without;
+    libgit2 showed `.D` + `? n/`;
+  - two index entries differing only by case on a case-insensitive file system: libgit2 added a Deleted row for the
+    second.
+- **Stage A's own calls, A1–A6 and A8–A12** (A7 is fix T7, above), accepted 2026-10-02:
+  - A1: refs moved with `update-ref` instead of a fetch (the in-app Fetch untimed).
+  - A2: LFS smudge skipped on the real-repo copies.
+  - A3: row 6b's in-app paint not timed.
+  - A4: the Changes tree timed through the *Show as tree* toggle, not Refresh.
+  - A5: a reviewer's claim that the tree-mode preference is shared across profiles, rejected (`smoke-launch.ps1`
+    isolates the profile).
+  - A6: the vitest timing file dropped; pure timings taken in the app.
+  - A8: row 1's toast → sidebar timer not taken on real repo B (its refs read stands in).
+  - A9: row 2's partial samples.
+  - A10: Windows Defender's share of the stale scan not measured (`git status` under the same Defender: 5.9 s).
+  - A11: 6a's revisit at 245 ms, a close call, covered by fix 6a and re-timed in BL 7 (28 ms).
+  - A12: ~25 reviewer confirmations from Stage A's plan review passes 1–14, recorded as one line.
+- **The 17 design calls** from Stage B's plan review passes (the `REFRESH_AFTER` value, the 16-oid cap, the
+  one-revwalk X1 check and the rest), accepted as written 2026-10-02.
+- **C-3** a refs read running at a tab's close finishes after it; its result is dropped by the repo-id check
+  (`repoStore.ts:379`). Accepted 2026-10-03.
+- **C-4, the idle frame rate**, raised as a possible Phase 3 regression: on the owner's desktop the BL walk's first
+  build (`bf75367`) drew ~175 frames/s and the re-walk's (`420b545`) ~75, both Phase 3 builds. On the Windows VM (a 60
+  Hz display) `main` (`cb3c9e3`) drew 63 fps and Phase 3 (`8246a97`) 60 fps (locked to the display), with no stalls.
+  Recorded and closed 2026-10-03; the commit's own time is an `open-items.md` §Q row.
+- **C-6** the implementers' deviations: lazy remote lookups in 1a, the parent-closure test oracle in 1b, the dropped
+  discard hint, the generic gate, the scan's own repo handle, the cancel token in the gate, 6a serving the Changes
+  tree too, `MAX_OPS` kept beside the 25k cap. Accepted 2026-10-03.
+- **C-7** change review pass 3's 13 judged-fine items: output-drain edge cases, the scan's own repo handle, dock-cap
+  edges, the fsmonitor and macOS-path edge rules, test cosmetics. Accepted 2026-10-03.
+- **C-8** change review passes 4–5's four: the repair back-off per handle; unstaging a hinted rename's lines; macOS's
+  `.git/fsmonitor--daemon.ipc` socket, which `classify`'s rule doesn't match (walked 2026-10-03 on the Mac, BL 11: 2
+  scans and 2 refs reads in the first 10 s, none in the next 52 s); and the Unix kill test in a container whose PID 1
+  doesn't reap, where the killed `sleep` would stay a zombie. Accepted 2026-10-03.
