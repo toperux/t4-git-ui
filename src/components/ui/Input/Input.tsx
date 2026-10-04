@@ -287,7 +287,16 @@ export function Select({ value, onChange, children, disabled, autoFocus, classNa
         aria-controls={open ? id : undefined}
         // No rows, no active option: an id pointing at an option that isn't rendered is worse than none.
         aria-activedescendant={open && opts.length > 0 ? `${id}-${active}` : undefined}
-        onClick={() => (open ? setOpen(false) : show())}
+        // WebKit (macOS) doesn't focus a clicked button: without the focus in the click the keys and the
+        // close on blur never reach a list the pointer opened. And its mousedown blurs the button when it
+        // is focused, which would close the open list just before the click reopens it, so the mousedown
+        // changes no focus here; `preventScroll`, as a scroll anywhere closes the list.
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={(e) => {
+          e.currentTarget.focus({ preventScroll: true });
+          if (open) setOpen(false);
+          else show();
+        }}
         onKeyDown={onKeyDown}
         onBlur={() => setOpen(false)}
       >

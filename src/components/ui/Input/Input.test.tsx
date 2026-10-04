@@ -232,6 +232,19 @@ describe("Select", () => {
     expect(queryByRole("listbox")).toBeNull();
   });
 
+  it("takes the focus when clicked, as WebKit doesn't give a clicked button any", () => {
+    const { getByRole, queryByRole } = render(<Harness />);
+    const combo = getByRole("combobox", { name: "Remote" });
+    expect(document.activeElement).not.toBe(combo);
+    fireEvent.click(combo);
+    expect(document.activeElement).toBe(combo);
+    // Its mousedown moves no focus: WebKit's would blur the open list's trigger and close it, and the
+    // click would then reopen it instead of closing it.
+    expect(fireEvent.mouseDown(combo)).toBe(false);
+    fireEvent.click(combo);
+    expect(queryByRole("listbox")).toBeNull();
+  });
+
   it("closes when the trigger loses focus", () => {
     const { getByRole, queryByRole } = render(<Harness />);
     fireEvent.click(getByRole("combobox", { name: "Remote" }));
