@@ -30,8 +30,6 @@ none are closed, in the done file; most of §V's deferred rows wait on a later f
   (`docs/archive/walks/2026-09-27-linux-wayland-rendering-walk.md` and its addendum).
   Real GPU hardware and a HiDPI panel: an accepted limit, moved to §Q (*Linux: real GPU hardware and a HiDPI panel
   not walked*), 2026-09-28. macOS rendering: never seen; CI compiles only.
-- UI-vs-canvas comparison pass (v1 plan M6 leftover): screenshots of the real app against the
-  screens canvas, one pass, fix what differs or update the canvas.
 - **The updater writes nothing to the app log.** A check, a download and an install left no line in the app log on
   Windows in the v0.10.16 gate (2026-10-03), which followed them only through the UI, process ids and file times (the
   Linux walk checked its log for `ERROR`/`WARN` only). Reasoned from the code: check, download and install errors reach
@@ -634,9 +632,6 @@ and the §Q flake row whose trigger fired.
 - **Merge banner says "resolve conflicts" after a hook refused a conflict-free merge (triage E1).** A `pre-merge-commit`
   hook refusing a merge that has no conflicts still shows the conflicts banner's wording. Found in the BK walk,
   2026-10-01. **Next:** a later fix batch.
-- **Stashes browser's left column clips text (triage E2).** The left (list) column can show *"No changes"* clipped to
-  *"Nc"*, with a horizontal scrollbar, instead of wrapping or eliding. Found in the BK walk, 2026-10-01. **Next:** a
-  later fix batch.
 - **The worktree row menu offers Lock… on the main worktree row (triage E3).** git refuses locking the main worktree;
   the app's menu doesn't grey the option out. Found in the BK walk, 2026-10-01. **Next:** a later fix batch.
 - **Alt+2 typed into the History search box does nothing (triage F1).** Unclear what, if anything, Alt+2 is meant to do
@@ -705,6 +700,18 @@ review's triage and the walk of smoke group BL (`docs/archive/walks/2026-10-03-g
   debug symbols weren't installed. Next time: `sysctl kernel.yama.ptrace_scope=0` and gdb on the web process before
   the quit, or systemd-coredump (or a larger apport limit), plus `libwebkit2gtk-4.1-0-dbgsym` (or debuginfod).
   **Reopen:** a second sighting or a crash report.
+
+## Y. Added 2026-10-04 — close-out Phase 4 Stage B
+
+Deferred from close-out Phase 4 Stage B's change review triage (plan `docs/plans/2026-10-03-phase-4-plan.md`), each with
+a reopen trigger.
+
+- **In dark mode the unfocused selection tint is close to the hover tint.** `--bg-selected-unfocused` sits close to
+  `--bg-hover`. Seen on the Direction B canvas render; the app uses the same tokens. **Reopen:** a user can't tell
+  a selected row in an unfocused list from a hovered one in dark mode.
+- **Under Windows PowerShell 5.1, `docs/smoke/fixtures/smoke-fixtures.ps1` drops the quotes around the `slow`
+  remote's upload-pack path (~:93).** Measured 2026-10-04; it works while the path has no spaces. **Reopen:** a
+  smoke group uses the `slow` remote on the VM, or the fixture root gains a space.
 
 ## Order
 

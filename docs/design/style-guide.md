@@ -2,12 +2,21 @@
 
 Direction: **quiet precision.** Cool-neutral surfaces, one blue accent, hairline borders, 26px density, hierarchy by weight not size. Semantic color only where it carries meaning (status, diff, danger). Nothing bounces.
 
-- Canvas (editable): https://claude.ai/code/artifact/2aab4454-5757-44b5-b987-be682dcabba6 — page 1 = system, page 2 = alternate directions (low-fi, not built out)
-- Screens canvas (A2): https://claude.ai/code/artifact/2e1cc7fb-d31b-4b6a-893d-b7598fdc85f5 — page 1 light, page 2 dark; built from `build/parts-screens/*.mjs` via `node docs/design/canvases/build/build.mjs screens`
-- Direction B canvas (small windows): https://claude.ai/code/artifact/e747c922-c0fa-4143-804b-2d5e09dc7c05 — page 1 light, page 2 dark; the views, the rail, the adaptive toolbar and the palette at 1280 / 1000 / 720, built by `node docs/design/canvases/build/build-b.mjs` into `docs/design/canvases/direction-b/`
-- Token source of truth: `docs/design/canvases/build/tokens.css` → generated into `src/theme/tokens.css` (header added; never edit the copy)
-- Canvas sources: `docs/design/canvases/*.dc.html` (generated) from `build/parts/*.mjs` + `build/base.css`. Rebuild: `node docs/design/canvases/build/build.mjs` (system) and `node docs/design/canvases/build/build.mjs screens` (both also rewrite `src/theme/tokens.css`); then `node docs/design/canvases/build/contrast.mjs` must print `all pass`
-- Reference component CSS: `docs/design/canvases/build/base.css` — class names there map to `src/components/ui/*`, or to the screen module named in the comment above the block (TabStrip, ChangedFileList, DiffViewer, OutputDock, SettingsDialog…). Sheet chrome is marked `CANVAS-ONLY`; nothing in the file is aspirational
+- Canvas (editable): https://claude.ai/code/artifact/2aab4454-5757-44b5-b987-be682dcabba6 — page 1 = system, page 2 =
+  alternate directions (low-fi, not built out)
+- Screens canvas (A2): https://claude.ai/code/artifact/2e1cc7fb-d31b-4b6a-893d-b7598fdc85f5 — page 1 light, page 2 dark;
+  built from `build/parts-screens/*.mjs` via `node docs/design/canvases/build/build.mjs screens`
+- Direction B canvas (small windows): https://claude.ai/code/artifact/e747c922-c0fa-4143-804b-2d5e09dc7c05 — page 1
+  light, page 2 dark; the views, the rail, the adaptive toolbar and the palette at 1280 / 1000 / 720, built by
+  `node docs/design/canvases/build/build-b.mjs` into `docs/design/canvases/direction-b/`
+- Token source of truth: `docs/design/canvases/build/tokens.css` → generated into `src/theme/tokens.css` (header added;
+  never edit the copy)
+- Canvas sources: `docs/design/canvases/*.dc.html` (generated) from `build/parts/*.mjs` + `build/base.css`. Rebuild:
+  `node docs/design/canvases/build/build.mjs` (system) and `node docs/design/canvases/build/build.mjs screens` (both
+  also rewrite `src/theme/tokens.css`); then `node docs/design/canvases/build/contrast.mjs` must print `all pass`
+- Reference component CSS: `docs/design/canvases/build/base.css` — class names there map to `src/components/ui/*`, or to
+  the screen module named in the comment above the block (TabStrip, ChangedFileList, DiffViewer, OutputDock,
+  SettingsDialog…). Sheet chrome is marked `CANVAS-ONLY`; nothing in the file is aspirational
 
 ## 1. Tokens
 
@@ -32,25 +41,35 @@ All values live in `tokens.css` as CSS custom properties on `:root` (light) and 
 | File status | `--status-{added,modified,deleted,renamed,untracked,conflict}` | glyph color; conflict also gets `--danger-soft` box. Aliases: added→`--success`, modified→`--warning`, deleted/conflict→`--danger-text`, renamed→`--accent-text`, untracked→`--fg-muted` (likewise `--chip-local-bg`→`--accent-soft`, `--chip-tag-bg`→`--warning-soft`, `--chip-head-*`→`--accent`/`--fg-on-accent`) — `var()` aliases, so they cannot drift |
 
 ### Type
-- `--font-ui` Inter, `--font-mono` JetBrains Mono. Both are bundled as variable woff2 in `src/assets/fonts` and `@font-face`d by `src/theme/fonts.css` (roman + italic); the fallback stacks are Segoe UI / system-ui / Cantarell and Cascadia Code / Menlo / DejaVu Sans Mono.
-- Scale: `2xl 20/28 600` · `xl 16/24 600` · `lg 14/20 600` · `md 13/18 400` (base) · `sm 12/16` · `xs 11/16` · mono `12/18`.
+- `--font-ui` Inter, `--font-mono` JetBrains Mono. Both are bundled as variable woff2 in `src/assets/fonts` and
+  `@font-face`d by `src/theme/fonts.css` (roman + italic); the fallback stacks are Segoe UI / system-ui / Cantarell and
+  Cascadia Code / Menlo / DejaVu Sans Mono.
+- Scale: `2xl 20/28 600` · `xl 16/24 600` · `lg 14/20 600` · `md 13/18 400` (base) · `sm 12/16` · `xs 11/16` · mono
+  `12/18`.
 - Weights: 400 body, 500 buttons/labels/selected, 600 headings + current branch. Never 700.
-- `.label` (table headers `.th`): xs, 600, uppercase, 0.06em tracking, `--fg-muted`. Section headers use the same shape at `--fg` — they sit in a `--bg-panel` band and have to out-weigh the rows under them.
+- `.label` (table headers `.th`): xs, 600, uppercase, 0.06em tracking, `--fg-muted`. Section headers use the same shape
+  at `--fg` — they sit in a `--bg-panel` band and have to out-weigh the rows under them.
 - Numbers that align (ahead/behind, counts, dates, +/−): `font-variant-numeric: tabular-nums`.
-- Mono for: SHAs, paths, branch names inside diffs/output, diff content. UI branch names (sidebar, chips) use `--font-ui`.
+- Mono for: SHAs, paths, branch names inside diffs/output, diff content. UI branch names (sidebar, chips) use
+  `--font-ui`.
 
 ### Spacing / radii / density
 - Spacing scale: 2, 4, 6, 8, 12, 16, 20, 24, 32. Gaps in flex/grid, not margins.
 - Radii: `sm 3` chips/glyphs/menu items · `md 5` controls/rows/lists · `lg 8` cards/menus/dialogs · `pill` badges.
-- Fixed heights (virtualization + graph depend on them): `--row-h 26` · `--control-h 28` · `--control-h-sm 24` · `--section-h 28` · `--toolbar-h 40` · `--statusbar-h 24`. Diff lines 20px. Table header 24px.
-- Graph: `--lane-w 13`, `--node-r 3.5`, `--lane-stroke 2`. The canvas SVGs hardcode these literals; the app's `GraphCell` must read them via `getComputedStyle` (or a generated constants module) so tokens stay the single source.
+- Fixed heights (virtualization + graph depend on them): `--row-h 26` · `--control-h 28` · `--control-h-sm 24` ·
+  `--section-h 28` · `--toolbar-h 40` · `--statusbar-h 24`. Diff lines 20px. Table header 24px.
+- Graph: `--lane-w 13`, `--node-r 3.5`, `--lane-stroke 2`. The canvas SVGs hardcode these literals; the app's
+  `GraphCell` must read them via `getComputedStyle` (or a generated constants module) so tokens stay the single source.
 
 ### Motion
-- `--dur 120ms` hover/press/selection; `--dur-panel 150ms` collapse/expand, dock, dialog (fade + 2px rise). `--ease` ease-out only. Honor `prefers-reduced-motion` (set durations to 0).
+- `--dur 120ms` hover/press/selection; `--dur-panel 150ms` collapse/expand, dock, dialog (fade + 2px rise). `--ease`
+  ease-out only. Honor `prefers-reduced-motion` (set durations to 0).
 
 ## 2. Icons
-- lucide, stroke 1.75, round caps/joins. 16px in rows/menus/inputs, 18px in toolbar, 12px inside chips/ahead-behind/tree chevrons, 24px in empty states.
-- Color `--fg-muted` at rest, `--fg` when the parent is hovered/active/selected. Never colored icons except semantic (toast/banner).
+- lucide, stroke 1.75, round caps/joins. 16px in rows/menus/inputs, 18px in toolbar, 12px inside chips/ahead-behind/tree
+  chevrons, 24px in empty states.
+- Color `--fg-muted` at rest, `--fg` when the parent is hovered/active/selected. Never colored icons except semantic
+  (toast/banner).
 - No emoji anywhere in UI.
 
 ## 3. Components (`src/components/ui/`)
@@ -85,7 +104,7 @@ One file per row, except the few marked otherwise (a screen-level piece, or some
 | `PanelHeader` | 28px `--bg-app`, sm 600 muted, icon 14, actions as IconButtons right |
 | `SectionHeader` | A sticky band (`--bg-section-header`, 1px `--border` top, z-index 1) over the `--bg-sidebar` sidebar — a step away from it in whichever direction the theme needs: darker in light, lighter in dark, holding a 28px label-shape button at `--fg` with a chevron slot and count badge; the button fills the band, so its hover tint reaches the edge; a `children` control — Stashes' Archive IconButton — adds the side gap back and keeps its own hover. Click toggles. In the rail flyout the nav drops its own padding and the first header its top border, so the band sits flush against the panel's rounded edge; the scrolling sits under the header rather than around it, so a scrollbar never shortens the band |
 | `SplitHandle` | 5px hit area, 1px `--border` line; hover/drag = 2px accent. Dragging one moves only the two panes it sits between; resizing the *window* moves only each group's absorbing pane (see Breakpoints) |
-| `StatusBar` | 24px `--bg-app`, xs muted. Left: HEAD (`(unborn)` / `<sha> (detached)` appended), ahead/behind, and the remote — the branch's own, else origin, else the first — with its URL through `prettyUrl`. Right: the running op (`sm` Spinner + text), `Loading commits… N` while the walk runs, `N unstaged · M staged · K conflicted`, the tree state (`CircleCheck` clean / `TriangleAlert` otherwise; Clean, Merge, Rebase, Cherry-pick, Revert, Bisect in progress), and the git version |
+| `StatusBar` | 24px `--bg-app`, xs muted. Left: HEAD (`(unborn)` / `<sha> (detached)` appended — mid-rebase, the detached HEAD names the branch being rebased instead, read from `refs.conflictSides.theirs` — when that is `"HEAD"` (the rebase started detached), or absent (both sides share a name), it falls back to `<sha> (detached)`), ahead/behind, and the remote — the branch's own, else origin, else the first — with its URL through `prettyUrl`. Right: the running op (`sm` Spinner + text), `Loading commits… N` while the walk runs (`N` through `groupThousands`, a space every three digits: `96 000`), `N unstaged · M staged · K conflicted`, the tree state (`CircleCheck` clean / `TriangleAlert` otherwise; Clean, Merge, Rebase, Cherry-pick, Revert, Bisect in progress), and the git version |
 | `Toast` | 360px, `--bg-elevated` + shadow-1, radius lg, icon 16 semantic color (`--danger-text` / `--success` / `--accent-text`), title 500 + sm muted detail, optional `sm`-button `.actions` row under the detail (gap 6, margin-top 4), close IconButton. Top-center stack below the toolbar (z-index 45, over the dialog scrim), 5s (errors persist). A click anywhere on the toast dismisses it — except on its buttons or its detail, which stays selectable (its first click is also the opening of a double-click) |
 | `Banner` | 32px full-width at top of content, `*-soft` bg, icon 14 semantic, sm text, `sm` buttons right. Used for merge / rebase / cherry-pick / revert / bisect in progress, conflicts, detached HEAD. A stopped op offers **Abort** plus the way forward (Commit for merge / cherry-pick / revert, Continue for rebase). Bisect is **not** report-only: Good · Bad · Skip · Reset, degrading to Reset alone until both a good and a bad commit are marked (until then git has not moved HEAD, so a mark would hit the commit just marked the other way) |
 | `Progress` | 4px pill; indeterminate = 30% sweeping, determinate (`value` 0–100) fills from the left. `thin` = 3px square, for the bar that hangs under a panel header or over the grid |
@@ -98,21 +117,141 @@ One file per row, except the few marked otherwise (a screen-level piece, or some
 | `EmptyState` | icon 24 muted, title 500, one-line sm hint, optional single secondary button |
 
 ## 4. Domain rules
-- **Ref chips**: placed at the **start of the grid row, before the subject** (GitExtensions-style); the subject truncates, chips never do. `head` solid accent (only on HEAD row); `local` accent-soft; `current` local + 1px inset outline + 600; `remote` neutral inset; `tag` warning-soft; `stash` violet-soft; `bisect` = the mark git put on that commit, coloured by the mark itself (`good` success-soft, `bad` danger-soft, `skip` the remote grey) behind a `Bug` icon. Order: HEAD, current, local…, remote…, tags, stash, bisect, `+N` (max 3 visible; `+N` is a real button opening a popover listing the rest).
-- **`signed` marker**: a commit with a good signature shows `signed` beside its author in the details pane — chip shape (radius sm, pad 6, xs 500) on `--success-soft`/`--success`, but not a `RefChip` kind, since it names no ref.
-- **Synced local + remote**: when a local branch and its *tracking* remote branch point at the same commit, render one local chip with a remote segment (`main · ☁ origin`; several remotes comma-joined: `origin, upstream`). The segment carries the remote's name alone only while the upstream is named after the local branch; a differently-named upstream is spelled out in full (`feature · ☁ origin/trunk`), or the segment would read as `origin/feature` — which may be a different branch entirely, sitting on the same commit. The segment is regular weight at 85% opacity behind a hairline divider. A remote branch at the same commit that is *not* the tracking branch keeps its own `remote` chip. When local and remote diverge they naturally land on different rows and show separately.
-- **Graph**: lines 2px round; curves are cubic Béziers between row centers (no diagonals); nodes r 3.5 filled in lane color; HEAD = extra 5px ring; working-tree row = dashed ring, italic muted subject, only when dirty — with a line in HEAD's colour down to HEAD's commit: the walk reserves HEAD's column while the tree is dirty (`LogFilter.workingTree`), so the current branch sits in lane 0 then and the graph re-lays out when the tree turns clean; pass-through lanes draw under nodes; selected-row tint spans the graph column, lane colors unchanged.
-- **Diff**: gutters 40+40 (old/new, `--diff-gutter-fg`), sign column 14 (`--fg-muted`), 20px lines; header stats `+N` `--success` / `−N` `--danger-text`; line content is `.selectable` (gutter + sign are not); add/del row tint, darker gutter, darker word highlight; hunk header 24px `--diff-hunk-*` mono xs with Discard / Stage hunk buttons on hover; selected lines get accent sign column + inset ring and a sticky "N lines selected · Stage N lines" bar; side-by-side pairs −/+ runs with 20px filler rows. The header's trailing IconButtons are **Open diff window** (details pane only), **Open in diff tool** (`ExternalLink`; greyed with the hint `No diff tool set — Settings › Diff & merge › Diff tool` until one is configured), unified / split, ignore whitespace.
-- **Conflicts**: a conflicted file is diffed as *ours* against the file on disk, so the `<<<<<<<` / `=======` / `>>>>>>>` markers git wrote are what the user reads; no hunk or line actions (whole-file staging is what marks it resolved), header note "Conflict — stage the file once resolved" and a `sm` **Resolve in editor** button beside it that hands the three sides to the merge tool from Settings — VS Code's merge editor when none is set. The label never changes; the tooltip names the tool (`Resolve in KDiff3`). Resolution itself is never in-app. Staging a file that still has its markers is how git marks it resolved, and nothing undoes that — while a merge or rebase is in progress such a file gets the note "Marked resolved, but the conflict markers are still here" and a `sm` **Restore conflict** button, which overwrites the working file and so asks first.
-- **External tools**: Settings has a **Diff tool** and a **Merge tool** section (GitExtensions' Git Config page): a template Select (None, ten premade tools, Custom; WinMerge and TortoiseGitMerge are Windows-only and hidden elsewhere), the executable's Path with **Locate…** and **Suggest**, and the Command the template derives from the path — editable, mono. Nothing saves until **Apply** (or Enter in Path / Command). Storage is the **global git config**, in git's own keys (`diff.tool` + `diff.guitool`, `difftool.<name>.path` / `.cmd`), so `git difftool` and GitExtensions read the same setting; a name that is not one of the templates loads as Custom. On Windows the command is split on whitespace and double quotes with no shell; on Linux/macOS it goes to `sh -c` with the variables in the environment, the way `git difftool` runs it. `$LOCAL` / `$REMOTE` / `$BASE` / `$MERGED` are the files the app writes — except an unstaged diff's right side, which is the working file itself, so saving in the tool lands in the working tree.
-- **Annotated tags**: a tag's own message belongs to the tag, not the commit, so it never merges into the commit message. Commit details renders one block per annotated tag on that commit, under the commit message: `--bg-field` with a 2px `--chip-tag-bg` left edge, the tag name in muted 600 behind a 12px tag icon, then the message. A lightweight tag has none, which is the only thing that distinguishes the two once the tag is peeled to its commit.
-- **Output dock**: bottom, 160–320px; header = PanelHeader with command, elapsed, `sm` Spinner, Cancel, collapse; body mono on `--bg-field`; `$ cmd` in `--fg`, output muted, stderr muted **italic**, exit line `--success`/`--danger-text` behind a 12px `Check` / `X` (no `✓`/`✗`). With no operation yet it reads "No output yet". There is **no progress bar in the dock**. Under the log — outside it, so it is neither selectable nor part of the scroll — sits the `$ git` prompt row: `--bg-app`, 1px top border, pad `4 8`, holding a full-width `CommandInput`. Body is `.selectable`.
-- **Files tab · Blame**: the changed-file panel's second tab lists the whole tree at HEAD rather than the changes, so it gets a filter row under the header — a `--section-h` band on `--bg-app` with a bottom border holding one `--control-h-sm` Input; past the row cap a `warning` Banner under the list says how many more matched. A file opened from it shows content, not a diff, and a Blame IconButton adds a 180px gutter on its left: one cell per row, the author-and-date label on a hunk's first row and the tint alone on the rest, tinted `--accent` at `--age × 4%` over five steps (1 = the file's oldest hunk, 5 = its newest; 20% is the strongest it gets, which keeps `--fg-muted` over 4.5:1 in both themes). A blame row has its own context menu; a blame that fails is a `warning` Banner, and the toggle stays reachable so a file blame cannot see whole never strands it on.
-- **Sidebar**: 260px default, resizable 180–560px, `--bg-sidebar`; sections Local / Remotes / Tags / Stashes; branches tree by `/`; the checked-out branch's row swaps the branch glyph for an accent check (plus semibold, `aria-current`) and nothing else — the row background means something else: every branch, remote branch and tag row whose ref sits on the grid's selected commit is tinted (a collapsed folder holding one is tinted itself, and hands the tint to the rows inside once it opens; worktree rows keep their own `current` tint, a checkout being no ref on a commit); counts as badges. A badge counts **refs**, never the grouping rows: Remotes shows how many remote branches exist across all remotes, not how many remotes (the remotes are visible rows, the branches under a collapsed one are not); folder rows in the local tree don't count either. (The original 220–320 range made the splitter feel dead — long branch paths need the room.) A remote's folder row has its own menu (fetch · copy URL · rename, change URL · remove); no remotes → empty state with **Add remote…**. The Tags section is a tree like the branches: the local tags nested by `/` (the count is those, not the folders), then one cloud-icon folder per remote that has answered, holding the tags that remote has (nested by `/` too, tooltip "Checked `<5m ago>`") — a tag local and on two remotes is three rows, the way a branch is. A tag on **none** of the remotes that answered carries a `local` badge (same look as a branch's `gone`), tooltip "Not on `<origin or mirror>` (as of `<the oldest answer>`)" — git keeps no local record of a remote's tags, so the answers are only as fresh as the last fetch / push / pull and the tooltip dates them; no badges and no folders until a check has run (or a cached answer is read on open), and a remote that is gone takes its folder and its share of the tooltip with it. Every tag row's menu carries **Refresh remote tags** to re-ask them all, which toasts a count per remote; a remote that fails toasts its own error and keeps its cached answer. A remote tag row offers Refresh, Copy name, and **Delete on remote…** with that remote preselected — no checkout or create-branch, its object may not exist locally — and clicking one whose commit the current walk hasn't got says "Not in the current history" rather than doing nothing. Two more sections appear only when there is something in them: **Worktrees** (past the first — `FolderGit2` 14, the head branch as mono `meta`, and `main` / `current` / `locked` / `prunable` Badges) and **Submodules** (`Package` 14, the short oid as mono `meta`, a `not initialized` Badge until one is cloned). A local branch already contained in another carries a `merged` Badge and a muted label; one whose upstream is gone carries `gone`. How far folders start open is a setting (Settings › General › Sidebar: always expanded / always collapsed / collapsed past N refs); one opened or closed by hand stays that way for the session. Below 1000px the whole thing folds to the 36px `SidebarRail` (§3), which shows one section at a time in its flyout — the same tree, rendered by `Sidebar` with a single section — and ``Ctrl+Shift+` `` (or the toolbar's leftmost button, the one collapse/expand control there is) toggles rail ↔ full at any width for the rest of the session.
-- **Interactive rebase**: git generates the todo, the dialog only edits it (`wide` Dialog, `Rebase <branch>` / `… onto <ref>`). A dirty tree gets a notice first — "Uncommitted changes will be stashed before the rebase and restored after it." with **Stash and continue** — because reading the todo runs `git rebase -i` for real. Rows are oldest first: `[action ▾] <short> <subject> [↑] [↓]`, the list scrolling at 50vh; squash / fixup are disabled options with a title when there is no commit above to fold into, and Alt+↑ / Alt+↓ move the focused row. A merge commit is a read-only `merge <subject>` row and a barrier no pick moves past; `label` / `reset` / comment lines are kept in order and never shown. A reword, or a group with a squash in it, opens a message textarea under the list, prefilled with git's own default. Merge lines in range add "N merge commits in this range" with **Keep merges** (default) / **Flatten**; `--update-refs` is a checkbox, off, hidden below git 2.38. **Rebase** is disabled with the reason beside it while the list can't run. A stopped rebase is not an error: the banner reads "Rebase paused — amend or add commits in the commit panel, then Continue" and carries Abort · Skip · Continue.
-- **Selection model**: one focused pane owns `--bg-selected`; others show `--bg-selected-unfocused`. The sidebar echoes the grid's selection on every ref row that points at it — in the unfocused tint while the grid holds focus. File lists support Shift/Ctrl multi-select. The commit grid is single-select, plus Ctrl+click on a second commit for a compare of the two (both rows tinted, the anchor keeps the ring and `aria-activedescendant`; the diff runs from the anchor to the Ctrl+clicked commit). In tree mode a folder row's hover `+` / `−` and its context menu act on every file under it (the menu selects them first); `Enter` / `Space` on the row toggle the folder. A **previewed stash takes the whole details pane**, pushing the selected commit behind it without clearing it (Apply · Pop · Drop… · Open browser as `sm` buttons, then On / Date / Untracked); the pane returns to the commit when the preview is dismissed. A Ctrl+click compare replaces it with a From / To panel instead.
-- **Settings sections**: three tabs in the dialog's tab row, because eight sections stacked never fit the window at once — **General** (Theme · **Sidebar**, the folder auto-collapse rule + its N · **Changes**, whether a commit that empties the tree closes the view · **Updates**) · **Git** (Git executable · **Signing**) · **Diff & merge** (Diff · Diff tool · Merge tool). Each section within a tab is still a `--text-sm` 600 `--fg` heading with a bottom border, then its fields. ←/→ move between tabs, the selected one is the only tab stop, and the whole row goes disabled while an update downloads — Updates lives under General and a download disables Close, so wandering off that tab would leave a dialog that won't close for no visible reason. The panels of the unselected tabs stay mounted rather than unmounting: a tool section holds edits that only its own Apply commits, and switching tabs must not throw them away.
-- **Views**: the content area shows one view at a time — **History** (the grid over the details pane, full height) or **Changes** (the commit panel under a one-line bar reading `Changes on <branch> · N unstaged · M staged`, with `Stash…` beside the counts and a close (×) button at its right) — switched by the toolbar's `ViewSwitch`, by `Alt+1` / `Alt+2`, or by anything that opens the working tree: the grid's working-tree row, its always-visible muted `Open changes →` hint, the palette. Selecting a commit or a branch while in Changes stays in Changes and the selection is there on the way back; the search box and the branch filter belong to History and leave the toolbar in Changes; a clean tree in Changes is an empty state (`Working tree clean` · `Edit files, or amend the last commit.`) beside the message column, not an empty list — but a commit that took the last change **closes the view** instead of landing on it (Settings › General › Changes, on by default), so that state is reached by opening Changes on an already-clean tree, by discarding or stashing the rest, or by amending from it. Only a plain clean tree counts, judged *after* the commit: an unfinished merge, rebase, pick, revert or bisect still owes a commit — and the paused-rebase banner sends the user to this very panel — so the view stays. Concluding one is the other case: committing a resolved merge or a conflicted cherry-pick finishes it, which leaves the state clean and closes the view; a rebase `edit` stop is still paused afterwards, so it does not. Nothing but a commit ever closes it by itself.
+- **Ref chips**: placed at the **start of the grid row, before the subject** (GitExtensions-style); the subject
+  truncates, chips never do. `head` solid accent (only on HEAD row); `local` accent-soft; `current` local + 1px inset
+  outline + 600; `remote` neutral inset; `tag` warning-soft; `stash` violet-soft; `bisect` = the mark git put on that
+  commit, coloured by the mark itself (`good` success-soft, `bad` danger-soft, `skip` the remote grey) behind a `Bug`
+  icon. Order: HEAD, current, local…, remote…, tags, stash, bisect, `+N` (max 3 visible; `+N` is a real button opening a
+  popover listing the rest).
+- **`signed` marker**: a commit with a good signature shows `signed` beside its author in the details pane — chip shape
+  (radius sm, pad 6, xs 500) on `--success-soft`/`--success`, but not a `RefChip` kind, since it names no ref.
+- **Synced local + remote**: when a local branch and its *tracking* remote branch point at the same commit, render one
+  local chip with a remote segment (`main · ☁ origin`; several remotes comma-joined: `origin, upstream`). The segment
+  carries the remote's name alone only while the upstream is named after the local branch; a differently-named upstream
+  is spelled out in full (`feature · ☁ origin/trunk`), or the segment would read as `origin/feature` — which may be a
+  different branch entirely, sitting on the same commit. The segment is regular weight at 85% opacity behind a hairline
+  divider. A remote branch at the same commit that is *not* the tracking branch keeps its own `remote` chip. When local
+  and remote diverge they naturally land on different rows and show separately.
+- **Graph**: lines 2px round; curves are cubic Béziers between row centers (no diagonals); nodes r 3.5 filled in lane
+  color; HEAD = extra 5px ring; working-tree row = dashed ring, italic muted subject, only when dirty — with a line in
+  HEAD's colour down to HEAD's commit: the walk reserves HEAD's column while the tree is dirty
+  (`LogFilter.workingTree`), so the current branch sits in lane 0 then and the graph re-lays out when the tree turns
+  clean; pass-through lanes draw under nodes; selected-row tint spans the graph column, lane colors unchanged.
+- **Diff**: gutters 40+40 (old/new, `--diff-gutter-fg`), sign column 14 (`--fg-muted`), 20px lines; header stats `+N`
+  `--success` / `−N` `--danger-text`; line content is `.selectable` (gutter + sign are not); add/del row tint, darker
+  gutter, darker word highlight; hunk header 24px `--diff-hunk-*` mono xs with Stage / Discard hunk buttons on hover;
+  selected lines get accent sign column + inset ring and a sticky "N lines selected · Stage N lines · Discard N lines"
+  bar; side-by-side pairs −/+ runs with 20px filler rows. The header's trailing IconButtons are **Open diff window**
+  (details pane only), **Open in diff tool** (`ExternalLink`; greyed with the hint
+  `No diff tool set — Settings › Diff & merge › Diff tool` until one is configured), unified / split, ignore whitespace.
+- **Conflicts**: a conflicted file is diffed as *ours* against the file on disk, so the `<<<<<<<` / `=======` /
+  `>>>>>>>` markers git wrote are what the user reads; no hunk or line actions (whole-file staging is what marks it
+  resolved). The note "Conflict — stage the file once resolved" and a `sm` **Resolve in editor** button that hands the
+  three sides to the merge tool from Settings — VS Code's merge editor when none is set — sit in a conflict strip under
+  the diff header, not in the header itself (the header has no room for them). The Resolve in editor label never
+  changes; the tooltip names the tool (`Resolve in KDiff3`). The same strip also holds **Keep `<ours>`'s version** /
+  **Keep `<theirs>`'s version** buttons (**Keep our version** / **Keep their version** when the backend names no
+  branch), each asking first. Resolution itself is never in-app. Staging a file that still has its markers is how git
+  marks it resolved, and nothing undoes that — while a merge or rebase is in progress such a file gets the note "Marked
+  resolved, but the conflict markers are still here" and a `sm` **Restore conflict** button in the same strip, which
+  overwrites the working file and so asks first.
+- **External tools**: Settings has a **Diff tool** and a **Merge tool** section (GitExtensions' Git Config page): a
+  template Select (None, ten premade tools, Custom; WinMerge and TortoiseGitMerge are Windows-only and hidden
+  elsewhere), the executable's Path with **Locate…** and **Suggest**, and the Command the template derives from the path
+  — editable, mono. Nothing saves until **Apply** (or Enter in Path / Command). Storage is the **global git config**, in
+  git's own keys (`diff.tool` + `diff.guitool`, `difftool.<name>.path` / `.cmd`), so `git difftool` and GitExtensions
+  read the same setting; a name that is not one of the templates loads as Custom. On Windows the command is split on
+  whitespace and double quotes with no shell; on Linux/macOS it goes to `sh -c` with the variables in the environment,
+  the way `git difftool` runs it. `$LOCAL` / `$REMOTE` / `$BASE` / `$MERGED` are the files the app writes — except an
+  unstaged diff's right side, which is the working file itself, so saving in the tool lands in the working tree.
+- **Annotated tags**: a tag's own message belongs to the tag, not the commit, so it never merges into the commit
+  message. Commit details renders one block per annotated tag on that commit, under the commit message: `--bg-field`
+  with a 2px `--chip-tag-bg` left edge, the tag name in muted 600 behind a 12px tag icon, then the message. A
+  lightweight tag has none, which is the only thing that distinguishes the two once the tag is peeled to its commit.
+- **Output dock**: bottom, 160–320px; header = PanelHeader with command, elapsed, `sm` Spinner, Cancel, collapse; body
+  mono on `--bg-field`; `$ cmd` in `--fg`, output muted, stderr muted **italic**, exit line `--success`/`--danger-text`
+  behind a 12px `Check` / `X` (no `✓`/`✗`). With no operation yet it reads "No output yet". There is **no progress bar
+  in the dock**. Under the log — outside it, so it is neither selectable nor part of the scroll — sits the `$ git`
+  prompt row: `--bg-app`, 1px top border, pad `4 8`, holding a full-width `CommandInput`. Body is `.selectable`.
+- **Files tab · Blame**: the changed-file panel's second tab lists the whole tree at HEAD rather than the changes, so it
+  gets a filter row under the header — a `--section-h` band on `--bg-app` with a bottom border holding one
+  `--control-h-sm` Input; past the row cap a `warning` Banner under the list says how many more matched. A file opened
+  from it shows content, not a diff, and a Blame IconButton adds a 180px gutter on its left: one cell per row, the
+  author-and-date label on a hunk's first row and the tint alone on the rest, tinted `--accent` at `--age × 4%` over
+  five steps (1 = the file's oldest hunk, 5 = its newest; 20% is the strongest it gets, which keeps `--fg-muted` over
+  4.5:1 in both themes). A blame row has its own context menu; a blame that fails is a `warning` Banner, and the toggle
+  stays reachable so a file blame cannot see whole never strands it on.
+- **Sidebar**: 260px default, resizable 180–560px, `--bg-sidebar`; sections Local / Remotes / Tags / Stashes; branches
+  tree by `/`; the checked-out branch's row swaps the branch glyph for an accent check (plus semibold, `aria-current`)
+  and nothing else — the row background means something else: every branch, remote branch and tag row whose ref sits on
+  the grid's selected commit is tinted (a collapsed folder holding one is tinted itself, and hands the tint to the rows
+  inside once it opens; worktree rows keep their own `current` tint, a checkout being no ref on a commit); counts as
+  badges. A badge counts **refs**, never the grouping rows: Remotes shows how many remote branches exist across all
+  remotes, not how many remotes (the remotes are visible rows, the branches under a collapsed one are not); folder rows
+  in the local tree don't count either. (The original 220–320 range made the splitter feel dead — long branch paths need
+  the room.) A remote's folder row has its own menu (fetch · copy URL · rename, change URL · remove); no remotes → empty
+  state with **Add remote…**. The Tags section is a tree like the branches: the local tags nested by `/` (the count is
+  those, not the folders), then one cloud-icon folder per remote that has answered, holding the tags that remote has
+  (nested by `/` too, tooltip "Checked `<5m ago>`") — a tag local and on two remotes is three rows, the way a branch is.
+  A tag on **none** of the remotes that answered carries a `local` badge (same look as a branch's `gone`), tooltip "Not
+  on `<origin or mirror>` (as of `<the oldest answer>`)" — git keeps no local record of a remote's tags, so the answers
+  are only as fresh as the last fetch / push / pull and the tooltip dates them; no badges and no folders until a check
+  has run (or a cached answer is read on open), and a remote that is gone takes its folder and its share of the tooltip
+  with it. Every tag row's menu carries **Refresh remote tags** to re-ask them all, which toasts a count per remote; a
+  remote that fails toasts its own error and keeps its cached answer. A remote tag row offers Refresh, Copy name, and
+  **Delete on remote…** with that remote preselected — no checkout or create-branch, its object may not exist locally —
+  and clicking one whose commit the current walk hasn't got says "Not in the current history" rather than doing nothing.
+  Two more sections appear only when there is something in them: **Worktrees** (past the first — `FolderGit2` 14, the
+  head branch as mono `meta`, and `main` / `current` / `locked` / `prunable` Badges) and **Submodules** (`Package` 14,
+  the short oid as mono `meta`, a `not initialized` Badge until one is cloned). A local branch already contained in
+  another carries a `merged` Badge and a muted label; one whose upstream is gone carries `gone`. How far folders start
+  open is a setting (Settings › General › Sidebar: always expanded / always collapsed / collapsed past N refs); one
+  opened or closed by hand stays that way for the session. Below 1000px the whole thing folds to the 36px `SidebarRail`
+  (§3), which shows one section at a time in its flyout — the same tree, rendered by `Sidebar` with a single section —
+  and ``Ctrl+Shift+` `` (or the toolbar's leftmost button, the one collapse/expand control there is) toggles rail ↔ full
+  at any width for the rest of the session.
+- **Interactive rebase**: git generates the todo, the dialog only edits it (`wide` Dialog, `Rebase <branch>` /
+  `… onto <ref>`). A dirty tree gets a notice first — "Uncommitted changes will be stashed before the rebase and
+  restored after it." with **Stash and continue** — because reading the todo runs `git rebase -i` for real. Rows are
+  oldest first: `[action ▾] <short> <subject> [↑] [↓]`, the list scrolling at 50vh; squash / fixup are disabled options
+  with a title when there is no commit above to fold into, and Alt+↑ / Alt+↓ move the focused row. A merge commit is a
+  read-only `merge <subject>` row and a barrier no pick moves past; `label` / `reset` / comment lines are kept in order
+  and never shown. A reword, or a group with a squash in it, opens a message textarea under the list, prefilled with
+  git's own default. Merge lines in range add "N merge commits in this range" with **Keep merges** (default) /
+  **Flatten**; `--update-refs` is a checkbox, off, hidden below git 2.38. **Rebase** is disabled with the reason beside
+  it while the list can't run. A stopped rebase is not an error: the banner reads "Rebase paused — amend or add commits
+  in the commit panel, then Continue" and carries Abort · Skip · Continue.
+- **Selection model**: one focused pane owns `--bg-selected`; others show `--bg-selected-unfocused`. The sidebar echoes
+  the grid's selection on every ref row that points at it — in the unfocused tint while the grid holds focus. File lists
+  support Shift/Ctrl multi-select. The commit grid is single-select, plus Ctrl+click on a second commit for a compare of
+  the two (both rows tinted, the anchor keeps the ring and `aria-activedescendant`; the diff runs from the anchor to the
+  Ctrl+clicked commit). In tree mode a folder row's hover `+` / `−` and its context menu act on every file under it (the
+  menu selects them first); `Enter` / `Space` on the row toggle the folder. A **previewed stash takes the whole details
+  pane**, pushing the selected commit behind it without clearing it (Apply · Pop · Drop… · Open browser as `sm` buttons,
+  then On / Date / Untracked); the pane returns to the commit when the preview is dismissed. A Ctrl+click compare
+  replaces it with a From / To panel instead.
+- **Settings sections**: three tabs in the dialog's tab row, because eight sections stacked never fit the window at once
+  — **General** (Theme · **Sidebar**, the folder auto-collapse rule + its N · **Changes**, whether a commit that empties
+  the tree closes the view · **Updates**) · **Git** (Git executable · **Signing**) · **Diff & merge** (Diff · Diff tool
+  · Merge tool). Each section within a tab is still a `--text-sm` 600 `--fg` heading with a bottom border, then its
+  fields. ←/→ move between tabs, the selected one is the only tab stop, and the whole row goes disabled while an update
+  downloads — Updates lives under General and a download disables Close, so wandering off that tab would leave a dialog
+  that won't close for no visible reason. The panels of the unselected tabs stay mounted rather than unmounting: a tool
+  section holds edits that only its own Apply commits, and switching tabs must not throw them away.
+- **Views**: the content area shows one view at a time — **History** (the grid over the details pane, full height) or
+  **Changes** (the commit panel under a one-line bar reading `Changes on <branch> · N unstaged · M staged`, with
+  `Stash…` beside the counts and a close (×) button at its right) — switched by the toolbar's `ViewSwitch`, by `Alt+1` /
+  `Alt+2`, or by anything that opens the working tree: the grid's working-tree row, its always-visible muted
+  `Open changes →` hint, the palette. Selecting a commit or a branch while in Changes stays in Changes and the selection
+  is there on the way back; the search box and the branch filter belong to History and leave the toolbar in Changes; a
+  clean tree in Changes is an empty state (`Working tree clean` · `Edit files, or amend the last commit.`) beside the
+  message column, not an empty list — but a commit that took the last change **closes the view** instead of landing on
+  it (Settings › General › Changes, on by default), so that state is reached by opening Changes on an already-clean
+  tree, by discarding or stashing the rest, or by amending from it. Only a plain clean tree counts, judged *after* the
+  commit: an unfinished merge, rebase, pick, revert or bisect still owes a commit — and the paused-rebase banner sends
+  the user to this very panel — so the view stays. Concluding one is the other case: committing a resolved merge or a
+  conflicted cherry-pick finishes it, which leaves the state clean and closes the view; a rebase `edit` stop is still
+  paused afterwards, so it does not. Nothing but a commit ever closes it by itself.
 
 **Breakpoints** (window `innerWidth`, CSS px — `src/screens/RepoWindow/layout.ts` is the one place they live):
 
@@ -121,7 +260,7 @@ One file per row, except the few marked otherwise (a screen-level piece, or some
 | ≥ 1340 | 260px | details \| files \| diff | files \| diff \| message |
 | 1000–1339 | 260px | details over files \| diff | files \| diff \| message |
 | 800–999 | 36px rail | details over files \| diff | files \| diff \| message |
-| < 800 | 36px rail | files \| diff, the commit details a one-line header that expands over the list | files over message \| diff |
+| < 800 | 36px rail | files \| diff, the commit details a one-line header that expands over the list | files over message \| diff, the message column's Amend / Signed-off-by / Sign and author line folded behind a "Commit options" ⋯ |
 
 The details pane’s 1340 is set by what the diff is left with rather than by the window: three columns spend 340 on details and 320 on files before the diff gets anything, so at 1100 the diff sat on its 200px minimum and the details column had already been squeezed off its 340. 1340 is where the diff still clears 400px — below it the other two stack into one column and the diff roughly doubles.
 
@@ -138,18 +277,33 @@ The search box is the one control that gives way; everything else is fixed width
 Resizing the window changes only the commit grid's height and the diff's width. Every other pane holds the pixel size it has (`groupResizeBehavior="preserve-pixel-size"`), so the sidebar stays at its 260 and the details / files / message columns stay where they were last dragged. Each split group keeps exactly one absorbing pane — the library requires one, and a group with none silently falls back to resizing everything proportionally, which is the bug this replaced. The content panel carries a `minSize` so a sidebar dragged wide still gives way when the window narrows instead of squeezing the panes beside it.
 
 ## 5. Accessibility
-- Text contrast ≥ 4.5:1 on its surface; non-text UI (control edges, icons, focus ring, scrollbar thumb, graph lanes) ≥ 3:1. Contrast audit: `node docs/design/canvases/build/contrast.mjs` checks 106 token pairs × 2 themes and exits non-zero on failure — run it after any token change. Computed minimums: text 4.52 (dark `--fg-muted` on `--bg-selected`), non-text 3.02 (light `--graph-7` on `--bg-panel`) — light’s own text floor is 4.64 (`--fg-muted` on `--bg-inset`) and dark’s non-text floor 3.03 (`--border-strong` on `--bg-panel`); `--fg-muted` ≥ 4.52 on every surface incl. selected rows and the hover composite; `--fg-on-accent` ≥ 4.65 on every accent/danger fill.
-- `--fg-faint` = placeholders/disabled only; never for information (held at ≥3:1, not 4.5). Anything a user must read — labels, counts, help text, chevrons, diff signs — uses `--fg-muted`.
-- Text-safe variants: `--accent-text` and `--danger-text` for text/icons; `--accent`/`--danger` are fills. Dark-theme hovers darken (not lighten) so white text stays ≥4.5:1.
+- Text contrast ≥ 4.5:1 on its surface; non-text UI (control edges, icons, focus ring, scrollbar thumb, graph lanes) ≥
+  3:1. Contrast audit: `node docs/design/canvases/build/contrast.mjs` checks 106 token pairs × 2 themes and exits
+  non-zero on failure — run it after any token change. Computed minimums: text 4.52 (dark `--fg-muted` on
+  `--bg-selected`), non-text 3.02 (light `--graph-7` on `--bg-panel`) — light’s own text floor is 4.64 (`--fg-muted` on
+  `--bg-inset`) and dark’s non-text floor 3.03 (`--border-strong` on `--bg-panel`); `--fg-muted` ≥ 4.52 on every surface
+  incl. selected rows and the hover composite; `--fg-on-accent` ≥ 4.65 on every accent/danger fill.
+- `--fg-faint` = placeholders/disabled only; never for information (held at ≥3:1, not 4.5). Anything a user must read —
+  labels, counts, help text, chevrons, diff signs — uses `--fg-muted`.
+- Text-safe variants: `--accent-text` and `--danger-text` for text/icons; `--accent`/`--danger` are fills. Dark-theme
+  hovers darken (not lighten) so white text stays ≥4.5:1.
 - Focus always visible on keyboard (`:focus-visible`), never on mouse.
 - Hit targets ≥ 24px; toolbar/list rows accept full-width clicks.
 - Color never sole carrier: status glyph letters, diff signs, chip icons, ahead/behind arrows.
-- Selection: `body` is `user-select: none`; content the user may copy (diff line text, commit message, output dock body) opts in with `.selectable` (`src/theme/base.css`).
-- `prefers-reduced-motion` respected. Theme: `src/theme/theme.ts` — `localStorage('theme')` = `light` | `dark` overrides; absent = follow `prefers-color-scheme` live; `setTheme('light'|'dark'|'system')` writes/clears the key and applies `data-theme` on `<html>`.
+- Selection: `body` is `user-select: none`; content the user may copy (diff line text, commit message, output dock body)
+  opts in with `.selectable` (`src/theme/base.css`).
+- `prefers-reduced-motion` respected. Theme: `src/theme/theme.ts` — `localStorage('theme')` = `light` | `dark`
+  overrides; absent = follow `prefers-color-scheme` live; `setTheme('light'|'dark'|'system')` writes/clears the key and
+  applies `data-theme` on `<html>`.
 
 ## 6. Do / don't
-- Do: gap-based layout, tokens only, one primary action per dialog, verbs on buttons ("Create", "Stage hunk"), sentence case.
-- Don't: pure white (`#fff`) on any surface — it exists only as `--fg-on-accent`; large panes and the fields inside them sit on `--bg-panel` / `--bg-field` (#cdced0), chrome on `--bg-app` (#bcbec2). No raw colors (canvas parts read hex only via `tokens`/`resolve()` from `build/lib.mjs`; the canvas backdrop `PAGE_BG` is tool chrome, not an app token), gradients, shadows other than `--shadow-1/2`, left-border accent cards, bold 700, more than 3 chips inline, icons without tooltips, emoji.
+- Do: gap-based layout, tokens only, one primary action per dialog, verbs on buttons ("Create", "Stage hunk"), sentence
+  case.
+- Don't: pure white (`#fff`) on any surface — it exists only as `--fg-on-accent`; large panes and the fields inside them
+  sit on `--bg-panel` / `--bg-field` (#cdced0), chrome on `--bg-app` (#bcbec2). No raw colors (canvas parts read hex
+  only via `tokens`/`resolve()` from `build/lib.mjs`; the canvas backdrop `PAGE_BG` is tool chrome, not an app token),
+  gradients, shadows other than `--shadow-1/2`, left-border accent cards, bold 700, more than 3 chips inline, icons
+  without tooltips, emoji.
 
 ## 7. Adding a feature (post-v1)
 Wireframe (boxes + labels) → compose from §3 components and §4 patterns → done. Need a new component? Add it to the Components artboard + this file first, then build it in `src/components/ui/`.

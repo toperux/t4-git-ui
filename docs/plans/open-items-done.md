@@ -215,6 +215,10 @@ first (`docs/archive/walks/2026-10-01-phase-3-measure.md`) and walked as smoke g
     gate read the installed exe `Valid`, thumbprint `F06C…8151`, timestamped
     (`docs/archive/walks/2026-10-01-v0.10.15-release-gate.md`). The certificate's expiry is a dated row in
     `open-items.md` §E.
+- **UI-vs-canvas comparison pass (v1 plan M6 leftover)** — screenshots of the real app against the screens canvas,
+  one pass, fix what differs or update the canvas: done as close-out Phase 4. Stage A ran 2026-10-03 (the Results and
+  Rulings in `docs/plans/2026-10-03-phase-4-plan.md`); Stage B's app fixes and canvas updates landed 2026-10-04, and
+  smoke group BM was walked the same day (`docs/archive/walks/2026-10-04-group-bm-walk.md`). Moved here 2026-10-04.
 
 ## C. Roadmap
 ~~Submodules · worktrees~~ — shipped 2026-09-13, see the Context bullet.
@@ -1070,6 +1074,11 @@ T10 is the sibling app's README comma, to be pushed there on the owner's word.)
   (`crates/git-core/tests/global_config.rs`), which also redirects libgit2's ProgramData config level, so a
   machine-wide `C:\ProgramData\Git\config` can't leak into it (C-9; not part of the cause). **Reopen:** the
   `git init … expected N bytes` error seen again. Case (a), the CRLF `add_path` error, stays open there.
+- **Stashes browser's left column clips text (triage E2).** The left (list) column could show *"No changes"*
+  clipped to *"Nc"*, with a horizontal scrollbar, instead of wrapping or eliding. Found in the BK walk, 2026-10-01.
+  **Fixed 2026-10-04** for close-out Phase 4 Stage B (row 66, `docs/plans/2026-10-03-phase-4-plan.md`): `.side`
+  takes `flex: 1; min-width: 0` (`StashesDialog.module.css:2`). Walked 2026-10-04 as smoke BM 4. Moved here
+  2026-10-04.
 
 The triage's accepted items, ruled one by one by the owner 2026-10-01 (`docs/plans/2026-10-01-phase-2b-plan.md`,
 *Triage*). No reopen trigger on any of these.
@@ -1181,3 +1190,41 @@ The walk records are `docs/archive/walks/2026-10-01-phase-3-measure.md` and
   `.git/fsmonitor--daemon.ipc` socket, which `classify`'s rule doesn't match (walked 2026-10-03 on the Mac, BL 11: 2
   scans and 2 refs reads in the first 10 s, none in the next 52 s); and the Unix kill test in a container whose PID 1
   doesn't reap, where the killed `sleep` would stay a zombie. Accepted 2026-10-03.
+
+## Y. Added 2026-10-04 — close-out Phase 4: the accepted rows
+
+**B3** (`docs/plans/2026-10-03-phase-4-plan.md`, Stage B decisions), the owner, 2026-10-03: one closed-accepted entry
+for the *Rulings* section's accepted rows, rather than the plan as the only record. No reopen trigger on any of
+these.
+
+- **Rows 5, 15, 18, 21, 22, 23, 25, 26, 28, 32, 40, 45** (the Start screen's dark version text colour; History ·
+  1280's persisted splitter top; Changes · 1000's and History · 1000's column widths and details-pane top, carried
+  across width tiers; Changes · 1000's clipped summary overflow; History · 720's details-pane left column width and
+  file-list header wording; the Overflow menu's top offset and its highlighted item; the dock's bordered git input;
+  and the Stash preview's metadata, On / Date only, with the pane scrolling instead) — accepted as the app's
+  behaviour, the canvas left as drawn. Detail and the per-row findings are in the plan's *Results* table and
+  *Rulings* section (B3).
+
+### Stage B change review, accepted 2026-10-04 (closed)
+
+- The ⋯ tooltip reads "Commit options" (message history isn't folded).
+- The 3 px diff loading bar lies on the conflict strip's 4 px top padding.
+- The folded commit options close again when the width tier changes (the options' values survive).
+- Opening ⋯ at 720 scrolls ⋯ and Commit below the 200 px pane (B4).
+- The Commit, Diff and Stashes dialogs clip instead of scrolling at very small window sizes (each pane scrolls
+  itself).
+- The conflict strip has no arrow-key navigation, like the app's other two toolbars.
+- Where the plan and the app disagreed the canvas drew the app (palette groups/labels, tight toolbar widths, merge
+  placeholder quotes, tree toggle position, pinned pin, Path help, toast Pull).
+- ChangesMerge's columns 320 / 340 as Changes · 1280.
+- The Settings board's Merge tool Save row below the 900 fold (the app's scroll not measured).
+- The 1280 canvas toolbar keeps search 200 / 160 against the app's 240, and its icon buttons give 2 px each to the
+  150 filter.
+- The docs call the Restore conflict case (a staged file still holding markers) "conflicted".
+- The screens/ Empty repository mini's toolbar Commit counts its own 3 changes (was 0), and the root Direction B and C
+  boards' Commit badge reads 6 (was 4), matching their working-tree rows.
+- The low-fi root Direction B and C boards overlap text at 640 px wide ("REMOTES" under "origin", the branch name
+  wrapping), both boards' sidebars render sideways, and the first commit's subject wraps into the working-tree row;
+  they predate Stage B and aren't the reference set.
+- The screens/ cherry-pick and Empty repository minis take the app's 180 px minimum sidebar, so their working-tree
+  subjects show whole; their sidebar labels clip a little more ("diff-vie…"), as the app's do at 180.

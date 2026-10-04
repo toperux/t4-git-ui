@@ -180,8 +180,9 @@ src/
   lib/                     cx(), relativeDate()/absoluteDate(), multiSelect.ts (pure click/ctrl/shift/↑↓/Ctrl+A model over an all-items list plus the visible
                            order — hidden items stay selected, ranges and ↑/↓ walk what is visible),
                            keys.ts (mods(e) → {ctrl, shift} for the selection models),
-                           conflictSides.ts (sideLabel / sideName: the two sides' names for the diff header, the file
-                           menu and the resolve confirmation — "our" / "their" when the backend names none),
+                           conflictSides.ts (sideLabel / sideName: the two sides' names for the conflict strip under the
+                           diff header, the file menu and the resolve confirmation — "our" / "their" when the backend
+                           names none),
                            nativeMenu.ts (keepsNativeMenu: the webview's own context menu is suppressed app-wide from
                            App.tsx, kept only in editable fields and on selected `.selectable` text),
                            msgHistory.ts (localStorage `msgHistory:<repoId>`, 20 entries; splitMessage/joinMessage, CRLF-safe),
@@ -335,13 +336,14 @@ src/
                            showHistory(path) is every way into file history (§3) — `startLog` with `filter.path`, the caller
                            having resolved the file to its tracked name; openCommitPanel clears both filters, since either flattens
                            the walk and hides the pseudo-row that mounts the panel),
-                           banners.ts (pure refs+status → detached | merge | rebase (Abort · Skip · Continue; with
-                           nothing conflicted and the status agreeing with refs about which state it was scanned in,
-                           the text is the `edit` / exec pause, not "resolve conflicts") |
-                           cherryPick | revert (each Abort +
-                           the way forward: Commit for merge / pick / revert, Continue for rebase) | sequencer (bisect:
-                           Good · Bad · Skip · Reset, all on HEAD, with the counts from `refs.bisect`; before a good mark
-                           git has not moved HEAD, so that text asks for one and only Reset is offered) | conflicts banners),
+                           banners.ts (pure refs+status(+view) → detached | merge | rebase (Abort · Skip · Continue;
+                           with nothing conflicted and the status agreeing with refs about which state it was scanned
+                           in, the text is the `edit` / exec pause, not "resolve conflicts") | cherryPick | revert (each
+                           Abort + the way forward: Commit for merge / pick / revert, Continue for rebase) | sequencer
+                           (bisect: Good · Bad · Skip · Reset, all on HEAD, with the counts from `refs.bisect`; before a
+                           good mark git has not moved HEAD, so that text asks for one and only Reset is offered) |
+                           conflicts banners — the conflicts banner's "Open commit panel" button is dropped when
+                           `view === "changes"`, where it does nothing),
                            useShortcuts.ts (Ctrl+Shift+U push, Ctrl+Shift+L pull, Ctrl+Shift+S stashes, Ctrl+Shift+R run git command, Ctrl+B branch,
                            Ctrl+F5 fetch, F5 refresh; Ctrl+Tab / Ctrl+Shift+Tab cycle tabs, Ctrl+W (Ctrl+Shift+W) close tab,
                            Ctrl+T open, Ctrl+1..9 jump, Ctrl+Shift+N move to new window, Ctrl+, settings; Ctrl+` and the tab keys also inside
@@ -451,11 +453,15 @@ src/
                            lines" bar. The cursor owns the DOM focus, not just the tab stop — `.pick:focus-visible` is the only
                            thing that draws it: ↑/↓ scroll it into view and focus it (`[data-cursor]`), a click adopts it, and
                            focusing the region hands off to the cursor line (outside staging there is none, so the region keeps
-                           the focus for scrolling); wholeFile (untracked / conflicted) = header `note`, no hunk/line actions;
-                           `onResolve` / `onRestoreConflict` add a "Resolve in editor" / "Restore conflict" button, `sides` +
-                           `onKeepSide` add "Keep <ours>'s version" / "Keep <theirs>'s version" (labels = refs.conflictSides via
-                           lib/conflictSides, git's own direction — during a rebase *ours* is the branch rebased onto; the
-                           label column is capped at 12rem, full text in `title`); `onDiscardHunk` /
+                           the focus for scrolling); wholeFile (untracked / conflicted) = no hunk/line actions; the
+                           header `note` is for untracked / lossy files only — when `onKeepSide`, `onResolve` or
+                           `onRestoreConflict` is given (a conflicted file), the note and those buttons move out of the
+                           header into a `.conflictBar` conflict strip right after it instead: `onResolve` /
+                           `onRestoreConflict` add a "Resolve in editor" / "Restore conflict" button, `sides` +
+                           `onKeepSide` add "Keep <ours>'s version" / "Keep <theirs>'s version" (labels =
+                           refs.conflictSides via lib/conflictSides, git's own direction — during a rebase *ours* is the
+                           branch rebased onto; each Keep label capped at 12rem, ellipsized, full text in `title` — the
+                           strip itself wraps); `onDiscardHunk` /
                            `onDiscardLines` add "Discard hunk" / "Discard N lines" (+ `Delete` on a selection), wired for the
                            unstaged side only; a mode change shows as a `100644 → 100755` chip beside the stats. The body
                            scrolls back to the top only when the file path changes;
@@ -508,15 +514,20 @@ src/
                            its folder row (fileTree `hiddenSlot`); Enter / Space / ← / → on a folder row toggle it; a row that
                            vanishes hands the selection to its display-order neighbour (`commitStore.setOrder`)), delegated click so memo(FileRow) holds, the 2px
                            accent bar only while more than one row is selected (`.list.multi`), hover Stage/Unstage IconButton, Enter/double-click act on the selection, Delete → discard w/
-                           native confirm; conflicted rows = glyph C, stageable whole-file — the diff header says so, and shows
-                           the file with the markers git left in it plus a "Resolve in editor" button → `open_merge_editor`;
-                           staging one unresolved drops its index stages for good, so a still-markered file mid-merge/rebase
-                           offers "Restore conflict" → `recreate_conflict` (`git checkout --merge`, behind a native confirm)),
+                           native confirm; conflicted rows = glyph C, stageable whole-file — the diff shows the file
+                           with the markers git left in it, and the conflict strip under the header carries a "Resolve
+                           in editor" button → `open_merge_editor`; staging one unresolved drops its index stages for
+                           good, so a still-markered file mid-merge/rebase offers "Restore conflict" →
+                           `recreate_conflict` (`git checkout --merge`, behind a native confirm)),
                            MessageColumn (summary input + len/72 counter (danger past 72), body textarea, Amend (prefill) / Signed-off-by,
                            author line (cached per repo in commitStore `loadAuthor`) or "Set user.name and user.email" (config error →
                            Commit disabled), Commit (Ctrl+Enter),
                            Commit & Push (commits, then opens the Push dialog when `commit()` returned an oid),
-                           history Menu from msgHistory)
+                           history Menu from msgHistory; `compact` (passed only in the 2-column tier, below
+                           `ICONS_BELOW`) hides Amend / Signed-off-by / Sign and the author line behind an
+                           `IconButton label="Commit options"` (lucide `Ellipsis`) before Commit, toggled inline; the
+                           button shows pressed while open or while amend, sign-off or the Sign choice is off its
+                           default)
 ```
 
 ## How tokens flow
@@ -578,8 +589,9 @@ Dialogs are one at a time (`dialogStore` → `DialogHost`) and every option-bear
 "Runs `git …`" preview built by `dialogs/gitArgs.ts` (a mirror of `crates/git-core/src/cli/ops.rs`, so the preview and
 the real argv stay in step). Banners above the grid come from `banners.ts` — a pure function of `refs.state` / `head` /
 `status.conflicted` / `status.state` (the `RepoState` the status was scanned in — a status scanned in a different
-state predates the change and reads as "not known yet" rather than as "clean"), so it re-derives on every
-`repo://changed`.
+state predates the change and reads as "not known yet" rather than as "clean") / `view` (`StateBanners` reads
+`useViewStore((st) => st.view)` and passes it, so the conflicts banner's "Open commit panel" button drops in Changes),
+so it re-derives on every `repo://changed`.
 
 ## Adding a component (style guide §7)
 

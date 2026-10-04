@@ -217,17 +217,20 @@ Use `C:\tmp\t4\work` and the bare remote.
       conflicts", plus a merge-in-progress banner with Abort
 - [x] Click the conflicted file → the diff shows the file **with its `<<<<<<<` / `=======` / `>>>>>>>`
       markers** (libgit2 reports no content for an unmerged path, so this is built from the index
-      stages), the header says "Conflict — stage the file once resolved"
-- [x] **Resolve in editor** in the diff header → the merge tool from Settings when one is set (its
-      tooltip names it), else VS Code / VSCodium opens its three-way merge editor on the file; with
-      neither on `PATH` → an error toast naming `code` and `codium`
+      stages), a conflict strip under the header says "Conflict — stage the file once resolved".
+      *(The strip placement is walked in `smoke-test-post-v1.md`'s BM 10, not covered by this tick.)*
+- [x] **Resolve in editor** in the conflict strip under the diff header → the merge tool from Settings
+      when one is set (its tooltip names it), else VS Code / VSCodium opens its three-way merge editor
+      on the file; with neither on `PATH` → an error toast naming `code` and `codium`. *(The strip
+      placement is walked in `smoke-test-post-v1.md`'s BM 10, not covered by this tick.)*
 - [x] Save the resolved file from the editor **without touching the app** → the diff in the panel
       loses its markers on its own (the file's status letters don't change when it is resolved, so
       this only works because the entry carries the file's mtime/size)
 - [x] Stage the conflicted file **before** resolving it, then unstage it → it is no longer conflicted
-      (git drops the three stages on `add`, and no unstage brings them back), so the header says
-      "Marked resolved, but the conflict markers are still here" with a **Restore conflict** button →
-      confirm → the file is conflicted again and "Resolve in editor" is back
+      (git drops the three stages on `add`, and no unstage brings them back), so the conflict strip
+      says "Marked resolved, but the conflict markers are still here" with a **Restore conflict** button →
+      confirm → the file is conflicted again and "Resolve in editor" is back. *(The strip's own placement, and
+      Restore conflict sitting inside it, are walked in `smoke-test-post-v1.md`'s BM 10, not covered by this tick.)*
 - [x] Resolve the conflict (in that editor or any other) → **the file can be staged** (whole-file) →
       commit → banners clear
 - [x] **Rebase** onto a diverged branch, then Abort → the branch is restored, banner clears

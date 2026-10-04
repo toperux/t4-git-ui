@@ -1720,7 +1720,13 @@ toolbar overflows with the badge) were fixed and 3 + 9 re-walked the same day.
 3. - [x] The working-tree row reads `Working tree · 2 changes … Open changes →` (hint muted, lit when selected; no hover needed). Click the row → Changes (after the double-click interval). Alt+1, click the (still selected) row again → Changes. Alt+1, ArrowUp / Home onto the row → still History (details: `No commit selected`); Enter → Changes. Double-click it → the commit dialog over History; Esc → still History, focus back on the grid.
 4. - [x] `git stash` in a terminal → Changes shows `Working tree clean` beside the message column; Stash… is disabled with `Nothing to stash`; Amend still works.
 5. - [x] Resize to 1000 wide: Fetch / Pull / Push / Branch / Stash are icons with their counts, the repo name stays; the sidebar is a 36px rail with counts; the details pane is details-over-files | diff. Click the Local rail button → flyout with the tree; double-click a branch → checkout, the flyout stays; Esc → closed. *(The rail is `< 1000`: at exactly 1000 the sidebar is still full; walked at 990.)*
-6. - [x] Resize to 720 wide: the switch is icons only; search is an icon → popover with the box and the filter (type → the grid filters; Esc closes); `⋯` holds Branch ▸, Stash…, Refresh, Switch to … theme, Settings, Command palette; the details pane is files | diff with `> <subject> <sha>` on top — click it → details expand over the list; Changes is files-over-message | diff. At 700 × 500 nothing wraps or clips. *(The 700 × 500 floor itself is a drag check — `MoveWindow` bypasses it.)*
+6. - [x] Resize to 720 wide: the switch is icons only; search is an icon → popover with the box and the
+      filter (type → the grid filters; Esc closes); `⋯` holds Branch ▸, Stash…, Refresh, Switch to …
+      theme, Settings, Command palette; the details pane is files | diff with `> <subject> <sha>` on
+      top — click it → details expand over the list; Changes is files-over-message | diff. At 700 × 500
+      nothing wraps or clips. *(The 700 × 500 floor itself is a drag check — `MoveWindow` bypasses it.)*
+      *(Close-out Phase 4 Stage B, row 24: Changes at 720 × 540 now folds the commit options behind "⋯"
+      — walked separately as BM 11, not covered by this tick.)*
 7. - [x] Ctrl+Shift+` at 1280 → rail; again → full. The toolbar's leftmost button does the same and never moves — pressed while the sidebar shows, unpressed on the rail; it is the only collapse/expand control (none in the sidebar, none in the rail). Resize past 1000 either way → the override holds; a new window starts from the width again.
 8. - [x] Ctrl+K from the grid, from the commit summary field, from the dock prompt → the palette. `st` → Stash rows first; ↓ ↵ → the dialog opens, the palette closes; Ctrl+K again → that command under Recent; Ctrl+K again → closed. `origin/` → Go to branch rows; ↵ while in Changes → still Changes, Alt+1 → the row is selected and visible. Start a fetch (Ctrl+F5) → Ctrl+K → Push… greyed with `Operation in progress`. Click outside → closed.
 9. - [x] Update badge present (Settings › Updates against a newer release, or fake it): at 1280 the repo name does not wrap; the search box narrows instead. *(Walked with a same-size stand-in element: search 240 → 192, Settings stays inside the window.)*
@@ -2530,6 +2536,101 @@ store was restored byte-exact after each Windows walk. The record, with the pre-
         within a second no `perf-synth` scan, no `index.lock`, the app on `perf-git`, one `closed repo`, no
         `slow status` or `status repair`. Step 9: watcher, daemon and socket up; 2 `git status` runs and 2 refs reads
         in the first 10 s, none in the next 52 s; the control edit scanned ~0.6 s later.)*
+
+## BM. Close-out Phase 4 Stage B: the app fixes
+
+Plan: `docs/plans/2026-10-03-phase-4-plan.md` (*Part 1 — app fixes*; each row names its fix). One bullet per row,
+from each row's "Walk:" line. Walked over CDP on the Windows VM (`docs/smoke/cdp.mjs`), on a local
+`tauri build --no-bundle` of the Stage B commits, launched with `docs/smoke/fixtures/smoke-launch.ps1`. The store
+folder `%APPDATA%\dev.topher.t4gitui` is backed up first and restored byte-exact after. Fixtures, built from the repo
+checkout in this order into a fresh `C:\tmp\t4cap` (`smoke-fixtures.ps1` refuses a folder that exists, and `-Force`
+wipes it): from PowerShell, `powershell -ExecutionPolicy Bypass -File docs/smoke/fixtures/smoke-fixtures.ps1
+C:\tmp\t4cap` (`work`, `other`), then in Git Bash `T4_ROOT=/c/tmp/t4cap bash docs/smoke/fixtures/irebase-fixture.sh`
+(`irebase`; without `T4_ROOT` it writes to `/c/tmp/t4`), then `node docs/smoke/fixtures/perf-repo.mjs
+C:/tmp/t4cap/perf` (`perf`). Git steps below run in Git Bash. Native confirms (Restore conflict) are answered from
+PowerShell with `powershell -ExecutionPolicy Bypass -File docs/smoke/fixtures/smoke-dialog.ps1 -Title … -Button …`, as
+CDP can't click them.
+
+The merge conflict for 6, 7 and 10: in `work` (on `main`), right-click `conflict` in the sidebar → *Merge into main…* →
+Merge (or `git merge conflict`) → `conflict.txt` conflicted; the fixture's other dirty files are untouched. After 10:
+Restore conflict (as in 7) if the file is staged or unstaged with markers, then `git merge --abort` (an abort after a
+stage and unstage leaves `conflict.txt` modified with markers, and a re-merge then refuses; if that happens,
+`git checkout -- conflict.txt`).
+
+_Walked 2026-10-04 over CDP on the Windows VM, on a local release build of `e13d479` (the pre-squash Stage B tip;
+its app code is `7cea279`'s): all 13 pass. BM 11's row count (2 whole rows and most of a third, against the plan's
+≥ 3) was accepted by the owner the same day, and its bullet reworded; BM 3, 5 and 10's bullets were clarified from
+the walker's notes. The record is `docs/archive/walks/2026-10-04-group-bm-walk.md`._
+
+- [x] 1. **The palette's input row keeps 40 px** (row 39): Ctrl+K, empty query → `.head` height 40, `.foot` keeps its
+      height. *(Walked 2026-10-04 over CDP on a local release build of `e13d479`: `.head` 40 px empty and with "st",
+      `.foot` 27 px both times.)*
+- [x] 2. **No focus ring on the palette input** (row 34): open the palette →
+      `getComputedStyle(document.activeElement).boxShadow === "none"`. *(Walked 2026-10-04: the palette input was
+      `activeElement`, `boxShadow` "none".)*
+- [x] 3. **`Dialog.module.css`, one batch** (rows 42 + 69), at 1440 × 900 (the Rebase canvas size):
+      - the three full dialogs (Commit, Diff window, Stashes browser): each one's first Panel starts at the form's left
+        edge and the title bar's bottom;
+      - Interactive rebase: in `irebase` (on `main`), right-click `add a` → *Rebase main interactively from here…*
+        → *Stash and continue* (the fixture is dirty) → 6 action rows plus a merge row (no dropdown); set `add a`'s
+        action to `reword` so the message box shows (the canvas draws one) → "1 merge commit" near y 529, radios
+        near 558, footer near 641 (the canvas values); Cancel (the tree comes back as it was);
+      - a confirm dialog: right-click `mid` in the sidebar of `irebase` (or `twin-b` in `work`) → *Delete…* → the
+        Delete branch dialog has no 12 px band above its text; Cancel.
+      *(Walked 2026-10-04: dialogs' first Panel at dx 0 / dy 0 from the form's left edge and the title bar's bottom;
+      rebase 6 action rows + 1 merge row, "1 merge commit" at y 530, radios at 559, footer centre at 641, Cancel left
+      the tree as it was; Delete branch's title bottom 134 and message top 150, no 12 px band.)*
+- [x] 4. **The Stashes browser's left pane fits** (row 66): Ctrl+Shift+S at the default pane width and at its 220 px
+      minimum (where E2 clipped) → the list's scrollWidth equals its clientWidth, the help text wraps, "Stash N
+      files" is whole. *(Walked 2026-10-04: at the default 280, list 280 = 280, help wrapped to 2 lines, "Stash 2
+      files" 262 = 262; at the 220 minimum, 220 = 220, 2 lines, 202 = 202.)*
+- [x] 5. **"Loading commits… 96 000"** (row 74): `perf` while it loads → the status bar reads "Loading commits… N"
+      with N grouped by a plain space (U+0020) every three digits (e.g. `96 000`), not `96000`. *(Walked
+      2026-10-04: "Loading commits… 2 000" → "37 000" → "73 000", the separator a plain space, U+0020.)*
+- [x] 6. **No "Open commit panel" on the conflicts banner in Changes** (row 50): the merge conflict → the button in
+      History, none in Changes. *(Walked 2026-10-04: History has the button, Changes has the same banner with
+      none.)*
+- [x] 7. **The Unstaged badge turns danger while an entry is conflicted** (row 51): the merge conflict → red; stage
+      `conflict.txt` → grey; select `conflict.txt` in Staged → Restore conflict in the strip → *Restore* in the
+      native confirm (`smoke-dialog.ps1 -Title "Restore conflict" -Button Restore`) to get back to conflicted for 10.
+      *(Walked 2026-10-04: Unstaged badge `rgb(160,40,32)` (`--danger`) while conflicted, `rgb(168,171,176)`
+      (`--bg-inset`) once staged; `smoke-dialog.ps1` Restore → back to UU.)*
+- [x] 8. **The Working tree row's dashed circle** (row 67): Ctrl+Shift+S → the Working tree row's icon is the dashed
+      circle (`svg.lucide-circle-dashed`), not the commit glyph. *(Walked 2026-10-04: class
+      "lucide lucide-circle-dashed".)*
+- [x] 9. **The branch being rebased in the status bar** (row 71): in `irebase`,
+      `git checkout other; git rebase --autostash main` (the fixture ends dirty, so a plain rebase refuses; it stops
+      on the `d.txt` add/add conflict) → the status bar's branch item reads `other`, not `<sha> (detached)`;
+      `git rebase --abort; git checkout main` after (the autostash comes back). *(Walked 2026-10-04: status bar
+      "other | 0 unstaged · 0 staged · 1 conflicted | Rebase in progress"; aborted, back on main.)*
+- [x] 10. **The conflict strip** (row 54): the merge conflict at 1280 and 1000, staging `conflict.txt` before
+      resolving it and then unstaging it, with the rail not forced at 1000 → the note and Restore conflict sit
+      inside the strip, the header's scrollWidth ≤ its clientWidth, and the strip shows every control and wraps at
+      1000. *(Walked 2026-10-04: at 1280 and 1000, the rail not forced at 1000, every state (conflicted, staged with
+      markers, unstaged) had every control inside the strip and scrollWidth = clientWidth; strip heights 63/135 px
+      conflicted, 33/75 px with markers, at 1280/1000.)*
+- [x] 11. **Changes at 720 folds the commit options** (row 24): walked here, not at AU 6 (`:1723`) — in `work`, stage
+      `src/a.txt`, `src/lib/b.txt` and `crlf-hunks.txt` first (3 staged, 3 left unstaged); Changes at 720 × 540: each
+      list shows 2 whole rows and most of a third (owner-accepted 2026-10-04; the plan aimed for 3), the top row not
+      clipped; ⋯ shows Amend, Signed-off-by and Sign inline, and the button reads `aria-expanded` true / false with
+      no `aria-pressed`; with ⋯ open, scrolling the column to its end brings Commit fully into view (it doesn't
+      scroll by itself); unstage the three after. *(Walked 2026-10-04: viewport 75 px, rows at
+      100–126/126–152/152–178 against a bottom of 175 (3rd row cut by 3 px, top row not clipped) — accepted by the
+      owner over the plan's ≥ 3; aria-expanded false→true→false, aria-pressed absent; column scrollTop 0 to max 102
+      brought Commit from 557–585 (below the 540 window) to 455–483 (fully inside); folded, Commit at 443–471, fully
+      visible.)*
+- [x] 12. **The Commit dialog's author line** (row 43): the repro measured the line squeezed to 2 px on 0.10.16
+      (2026-10-04); the Commit dialog at 1280 × 800 → the "<name> <email> · will commit N staged files" line is now
+      painted, the buttons need no scroll, and with `git config user.name ""` run in `work` before it is opened (a
+      local empty value hides the VM's global identity; libgit2 ignores `GIT_CONFIG_GLOBAL`; the author is read once
+      per opened repo, so if it is open, close its tab and reopen it from recents) the "Set user.name and
+      user.email" warning shows; `git config --unset user.name` after (not in `irebase`, whose local "Sam Doe"
+      identity that would delete). *(Walked 2026-10-04: author line 16 px at y 718, painted, "… · will commit 0
+      staged files"; column 320 = 320, no scroll; with `user.name ""` in `work`, reopened: "Set user.name and
+      user.email" (role=alert); unset after.)*
+- [x] 13. **No two separators side by side at the icons tier** (review pass 1): at 720 wide (the icons tier) the
+      toolbar shows one separator between Push and the view switch, not two (Branch and Stash hidden). *(Walked
+      2026-10-04 at 720: one separator between Push and the view switch, 4 in all.)*
 
 ## Reporting
 

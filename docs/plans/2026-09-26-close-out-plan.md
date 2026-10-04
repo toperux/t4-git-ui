@@ -45,8 +45,10 @@ measured fine; pushed to `main` as `6ca9960..625b886` plus `cb886f4` (a clippy 1
 `version:0.10.16`); **its gate passed the same day**, the Windows half on a VM rather than the owner's desktop, the
 Linux half on the usual Ubuntu VM (`docs/archive/walks/2026-10-03-v0.10.16-release-gate.md` and
 `docs/archive/walks/2026-10-03-v0.10.16-release-gate-linux.md`) — also `requireSignedVersion`'s first real check (the
-first update out of a build with it on), which passed. **Next:** Phase 4 (reference decision first). Open decisions: the
-Phase 4 reference canvas, and hardware (before Phase 5).
+first update out of a build with it on), which passed. **Phase 4 Stage A done 2026-10-03, Stage B executed 2026-10-04**
+(plan `docs/plans/2026-10-03-phase-4-plan.md`): the app fixes and the canvas updates, local; the change review and
+triage done, group BM walked 2026-10-04 (record `docs/archive/walks/2026-10-04-group-bm-walk.md`), squashed
+2026-10-04; push and release next. Open decisions: hardware (before Phase 5).
 
 Row references are to `docs/plans/open-items.md` sections (§A–§X), and code and smoke-doc line numbers are as of
 2026-09-28 (`main` after #18; `release.yml` cites after the CLI pin change). The Phase 1 section keeps its original
@@ -287,9 +289,9 @@ visible scroll jank.
 ## Phase 4 — UI-vs-canvas pass (§B)
 
 After Phases 2–3, so the UI is stable: CDP screenshots of the built app against the canvases; fix what differs
-or update the canvas. **Decide the reference first:** there are two sets, `docs/design/canvases/screens/`
-(v1) and `docs/design/canvases/direction-b/`, and Direction B replaced parts of the first. Likely rule:
-Direction B where it has a screen, `screens/` for the rest.
+or update the canvas. **The reference** (settled by R1, `docs/plans/2026-10-03-phase-4-plan.md`): Direction B
+(`docs/design/canvases/direction-b/`) wins where it draws an element; `docs/design/canvases/screens/` is the
+reference for the rest, content only.
 
 ## Linux track — from #18, on the Linux machine (§O, §P)
 
@@ -343,7 +345,9 @@ AppImage tool pins are tied to the builder too — recheck them.
    prefixes → §C roadmap, per-view sidebar → build in 2a.
 2. ~~**Phase 3 threshold** — the 250 ms / visible-jank proposal. Before Phase 3.~~ Decided 2026-10-01 as proposed (the
    Phase 3 plan's T1).
-3. **Phase 4 reference** — which canvas set rules where they differ. Before Phase 4.
+3. ~~**Phase 4 reference** — which canvas set rules where they differ. Before Phase 4.~~ Decided 2026-10-03 as R1
+   (the Phase 4 plan, `docs/plans/2026-10-03-phase-4-plan.md`): Direction B wins where it draws an element;
+   `screens/` counts for content only.
 4. **Hardware** — a Mac coming, or close Phase 5 on CI's macOS leg (Linux has a machine since #18). Before Phase 5.
 5. ~~**U1–U5**~~ — decided 2026-09-28 (`docs/archive/plans/2026-09-26-triage-plan.md`): U1 in 2a, U5 a version
    floor in 1b.
