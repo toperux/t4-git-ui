@@ -9,7 +9,8 @@ use std::time::{Duration, Instant};
 use git_core::RepoId;
 use serde::{Deserialize, Serialize};
 use tauri::{
-    AppHandle, Emitter, Manager, PhysicalPosition, State, WebviewUrl, WebviewWindowBuilder, Window,
+    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, PhysicalPosition, State, WebviewUrl,
+    WebviewWindowBuilder, Window,
 };
 
 use crate::AppState;
@@ -115,7 +116,8 @@ pub fn focus_window(app: &AppHandle, label: &str) {
 }
 
 /// Creates a window showing `payload`'s tabs, at `placement` (a physical screen
-/// point for its top-left) or wherever the OS puts it. Returns its label.
+/// point for its top-left, in `source`'s scale; kept on that screen by
+/// [`place`]) or wherever the OS puts it. Returns its label.
 /// `source` is the window the tabs came from, told if the build fails; `None`
 /// for a second launch of the app (`lib.rs`), which moves nothing and whose
 /// window has to come forward by itself — no click of the user's raised it.
@@ -149,6 +151,8 @@ pub fn spawn(
         let scale = w.scale_factor().unwrap_or(1.0);
         Some((s.width as f64 / scale, s.height as f64 / scale))
     });
+    // Here, not on the thread below: see `screen_at`.
+    let screen = placement.and_then(|(x, y)| screen_at(app, source.as_deref(), x, y));
     let target = label.clone();
     let app = app.clone();
     std::thread::spawn(move || {
@@ -162,7 +166,9 @@ pub fn spawn(
         }
         match builder.build() {
             Ok(win) => {
-                if let Some((x, y)) = placement {
+                if let Some(s) = screen {
+                    place(&win, s);
+                } else if let Some((x, y)) = placement {
                     let _ =
                         win.set_position(PhysicalPosition::new(x.round() as i32, y.round() as i32));
                 }
@@ -199,6 +205,107 @@ pub fn spawn(
         }
     });
     label
+}
+
+/// Where a torn-off window goes: the drop point and the work area of the screen
+/// under it, in the units it is moved in — physical pixels on Windows, logical
+/// ones elsewhere. macOS and GDK look a point up, and lay their screens out, in
+/// logical points; a screen's physical rect there is that times its own scale,
+/// so two screens' physical rects need not line up, nor match the drop point
+/// (physical in the source window's scale). `k` is units per logical pixel.
+#[derive(Clone, Copy)]
+struct Screen {
+    point: (i32, i32),
+    area: (i32, i32, u32, u32),
+    k: f64,
+}
+
+/// The [`Screen`] for a drop at the physical point `(x, y)` from `source`: the
+/// monitor under it, else main's, else the primary one. On the main thread
+/// only — building a `Monitor` asks AppKit or GDK for its scale and work area
+/// on the calling thread. `None` when there is no monitor, or off Windows no
+/// source scale to convert the point with.
+fn screen_at(app: &AppHandle, source: Option<&str>, x: f64, y: f64) -> Option<Screen> {
+    let (x, y) = if cfg!(windows) {
+        (x, y)
+    } else {
+        let s = app.get_webview_window(source?)?.scale_factor().ok()?;
+        (x / s, y / s)
+    };
+    let m = app
+        .monitor_from_point(x, y)
+        .ok()
+        .flatten()
+        .or_else(|| app.get_webview_window("main")?.current_monitor().ok()?)
+        .or_else(|| app.primary_monitor().ok()?)?;
+    let k = if cfg!(windows) { m.scale_factor() } else { 1.0 };
+    let unit = |v: f64| (v * k / m.scale_factor()).round();
+    let a = m.work_area();
+    Some(Screen {
+        point: (x.round() as i32, y.round() as i32),
+        area: (
+            unit(a.position.x as f64) as i32,
+            unit(a.position.y as f64) as i32,
+            unit(a.size.width as f64) as u32,
+            unit(a.size.height as f64) as u32,
+        ),
+        k,
+    })
+}
+
+/// Puts a torn-off window's top-left at the drop point, kept whole on the
+/// screen under it: dropped near the bottom-right corner it would otherwise
+/// open off the edge or under the Dock, and the tab seem to vanish.
+fn place(win: &tauri::WebviewWindow, s: Screen) {
+    let fit = || {
+        let (outer, inner) = (win.outer_size().ok()?, win.inner_size().ok()?);
+        // The sizes are physical in the window's own scale, the target screen's only
+        // once it is moved there: take them over to its units, and set any new size
+        // in logical pixels, which a move across monitors keeps.
+        let r = s.k / win.scale_factor().ok()?;
+        let u = |v: u32| (v as f64 * r).round() as u32;
+        let deco = (
+            u(outer.width.saturating_sub(inner.width)),
+            u(outer.height.saturating_sub(inner.height)),
+        );
+        let size = (u(outer.width), u(outer.height));
+        let min = (
+            (MIN_W * s.k).round() as u32 + deco.0,
+            (MIN_H * s.k).round() as u32 + deco.1,
+        );
+        let (pos, (w, h)) = clamp_rect(s.point, size, s.area, min);
+        if (w, h) != size {
+            let _ = win.set_size(LogicalSize::new(
+                (w - deco.0) as f64 / s.k,
+                (h - deco.1) as f64 / s.k,
+            ));
+        }
+        Some(pos)
+    };
+    let (x, y) = fit().unwrap_or(s.point);
+    let _ = if cfg!(windows) {
+        win.set_position(PhysicalPosition::new(x, y))
+    } else {
+        win.set_position(LogicalPosition::new(x, y))
+    };
+}
+
+/// The rect at `pos` of `size` moved, and shrunk if it is too big (never below
+/// `min`), to lie inside `area` (x, y, width, height). All in one unit, physical
+/// or logical; the top-left wins when even `min` does not fit.
+fn clamp_rect(
+    pos: (i32, i32),
+    size: (u32, u32),
+    area: (i32, i32, u32, u32),
+    min: (u32, u32),
+) -> ((i32, i32), (u32, u32)) {
+    let axis = |p: i32, s: u32, start: i32, len: u32, min: u32| {
+        let s = s.min(len).max(min);
+        (p.min(start + len as i32 - s as i32).max(start), s)
+    };
+    let (x, w) = axis(pos.0, size.0, area.0, area.2, min.0);
+    let (y, h) = axis(pos.1, size.1, area.1, area.3, min.1);
+    ((x, y), (w, h))
 }
 
 #[tauri::command]
@@ -520,7 +627,8 @@ fn hwnd_at(x: f64, y: f64) -> isize {
 /// ponytail: Windows only. macOS and X11 could answer this natively, but
 /// Wayland deliberately hides the global pointer position, so there is no
 /// answer that holds everywhere — elsewhere this is `None`, tear-off still
-/// works (at the OS's own placement) and adoption does not.
+/// works (at the drop point, kept on that screen by `place`; on Wayland where
+/// the compositor puts it) and adoption does not.
 #[cfg(windows)]
 fn window_at(app: &AppHandle, x: f64, y: f64) -> Option<(String, f64, f64)> {
     let target = hwnd_at(x, y);
@@ -1194,5 +1302,29 @@ mod tests {
         assert!(!taken.kept);
         assert!(!crashed_file(&path).exists());
         remove(&path);
+    }
+
+    /// A torn-off window kept whole on the screen it was dropped on: moved in
+    /// from any edge, shrunk only when bigger than the screen, never below the
+    /// floor.
+    #[test]
+    fn a_dropped_window_is_kept_on_the_screen() {
+        // A 1920×1040 work area right of a primary screen, under a 40 px menu bar.
+        let area = (1920, 40, 1920, 1040);
+        let min = (700, 500);
+        let clamp = |pos, size| clamp_rect(pos, size, area, min);
+        // Inside: unchanged.
+        assert_eq!(clamp((2000, 100), (800, 600)), ((2000, 100), (800, 600)));
+        // Off the right and bottom: moved in.
+        assert_eq!(clamp((3500, 1000), (800, 600)), ((3040, 480), (800, 600)));
+        // Off the left and top: moved in.
+        assert_eq!(clamp((1800, 0), (800, 600)), ((1920, 40), (800, 600)));
+        // Bigger than the area: shrunk to it, at its origin.
+        assert_eq!(clamp((2500, 500), (2500, 1200)), ((1920, 40), (1920, 1040)));
+        // An area smaller than the floor: the floor, at the area's top-left.
+        assert_eq!(
+            clamp_rect((50, 50), (800, 600), (0, 0, 600, 400), min),
+            ((0, 0), (700, 500))
+        );
     }
 }
