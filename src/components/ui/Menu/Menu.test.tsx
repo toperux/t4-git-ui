@@ -70,7 +70,8 @@ describe("Menu", () => {
     expect(first.hasAttribute("data-kbd")).toBe(false);
   });
 
-  it("a pointer open from a marked opener still marks the first item", () => {
+  // As native menus: only the last input counts, not the opener's own keyboard focus.
+  it("a pointer open from a marked opener does not mark the first item", () => {
     const { getByRole } = render(<Harness />);
     const open = getByRole("button", { name: "Open" });
     fireEvent.keyDown(document, { key: "Tab" });
@@ -78,7 +79,9 @@ describe("Menu", () => {
     expect(open.hasAttribute("data-kbd")).toBe(true);
     fireEvent.pointerDown(open);
     fireEvent.click(open);
-    expect(getByRole("menuitem", { name: "First" }).hasAttribute("data-kbd")).toBe(true);
+    const first = getByRole("menuitem", { name: "First" });
+    expect(document.activeElement).toBe(first);
+    expect(first.hasAttribute("data-kbd")).toBe(false);
   });
 
   it("a shortcut chip is a picture, not part of the item's name", () => {
@@ -256,7 +259,8 @@ describe("MenuItem submenu", () => {
     expect(document.activeElement).toBe(getByRole("menuitem", { name: "Sixth" }));
   });
 
-  it("closing the panel from the keyboard marks its item, and a panel opened from a marked item marks its first row", () => {
+  // T12: a click on an item the keyboard marked opens an unmarked panel; Enter on it opens a marked one.
+  it("closing the panel from the keyboard marks its item, and only a key reopening it marks its first row", () => {
     const { getByRole } = render(<SubHarness />);
     fireEvent.pointerDown(getByRole("button", { name: "Open" }));
     const item = openMenu(getByRole);
@@ -268,9 +272,14 @@ describe("MenuItem submenu", () => {
     fireEvent.keyDown(getByRole("menuitem", { name: "Sixth" }), { key: "Escape" });
     expect(document.activeElement).toBe(item);
     expect(item.hasAttribute("data-kbd")).toBe(true);
-    // The pointer again, so only the item's own mark can carry into the panel.
+    // The pointer again: the item's own mark must not carry into the panel.
     fireEvent.pointerDown(item);
     fireEvent.click(item);
+    expect(document.activeElement).toBe(getByRole("menuitem", { name: "Sixth" }));
+    expect(getByRole("menuitem", { name: "Sixth" }).hasAttribute("data-kbd")).toBe(false);
+
+    fireEvent.keyDown(getByRole("menuitem", { name: "Sixth" }), { key: "Escape" });
+    fireEvent.keyDown(item, { key: "Enter" });
     expect(getByRole("menuitem", { name: "Sixth" }).hasAttribute("data-kbd")).toBe(true);
   });
 
@@ -365,7 +374,7 @@ function CtxHarness() {
 
 describe("ContextMenu", () => {
   // As native menus on Windows and GTK: a right-click highlights nothing, even after arrowing through
-  // the grid — the opener still shows keyboard focus then, and the dropdown would count that.
+  // the grid, whose row still shows keyboard focus then.
   it("opened by the pointer from a marked opener, its first item is focused but not marked", () => {
     const { getByRole } = render(<CtxHarness />);
     const row = getByRole("button", { name: "Row" });
