@@ -55,7 +55,11 @@ passed the same day** on both VMs (`docs/archive/walks/2026-10-04-v0.10.17-relea
 group BN): the Mac's 0.10.12 updated to 0.10.17, macOS rendering and AZ 11's macOS line walked, T12 fixed for every
 menu, the Option type-ahead fixed, plus five more fixes found on the way; triaged, squashed and pushed
 (`a6a7a76..1e58f7c`). The Linux VM's walk of BN the same day found torn-off windows shrunk to 700 × 500 on X11, fixed
-forward in `4705c6c` and re-walked on Linux and Windows; triage T26–T30 ruled, records `70d0247`. Open decisions: none.
+forward in `4705c6c` and re-walked on Linux and Windows; triage T26–T30 ruled, records `70d0247`. **v0.10.18 released
+2026-10-04** (`be820a0`, release run 37210277628); **its gate passed the same day** on the Windows VM, the Linux VM and
+the owner's Mac, the first macOS update with `requireSignedVersion` on
+(`docs/archive/walks/2026-10-04-v0.10.18-release-gate.md` and
+`docs/archive/walks/2026-10-04-v0.10.18-release-gate-linux.md`). Open decisions: none.
 
 Row references are to `docs/plans/open-items.md` sections (§A–§Z), and code and smoke-doc line numbers are as of
 2026-09-28 (`main` after #18; `release.yml` cites after the CLI pin change). The Phase 1 section keeps its original
@@ -86,6 +90,7 @@ Agreed with the user 2026-09-28 (`docs/archive/plans/2026-09-28-close-out-refres
    **v0.10.17 released and its gate passed 2026-10-04.**
 8. ~~Phase 5 (hardware decision first), or earlier, when the hardware is there.~~ Done 2026-10-04 (walked and
    triaged; squashed and pushed as `a6a7a76..1e58f7c`, plus the X11 fix `4705c6c` and records `70d0247`).
+   **v0.10.18 released and its gate passed 2026-10-04**, macOS included.
 9. Phase 6, on 2026-12-23.
 
 - In parallel, on the Linux machine: the *Linux track* (the restore hang's Phase A/B, T20, T7, the ssh fail-fast

@@ -254,7 +254,8 @@ Xvfb at 1600 × 1000 with **no window manager**, driven by WebDriver (`wd.mjs`, 
 - **BN 8's shrink case on macOS:** macOS keeps the main window within the screen, so it can't be made bigger than the
   work area. Walked on Windows only.
 - **The folder-access prompt** in M6: no recent repository under Documents, Desktop or Downloads.
-- **`requireSignedVersion` on macOS:** 0.10.12 predates it (M6).
+- **`requireSignedVersion` on macOS:** 0.10.12 predates it (M6). Walked since: the v0.10.18 release gate's macOS half
+  (0.10.17 → 0.10.18) passed it (`docs/archive/walks/2026-10-04-v0.10.18-release-gate.md`).
 
 ## Triage (2026-10-04)
 
