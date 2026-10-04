@@ -10,7 +10,10 @@ export const mods = (e: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean 
  * The app-chord modifier: Ctrl, or ⌘ on macOS only. On Linux Meta is the Super key, whose chords
  * belong to the desktop, not to us. The platform is read per call, so tests can stub it.
  */
-export const ctrlOrCmd = (e: { ctrlKey: boolean; metaKey: boolean }) => e.ctrlKey || (e.metaKey && /Mac/.test(navigator.userAgent));
+export const ctrlOrCmd = (e: { ctrlKey: boolean; metaKey: boolean }) => e.ctrlKey || (e.metaKey && isMac());
+
+/** macOS, read per call so tests can stub the user agent. */
+export const isMac = () => /Mac/.test(navigator.userAgent);
 
 /** Keys a focused folder row answers itself, in either file tree: none of them reach the list below. */
 export const folderKey = (key: string, isCollapsed: boolean) => key === "Enter" || key === " " || (key === "ArrowLeft" && !isCollapsed) || (key === "ArrowRight" && isCollapsed);

@@ -179,7 +179,7 @@ src/
   assets/fonts/            InterVariable(.woff2, -Italic), JetBrainsMono[wght](.woff2, -Italic) + licenses
   lib/                     cx(), relativeDate()/absoluteDate(), multiSelect.ts (pure click/ctrl/shift/↑↓/Ctrl+A model over an all-items list plus the visible
                            order — hidden items stay selected, ranges and ↑/↓ walk what is visible),
-                           keys.ts (mods(e) → {ctrl, shift} for the selection models),
+                           keys.ts (mods(e) → {ctrl, shift} for the selection models; isMac(), read per call),
                            conflictSides.ts (sideLabel / sideName: the two sides' names for the conflict strip under the
                            diff header, the file menu and the resolve confirmation — "our" / "their" when the backend
                            names none),

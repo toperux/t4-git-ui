@@ -15,6 +15,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { cx } from "../../../lib/cx";
+import { isMac } from "../../../lib/keys";
 import s from "./Input.module.css";
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -202,9 +203,11 @@ export function Select({ value, onChange, children, disabled, autoFocus, classNa
     // the combobox (the interactive rebase claims Alt+↑/↓ in the capture phase, before this runs).
     // A chord we act on stops here, like Escape below: an ancestor must not act on it as well.
     // AltGr arrives as Ctrl+Alt on Windows (on Linux it is Level3, and the character usually comes with
-    // neither): a character typed with it is type-ahead, not a chord.
-    const altGr = e.ctrlKey && e.altKey && e.key.length === 1;
-    if (e.altKey && !altGr) {
+    // neither), and macOS's Option as Alt alone: a character typed with either is type-ahead, not a
+    // chord. Except Option+digit, which stays the view switch (`useShortcuts`): type-ahead would
+    // prevent it.
+    const altChar = e.altKey && e.key.length === 1 && (e.ctrlKey || (isMac() && !/^Digit/.test(e.code)));
+    if (e.altKey && !altChar) {
       if (e.key === "ArrowDown" && !open) {
         e.preventDefault();
         e.stopPropagation();
@@ -224,7 +227,7 @@ export function Select({ value, onChange, children, disabled, autoFocus, classNa
     const now = Date.now();
     // `abs`: a clock set back must not keep a stale buffer alive for good.
     const live = Math.abs(now - typed.current.at) <= 500 ? typed.current.text : "";
-    if (e.key.length === 1 && (e.key !== " " || live) && (!e.ctrlKey || altGr) && !e.metaKey && !e.nativeEvent.isComposing) {
+    if (e.key.length === 1 && (e.key !== " " || live) && (!e.ctrlKey || altChar) && !e.metaKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       const text = live + e.key.toLowerCase();
       typed.current = { text, at: now };

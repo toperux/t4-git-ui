@@ -416,6 +416,28 @@ describe("Select", () => {
     expect(combo.getAttribute("aria-activedescendant")).toBe(getAllByRole("option")[1].id);
   });
 
+  it("on macOS takes a letter typed with Option, but leaves Option+digit to the view switch", () => {
+    const ua = vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)");
+    try {
+      const { getByRole, getAllByRole } = render(<List labels={["alpha", "ø-test"]} value="alpha" />);
+      const combo = getByRole("combobox", { name: "List" });
+      fireEvent.keyDown(combo, { key: "ArrowDown", code: "ArrowDown", altKey: true });
+      expect(getByRole("listbox")).toBeTruthy();
+      // Not prevented: the window's Option+1 handler still sees it.
+      expect(fireEvent.keyDown(combo, { key: "¡", code: "Digit1", altKey: true })).toBe(true);
+      fireEvent.keyDown(combo, { key: "ø", code: "KeyO", altKey: true });
+      expect(combo.getAttribute("aria-activedescendant")).toBe(getAllByRole("option")[1].id);
+    } finally {
+      ua.mockRestore();
+    }
+  });
+
+  it("off macOS, Alt+letter stays a chord", () => {
+    const { getByRole, queryByRole } = render(<List labels={["alpha", "ø-test"]} value="alpha" />);
+    expect(fireEvent.keyDown(getByRole("combobox", { name: "List" }), { key: "ø", code: "KeyO", altKey: true })).toBe(true);
+    expect(queryByRole("listbox")).toBeNull();
+  });
+
   it("stays shut when what was typed matches nothing", () => {
     const { getByRole, queryByRole } = render(<Harness />);
     fireEvent.keyDown(getByRole("combobox", { name: "Remote" }), { key: "z" });
