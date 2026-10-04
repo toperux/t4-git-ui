@@ -315,6 +315,55 @@ describe("MenuItem submenu", () => {
     expect(queryAllByRole("menu")).toHaveLength(0);
   });
 
+  // macOS: a real click lands after the hover has opened the panel, and its press has dropped the
+  // focus to <body> (WebKit focuses no clicked button). The click must still take the focus in.
+  it("a click, → or Enter on an item whose panel the hover opened takes the focus into it", () => {
+    vi.useFakeTimers();
+    try {
+      const { getByRole } = render(<SubHarness />);
+      const item = openMenu(getByRole);
+      fireEvent.mouseOver(item);
+      act(() => vi.advanceTimersByTime(150));
+      act(() => (document.activeElement as HTMLElement).blur());
+      fireEvent.pointerDown(item);
+      fireEvent.click(item);
+      const sixth = getByRole("menuitem", { name: "Sixth" });
+      expect(document.activeElement).toBe(sixth);
+      expect(sixth.hasAttribute("data-kbd")).toBe(false);
+
+      act(() => item.focus());
+      fireEvent.keyDown(item, { key: "ArrowRight" });
+      expect(document.activeElement).toBe(sixth);
+      expect(sixth.hasAttribute("data-kbd")).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a panel the hover reopens after a click doesn't take the focus", () => {
+    vi.useFakeTimers();
+    try {
+      const { getByRole, queryByRole } = render(<SubHarness />);
+      const item = openMenu(getByRole);
+      fireEvent.pointerDown(item);
+      fireEvent.click(item);
+      expect(document.activeElement).toBe(getByRole("menuitem", { name: "Sixth" }));
+
+      // The pointer settles on a sibling (the panel closes), the focus on that sibling, then back.
+      const first = getByRole("menuitem", { name: "First" });
+      fireEvent.mouseOver(first);
+      act(() => vi.advanceTimersByTime(150));
+      expect(queryByRole("menu", { name: "More recent" })).toBeNull();
+      act(() => first.focus());
+      fireEvent.mouseOver(item);
+      act(() => vi.advanceTimersByTime(150));
+      expect(queryByRole("menu", { name: "More recent" })).not.toBeNull();
+      expect(document.activeElement).toBe(first);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("hover opens the panel after a grace, and only a settled hover on a sibling closes it", () => {
     vi.useFakeTimers();
     try {

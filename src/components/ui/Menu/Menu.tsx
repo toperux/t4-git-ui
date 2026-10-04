@@ -340,9 +340,17 @@ export function MenuItem({ icon, danger, kbd, submenu, className, children, type
   /** Opened by key or click: the panel takes the focus. Opened by hover: the pointer keeps it. */
   const takeFocus = useRef(false);
 
+  const focusFirst = () => {
+    const first = panel.current?.querySelector<HTMLElement>(ITEMS);
+    if (first) focusItem(first, lastInputWasKey());
+  };
   const openPanel = (focus: boolean) => {
     takeFocus.current = focus;
     ctx?.setOpenSub(id);
+    // Already open from a hover, the state doesn't change and the effect below doesn't run: a click,
+    // → or Enter on the item must still take the focus in (on macOS the click's press has already
+    // dropped it to <body>, where no key reaches the menu).
+    if (open && focus) focusFirst();
   };
   /** The panel only: focus goes back to the item it belongs to. */
   const closePanel = () => {
@@ -368,8 +376,10 @@ export function MenuItem({ icon, danger, kbd, submenu, className, children, type
   }, [open, ctx]);
 
   useEffect(() => {
-    const first = open && takeFocus.current ? panel.current?.querySelector<HTMLElement>(ITEMS) : null;
-    if (first) focusItem(first, lastInputWasKey());
+    if (open && takeFocus.current) focusFirst();
+    // Spent on this open or close: a later reopen by hover must not inherit a click's or key's focus.
+    takeFocus.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const target = ctx?.wrap.current ?? null;
