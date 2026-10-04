@@ -19,11 +19,13 @@ export default () => ({
   body: `<div class="canvas-root b" style="width: 640px; display: flex; flex-direction: column; gap: 12px; padding: 16px;">
     <div style="display: flex; align-items: baseline; gap: 10px;"><span style="font-size: 16px; font-weight: 600;">Direction B · Warm graphite</span><span style="color: #7a7066; font-size: 12px;">IBM Plex Sans/Mono · warm paper neutrals · amber accent</span></div>
     <div style="background: #fffdf9; border: 1px solid #e3dccf; border-radius: 8px; overflow: hidden;">
-      <div class="bar"><span>Fetch</span><span>Pull</span><span>Push</span><span style="flex: 1;"></span><span class="cta">Commit 4</span></div>
+      <div class="bar"><span>Fetch</span><span>Pull</span><span>Push</span>` +
+      `<span style="flex: 1;"></span><span class="cta">Commit 6</span></div>
       <div style="display: flex; height: 200px;">
         <div class="side"><div style="font-size: 11px; color: #7a7066; text-transform: uppercase; letter-spacing: .06em;">Local</div><div class="cur">main</div><div>feature/lane-graph</div><div>hotfix</div><div style="font-size: 11px; color: #7a7066; text-transform: uppercase; letter-spacing: .06em; margin-top: 6px;">Remotes</div><div>origin</div></div>
         <div style="flex: 1;">
-          <div class="r"><span class="dot" style="background: transparent; border: 1px dashed #b8862b;"></span><span style="font-style: italic; color: #7a7066;">Working tree · 4 changes</span></div>
+          <div class="r"><span class="dot" style="background: transparent; border: 1px dashed #b8862b;"></span>` +
+          `<span style="font-style: italic; color: #7a7066;">Working tree · 6 changes</span></div>
           <div class="r sel"><span class="dot"></span><span style="flex: 1;">Dedupe lanes when parent already expected</span><span class="chip">main</span><span class="mono" style="color: #7a7066;">a1b2c3d</span></div>
           <div class="r"><span class="dot" style="background: #4f7d5a;"></span><span style="flex: 1;">Merge branch feature/lane-graph</span><span class="mono" style="color: #7a7066;">9f8e7d6</span></div>
           <div class="r"><span class="dot" style="background: #4f7d5a;"></span><span style="flex: 1;">Emit MergeInto lines</span><span class="chip">feature/lane-graph</span></div>

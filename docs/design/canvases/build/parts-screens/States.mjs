@@ -1,4 +1,7 @@
-import { toolbar, sidebar, statusbar, grid, gridHeader, DEMO_ROWS, stashDetails, diffHeader, diffBody, dock, splitH, icon, PAGE_BG } from '../screens.mjs';
+import {
+  toolbar, sidebar, statusbar, grid, DEMO_ROWS, WT_HINT, stashDetails, diffHeader, diffBody, conflictStrip, dock,
+  splitH, splitV, icon, PAGE_BG,
+} from '../screens.mjs';
 
 const MW = 700, MH = 390;
 
@@ -19,13 +22,37 @@ const conflictList = (rows) => {
   return rows.map(([g, p, m]) => f(g, p, m)).join('');
 };
 
+// Banners sit in the content column (RepoWindow.tsx `StateBanners`), right of the sidebar, not full width.
+
 function emptyRepo(theme) {
-  return `${toolbar({ pull: 0, push: 0, commit: 0, stash: 0, filter: 'HEAD', update: null })}
+  // An unborn branch still has a working tree: its row, then the narrow details pane (700 wide) with nothing selected.
+  const rows = [
+    { lane: 0, color: 0, kind: 'wt', lines: [], subj: 'Working tree · 3 changes', wt: true, author: WT_HINT },
+  ];
+  return `${toolbar({ pull: 0, push: 0, commit: 3, stash: 0, filter: 'HEAD', update: null, theme })}
   <div style="display: flex; flex: 1; min-height: 0;">
-    ${sidebar({ width: 200, empty: true })}${splitH()}
-    <div style="display: flex; flex-direction: column; flex: 1; background: var(--bg-panel);">
-      ${gridHeader()}
-      <div class="empty" style="flex: 1;">${icon('git-commit', 24)}<div class="t">No commits yet</div><div class="hint">Stage files and create the first commit on <span class="mono" style="font-size: 12px;">main</span></div><span class="btn primary" style="margin-top: 6px;">${icon('git-commit', 14)}Open commit panel</span></div>
+    ${sidebar({ width: 180, empty: true })}${splitH()}
+    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">
+      ${grid(theme, rows, { selected: -1, hover: -1, height: 24 + 6 * 26, lanes: 1 })}${splitV()}
+      <div style="display: flex; flex: 1; min-height: 0;">
+        <div style="width: 220px; flex: none; display: flex; flex-direction: column; min-height: 0; ` +
+        `background: var(--bg-panel); border-right: 1px solid var(--border); overflow: hidden;">
+          <div class="panel-header" style="flex: none; gap: 6px;">` +
+          `<span class="tw">${icon('chevron-right', 12)}</span>` +
+          `<span class="grow" style="color: var(--fg); font-weight: 500;">No commit selected</span></div>
+          <div class="panel-header" style="flex: none;">${icon('file', 14)}<span class="grow">Files</span>` +
+          `<span class="pill-tabs"><span class="pill-tab is-on">Changes</span>` +
+          `<span class="pill-tab">Files</span></span></div>
+          <div class="empty">${icon('file', 24)}<div class="t">No commit selected</div></div>
+        </div>
+        <div style="display: flex; flex-direction: column; flex: 1; min-width: 0; background: var(--bg-panel);">
+          <div class="panel-header" style="flex: none;">${icon('file', 14)}<span class="grow"></span>` +
+          `<span class="tb-sep"></span><span class="icon-btn is-on">${icon('rows', 16)}</span>` +
+          `<span class="icon-btn">${icon('columns', 16)}</span>` +
+          `<span class="icon-btn">${icon('arrow-down-up', 16)}</span></div>
+          <div class="empty">${icon('file', 24)}<div class="t">Select a file</div></div>
+        </div>
+      </div>
     </div>
   </div>
   ${statusbar({ branch: 'main', unborn: true, ab: false, remote: null, counts: '3 unstaged · 0 staged', state: 'Clean' })}`;
@@ -33,39 +60,57 @@ function emptyRepo(theme) {
 
 function detached(theme) {
   const rows = DEMO_ROWS.slice(1, 8).map((r, i) => (i === 0 ? { ...r, chips: 'detached' } : r));
-  return `${toolbar({ pull: 0, push: 0, update: null })}
-  ${banner('warning', 'Detached HEAD at <span class="mono" style="font-size: 11px;">a1b2c3d</span> — new commits won’t belong to any branch', sec('Checkout main') + pri('Create branch…'))}
+  return `${toolbar({ pull: 0, push: 0, commit: 0, update: null, theme })}
   <div style="display: flex; flex: 1; min-height: 0;">
     ${sidebar({ width: 200, detached: true, compact: true })}${splitH()}
-    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${grid(theme, rows, { selected: 0, hover: -1 })}</div>
+    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">
+      ${banner('warning',
+        'Detached HEAD at <span class="mono" style="font-size: 11px;">a1b2c3d</span> — ' +
+          'new commits won’t belong to any branch',
+        sec('Checkout main') + pri('Create branch…'))}
+      ${grid(theme, rows, { selected: 0, hover: -1 })}
+    </div>
   </div>
   ${statusbar({ detached: true, ab: false, state: 'Clean' })}`;
 }
 
 function rebasing(theme) {
-  return `${toolbar({ pull: 0, push: 0, commit: 3, update: null })}
-  ${banner('warning', 'Rebase in progress — resolve conflicts and stage them, then continue', sec('Abort') + sec('Skip') + pri('Continue'))}
-  ${banner('danger', '3 files have conflicts — resolve, then stage them', sec('Open commit panel'))}
+  // The Changes view: no "Open commit panel" on the conflicts banner. All three unstaged entries are
+  // conflicted (no workdir side, so not counted as unstaged), which greys Stage all.
+  return `${toolbar({ pull: 0, push: 0, commit: 4, update: null, theme })}
   <div style="display: flex; flex: 1; min-height: 0;">
     ${sidebar({ width: 200, compact: true })}${splitH()}
     <div style="display: flex; flex-direction: column; flex: 1; min-width: 0; background: var(--bg-panel);">
-      <div class="panel-header" style="flex: none;">${icon('file', 14)}<span class="grow">Unstaged</span><span class="badge danger">3</span><span class="btn secondary sm" style="font-size: var(--text-xs);">Stage all</span></div>
-      ${conflictList([['C', 'crates/git-core/src/log/graph.rs', 'both modified'], ['C', 'Cargo.lock', 'both modified'], ['C', 'src/theme/tokens.css', 'deleted by them']])}
+      ${banner('warning', 'Rebase in progress — resolve conflicts and stage them, then continue',
+        sec('Abort') + sec('Skip') + pri('Continue'))}
+      ${banner('danger', '3 files have conflicts — resolve, then stage them', '')}
+      <div class="panel-header" style="flex: none;">${icon('file', 14)}<span class="grow">Unstaged</span>` +
+      `<span class="badge danger">3</span>` +
+      `<span class="btn secondary sm is-disabled" style="font-size: var(--text-xs);">Stage all</span></div>
+      ${conflictList([
+        ['C', 'crates/git-core/src/log/graph.rs', ''], ['C', 'Cargo.lock', ''], ['C', 'src/theme/tokens.css', ''],
+      ])}
       <div class="panel-header" style="flex: none; border-top: 1px solid var(--border);">${icon('check', 14)}<span class="grow">Staged</span><span class="badge">1</span><span class="btn secondary sm" style="font-size: var(--text-xs);">Unstage all</span></div>
       ${conflictList([['M', 'crates/git-core/src/lib.rs', 'staged']])}
     </div>
   </div>
-  ${statusbar({ branch: 'feature/lane-graph', ab: false, remote: null, counts: '3 unstaged · 1 staged · 3 conflicted', state: 'Rebase in progress' })}`;
+  ${statusbar({
+    branch: 'feature/lane-graph', ab: false, remote: null, counts: '0 unstaged · 1 staged · 3 conflicted',
+    state: 'Rebase in progress',
+  })}`;
 }
 
 function merging(theme) {
-  return `${toolbar({ pull: 0, push: 0, commit: 5, update: null })}
-  ${banner('warning', 'Merge in progress — resolve conflicts, then commit to finish', sec('Abort') + pri('Commit merge'))}
-  ${banner('danger', '1 file has conflicts — resolve, then stage it', sec('Open commit panel'))}
+  // The Changes view's staging diff of a conflicted file: whole file only, the conflict strip under the header.
+  return `${toolbar({ pull: 0, push: 0, commit: 6, update: null, theme })}
   <div style="display: flex; flex: 1; min-height: 0;">
     ${sidebar({ width: 200, compact: true })}${splitH()}
     <div style="display: flex; flex-direction: column; flex: 1; min-width: 0; background: var(--bg-panel);">
-      ${diffHeader({ path: 'src/log/graph.rs', add: 0, del: 0, note: 'conflict markers', resolve: true, staging: true })}
+      ${banner('warning', 'Merge in progress — resolve conflicts, then commit to finish',
+        sec('Abort') + pri('Commit merge'))}
+      ${banner('danger', '1 file has conflicts — resolve, then stage it', '')}
+      ${diffHeader({ path: 'src/log/graph.rs', add: 0, del: 0, staging: true, expand: false, tool: false })}
+      ${conflictStrip()}
       ${diffBody()}
     </div>
   </div>
@@ -73,30 +118,45 @@ function merging(theme) {
 }
 
 function cherryPick(theme) {
-  return `${toolbar({ pull: 0, push: 0, commit: 2, update: null })}
-  ${banner('warning', 'Cherry-pick in progress — resolve conflicts, then commit to finish', sec('Abort') + pri('Commit'))}
+  // The conflicted file has no workdir side: 1 unstaged + 1 conflicted = the 2 changes the toolbar and the row show.
+  // Sidebar at its 180 minimum, so the grid's subject column holds the whole working-tree row.
+  return `${toolbar({ pull: 0, push: 0, commit: 2, update: null, theme })}
   <div style="display: flex; flex: 1; min-height: 0;">
-    ${sidebar({ width: 200, compact: true })}${splitH()}
-    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${grid(theme, DEMO_ROWS.slice(1, 9), { selected: 0, hover: -1 })}</div>
+    ${sidebar({ width: 180, compact: true })}${splitH()}
+    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">
+      ${banner('warning', 'Cherry-pick in progress — resolve conflicts, then commit to finish',
+        sec('Abort') + pri('Commit'))}
+      ${grid(theme, [{ ...DEMO_ROWS[0], subj: 'Working tree · 2 changes', author: WT_HINT }, ...DEMO_ROWS.slice(1, 8)],
+        { selected: 1, hover: -1 })}
+    </div>
   </div>
-  ${statusbar({ branch: 'main', ab: false, remote: null, counts: '2 unstaged · 0 staged', state: 'Cherry-pick in progress' })}`;
+  ${statusbar({
+    branch: 'main', ab: false, remote: null, counts: '1 unstaged · 0 staged · 1 conflicted',
+    state: 'Cherry-pick in progress',
+  })}`;
 }
 
 function bisecting(theme) {
   // computeBanners: with a good and a bad end marked, all four buttons; before that, Reset alone.
-  const rows = DEMO_ROWS.slice(1, 9).map((r, i) => (i === 0 ? { ...r, chips: 'testing' } : i === 3 ? { ...r, chips: 'bad' } : i === 6 ? { ...r, chips: 'good' } : r));
-  return `${toolbar({ pull: 0, push: 0, commit: 0, update: null })}
-  ${banner('warning', 'Bisecting — testing <span class="mono" style="font-size: 11px;">9f8e7d6</span> · 1 good · 1 bad', sec('Good') + sec('Bad') + sec('Skip') + sec('Reset'))}
+  const rows = DEMO_ROWS.slice(1, 9).map((r, i) => (
+    i === 0 ? { ...r, chips: 'detached' } : i === 3 ? { ...r, chips: 'bad' } : i === 6 ? { ...r, chips: 'good' } : r
+  ));
+  return `${toolbar({ pull: 0, push: 0, commit: 0, update: null, theme })}
   <div style="display: flex; flex: 1; min-height: 0;">
     ${sidebar({ width: 200, detached: true, compact: true })}${splitH()}
-    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${grid(theme, rows, { selected: 0, hover: -1 })}</div>
+    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">
+      ${banner('warning',
+        'Bisecting — testing <span class="mono" style="font-size: 11px;">9f8e7d6</span> · 1 good · 1 bad',
+        sec('Good') + sec('Bad') + sec('Skip') + sec('Reset'))}
+      ${grid(theme, rows, { selected: 0, hover: -1 })}
+    </div>
   </div>
   ${statusbar({ detached: true, ab: false, remote: null, state: 'Bisect in progress' })}`;
 }
 
 function loading(theme) {
   const rows = DEMO_ROWS.slice(1, 7);
-  return `${toolbar({ update: null })}
+  return `${toolbar({ commit: 0, update: null, theme })}
   <div style="display: flex; flex: 1; min-height: 0;">
     ${sidebar({ width: 200, loading: true })}${splitH()}
     <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">
@@ -104,12 +164,16 @@ function loading(theme) {
     </div>
   </div>
   ${dock({ open: false, empty: true })}
-  ${statusbar({ loading: '12,400', remote: null, state: 'Clean' })}
-  <div style="position: absolute; top: 52px; left: 50%; transform: translateX(-50%);"><div class="toast error">${icon('x-circle')}<div class="grow"><div class="t">Push rejected</div><div class="d">origin/main has 3 new commits. Pull first.</div><div class="actions"><span class="btn secondary sm">Pull</span></div></div><span class="icon-btn">${icon('x', 16)}</span></div></div>`;
+  ${statusbar({ loading: '12 400', remote: null, state: 'Clean' })}
+  <div style="position: absolute; top: 52px; left: 50%; transform: translateX(-50%); z-index: 2;">` +
+    `<div class="toast error">${icon('x-circle')}<div class="grow">` +
+    `<div class="t">Rejected: remote has new commits — Pull first</div>` +
+    `<div class="actions"><span class="btn secondary sm">Pull</span></div></div>` +
+    `<span class="icon-btn">${icon('x', 16)}</span></div></div>`;
 }
 
 function stashPreview(theme) {
-  return `${toolbar({ update: null })}
+  return `${toolbar({ commit: 4, update: null, theme })}
   <div style="display: flex; flex: 1; min-height: 0;">
     ${sidebar({ width: 180, compact: true })}${splitH()}
     <div style="display: flex; flex: 1; min-height: 0;">

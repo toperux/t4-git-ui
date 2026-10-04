@@ -355,7 +355,7 @@
       "x": 0,
       "y": 860,
       "w": 620,
-      "text": "1000 WIDE — sidebar becomes the 36px rail (or the toolbar's leftmost toggle / Ctrl+Shift+` any time); a rail icon opens the section as a flyout. Details pane goes to two columns (commit + files over | diff) so the changed files stay browsable beside the diff. Changes keeps three columns. The dock still hangs under either view."
+      "text": "1000 WIDE — the sidebar becomes the 36px rail only below 1000; these boards draw it forced (the toolbar's leftmost toggle / Ctrl+Shift+` any time). A rail icon opens the section as a flyout. The details pane goes to two columns (commit + files over | diff) below 1340 — the 1280 boards too — so the changed files stay browsable beside the diff. Changes keeps three columns. The dock still hangs under either view."
     },
     {
       "id": "row-3",
@@ -376,7 +376,7 @@
       "x": 0,
       "y": 3480,
       "w": 620,
-      "text": "FULL-WINDOW DIALOGS — unchanged by B. The commit dialog and the diff window stay reachable at every window size (Repository › Commit…, double-click the working-tree row; the expand button in any diff header). They sit over whichever view is showing."
+      "text": "FULL-WINDOW DIALOGS — unchanged by B. The commit dialog and the diff window stay reachable at every window size (Repository › Commit…, double-click the working-tree row; the expand button in History's diff header). They sit over whichever view is showing."
     },
     {
       "id": "decided",

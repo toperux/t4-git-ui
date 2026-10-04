@@ -5,24 +5,28 @@ function mergeDialog() {
   return `<div class="dialog">
     <div class="dialog-title"><span class="grow">Merge into main</span><span class="icon-btn">${icon('x', 16)}</span></div>
     <div class="dialog-body">
-      <div class="field"><span class="field-label">Branch to merge</span><span class="input select is-focus"><span class="val" style="display: inline-flex; align-items: center; gap: 6px;">${icon('git-branch', 14)}feature/lane-graph</span>${icon('chevron-down', 14, 'chevron')}</span><span class="field-help">3 commits ahead of main · no conflicts detected</span></div>
-      <div class="field"><span class="field-label">Strategy</span>
-        <div style="display: flex; flex-direction: column; gap: 8px;">
-          <span class="check"><span class="checkbox is-checked">${icon('check', 12)}</span>Fast-forward when possible</span>
-          <span class="check"><span class="checkbox"></span>Always create a merge commit (--no-ff)</span>
-          <span class="check"><span class="checkbox"></span>Squash into one commit</span>
-        </div>
-      </div>
-      <div class="field"><span class="field-label">Commit message</span><span class="input"><span>Merge branch ‘feature/lane-graph’ into main</span></span></div>
+      <div class="field"><span class="field-label">Branch to merge</span>` +
+      `<span class="input select is-focus"><span class="val">feature/lane-graph</span>` +
+      `${icon('chevron-down', 14, 'chevron')}</span></div>
+      <div class="field"><span class="field-label">Strategy</span>` +
+      `<span class="input select"><span class="val">Fast-forward when possible</span>` +
+      `${icon('chevron-down', 14, 'chevron')}</span></div>
+      <div style="display: flex; flex-direction: column; gap: var(--space-4);">` +
+      `<span class="check"><span class="checkbox"></span>Squash into one commit</span></div>
+      <div class="field"><span class="field-label">Commit message</span>` +
+      `<span class="input"><span class="ph">Merge branch 'feature/lane-graph' into main</span></span>` +
+      `<span class="field-help">Left empty git writes the default merge message</span></div>
     </div>
-    <div class="dialog-foot"><span class="preview">Runs <code>git merge --ff feature/lane-graph</code></span><span class="grow"></span><span class="btn secondary">Cancel</span><span class="btn primary">Merge</span></div>
+    <div class="dialog-foot">` +
+    `<span class="preview">Runs <code>git merge --ff --end-of-options feature/lane-graph</code></span>` +
+    `<span class="grow"></span><span class="btn secondary">Cancel</span><span class="btn primary">Merge</span></div>
   </div>`;
 }
 
 export function build(theme) {
   const body = `
   ${tabstrip()}
-  ${toolbar()}
+  ${toolbar({ theme })}
   <div style="display: flex; flex: 1; min-height: 0;">
     ${sidebar({ compact: true })}
     ${splitH()}

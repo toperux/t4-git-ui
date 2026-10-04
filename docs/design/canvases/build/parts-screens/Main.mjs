@@ -6,7 +6,7 @@ const ROWS = [...DEMO_ROWS, SKELETON];
 export function build(theme) {
   const body = `
   ${tabstrip()}
-  ${toolbar({ history: 'graph.rs', update: 'Update' })}
+  ${toolbar({ history: 'graph.rs', update: 'Update', theme })}
   <div style="display: flex; flex: 1; min-height: 0;">
     ${sidebar({ full: true })}
     ${splitH()}

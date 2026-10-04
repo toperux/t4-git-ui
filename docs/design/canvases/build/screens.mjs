@@ -21,7 +21,9 @@ export function frame(theme, inner, { scrim = null, full = false } = {}) {
 /** TabStrip.module.css — hidden while a window has one tab, so every artboard that draws it has two. */
 export function tabstrip({ tabs = ['t4-git-ui', 'libgit2'], active = 0, stale = [1] } = {}) {
   const tab = (name, i) =>
-    `<span class="tab ${i === active ? 'is-active' : ''}">${icon('folder-git-2', 14)}<span class="name">${name}</span>${stale.includes(i) ? '<span class="stale" title="Changed in the background"></span>' : ''}${i === active ? `<span class="close">${icon('x', 12)}</span>` : ''}</span>`;
+    `<span class="tab ${i === active ? 'is-active' : ''}"><span class="name">${name}</span>` +
+    `${stale.includes(i) ? '<span class="stale" title="Changed in the background"></span>' : ''}` +
+    `${i === active ? `<span class="close">${icon('x', 12)}</span>` : ''}</span>`;
   return `<div class="tabstrip" style="flex: none;">${tabs.map(tab).join('')}<span class="add">${icon('plus', 16)}</span></div>`;
 }
 
@@ -37,13 +39,13 @@ export function toolbar({
   repo = 't4-git-ui',
   pull = 5,
   push = 2,
-  commit = 4,
+  commit = 6,
   stash = 1,
   filter = 'All branches',
   search = 'Search commits',
   history = null,
   update = null,
-  theme = 'moon',
+  theme = 'light',
 } = {}) {
   const cnt = (n) => (n ? ` <span class="cnt">${n}</span>` : '');
   return `<div class="toolbar" style="flex: none;">
@@ -65,7 +67,7 @@ export function toolbar({
     <span class="input select" style="min-width: 150px; ${SM} margin-left: var(--space-2);"><span class="val">${filter}</span>${icon('chevron-down', 14, 'chevron')}</span>
     <span class="tb-sep"></span>
     <span class="icon-btn">${icon('refresh')}</span>
-    <span class="icon-btn">${icon(theme)}</span>
+    <span class="icon-btn">${icon(theme === 'dark' ? 'sun' : 'moon')}</span>
     ${update ? `<span class="btn primary sm">${icon('arrow-up-circle', 14)}${update}</span>` : ''}
     <span class="icon-btn">${icon('settings')}</span>
   </div>`;
@@ -184,7 +186,7 @@ export function graph(theme, rows, { laneW = 13, rowH = 26, lanes = 3 } = {}) {
 
 /** Standard demo history (14 rows). */
 export const DEMO_ROWS = [
-  { lane: 0, color: 0, kind: 'wt', lines: [[0, 0, 0]], subj: 'Working tree · 4 changes', wt: true },
+  { lane: 0, color: 0, kind: 'wt', lines: [[0, 0, 0]], subj: 'Working tree · 6 changes', wt: true },
   { lane: 0, color: 0, kind: 'head', lines: [[0, 0, 0]], subj: 'Dedupe lanes when parent already expected', chips: 'head', author: 'Sam Doe', date: '2h ago', sha: 'a1b2c3d' },
   { lane: 0, color: 0, kind: 'commit', lines: [[0, 0, 0], [0, 1, 1]], subj: 'Merge branch ‘feature/lane-graph’ into main', chips: 'origin', author: 'Sam Doe', date: '3h ago', sha: '9f8e7d6' },
   { lane: 1, color: 1, kind: 'commit', lines: [[0, 0, 0], [1, 1, 1]], subj: 'Emit MergeInto lines for octopus parents', chips: 'feature', author: 'Sam Doe', date: 'Yesterday', sha: '5c4b3a2' },
@@ -218,7 +220,6 @@ const CHIPS = {
   good: `<span class="chip bisect good">${icon('bug', 11)}good</span>`,
   bad: `<span class="chip bisect bad">${icon('bug', 11)}bad</span>`,
   skip: `<span class="chip bisect">${icon('bug', 11)}skip</span>`,
-  testing: `<span class="chip head">HEAD</span><span class="chip bisect">${icon('bug', 11)}testing</span>`,
 };
 
 /** RevisionGrid.module.css `.th` — the handles are drawn by base.css and are inert; widths 110 / 80 / 64. */
@@ -232,14 +233,24 @@ export function gridHeader() {
   </div>`;
 }
 
-export function grid(theme, rows, { selected = 1, hover = 4, compare = [], height = null, lanes = 3, loading = false } = {}) {
+/** WorkingTreeRow.tsx `.wtHint`: the always-visible door to Changes, in the row's author cell. */
+export const WT_HINT = '<span style="font-style: italic; white-space: nowrap;">Open changes →</span>';
+
+/** `focused` off = the grid's selection without its `:focus-within` accent (focus is in another pane). */
+export function grid(theme, rows, {
+  selected = 1, hover = 4, compare = [], height = null, lanes = 3, loading = false, focused = true,
+} = {}) {
+  const sel = focused ? 'is-selected' : 'is-selected-unfocused';
   const rowsHtml = rows.map((r, i) => {
-    const s = i === selected || compare.includes(i) ? 'is-selected' : i === hover ? 'is-hover' : '';
+    const s = i === selected || compare.includes(i) ? sel : i === hover ? 'is-hover' : '';
     if (r.skeleton) {
       return `<div class="row ${s}" style="padding: 0 var(--space-4) 0 var(--space-2); gap: 8px;"><span class="grow faint">—</span><span class="meta faint" style="width: 110px;">—</span><span class="meta faint" style="width: 80px;">—</span><span class="meta mono faint" style="width: 64px;">—</span></div>`;
     }
     const chips = r.chips ? `<span class="chips" style="display: inline-flex; gap: 4px; flex: none;">${CHIPS[r.chips]}</span>` : '';
-    const subj = r.wt ? `<span style="color: var(--fg-muted); font-style: italic;">${r.subj}</span>` : `<span style="overflow: hidden; text-overflow: ellipsis;">${r.subj}</span>`;
+    const subj = r.wt
+      ? `<span style="color: var(--fg-muted); font-style: italic; overflow: hidden; text-overflow: ellipsis;">` +
+        `${r.subj}</span>`
+      : `<span style="overflow: hidden; text-overflow: ellipsis;">${r.subj}</span>`;
     return `<div class="row ${s}" style="padding: 0 var(--space-4) 0 var(--space-2); gap: 8px;"><span class="grow" style="display: flex; align-items: center; gap: 6px;">${chips}${subj}</span><span class="meta" style="width: 110px;">${r.author || ''}</span><span class="meta" style="width: 80px;">${r.date || ''}</span><span class="meta mono" style="width: 64px;">${r.sha || ''}</span></div>`;
   }).join('');
   return `<div style="display: flex; flex-direction: column; flex: ${height ? 'none' : '1'}; ${height ? `height: ${height}px;` : ''} min-height: 0; background: var(--bg-panel); overflow: hidden; position: relative;">
@@ -258,8 +269,9 @@ export function grid(theme, rows, { selected = 1, hover = 4, compare = [], heigh
 export const dl = (cls, o, n, sg, tx) => `<div class="dl ${cls}"><span class="no">${o}</span><span class="no">${n}</span><span class="sg">${sg}</span><span class="tx">${tx}</span></div>`;
 
 /**
- * DiffViewer.tsx header: note · Resolve · mode chip · +N −M · separator · five IconButtons
- * (Open diff window, Open in diff tool, unified, split, ignore whitespace).
+ * DiffViewer.tsx header: mode chip · +N −M · separator · up to five IconButtons. `expand` = Open
+ * diff window (only History's pane passes `onExpand`); `tool` = Open in diff tool (absent on a
+ * conflicted file). Split and whitespace are disabled while staging.
  */
 export function diffHeader({
   path = 'crates/git-core/src/log/graph.rs',
@@ -268,21 +280,37 @@ export function diffHeader({
   split = false,
   ws = false,
   mode = null,
-  note = null,
-  resolve = false,
   staging = false,
+  expand = true,
+  tool = true,
 } = {}) {
   return `<div class="panel-header" style="flex: none;">${icon('file', 14)}<span class="grow mono" style="font-size: 12px; color: var(--fg);">${path}</span>
-    ${note ? `<span class="diff-note">${note}</span>` : ''}
-    ${resolve ? `<span class="btn secondary sm">Resolve in editor</span>` : ''}
     ${mode ? `<span class="diff-mode">${mode}</span>` : ''}
     ${add ? `<span class="xs" style="color: var(--success);">+${add}</span>` : ''}${del ? `<span class="xs" style="color: var(--danger-text);">−${del}</span>` : ''}
     <span class="tb-sep"></span>
-    <span class="icon-btn">${icon('maximize-2', 16)}</span>
-    <span class="icon-btn">${icon('external-link', 16)}</span>
+    ${expand ? `<span class="icon-btn">${icon('maximize-2', 16)}</span>` : ''}
+    ${tool ? `<span class="icon-btn">${icon('external-link', 16)}</span>` : ''}
     <span class="icon-btn ${split ? '' : 'is-on'}">${icon('rows', 16)}</span>
     <span class="icon-btn ${split ? 'is-on' : ''} ${staging ? 'is-disabled' : ''}">${icon('columns', 16)}</span>
     <span class="icon-btn ${ws ? 'is-on' : ''} ${staging ? 'is-disabled' : ''}">${icon('arrow-down-up', 16)}</span>
+  </div>`;
+}
+
+/**
+ * DiffViewer.tsx's conflict strip, a wrapping toolbar right under the header of a conflicted file:
+ * the note, then Keep · Keep (`sideLabel`, 12rem max, ellipsized) · Resolve in editor. Inline styles,
+ * not a base.css rule: base.css also feeds the root canvases.
+ */
+export function conflictStrip({
+  ours = 'main', theirs = 'feature/lane-graph', note = 'Conflict — stage the file once resolved',
+} = {}) {
+  const keep = (name) =>
+    `<span class="btn secondary sm" style="flex: none; max-width: 12rem; min-width: 0;">` +
+    `<span style="min-width: 0; overflow: hidden; text-overflow: ellipsis;">Keep ${name}'s version</span></span>`;
+  return `<div style="flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 8px; ` +
+    `border-bottom: 1px solid var(--border); background: var(--bg-app);">
+    <span class="diff-note" style="flex: 1 1 12rem; min-width: 0; white-space: normal;">${note}</span>` +
+    `${keep(ours)}${keep(theirs)}<span class="btn secondary sm" style="flex: none;">Resolve in editor</span>
   </div>`;
 }
 
@@ -295,9 +323,12 @@ const P = (t) => `<span class="syn-punct">${t}</span>`;
 const C = (t) => `<span class="syn-comment">${t}</span>`;
 const E = (t) => `<span class="emph">${t}</span>`;
 
+/** `actions` = staging mode: the hunk buttons show on hover only, so the first hunk is drawn hovered. */
 export function diffBody({ actions = false, selected = [] } = {}) {
   const sel = (i) => (selected.includes(i) ? 'is-selected' : '');
-  const hunkBtns = actions ? `<span class="btn secondary">Discard</span><span class="btn primary">Stage hunk</span>` : '';
+  const hunkBtns = actions
+    ? `<span class="btn primary">Stage hunk</span><span class="btn danger">Discard hunk</span>`
+    : '';
   return `<div class="diff scroll" style="flex: 1; border: 0; border-radius: 0; overflow: hidden;">
     <div class="hunk"><span class="grow">@@ -112,9 +112,14 @@ impl LaneLayout</span>${hunkBtns}</div>
     ${dl('', 112, 112, ' ', `    ${K('pub')} ${K('fn')} ${F('push')}(&amp;${K('mut')} ${K('self')}, oid: ${T('Oid')}, parents: &amp;[${T('Oid')}]) -&gt; ${T('RowLayout')} {`)}
@@ -313,7 +344,7 @@ export function diffBody({ actions = false, selected = [] } = {}) {
     ${dl('del', 117, '', '−', `            lines.${F('push')}(${F('merge_line')}(j, lane));`)}
     ${dl('', 118, 121, ' ', `            ${K('self')}.remove.${F('push')}(j);`)}
     ${dl('', 119, 122, ' ', `        }`)}
-    <div class="hunk"><span class="grow">@@ -140,4 +145,9 @@ impl LaneLayout</span>${hunkBtns}</div>
+    <div class="hunk"><span class="grow">@@ -140,4 +145,9 @@ impl LaneLayout</span></div>
     ${dl('', 140, 145, ' ', `        ${K('if')} ${K('let')} ${T('Some')}(&amp;p0) = parents.${F('first')}() {   ${C('// the first parent keeps the lane')}`)}
     ${dl('add', '', 146, '+', `            ${K('if')} ${K('let')} ${T('Some')}(k) = ${K('self')}.cols.${F('iter')}().${F('position')}(|c| c.expecting == p0) {`)}
     ${dl('add', '', 147, '+', `                lines.${F('push')}(${T('GraphLine')} { from: lane ${K('as')} ${T('u16')}, to: k ${K('as')} ${T('u16')}, kind: ${T('Branch')} });`)}
@@ -381,11 +412,15 @@ const guide = (d) => `background-image: repeating-linear-gradient(90deg, var(--b
  * ChangedFileList.tsx — Changes | Files pill tabs in the header, the flat / tree toggles after them,
  * and (Files tab only) a filter row of its own between the header and the list.
  */
-export function changedFiles({ selected = 0, flat = true, tab = 'changes', width = null } = {}) {
+export function changedFiles({ selected = 0, flat = true, tab = 'changes', width = null, focused = true } = {}) {
+  const on = (i) => (i === selected ? (focused ? 'is-selected' : 'is-selected-unfocused') : '');
   const f = (i, g, p, a, d) =>
-    `<div class="row ${i === selected ? 'is-selected' : ''}" style="padding-left: 8px;"><span class="glyph ${g}">${g}</span><span class="grow mono" style="font-size: 12px;">${p}</span>${stats(a, d)}</div>`;
+    `<div class="row ${on(i)}" style="padding-left: 8px;"><span class="glyph ${g}">${g}</span>` +
+    `<span class="grow mono" style="font-size: 12px;">${p}</span>${stats(a, d)}</div>`;
   const fTree = (i, d, g, p, add, del) =>
-    `<div class="row ${i === selected ? 'is-selected' : ''}" style="--d: ${d}; padding-left: calc(var(--space-4) + var(--tree-indent) * ${d}); ${guide(d)}"><span class="tw"></span><span class="glyph ${g}">${g}</span><span class="grow mono" style="font-size: 12px;">${p}</span>${stats(add, del)}</div>`;
+    `<div class="row ${on(i)}" style="--d: ${d}; padding-left: calc(var(--space-4) + var(--tree-indent) * ${d}); ` +
+    `${guide(d)}"><span class="tw"></span><span class="glyph ${g}">${g}</span>` +
+    `<span class="grow mono" style="font-size: 12px;">${p}</span>${stats(add, del)}</div>`;
   const folder = (d, name) =>
     `<div class="row folder" style="--d: ${d}; padding-left: calc(var(--space-4) + var(--tree-indent) * ${d}); ${guide(d)}"><span class="tw">${icon('chevron-down', 12)}</span>${folderIcon(true)}<span class="label">${name}</span></div>`;
   const head = `<div class="panel-header" style="flex: none;">${icon('file', 14)}<span class="grow">${tab === 'files' ? '412 files' : '4 files changed'}</span><span class="pill-tabs"><span class="pill-tab ${tab === 'changes' ? 'is-on' : ''}">Changes</span><span class="pill-tab ${tab === 'files' ? 'is-on' : ''}">Files</span></span><span class="icon-btn ${flat ? 'is-on' : ''}">${icon('rows', 16)}</span><span class="icon-btn ${flat ? '' : 'is-on'}">${icon('folder', 16)}</span></div>`;
@@ -393,7 +428,9 @@ export function changedFiles({ selected = 0, flat = true, tab = 'changes', width
     ? `<div class="filter-row" style="flex: none;"><span class="input">${icon('search', 14)}<span class="ph">Filter files</span></span></div>
        ${folder(0, 'crates / git-core / src')}
        ${['log/graph.rs', 'log/cache.rs', 'log/types.rs', 'lib.rs'].map((p, i) =>
-         `<div class="row ${i === selected ? 'is-selected' : ''}" style="--d: 1; padding-left: calc(var(--space-4) + var(--tree-indent) * 1); ${guide(1)}"><span class="tw"></span><span class="grow mono" style="font-size: 12px;">${p}</span><span class="meta">${['14.2 kB', '6.1 kB', '2.8 kB', '9.4 kB'][i]}</span></div>`).join('')}
+         `<div class="row ${on(i)}" style="--d: 1; padding-left: calc(var(--space-4) + var(--tree-indent) * 1); ` +
+         `${guide(1)}"><span class="tw"></span><span class="grow mono" style="font-size: 12px;">${p}</span>` +
+         `<span class="meta">${['14.2 kB', '6.1 kB', '2.8 kB', '9.4 kB'][i]}</span></div>`).join('')}
        ${folder(0, 'src / screens')}
        ${['RepoWindow.tsx', 'Sidebar.tsx'].map((p, i) =>
          `<div class="row" style="--d: 1; padding-left: calc(var(--space-4) + var(--tree-indent) * 1); ${guide(1)}"><span class="tw"></span><span class="grow mono" style="font-size: 12px;">${p}</span><span class="meta">${['18.0 kB', '43.8 kB'][i]}</span></div>`).join('')}`
@@ -475,13 +512,25 @@ export function compareDetails() {
 export function dock({ open = false, empty = false } = {}) {
   const exit = (ok, text) => `<span class="xs" style="display: inline-flex; align-items: center; gap: 4px; color: var(--${ok ? 'success' : 'danger-text'});">${icon(ok ? 'check' : 'x', 12)}${text}</span>`;
   if (!open) {
-    return `<div class="panel-header" style="flex: none; border-top: 1px solid var(--border); border-bottom: 0;">${icon('terminal', 14)}<span class="grow mono" style="font-size: 12px; color: var(--fg-muted);">${empty ? 'No output yet' : '$ git fetch --progress origin'}</span>${empty ? '' : exit(true, 'exit 0 · 1.1s')}<span class="icon-btn ${empty ? 'is-disabled' : ''}">${icon('chevron-up', 16)}</span></div>`;
+    return `<div class="panel-header" style="flex: none; border-top: 1px solid var(--border); border-bottom: 0;">` +
+      `${icon('terminal', 14)}<span class="grow mono" style="font-size: 12px; color: var(--fg-muted);">` +
+      `${empty ? 'No output yet' : '$ git fetch --progress --prune --end-of-options origin'}</span>` +
+      `${empty ? '' : exit(true, 'exit 0 · 1.1s')}` +
+      `<span class="icon-btn ${empty ? 'is-disabled' : ''}">${icon('chevron-up', 16)}</span></div>`;
   }
   return `<div style="flex: none; height: 200px; display: flex; flex-direction: column; border-top: 1px solid var(--border);">
-    <div class="panel-header" style="flex: none;">${icon('terminal', 14)}<span class="grow mono" style="font-size: 12px; color: var(--fg);">$ git push --progress origin main</span><span class="xs muted">4.2s</span><span class="spinner sm"></span><span class="btn secondary sm">Cancel</span><span class="icon-btn">${icon('chevron-down', 16)}</span></div>
+    <div class="panel-header" style="flex: none;">${icon('terminal', 14)}` +
+    `<span class="grow mono" style="font-size: 12px; color: var(--fg);">` +
+    `$ git push --progress origin --end-of-options main</span><span class="xs muted">4.2s</span>` +
+    `<span class="spinner sm"></span><span class="btn secondary sm">Cancel</span>` +
+    `<span class="icon-btn">${icon('chevron-down', 16)}</span></div>
     <div class="output scroll" style="flex: 1; border-radius: 0; overflow: hidden;">
-      <div class="cmd">$ git fetch --progress origin</div><div>   a1b2c3d..9f8e7d6  main       -&gt; origin/main</div><div class="ok" style="display: flex; align-items: center; gap: 4px;">${icon('check', 12)}exit 0 · 1.1s</div>
-      <div class="cmd" style="margin-top: 6px;">$ git push --progress origin main</div><div>Enumerating objects: 12, done.</div><div class="stderr">Writing objects:  58% (7/12), 1.2 MiB | 600 KiB/s</div>
+      <div class="cmd">$ git fetch --progress --prune --end-of-options origin</div>` +
+      `<div>   a1b2c3d..9f8e7d6  main       -&gt; origin/main</div>` +
+      `<div class="ok" style="display: flex; align-items: center; gap: 4px;">${icon('check', 12)}exit 0 · 1.1s</div>
+      <div class="cmd" style="margin-top: 6px;">$ git push --progress origin --end-of-options main</div>` +
+      `<div>Enumerating objects: 12, done.</div>` +
+      `<div class="stderr">Writing objects:  58% (7/12), 1.2 MiB | 600 KiB/s</div>
     </div>
     <div class="prompt" style="flex: none;"><span class="command-input"><span class="prefix">$ git</span><span class="ph">Type a git command</span></span></div>
   </div>`;

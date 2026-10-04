@@ -13,7 +13,12 @@ const stage = `<span class="icon-btn" style="width: 24px; height: 24px; margin-r
 
 function files() {
   return `<div style="width: 320px; flex: none; display: flex; flex-direction: column; background: var(--bg-panel); border-right: 1px solid var(--border); overflow: hidden;">
-    <div class="panel-header" style="flex: none;">${icon('file', 14)}<span class="grow">Unstaged</span><span class="icon-btn">${icon('folder-tree', 16)}</span><span class="badge">4</span><span class="btn secondary sm" style="font-size: var(--text-xs);">Stage all</span></div>
+    <!-- The tree toggle sits right after the title and shows the view a click switches to: the list glyph in tree mode.
+         Two rows selected: the header acts on them. -->
+    <div class="panel-header" style="flex: none;">${icon('file', 14)}` +
+    `<span class="grow" style="display: inline-flex; align-items: center; gap: var(--space-2);">` +
+    `<span>Unstaged</span><span class="icon-btn">${icon('rows', 16)}</span></span><span class="badge">4</span>` +
+    `<span class="btn secondary sm" style="font-size: var(--text-xs);">Stage selected</span></div>
     ${folder(0, 'crates / git-core / src')}
     ${folder(1, 'log')}
     ${file('is-selected anchor is-focus', 2, 'M', 'graph.rs', 42, 7)}
@@ -55,7 +60,7 @@ function message() {
 export function build(theme) {
   const body = `
   ${tabstrip()}
-  ${toolbar({ commit: 6 })}
+  ${toolbar({ commit: 6, theme })}
   <div style="display: flex; flex: 1; min-height: 0;">
     ${sidebar({ compact: true })}
     ${splitH()}
@@ -66,7 +71,7 @@ export function build(theme) {
         ${files()}
         ${splitH()}
         <div style="display: flex; flex-direction: column; flex: 1; min-width: 0; background: var(--bg-panel);">
-          ${diffHeader({ staging: true })}
+          ${diffHeader({ expand: false, staging: true })}
           ${diffBody({ actions: true, selected: [0, 1] })}
           ${diffBar(2, 'Stage')}
         </div>

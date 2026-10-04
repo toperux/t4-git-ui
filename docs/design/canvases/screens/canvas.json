@@ -25,7 +25,21 @@
   ],
   "annotations": [
     { "id": "a2-brief", "x": 0, "y": -140, "w": 560, "text": "A2 screens for t4-git-ui — composed only from the A1 design system (tokens, components, patterns).\nEach screen is a 1440×900 window. Page 1 = light, page 2 = dark.\nRow 1–2: Start → Main window → Commit panel → Merge dialog + output dock.\nRow 3: States — eight minis (empty repo / detached / rebase + conflicts / merge / cherry-pick / bisect / loading / stash preview); taller than one window.\nRow 4: Settings dialog → Stashes browser → Interactive rebase → Files tab + blame.", "page": "page-1" },
-    { "id": "a2-dark", "x": 0, "y": -100, "w": 560, "text": "Same screens in the dark theme — identical markup, tokens swapped.", "page": "page-2" }
+    {
+      "id": "a2-dark", "x": 0, "y": -100, "w": 560,
+      "text": "Same screens in the dark theme — identical markup, tokens swapped.",
+      "page": "page-2"
+    },
+    {
+      "id": "s4-settings", "x": 0, "y": 3900, "w": 560,
+      "text": "Settings dialog: only the Diff & merge tab is drawn; the General and Git tabs aren’t.",
+      "page": "page-1"
+    },
+    {
+      "id": "s4-settings-dark", "x": 0, "y": 3900, "w": 560,
+      "text": "Settings dialog: only the Diff & merge tab is drawn; the General and Git tabs aren’t.",
+      "page": "page-2"
+    }
   ],
   "launch": { "view": "canvas", "page": "page-1" }
 }

@@ -56,14 +56,36 @@ function side(wt) {
   </div>`;
 }
 
-/** The middle panel while the working tree is selected: `FilesColumn`, the Changes view's own. */
+/**
+ * The middle panel while the working tree is selected: `FilesColumn`, the Changes view's own —
+ * Unstaged (tree toggle after the title, Stage all) over Staged (Unstage all), as Commit.mjs draws it.
+ */
 const STATS = [[42, 7], [18, 4], [61, 0], [0, 0], [23, 0]];
 const stats = (a, d) => `<span class="meta">${a ? `<span style="color: var(--success);">+${a}</span>` : ''}${d ? `<span style="color: var(--danger-text);">−${d}</span>` : ''}</span>`;
 function wtFiles() {
-  const head = `<div class="panel-header" style="flex: none;">${icon('file', 14)}<span class="grow">${FILES.length} files changed</span><span class="pill-tabs"><span class="pill-tab is-on">Changes</span><span class="pill-tab">Files</span></span><span class="icon-btn is-on">${icon('rows', 16)}</span><span class="icon-btn">${icon('folder', 16)}</span></div>`;
-  const rows = FILES.map(([g, p], i) =>
-    `<div class="row ${i === 0 ? 'is-selected' : ''}" style="padding-left: 8px;"><span class="glyph ${g}">${g}</span><span class="grow mono" style="font-size: 12px;">${p}</span>${stats(...STATS[i])}</div>`).join('');
-  return `<div style="display: flex; flex-direction: column; width: 320px; flex: none; min-width: 0; background: var(--bg-panel); border-right: 1px solid var(--border); overflow: hidden;">${head}${rows}</div>`;
+  const row = (i) => {
+    const [g, p] = FILES[i];
+    return `<div class="row ${i === 0 ? 'is-selected' : ''}" style="padding-left: 8px;">` +
+      `<span class="glyph ${g}">${g}</span><span class="grow mono" style="font-size: 12px;">${p}</span>` +
+      `${stats(...STATS[i])}</div>`;
+  };
+  // Added and renamed are index-side: those two are staged, the rest are in the working tree.
+  const unstaged = [0, 1, 4], staged = [2, 3];
+  return `<div style="display: flex; flex-direction: column; width: 320px; flex: none; min-width: 0; ` +
+    `background: var(--bg-panel); border-right: 1px solid var(--border); overflow: hidden;">
+    <div class="panel-header" style="flex: none;">${icon('file', 14)}` +
+    `<span class="grow" style="display: inline-flex; align-items: center; gap: var(--space-2);">` +
+    `<span>Unstaged</span><span class="icon-btn">${icon('folder-tree', 16)}</span></span>` +
+    `<span class="badge">${unstaged.length}</span>` +
+    `<span class="btn secondary sm" style="font-size: var(--text-xs);">Stage all</span></div>
+    ${unstaged.map(row).join('')}
+    <div style="flex: 1; min-height: 24px;"></div>
+    <div class="panel-header" style="flex: none; border-top: 1px solid var(--border);">${icon('check', 14)}` +
+    `<span class="grow">Staged</span><span class="badge">${staged.length}</span>` +
+    `<span class="btn secondary sm" style="font-size: var(--text-xs);">Unstage all</span></div>
+    ${staged.map(row).join('')}
+    <div style="flex: 1; min-height: 24px;"></div>
+  </div>`;
 }
 
 function stashesDialog(wt) {
@@ -75,22 +97,28 @@ function stashesDialog(wt) {
       ${wt ? wtFiles() : changedFiles({ selected: 1, width: 320 })}
       ${splitH()}
       <div style="display: flex; flex-direction: column; flex: 1; min-width: 0; background: var(--bg-panel);">
-        ${diffHeader({ path: wt ? FILES[0][1] : 'crates/git-core/src/log/graph.rs', add: wt ? 42 : 12, del: wt ? 7 : 3 })}
+        ${diffHeader({
+          path: wt ? FILES[0][1] : 'crates/git-core/src/log/graph.rs', add: wt ? 42 : 12, del: wt ? 7 : 3,
+          expand: false, staging: wt,
+        })}
         ${diffBody()}
       </div>
     </div>
   </div>`;
 }
 
+// The dialog's working tree (row 68: 3 unstaged + 2 staged): the row, toolbar and status bar count the same 5.
+const STASH_ROWS = DEMO_ROWS.slice(0, 9).map((r, i) => (i === 0 ? { ...r, subj: 'Working tree · 5 changes' } : r));
+
 export function build(theme) {
   const body = `
   ${tabstrip()}
-  ${toolbar()}
+  ${toolbar({ commit: 5, theme })}
   <div style="display: flex; flex: 1; min-height: 0;">
     ${sidebar({ compact: true })}
     ${splitH()}
     <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">
-      ${grid(theme, DEMO_ROWS.slice(0, 9), { selected: -1, hover: -1, height: 24 + 9 * 26 })}
+      ${grid(theme, STASH_ROWS, { selected: -1, hover: -1, height: 24 + 9 * 26 })}
       ${splitV()}
       <div style="display: flex; flex: 1; min-height: 0;">
         ${stashDetails()}
@@ -105,7 +133,7 @@ export function build(theme) {
     </div>
   </div>
   ${dock({ open: false })}
-  ${statusbar({ counts: '4 unstaged · 0 staged' })}`;
+  ${statusbar({ counts: '3 unstaged · 2 staged' })}`;
   return { body: frame(theme, body, { scrim: stashesDialog(true), full: true }), bg: PAGE_BG[theme] };
 }
 

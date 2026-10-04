@@ -18,7 +18,7 @@ function blameMenu() {
 export function build(theme) {
   const body = `
   ${tabstrip()}
-  ${toolbar({ history: 'graph.rs' })}
+  ${toolbar({ history: 'graph.rs', theme })}
   <div style="display: flex; flex: 1; min-height: 0;">
     ${sidebar({ compact: true })}
     ${splitH()}

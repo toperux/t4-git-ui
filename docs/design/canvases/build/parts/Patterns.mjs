@@ -32,11 +32,17 @@ function graphSvg(t, { selectedLane = 0 } = {}) {
 function gridRows(t) {
   const subj = (s, txt, chips = '', author = 'Sam Doe', date = '2h ago', sha = 'a1b2c3d', italic = false) =>
     `<div class="row ${s}" style="padding-left: 0; padding-right: 8px; gap: 8px;"><span class="grow" style="display: flex; align-items: center; gap: 6px; ${italic ? 'color: var(--fg-muted); font-style: italic;' : ''}">${chips ? `<span style="display: inline-flex; gap: 4px; flex: none;">${chips}</span>` : ''}<span style="overflow: hidden; text-overflow: ellipsis;">${txt}</span></span><span class="meta" style="width: 110px;">${author}</span><span class="meta" style="width: 80px;">${date}</span><span class="meta mono" style="width: 64px;">${sha}</span></div>`;
-  return section('Revision grid row', 'graph column 13px/lane, width animating to the lanes in view (gone under a text filter) · row 26px · ref chips first (HEAD, current, local, remote, tag, stash, bisect; max 3 then a “+N” button that opens a popover of the rest), then subject · local + tracking remote on the same commit collapse into one chip (rows 4, 6) · author 110 · date 80 · sha 64 mono · working-tree pseudo-row italic on top (“Working tree · 4 changes”, or “Working tree · merge to commit” mid-operation) · Ctrl+click a second row for a compare, tinting both · pages not yet arrived draw “—” in --fg-faint',
+  return section('Revision grid row',
+    'graph column 13px/lane, width animating to the lanes in view (gone under a text filter) · row 26px · ' +
+    'ref chips first (HEAD, current, local, remote, tag, stash, bisect; max 3 then a “+N” button that opens a ' +
+    'popover of the rest), then subject · local + tracking remote on the same commit collapse into one chip ' +
+    '(rows 4, 6) · author 110 · date 80 · sha 64 mono · working-tree pseudo-row italic on top (“Working tree · ' +
+    '6 changes”, or “Working tree · merge to commit” mid-operation) · Ctrl+click a second row for a compare, ' +
+    'tinting both · pages not yet arrived draw “—” in --fg-faint',
     `<div class="list" style="display: flex; padding-left: 4px;">
       ${graphSvg(t)}
       <div style="flex: 1; min-width: 0;">
-        ${subj('', 'Working tree · 4 changes', '', '', '', '', true)}
+        ${subj('', 'Working tree · 6 changes', '', '', '', '', true)}
         ${subj('is-selected', 'Dedupe lanes when parent already expected', `<span class="chip head">HEAD</span><span class="chip local current">${icon('git-branch', 11)}main</span>`)}
         ${subj('', 'Merge branch ‘feature/lane-graph’', `<span class="chip remote">${icon('cloud', 11)}origin/main</span>`, 'Sam Doe', '3h ago', '9f8e7d6')}
         ${subj('', 'Emit MergeInto lines for octopus parents', `<span class="chip local">${icon('git-branch', 11)}feature/lane-graph<span class="rem">${icon('cloud', 11)}origin</span></span><span class="chip stash">${icon('archive', 11)}stash@{0}</span>`, 'Sam Doe', 'Yesterday', '5c4b3a2')}

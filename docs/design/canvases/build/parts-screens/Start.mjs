@@ -1,11 +1,26 @@
 import { frame, icon, PAGE_BG } from '../screens.mjs';
 
-const repo = (s, name, path, when, pinned = false) => `<div class="row ${s}" style="height: 44px; padding: 0 12px; gap: 12px;">
+/**
+ * StartScreen.module.css `.pin`: pin and × are hidden (keeping their slots) until the row is hovered or
+ * selected; a pinned row keeps its pin, filled and accent, at rest. The selected row is unfocused: the
+ * filter field holds the focus.
+ */
+const repo = (s, name, path, when, pinned = false) => {
+  const shown = s !== '';
+  const pin = pinned
+    ? icon('pin', 13)
+      .replace('<svg ', '<svg style="color: var(--accent);" ')
+      .replace('fill="none"', 'fill="currentColor"')
+    : icon('pin', 13);
+  return `<div class="row ${s}" style="height: 44px; padding: 0 12px; gap: 12px;">
   ${icon('folder', 16, 'muted')}
   <div class="grow" style="display: flex; flex-direction: column; line-height: 16px;"><span style="font-weight: 500;">${name}</span><span class="xs muted" style="overflow: hidden; text-overflow: ellipsis;">${path}</span></div>
   <span class="meta">${when}</span>
-  <span class="icon-btn ${pinned ? 'is-on' : ''}" style="width: 20px; height: 20px;">${icon('pin', 13)}</span>
+  <span class="icon-btn ${pinned ? 'is-on' : ''}" style="width: 20px; height: 20px; ` +
+    `${pinned || shown ? '' : 'opacity: 0;'}">${pin}</span>
+  <span class="icon-btn" style="width: 20px; height: 20px; ${shown ? '' : 'opacity: 0;'}">${icon('x', 13)}</span>
 </div>`;
+};
 
 const action = (ic, title, hint, kbd) => `<div class="row" style="height: 56px; padding: 0 14px; gap: 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: var(--bg-panel);">
   ${icon(ic, 18, 'muted')}
@@ -16,9 +31,10 @@ const action = (ic, title, hint, kbd) => `<div class="row" style="height: 56px; 
 export function build(theme) {
   const body = `
   <div style="display: flex; align-items: center; height: 40px; padding: 0 16px; gap: 8px; border-bottom: 1px solid var(--border); flex: none;">
-    ${icon('git-branch', 16, 'muted')}<span style="font-weight: 600;">T4 Git</span><span class="xs muted">0.9.0</span>
+    ${icon('git-branch', 16, 'muted')}<span style="font-weight: 600;">T4 Git UI</span>` +
+    `<span class="xs muted">0.9.0</span>
     <div style="flex: 1;"></div>
-    <span class="icon-btn">${icon('moon')}</span>
+    <span class="icon-btn">${icon(theme === 'dark' ? 'sun' : 'moon')}</span>
     <span class="btn primary sm">${icon('arrow-up-circle', 14)}Update</span>
     <span class="icon-btn">${icon('settings')}</span>
   </div>
@@ -27,7 +43,7 @@ export function build(theme) {
       <div style="display: flex; flex-direction: column; gap: 10px;">
         <div style="display: flex; align-items: center; gap: 8px;"><span class="label">Recent</span><div style="flex: 1;"></div><span class="input" style="width: 220px; height: var(--control-h-sm);">${icon('search', 14)}<span class="ph">Filter repositories</span></span></div>
         <div class="list">
-          ${repo('is-selected', 't4-git-ui', 'F:\\src\\_ pet projects\\t4-git-ui', '2h ago', true)}
+          ${repo('is-selected-unfocused', 't4-git-ui', 'F:\\src\\_ pet projects\\t4-git-ui', '2h ago', true)}
           ${repo('', 'git', 'C:\\Users\\me\\src\\git', 'Yesterday', true)}
           ${repo('is-hover', 'rust', 'C:\\Users\\me\\src\\rust', 'Aug 28')}
           ${repo('', 'GitExtensions', 'C:\\Users\\me\\src\\gitextensions', 'Aug 22')}

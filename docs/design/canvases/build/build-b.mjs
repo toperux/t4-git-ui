@@ -8,7 +8,10 @@ const here = dirname(fileURLToPath(import.meta.url));
 const build = here;
 const out = join(here, '..', 'direction-b');
 const S = await import(pathToFileURL(join(build, 'screens.mjs')).href);
-const { icon: baseIcon, grid, DEMO_ROWS, commitDetails, changedFiles, stashDetails, diffHeader, diffBody, dock, statusbar, splitH, splitV, PAGE_BG } = S;
+const {
+  icon: baseIcon, grid, DEMO_ROWS, WT_HINT, commitDetails, changedFiles, stashDetails, diffHeader, diffBody, diffBar,
+  conflictStrip, dock, statusbar, splitH, splitV, PAGE_BG,
+} = S;
 
 const tokens = readFileSync(join(build, 'tokens.css'), 'utf8')
   .replace(/^:root\s*\{/m, '.t-light {')
@@ -72,12 +75,27 @@ function frame(w, h, inner, theme = 'light') {
 
 // ---------- toolbar ----------
 const tb = (ic, label, cnt, cls = '') => `<span class="tb-btn ${cls}">${icon(ic, 18)}${label ? label : ''}${cnt ? ` <span class="cnt">${cnt}</span>` : ''}</span>`;
-const tbIcon = (ic, cnt) => `<span class="tb-btn" style="padding: 0 6px; gap: 2px;">${icon(ic, 18)}${cnt ? `<span class="cnt">${cnt}</span>` : ''}</span>`;
-const repoBtn = (label = true) => `<span class="tb-btn repo" style="font-weight: 600; flex: none; ${label ? '' : 'padding: 0 6px;'}">${icon('folder-git', 18)}${label ? '<span class="name">t4-git-ui</span>' : ''}${icon('chevron-down', 14, 'muted')}</span>`;
-const search = (w) => `<span class="input" style="width: ${w}px; height: 26px;">${icon('search', 14)}<span class="ph">Search commits</span></span>`;
-const filterSel = () => `<span class="input select" style="min-width: 130px; height: 26px;"><span>All branches</span>${icon('chevron-down', 14)}</span>`;
-const iconBtn = (ic) => `<span class="icon-btn">${icon(ic)}</span>`;
+const tbIcon = (ic, cnt, cls = '') =>
+  `<span class="tb-btn ${cls}" style="padding: 0 6px; gap: 2px;">${icon(ic, 18)}` +
+  `${cnt ? `<span class="cnt">${cnt}</span>` : ''}</span>`;
+const repoBtn = (label = true) =>
+  `<span class="tb-btn repo" style="font-weight: 600; flex: none; ${label ? '' : 'padding: 0 6px;'}">` +
+  `${icon('folder-git', 18)}${label ? '<span class="name">t4-git-ui</span>' : ''}</span>`;
+// The one control that gives way when the row is short (Toolbar.module.css `.search`).
+const search = (w) =>
+  `<span class="input" style="width: ${w}px; flex: 0 1 auto; min-width: 0; overflow: hidden; height: 26px;">` +
+  `${icon('search', 14)}<span class="ph">Search commits</span></span>`;
+const filterSel = (w = 150) =>
+  `<span class="input select" style="min-width: ${w}px; height: 26px;"><span>All branches</span>` +
+  `${icon('chevron-down', 14)}</span>`;
+const iconBtn = (ic, cls = '') => `<span class="icon-btn ${cls}">${icon(ic)}</span>`;
 const kbtn = () => `<span class="icon-btn" title="Command palette (Ctrl+K)">${icon('command', 16)}</span>`;
+/** Fetch is a split button at every tier: the tiers drop its label (`.op [data-label]`), never the ▾. */
+const fetchSplit = (label, cls) =>
+  `<span class="tb-split">${tb('arrow-down', label ? 'Fetch' : '', 0, cls)}` +
+  `<span class="tb-btn tb-more ${cls}">${icon('chevron-down', 16)}</span></span>`;
+/** ThemeToggle shows the theme a click moves to: the sun on a dark board. */
+const themeBtn = (theme) => iconBtn(theme === 'dark' ? 'sun' : 'moon');
 
 /** The History | Changes switch. `labels` off = icons only (the <800 toolbar). */
 const segSwitch = (view, labels, count) => {
@@ -87,41 +105,62 @@ const segSwitch = (view, labels, count) => {
     <span class="${view === 'changes' ? 'is-on' : ''}">${icon('git-commit', 14)}${labels ? 'Changes' : ''}${cnt}</span></span>`;
 };
 
-/** B toolbar: today's buttons, the History | Changes switch, and Ctrl+K at every size. */
-function toolbarB(mode, view, { count = 4, update = false } = {}) {
+/**
+ * B toolbar: today's buttons, the History | Changes switch, and Ctrl+K at every size. `busy` = an op
+ * is running (every op button greyed, Toolbar.tsx); `more` = the ⋯ menu is open (pressed).
+ */
+function toolbarB(mode, view, { count = 6, update = false, theme = 'light', busy = false, more = false } = {}) {
   const seg = segSwitch(view, mode !== 'icons', count);
+  const op = busy ? 'is-disabled' : '';
   if (mode === 'full')
     return `<div class="toolbar" style="flex: none;">${iconBtn('panel-left')}<span class="tb-sep"></span>${repoBtn()}<span class="tb-sep"></span>
-      <span class="tb-split">${tb('arrow-down', 'Fetch')}<span class="tb-btn tb-more">${icon('chevron-down', 16)}</span></span>${tb('arrow-down-up', 'Pull', 5)}${tb('arrow-up', 'Push', 2)}<span class="tb-sep"></span>${tb('git-branch', 'Branch')}${tb('archive', 'Stash', 1)}<span class="tb-sep"></span>${seg}
-      <div style="flex: 1;"></div>${view === 'history' ? search(update ? 160 : 200) + filterSel() : ''}<span class="tb-sep"></span>${kbtn()}${iconBtn('refresh')}${iconBtn('moon')}${update ? `<span class="btn primary sm">${icon('arrow-up-circle', 14)}Update</span>` : ''}${iconBtn('settings')}</div>`;
+      ${fetchSplit(true, op)}${tb('arrow-down-up', 'Pull', 5, op)}${tb('arrow-up', 'Push', 2, op)}` +
+      `<span class="tb-sep"></span>${tb('git-branch', 'Branch', 0, op)}${tb('archive', 'Stash', 1, op)}` +
+      `<span class="tb-sep"></span>${seg}
+      <div style="flex: 1;"></div>${view === 'history' ? search(update ? 160 : 200) + filterSel() : ''}` +
+      `<span class="tb-sep"></span>${kbtn()}${iconBtn('refresh')}${themeBtn(theme)}` +
+      `${update ? `<span class="btn primary sm">${icon('arrow-up-circle', 14)}Update</span>` : ''}` +
+      `${iconBtn('settings')}</div>`;
   if (mode === 'tight')
     return `<div class="toolbar" style="flex: none;">${iconBtn('panel-left')}<span class="tb-sep"></span>${repoBtn()}<span class="tb-sep"></span>
-      ${tbIcon('arrow-down')}${tbIcon('arrow-down-up', 5)}${tbIcon('arrow-up', 2)}<span class="tb-sep"></span>${tbIcon('git-branch')}${tbIcon('archive', 1)}<span class="tb-sep"></span>${seg}
-      <div style="flex: 1;"></div>${view === 'history' ? search(150) : ''}<span class="tb-sep"></span>${kbtn()}${iconBtn('moon')}${iconBtn('settings')}</div>`;
+      ${fetchSplit(false, op)}${tbIcon('arrow-down-up', 5, op)}${tbIcon('arrow-up', 2, op)}` +
+      `<span class="tb-sep"></span>${tbIcon('git-branch', 0, op)}${tbIcon('archive', 1, op)}` +
+      `<span class="tb-sep"></span>${seg}
+      <div style="flex: 1;"></div>${view === 'history' ? search(140) + filterSel(110) : ''}` +
+      `<span class="tb-sep"></span>${kbtn()}${iconBtn('refresh')}${themeBtn(theme)}${iconBtn('settings')}</div>`;
   return `<div class="toolbar" style="flex: none; padding: 0 8px;">${iconBtn('panel-left')}<span class="tb-sep" style="margin: 0 4px;"></span>${repoBtn(false)}<span class="tb-sep" style="margin: 0 4px;"></span>
-      ${tbIcon('arrow-down')}${tbIcon('arrow-down-up', 5)}${tbIcon('arrow-up', 2)}<span class="tb-sep" style="margin: 0 4px;"></span>${seg}
-      <div style="flex: 1;"></div>${view === 'history' ? iconBtn('search') : ''}${kbtn()}${iconBtn('ellipsis')}</div>`;
+      ${fetchSplit(false, op)}${tbIcon('arrow-down-up', 5, op)}${tbIcon('arrow-up', 2, op)}` +
+      `<span class="tb-sep" style="margin: 0 4px;"></span>${seg}
+      <div style="flex: 1;"></div>${view === 'history' ? iconBtn('search') : ''}` +
+      `<span class="tb-sep" style="margin: 0 4px;"></span>${kbtn()}${iconBtn('ellipsis', more ? 'is-on' : '')}</div>`;
 }
 
-/** The ⋯ menu the icons toolbar folds into, right-aligned under its button. */
-const overflowMenu = () => `<div class="menu" style="position: absolute; right: 8px; top: 44px; width: 220px; z-index: 3;">
+/** The ⋯ menu the icons toolbar folds into, right-aligned under its button (Toolbar.tsx `More`). */
+const overflowMenu = (t) =>
+  `<div class="menu" style="position: absolute; right: 8px; top: 44px; width: 220px; z-index: 3;">
   <div class="menu-item">${icon('git-branch', 16)}<span class="grow">Branch</span><span class="chev">${icon('chevron-right', 14)}</span></div>
-  <div class="menu-item">${icon('archive', 16)}<span class="grow">Stash…</span><span class="badge">1</span></div>
+  <div class="menu-item">${icon('archive', 16)}<span class="grow">Stash…</span>` +
+  `<span class="kbd">Ctrl+Shift+S</span></div>
   <div class="menu-sep"></div>
   <div class="menu-item">${icon('refresh', 16)}<span class="grow">Refresh</span><span class="kbd">F5</span></div>
-  <div class="menu-item">${icon('moon', 16)}<span class="grow">Dark theme</span></div>
-  <div class="menu-item">${icon('settings', 16)}<span class="grow">Settings</span></div>
+  <div class="menu-item">${icon(t === 'dark' ? 'sun' : 'moon', 16)}<span class="grow">${t === 'dark'
+    ? 'Switch to light theme'
+    : 'Switch to dark theme'}</span></div>
+  <div class="menu-item">${icon('settings', 16)}<span class="grow">Settings</span><span class="kbd">Ctrl+,</span></div>
   <div class="menu-sep"></div>
   <div class="menu-item is-hover">${icon('command', 16)}<span class="grow">Command palette</span><span class="kbd">Ctrl+K</span></div>
 </div>`;
 
 // ---------- sidebar variants ----------
 const tr = (d, s, tw, ic, txt, extra = '') => `<div class="row ${s}" style="--d: ${d};"><span class="tw">${tw ? icon(tw, 12) : ''}</span>${icon(ic, 14, 'muted')}<span class="grow">${txt}</span>${extra}</div>`;
-const sh = (open, name, count, extra = '') => `<div class="section-header"><span class="tw">${icon(open ? 'chevron-down' : 'chevron-right', 12)}</span><span class="grow">${name}</span>${extra}<span class="badge">${count}</span></div>`;
-const plus = `<span class="icon-btn" style="width: 20px; height: 20px;">${icon('plus', 14)}</span>`;
+const sh = (open, name, count, extra = '') =>
+  `<div class="section-header"><span class="tw">${icon(open ? 'chevron-down' : 'chevron-right', 12)}</span>` +
+  `<span class="grow">${name}</span><span class="badge">${count}</span>${extra}</div>`;
 
-function localTree(selected = true) {
-  return `${tr(0, selected ? 'is-selected' : '', '', 'check', `<span style="font-weight: 600;">main</span>`, `<span class="ab">${icon('arrow-up', 12)}2 ${icon('arrow-down', 12)}5</span>`)}
+/** `main` is selected at the grid's oid, in the unfocused tint: on every board the focus is elsewhere. */
+function localTree() {
+  return `${tr(0, 'is-selected-unfocused', '', 'check', `<span style="font-weight: 600;">main</span>`,
+    `<span class="ab">${icon('arrow-up', 12)}2 ${icon('arrow-down', 12)}5</span>`)}
     ${tr(0, 'folder', 'chevron-down', 'folder-open', 'feature', '<span class="meta">2</span>')}
     ${tr(1, '', '', 'git-branch', 'lane-graph', `<span class="ab">${icon('arrow-up', 12)}2</span>`)}
     ${tr(1, '', '', 'git-branch', 'diff-viewer')}
@@ -129,16 +168,17 @@ function localTree(selected = true) {
 }
 
 function sidebarFull({ width = 260, stashSelected = false } = {}) {
-  return `<div class="tree scroll" style="width: ${width}px; flex: none; background: var(--bg-app); border-right: 1px solid var(--border); padding: 4px 0; overflow: hidden;">
-    ${sh(true, 'Local', 4)}${localTree(!stashSelected)}
-    ${sh(true, 'Remotes', 3, plus)}
+  return `<div class="tree scroll" style="width: ${width}px; flex: none; background: var(--bg-sidebar); ` +
+    `border-right: 1px solid var(--border); padding: 4px 0; overflow: hidden;">
+    ${sh(true, 'Local', 4)}${localTree()}
+    ${sh(true, 'Remotes', 3)}
     ${tr(0, '', 'chevron-down', 'cloud', 'origin')}
     ${tr(1, '', '', 'git-branch', 'main')}
     ${tr(1, '', '', 'git-branch', 'feature/lane-graph')}
     ${tr(1, '', '', 'git-branch', 'hotfix-index-lock')}
     ${sh(false, 'Tags', 12)}
     ${sh(true, 'Stashes', 1, `<span class="icon-btn" style="width: 20px; height: 20px;">${icon('archive', 14)}</span>`)}
-    ${tr(0, stashSelected ? 'is-selected' : '', '', 'archive', 'WIP on main: lane colors')}
+    ${tr(0, stashSelected ? 'is-selected-unfocused' : '', '', 'archive', 'WIP on main: lane colors')}
   </div>`;
 }
 
@@ -152,62 +192,115 @@ function rail({ on = null } = {}) {
 
 function railFlyout(top) {
   return `<div class="menu tree" style="position: absolute; left: 40px; top: ${top}px; width: 260px; padding: 0; overflow: hidden; z-index: 2;">
-    ${sh(true, 'Local', 4, plus)}${localTree()}
+    ${sh(true, 'Local', 4)}${localTree()}
   </div>`;
 }
 
 // ---------- commit panel pieces ----------
-const f = (s, g, p, m) => `<div class="row multi ${s}" style="padding-left: 8px;"><span class="glyph ${g}">${g}</span><span class="grow mono" style="font-size: 12px;">${p}</span><span class="meta">${m}</span></div>`;
-const fileRows = (conflict) => conflict
-  ? `${f('is-selected is-focus', 'C', 'crates/git-core/src/log/graph.rs', 'both modified')}${f('', 'M', 'crates/git-core/src/lib.rs', '+3 −1')}${f('', 'U', 'crates/git-core/src/log/cache.rs', '')}${f('', 'D', 'crates/git-core/src/old_walker.rs', '−120')}`
-  : `${f('is-selected is-focus', 'M', 'crates/git-core/src/log/graph.rs', '+42 −7')}${f('', 'M', 'crates/git-core/src/lib.rs', '+3 −1')}${f('', 'U', 'crates/git-core/src/log/cache.rs', '')}${f('', 'D', 'crates/git-core/src/old_walker.rs', '−120')}`;
+// The selected row is unfocused (focus in the diff's selected lines) unless the list was clicked last;
+// a single selection is its background alone — the ring is keyboard-only, the bar multi-selection-only.
+const f = (s, g, p, m) =>
+  `<div class="row ${s}" style="padding-left: 8px;"><span class="glyph ${g}">${g}</span>` +
+  `<span class="grow mono" style="font-size: 12px;">${p}</span><span class="meta">${m}</span></div>`;
+const selCls = (focused) => (focused ? 'is-selected' : 'is-selected-unfocused');
+// Mid-merge the one conflicted file is all Unstaged holds: it has no workdir side of its own.
+const fileRows = (conflict, focused) => conflict
+  ? f(selCls(focused), 'C', 'crates/git-core/src/log/graph.rs', '')
+  : f(selCls(focused), 'M', 'crates/git-core/src/log/graph.rs', '+42 −7') +
+    f('', 'M', 'crates/git-core/src/lib.rs', '+3 −1') +
+    f('', 'U', 'crates/git-core/src/log/cache.rs', '') +
+    f('', 'D', 'crates/git-core/src/old_walker.rs', '−120');
 const stagedRows = () => `${f('', 'A', 'crates/git-core/src/log/types.rs', '+61')}${f('', 'R', 'src/log.rs → src/log/mod.rs', '')}`;
-const unstagedHdr = (conflict) => `<div class="panel-header" style="flex: none;">${icon('file', 14)}<span class="grow">Unstaged</span><span class="icon-btn">${icon('folder-tree', 16)}</span><span class="badge${conflict ? ' danger' : ''}">4</span><span class="btn secondary sm" style="height: 20px; font-size: 11px;">Stage all</span></div>`;
+// The tree toggle sits right after the title (PanelHeader `after`); Stage all greys when every unstaged
+// entry is conflicted.
+const unstagedHdr = (conflict) =>
+  `<div class="panel-header" style="flex: none;">${icon('file', 14)}` +
+  `<span class="grow" style="display: inline-flex; align-items: center; gap: var(--space-2);">` +
+  `<span>Unstaged</span><span class="icon-btn">${icon('folder-tree', 16)}</span></span>` +
+  `<span class="badge${conflict ? ' danger' : ''}">${conflict ? 1 : 4}</span>` +
+  `<span class="btn secondary sm${conflict ? ' is-disabled' : ''}" style="height: 20px; font-size: 11px;">` +
+  `Stage all</span></div>`;
 const stagedHdr = (split = false) => `<div class="panel-header" style="flex: none; ${split ? '' : 'border-top: 1px solid var(--border);'}">${icon('check', 14)}<span class="grow">Staged</span><span class="badge">2</span><span class="btn secondary sm" style="height: 20px; font-size: 11px;">Unstage all</span></div>`;
 
-function files({ width = 320, flex = false, conflict = false, split = false } = {}) {
+function files({ width = 320, flex = false, conflict = false, split = false, focused = false } = {}) {
   return `<div style="${flex ? 'flex: 1; min-height: 0;' : `width: ${width}px; flex: none;`} display: flex; flex-direction: column; background: var(--bg-panel); ${flex ? '' : 'border-right: 1px solid var(--border);'} overflow: hidden;">
-    ${unstagedHdr(conflict)}${fileRows(conflict)}<div style="flex: 1; min-height: 12px;"></div>${split ? splitV() : ''}${stagedHdr(split)}${stagedRows()}<div style="flex: 1; min-height: 12px;"></div>
+    ${unstagedHdr(conflict)}${fileRows(conflict, focused)}<div style="flex: 1; min-height: 12px;"></div>` +
+    `${split ? splitV() : ''}${stagedHdr(split)}${stagedRows()}<div style="flex: 1; min-height: 12px;"></div>
   </div>`;
 }
 
-const msgBox = (h, empty) => `<div style="display: flex; flex-direction: column; background: var(--bg-inset); border: 1px solid var(--${empty ? 'border' : 'accent'}); ${empty ? '' : 'box-shadow: 0 0 0 3px var(--accent-soft);'} border-radius: var(--radius-md); ${h ? `height: ${h}px;` : 'flex: 1; min-height: 0;'}">
+// At rest (CommitPanel.module.css `.editor`): --bg-field, a transparent border, no focus ring.
+const msgBox = (h, empty) =>
+  `<div style="display: flex; flex-direction: column; background: var(--bg-field); border: 1px solid transparent; ` +
+  `border-radius: var(--radius-md); ${h ? `height: ${h}px;` : 'flex: 1; min-height: 0;'}">
   <div style="display: flex; align-items: center; height: 32px; padding: 0 10px; border-bottom: 1px solid var(--border); gap: 6px;">${empty
     ? '<span class="ph faint">Summary</span>'
-    : '<span style="font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Lane layout: eager dedupe of first parent</span><span class="caret"></span>'}<div style="flex: 1;"></div><span class="xs faint">${empty ? '0/72' : '42/72'}</span></div>
+    : '<span style="font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' +
+      'Lane layout: eager dedupe of first parent</span>'}<div style="flex: 1;"></div>` +
+  `<span class="xs faint">${empty ? '0/72' : '42/72'}</span></div>
   <div style="padding: 8px 10px; flex: 1;"><span class="ph faint sm">Body — what and why. Wrap at 72.</span></div></div>`;
 
-function message({ width = 340, flex = false, compact = false, empty = false } = {}) {
-  return `<div style="${flex ? 'flex: none;' : `width: ${width}px; flex: none;`} display: flex; flex-direction: column; background: var(--bg-panel); ${flex ? 'border-top: 1px solid var(--border);' : 'border-left: 1px solid var(--border);'}">
-    <div class="panel-header" style="flex: none;">${icon('git-commit', 14)}<span class="grow">Commit message</span><span class="icon-btn">${icon('history', 14)}</span></div>
+/**
+ * MessageColumn.tsx on --bg-commit. `expand` = the header's Open commit window (the Changes panel
+ * passes it at every width); `compact` = the 2-column tier, the options folded behind ⋯ (pressed
+ * while open or off their defaults, `optionsOn`); `busy` = an op is running (Commit & Push greys).
+ */
+function message({
+  width = 340, flex = false, compact = false, empty = false, expand = false, busy = false, optionsOn = false,
+} = {}) {
+  const author = `Sam Doe &lt;dev@example.com&gt; · will commit ${empty ? 0 : 2} staged files`;
+  return `<div style="${flex ? 'flex: none;' : `width: ${width}px; flex: none;`} display: flex; ` +
+    `flex-direction: column; background: var(--bg-commit); ${flex
+      ? 'border-top: 1px solid var(--border);'
+      : 'border-left: 1px solid var(--border);'}">
+    <div class="panel-header" style="flex: none;">${icon('git-commit', 14)}<span class="grow">Commit message</span>` +
+    `${expand ? `<span class="icon-btn" title="Open commit window">${icon('maximize-2', 16)}</span>` : ''}` +
+    `<span class="icon-btn">${icon('history', 14)}</span></div>
     <div style="padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; flex: 1;">
-      ${msgBox(compact ? 76 : 0, empty)}
-      ${compact ? '' : `<div style="display: flex; flex-direction: column; gap: 6px;"><span class="check"><span class="checkbox"></span>Amend last commit</span><span class="check"><span class="checkbox"></span>Add Signed-off-by</span><span class="input select"><span class="val">Sign: as configured</span>${icon('chevron-down', 14, 'chevron')}</span></div><div class="xs muted">${empty ? 'Sam Doe · nothing staged' : 'Sam Doe · will commit 2 staged files'}</div>`}
-      <div style="display: flex; gap: 8px; margin-top: auto; align-items: center;">${compact ? `<span class="icon-btn" title="Amend, sign-off, message history">${icon('ellipsis', 14)}</span>` : ''}<span class="btn primary ${empty ? 'is-disabled' : ''}" style="flex: 1;">${icon('check', 14)}Commit</span><span class="btn secondary ${empty ? 'is-disabled' : ''}">Commit &amp; Push</span></div>
+      ${msgBox(compact ? 108 : 0, empty)}
+      ${compact ? '' : `<div style="display: flex; flex-direction: column; gap: 6px;">` +
+        `<span class="check"><span class="checkbox"></span>Amend last commit</span>` +
+        `<span class="check"><span class="checkbox"></span>Add Signed-off-by</span>` +
+        `<span class="input select"><span class="val">Sign: as configured</span>` +
+        `${icon('chevron-down', 14, 'chevron')}</span></div>` +
+        `<div class="xs muted" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${author}</div>`}
+      <div style="display: flex; gap: 8px; margin-top: auto; align-items: center;">` +
+      `${compact
+        ? `<span class="icon-btn${optionsOn ? ' is-on' : ''}" title="Commit options">${icon('ellipsis', 16)}</span>`
+        : ''}` +
+      `<span class="btn primary ${empty ? 'is-disabled' : ''}" style="flex: 1;">${icon('check', 14)}Commit</span>` +
+      `<span class="btn secondary ${empty || busy ? 'is-disabled' : ''}">Commit &amp; Push</span></div>
     </div>
   </div>`;
 }
 
-function diffCol({ extraBar = true, header = null } = {}) {
+/** The staging diff: no ⤢ (the panel passes no `onExpand`), ↗ enabled, ⊞ ⇅ disabled. */
+const stagingHeader = (o = {}) => diffHeader({ expand: false, staging: true, ...o });
+
+function diffCol({ extraBar = true, header = null, body = null } = {}) {
   return `<div style="display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; overflow: hidden; background: var(--bg-panel);">
-    ${header || diffHeader()}${diffBody({ actions: true, selected: [0, 1] })}
-    ${extraBar ? `<div class="hunk" style="flex: none; background: var(--accent-soft); color: var(--fg); border-top: 1px solid var(--border);"><span class="grow">2 lines selected</span><span class="btn secondary" style="height: 20px;">Discard</span><span class="btn primary" style="height: 20px;">Stage 2 lines</span></div>` : ''}
+    ${header || stagingHeader()}${body || diffBody({ actions: true, selected: [0, 1] })}
+    ${extraBar ? diffBar(2, 'Stage') : ''}
   </div>`;
 }
 
 /** Three columns: files | diff | message. */
-const commit3 = (fw = 320, mw = 340, opts = {}) => `<div style="display: flex; flex: 1; min-height: 0;">${files({ width: fw, conflict: opts.conflict })}${diffCol(opts)}${message({ width: mw })}</div>`;
+const commit3 = (fw = 320, mw = 340, opts = {}) =>
+  `<div style="display: flex; flex: 1; min-height: 0;">` +
+  `${files({ width: fw, conflict: opts.conflict, focused: opts.focused })}${diffCol(opts)}` +
+  `${message({ width: mw, expand: true, busy: opts.busy })}</div>`;
 /** Two columns: files over message | diff. */
 const commit2 = (lw = 300) => `<div style="display: flex; flex: 1; min-height: 0;">
-  <div style="width: ${lw}px; flex: none; display: flex; flex-direction: column; border-right: 1px solid var(--border); min-height: 0;">${files({ flex: true })}${message({ flex: true, compact: true })}</div>${diffCol()}</div>`;
+  <div style="width: ${lw}px; flex: none; display: flex; flex-direction: column; ` +
+  `border-right: 1px solid var(--border); min-height: 0;">${files({ flex: true })}` +
+  `${message({ flex: true, compact: true, expand: true })}</div>${diffCol()}</div>`;
 
-/** Details pane: today's three columns, and the narrow tabs. */
-const details3 = () => `<div style="display: flex; flex: 1; min-height: 0;">${commitDetails()}<div style="width: 300px; flex: none; display: flex;">${changedFiles({ selected: 0 })}</div><div style="display: flex; flex-direction: column; flex: 1; min-width: 0; background: var(--bg-panel);">${diffHeader()}${diffBody()}</div></div>`;
-const details2 = () => {
-  const top = commitDetails()
+/** Details pane, two columns (below 1340): `top` (commit or stash details) over the files | the diff. */
+const details2 = (top = commitDetails(), { filesFocused = false } = {}) => {
+  top = top
     .replace("width: 340px; flex: none;", "flex: 0 1 auto; min-height: 0; max-height: 50%;")
     .replace("border-right: 1px solid var(--border);", "border-bottom: 1px solid var(--border);");
-  const bottom = changedFiles({ selected: 0 })
+  const bottom = changedFiles({ selected: 0, focused: filesFocused })
     .replace("border-right: 1px solid var(--border);", "")
     .replace("flex: 1; min-width: 0;", "flex: 1; min-width: 0; min-height: 0;");
   return `<div style="display: flex; flex: 1; min-height: 0;">
@@ -221,13 +314,11 @@ const details720 = () => {
     <div style="width: 220px; flex: none; display: flex; flex-direction: column; min-height: 0; background: var(--bg-panel); border-right: 1px solid var(--border); overflow: hidden;">
       <div class="panel-header" style="flex: none; gap: 6px;"><span class="tw">${icon("chevron-right", 12)}</span><span class="grow" style="color: var(--fg); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Dedupe lanes when parent already expected</span><span class="xs muted mono">a1b2c3d</span></div>
       <div class="panel-header" style="flex: none;">${icon("file", 14)}<span class="grow">4 files</span><span class="pill-tabs"><span class="pill-tab is-on">Changes</span><span class="pill-tab">Files</span></span></div>
-      ${cf("is-selected", "M", "log/graph.rs", "+42 −7")}${cf("", "A", "log/cache.rs", "+88")}${cf("", "M", "lib.rs", "+3 −1")}${cf("", "R", "log.rs → log/mod.rs", "")}
+      ${cf("is-selected-unfocused", "M", "log/graph.rs", "+42 −7")}${cf("", "A", "log/cache.rs", "+88")}` +
+      `${cf("", "M", "lib.rs", "+3 −1")}${cf("", "R", "log.rs → log/mod.rs", "")}
     </div>
     <div style="display: flex; flex-direction: column; flex: 1; min-width: 0; background: var(--bg-panel);">${diffHeader()}${diffBody()}</div></div>`;
 };
-const details1 = () => `<div style="display: flex; flex-direction: column; flex: 1; min-height: 0; background: var(--bg-panel);">
-  <div class="panel-header"><span class="pill-tabs"><span class="pill-tab">Commit</span><span class="pill-tab">Files</span><span class="pill-tab is-on">Diff</span></span><span class="grow"></span><span class="xs muted mono">a1b2c3d</span></div>
-  ${diffHeader()}${diffBody()}</div>`;
 
 const gridH = (n) => 24 + n * 26;
 
@@ -238,32 +329,81 @@ const changesBar = ({ text = 'Changes on <span class="mono" style="font-size: 12
   `<div class="panel-header" style="flex: none; height: 32px; gap: 8px;">${icon('git-commit', 14)}<span style="color: var(--fg); font-weight: 500; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${text}</span><span class="btn ghost sm${stash ? '' : ' is-disabled'}">${icon('archive', 14)}Stash…</span><div style="flex: 1;"></div><span class="icon-btn">${icon('x', 14)}</span></div>`;
 
 // ---------- palette ----------
-/** Ctrl+K. Typing filters across groups; an empty query leads with Recent. */
-function palette({ query = 'st', width = 520, top = 96, groups = [], footer = false } = {}) {
-  const it = ([ic, t, k, hover]) => `<div class="menu-item ${hover ? 'is-hover' : ''}" style="height: 28px;">${icon(ic, 16)}<span class="grow">${t}</span>${k ? `<span class="kbd">${k}</span>` : ''}</div>`;
+/**
+ * Ctrl+K (CommandPalette.tsx): 520 wide (less only under 552), at most the window less 128 tall, the
+ * list scrolling inside it, and the footer hint on every view. Typing filters across groups; an
+ * empty query leads with Recent, then lists every group. Items: [icon, label, kbd, active, disabled].
+ */
+function palette({ query = 'st', width = 520, top = 96, maxH = 672, groups = [], scrolls = false } = {}) {
+  const it = ([ic, t, k, active, dis]) =>
+    `<div class="menu-item${active ? ' is-hover' : ''}${dis ? ' is-disabled' : ''}" style="height: 28px;">` +
+    `${icon(ic, 16)}<span class="grow">${t}</span>${k ? `<span class="kbd">${k}</span>` : ''}</div>`;
   const grp = (g, i) => `<div class="label" style="padding: ${i ? 8 : 6}px 8px 4px;">${g.label}</div>${g.items.map(it).join('')}`;
   return `<div style="position: absolute; inset: 0; background: var(--scrim); display: flex; justify-content: center; align-items: flex-start; padding-top: ${top}px; z-index: 3;">
-    <div class="menu" style="width: ${width}px; padding: 0; overflow: hidden; box-shadow: var(--shadow-2);">
-      <div style="display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border-bottom: 1px solid var(--border);">${icon('search', 16, 'muted')}${query ? `<span style="font-size: 14px;">${query}</span>` : '<span class="ph">Type a command, branch, or repository</span>'}<span class="caret"></span><div style="flex: 1;"></div><span class="kbd">Esc</span></div>
-      <div style="padding: 6px;">${groups.map(grp).join('')}</div>
-      ${footer ? `<div class="xs muted" style="display: flex; gap: 10px; padding: 6px 12px; border-top: 1px solid var(--border); background: var(--bg-app);"><span>↑↓ navigate</span><span>·</span><span>↵ run</span><span>·</span><span>Esc close</span></div>` : ''}
+    <div class="menu" style="width: ${width}px; max-height: ${maxH}px; display: flex; flex-direction: column; ` +
+    `padding: 0; overflow: hidden; box-shadow: var(--shadow-2);">
+      <div style="flex: none; display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; ` +
+      `border-bottom: 1px solid var(--border);">${icon('search', 16, 'muted')}${query
+        ? `<span style="font-size: 14px;">${query}</span>`
+        : '<span class="ph">Type a command, branch, or repository</span>'}` +
+      `<span class="caret"></span><div style="flex: 1;"></div><span class="kbd">Esc</span></div>
+      <div style="flex: 1; min-height: 0; overflow: hidden; padding: 6px; position: relative;">` +
+      `${groups.map(grp).join('')}${scrolls
+        ? '<div style="position: absolute; right: 3px; top: 6px; width: 4px; height: 160px; border-radius: 999px; ' +
+          'background: var(--scrollbar-thumb);"></div>'
+        : ''}</div>
+      <div class="xs muted" style="flex: none; display: flex; gap: 10px; padding: 6px 12px; ` +
+      `border-top: 1px solid var(--border); background: var(--bg-app);">` +
+      `<span>↑↓ navigate</span><span>·</span><span>↵ run</span><span>·</span><span>Esc close</span></div>
     </div>
   </div>`;
 }
 
+// rank.ts on "st": matches only, groups by their best row (ties in group order), no highlight. No
+// branch or repository on these boards has an s before a t, so Go to branch and Repositories drop out.
 const QUERY_GROUPS = [
-  { label: 'Stash', items: [['archive', '<b>St</b>ash changes…', '', true], ['archive', 'Manage <b>st</b>ashes…', 'Ctrl+Shift+S'], ['archive', 'Pop late<b>st</b> — WIP on main: lane colors']] },
-  { label: 'Branch', items: [['git-branch', 'Checkou<b>t</b>…'], ['git-merge', 'Rebase main on<b>t</b>o…'], ['git-merge', 'Merge in<b>t</b>o main…']] },
-  { label: 'Repository', items: [['terminal', 'Run git command…', 'Ctrl+Shift+R'], ['cloud', 'Add remo<b>t</b>e…'], ['folder-git', 'Add work<b>t</b>ree…']] },
-  { label: 'Go to', items: [['git-branch', 'feature/lane-graph'], ['git-branch', 'origin/ho<b>t</b>fix-index-lock']] },
-  { label: 'View', items: [['git-commit', '<b>S</b>wi<b>t</b>ch to Changes', 'Alt+2']] },
+  { label: 'Stash', items: [
+    ['archive', 'Stash changes…', '', true], ['archive', 'Manage stashes…', 'Ctrl+Shift+S'],
+    ['archive', 'Pop latest: WIP on main: lane colors'], ['archive', 'Apply latest: WIP on main: lane colors'],
+  ] },
+  { label: 'Views', items: [['history', 'History', 'Alt+1']] },
+  { label: 'Repository', items: [['folder-open', 'Open repository…', 'Ctrl+T']] },
+  { label: 'Window', items: [['settings', 'Settings', 'Ctrl+,'], ['x', 'Close tab', 'Ctrl+W']] },
 ];
 
+// commands.tsx in rank.ts's group order, after the three recent commands.
 const EMPTY_GROUPS = [
-  { label: 'Recent', items: [['archive', 'Stash changes…', '', true], ['git-branch', 'Checkout feature/lane-graph'], ['terminal', 'Run git command…', 'Ctrl+Shift+R']] },
-  { label: 'Views', items: [['history', 'History', 'Alt+1'], ['git-commit', 'Changes', 'Alt+2']] },
-  { label: 'Go to branch', items: [['git-branch', 'main <span class="xs muted">· current</span>'], ['git-branch', 'feature/lane-graph'], ['cloud', 'origin/main'], ['ellipsis', '<span class="muted">+1 more…</span>']] },
-  { label: 'Repositories', items: [['folder-git', 'libgit2 <span class="xs muted">· recent</span>'], ['folder-git', 'big-repo <span class="xs muted">· recent</span>']] },
+  { label: 'Recent', items: [
+    ['archive', 'Stash changes…', '', true], ['git-branch', 'Checkout…'],
+    ['terminal', 'Run git command…', 'Ctrl+Shift+R'],
+  ] },
+  { label: 'Views', items: [['history', 'History', 'Alt+1'], ['git-commit', 'Changes (6)', 'Alt+2']] },
+  { label: 'Repository', items: [
+    ['git-commit', 'Commit…'], ['cloud', 'Add remote…'], ['folder-git', 'Add worktree…'],
+    ['terminal', 'Run git command…', 'Ctrl+Shift+R'], ['folder-open', 'Open repository…', 'Ctrl+T'],
+  ] },
+  { label: 'Branch', items: [
+    ['plus', 'Create branch…', 'Ctrl+B'], ['git-branch', 'Checkout…'],
+    ['git-merge', 'Merge…'], ['git-merge', 'Rebase…'],
+  ] },
+  { label: 'Stash', items: [
+    ['archive', 'Stash changes…'], ['archive', 'Manage stashes…', 'Ctrl+Shift+S'],
+    ['archive', 'Pop latest: WIP on main: lane colors'], ['archive', 'Apply latest: WIP on main: lane colors'],
+  ] },
+  { label: 'Network', items: [
+    ['arrow-down', 'Fetch', 'Ctrl+F5'], ['arrow-down-up', 'Pull…', 'Ctrl+Shift+L'],
+    ['arrow-up', 'Push…', 'Ctrl+Shift+U'],
+  ] },
+  { label: 'Go to branch', items: [
+    ['git-branch', 'main'], ['git-branch', 'feature/lane-graph'], ['git-branch', 'feature/diff-viewer'],
+    ['git-branch', 'hotfix-index-lock'], ['cloud', 'origin/main'], ['cloud', 'origin/feature/lane-graph'],
+    ['cloud', 'origin/hotfix-index-lock'],
+  ] },
+  { label: 'Repositories', items: [['folder-git', 'libgit2'], ['folder-git', 'big-repo']] },
+  { label: 'Window', items: [
+    ['panel-left', 'Toggle sidebar', 'Ctrl+Shift+`'], ['refresh', 'Refresh', 'F5'], ['settings', 'Settings', 'Ctrl+,'],
+    ['external-link', 'Move to new window', 'Ctrl+Shift+N', false, true], ['x', 'Close tab', 'Ctrl+W'],
+  ] },
 ];
 
 // ---------- full-window dialogs ----------
@@ -276,9 +416,6 @@ const fullDialog = (title, body) => `<div class="scrim is-full" style="position:
   </div>
 </div>`;
 
-/** Inside a dialog the diff header has no "Open diff window": only the pane passes `onExpand`. */
-const noExpand = (h) => h.replace(`<span class="icon-btn">${icon('maximize-2', 16)}</span>`, '');
-
 // CommitDialog.tsx — Unstaged / Staged / Message stacked in a 380px panel (the app's defaultSize),
 // the diff taking the rest. Split view is off while staging, as DiffColumn's actions mode has it.
 const commitDialog = () => fullDialog('Commit', `
@@ -286,7 +423,7 @@ const commitDialog = () => fullDialog('Commit', `
     ${files({ flex: true, split: true })}${splitV()}${message({ flex: true }).replace('border-top: 1px solid var(--border);', '')}
   </div>
   ${splitH()}
-  ${diffCol({ header: noExpand(diffHeader({ staging: true })) })}`);
+  ${diffCol()}`);
 
 // DiffDialog.tsx — the details pane's changed file list (320) beside the diff; the title is
 // `Diff — <short> <summary>` of the selected commit. The list is the file switcher; there is no other.
@@ -294,7 +431,7 @@ const diffWindow = () => fullDialog('Diff — a1b2c3d Dedupe lanes when parent a
   ${changedFiles({ selected: 0, width: 320 })}
   ${splitH()}
   <div style="display: flex; flex-direction: column; flex: 1; min-width: 0; background: var(--bg-panel);">
-    ${noExpand(diffHeader())}${diffBody()}
+    ${diffHeader({ expand: false })}${diffBody()}
   </div>`);
 
 // ---------- artboards ----------
@@ -303,74 +440,87 @@ const diffWindow = () => fullDialog('Diff — a1b2c3d Dedupe lanes when parent a
 function boards(t) {
 const out = {};
 const F = (w, h, inner) => frame(w, h, inner, t);
+const T = (mode, view, o = {}) => toolbarB(mode, view, { theme: t, ...o });
+// Every board's grid: its selection unfocused (the focus is in a list, the diff or an overlay), and
+// the working-tree row's always-visible `Open changes →` (WorkingTreeRow.tsx `.wtHint`).
+const bgrid = (rows, o = {}) =>
+  grid(t, rows.map((r) => (r.wt ? { ...r, author: WT_HINT } : r)), { ...o, focused: false });
 
 // --- Row 1 · 1280×800 ---------------------------------------------------------
 
-// History: grid + details, full height. No commit panel in sight.
-out.Main = F(1280, 800, `${toolbarB('full', 'history', { update: true })}
+// History: grid + details, full height. No commit panel in sight. Two details columns below 1340.
+out.Main = F(1280, 800, `${T('full', 'history', { update: true })}
   <div style="display: flex; flex: 1; min-height: 0;">${sidebarFull()}${splitH()}
-    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${grid(t, DEMO_ROWS.slice(0, 14), { selected: 1, hover: 4, height: gridH(14) })}${splitV()}${details3()}</div>
+    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">` +
+    `${bgrid(DEMO_ROWS.slice(0, 14), { selected: 1, hover: 4, height: gridH(14) })}${splitV()}` +
+    `${details2(commitDetails(), { filesFocused: true })}</div>
   </div>${dock({ open: false })}${statusbar({ counts: '4 unstaged · 2 staged' })}`);
 
 // Changes: the commit panel gets the whole content area.
-out.Changes = F(1280, 800, `${toolbarB('full', 'changes')}
+out.Changes = F(1280, 800, `${T('full', 'changes')}
   <div style="display: flex; flex: 1; min-height: 0;">${sidebarFull()}${splitH()}
-    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${changesBar()}${commit3(340, 360)}</div>
+    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${changesBar()}${commit3(320, 340)}</div>
   </div>${dock({ open: false })}${statusbar({ counts: '4 unstaged · 2 staged' })}`);
 
-const historyBody = (rows = 14) => `${toolbarB('full', 'history')}
+const historyBody = (rows = 14) => `${T('full', 'history')}
   <div style="display: flex; flex: 1; min-height: 0;">${sidebarFull()}${splitH()}
-    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${grid(t, DEMO_ROWS.slice(0, rows), { selected: 1, hover: -1, height: gridH(rows) })}${splitV()}${details3()}</div>
+    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">` +
+    `${bgrid(DEMO_ROWS.slice(0, rows), { selected: 1, hover: -1, height: gridH(rows) })}${splitV()}${details2()}</div>
   </div>${dock({ open: false })}${statusbar({ counts: '4 unstaged · 2 staged' })}`;
 
 // The palette with a query typed: no Recent group, matches across every group.
 out.Palette = F(1280, 800, `${historyBody()}${palette({ query: 'st', groups: QUERY_GROUPS })}`);
 
-// The palette the moment it opens: Recent first, then views, branches, repositories.
-out.PaletteEmpty = F(1280, 800, `${historyBody()}${palette({ query: '', groups: EMPTY_GROUPS, footer: true })}`);
+// The palette the moment it opens: Recent first, then every group; the list scrolls.
+out.PaletteEmpty = F(1280, 800, `${historyBody()}${palette({ query: '', groups: EMPTY_GROUPS, scrolls: true })}`);
 
 // --- Row 2 · 1000×680 ---------------------------------------------------------
 
-const h1000 = (railOpts, flyout) => `${toolbarB('tight', 'history')}
+const h1000 = (railOpts, flyout, filesFocused) => `${T('tight', 'history')}
   <div style="display: flex; flex: 1; min-height: 0; position: relative;">${rail(railOpts)}${flyout || ''}
-    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${grid(t, DEMO_ROWS.slice(0, 8), { selected: 1, hover: 4, height: gridH(8) })}${splitV()}${details2()}</div>
+    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">` +
+    `${bgrid(DEMO_ROWS.slice(0, 8), { selected: 1, hover: 4, height: gridH(8) })}${splitV()}` +
+    `${details2(commitDetails(), { filesFocused })}</div>
   </div>${dock({ open: false })}${statusbar({ counts: '4 unstaged · 2 staged' })}`;
 
 // The details pane's middle step: commit + files over one column, diff beside it.
-out.History1000 = F(1000, 680, h1000({}));
+out.History1000 = F(1000, 680, h1000({}, '', true));
 
 // Changes still fits three columns at 1000.
-out.Changes1000 = F(1000, 680, `${toolbarB('tight', 'changes')}
+out.Changes1000 = F(1000, 680, `${T('tight', 'changes')}
   <div style="display: flex; flex: 1; min-height: 0;">${rail()}
     <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${changesBar()}${commit3(300, 320)}</div>
   </div>${dock({ open: false })}${statusbar({ counts: '4 unstaged · 2 staged' })}`);
 
 // A rail button opens its section as a flyout over the content.
-out.Flyout1000 = F(1000, 680, h1000({ on: 'local' }, railFlyout(4)));
+out.Flyout1000 = F(1000, 680, h1000({ on: 'local' }, railFlyout(4), false));
 
-// The dock hangs under either view; the commit panel shrinks above it.
-out.Dock1000 = F(1000, 680, `${toolbarB('tight', 'changes')}
+// The dock hangs under either view; the commit panel shrinks above it. While the op runs every op
+// button is greyed: the toolbar's, the changes bar's Stash… and Commit & Push.
+out.Dock1000 = F(1000, 680, `${T('tight', 'changes', { busy: true })}
   <div style="display: flex; flex: 1; min-height: 0;">${rail()}
-    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${changesBar()}${commit3(300, 320)}</div>
+    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${changesBar({ stash: false })}` +
+    `${commit3(300, 320, { busy: true })}</div>
   </div>${dock({ open: true })}${statusbar({ busy: 'Pushing…', counts: '4 unstaged · 2 staged' })}`);
 
 // --- Row 3 · 720×540 ----------------------------------------------------------
 
-const h720 = `${toolbarB('icons', 'history')}
+const h720 = `${T('icons', 'history')}
   <div style="display: flex; flex: 1; min-height: 0;">${rail()}
-    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${grid(t, DEMO_ROWS.slice(0, 8), { selected: 1, hover: -1, height: gridH(8), lanes: 2 })}${splitV()}${details720()}</div>
+    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">` +
+    `${bgrid(DEMO_ROWS.slice(0, 8), { selected: 1, hover: -1, height: gridH(8), lanes: 2 })}${splitV()}` +
+    `${details720()}</div>
   </div>${dock({ open: false })}${statusbar({ counts: '4 unstaged · 2 staged' })}`;
-const c720 = `${toolbarB('icons', 'changes')}
+const c720 = (more = false) => `${T('icons', 'changes', { more })}
   <div style="display: flex; flex: 1; min-height: 0;">${rail()}
     <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${changesBar()}${commit2(280)}</div>
   </div>${dock({ open: false })}${statusbar({ counts: '4 unstaged · 2 staged' })}`;
 
 out.History720 = F(720, 540, h720);
-out.Changes720 = F(720, 540, c720);
-out.Overflow720 = F(720, 540, `${c720}${overflowMenu()}`);
-// At 540 tall the list is ranked down to the top hits per group; the rest scrolls.
-const QUERY_GROUPS_720 = QUERY_GROUPS.map((g) => ({ ...g, items: g.items.slice(0, 2) }));
-out.Palette720 = F(720, 540, `${h720}${palette({ query: 'st', width: 720 - 32, top: 48, groups: QUERY_GROUPS_720 })}`);
+out.Changes720 = F(720, 540, c720());
+out.Overflow720 = F(720, 540, `${c720(true)}${overflowMenu(t)}`);
+// Still 520 wide (the panel narrows only under 552); every hit fits in the 412 the height leaves.
+out.Palette720 = F(720, 540, `${h720}${palette({ query: 'st', top: 48, maxH: 540 - 128, groups: QUERY_GROUPS })}`);
 
 // --- Row 4 · states · 1280×800 ------------------------------------------------
 
@@ -379,49 +529,56 @@ const banner = (kind, text, btns) => `<div class="banner ${kind}" style="flex: n
 const sec = (l) => `<span class="btn secondary sm">${l}</span>`;
 const pri = (l) => `<span class="btn primary sm">${l}</span>`;
 
-// Banners sit above whichever view is showing — here, Changes mid-merge.
-out.ChangesMerge = F(1280, 800, `${toolbarB('full', 'changes')}
-  ${banner('warning', 'Merge in progress — resolve conflicts, then commit to finish', sec('Abort') + pri('Commit merge'))}
-  ${banner('danger', '1 file has conflicts — resolve, then stage it', '')}
+// Banners sit above whichever view is showing, inside the content column — here, Changes mid-merge.
+// The conflicted file has no workdir side, so it counts as conflicted, not unstaged, while Unstaged
+// still lists it; Stage all greys, as every unstaged entry is conflicted.
+out.ChangesMerge = F(1280, 800, `${T('full', 'changes', { count: 3 })}
   <div style="display: flex; flex: 1; min-height: 0;">${sidebarFull()}${splitH()}
-    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${changesBar({ text: 'Changes on <span class="mono" style="font-size: 12px;">main</span> <span class="muted" style="font-weight: 400;">· 4 unstaged · 2 staged · 1 conflicted</span>' })}${commit3(260, 280, {
-      conflict: true, extraBar: false,
-      header: diffHeader({ path: 'src/log/graph.rs', add: 0, del: 0, note: 'conflict markers', resolve: true, staging: true }),
+    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">
+      ${banner('warning', 'Merge in progress — resolve conflicts, then commit to finish',
+        sec('Abort') + pri('Commit merge'))}
+      ${banner('danger', '1 file has conflicts — resolve, then stage it', '')}
+      ${changesBar({
+        text: 'Changes on <span class="mono" style="font-size: 12px;">main</span> ' +
+          '<span class="muted" style="font-weight: 400;">· 0 unstaged · 2 staged · 1 conflicted</span>',
+      })}${commit3(320, 340, {
+      conflict: true, focused: true, extraBar: false,
+      header: diffHeader({ path: 'src/log/graph.rs', add: 0, del: 0, staging: true, expand: false, tool: false }) +
+        conflictStrip(),
+      body: diffBody(),
     })}</div>
-  </div>${dock({ open: false })}${statusbar({ counts: '4 unstaged · 2 staged · 1 conflicted', state: 'Merge in progress' })}`);
+  </div>${dock({ open: false })}${statusbar({
+    counts: '0 unstaged · 2 staged · 1 conflicted', state: 'Merge in progress',
+  })}`);
 
-// The working-tree row is the door to Changes: WorkingTreeRow.tsx puts an always-visible
-// `Open changes →` hint (`.wtHint`: italic, nowrap, --fg-muted) in the row's author cell.
-const dirtyGrid = grid(t, DEMO_ROWS.slice(0, 14), { selected: 1, hover: -1, height: gridH(14) })
-  .replace(
-    'Working tree · 4 changes</span></span><span class="meta" style="width: 110px;"></span>',
-    'Working tree · 4 changes</span></span><span class="meta" style="width: 110px; font-style: italic; white-space: nowrap;">Open changes →</span>',
-  );
-out.HistoryDirty = F(1280, 800, `${toolbarB('full', 'history')}
+out.HistoryDirty = F(1280, 800, `${T('full', 'history')}
   <div style="display: flex; flex: 1; min-height: 0;">${sidebarFull()}${splitH()}
-    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${dirtyGrid}${splitV()}${details3()}</div>
+    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">` +
+    `${bgrid(DEMO_ROWS.slice(0, 14), { selected: 1, hover: -1, height: gridH(14) })}${splitV()}` +
+    `${details2(commitDetails(), { filesFocused: true })}</div>
   </div>${dock({ open: false })}${statusbar({ counts: '4 unstaged · 2 staged' })}`);
 
-// A selected stash takes the details pane, as it does today.
-out.StashPreview = F(1280, 800, `${toolbarB('full', 'history')}
+// A selected stash takes the details pane's top, over its files; the grid keeps its selection behind it.
+// Nothing staged on this board (the status bar): the switch and the working-tree row count the 4 unstaged.
+const STASH_ROWS = DEMO_ROWS.slice(0, 14).map((r, i) => (i === 0 ? { ...r, subj: 'Working tree · 4 changes' } : r));
+out.StashPreview = F(1280, 800, `${T('full', 'history', { count: 4 })}
   <div style="display: flex; flex: 1; min-height: 0;">${sidebarFull({ stashSelected: true })}${splitH()}
-    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${grid(t, DEMO_ROWS.slice(0, 14), { selected: -1, hover: -1, height: gridH(14) })}${splitV()}
-      <div style="display: flex; flex: 1; min-height: 0;">${stashDetails()}${splitH()}
-        <div style="display: flex; flex-direction: column; flex: 1; min-width: 0; background: var(--bg-panel);">${diffHeader({ path: 'crates/git-core/src/log/graph.rs', add: 12, del: 3 })}${diffBody()}</div>
-      </div>
-    </div>
+    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">` +
+    `${bgrid(STASH_ROWS, { selected: 1, hover: -1, height: gridH(14) })}${splitV()}` +
+    `${details2(stashDetails(), { filesFocused: true })}</div>
   </div>${dock({ open: false })}${statusbar({ counts: '4 unstaged · 0 staged' })}`);
 
 // A clean tree in Changes is an empty state, not an empty list.
-out.ChangesEmpty = F(1280, 800, `${toolbarB('full', 'changes', { count: 0 })}
+out.ChangesEmpty = F(1280, 800, `${T('full', 'changes', { count: 0 })}
   <div style="display: flex; flex: 1; min-height: 0;">${sidebarFull()}${splitH()}
     <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">${changesBar({ text: 'Changes on <span class="mono" style="font-size: 12px;">main</span> <span class="muted" style="font-weight: 400;">· nothing to commit</span>', stash: false })}
       <div style="display: flex; flex: 1; min-height: 0;">
-        <div class="empty" style="flex: 1; background: var(--bg-panel);">${icon('check-circle', 24)}<div class="t">Working tree clean</div><div class="hint">Edit files, or amend the last commit.</div><span class="btn secondary sm" style="margin-top: 6px;">Amend last commit…</span></div>
-        ${message({ width: 360, empty: true })}
+        <div class="empty" style="flex: 1; background: var(--bg-panel);">${icon('check-circle', 24)}` +
+        `<div class="t">Working tree clean</div><div class="hint">Edit files, or amend the last commit.</div></div>
+        ${message({ width: 340, empty: true })}
       </div>
     </div>
-  </div>${dock({ open: false })}${statusbar({ counts: '0 unstaged · 0 staged' })}`);
+  </div>${dock({ open: false })}${statusbar()}`);
 
 // --- Row 5 · full-window dialogs · 1280×800 -----------------------------------
 
@@ -481,10 +638,17 @@ const canvas = {
   annotations: [
     { id: 'row-1', x: 0, y: -220, w: 620, text: "DIRECTION B + PALETTE — one content view at a time\n• The toolbar keeps today's buttons (Branch and Stash stay); the Commit button becomes the History | Changes switch (Alt+1 / Alt+2). Changes carries the working-tree count.\n• History = grid + details, full height. Changes = the commit panel, full content area — three columns still fit at 1000.\n• Search + branch filter belong to History and leave the toolbar in Changes.\n• Ctrl+K opens the palette from anywhere: every action, view switch, go-to-branch, recent repos. Same items the menus have; searchable.\n• The full-window commit dialog and diff window stay, whatever the window size." },
     { id: 'row-1-palette', x: 2760, y: -220, w: 520, text: 'PALETTE — commands, views, go-to. Typing filters across groups; empty shows Recent first. Commit search stays in the toolbar (History only).' },
-    { id: 'row-2', x: 0, y: 860, w: 620, text: "1000 WIDE — sidebar becomes the 36px rail (or the toolbar's leftmost toggle / Ctrl+Shift+` any time); a rail icon opens the section as a flyout. Details pane goes to two columns (commit + files over | diff) so the changed files stay browsable beside the diff. Changes keeps three columns. The dock still hangs under either view." },
+    { id: 'row-2', x: 0, y: 860, w: 620, text:
+      "1000 WIDE — the sidebar becomes the 36px rail only below 1000; these boards draw it forced (the toolbar's " +
+      "leftmost toggle / Ctrl+Shift+` any time). A rail icon opens the section as a flyout. The details pane goes " +
+      "to two columns (commit + files over | diff) below 1340 — the 1280 boards too — so the changed files stay " +
+      "browsable beside the diff. Changes keeps three columns. The dock still hangs under either view." },
     { id: 'row-3', x: 0, y: 1740, w: 620, text: "720 WIDE — icons-only toolbar with ⋯ overflow. Details pane keeps two columns: a files-only 220px column (paths shown relative to their common folder) beside the diff, with the commit details collapsed to a one-line header that expands over the file list. Changes goes two columns (files over message | diff). Window minimum 700×500." },
     { id: 'row-4', x: 0, y: 2480, w: 620, text: "STATES — banners sit above whichever view is showing. The working-tree row in History is the door to Changes (click or Enter → Changes, with an always-visible `Open changes →` hint at the row's right; double-click → the commit dialog). Selecting a commit or a branch while in Changes stays in Changes; the selection is there when you return with Alt+1. A selected stash takes the details pane as it does today. A clean tree in Changes is an empty state, not an empty list." },
-    { id: 'row-5', x: 0, y: 3480, w: 620, text: "FULL-WINDOW DIALOGS — unchanged by B. The commit dialog and the diff window stay reachable at every window size (Repository › Commit…, double-click the working-tree row; the expand button in any diff header). They sit over whichever view is showing." },
+    { id: 'row-5', x: 0, y: 3480, w: 620, text:
+      "FULL-WINDOW DIALOGS — unchanged by B. The commit dialog and the diff window stay reachable at every window " +
+      "size (Repository › Commit…, double-click the working-tree row; the expand button in History's diff header). " +
+      "They sit over whichever view is showing." },
     { id: 'decided', x: 5520, y: 0, w: 520, text: "DECIDED 2026-09-14\n1. Branch and Stash keep their toolbar buttons.\n2. Alt+1 History · Alt+2 Changes · Alt+0 sidebar (Ctrl+digit is the repository tabs).\n3. Details pane: three columns → two columns (commit + files | diff) → tabs. Revised once: tabs alone lose the file list next to the diff.\n4. Selecting a commit while in Changes stays in Changes.\n5. Palette = actions + views + branches + recent repos. Commit / file search by prefix → roadmap.\n6. Full-window commit dialog stays.\n\nROADMAP\n• Palette `#` commits / `/` files.\n• Stash dialog does not show the working tree it is about to stash." },
   ],
   launch: { view: 'canvas', page: 'page-1' },

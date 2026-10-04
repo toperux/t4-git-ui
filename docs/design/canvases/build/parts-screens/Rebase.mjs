@@ -55,7 +55,7 @@ Cache log pages by generation</textarea>
 export function build(theme) {
   const body = `
   ${tabstrip()}
-  ${toolbar()}
+  ${toolbar({ theme })}
   <div style="display: flex; flex: 1; min-height: 0;">
     ${sidebar({ compact: true })}
     ${splitH()}
