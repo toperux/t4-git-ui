@@ -167,7 +167,7 @@ pub fn spawn(
         match builder.build() {
             Ok(win) => {
                 if let Some(s) = screen {
-                    place(&win, s);
+                    place(&win, s, size);
                 } else if let Some((x, y)) = placement {
                     let _ =
                         win.set_position(PhysicalPosition::new(x.round() as i32, y.round() as i32));
@@ -256,38 +256,58 @@ fn screen_at(app: &AppHandle, source: Option<&str>, x: f64, y: f64) -> Option<Sc
 /// Puts a torn-off window's top-left at the drop point, kept whole on the
 /// screen under it: dropped near the bottom-right corner it would otherwise
 /// open off the edge or under the Dock, and the tab seem to vanish.
-fn place(win: &tauri::WebviewWindow, s: Screen) {
-    let fit = || {
-        let (outer, inner) = (win.outer_size().ok()?, win.inner_size().ok()?);
-        // The sizes are physical in the window's own scale, the target screen's only
-        // once it is moved there: take them over to its units, and set any new size
-        // in logical pixels, which a move across monitors keeps.
-        let r = s.k / win.scale_factor().ok()?;
-        let u = |v: u32| (v as f64 * r).round() as u32;
-        let deco = (
-            u(outer.width.saturating_sub(inner.width)),
-            u(outer.height.saturating_sub(inner.height)),
-        );
-        let size = (u(outer.width), u(outer.height));
-        let min = (
-            (MIN_W * s.k).round() as u32 + deco.0,
-            (MIN_H * s.k).round() as u32 + deco.1,
-        );
-        let (pos, (w, h)) = clamp_rect(s.point, size, s.area, min);
-        if (w, h) != size {
-            let _ = win.set_size(LogicalSize::new(
-                (w - deco.0) as f64 / s.k,
-                (h - deco.1) as f64 / s.k,
-            ));
+///
+/// The size clamped is the one the window was `built` with (logical; `None`
+/// when there was no main window to copy), not what the fresh window reports:
+/// an X11 window not yet configured reads tiny, which would shrink it to the
+/// floor. Only its decorations come from the reads ([`decorations`]), so on X11,
+/// where they are not known yet either, the clamp is short by the window
+/// manager's frame: a window dropped at the bottom or right edge can overhang
+/// by about a title bar.
+fn place(win: &tauri::WebviewWindow, s: Screen, built: Option<(f64, f64)>) {
+    // ponytail: with no main window the OS picks the size, unknown here; the floor
+    // stands in for it, so such a window may still hang over by the difference.
+    let (bw, bh) = built.unwrap_or((MIN_W, MIN_H));
+    let built = ((bw * s.k).round() as u32, (bh * s.k).round() as u32);
+    // Physical in the window's own scale, the target screen's only once it is
+    // moved there: taken over to its units. A failed read counts as nothing.
+    let read = |p: tauri::Result<tauri::PhysicalSize<u32>>| match (p, win.scale_factor()) {
+        (Ok(p), Ok(ws)) => {
+            let u = |v: u32| (v as f64 * s.k / ws).round() as u32;
+            (u(p.width), u(p.height))
         }
-        Some(pos)
+        _ => (0, 0),
     };
-    let (x, y) = fit().unwrap_or(s.point);
+    let (outer, inner) = (read(win.outer_size()), read(win.inner_size()));
+    let deco = (
+        decorations(built.0, outer.0, inner.0),
+        decorations(built.1, outer.1, inner.1),
+    );
+    let size = (built.0 + deco.0, built.1 + deco.1);
+    let min = (
+        (MIN_W * s.k).round() as u32 + deco.0,
+        (MIN_H * s.k).round() as u32 + deco.1,
+    );
+    let ((x, y), (w, h)) = clamp_rect(s.point, size, s.area, min);
+    // Logical, which a move across monitors keeps.
+    if w < size.0 || h < size.1 {
+        let _ = win.set_size(LogicalSize::new(
+            (w - deco.0) as f64 / s.k,
+            (h - deco.1) as f64 / s.k,
+        ));
+    }
     let _ = if cfg!(windows) {
         win.set_position(PhysicalPosition::new(x, y))
     } else {
         win.set_position(LogicalPosition::new(x, y))
     };
+}
+
+/// One axis of a window's frame: what its `outer` read has over the larger of
+/// its `inner` read and the size it was `built` with. Reads below the built size
+/// — a window not configured yet, or a failed read — give none.
+fn decorations(built: u32, outer: u32, inner: u32) -> u32 {
+    outer.saturating_sub(inner.max(built))
 }
 
 /// The rect at `pos` of `size` moved, and shrunk if it is too big (never below
@@ -1325,6 +1345,25 @@ mod tests {
         assert_eq!(
             clamp_rect((50, 50), (800, 600), (0, 0, 600, 400), min),
             ((0, 0), (700, 500))
+        );
+    }
+
+    /// The frame comes from the reads only when they are of the built window: an
+    /// X11 window not yet configured reads 0 or 1 px, which must not count, nor
+    /// shrink a 1280×800 window dropped mid-screen.
+    #[test]
+    fn a_window_not_yet_configured_keeps_its_built_size() {
+        assert_eq!(decorations(1280, 0, 0), 0);
+        assert_eq!(decorations(800, 1, 1), 0);
+        // Configured: the frame, also when the inner read rounds a pixel short.
+        assert_eq!(decorations(800, 830, 800), 30);
+        assert_eq!(decorations(800, 830, 799), 30);
+        // Windows at 100 %: the frame is mostly invisible resize borders.
+        assert_eq!(decorations(1280, 1296, 1280), 16);
+        let area = (0, 0, 1920, 1040);
+        assert_eq!(
+            clamp_rect((300, 200), (1280, 800), area, (700, 500)),
+            ((300, 200), (1280, 800))
         );
     }
 }
