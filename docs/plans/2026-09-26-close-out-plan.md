@@ -53,8 +53,8 @@ passed the same day** on both VMs (`docs/archive/walks/2026-10-04-v0.10.17-relea
 `docs/archive/walks/2026-10-04-v0.10.17-release-gate-linux.md`). **Phase 5 executed 2026-10-04** on the owner's Mac
 (plan `docs/plans/2026-10-04-phase-5-plan.md`, walk record `docs/archive/walks/2026-10-04-phase-5-macos-walk.md`, smoke
 group BN): the Mac's 0.10.12 updated to 0.10.17, macOS rendering and AZ 11's macOS line walked, T12 fixed for every
-menu, the Option type-ahead fixed, plus five more fixes found on the way; triaged, squash and push pending. Open
-decisions: none.
+menu, the Option type-ahead fixed, plus five more fixes found on the way; triaged, squashed and pushed
+(`a6a7a76..1e58f7c`). Open decisions: none.
 
 Row references are to `docs/plans/open-items.md` sections (§A–§Z), and code and smoke-doc line numbers are as of
 2026-09-28 (`main` after #18; `release.yml` cites after the CLI pin change). The Phase 1 section keeps its original
@@ -84,7 +84,7 @@ Agreed with the user 2026-09-28 (`docs/archive/plans/2026-09-28-close-out-refres
 7. ~~Phase 4 (reference decision first).~~ Done 2026-10-04 (pushed as `0e6d333..7bbc25b`).
    **v0.10.17 released and its gate passed 2026-10-04.**
 8. ~~Phase 5 (hardware decision first), or earlier, when the hardware is there.~~ Done 2026-10-04 (walked and
-   triaged; the squash and push follow).
+   triaged; squashed and pushed as `a6a7a76..1e58f7c`).
 9. Phase 6, on 2026-12-23.
 
 - In parallel, on the Linux machine: the *Linux track* (the restore hang's Phase A/B, T20, T7, the ssh fail-fast
@@ -333,8 +333,8 @@ CLI pin change, `release.yml` and `checks.yml` only, ran from Windows):
 `docs/archive/walks/2026-10-04-phase-5-macos-walk.md` (smoke group BN, on the Mac and the Windows VM). The macOS update
 (0.10.12 → 0.10.17), macOS rendering and AZ 11's macOS line walked; T12 held on WebView2 too and was fixed for every
 menu (D6); the Option type-ahead fixed; the `window.rs` ceiling accepted (D1, open-items §Q); five more fixes found on
-the way (D7, D10, D11, T10/T11, T13). Triaged 2026-10-04; the squash and push follow. The bullets below are the plan as
-written, with the line references refreshed.
+the way (D7, D10, D11, T10/T11, T13). Triaged 2026-10-04; squashed and pushed the same day (`a6a7a76..1e58f7c`). The
+bullets below are the plan as written, with the line references refreshed.
 
 **Shrunk by #18:** Linux has a machine now (the Linux track), real-Wayland rendering was walked 2026-09-27 (§B),
 and AC's `.deb` is walked (the AppImage part is in the release gate; `.rpm` ruled covered). Left:

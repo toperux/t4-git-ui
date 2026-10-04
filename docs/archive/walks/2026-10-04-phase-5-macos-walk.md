@@ -259,4 +259,5 @@ but for a comment in `window.rs` and the README's `keys.ts` line (that one lands
 - Windows VM: the store restored byte-exact after each walk, the backups deleted; the clone left detached at the last
   build walked (`cac41ed`).
 - Mac: M6's store restored (`diff -r` identical); the installed app is 0.10.17. The scratch folder `$S` and the `.smoke`
-  build are removed at the plan's Order step 11; `cliclick` stays.
+  build were removed the same day (the plan's Order step 11, ~3.5 GB; the real store's files hashed the same before
+  and after); `cliclick` stays.
