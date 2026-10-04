@@ -47,8 +47,10 @@ Linux half on the usual Ubuntu VM (`docs/archive/walks/2026-10-03-v0.10.16-relea
 `docs/archive/walks/2026-10-03-v0.10.16-release-gate-linux.md`) — also `requireSignedVersion`'s first real check (the
 first update out of a build with it on), which passed. **Phase 4 Stage A done 2026-10-03, Stage B executed 2026-10-04**
 (plan `docs/plans/2026-10-03-phase-4-plan.md`): the app fixes and the canvas updates, local; the change review and
-triage done, group BM walked 2026-10-04 (record `docs/archive/walks/2026-10-04-group-bm-walk.md`), squashed
-2026-10-04; push and release next. Open decisions: hardware (before Phase 5).
+triage done, group BM walked 2026-10-04 (record `docs/archive/walks/2026-10-04-group-bm-walk.md`), squashed and pushed
+2026-10-04 (`0e6d333..7bbc25b`). **v0.10.17 released 2026-10-04** (`30c062e`, release run 37186324581); **its gate
+passed the same day** on both VMs (`docs/archive/walks/2026-10-04-v0.10.17-release-gate.md` and
+`docs/archive/walks/2026-10-04-v0.10.17-release-gate-linux.md`). Open decisions: hardware (before Phase 5).
 
 Row references are to `docs/plans/open-items.md` sections (§A–§X), and code and smoke-doc line numbers are as of
 2026-09-28 (`main` after #18; `release.yml` cites after the CLI pin change). The Phase 1 section keeps its original
@@ -75,7 +77,8 @@ Agreed with the user 2026-09-28 (`docs/archive/plans/2026-09-28-close-out-refres
    both platforms; the AppImage half restarted by itself (the third AppImage release walk), and AC ticked.
 6. ~~Phase 3 (threshold decision first).~~ Done 2026-10-03 (pushed as `6ca9960..625b886` plus `cb886f4`).
    **v0.10.16 released and its gate passed 2026-10-03.**
-7. Phase 4 (reference decision first).
+7. ~~Phase 4 (reference decision first).~~ Done 2026-10-04 (pushed as `0e6d333..7bbc25b`).
+   **v0.10.17 released and its gate passed 2026-10-04.**
 8. Phase 5 (hardware decision first), or earlier, when the hardware is there.
 9. Phase 6, on 2026-12-23.
 
