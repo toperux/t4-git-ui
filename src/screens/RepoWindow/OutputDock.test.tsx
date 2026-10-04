@@ -44,11 +44,14 @@ const renderDock = (open: boolean) =>
   );
 
 describe("OutputDock", () => {
-  it("collapsed: shows the placeholder and an Expand button that is disabled with no ops", () => {
+  it("collapsed with no ops: shows the placeholder, and Expand opens it to the prompt", () => {
     const { getByRole, getByText, queryByRole } = renderDock(false);
     expect(getByText("No output yet")).toBeTruthy();
-    expect(getByRole("button", { name: "Expand output" }).hasAttribute("disabled")).toBe(true);
     expect(queryByRole("log", { name: "Command output" })).toBeNull();
+    const expand = getByRole("button", { name: "Expand output" });
+    expect(expand.hasAttribute("disabled")).toBe(false);
+    fireEvent.click(expand);
+    expect(useOpsStore.getState().open).toBe(true);
   });
 
   it("a finished op shows its command and exit line; expanding reveals the log", () => {

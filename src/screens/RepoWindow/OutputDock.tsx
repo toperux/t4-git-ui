@@ -35,7 +35,8 @@ export function OutputDock() {
           Cancel
         </Button>
       )}
-      <IconButton label={open ? "Collapse output" : "Expand output"} disabled={!last} onClick={() => setOpen(!open)}>
+      {/* Open with no output too: the `git` prompt lives in the open dock. */}
+      <IconButton label={open ? "Collapse output" : "Expand output"} onClick={() => setOpen(!open)}>
         {open ? <ChevronDown size={16} aria-hidden /> : <ChevronUp size={16} aria-hidden />}
       </IconButton>
     </PanelHeader>
