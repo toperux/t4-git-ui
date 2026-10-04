@@ -26,6 +26,7 @@
   overflow: hidden;
 }
 .head {
+  flex: none;
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -43,6 +44,10 @@
   color: var(--fg);
   font: inherit;
   font-size: var(--text-lg);
+}
+.input:focus-visible,
+.input[data-kbd]:focus {
+  box-shadow: none;
 }
 .input::placeholder {
   color: var(--fg-faint);
@@ -97,6 +102,7 @@
   font-size: var(--text-sm);
 }
 .foot {
+  flex: none;
   padding: var(--space-2) var(--space-4);
   border-top: 1px solid var(--border);
   background: var(--bg-app);

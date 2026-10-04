@@ -179,6 +179,18 @@ describe("CommitPanel", () => {
     expect(mocked.stagePaths).toHaveBeenCalledWith("r", ["a.rs", "both.rs", "untracked.txt"]);
   });
 
+  it("the Unstaged count turns danger while an entry is conflicted", () => {
+    const badge = (getByText: (t: string) => HTMLElement) => getByText("Unstaged").closest("div")!.querySelector('[class*="_badge_"]')!;
+    const conflicted = renderPanel();
+    expect(badge(conflicted.getByText).className).toMatch(/_danger_/);
+    cleanup();
+
+    useStatusStore.setState({ status: { ...STATUS, entries: STATUS.entries.filter((e) => !e.conflicted), conflicted: 0 } });
+    const clean = renderPanel();
+    expect(badge(clean.getByText).textContent).toBe("3");
+    expect(badge(clean.getByText).className).not.toMatch(/_danger_/);
+  });
+
   it("the row action stages a single conflicted file, and its diff is whole-file only", () => {
     const { getByRole, getByText } = renderPanel();
     const rows = Array.from(getByRole("listbox", { name: "Unstaged files" }).querySelectorAll('[role="option"]'));
@@ -1449,5 +1461,42 @@ describe("CommitPanel columns", () => {
     rerender(<CommitPanel />);
     expect(getByRole("separator", { name: "Resize message row" })).toBeTruthy();
     expect(queryByRole("separator", { name: "Resize commit message" })).toBeNull();
+  });
+
+  it("two columns fold the commit options behind a button, pressed while any of them is set", () => {
+    const width = window.innerWidth;
+    const resize = (w: number) =>
+      act(() => {
+        window.innerWidth = w;
+        window.dispatchEvent(new Event("resize"));
+      });
+    try {
+      resize(720);
+      const { getByRole, queryByRole } = render(<CommitPanel />);
+      expect(queryByRole("checkbox", { name: "Amend last commit" })).toBeNull();
+      const opts = getByRole("button", { name: "Commit options" });
+      expect(opts.getAttribute("aria-expanded")).toBe("false");
+      expect(opts.className).not.toMatch(/_on_/);
+      fireEvent.click(opts);
+      expect(getByRole("checkbox", { name: "Amend last commit" })).toBeTruthy();
+      expect(opts.getAttribute("aria-expanded")).toBe("true");
+      expect(opts.className).toMatch(/_on_/);
+
+      // Folded again with sign-off on: the button stays pressed, so the option is never on unseen.
+      fireEvent.click(getByRole("checkbox", { name: "Add Signed-off-by" }));
+      fireEvent.click(opts);
+      expect(queryByRole("checkbox", { name: "Amend last commit" })).toBeNull();
+      expect(opts.getAttribute("aria-expanded")).toBe("false");
+      expect(opts.className).toMatch(/_on_/);
+      expect(opts.hasAttribute("aria-pressed")).toBe(false);
+      cleanup();
+
+      resize(1280);
+      const wide = render(<CommitPanel />);
+      expect(wide.getByRole("checkbox", { name: "Amend last commit" })).toBeTruthy();
+      expect(wide.queryByRole("button", { name: "Commit options" })).toBeNull();
+    } finally {
+      resize(width);
+    }
   });
 });

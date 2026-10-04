@@ -37,10 +37,28 @@
   color: var(--fg-muted);
   white-space: nowrap;
 }
-/* Sits in the panel header, which is 28px: the sm button is the tallest thing in it. */
+/* A conflicted file's strip under the header: the note, Keep · Keep, Resolve in editor (or Restore
+   conflict). Wraps when the pane is narrow, so every control stays whole. */
+.conflictBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  flex: none;
+  gap: 6px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-app);
+}
+/* In the strip the note takes the free width and wraps; elsewhere it is the header's nowrap note. */
+.conflictBar .note {
+  flex: 1 1 12rem;
+  min-width: 0;
+  white-space: normal;
+}
+/* The conflict strip's buttons. */
 .resolve {
   flex: none;
-  /* Two of these carry a branch name: unbounded they squeeze the path out of the header. Full label in `title`. */
+  /* Two of these carry a branch name: unbounded one would take a whole row of the strip. Full label in `title`. */
   max-width: 12rem;
   min-width: 0;
 }

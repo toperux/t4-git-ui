@@ -23,7 +23,7 @@ import { cut, type EmphRange } from "./intraLine";
 import { carryRef, carrySelection, clickLine, EMPTY_LINES, hunkMap, lineKey, toPairs, type LineRef, type LineSelection } from "./lineSelection";
 
 const OVERSCAN = 30;
-/** Why the header's conflict buttons are dead while a mutation runs, like the toolbar's. */
+/** Why the conflict strip's buttons are dead while a mutation runs, like the toolbar's. */
 const BUSY = "Operation in progress";
 /** `20000` → `20 000` (the style guide's thousands separator); shared with the content view. */
 export const groupThousands = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
@@ -44,7 +44,7 @@ export interface DiffActions {
   target: "unstaged" | "staged";
   /** Untracked / conflicted file, a truncated diff or a typechange: whole-file only, no hunk / line actions. */
   wholeFile: boolean;
-  /** Header note explaining the file's state ("Untracked — stage whole file"). */
+  /** Note explaining the file's state ("Untracked — stage whole file"): in the header, or the conflict strip for a conflicted file. */
   note?: string;
   busy?: boolean;
   /** Conflicted file: opens its three sides in an external merge editor. */
@@ -256,6 +256,10 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
   const verb = actions?.target === "staged" ? "Unstage" : "Stage";
   const sides = actions?.sides;
   const onKeepSide = actions?.onKeepSide;
+  // A conflicted file: its note and controls take a strip of their own under the header, which has
+  // no room for them beside the path (about 780 px against 345 at 1280).
+  const conflict = !!(onKeepSide || actions?.onResolve || actions?.onRestoreConflict);
+  const note = actions?.note && <span className={s.note}>{actions.note}</span>;
 
   return (
     <div className={s.viewer}>
@@ -263,31 +267,7 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
         icon={<File size={14} aria-hidden />}
         title={path && <span className={s.path}>{oldPath ? `${oldPath} → ${path}` : path}</span>}
       >
-        {actions?.note && <span className={s.note}>{actions.note}</span>}
-        {onKeepSide && (
-          <>
-            <KeepSide side="ours" sides={sides} busy={actions?.busy} onKeepSide={onKeepSide} />
-            <KeepSide side="theirs" sides={sides} busy={actions?.busy} onKeepSide={onKeepSide} />
-          </>
-        )}
-        {actions?.onResolve && (
-          <Button
-            size="sm"
-            className={s.resolve}
-            disabled={actions.busy}
-            /* Dead while a mutation runs, and a disabled title is hoverable: say that, not what the
-               click would have done. */
-            title={actions.busy ? BUSY : mergeTool ? `Resolve in ${toolLabel(mergeTool.name)}` : "Resolve in editor"}
-            onClick={actions.onResolve}
-          >
-            Resolve in editor
-          </Button>
-        )}
-        {actions?.onRestoreConflict && (
-          <Button size="sm" className={s.resolve} disabled={actions.busy} title={actions.busy ? BUSY : "Restore conflict"} onClick={actions.onRestoreConflict}>
-            Restore conflict
-          </Button>
-        )}
+        {!conflict && note}
         {modeChip && (
           <span className={s.mode} title="File mode">
             {modeChip}
@@ -326,6 +306,35 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
           <ArrowDownUp size={16} aria-hidden />
         </IconButton>
       </PanelHeader>
+      {conflict && (
+        <div className={s.conflictBar} role="toolbar" aria-label="Conflict">
+          {note}
+          {onKeepSide && (
+            <>
+              <KeepSide side="ours" sides={sides} busy={actions?.busy} onKeepSide={onKeepSide} />
+              <KeepSide side="theirs" sides={sides} busy={actions?.busy} onKeepSide={onKeepSide} />
+            </>
+          )}
+          {actions?.onResolve && (
+            <Button
+              size="sm"
+              className={s.resolve}
+              disabled={actions.busy}
+              /* Dead while a mutation runs, and a disabled title is hoverable: say that, not what the
+                 click would have done. */
+              title={actions.busy ? BUSY : mergeTool ? `Resolve in ${toolLabel(mergeTool.name)}` : "Resolve in editor"}
+              onClick={actions.onResolve}
+            >
+              Resolve in editor
+            </Button>
+          )}
+          {actions?.onRestoreConflict && (
+            <Button size="sm" className={s.resolve} disabled={actions.busy} title={actions.busy ? BUSY : "Restore conflict"} onClick={actions.onRestoreConflict}>
+              Restore conflict
+            </Button>
+          )}
+        </div>
+      )}
       {loading && (
         <div className={s.progress}>
           <Progress thin label="Loading diff" />
@@ -366,7 +375,7 @@ function fileMode(oldMode: string | null | undefined, newMode: string | null | u
 }
 const PLAIN_MODE = "100644";
 
-/** Header button replacing the file with one whole side of its conflict; the label is ellipsized, `title` isn't. */
+/** Conflict-strip button replacing the file with one whole side of its conflict; the label is ellipsized, `title` isn't. */
 function KeepSide({ side, sides, busy, onKeepSide }: { side: ConflictSide; sides?: ConflictSides | null; busy?: boolean; onKeepSide: (side: ConflictSide) => void }) {
   const label = sideLabel(sides, side);
   return (

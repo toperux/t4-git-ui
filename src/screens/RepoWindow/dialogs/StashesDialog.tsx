@@ -1,5 +1,5 @@
 // The stash browser: the working tree and every stash in one list, beside what the selected one holds.
-import { Archive, GitCommitHorizontal } from "lucide-react";
+import { Archive, CircleDashed } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import type { Stash } from "../../../api/types";
@@ -155,7 +155,7 @@ export function StashesDialog({ onClose }: { onClose: () => void }) {
             <div className={cx(s.list, TREE_PANE_CLASS)} role="listbox" aria-label="Stashes" tabIndex={0} onKeyDown={onKeyDown}>
               <TreeRow
                 role="option"
-                icon={<GitCommitHorizontal size={14} aria-hidden />}
+                icon={<CircleDashed size={14} aria-hidden />}
                 /* The span, not the row's `className`: that would tint the meta too. */
                 label={<span className={s.wt}>Working tree</span>}
                 selected={wt}

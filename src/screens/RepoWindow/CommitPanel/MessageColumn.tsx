@@ -1,4 +1,4 @@
-import { Check, GitCommitHorizontal, History, Maximize2, TriangleAlert } from "lucide-react";
+import { Check, Ellipsis, GitCommitHorizontal, History, Maximize2, TriangleAlert } from "lucide-react";
 import { useEffect, useState, type KeyboardEvent } from "react";
 import { Button } from "../../../components/ui/Button/Button";
 import { Checkbox } from "../../../components/ui/Checkbox/Checkbox";
@@ -29,10 +29,12 @@ export interface MessageColumnProps {
   onCommitted?: () => void;
   /** Focus the summary on mount. */
   autoFocus?: boolean;
+  /** Fold the amend / sign-off / Sign rows and the author line behind a "Commit options" button (the panel's 2-column tier). */
+  compact?: boolean;
 }
 
 /** Message editor (summary + body), amend / sign-off, author line, Commit (Ctrl+Enter). */
-export function MessageColumn({ onExpand, onCommitted, autoFocus }: MessageColumnProps) {
+export function MessageColumn({ onExpand, onCommitted, autoFocus, compact }: MessageColumnProps) {
   const repoId = useRepoStore((st) => st.repo?.id ?? null);
   const summary = useCommitStore((st) => st.summary);
   const body = useCommitStore((st) => st.body);
@@ -61,6 +63,8 @@ export function MessageColumn({ onExpand, onCommitted, autoFocus }: MessageColum
   // the one that was pressed, not on whichever one reads the flag first.
   const [viaPush, setViaPush] = useState(false);
   const [histOpen, setHistOpen] = useState(false);
+  const [opts, setOpts] = useState(false);
+  const folded = compact && !opts;
   const [history, setHistory] = useState<string[]>([]);
   function toggleHistory() {
     if (histOpen) setHistOpen(false);
@@ -176,25 +180,27 @@ export function MessageColumn({ onExpand, onCommitted, autoFocus }: MessageColum
             aria-busy={busy}
           />
         </div>
-        <div className={s.checks}>
-          <Checkbox checked={amend} onChange={(v) => void setAmend(v)} disabled={busy}>
-            Amend last commit
-          </Checkbox>
-          <Checkbox checked={signoff} onChange={setSignoff} disabled={busy}>
-            Add Signed-off-by
-          </Checkbox>
-          {/* Three states, because "leave it to `commit.gpgsign`" is not the same answer as "no". */}
-          <Select
-            aria-label="Sign this commit"
-            value={sign === null ? "" : sign ? "on" : "off"}
-            onChange={(e) => setSign(e.target.value === "" ? null : e.target.value === "on")}
-            disabled={busy}
-          >
-            <option value="">Sign: as configured</option>
-            <option value="on">Sign this commit</option>
-            <option value="off">Don't sign this commit</option>
-          </Select>
-        </div>
+        {!folded && (
+          <div className={s.checks}>
+            <Checkbox checked={amend} onChange={(v) => void setAmend(v)} disabled={busy}>
+              Amend last commit
+            </Checkbox>
+            <Checkbox checked={signoff} onChange={setSignoff} disabled={busy}>
+              Add Signed-off-by
+            </Checkbox>
+            {/* Three states, because "leave it to `commit.gpgsign`" is not the same answer as "no". */}
+            <Select
+              aria-label="Sign this commit"
+              value={sign === null ? "" : sign ? "on" : "off"}
+              onChange={(e) => setSign(e.target.value === "" ? null : e.target.value === "on")}
+              disabled={busy}
+            >
+              <option value="">Sign: as configured</option>
+              <option value="on">Sign this commit</option>
+              <option value="off">Don't sign this commit</option>
+            </Select>
+          </div>
+        )}
         {noIdentity ? (
           <div className={cx(s.author, s.warn)} role="alert">
             <TriangleAlert size={12} aria-hidden />
@@ -203,6 +209,7 @@ export function MessageColumn({ onExpand, onCommitted, autoFocus }: MessageColum
         ) : authorError ? (
           <div className={s.author}>{authorError.message}</div>
         ) : (
+          !folded &&
           author && (
             <div className={s.author} title={`${author.name} <${author.email}>`}>
               {author.name} &lt;{author.email}&gt;{" "}
@@ -211,6 +218,19 @@ export function MessageColumn({ onExpand, onCommitted, autoFocus }: MessageColum
           )
         )}
         <div className={s.actions}>
+          {compact && (
+            /* Looks pressed while open, and while any folded option is off its default, so none is on unseen;
+               announced as expanded / collapsed, which is what a click changes. */
+            <IconButton
+              label="Commit options"
+              on={opts || amend || signoff || sign !== null}
+              aria-pressed={undefined}
+              aria-expanded={opts}
+              onClick={() => setOpts((o) => !o)}
+            >
+              <Ellipsis size={16} aria-hidden />
+            </IconButton>
+          )}
           {/* The spinner is hidden from the name: its own label would make the button "Committing Committing…". */}
           <Button
             variant="primary"

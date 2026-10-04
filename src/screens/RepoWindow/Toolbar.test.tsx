@@ -362,6 +362,17 @@ describe("Toolbar tiers", () => {
     fireEvent.click(getByRole("menuitem", { name: /^Settings/ }));
     expect(useDialogStore.getState().dialog).toEqual({ kind: "settings" });
   });
+  it("icons: hiding Branch and Stash leaves one separator between Push and the view switch, not two", () => {
+    try {
+      window.innerWidth = 720;
+      const { getByRole } = render(<Toolbar />);
+      const seps = Array.from(getByRole("toolbar").querySelectorAll(':scope > [role="separator"]'));
+      expect(seps.length).toBeGreaterThan(0);
+      for (const sep of seps) expect(sep.nextElementSibling?.getAttribute("role")).not.toBe("separator");
+    } finally {
+      window.innerWidth = 1280;
+    }
+  });
   it("re-lays out on resize", () => {
     const { getByRole, queryByRole } = render(<Toolbar />);
     expect(queryByRole("button", { name: "More" })).toBeNull();

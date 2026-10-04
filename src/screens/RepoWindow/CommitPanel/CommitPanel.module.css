@@ -290,7 +290,10 @@
   flex-direction: column;
   gap: 8px;
 }
+/* `flex: none`: with `overflow: hidden` its automatic min-height is 0, so a short column squeezed the
+   line (or the identity warning) out of sight instead of scrolling. */
 .author {
+  flex: none;
   font-size: var(--text-xs);
   line-height: var(--lh-xs);
   color: var(--fg-muted);

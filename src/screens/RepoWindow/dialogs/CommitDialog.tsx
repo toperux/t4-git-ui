@@ -27,7 +27,7 @@ export function CommitDialog({ onClose }: { onClose: () => void }) {
               <StagedFiles tree={tree} />
             </Panel>
             <Separator className={w.splitV} aria-label="Resize commit message" />
-            <Panel defaultSize={300} minSize={240} className={w.panel}>
+            <Panel defaultSize={320} minSize={240} className={w.panel}>
               <MessageColumn autoFocus onCommitted={onClose} />
             </Panel>
           </Group>

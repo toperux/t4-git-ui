@@ -21,6 +21,7 @@ import { ChangesView } from "./ChangesView";
 import { CommandPalette } from "./CommandPalette/CommandPalette";
 import { useCommitSync } from "./CommitPanel/CommitPanel";
 import { DetailsPane } from "./DetailsPane";
+import { groupThousands } from "./DiffViewer/DiffViewer";
 import { DialogHost } from "./dialogs/DialogHost";
 import { useLayout } from "./layout";
 import { OutputDock } from "./OutputDock";
@@ -350,7 +351,8 @@ export function StateBanners() {
   const status = useStatusStore((st) => st.status);
   const openDialog = useDialogStore((st) => st.open);
   const running = useOpsStore(selectRunning);
-  const banners = computeBanners(refs, status);
+  const view = useViewStore((st) => st.view);
+  const banners = computeBanners(refs, status, view);
   if (banners.length === 0) return null;
 
   function act(action: BannerAction) {
@@ -431,7 +433,7 @@ export function StateBanners() {
   );
 }
 
-function RepoStatusBar() {
+export function RepoStatusBar() {
   const refs = useRepoStore((st) => st.refs);
   const total = useRepoStore((st) => st.log.total);
   const complete = useRepoStore((st) => st.log.complete);
@@ -443,6 +445,8 @@ function RepoStatusBar() {
   // The branch's own remote, else origin, else whatever comes first — not the alphabetical first.
   const remote = refs?.remotes.find((r) => current?.upstream?.startsWith(`${r.name}/`)) ?? refs?.remotes.find((r) => r.name === "origin") ?? refs?.remotes[0];
   const state = refs?.state ?? "clean";
+  // Mid-rebase HEAD is detached; the branch being rebased is the "theirs" side (`HEAD` when the rebase started detached).
+  const rebasing = refs?.state === "rebase" && head?.detached ? refs.conflictSides?.theirs : undefined;
 
   return (
     <StatusBar
@@ -450,7 +454,9 @@ function RepoStatusBar() {
         <>
           <StatusItem>
             <GitBranch size={12} aria-hidden />
-            {head?.detached && head.oid ? (
+            {rebasing && rebasing !== "HEAD" ? (
+              rebasing
+            ) : head?.detached && head.oid ? (
               <>
                 <span className={s.mono}>{head.oid.slice(0, 7)}</span> (detached)
               </>
@@ -483,7 +489,7 @@ function RepoStatusBar() {
           {!complete && (
             <StatusItem>
               <Spinner size="sm" label="Loading commits" />
-              Loading commits… {total}
+              Loading commits… {groupThousands(total)}
             </StatusItem>
           )}
           {status && status.entries.length > 0 && (

@@ -1,6 +1,7 @@
 // Which banners sit above the grid (States artboard): detached HEAD, merge / rebase in progress, conflicts.
 import type { Branch, RefsSnapshot, WorkdirStatus } from "../../api/types";
 import { freshStatus } from "../../lib/freshStatus";
+import type { View } from "../../store/viewStore";
 
 export type BannerAction =
   | "checkoutDefault"
@@ -36,7 +37,7 @@ export function defaultBranch(local: Branch[]): string | null {
   return local.find((b) => b.name === "main")?.name ?? local.find((b) => b.name === "master")?.name ?? local[0]?.name ?? null;
 }
 
-export function computeBanners(refs: RefsSnapshot | null, status: WorkdirStatus | null): BannerSpec[] {
+export function computeBanners(refs: RefsSnapshot | null, status: WorkdirStatus | null, view?: View): BannerSpec[] {
   const out: BannerSpec[] = [];
   if (!refs) return out;
   const { head, state } = refs;
@@ -119,7 +120,8 @@ export function computeBanners(refs: RefsSnapshot | null, status: WorkdirStatus 
       id: "conflicts",
       kind: "danger",
       text: `${n} file${n === 1 ? " has" : "s have"} conflicts — resolve, then stage ${n === 1 ? "it" : "them"}`,
-      buttons: [{ label: "Open commit panel", action: "openCommitPanel" }],
+      // Changes already shows the commit panel.
+      buttons: view === "changes" ? [] : [{ label: "Open commit panel", action: "openCommitPanel" }],
     });
   }
   return out;

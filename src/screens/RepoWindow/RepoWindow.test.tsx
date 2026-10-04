@@ -6,7 +6,7 @@ import { useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
 import { useStatusStore } from "../../store/statusStore";
 import { useViewStore } from "../../store/viewStore";
-import { RepoWindow, StateBanners } from "./RepoWindow";
+import { RepoStatusBar, RepoWindow, StateBanners } from "./RepoWindow";
 
 vi.mock("../../api/ipc", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/ipc")>();
@@ -84,6 +84,33 @@ describe("StateBanners while an op runs", () => {
     const { getByRole } = render(<StateBanners />);
     expect(button(getByRole, "Commit merge").disabled).toBe(false);
     expect(button(getByRole, "Abort").disabled).toBe(true);
+  });
+});
+
+describe("RepoStatusBar", () => {
+  it("groups the loading commit count in thousands", () => {
+    const log = useRepoStore.getState().log;
+    useRepoStore.setState({ log: { ...log, total: 96000, complete: false } });
+    try {
+      const { getByText } = render(<RepoStatusBar />);
+      expect(getByText("Loading commits… 96 000")).toBeTruthy();
+    } finally {
+      useRepoStore.setState({ log });
+    }
+  });
+
+  it("names the branch being rebased instead of the detached HEAD; a detached start keeps the sha", () => {
+    const rebase = (theirs: string) => ({ ...REFS, head: { oid: "abcdef0123", branch: null, detached: true }, state: "rebase" as const, conflictSides: { ours: "main", theirs } });
+    useRepoStore.setState({ refs: rebase("feature") });
+    const named = render(<RepoStatusBar />);
+    expect(named.getByText("feature")).toBeTruthy();
+    expect(named.queryByText(/\(detached\)/)).toBeNull();
+    cleanup();
+
+    useRepoStore.setState({ refs: rebase("HEAD") });
+    const { getByText } = render(<RepoStatusBar />);
+    expect(getByText("abcdef0")).toBeTruthy();
+    expect(getByText(/\(detached\)/)).toBeTruthy();
   });
 });
 

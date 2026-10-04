@@ -103,7 +103,7 @@ export function UnstagedFiles({ tree, onToggleTree }: { tree: boolean; onToggleT
           </IconButton>
         }
       >
-        <Badge>{entries.length}</Badge>
+        <Badge variant={entries.some((e) => e.conflicted) ? "danger" : "default"}>{entries.length}</Badge>
         <Button
           size="sm"
           className={s.headerBtn}

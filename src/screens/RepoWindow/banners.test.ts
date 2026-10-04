@@ -49,6 +49,13 @@ describe("banners", () => {
     expect(r[1].text).toBe("1 file has conflicts — resolve, then stage it");
   });
 
+  it("the conflicts banner offers the commit panel only where it isn't already shown", () => {
+    const actions = (view?: "history" | "changes") => computeBanners(refs({ state: "merge" }), status(2, "merge"), view).find((b) => b.id === "conflicts")!.buttons.map((x) => x.action);
+    expect(actions("changes")).toEqual([]);
+    expect(actions("history")).toEqual(["openCommitPanel"]);
+    expect(actions()).toEqual(["openCommitPanel"]);
+  });
+
   it("a rebase with nothing conflicted is a pause: amend in the commit panel, then Continue", () => {
     // An `edit` line (or an `exec` a hook rejected) stops with a clean tree — there is nothing to resolve.
     const b = computeBanners(refs({ state: "rebase" }), status(0, "rebase"));

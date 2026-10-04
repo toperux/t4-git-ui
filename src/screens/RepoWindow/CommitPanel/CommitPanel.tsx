@@ -39,7 +39,7 @@ export function useCommitSync(on: boolean) {
 export function CommitPanel() {
   const open = useDialogStore((st) => st.open);
   const tier = useLayout().commit;
-  const message = <MessageColumn onExpand={(opener) => open({ kind: "commit" }, { returnFocusTo: opener })} />;
+  const message = <MessageColumn compact={tier === "2col"} onExpand={(opener) => open({ kind: "commit" }, { returnFocusTo: opener })} />;
   if (tier === "2col")
     return (
       <Group orientation="horizontal" className={s.pane}>
@@ -49,9 +49,10 @@ export function CommitPanel() {
               <FilesColumn />
             </Panel>
             <Separator className={w.splitV} aria-label="Resize message row" />
-            {/* 300 = the column's fixed rows (~180) + the editor's min-height, so Commit is in view
-                without scrolling at ordinary heights; at the 500px floor the column scrolls. */}
-            <Panel defaultSize={300} minSize={160} groupResizeBehavior="preserve-pixel-size" className={w.panel}>
+            {/* 200 = the folded column (`compact`): header 28 + padding 24 + the editor's 108 + actions
+                28 + one gap of 10, so Commit is in view and the lists keep the rest; opening the
+                options, or an identity warning, scrolls the column. */}
+            <Panel defaultSize={200} minSize={160} groupResizeBehavior="preserve-pixel-size" className={w.panel}>
               {message}
             </Panel>
           </Group>

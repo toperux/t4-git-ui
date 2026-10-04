@@ -118,6 +118,11 @@ describe("StashesDialog", () => {
     expect(rows(view)[0].getAttribute("aria-selected")).toBe("true");
   });
 
+  it("draws the Working tree row with a dashed circle, as the grid does", () => {
+    const view = open();
+    expect(wtRow(view).querySelector("svg.lucide-circle-dashed")).toBeTruthy();
+  });
+
   it("opens on stash@{0} when the tree is clean", () => {
     const view = open();
     expect(view.getByRole("button", { name: "Apply" })).toBeTruthy();

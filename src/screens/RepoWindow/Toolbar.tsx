@@ -381,7 +381,7 @@ export function Toolbar() {
           )}
         </Menu>
       )}
-      <ToolbarSeparator />
+      {tier !== "icons" && <ToolbarSeparator />}
       <ViewSwitch compact={tier === "icons"} />
       <div className={s.grow} />
       {view === "history" &&

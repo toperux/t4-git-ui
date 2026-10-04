@@ -1,5 +1,7 @@
 /* Stash browser, left panel: the selected row's controls over the list (the other two panels are the pane's). */
 .side {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   height: 100%;

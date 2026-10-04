@@ -1,5 +1,5 @@
-// Naming the two sides of a conflict in one place: the diff header's buttons, the file menu's items
-// and the confirmation they raise all have to agree.
+// Naming the two sides of a conflict in one place: the diff's conflict-strip buttons, the file menu's
+// items and the confirmation they raise all have to agree.
 import type { ConflictSide, ConflictSides } from "../api/types";
 
 /**

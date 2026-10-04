@@ -550,6 +550,27 @@ describe("DiffViewer", () => {
     expect(onKeepSide).toHaveBeenCalledWith("theirs");
   });
 
+  it("a conflict's controls sit in a strip of their own under the header, not in it", () => {
+    const actions: DiffActions = { target: "unstaged", wholeFile: true, note: "Conflict", onKeepSide: vi.fn(), onResolve: vi.fn(), onStageHunk: vi.fn(), onStageLines: vi.fn() };
+    const { getByRole } = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} actions={actions} />);
+    const strip = getByRole("toolbar", { name: "Conflict" });
+    for (const name of ["Keep our version", "Keep their version", "Resolve in editor"]) expect(strip.contains(getByRole("button", { name }))).toBe(true);
+    expect(strip.textContent).toContain("Conflict");
+    // The header (the strip's previous sibling) keeps the path and the view buttons only.
+    const header = strip.previousElementSibling!;
+    expect(header.contains(getByRole("button", { name: "Unified view" }))).toBe(true);
+    expect(header.querySelectorAll("button").length).toBe(3);
+    expect(header.textContent).not.toContain("Conflict");
+    cleanup();
+
+    // A conflict staged with its markers: Restore conflict and its note share the strip.
+    const restore: DiffActions = { target: "staged", wholeFile: true, note: "Staged with conflict markers", onRestoreConflict: vi.fn(), onStageHunk: vi.fn(), onStageLines: vi.fn() };
+    const staged = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} actions={restore} />);
+    const strip2 = staged.getByRole("toolbar", { name: "Conflict" });
+    expect(strip2.contains(staged.getByRole("button", { name: "Restore conflict" }))).toBe(true);
+    expect(strip2.textContent).toContain("Staged with conflict markers");
+  });
+
   it("without named sides the buttons fall back to git's own words, not 'our's'", () => {
     // A snapshot from before the backend named the sides, or an operation whose sides it can't tell apart.
     const actions: DiffActions = { target: "unstaged", wholeFile: true, onKeepSide: vi.fn(), onStageHunk: vi.fn(), onStageLines: vi.fn() };
