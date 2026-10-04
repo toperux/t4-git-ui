@@ -68,9 +68,10 @@ Two more steps, added for the 2026-10-01 BK re-walk (`docs/archive/walks/2026-10
 
 ### A local build, isolated from the installed app
 
-`docs/smoke/fixtures/smoke-launch.ps1` starts a build on the debugging port with its own
-`WEBVIEW2_USER_DATA_FOLDER`, so a walk cannot fight the installed app over the WebView2 profile
-(localStorage: theme, settings, splitter sizes):
+`docs/smoke/fixtures/smoke-launch.ps1` starts a build on the debugging port with its own `WEBVIEW2_USER_DATA_FOLDER`, so
+a walk cannot fight the installed app over the WebView2 profile (localStorage: theme, view toggles, message history;
+splitter sizes aren't stored). A fresh profile has no stored theme, so the build follows the OS theme, whatever the
+store's files say:
 
 ```powershell
 pwsh -File docs/smoke/fixtures/smoke-launch.ps1              # the local release build

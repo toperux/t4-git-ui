@@ -1849,9 +1849,9 @@ commits the same day; they and the whole of 3 were walked again on the build tha
 bottom-edge / light-theme half of 6 were added and walked after that, 3m with a CDP drag of the repo-name handle, 7's
 native confirm answered with an Enter on the `#32770` dialog; the bottom edge was a second finding — the wrapped
 **Delete** row lost its last line below the window — fixed (the menu re-fits when its size changes) and re-walked.
-Open (updated 2026-09-26): 11 (other platforms; Linux walked 2026-09-26, see `docs/plans/open-items.md` §O);
-10 was walked 2026-09-24, and 9 is `[n/a]` (unit-tested only). The record is
-`docs/archive/walks/2026-09-19-group-az-walk.md`._
+Open (updated 2026-10-04): 11's Linux line (walked 2026-09-26, see `docs/plans/open-items.md` §O); its macOS line was
+walked 2026-10-04 (`docs/archive/walks/2026-10-04-phase-5-macos-walk.md`); 10 was walked 2026-09-24, and 9 is `[n/a]`
+(unit-tested only). The record is `docs/archive/walks/2026-09-19-group-az-walk.md`._
 
 1. - [x] **A negated ignore rule stages**: `.gitignore` with `*.log` and `!keep.log`; create `keep.log` and `debug.log` → only `keep.log` is listed, and staging it works. The check is libgit2's, so this holds on git 2.24–2.26 too.
 2. - [x] **Stage all is no slower**: stage ~1800 modified files → the `stage_paths` log line is no higher than on 0.10.7. One `git` spawn per stage now, none for the ignore check. Measured on a scratch repo, three runs each: 1800 modified files 0.57 s (0.10.7: 0.60 s); 1861 untracked files under 61 nested `.gitignore` 0.62 s (0.10.7: 0.48 s) — libgit2 reads the ignore files per path, the price of 1.
@@ -1889,7 +1889,8 @@ Open (updated 2026-09-26): 11 (other platforms; Linux walked 2026-09-26, see `do
     - [ ] Linux (WebKitGTK) — walked 2026-09-26 on a debug build of `1e795ad`: 3a, 3b, 3d, 3i pass; 6 **fails** (WebKitGTK gives
       script-focused menu items no `:focus-visible`: no highlight, no wrap), and a restored second window sometimes
       never starts. `docs/archive/walks/2026-09-26-group-az-linux-walk.md`.
-    - [ ] macOS
+    - [x] macOS — walked 2026-10-04 on the owner's Mac (macOS 26.7.1) on a debug build of `a6a7a76`: 3a, 3b, 3d, 3i
+      and 6 pass, light and dark. `docs/archive/walks/2026-10-04-phase-5-macos-walk.md`.
 
 ## BA. Reset another branch to the right-clicked commit (commit menu)
 
@@ -2631,6 +2632,79 @@ the walker's notes. The record is `docs/archive/walks/2026-10-04-group-bm-walk.m
 - [x] 13. **No two separators side by side at the icons tier** (review pass 1): at 720 wide (the icons tier) the
       toolbar shows one separator between Push and the view switch, not two (Branch and Stash hidden). *(Walked
       2026-10-04 at 720: one separator between Push and the view switch, 4 in all.)*
+
+## BN. Close-out Phase 5: menu marks and Option type-ahead
+
+Plan: `docs/plans/2026-10-04-phase-5-plan.md` (D6, M4). A menu row's keyboard mark is `data-kbd` on the focused item
+(`src/lib/kbdFocus.ts`); read it over CDP on Windows, or through a scratch title readout on macOS (the plan's Order
+step 3). Repository › **More recent** shows with more than five other recents: seed `recents.json` with seven or more
+repositories first (store backed up, restored after). Bullet 4 is macOS only and needs a branch whose name starts with
+an Option character (`ø-test`).
+
+_Walked 2026-10-04 on the owner's Mac (macOS 26.7.1, input source U.S.; a `.smoke` debug build, keys through System
+Events, the mouse through `cliclick`, 6 by hand with the owner's mouse) and over CDP on the Windows VM (local release
+builds), on three pre-squash builds of `phase-5`: `ef1855d` (D6, M4, D7), `02c04f6` (plus D10, D11) and `cac41ed` (plus
+T13, T10/T11). All eight pass on the last build each was walked on; after `ef1855d` only the submenu's open and focus
+changed in menu code (D10, D11), and after `02c04f6` no menu or select code. 3 failed intermittently under `cliclick` on
+`ef1855d` (the harness: triage T23), and with the owner's real mouse a click on a submenu row the hover had opened
+failed 15 of 15 — fixed as D10 and walked as 6. Not reachable: 8's second display (each machine has one) and, on macOS,
+8's shrink case, walked on Windows only. The record is `docs/archive/walks/2026-10-04-phase-5-macos-walk.md`._
+
+- [x] 1. **A click never marks**: Tab to the toolbar's repository-name button (it shows the focus ring), then click it →
+      the menu opens with its first item focused but not highlighted (no `data-kbd`). *(Walked 2026-10-04: on the Mac on
+      `ef1855d` (twice, then 4 more) and again on `02c04f6`; on Windows over CDP on `ef1855d`, *Commit…* focused,
+      `data-kbd` off.)*
+- [x] 2. **A key always marks**: focus the same button, press Enter → the first item is highlighted (`data-kbd`); ↓
+      moves the highlight. Escape, click a commit row (not the working-tree row), Shift+F10 → its menu opens
+      highlighted. *(Walked 2026-10-04 on `ef1855d`, Mac and Windows; the names from the Windows walk: Enter marked
+      *Commit…*, ↓ moved the mark to *Add remote…*; Shift+F10 on a commit row marked *Checkout (detached)*.)*
+- [x] 3. **T12, the click on a marked submenu row** (scripted only): open the Repository menu, ↓ until **More recent**
+      is highlighted, then click it with a press and release and no pointer move first — CDP `mousePressed` /
+      `mouseReleased` with no `mouseMoved`, or `cliclick c:x,y` with no `m:`. A hand-moved mouse rests on the row and
+      opens the panel by hover (150 ms) first; since D10 that passes too, but it walks BN 6's path, not this one. → the
+      submenu's first row is focused, not highlighted. Pressing → instead of clicking → highlighted. *(Walked
+      2026-10-04: on Windows over CDP on `ef1855d`, `02c04f6` and `cac41ed`, the first row focused and unmarked (marked
+      on `a6a7a76`), → marked. On the Mac intermittent under `cliclick` on `ef1855d` (the harness, triage T23; a real
+      mouse then found D10), 3 of 3 on `02c04f6`, and once more on `cac41ed`, all scripted.)*
+- [x] 4. **macOS: Option-typed type-ahead**: a click doesn't focus a button on macOS, so selects are focused with Tab
+      (*Keyboard navigation* on) or Option+Tab, or come focused. The Merge dialog's *Branch to merge* (focused when it
+      opens): Option+o (`ø` on the U.S. / ABC layout) → the list opens on `ø-test`; Escape, then Option+↓ → the list
+      opens. With the window wide enough that the branch filter is in the toolbar, in History, the filter focused:
+      Option+2 → Changes; then the commit panel's *Sign this commit* select focused (open **Commit options** ⋯ first if
+      the panel shows two columns): Option+1 → History. *(Walked 2026-10-04 on the Mac on `ef1855d`, input source U.S.:
+      Option+o → the list on `ø-test`; Option+↓ opened it; Option+2 → Changes from the branch filter; Option+1 → History
+      from *Sign this commit*.)*
+- [x] 5. **A select opened by a click takes the keys** (WebKit gives a clicked button no focus): click the *Tool* select
+      of Settings › Diff & merge › *Diff tool* → the list opens; ↓ / ↑ move the active option, a letter jumps to a
+      match, Enter picks; reopen it with a click, click the select again → the list closes and stays closed; reopen it,
+      then click elsewhere in the dialog → the list closes. *(Walked 2026-10-04: on the Mac on `ef1855d` and again on
+      `02c04f6`; on Windows over CDP on `ef1855d`, the list open and the select focused, ↓ ↓ ↑ and "w" moved the option,
+      Enter picked, a second click closed it for good, a click on a label closed it with the value unchanged.)*
+- [x] 6. **A click on a submenu row the hover opened takes the focus in** (by hand, with a real mouse): open the
+      Repository menu, rest the pointer on **More recent** until its submenu opens, then click it → the submenu's first
+      row is focused (not highlighted), and ↓ moves through the submenu. Then keys first: reopen the menu, ↓ to **More
+      recent** (highlighted), rest the pointer on it until its submenu opens (the focus stays on the row), then → (or
+      Enter) → the submenu's first row is focused and highlighted. Last: click **More recent**, rest the pointer on
+      another row until the submenu closes, then back on **More recent** until it reopens, then press ↓ → nothing in the
+      submenu highlights (if the reopen had taken the focus, a row of it would). *(Walked 2026-10-04 on `02c04f6`: by
+      hand on the Mac, the three parts 5 of 5, 3 of 3 and 3 of 3; on Windows over CDP (300 ms hovers, not by hand), all
+      three. The first part again on `cac41ed`, both OSes. In the last part the hover close leaves the focus on `<body>`
+      on both (↓ dead until Escape, measured on Windows): deferred, `docs/plans/open-items.md` §Z (triage T22).)*
+- [x] 7. **The dock opens with no output yet** (triage T13): open a repository and run nothing → the dock's bar reads
+      "No output yet" and its chevron is enabled; click it → the dock opens on an empty log with the `git` prompt.
+      *(Walked 2026-10-04 on `cac41ed`, Mac and Windows: "No output yet", the chevron enabled, a click → an empty log
+      and the prompt.)*
+- [x] 8. **A torn-off window stays on screen** (triage T10/T11): with two tabs, drag one out and drop it near the
+      screen's bottom-right corner → a new window opens wholly inside the screen's usable area (above the macOS Dock or
+      the Windows taskbar), shrunk if the main window is bigger than that area; drop one near the top-left corner →
+      likewise. With a second display (on a Mac, a Retina screen beside another), drop a tab on each display, including
+      the right half of the left one → each window opens on the display it was dropped on. Close the new windows after.
+      *(Walked 2026-10-04 on `cac41ed`. The Mac (1512 × 982, the Dock hidden): near the bottom-right corner → flush with
+      it, near the top-left → under the menu bar, nearer the middle → at the drop. Windows (a 1920 × 1152 work area):
+      the same, kept inside on the outer rect (the drawn frame stops 7 px short of the edges), and the shrink case:
+      `main` at 1950 × 1230 → the new window exactly the work area. The shrink case can't be set up on macOS, which
+      keeps the main window within the screen: walked on Windows only. The second-display step isn't reachable: neither
+      machine has a second display.)*
 
 ## Reporting
 

@@ -9,7 +9,7 @@ Phase 5's macOS rows closed on CI's leg, or a Phase 2b design row ending "accept
 "measured, fine" closure is not an accepted limit and still goes to the done file — except `status.rs`, which stays
 in §Q with the numbers.
 
-**Status:** 2026-10-03. **Phase 0 done 2026-09-26** (`59e9383`). **Phase 1 done 2026-09-26**
+**Status:** 2026-10-04. **Phase 0 done 2026-09-26** (`59e9383`). **Phase 1 done 2026-09-26**
 (`docs/archive/plans/2026-09-26-phase-1-plan.md`, walk record `docs/archive/walks/2026-09-26-phase-1-walk.md`): the next
 tag is unblocked. **PR #18 merged 2026-09-27** (`5cc5de9`: the Linux harness, the WebKitGTK focus fixes, the restore
 guard and its follow-ups, the AppImage repack). Its rows (§O, §P) are scheduled below, mostly in the new *Linux track*;
@@ -50,9 +50,13 @@ first update out of a build with it on), which passed. **Phase 4 Stage A done 20
 triage done, group BM walked 2026-10-04 (record `docs/archive/walks/2026-10-04-group-bm-walk.md`), squashed and pushed
 2026-10-04 (`0e6d333..7bbc25b`). **v0.10.17 released 2026-10-04** (`30c062e`, release run 37186324581); **its gate
 passed the same day** on both VMs (`docs/archive/walks/2026-10-04-v0.10.17-release-gate.md` and
-`docs/archive/walks/2026-10-04-v0.10.17-release-gate-linux.md`). Open decisions: hardware (before Phase 5).
+`docs/archive/walks/2026-10-04-v0.10.17-release-gate-linux.md`). **Phase 5 executed 2026-10-04** on the owner's Mac
+(plan `docs/plans/2026-10-04-phase-5-plan.md`, walk record `docs/archive/walks/2026-10-04-phase-5-macos-walk.md`, smoke
+group BN): the Mac's 0.10.12 updated to 0.10.17, macOS rendering and AZ 11's macOS line walked, T12 fixed for every
+menu, the Option type-ahead fixed, plus five more fixes found on the way; triaged, squash and push pending. Open
+decisions: none.
 
-Row references are to `docs/plans/open-items.md` sections (§A–§X), and code and smoke-doc line numbers are as of
+Row references are to `docs/plans/open-items.md` sections (§A–§Z), and code and smoke-doc line numbers are as of
 2026-09-28 (`main` after #18; `release.yml` cites after the CLI pin change). The Phase 1 section keeps its original
 numbers. `CF` = `docs/archive/plans/2026-09-12-consolidated-findings.md`.
 
@@ -79,7 +83,8 @@ Agreed with the user 2026-09-28 (`docs/archive/plans/2026-09-28-close-out-refres
    **v0.10.16 released and its gate passed 2026-10-03.**
 7. ~~Phase 4 (reference decision first).~~ Done 2026-10-04 (pushed as `0e6d333..7bbc25b`).
    **v0.10.17 released and its gate passed 2026-10-04.**
-8. Phase 5 (hardware decision first), or earlier, when the hardware is there.
+8. ~~Phase 5 (hardware decision first), or earlier, when the hardware is there.~~ Done 2026-10-04 (walked and
+   triaged; the squash and push follow).
 9. Phase 6, on 2026-12-23.
 
 - In parallel, on the Linux machine: the *Linux track* (the restore hang's Phase A/B, T20, T7, the ssh fail-fast
@@ -306,7 +311,7 @@ CLI pin change, `release.yml` and `checks.yml` only, ran from Windows):
     review wants one (D-b).
   - Phase B: the fix. Verify with 0 hangs in 50 launches.
   - Then the AZ row 3 re-walks: Linux (T20) and Windows, which also answers §O's "whether it happens on Windows".
-  - Then tick AZ 11 Linux (`smoke-test-post-v1.md:1879`) and move §O to the done file.
+  - Then tick AZ 11 Linux (`smoke-test-post-v1.md:1889`) and move §O to the done file.
 - **T7:** re-test WebDriver with two windows after Phase B.
 - **T5:** AT-SPI driving (`2026-09-27-t5-atspi-plan.md`).
 - **Phase 2a's Esc fix on WebKitGTK** (open-items §R): after Check now in Settings, record `activeElement` and
@@ -324,11 +329,18 @@ CLI pin change, `release.yml` and `checks.yml` only, ran from Windows):
 
 ## Phase 5 — other hardware (§B, whenever available)
 
+**Done 2026-10-04** on the owner's Mac — `docs/plans/2026-10-04-phase-5-plan.md`, walk record
+`docs/archive/walks/2026-10-04-phase-5-macos-walk.md` (smoke group BN, on the Mac and the Windows VM). The macOS update
+(0.10.12 → 0.10.17), macOS rendering and AZ 11's macOS line walked; T12 held on WebView2 too and was fixed for every
+menu (D6); the Option type-ahead fixed; the `window.rs` ceiling accepted (D1, open-items §Q); five more fixes found on
+the way (D7, D10, D11, T10/T11, T13). Triaged 2026-10-04; the squash and push follow. The bullets below are the plan as
+written, with the line references refreshed.
+
 **Shrunk by #18:** Linux has a machine now (the Linux track), real-Wayland rendering was walked 2026-09-27 (§B),
 and AC's `.deb` is walked (the AppImage part is in the release gate; `.rpm` ruled covered). Left:
 - macOS rendering;
-- AZ 11's macOS line (`smoke-test-post-v1.md:1882`) and T12 (a clicked WebKit submenu may inherit the mark);
-- the §I `window.rs:392` ceiling (tab adoption's pointer position: macOS and X11 could answer natively; Wayland
+- AZ 11's macOS line (`smoke-test-post-v1.md:1892`) and T12 (a clicked WebKit submenu may inherit the mark);
+- the §I `window.rs:627` ceiling (tab adoption's pointer position: macOS and X11 could answer natively; Wayland
   cannot). The X11 half can now be tried on the Linux machine;
 - open-items §R's Option-typed type-ahead (Phase 2a triage, 2026-09-29).
 
@@ -351,6 +363,7 @@ AppImage tool pins are tied to the builder too — recheck them.
 3. ~~**Phase 4 reference** — which canvas set rules where they differ. Before Phase 4.~~ Decided 2026-10-03 as R1
    (the Phase 4 plan, `docs/plans/2026-10-03-phase-4-plan.md`): Direction B wins where it draws an element;
    `screens/` counts for content only.
-4. **Hardware** — a Mac coming, or close Phase 5 on CI's macOS leg (Linux has a machine since #18). Before Phase 5.
+4. ~~**Hardware** — a Mac coming, or close Phase 5 on CI's macOS leg (Linux has a machine since #18). Before Phase 5.~~
+   Answered 2026-10-04: a Mac is here, the owner's own; Phase 5 ran on it.
 5. ~~**U1–U5**~~ — decided 2026-09-28 (`docs/archive/plans/2026-09-26-triage-plan.md`): U1 in 2a, U5 a version
    floor in 1b.

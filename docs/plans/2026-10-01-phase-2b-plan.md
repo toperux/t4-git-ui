@@ -202,17 +202,18 @@ Branch: `phase-2b` off `origin/main` (`ee16e57`). One commit per row while worki
   a ringed element, so the CSS's `:focus-visible` half highlights it even without the mark. Tested on purpose:
   `Menu.test.tsx:73-82`; AZ 6's text (`smoke-test-post-v1.md:1873`).
 - **D5.**
-  - (a) **Fix (b), accept (a) → §Q:** a `ContextMenu` opened by a pointer never marks its first item — as native
-    menus on Windows and GTK: right-click shows no highlight, Shift+F10 / the Menu key highlight the first item
+  - (a) **Fix (b), accept (a) → §Q:** a `ContextMenu` opened by a pointer never marks its first item — as native menus
+    on Windows and GTK: right-click shows no highlight, Shift+F10 / the Menu key highlight the first item
     (`lastInputWasKey()` decides; a `byKey` parameter on `useMenuDismiss`, defaulting to `openedByKey`). And the
     menu-item highlight and wrap rules key on `[data-kbd]:focus` only, dropping their `:focus-visible` half
     (`Menu.module.css:68, 75, 82, 88, 124, 136, 159`, `RevisionGrid.module.css:221`), or Chromium still highlights
     through its own rule. **Keep** a `.item:focus-visible { box-shadow: none }` rule: the global ring
-    (`src/theme/base.css:50-54`) otherwise lands on the natively `:focus-visible` first item (review pass 1). ~5
-    lines TS, 8 selectors changed. Safe because every focus inside a menu goes through `focusItem` (explicit mark)
-    or a click (clears it), and Tab closes the menu (read, and a grep: only these two files target menu items).
-    The dropdown `Menu` (toolbar) keeps its opener rule. Then (a) happens only when someone arrows over a clipped
-    name — the price of AZ 6's "wrap so the name can be read".
+    (`src/theme/base.css:50-54`) otherwise lands on the natively `:focus-visible` first item (review pass 1). ~5 lines
+    TS, 8 selectors changed. Safe because every focus inside a menu goes through `focusItem` (explicit mark) or a click
+    (clears it), and Tab closes the menu (read, and a grep: only these two files target menu items). The dropdown `Menu`
+    (toolbar) keeps its opener rule (superseded 2026-10-04 by close-out Phase 5 D6: dropdowns and submenus dropped it
+    too). Then (a) happens only when someone arrows over a clipped name — the price of AZ 6's "wrap so the name can be
+    read".
   - (b) Also fix (a): wrap clipped rows always, not only on focus (~10 lines CSS). A visible design change: taller
     menus for mouse users, the grid's two-half ellipsis (`RevisionGrid.module.css:204`) goes.
   - (c) Accept both → §Q.

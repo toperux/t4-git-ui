@@ -272,7 +272,7 @@ this section is the record.
 | T9 | `xclip` missing | **done**: it turned out to be installed (0.13-4build1); it's now in `smoke-linux.md`'s prerequisites |
 | T10 | tear-off overlap: a crash restores the tab twice | accepted |
 | T11 | crash at launch restores `w1`'s tabs into `main` | **reversed 2026-09-27** (D-a): `main` is now seeded first in `take`, closing the gap and widening the existing crash loop instead; see below |
-| T12 | WebKit: a clicked submenu may inherit the mark | check it on the macOS walk (T21) |
+| T12 | WebKit: a clicked submenu may inherit the mark | **confirmed 2026-10-04, and not WebKit's:** on `a6a7a76` the click marked the submenu's first row on WebView2 too (on the Mac it dropped the focus to `<body>` instead). Fixed by close-out Phase 5 D6: every menu marks its first item only after a key (`lastInputWasKey()`); walked as smoke BN 3 (`docs/archive/walks/2026-10-04-phase-5-macos-walk.md`) |
 | T13 | no unit test for `spawn`'s wiring | accepted; the smoke walk is the check |
 | T14 | no test for the `catch` path (`recents.load` rejects) | **add the test** |
 | T15 | a reloaded `main` re-spawns every other window | **closed 2026-09-27** by the fix batch (`afc40f3`: a second `take` returns `main`'s own entry); the reload was walked on both OSes (`open-items-done.md` §P) |
@@ -281,7 +281,7 @@ this section is the record.
 | T18 | Linux audit of other script-focused widgets | **done 2026-09-27**, before T17: ten paths failed after a click, fixed by the shared `data-kbd` mark (`src/lib/kbdFocus.ts`), re-walked (`docs/archive/walks/2026-09-27-t18-linux-focus-audit.md`) |
 | T19 | Windows re-walks | AZ 6 as soon as the branch is up, plus the T18 audit's paths and its two new Windows cases (the fix is shared); row 3 after Phase B. **First half done 2026-09-27** (`docs/archive/walks/2026-09-27-t19-windows-walk.md`): all ten paths and AZ 6 as before; the one visible change (a click then Ctrl+Comma, now ringed) was reversed by the user: only Ctrl/⌘ + a navigation key (arrows, Home, End, PageUp, PageDown) counts as keyboard input; every other chord stays ignored, the same on every OS |
 | T20 | Linux re-walk of AZ row 3, then tick AZ 11 Linux | after Phase B |
-| T21 | macOS: AZ 11 and T12 | open until a Mac is available |
+| T21 | macOS: AZ 11 and T12 | **done 2026-10-04** in close-out Phase 5 on the owner's Mac: AZ 11's macOS line walked (3a, 3b, 3d, 3i and 6 pass) and ticked; T12 above |
 | T22 | AZ 9 is unit-tested only | **revised in the second review:** stays unticked, a record rather than work (open-items §B). A tick means walked (the skill's rule), and `check_staged`'s test covers only the message, not the toast or the refresh |
 | T23 | `/tmp/t4` and the `.smoke` build | kept until Phase A |
 
@@ -313,4 +313,4 @@ that already exists.
 5. **Phase B**, then T20 (Linux row 3), T19's second half (Windows row 3), and T7 (WebDriver with two windows).
 6. ~~**T4** (the ssh check under a moved `HOME`).~~ Done 2026-09-27.
 7. **T5 AT-SPI:** plan written 2026-09-27 (`2026-09-27-t5-atspi-plan.md`); built when it's picked up.
-   **T21:** when a Mac is available.
+   ~~**T21:** when a Mac is available.~~ Done 2026-10-04 (close-out Phase 5).

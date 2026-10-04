@@ -554,6 +554,9 @@ commits and pushed with the CI port from the sibling app (`a904701`).
 - **`ponytail:` ceiling, `linked.rs:120`** (the worktree / submodule snapshot, no cache) — measured fine 2026-10-02
   for close-out Phase 3 (row 8), the comment kept; an accepted limit with a reopen trigger, moved to `open-items.md`
   §Q (*`linked.rs:120`: the worktree / submodule snapshot has no cache*), 2026-10-03 (Q16).
+- **`ponytail:` ceiling, `window.rs:627`** (was `:520`; the pointer position for tab adoption is Windows-only) —
+  accepted 2026-10-04 (close-out Phase 5, D1), moved to `open-items.md` §Q (*Tab adoption is Windows-only*). The last
+  open row of §I: the section left `open-items.md` the same day.
 
 ## J. Added 2026-09-14 — from the UI direction B review
 
@@ -670,7 +673,8 @@ The open-items §L heading is gone (nothing open is left there); this section no
   a `ContextMenu` with its first item marked and highlighted as if by keyboard, wrapped when clipped. **Fixed
   2026-10-01** for close-out Phase 2b (`b1241e4`, D5(a), smoke group BK 3): a `ContextMenu` opened by a pointer no
   longer marks its first item (a `byKey` parameter on `useMenuDismiss`, defaulting to `openedByKey`; `ContextMenu`
-  passes `lastInputWasKey`), and the highlight/wrap CSS rules key on `[data-kbd]:focus` only, with an
+  passes `lastInputWasKey`; superseded 2026-10-04 by close-out Phase 5 D6: every menu asks `lastInputWasKey` alone, and
+  `byKey` / `openedByKey` are gone), and the highlight/wrap CSS rules key on `[data-kbd]:focus` only, with an
   `.item:focus-visible { box-shadow: none }` override so the global focus ring (`theme/base.css`) doesn't land on the
   natively `:focus-visible` first item. Arrowing onto a clipped row still wraps it and shifts the rows below — accepted,
   `open-items.md` §Q.
@@ -942,6 +946,14 @@ stays.
   2026-10-01** (`25dfe4f`, D1(a), smoke group BK 1): a Ctrl+Q arm in `StartScreen`'s key handler calls the same
   `quitApp()`, armed even while a repository is opening, ignored while Clone or Settings is open. README's shortcuts
   table lists it (the *Both screens* row). *From `open-items.md` §R (the 2026-10-01 Phase 2b plan, row 1).*
+- **macOS: an Option-typed character never reached a select's type-ahead.** Option arrives as `altKey` without
+  `ctrlKey`, so `Input.tsx`'s Alt branch swallowed it (Phase 2a let only Windows' AltGr, Ctrl+Alt, through). **Fixed
+  2026-10-04** for close-out Phase 5 (M4; `ef3711b`, pre-squash). Measured first on the Mac: Option+a gives `key` `å`,
+  `code` `KeyA`, `altKey` true; Option+o `ø`, `KeyO`; Option+1 `¡`, `Digit1`. Now on macOS an Alt keydown with a
+  one-character `key` and a non-digit `code` is type-ahead (`isMac()` in `src/lib/keys.ts`); Option+digit stays the
+  History / Changes switch (D3), and Option+↓ still opens the list. Walked as smoke group BN 4 on the Mac (`ef1855d`;
+  `docs/archive/walks/2026-10-04-phase-5-macos-walk.md`). Its accepted edges (Option+digit characters, Option+Space,
+  ⌘+Option) are in §Z. *From `open-items.md` §R (Phase 2a's change review).*
 
 ## S. Added 2026-09-29 — v0.10.13's AppImage release walk: the rows since closed
 
@@ -1228,3 +1240,67 @@ these.
   they predate Stage B and aren't the reference set.
 - The screens/ cherry-pick and Empty repository minis take the app's 180 px minimum sidebar, so their working-tree
   subjects show whole; their sidebar labels clip a little more ("diff-vie…"), as the app's do at 180.
+
+## Z. Added 2026-10-04 — close-out Phase 5: fixed, walked and accepted, closed
+
+Ruled by the owner 2026-10-04; detail in `docs/plans/2026-10-04-phase-5-plan.md` (*Decisions*, D1–D11) and the walk
+record `docs/archive/walks/2026-10-04-phase-5-macos-walk.md` (*Triage*). The T-numbers here are Phase 5's own triage
+rows, not the 2026-09-26 Linux menu-focus plan's T12 / T21. Hashes are pre-squash commits of `phase-5`. The Option
+type-ahead fix (M4) is in §R above; Phase 5's open rows are in `open-items.md` §Q and §Z. No reopen trigger on any of
+these.
+
+**Fixed and walked** (smoke group BN, on the Mac and the Windows VM):
+- **D6, one rule for every menu's keyboard mark — and the Linux plan's T12** — **fixed 2026-10-04** (`ef3711b`; BN 1–3).
+  T12: a submenu opened by a click on a row still carrying the keyboard mark opened marked. Measured on `a6a7a76`: on
+  Windows the first row came up marked, so it wasn't WebKit's; on the Mac the click dropped the focus to `<body>`
+  instead (D10, below). `openedByKey()` counted a marked opener as a keyboard open; dropdowns and submenus now ask
+  `lastInputWasKey()` alone, as context menus have since Phase 2b. So a toolbar button reached with Tab and then clicked
+  opens its menu unmarked, reversing Phase 2b D5's "the dropdown keeps its opener rule".
+- **D7, a select opened by a click takes the focus** — **fixed 2026-10-04** (`c38c750` + fixup `ef1855d`; BN 5). Found
+  in the Mac walk (M1): WebKit gives a clicked button no focus, so a select the pointer opened got no keys and didn't
+  close on an outside click. The trigger focuses itself in its click handler, and its mousedown is prevented so WebKit
+  doesn't blur and close an open list first.
+- **D10, a click, → or Enter on a submenu row the hover opened takes the focus in** — **fixed 2026-10-04** (`62d3bc5`;
+  BN 6, by hand on the Mac). Found by D9's event logs: a real mouse rests on the row past the 150 ms hover grace, so the
+  panel is open before the click; the click changed nothing, and on macOS the press had already dropped the focus to
+  `<body>` (15 of 15 with the owner's mouse). `openPanel` now focuses the first row itself when the panel is already
+  open.
+- **D11, the submenu's "take the focus" flag is spent once used** — **fixed 2026-10-04** (`e8b78d2`, a fixup of
+  `62d3bc5`; BN 6's last part). From change review pass 7, older than Phase 5: the flag was never cleared, so a later
+  reopen by hover pulled the focus into the panel. The open/close effect clears it.
+- **T10 / T11, a torn-off window opened off the screen** — **fixed 2026-10-04** (`4f493ef` + fixup `cac41ed`; BN 8).
+  Found in the Mac walk (M1), each once: dropped near the bottom-right corner, the tab left its strip and no window
+  showed (it came back after ⌘Q); a torn-off window opened at the drop point at the full 1280 × 800, mostly off the
+  screen. The new window is now moved, and shrunk if bigger, into the work area of the screen under the drop point.
+  Walked on the Mac and Windows; the shrink case on Windows only, a second display on neither.
+- **T13, the output dock couldn't open before a command had run** — **fixed 2026-10-04** (`01930d2`; BN 7), against the
+  recommendation to accept it. Its chevron was disabled until an op produced output, which also kept the dock's git
+  prompt out of reach.
+- **T6, `src/README.md`'s `keys.ts` line omitted `ctrlOrCmd` and `folderKey`** (older than Phase 5; M4 added `isMac`) —
+  **fixed 2026-10-04** (`69f0ca1`, a fixup of `ef3711b`).
+- **T18, the splitter count** — the Linux rendering row said "five splitters", but Unstaged / Staged isn't one;
+  `open-items.md` §B now names them (`1afa0cb`).
+
+**Accepted and closed:**
+- **T2** Option+digit characters (¡ ™ £ ¢ ∞ § ¶ • ª º) are never type-ahead on macOS, even in dialogs where no view
+  switch runs: D3's cost, so Option+1 / Option+2 keep switching the view.
+- **T3** Option+Space adds U+00A0 to the type-ahead buffer on macOS; it matches nothing.
+- **T4** ⌘+Option+letter now clears the type-ahead buffer instead of returning early; harmless.
+- **T8** The Windows smoke profile follows the OS theme, since localStorage is private to the WebView2 profile:
+  expected, not a bug. `smoke-cdp.md` says so (`1afa0cb`).
+- **T12** History's grid / details and commit-details splits come back at their defaults after Changes → History (the
+  sidebar and the side column keep theirs): the splits aren't stored. `smoke-cdp.md` no longer lists splitter sizes in
+  localStorage (`1afa0cb`).
+- **T16** A drag onto another window whose tab strip was hidden (one tab) did nothing; not repeated. By design: a
+  window's only tab can't be torn off (smoke `:1659`), and adoption is Windows-only (D1, `open-items.md` §Q).
+- **T17** An unnamed, hidden 500 × 500 window exists from launch on macOS, in every run; not from this repository's
+  code. Noted in the walk record.
+- **T19** Since D7's prevented mousedown, a field focused before blurs at the click, not at the mousedown; a press on a
+  select dragged off and released elsewhere leaves the focus in the old field.
+- **T20** Clicking a select no longer clears a text selection elsewhere (e.g. selected diff text).
+- **T21** On Chromium the select's trigger may match `:focus-visible` after Tab then a click; nothing renders
+  differently (the CSS cascade; reasoned).
+- **T23** `cliclick`'s artifacts on the Mac: a lost mouseup, a missed pointerdown, a swallowed first click after opening
+  Settings, clicks under 0.6 s apart paired; a real mouse never lost a click (D9's brief 4). Noted in the walk record's
+  harness notes.
+- **T25** One Repository › recents click did nothing, once, on the Mac (`cac41ed`); likely T23's swallowed first click.

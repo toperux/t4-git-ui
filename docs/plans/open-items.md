@@ -6,30 +6,33 @@ the README's "Next" line (review item H4). Since 2026-09-26 every row except §C
 scheduled in `2026-09-26-close-out-plan.md`; §Q's accepted limits wait on their reopen triggers (the one that was
 also in a close-out phase, the `status.rs` row, closed in Phase 3 on 2026-10-03)._
 
-_Done, fixed, walked and closed rows live in `open-items-done.md` (split 2026-09-24), under the same
-section letters — a letter with nothing open left (§A, §D, §F, §G, §H, §J, §K, §L, §N) is only there. When a row
-here is done, move it there. Accepted limits with a reopen trigger are open, in §Q (since 2026-09-28); those with
-none are closed, in the done file; most of §V's deferred rows wait on a later fix batch._
+_Done, fixed, walked and closed rows live in `open-items-done.md` (split 2026-09-24), under the same section letters — a
+letter with nothing open left (§A, §D, §F, §G, §H, §I, §J, §K, §L, §N, §T, §U, §W) is only there. When a row here is
+done, move it there. Accepted limits with a reopen trigger are open, in §Q (since 2026-09-28); those with none are
+closed, in the done file; most of §V's deferred rows wait on a later fix batch._
 
 ## B. Verification and release
-- **Unticked smoke lines — recounted 2026-10-01: two**, both in `smoke-test-post-v1.md`: AZ 11's two platform lines
-  (`:1882`, `:1885`), which need a Linux or macOS machine. AC (`:761`) ticked 2026-10-01 at the v0.10.15 release
-  gate's AppImage half. BH 12 (the update badge in a new window) ticked 2026-10-01 at the v0.10.15 release gate. A
-  grep for `- [ ]` also matches `:298`, which is prose.
+- **Unticked smoke lines — recounted 2026-10-04: one**, in `smoke-test-post-v1.md`: AZ 11's Linux line (`:1889`), which
+  needs the Linux machine. Its macOS line (`:1892`) ticked 2026-10-04 in close-out Phase 5
+  (`docs/archive/walks/2026-10-04-phase-5-macos-walk.md`). AC (`:762`) ticked 2026-10-01 at the v0.10.15 release gate's
+  AppImage half. BH 12 (the update badge in a new window) ticked 2026-10-01 at the v0.10.15 release gate. A grep for
+  `- [ ]` also matches `:299`, which is prose.
   (Four records are marked `[n/a]` since close-out Phase 0; the three this machine could reach were walked in Phase 1 —
-  both in the done file. Line numbers refreshed 2026-10-01.)
+  both in the done file. Line numbers refreshed 2026-10-04.)
 
 - **Windows code signing:** done 2026-10-01 (close-out Phase 1b), moved to `open-items-done.md` §B.
-- Linux (WebKitGTK) rendering: walked on 2026-09-05 under WSLg (Ubuntu 24.04, X11 backend) —
-  fonts, both themes, graph, panels, styled scrollbars (thumb + hover), all five splitters and the
-  dock drag, native-menu suppression (toolbar / panel header / statusbar / bare diff body → nothing;
-  text field and selected diff text → GTK menu), app context menu on a commit row: all as on Windows.
-  **Walked again 2026-09-27 on native Wayland** (Ubuntu 26.04.1, GNOME, a VMware guest; driven by WebDriver, the two
-  GTK menus that should show checked by eye): all of the above pass except the dock's range and collapse, which
-  were walked instead under automation on Xvfb, not with real Wayland input
-  (`docs/archive/walks/2026-09-27-linux-wayland-rendering-walk.md` and its addendum).
-  Real GPU hardware and a HiDPI panel: an accepted limit, moved to §Q (*Linux: real GPU hardware and a HiDPI panel
-  not walked*), 2026-09-28. macOS rendering: never seen; CI compiles only.
+- Linux (WebKitGTK) rendering: walked on 2026-09-05 under WSLg (Ubuntu 24.04, X11 backend) — fonts, both themes, graph,
+  panels, styled scrollbars (thumb + hover), all the splitters (the walk said "five"; named 2026-10-04: the sidebar,
+  grid/details and the details pane's two in History, files|diff and diff|message in Changes) and the dock drag,
+  native-menu suppression (toolbar / panel header / statusbar / bare diff body → nothing; text field and selected diff
+  text → GTK menu), app context menu on a commit row: all as on Windows. **Walked again 2026-09-27 on native Wayland**
+  (Ubuntu 26.04.1, GNOME, a VMware guest; driven by WebDriver, the two GTK menus that should show checked by eye): all
+  of the above pass except the dock's range and collapse, which were walked instead under automation on Xvfb, not with
+  real Wayland input (`docs/archive/walks/2026-09-27-linux-wayland-rendering-walk.md` and its addendum). Real GPU
+  hardware and a HiDPI panel: an accepted limit, moved to §Q (*Linux: real GPU hardware and a HiDPI panel not walked*),
+  2026-09-28. **macOS rendering: walked 2026-10-04** in close-out Phase 5 on the owner's Mac (macOS 26.7.1, WKWebView, a
+  debug build of `a6a7a76`): the same list, plus the native title bar above the toolbar, ⌘, ⌘W ⌘1 ⌘Q and a tab torn off
+  — all pass; its findings were triaged (`docs/archive/walks/2026-10-04-phase-5-macos-walk.md`, M1).
 - **The updater writes nothing to the app log.** A check, a download and an install left no line in the app log on
   Windows in the v0.10.16 gate (2026-10-03), which followed them only through the UI, process ids and file times (the
   Linux walk checked its log for `ERROR`/`WARN` only). Reasoned from the code: check, download and install errors reach
@@ -68,22 +71,6 @@ Custom titlebar (revisited in M6, native kept) · i18n · plugins.
   update the thumbprint in `release.yml` (*Check the Windows signature*) and in the sibling app's. Added
   2026-09-30 (close-out Phase 1b, D5).
 
-## I. Deferred with a reason — the `to revisit` rows and the `ponytail:` ceilings (accepted ones: §Q)
-
-Deferred findings lifted from `docs/archive/plans/2026-09-12-consolidated-findings.md` and later
-reviews, plus the `ponytail:` ceilings in code. Each was low and deferred with a reason; since
-2026-09-26 they are scheduled in the close-out plan (`2026-09-26-close-out-plan.md`), each row
-naming its phase. (Rows closed as will-not-fix or accepted are in the done file, or in §Q when they carry a
-reopen trigger — the `Menu.tsx` `ponytail:` ceiling among them.)
-
-- E6 (the tree builds) and R13 (`canSquash` per row): closed 2026-10-02 in close-out Phase 3 (moved 2026-10-03), E6
-  fixed for the Files and Changes trees and measured fine for the sidebar, R13 measured fine — both in the done file's
-  §I.
-- `ponytail:` ceilings in code (nine — seven of them added 2026-09-26; the seven fixed are in the done file;
-  `linked.rs:120`, measured fine with its comment kept, moved to §Q 2026-10-03 (close-out Phase 3, Q16); one is
-  left):
-  - `src-tauri/src/commands/window.rs:520` — the pointer position for tab adoption is Windows-only *(Phase 5)*.
-
 ## M. Added 2026-09-19 — review of `v0.10.1..HEAD`, its fixes, and the walk of group AZ
 
 The walk is `docs/archive/walks/2026-09-19-group-az-walk.md`. What is left, so it is not rediscovered.
@@ -93,7 +80,9 @@ the menu row's fix is in the done file's §M too (close-out Phase 2b), its row-s
 
 - **Open box in group AZ**: 11 (Linux and macOS: rows 3a, 3b, 3d, 3i and bullet 6, by hand). (9, unit-tested
   with no hand recipe, is marked `[n/a]` since 2026-09-26.) Linux was walked 2026-09-26 and failed on 6; the fix
-  is merged (#18, 2026-09-27), see §O.
+  is merged (#18, 2026-09-27), see §O. **macOS walked 2026-10-04** in close-out Phase 5: 3a, 3b, 3d, 3i and 6 pass,
+  light and dark, and its line is ticked (`docs/archive/walks/2026-10-04-phase-5-macos-walk.md`, M2); only the Linux
+  line is open.
 - The 1800-file `git reset` delay seen in the walk: fixed 2026-10-02 in close-out Phase 3, in the done file's §M.
 
 ## O. Added 2026-09-26 — the Linux walk of group AZ 11
@@ -168,8 +157,8 @@ The 2026-09-27 fix batch and its decisions (D-a, D-b, R5b): `docs/archive/plans/
   Then Phase A, remeasured on the native Linux host with the fixed helper (D-b); its own review decides whether to
   keep the A/B. If step C raises the rate, its write moves onto the build thread (D2). Then Phase B (the T18 audit
   was done 2026-09-27). Windows: AZ 6 as
-  soon as the branch is up, row 3 after Phase B. macOS (AZ 11 and the WebKit click-focus check, T12): open until a
-  Mac is available.
+  soon as the branch is up, row 3 after Phase B. macOS (AZ 11 and the WebKit click-focus check, T12): done
+  2026-10-04 in close-out Phase 5 (AZ 11 macOS ticked; T12 held on WebView2 too, fixed for every menu by D6).
 - **F7, accepted 2026-09-27 (the fix batch):** an accepted limit, moved to §Q (*F7 of the 2026-09-27 fix batch*),
   2026-09-28.
 
@@ -582,6 +571,31 @@ phases that accepted them; each origin keeps a pointer.
   re-walk): click → toast ~170 ms, click → sidebar 233–247 ms; the refs read after it is ~60 ms, so the rest is the
   commit itself. Accepted 2026-10-03 (close-out Phase 3 triage, C-4). **Reopen:** a commit measured or reported
   ≥ 250 ms from click to toast. *From close-out Phase 3's BL walk.*
+- **Tab adoption is Windows-only.** `window_at` (`src-tauri/src/commands/window.rs:627`, its `ponytail:` comment)
+  answers only on Windows, so on macOS and Linux a tab dropped on another window's tab strip opens in a new window
+  instead of moving there, and a window's only tab dropped on another window does nothing (smoke `:1660-1663` and
+  `:1666-1670`, the ⌂ rows). The way round is two steps: close the tab, then open the repository from Recents in the
+  other window (opening a repository open elsewhere only brings that window forward, `:1650-1651`). Rejected: building
+  it on macOS (`objc2` / `objc2-app-kit`, already in `Cargo.lock`) and on X11 (`x11rb`, likewise) — native code with
+  Cocoa's bottom-left, point-scaled coordinates that only a Mac walk could prove; Wayland hides the global pointer
+  position. Accepted 2026-10-04 (close-out Phase 5, D1; triage T7). **Reopen:** a macOS or X11 user asks to drag a tab
+  into another window. *From §I (the `ponytail:` ceilings).*
+- **A screen reader's click opens a dropdown or submenu unmarked.** Since close-out Phase 5 D6 every menu marks its
+  first item only when the last input was a key (`lastInputWasKey()`). A click that a screen reader fires with no
+  keydown first (NVDA's browse mode, VoiceOver's VO+Space) now opens the menu with its first item focused but not
+  highlighted; the old opener rule happened to cover it. The focus and the accessibility tree are unchanged: visual
+  only. Reasoned, not tried with a screen reader. Accepted 2026-10-04 (close-out Phase 5 triage, T1). **Reopen:** a
+  screen-reader user reports a missing menu highlight. *From close-out Phase 5's change review.*
+- **One tear-off drag right after a relaunch made no window.** On the Mac (`cac41ed`, the BN 8 walk), the first drag
+  after a relaunch left the tab in its strip and opened no window; not reproduced. Accepted 2026-10-04 (close-out Phase
+  5 triage, T24). **Reopen:** a tear-off that does nothing is reported, or seen a second time. *From close-out Phase 5's
+  BN walk (`docs/archive/walks/2026-10-04-phase-5-macos-walk.md`).*
+- **Tear-off across two displays not walked.** A torn-off window is clamped to the screen under the drop point
+  (close-out Phase 5, triage T10/T11): physical units on Windows, logical ones on macOS and Linux, where a screen's
+  physical rect is its logical one times its own scale. Walked on one display only (the Mac and the Windows VM have
+  one each, BN 8); which screen it lands on with two, and mixed scales, is reasoned from the tao / tauri source, not
+  measured. Accepted 2026-10-04 (BN 8 ticked on the owner's word). **Reopen:** a second display is available for a walk,
+  or a torn-off window is reported opening on the wrong screen. *From close-out Phase 5's BN walk.*
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review, deferred
 
@@ -591,9 +605,8 @@ phases that accepted them; each origin keeps a pointer.
   it, Esc stays dead there. (WKWebView doesn't focus a button on a mouse click, so `<body>` is already the target
   there.) *(Close-out Linux track: record `activeElement` after Check now and whether Esc closes Settings; reopen
   the fix if not.)*
-- **macOS: an Option-typed character never reaches a select's type-ahead.** Option arrives as `altKey` without
-  `ctrlKey`, so `Input.tsx`'s Alt branch swallows it (Phase 2a let only Windows' AltGr, Ctrl+Alt, through).
-  *(Close-out Phase 5, with the macOS rows.)*
+- **macOS: an Option-typed character never reaches a select's type-ahead:** fixed 2026-10-04 (close-out Phase 5, M4),
+  moved to `open-items-done.md` §R.
 
 ## S. Added 2026-09-29 — v0.10.13's AppImage release walk
 
@@ -712,6 +725,37 @@ a reopen trigger.
 - **Under Windows PowerShell 5.1, `docs/smoke/fixtures/smoke-fixtures.ps1` drops the quotes around the `slow`
   remote's upload-pack path (~:93).** Measured 2026-10-04; it works while the path has no spaces. **Reopen:** a
   smoke group uses the `slow` remote on the VM, or the fixture root gains a space.
+
+## Z. Added 2026-10-04 — close-out Phase 5
+
+Deferred in close-out Phase 5's triage (plan `docs/plans/2026-10-04-phase-5-plan.md`, walk record
+`docs/archive/walks/2026-10-04-phase-5-macos-walk.md`), each with a reopen trigger. The first three are macOS polish,
+for one plan together.
+
+- **The shortcut hints read "Ctrl+" on macOS (D8, triage T9).** About 72 hints are hard-coded in 17 files: the menus,
+  the palette, tooltips, the start screen. On macOS the app takes ⌘ as well as Ctrl for its chords (`ctrlOrCmd`,
+  `src/lib/keys.ts`), so the hints work but aren't what a Mac user expects. Fixing the menus alone would mix Ctrl and ⌘
+  labels, so it needs its own plan covering every hint. Seen in the Mac walk (M1). Deferred 2026-10-04 (D8). **Reopen:**
+  a macOS user reports the hints, or the next macOS fix batch — then plan it with the two rows below.
+- **Mac detection is written three ways (triage T5).** `IS_MAC` (`src/lib/externalTools.ts:110`), an inline test for the
+  ⌘ / Ctrl label (`src/screens/RepoWindow/DetailsPane.tsx:269`), and `isMac()` (`src/lib/keys.ts:16`, read per call so
+  tests can stub the user agent; added by Phase 5's Option fix). The same regex each time; one would serve. Deferred
+  2026-10-04, tied to D8: the hints plan merges them. **Reopen:** with the row above.
+- **The macOS app menu has no *Settings…* and no *Show All* (triage T14).** The menu bar's app menu is the default one
+  (a debug build's is titled `t4-git-ui`). A custom one is about 50 lines of Rust, keeping the Edit menu. The catch: an
+  item with the ⌘, accelerator gets the key before the page does (reasoned, not tried), so it must open Settings through
+  the app's own action, or ⌘, stops reaching the page's handler. Seen in the Mac walk (M1). Deferred 2026-10-04 for its
+  own plan. **Reopen:** a macOS user asks for it, or the hints plan above is picked up.
+- **A commit row's hover tooltip can cover its context menu (triage T15).** In the Mac walk (M1) the row's native
+  `title` tooltip sat over the menu's first item; seen once. Fix sketch: no `title` on `GridRow` while the grid's menu
+  is open. Deferred 2026-10-04. **Reopen:** it recurs, or a report.
+- **A hover that closes a focused submenu drops the focus to `<body>` (triage T22).** With the focus in a submenu (after
+  a click or key on its row, D10), resting the pointer on another row of the parent menu closes the submenu; its rows
+  unmount and the focus falls to `<body>`, so the keys are dead until a click or Escape (Escape closes the menu and puts
+  the focus back on its opener, marked). Measured 2026-10-04 on Windows (`02c04f6`, BN 6's last part: ↓ dead three
+  times) and seen on the Mac the same day; reasoned to happen on every OS. Fix sketch: track whether the focus is in the
+  panel, and on a hover close put it back on the parent row. Deferred 2026-10-04. **Reopen:** a report of dead keys in a
+  menu after the mouse moved.
 
 ## Order
 
