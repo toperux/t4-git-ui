@@ -2648,7 +2648,9 @@ T13, T10/T11). All eight pass on the last build each was walked on; after `ef185
 changed in menu code (D10, D11), and after `02c04f6` no menu or select code. 3 failed intermittently under `cliclick` on
 `ef1855d` (the harness: triage T23), and with the owner's real mouse a click on a submenu row the hover had opened
 failed 15 of 15 — fixed as D10 and walked as 6. Not reachable: 8's second display (each machine has one) and, on macOS,
-8's shrink case, walked on Windows only. The record is `docs/archive/walks/2026-10-04-phase-5-macos-walk.md`._
+8's shrink case, walked on Windows only. 1–3 and 5–7 walked again on the Linux VM on `1e58f7c` (WebKitGTK over
+WebDriver, X11 with no window manager): pass; 8 there is under 8. The record is
+`docs/archive/walks/2026-10-04-phase-5-macos-walk.md`._
 
 - [x] 1. **A click never marks**: Tab to the toolbar's repository-name button (it shows the focus ring), then click it →
       the menu opens with its first item focused but not highlighted (no `data-kbd`). *(Walked 2026-10-04: on the Mac on
@@ -2704,7 +2706,10 @@ failed 15 of 15 — fixed as D10 and walked as 6. Not reachable: 8's second disp
       the same, kept inside on the outer rect (the drawn frame stops 7 px short of the edges), and the shrink case:
       `main` at 1950 × 1230 → the new window exactly the work area. The shrink case can't be set up on macOS, which
       keeps the main window within the screen: walked on Windows only. The second-display step isn't reachable: neither
-      machine has a second display.)*
+      machine has a second display. On Linux (X11, no window manager) `1e58f7c` kept every window on screen but shrank
+      it to 700 × 500; fixed in `4705c6c`, which was walked on Linux (1280 × 800 kept, the corners clamped, the shrink
+      case → the 1600 × 1000 screen) and on Windows ((a), a mid drop, and the shrink case with `main` maximized → the
+      work area).)*
 
 ## Reporting
 

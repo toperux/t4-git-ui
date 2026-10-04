@@ -122,6 +122,9 @@ node docs/smoke/wd.mjs start "$PWD/target/debug/t4-git-ui"
 - **Env doesn't carry between Bash calls**, so each command carries what it needs.
 - **Check ports and displays first:** `ss -ltn | grep -E ':444[45]'` should be empty. Use `:99` unless
   `/tmp/.X11-unix/X99` exists.
+- **Keep the saved window no bigger than the screen.** With no window manager, a `main` saved bigger than Xvfb's
+  1600 × 1000 in `.window-state.json` often launches stuck on the start spinner (the page's calls to Rust stop
+  arriving; a resize wakes it). Reset it to 1280 × 800 after a walk that resized `main` (`open-items.md` §Q, T26).
 - **Get the PID** for `xdialog.sh` with `pgrep -f '^[^ ]*target/debug/t4-git-ui'`.
 - **Take a first `shot` and read it.**
 

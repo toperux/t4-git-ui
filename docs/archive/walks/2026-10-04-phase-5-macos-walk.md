@@ -200,6 +200,38 @@ window's outer rect 1296 × 839 (7 px invisible borders), client 1280 × 800. Dr
   covered).
 - BN 3 and BN 6 (i) again: pass.
 
+**Linux VM, `1e58f7c` (`main` after the squash).** Ubuntu 26.04.1, WebKitGTK 2.52.6; a `.smoke` debug build under
+Xvfb at 1600 × 1000 with **no window manager**, driven by WebDriver (`wd.mjs`, tauri-driver), an isolated `HOME`,
+`/tmp/t4` fixtures; `main` 1280 × 800. BN 4 is macOS only.
+- BN 1: Tab ×3 to `work` (marked) → a WebDriver click → *Commit…* focused, `data-kbd` off, no highlight. Its
+  `:focus-visible` is true on WebKitGTK (false on Windows), but nothing is drawn: the menu's CSS keys on `data-kbd`.
+- BN 2: Escape → `work` marked; Enter → *Commit…* marked; ↓ → *Add remote…* the only one marked; Shift+F10 on a commit
+  row → *Checkout (detached)* marked.
+- BN 3: a press and release with no move first → `repo5` focused, unmarked, 3 of 3; the control, → → marked.
+- BN 5: a click opens and focuses, `:focus-visible` false; ↓ ↓ ↑, "m" → Meld, Enter picks; a second click closes it for
+  good; a click on a label closes it.
+- BN 6, scripted (350 ms hovers): (i), (ii) and (iii) 3 of 3 each; in (iii) the focus ends on `<body>`, as on Windows
+  (T22).
+- BN 7: pass.
+- **BN 8 failed on the size:** every torn-off window opened wholly on the screen, but at 700 × 500, the minimum. The
+  control on `2003397`'s `window.rs` gave 1280 × 800. `place()` read the window's outer and inner size before X11 had
+  configured it, so the clamp started from the minimum and shrank the window to it. Fixed forward in `4705c6c`: the
+  clamp starts from the size the window was built with, and the reads only give the decorations.
+
+**Re-walks of BN 8 on `4705c6c`.**
+- Linux VM, as above: (a) dropped at (1590, 990) → (320, 200), 1280 × 800, flush with the bottom-right; (b) at (10, 10)
+  → (0, 0); (c) at (150, 100) → (10, 76), the drop less (140, 24), unclamped; the shrink case (`main` resized by
+  `xdotool` to 1700 × 1100) → (0, 0), 1600 × 1000, the whole screen (no window manager, so no panels), 4 of 4 by direct
+  launch. With no window manager the outer rect is the client.
+- Windows VM, as for `cac41ed`: (a) at (1900, 1140) → the outer rect (624, 313), 1296 × 839, its right and bottom on the
+  work area's; at (600, 320) → (460, 296), unclamped; the shrink case with `main` maximized → the outer rect exactly the
+  work area, 1920 × 1152. (a) and the mid drop identical to `cac41ed`.
+- Seen on Linux, not part of BN 8 (to triage): the shrink case under WebDriver (1 of 1) opened the window at the right
+  size but its page never started (blank, untitled), the second-window pattern of `open-items.md` §O; by direct launch 4
+  of 4 rendered. And with `main` saved at 1700 × 1100 (bigger than the screen) in `.window-state.json`, the next launch
+  opened `work` in Rust but the page stayed on the start spinner, 4 of 4; saved at 1650 × 1050 or smaller it loaded.
+  Not checked: whether that predates `4705c6c`, and whether a window manager changes it.
+
 ## Harness notes
 
 - **`cliclick`:** plain `kp:` keys don't reach WKWebView; System Events `key code` does. `keystroke "1" using option`
@@ -236,6 +268,22 @@ plan's T12 (M3).
   tear-off drag that made no window).
 - **Accepted and closed, `open-items-done.md` §Z:** T2, T3, T4, T8, T12, T16, T17, T19, T20, T21, T23, T25.
 
+From the Linux walk and the BN 8 re-walks (T26–T30):
+- **Fixed:** BN 8's X11 size (`4705c6c`, above).
+- **Accepted with a reopen trigger, `open-items.md` §Q:** T26 (the launch stall with `main` saved bigger than the
+  screen, no window manager; it predates Phase 5, measured below), T27 (X11 with a window manager: an overhang of about
+  a title bar), T29 (with no main window: an overhang of up to about 100 px).
+- **Accepted and closed, `open-items-done.md` §Z:** T28 (WebKitGTK's `:focus-visible` on a click-opened menu item,
+  nothing drawn).
+- **Added to `open-items.md` §O's "a restored second window sometimes never starts":** T30 (the tear-off under
+  WebDriver whose page never started).
+
+T26, measured on the Linux VM the same day: saved at 1700 × 1100, `4705c6c` stalled 13 of 14 launches, `1e58f7c` and
+`a6a7a76` 3 of 3 each, their 1280 × 800 controls loaded; under openbox (frame 1, 1, 22, 5) the window was shrunk to
+the screen and 3 of 3 loaded. In the stuck page JavaScript runs (WebDriver answers, `requestAnimationFrame` at 61 fps)
+but an `invoke('probe_git')` is never answered nor logged; gdb shows the GTK main loop and the tokio workers idle. A
+resize to 1280 × 800 or 1650 × 1050 wakes it, a 1 px one doesn't.
+
 ## Hash map
 
 The walks name the `phase-5` side branch's pre-squash hashes; squashed on 2026-10-04 into eight commits on `main`:
@@ -249,15 +297,17 @@ The walks name the `phase-5` side branch's pre-squash hashes; squashed on 2026-1
 | `78d4ab8` fix: a click or key on a hover-opened submenu row takes the focus in (D10, D11) | `62d3bc5` + `e8b78d2` |
 | `2003397` fix: the output dock opens before any command has run (T13) | `01930d2` |
 | `5ed01d8` fix: a torn-off window opens wholly on the screen (T10/T11) | `4f493ef` + `cac41ed` + `37daa8d` + `afc91dd` |
-| this commit, docs: the records | the docs of all of the above, `8d5979c`, `1afa0cb`, `7041102` and their fixups |
+| `1e58f7c` docs: the records | the docs of all of the above, `8d5979c`, `1afa0cb`, `7041102` and their fixups |
+
+Pushed with `1e58f7c`; after it, `4705c6c` (fix: a torn-off window keeps its size on X11), from the Linux walk.
 
 The walked builds, by source (`src`, `src-tauri`): `ef1855d` = `99302c4`; `02c04f6` = `78d4ab8`; `cac41ed` = `5ed01d8`
 but for a comment in `window.rs` and the README's `keys.ts` line (that one lands in the records commit).
 
 ## Cleanup
 
-- Windows VM: the store restored byte-exact after each walk, the backups deleted; the clone left detached at the last
-  build walked (`cac41ed`).
+- Windows VM: the store restored byte-exact after each walk, the backups deleted; the clone left on `main` at the last
+  build walked (`4705c6c`).
 - Mac: M6's store restored (`diff -r` identical); the installed app is 0.10.17. The scratch folder `$S` and the `.smoke`
   build were removed the same day (the plan's Order step 11, ~3.5 GB; the real store's files hashed the same before
   and after); `cliclick` stays.

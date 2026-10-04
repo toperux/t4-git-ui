@@ -124,6 +124,10 @@ The 2026-09-27 fix batch and its decisions (D-a, D-b, R5b): `docs/archive/plans/
       (D-b).
     - **Log:** nothing from `w1`. Under WebDriver its `plugin:store|load` never returned, and async commands then
       stalled app-wide while a sync one still answered, so the main thread was alive.
+    - **Seen again 2026-10-04 on a tear-off** (close-out Phase 5, BN 8's shrink case on `4705c6c`, Xvfb with no
+      window manager, triage T30): under WebDriver the torn-off window opened at the right size but its page never
+      started (blank, untitled, an eval in it hung), 1 of 1; by direct launch 0 of 4. The same day a `main` saved
+      bigger than the screen stalled on launch with the page's calls to Rust lost (§Q, T26): perhaps the same cause.
   - **Done, on `linux-smoke-and-fixes` (plan step C):** `spawn` writes the new window's tabs to `layout.json` at
     once, and after
     `restoreTabs` the frontend reports once, so a window that never starts keeps its tabs. Checked: 20 of 20
@@ -596,6 +600,30 @@ phases that accepted them; each origin keeps a pointer.
   one each, BN 8); which screen it lands on with two, and mixed scales, is reasoned from the tao / tauri source, not
   measured. Accepted 2026-10-04 (BN 8 ticked on the owner's word). **Reopen:** a second display is available for a walk,
   or a torn-off window is reported opening on the wrong screen. *From close-out Phase 5's BN walk.*
+- **On X11 with a window manager, a torn-off window can overhang an edge by about a title bar.** `place()` clamps the
+  size the window was built with plus its decorations as read (`src-tauri/src/commands/window.rs`), and on X11 the
+  window manager adds its frame only after the window is mapped, so the clamp is short by it: dropped at the bottom or
+  right edge, the window can stick out by about a title bar. Reasoned from the code, not measured: the Linux VM's Xvfb
+  has no window manager (BN 8 on `4705c6c` was flush there); Windows and macOS read their frame up front and were
+  measured flush. Accepted 2026-10-04 (close-out Phase 5 triage, T27). **Reopen:** a clipped title bar is reported, or a
+  walk under a window manager measures it.
+- **With no main window, a torn-off window can overhang by up to about 100 px.** `spawn` copies `main`'s size into the
+  new window; with `main` closed (a tear-off from a second window) the builder gets none, so Tauri's default (800 × 600,
+  reasoned) is used, while `place()` clamps the 700 × 500 floor in its stead (its `ponytail:` comment): near the
+  bottom-right corner the window can overhang by the difference. Reading the real size isn't safe there (an X11 window
+  not yet configured reads tiny, the bug `4705c6c` fixed). Fix sketch: always give the builder a size. Reasoned, not
+  walked. Accepted 2026-10-04 (close-out Phase 5 triage, T29). **Reopen:** reported, or the next change to the
+  tear-off code.
+- **On X11 with no window manager, a `main` saved bigger than the screen can launch stuck on the start spinner.**
+  Measured 2026-10-04 on the Linux VM (Xvfb 1600 × 1000, WebKitGTK 2.52.6): saved at 1700 × 1100, 13 of 14 launches on
+  `4705c6c` stalled, and 3 of 3 on `a6a7a76` (v0.10.17's source), so it predates Phase 5; more likely the further past
+  the screen, no fixed threshold. The page's JavaScript and rendering run on, but its calls to Rust never arrive (an
+  `invoke` from the stuck page goes unanswered and unlogged); Rust's threads are idle, not deadlocked. A resize WebKit
+  acts on wakes it. Under openbox the window manager shrinks the window to the screen and 3 of 3 loaded. Which layer
+  drops the calls (WebKitGTK, wry or Tauri) is reasoned, not pinned; it may share a cause with §O's "a restored second
+  window sometimes never starts". `smoke-linux.md` §2 says to keep the saved window within the screen. Accepted
+  2026-10-04 (close-out Phase 5 triage, T26). **Reopen:** seen on a real desktop or under a window manager, or §O's
+  hang is pinned down.
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review, deferred
 

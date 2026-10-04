@@ -1304,3 +1304,6 @@ these.
   Settings, clicks under 0.6 s apart paired; a real mouse never lost a click (D9's brief 4). Noted in the walk record's
   harness notes.
 - **T25** One Repository › recents click did nothing, once, on the Mac (`cac41ed`); likely T23's swallowed first click.
+- **T28** On WebKitGTK a menu's first item opened by a click matches `:focus-visible` (not on Windows), and nothing is
+  drawn: the menu's highlight keys on `[data-kbd]:focus` alone. Menu CSS must keep keying on `data-kbd`, not
+  `:focus-visible`. Measured on the Linux VM (`1e58f7c`, BN 1).
