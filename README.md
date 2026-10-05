@@ -133,7 +133,7 @@ everything it found is fixed. CI is green on Linux, Windows and macOS; macOS is 
 on 2026-09-24 (smoke group BF). Deliberate v1 omissions are listed in
 `docs/archive/plans/2026-08-31-git-ui-v1-plan.md` › Known gaps.
 
-Since then: releases v0.1.0 through **v0.10.12** (the full list, with notes, on GitHub Releases),
+Since then: releases v0.1.0 through **v0.10.19** (the full list, with notes, on GitHub Releases),
 cherry-pick / revert and interactive rebase from a commit row, in-app updates — the app checks
 GitHub for a newer release and installs it on Windows, macOS and the AppImage, pointing `.deb` and
 `.rpm` users at their package manager instead — and, in 0.7.0, a Files tab listing the whole
