@@ -22,7 +22,7 @@ use git_core::status;
 use git_core::watch::ChangeKind;
 use git_core::{config, refs, GitError, RepoHandle, RepoId};
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, State, Window};
+use tauri::{AppHandle, Emitter, Manager, State, Window};
 use tokio_util::sync::CancellationToken;
 
 use super::repo::{blocking, open_repo, RepoSummary};
@@ -1217,11 +1217,11 @@ pub async fn clone_repo(
     depth: Option<u32>,
 ) -> Result<RepoSummary, AppError> {
     ref_arg(&url)?;
+    let home = app.path().home_dir().unwrap_or_default();
+    let dest = resolve_dest(&home, &dest)
+        .ok_or_else(|| GitError::Refused(format!("{dest:?} is not an absolute folder")))?;
     let dest_path = PathBuf::from(&dest);
-    let parent = match dest_path.parent().filter(|p| !p.as_os_str().is_empty()) {
-        Some(p) => p.to_path_buf(),
-        None => std::env::current_dir().map_err(GitError::from)?,
-    };
+    let parent = dest_path.parent().unwrap_or(&dest_path).to_path_buf();
     std::fs::create_dir_all(&parent).map_err(GitError::from)?;
     let opts = CloneOpts {
         recurse_submodules,
@@ -1260,6 +1260,19 @@ pub async fn clone_repo(
     open_repo(app, window, state, dest).await
 }
 
+/// `dest` made absolute against `home`. The dialog sends an absolute one; a
+/// relative one from a direct call would otherwise land in the app's working
+/// folder (inside an AppImage, the read-only mount), or nest twice, git running
+/// in its parent with the relative path. `None` when it is still not absolute
+/// after the join (`C:foo` on Windows, or no home), or is not UTF-8.
+fn resolve_dest(home: &Path, dest: &str) -> Option<String> {
+    let path = home.join(dest);
+    if !path.is_absolute() {
+        return None;
+    }
+    path.into_os_string().into_string().ok()
+}
+
 /// `git init <path>` (initial branch from `init.defaultBranch`, else `main`),
 /// then opens the new repository.
 #[tauri::command]
@@ -1277,7 +1290,9 @@ pub async fn init_repo(
 
 #[cfg(test)]
 mod tests {
-    use super::{is_rebase, oid_arg, opt_ref, pause_message, ref_arg, remote_tags_of};
+    use super::{
+        is_rebase, oid_arg, opt_ref, pause_message, ref_arg, remote_tags_of, resolve_dest,
+    };
     use crate::AppError;
     use git_core::cli::CliOutput;
     use git_core::GitError;
@@ -1304,6 +1319,26 @@ mod tests {
             ),
             "a truncated stream is refused"
         );
+    }
+
+    /// A relative clone destination resolves against home; an absolute one is
+    /// kept; one still relative after the join is refused.
+    #[test]
+    fn a_relative_clone_destination_resolves_against_home() {
+        let home = std::env::temp_dir().join("home");
+        let abs = std::env::temp_dir().join("work").join("repo");
+        let s = |p: std::path::PathBuf| p.into_os_string().into_string().unwrap();
+        assert_eq!(resolve_dest(&home, "repo"), Some(s(home.join("repo"))));
+        assert_eq!(
+            resolve_dest(&home, "src/repo"),
+            Some(s(home.join("src/repo")))
+        );
+        assert_eq!(resolve_dest(&home, abs.to_str().unwrap()), Some(s(abs)));
+        // No home (its lookup failed): nothing to resolve against.
+        assert_eq!(resolve_dest(std::path::Path::new(""), "repo"), None);
+        // A drive-relative path replaces home on the join and is still relative.
+        #[cfg(windows)]
+        assert_eq!(resolve_dest(&home, "C:repo"), None);
     }
 
     fn argv(a: &[&str]) -> Vec<String> {
