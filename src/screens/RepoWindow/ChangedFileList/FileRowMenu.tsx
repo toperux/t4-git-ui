@@ -1,3 +1,4 @@
+import { downloadDir, homeDir, join } from "@tauri-apps/api/path";
 import { save } from "@tauri-apps/plugin-dialog";
 import { Copy, Download, ExternalLink, FolderOpen, History, ListTree, UserSearch } from "lucide-react";
 import * as ipc from "../../../api/ipc";
@@ -53,7 +54,13 @@ export function FileRowMenu({ menu, onClose }: { menu: RowMenuState | null; onCl
   const saveAs = async () => {
     if (!repoId || !tree) return;
     try {
-      const dest = await save({ defaultPath: baseName(path), title: `Save ${baseName(path)}` });
+      // A bare name starts the dialog in the process's working folder on GTK, which inside an
+      // AppImage is the read-only mount: start in Downloads, else home (no `user-dirs.dirs` on Linux).
+      const name = baseName(path);
+      const dir = await downloadDir()
+        .catch(() => homeDir())
+        .catch(() => null);
+      const dest = await save({ defaultPath: dir ? await join(dir, name) : name, title: `Save ${name}` });
       if (!dest) return; // cancelled
       await ipc.saveFileAs(repoId, tree, path, dest);
       useToastStore.getState().push({ kind: "success", title: `Saved ${baseName(path)}`, detail: dest });

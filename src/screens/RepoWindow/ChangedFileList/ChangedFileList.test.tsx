@@ -1,4 +1,6 @@
 import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+import { downloadDir } from "@tauri-apps/api/path";
+import { save } from "@tauri-apps/plugin-dialog";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as ipc from "../../../api/ipc";
 import type { FileChange, TreeEntry } from "../../../api/types";
@@ -20,6 +22,11 @@ vi.mock("../../../api/ipc", () => ({
 // The row menu's native save dialog; `ask` / `open` are what `actions.ts` imports from the plugin.
 vi.mock("@tauri-apps/plugin-dialog", () => ({ save: vi.fn(() => Promise.resolve("C:/out/main.rs")), ask: vi.fn(), open: vi.fn() }));
 vi.mock("@tauri-apps/plugin-clipboard-manager", () => ({ writeText: vi.fn(() => Promise.resolve()) }));
+vi.mock("@tauri-apps/api/path", () => ({
+  downloadDir: vi.fn(() => Promise.resolve("C:/Users/me/Downloads")),
+  homeDir: vi.fn(() => Promise.resolve("C:/Users/me")),
+  join: vi.fn((...parts: string[]) => Promise.resolve(parts.join("/"))),
+}));
 // The real build, counted: an expand must not run it again.
 vi.mock("./fileTree", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./fileTree")>();
@@ -253,6 +260,8 @@ describe("ChangedFileList", () => {
     // A commit's file is not on disk: there is nothing for the file manager to point at.
     expect(queryByRole("menuitem", { name: "Reveal in folder" })).toBeNull();
     fireEvent.click(getByRole("menuitem", { name: "Save as…" }));
+    // Downloads, not a bare name: GTK would start a bare name in the AppImage's read-only mount.
+    await waitFor(() => expect(save).toHaveBeenCalledWith({ defaultPath: "C:/Users/me/Downloads/main.rs", title: "Save main.rs" }));
     await waitFor(() => expect(ipc.saveFileAs).toHaveBeenCalledWith("r", { kind: "commit", oid: "c" }, "src/main.rs", "C:/out/main.rs"));
 
     // Open hands the commit's target along, so the backend opens a temp copy of the blob.
@@ -267,6 +276,15 @@ describe("ChangedFileList", () => {
     fireEvent.click(getByRole("menuitem", { name: "Open" }));
     // The working tree's own file, so no target: `open_path` joins the repository itself.
     await waitFor(() => expect(ipc.openPath).toHaveBeenLastCalledWith("r", "src/main.rs", false, undefined));
+  });
+
+  it("Save as starts at home when there is no Downloads folder", async () => {
+    vi.mocked(downloadDir).mockRejectedValueOnce(new Error("unknown path"));
+    useDiffStore.setState({ repoId: "r", target: { kind: "commit", oid: "c" }, files: [], filesLoading: false, filesError: null, fileListMode: "flat", tab: "files", tree: TREE });
+    const { getByRole } = render(<ChangedFileList />);
+    fireEvent.contextMenu(getByRole("option", { name: /src\/main\.rs/ }), { clientX: 10, clientY: 20 });
+    fireEvent.click(getByRole("menuitem", { name: "Save as…" }));
+    await waitFor(() => expect(save).toHaveBeenLastCalledWith({ defaultPath: "C:/Users/me/main.rs", title: "Save main.rs" }));
   });
 
   it("Blame switches the gutter on for the row's file at this commit, from either tab", async () => {
