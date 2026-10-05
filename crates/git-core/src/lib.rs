@@ -137,16 +137,35 @@ fn appdir_of(
 
 /// What to change in a child's environment: every variable with a path-list entry under one of
 /// `appdirs` loses those entries and its empty ones (`None` when nothing is left), and the
-/// runtime's `APPIMAGE`, `ARGV0`, `OWD` and AppRun's `PYTHONDONTWRITEBYTECODE` go. Variables not
-/// listed stay as they are.
+/// runtime's `APPIMAGE`, `ARGV0`, `OWD` and AppRun's `PYTHONDONTWRITEBYTECODE` go. The two the
+/// app overrides for itself (`main.rs`), `GDK_BACKEND` and `GSETTINGS_BACKEND`, get the user's
+/// value back from where `main.rs` recorded it, `T4_HOST_<name>`, or go when none was recorded;
+/// the `T4_HOST_*` names go. Variables not listed stay as they are.
 fn without_appdir(
     appdirs: &[PathBuf],
     vars: impl IntoIterator<Item = (OsString, OsString)>,
 ) -> Vec<(OsString, Option<OsString>)> {
     const DROPPED: [&str; 4] = ["APPIMAGE", "ARGV0", "OWD", "PYTHONDONTWRITEBYTECODE"];
+    const RESTORED: [(&str, &str); 2] = [
+        ("GDK_BACKEND", "T4_HOST_GDK_BACKEND"),
+        ("GSETTINGS_BACKEND", "T4_HOST_GSETTINGS_BACKEND"),
+    ];
+    let vars: Vec<(OsString, OsString)> = vars.into_iter().collect();
+    let recorded = |host: &str| {
+        vars.iter()
+            .find(|(name, _)| name == host)
+            .map(|(_, value)| value.clone())
+    };
+    let restored: Vec<(OsString, Option<OsString>)> = RESTORED
+        .iter()
+        .flat_map(|(name, host)| [(name.into(), recorded(host)), (host.into(), None)])
+        .collect();
     let inside = |entry: &Path| in_appdir(appdirs, entry);
     let mut out = Vec::new();
     for (name, value) in vars {
+        if RESTORED.iter().any(|(n, h)| name == *n || name == *h) {
+            continue;
+        }
         if DROPPED.iter().any(|d| name == *d) {
             out.push((name, None));
             continue;
@@ -166,6 +185,7 @@ fn without_appdir(
         };
         out.push((name, value));
     }
+    out.extend(restored);
     out
 }
 
@@ -290,6 +310,7 @@ mod tests {
             ("ARGV0", "./T4.AppImage".into()),
             ("OWD", "/home/u".into()),
             ("PYTHONDONTWRITEBYTECODE", "1".into()),
+            ("GSETTINGS_BACKEND", "memory".into()),
         ];
         let got = without_appdir(
             &[d.clone(), d.clone()],
@@ -306,11 +327,44 @@ mod tests {
             ("ARGV0", None),
             ("OWD", None),
             ("PYTHONDONTWRITEBYTECODE", None),
+            // The app's own backends, with nothing of the user's recorded: gone.
+            ("GDK_BACKEND", None),
+            ("T4_HOST_GDK_BACKEND", None),
+            ("GSETTINGS_BACKEND", None),
+            ("T4_HOST_GSETTINGS_BACKEND", None),
         ]
         .into_iter()
         .map(|(k, v)| (k.into(), v))
         .collect();
         assert_eq!(got, want);
+    }
+
+    /// The user's own `GDK_BACKEND` and `GSETTINGS_BACKEND`, recorded by `main.rs`, go back to
+    /// a child in place of the app's; one not recorded is removed; the records themselves go.
+    #[test]
+    fn without_appdir_gives_the_users_backends_back() {
+        let d = env::temp_dir().join(".mount_x");
+        let vars = [
+            ("GDK_BACKEND", "x11"),
+            ("T4_HOST_GDK_BACKEND", "wayland"),
+            ("GSETTINGS_BACKEND", "memory"),
+        ];
+        let got = without_appdir(&[d], vars.into_iter().map(|(k, v)| (k.into(), v.into())));
+        let want: Vec<(OsString, Option<OsString>)> = vec![
+            ("GDK_BACKEND".into(), Some("wayland".into())),
+            ("T4_HOST_GDK_BACKEND".into(), None),
+            ("GSETTINGS_BACKEND".into(), None),
+            ("T4_HOST_GSETTINGS_BACKEND".into(), None),
+        ];
+        assert_eq!(got, want);
+
+        let vars = [
+            ("GSETTINGS_BACKEND", "memory"),
+            ("T4_HOST_GSETTINGS_BACKEND", "keyfile"),
+        ];
+        let got = without_appdir(&[], vars.into_iter().map(|(k, v)| (k.into(), v.into())));
+        assert_eq!(got[0], ("GDK_BACKEND".into(), None));
+        assert_eq!(got[2], ("GSETTINGS_BACKEND".into(), Some("keyfile".into())));
     }
 
     #[test]
@@ -324,7 +378,9 @@ mod tests {
                 canonical.join("usr/lib/gtk-3.0").into_os_string(),
             )],
         );
-        assert_eq!(got, [("GTK_PATH".into(), None)]);
+        // Then the backends, always (`without_appdir_gives_the_users_backends_back`).
+        assert_eq!(got[0], ("GTK_PATH".into(), None));
+        assert_eq!(got.len(), 5);
     }
 
     #[test]
