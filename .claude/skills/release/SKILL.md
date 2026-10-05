@@ -34,9 +34,9 @@ tags may use it, and a run waits for the owner's approval before any `build` leg
 the app** compiles with no secrets in env; the keys reach only the steps after it:
 
 - `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — every leg, in **Bundle
-  and sign**, and on Linux in **Re-sign the AppImage**. The config carries a `pubkey`, so a build
-  without them does not quietly ship unsigned: the bundler aborts with *"A public key has been
-  found, but no private key"*. A missing secret therefore fails **Bundle and sign**, not staging.
+  and sign**. The config carries a `pubkey`, so a build without them does not quietly ship
+  unsigned: the bundler aborts with *"A public key has been found, but no private key"*. A missing
+  secret therefore fails **Bundle and sign**, not staging.
 - `APPLE_CERTIFICATE` and `APPLE_CERTIFICATE_PASSWORD` — **Import the macOS signing certificate**
   only, which runs after **Build the app**.
 - `CERTUM_EMAIL` and `CERTUM_OTP` — the Windows leg's **Bundle and sign** only, read by `ssign`
@@ -116,7 +116,8 @@ carries no version.
    Builds and checks run side by side. Around thirty minutes when the cache is cold, which a tag run
    nearly always is: the Tauri CLI (~10 min) and, on Windows, `ssign` (~3 min) build from source
    (measured on that dry run: legs 07:16–07:45Z). On a warm cache cargo prints `Ignored package … is
-   already installed` instead of `Installed package …`; either is fine.
+   already installed` instead of `Installed package …`, or `Replaced package …` when the cache
+   held an older CLI; any of them is fine.
 
    ```sh
    gh run list --repo toperux/t4-git-ui --limit 3
@@ -163,16 +164,23 @@ carries no version.
   compare it against the fingerprint in the grep. The bundle is unsigned or signed by something
   else; never get past it by dropping the step, because a release that quietly loses the identity
   resets every Mac user's folder grants. Fix and re-run the macOS job; the tag stays.
-- **`Remove libwayland-client from the AppImage` says the library is not in it.** The bundler
-  changed. Check whether Tauri's linuxdeploy now excludes it itself (the upstream excludelist
-  does); if so, drop the repack and re-sign steps and keep the `verify` job's AppImage check.
+- **`Check the AppImage has no libwayland-client` failed.** If it found the library, linuxdeploy
+  bundled `libwayland-client` again, and the AppImage would open blank on newer hosts (0.10.12's
+  bug). Check which CLI or linuxdeploy version changed, and bring the repack back from git history
+  rather than ship. All four pieces were dropped with tauri-cli 2.12.1:
+  `.github/scripts/appimage-strip.sh`, the *Remove libwayland-client* and *Re-sign the AppImage*
+  steps, the `squashfs-tools` apt install with its `1:4.5` floor, and `appimage-digest.py`'s
+  `--write` mode. If it says the AppDir is missing, the bundler no longer leaves `T4 Git UI.AppDir`
+  beside the image: switch the check to listing the built image (`unsquashfs -l -o <offset>`, the
+  offset code in `appimage-strip.sh` in git history, and the `squashfs-tools` install back) rather
+  than drop it.
 - **`verify` failed.** It checks all three `.sig` files against the file each signs, the pubkey in
   `tauri.conf.json` and the release's version. Never get past it by dropping the job: a `.sig`
   that doesn't match breaks every installed copy's update, silently. A signature failure: check
-  the re-sign step ran on the repacked AppImage, and that the signing secrets match the pubkey.
-  `no version: field` or `signed for version X, expected Y`: a `.sig` made without
-  `--app-version`, or against the wrong tree. With `requireSignedVersion` on, every installed copy
-  refuses a version-less `.sig`.
+  that the signing secrets match the pubkey.
+  `no version: field` or `signed for version X, expected Y`: a `.sig` from a CLI that doesn't
+  bind the version (older than 2.11.5), or one made by hand without `--app-version`, or against the
+  wrong tree. With `requireSignedVersion` on, every installed copy refuses a version-less `.sig`.
 - **`Set up Windows code signing` failed (the `ssign` build), or the Windows `Bundle and sign`
   failed on the sign.** For the sign, `ssign -v` in the log shows the stage that failed: login,
   certificate or signing. Check the Certum secrets in the `signing` environment. The certificate
@@ -181,7 +189,7 @@ carries no version.
   timestamped:` for the installer and each exe in it; a missing timestamp fails it too. A wrong
   thumbprint means a different certificate signed it; never get past it by bypassing the step.
 - **`Pin the AppImage tools` failed, or `Bundle and sign` says "bundler downloaded a tool the pins
-  do not cover".** A tool's hash or URL changed, or a CLI bump moved the bundler. Re-derive the six
+  do not cover".** A tool's hash or URL changed, or a CLI bump moved the bundler. Re-derive the four
   names, URLs and hashes from the bundler source at the pinned CLI version.
 - **A dry-run draft or `dry-run-<run_id>` tag is left behind.** Delete it by hand:
   `gh release delete dry-run-<id> --yes --repo toperux/t4-git-ui`, and the tag ref if one exists

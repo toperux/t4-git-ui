@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
-"""Check or rewrite a type-2 AppImage's embedded MD5 digest (.digest_md5).
+"""Check a type-2 AppImage's embedded MD5 digest (.digest_md5).
 
-Usage: appimage-digest.py --check|--write <file.AppImage>
+Usage: appimage-digest.py --check <file.AppImage>
 
 appimagetool embeds an MD5 of the whole file in the runtime's .digest_md5
-section; appimage-strip.sh changes the payload, so it rewrites the digest here.
-This reproduces appimagetool's appimage_type2_digest_md5 (src/digest.c) exactly,
-quirks included: the file is hashed in 4096-byte chunks, the .digest_md5,
-.sha256_sig and .sig_key sections are skipped, and the skipped bytes and the
-last chunk's tail are whatever the reused buffer held from the chunk before,
-not zeros. --check against the untouched image is what proves the emulation
-still matches the tool that built it.
+section. This reproduces appimagetool's appimage_type2_digest_md5 (src/digest.c)
+exactly, quirks included: the file is hashed in 4096-byte chunks, the
+.digest_md5, .sha256_sig and .sig_key sections are skipped, and the skipped
+bytes and the last chunk's tail are whatever the reused buffer held from the
+chunk before, not zeros. --check against an image appimagetool built is what
+proves the emulation still matches the tool.
 """
 import hashlib
 import struct
@@ -80,17 +79,12 @@ def digest(secs):
 
 
 secs = sections()
-offset, size = secs[".digest_md5"]
+offset, _ = secs[".digest_md5"]
 stored = bytes(data[offset:offset + 16])
 actual = digest(secs)
 if mode == "--check":
     if stored != actual:
         sys.exit(f"{path}: .digest_md5 is {stored.hex()}, the file hashes to {actual.hex()}")
     print(f"digest ok: {actual.hex()}")
-elif mode == "--write":
-    with open(path, "r+b") as fh:
-        fh.seek(offset)
-        fh.write(actual)
-    print(f"digest written: {actual.hex()}")
 else:
     sys.exit(f"unknown mode {mode}")
