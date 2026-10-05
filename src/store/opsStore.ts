@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import * as ipc from "../api/ipc";
 import { toAppError } from "../api/ipc";
-import type { AppError, OpEvent, OpFailure, OpResult, RepoId } from "../api/types";
+import type { AppError, AuthCause, OpEvent, OpFailure, OpResult, RepoId } from "../api/types";
 import { useDialogStore } from "./dialogStore";
 import { useRepoStore } from "./repoStore";
 import { useStatusStore } from "./statusStore";
@@ -160,6 +160,26 @@ export interface RunOpOptions {
 
 export type OpOutcome = { ok: true } | { ok: false; error: AppError | null; failure: OpFailure | null };
 
+/** Title + what to do for a failed login, by cause. The clone dialog shows the same words. */
+export function authFailedText(cause: AuthCause): { title: string; detail: string } {
+  switch (cause) {
+    case "hostKeyChanged":
+      return { title: "Host key changed — possible attack or server rebuild", detail: "Verify the new key with the server's admin before updating known_hosts" };
+    case "hostKey":
+      // Neutral on purpose: a changed key ends in the same line, so this must not say "accept".
+      return { title: "Host key not trusted", detail: "Connect once from a terminal (e.g. ssh -T git@<host>) and follow what ssh says" };
+    case "sshKey":
+      return { title: "SSH key not accepted", detail: "Load your key into the agent (ssh-add), or add its public key to your account on the server" };
+    case "noCredentials":
+      return {
+        title: "Credentials needed",
+        detail: "Sign in once from a terminal (e.g. git fetch) so your credential helper stores them, or use Git Credential Manager",
+      };
+    case "rejected":
+      return { title: "Authentication failed — credentials were rejected", detail: "Update the stored credentials" };
+  }
+}
+
 /** Toast title + optional detail / action for a classified streaming failure. */
 export function failureToast(f: OpFailure): { title: string; detail?: string; action?: { label: string; onClick: () => void } } {
   switch (f.kind) {
@@ -176,7 +196,7 @@ export function failureToast(f: OpFailure): { title: string; detail?: string; ac
       // An `--ff-only` pull has already fetched: telling it to pull again is wrong.
       return { title: "Cannot fast-forward — the branches have diverged" };
     case "authFailed":
-      return { title: "Authentication failed — check your credential helper" };
+      return authFailedText(f.cause);
     case "paused":
       // git's own "Stopped at …" / "execution failed: …" line: it names the commit that stopped.
       return { title: f.message, detail: "Continue or abort from the banner" };

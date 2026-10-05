@@ -78,30 +78,40 @@ pub struct CloneOpts {
 pub enum OpFailure {
     /// Merge / rebase / pull stopped on conflicts (paths as reported by git;
     /// callers refine them from `status()`).
-    Conflicts {
-        paths: Vec<String>,
-    },
+    Conflicts { paths: Vec<String> },
     /// A rebase stopped without conflicts — an `edit` line, or an `exec` that
     /// failed — carrying git's own line ("Stopped at …" / "execution failed: …").
     /// Decided from the repository state, not from the exit code (an `edit`
     /// stop exits 0), so `classify_failure` never returns it.
-    Paused {
-        message: String,
-    },
+    Paused { message: String },
     /// Push rejected as non-fast-forward: the remote has commits we lack.
     NonFastForward,
     /// `--ff-only` pull (the fetch already happened) / merge that cannot
     /// fast-forward: the branches have diverged.
     Diverged,
-    AuthFailed,
+    /// ssh or git could not log in; `cause` says why, and so what to do.
+    AuthFailed { cause: AuthCause },
     /// Any other `! [rejected]` / `! [remote rejected]` line.
-    Rejected {
-        message: String,
-    },
+    Rejected { message: String },
     /// Last `fatal:` / `error:` line (or, for advice without one, the first stderr line).
-    Other {
-        message: String,
-    },
+    Other { message: String },
+}
+
+/// Why a login failed, from the line ssh or git printed ([`AUTH_PATTERNS`]).
+/// Its own `rename_all`: `OpFailure`'s renames that enum's variants only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AuthCause {
+    /// ssh's "REMOTE HOST IDENTIFICATION HAS CHANGED": an attack, or a rebuilt server.
+    HostKeyChanged,
+    /// "Host key verification failed": a host not in `known_hosts` yet.
+    HostKey,
+    /// "Permission denied (publickey)": no key loaded, or the server doesn't know it.
+    SshKey,
+    /// git had to ask for a user name or password and can't (`GIT_TERMINAL_PROMPT=0`).
+    NoCredentials,
+    /// The server turned the credentials down.
+    Rejected,
 }
 
 fn args<const N: usize>(fixed: [&str; N]) -> Vec<String> {
@@ -615,14 +625,23 @@ fn conflict_path(line: &str) -> Option<String> {
     (!path.is_empty()).then(|| path.to_string())
 }
 
-const AUTH_PATTERNS: &[&str] = &[
-    "Authentication failed",
-    "could not read Username",
-    "could not read Password",
-    "terminal prompts disabled",
-    "Permission denied (publickey",
-    "Host key verification failed",
-    "authentication failed",
+/// A login failure's line → its cause, checked in this order over the whole stderr. A changed
+/// host key's banner comes with "Host key verification failed.", so it goes first; past that,
+/// order only matters when stderr mixes several remotes' failures (`fetch --all`, submodules).
+const AUTH_PATTERNS: &[(&str, AuthCause)] = &[
+    (
+        "REMOTE HOST IDENTIFICATION HAS CHANGED",
+        AuthCause::HostKeyChanged,
+    ),
+    ("Host key verification failed", AuthCause::HostKey),
+    ("Permission denied (publickey", AuthCause::SshKey),
+    ("could not read Username", AuthCause::NoCredentials),
+    ("could not read Password", AuthCause::NoCredentials),
+    // What git says instead under `credential.interactive=false`.
+    ("unable to get password from user", AuthCause::NoCredentials),
+    ("terminal prompts disabled", AuthCause::NoCredentials),
+    ("Authentication failed", AuthCause::Rejected),
+    ("authentication failed", AuthCause::Rejected),
 ];
 
 const NON_FF_PATTERNS: &[&str] = &["non-fast-forward", "(fetch first)"];
@@ -666,8 +685,8 @@ pub fn classify_failure(code: i32, stdout: &str, stderr: &str) -> OpFailure {
     {
         return OpFailure::Conflicts { paths };
     }
-    if AUTH_PATTERNS.iter().any(|p| stderr.contains(p)) {
-        return OpFailure::AuthFailed;
+    if let Some(&(_, cause)) = AUTH_PATTERNS.iter().find(|(p, _)| stderr.contains(p)) {
+        return OpFailure::AuthFailed { cause };
     }
     if NON_FF_PATTERNS.iter().any(|p| stderr.contains(p)) {
         return OpFailure::NonFastForward;
@@ -1330,13 +1349,39 @@ mod tests {
 
     #[test]
     fn auth_patterns() {
-        for s in [
-            "fatal: Authentication failed for 'https://x/y.git/'\n",
-            "fatal: could not read Username for 'https://x': terminal prompts disabled\n",
-            "git@x: Permission denied (publickey).\nfatal: Could not read from remote repository.\n",
+        use AuthCause::*;
+        let changed = "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n\
+                       @    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\n\
+                       @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n\
+                       IT IS POSSIBLE THAT SOMEONE IS DOING SOMETHING NASTY!\n\
+                       Host key verification failed.\n\
+                       fatal: Could not read from remote repository.\n";
+        // One row per pattern. The publickey, host-key and Username lines are verbatim from the
+        // 2026-09-27 measurement, and "unable to get password" from the 2026-10-06 Windows walk;
+        // the others are made up to hold their pattern alone.
+        for (s, cause) in [
+            (changed, HostKeyChanged),
+            ("Host key verification failed.\nfatal: Could not read from remote repository.\n", HostKey),
+            ("git@github.com: Permission denied (publickey).\nfatal: Could not read from remote repository.\n", SshKey),
+            ("fatal: could not read Username for 'https://github.com': terminal prompts disabled\n", NoCredentials),
+            ("fatal: could not read Password for 'http://u@127.0.0.1:8000': No such device or address\n", NoCredentials),
+            ("fatal: unable to get password from user\n", NoCredentials),
+            ("error: terminal prompts disabled\n", NoCredentials),
+            ("fatal: Authentication failed for 'https://x/y.git/'\n", Rejected),
+            ("remote: HTTP Basic: authentication failed\n", Rejected),
         ] {
-            assert_eq!(classify_failure(128, "", s), OpFailure::AuthFailed, "{s}");
+            assert_eq!(classify_failure(128, "", s), OpFailure::AuthFailed { cause }, "{s}");
         }
+        // Two remotes failing in one `fetch --all`: the host key wins even though the other
+        // remote's publickey line comes first.
+        let mixed = "git@a: Permission denied (publickey).\n\
+                     fatal: Could not read from remote repository.\n\
+                     Host key verification failed.\n\
+                     fatal: Could not read from remote repository.\n";
+        assert_eq!(
+            classify_failure(128, "", mixed),
+            OpFailure::AuthFailed { cause: HostKey }
+        );
     }
 
     #[test]
@@ -1439,6 +1484,13 @@ mod tests {
         assert_eq!(
             serde_json::to_value(OpFailure::Diverged).unwrap(),
             serde_json::json!({ "kind": "diverged" })
+        );
+        assert_eq!(
+            serde_json::to_value(OpFailure::AuthFailed {
+                cause: AuthCause::HostKey
+            })
+            .unwrap(),
+            serde_json::json!({ "kind": "authFailed", "cause": "hostKey" })
         );
         assert_eq!(
             serde_json::to_value(OpFailure::Rejected {

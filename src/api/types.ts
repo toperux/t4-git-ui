@@ -619,12 +619,15 @@ export interface RemoteTag {
   oid: string;
 }
 
+/** Why a login failed (`AuthCause` in `cli/ops.rs`): what ssh or git printed decides it. */
+export type AuthCause = "hostKeyChanged" | "hostKey" | "sshKey" | "noCredentials" | "rejected";
+
 /** `#[serde(tag = "kind")]` — why a streamed op exited non-zero. */
 export type OpFailure =
   | { kind: "conflicts"; paths: string[] }
   | { kind: "nonFastForward" }
   | { kind: "diverged" }
-  | { kind: "authFailed" }
+  | { kind: "authFailed"; cause: AuthCause }
   /** A rebase stopped and is still in progress (an `edit` line, or an `exec` a hook rejected). */
   | { kind: "paused"; message: string }
   | { kind: "rejected"; message: string }

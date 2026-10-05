@@ -836,7 +836,7 @@ fn failure_message(f: &OpFailure) -> String {
         OpFailure::Conflicts { paths } => format!("conflicts in {} file(s)", paths.len()),
         OpFailure::NonFastForward => "non-fast-forward".into(),
         OpFailure::Diverged => "not possible to fast-forward".into(),
-        OpFailure::AuthFailed => "authentication failed".into(),
+        OpFailure::AuthFailed { .. } => "authentication failed".into(),
         OpFailure::Paused { message }
         | OpFailure::Rejected { message }
         | OpFailure::Other { message } => message.clone(),

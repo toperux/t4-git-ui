@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpResult, RepoSummary } from "../api/types";
+import type { AuthCause, OpResult, RepoSummary } from "../api/types";
 import { useDialogStore } from "./dialogStore";
 import { __cancelledForTests, MAX_LINES, MAX_OPS, MAX_TOTAL_LINES, runOp, TRUNCATED, useOpsStore } from "./opsStore";
 import { __resetForTests as resetRepo, useRepoStore } from "./repoStore";
@@ -283,11 +283,31 @@ describe("runOp", () => {
   });
 
   it("authFailed / other → toasts", async () => {
-    await runOp("Pushing…", () => Promise.resolve({ ...ok, code: 128, failure: { kind: "authFailed" } }));
+    await runOp("Pushing…", () => Promise.resolve({ ...ok, code: 128, failure: { kind: "authFailed", cause: "rejected" } }));
     await runOp("Merging…", () => Promise.resolve({ ...ok, code: 128, failure: { kind: "other", message: "fatal: refusing to merge unrelated histories" } }));
     expect(toasts()).toMatchObject([
-      { kind: "error", title: "Authentication failed — check your credential helper" },
+      { kind: "error", title: "Authentication failed — credentials were rejected", detail: "Update the stored credentials" },
       { kind: "error", title: "Operation failed", detail: "fatal: refusing to merge unrelated histories" },
+    ]);
+  });
+
+  it("authFailed names its cause and what to do", async () => {
+    const causes: AuthCause[] = ["hostKeyChanged", "hostKey", "sshKey", "noCredentials", "rejected"];
+    for (const cause of causes) await runOp("Fetching…", () => Promise.resolve({ ...ok, code: 128, failure: { kind: "authFailed", cause } }));
+    expect(toasts().map(({ kind, title, detail }) => ({ kind, title, detail }))).toEqual([
+      {
+        kind: "error",
+        title: "Host key changed — possible attack or server rebuild",
+        detail: "Verify the new key with the server's admin before updating known_hosts",
+      },
+      { kind: "error", title: "Host key not trusted", detail: "Connect once from a terminal (e.g. ssh -T git@<host>) and follow what ssh says" },
+      { kind: "error", title: "SSH key not accepted", detail: "Load your key into the agent (ssh-add), or add its public key to your account on the server" },
+      {
+        kind: "error",
+        title: "Credentials needed",
+        detail: "Sign in once from a terminal (e.g. git fetch) so your credential helper stores them, or use Git Credential Manager",
+      },
+      { kind: "error", title: "Authentication failed — credentials were rejected", detail: "Update the stored credentials" },
     ]);
   });
 
@@ -296,13 +316,13 @@ describe("runOp", () => {
     expect(out).toMatchObject({ ok: false, failure: { kind: "other" } });
     expect(toasts()).toHaveLength(0);
     await runOp("git merge x", () => Promise.resolve({ ...ok, code: 1, conflicts: ["a"], failure: { kind: "conflicts", paths: ["a"] } }), { quietFailure: true });
-    await runOp("git push", () => Promise.resolve({ ...ok, code: 128, failure: { kind: "authFailed" } }), { quietFailure: true });
+    await runOp("git push", () => Promise.resolve({ ...ok, code: 128, failure: { kind: "authFailed", cause: "sshKey" } }), { quietFailure: true });
     await runOp("git push", () => Promise.resolve({ ...ok, code: 1, failure: { kind: "nonFastForward" } }), { quietFailure: true });
     // A typed `git pull --ff-only` is `quietFailure` too, and its diverged exit needs the toast.
     await runOp("git pull --ff-only", () => Promise.resolve({ ...ok, code: 1, failure: { kind: "diverged" } }), { quietFailure: true });
     expect(toasts().map((t) => t.title)).toEqual([
       "1 conflict — resolve in the commit panel",
-      "Authentication failed — check your credential helper",
+      "SSH key not accepted",
       "Rejected: remote has new commits — Pull first",
       "Cannot fast-forward — the branches have diverged",
     ]);
