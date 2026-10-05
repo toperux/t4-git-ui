@@ -199,7 +199,7 @@ impl Batch {
 /// `git <args>` in `repo_dir` with every setting a git run gets here, so no
 /// caller can drift from another: no prompt, no editor, `LC_ALL=C`, no
 /// optional locks, piped stdout / stderr, killed with its handle, no console
-/// window on Windows and its own process group on Unix. stdin is the caller's.
+/// window on Windows and its own session on Unix. stdin is the caller's.
 pub(crate) fn git_command(git_path: &str, repo_dir: &Path, args: &[&str]) -> Command {
     let mut cmd = Command::from(host_command(git_path));
     cmd.args(args)
@@ -223,8 +223,23 @@ pub(crate) fn git_command(git_path: &str, repo_dir: &Path, args: &[&str]) -> Com
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
+    // Its own session, not just its own process group: with no controlling terminal, ssh
+    // can't open the one the app was launched from (where it would be stopped as a
+    // background group, and the op hang), so it goes to the askpass or fails at once.
+    // Not alongside `process_group(0)`: std runs `setpgid` first, and `setsid` then
+    // fails with EPERM for a group leader.
     #[cfg(unix)]
-    cmd.process_group(0);
+    {
+        // SAFETY: `setsid` is one async-signal-safe syscall and takes no lock.
+        unsafe {
+            cmd.pre_exec(|| {
+                if libc::setsid() == -1 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                Ok(())
+            });
+        }
+    }
     cmd
 }
 
@@ -496,8 +511,9 @@ impl ProcessTree {
         }
         #[cfg(unix)]
         if let Some(pgid) = self.pgid {
-            // The child is the group leader (`process_group(0)`), so this
-            // reaches every descendant that hasn't called `setsid`.
+            // The child leads its own session (`setsid`), and so its own
+            // group, whose id is its pid: this reaches every descendant
+            // that hasn't called `setsid` itself.
             // SAFETY: plain libc call with a pgid we own.
             if unsafe { libc::kill(-pgid, libc::SIGKILL) } == 0 {
                 return;
@@ -859,6 +875,33 @@ mod tests {
             elapsed < Duration::from_millis(500),
             "cancel took {elapsed:?}"
         );
+    }
+
+    /// git runs in its own session, so ssh can't open the terminal the app was
+    /// started from. The session id is field 6 of `/proc/self/stat`, read by a
+    /// child of git's (`ps -o sid=` isn't everywhere).
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn git_runs_in_its_own_session() {
+        if !have_git() {
+            return;
+        }
+        let t = TempRepo::new();
+        let out = GitCli::new("git")
+            .run(
+                t.path(),
+                "op-sid",
+                &["-c", "alias.sid=!cut -d' ' -f6 /proc/self/stat", "sid"],
+                None,
+                CancellationToken::new(),
+                |_| {},
+            )
+            .await
+            .expect("run");
+        assert_eq!(out.code, 0, "{:?}", out.stderr);
+        let sid: i32 = out.stdout.trim().parse().expect("a session id");
+        // SAFETY: plain libc call about this process.
+        assert_ne!(sid, unsafe { libc::getsid(0) });
     }
 
     /// A hook that backgrounds a child without redirecting it leaves the pipe's
