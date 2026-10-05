@@ -180,52 +180,6 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
 - **ssh under the moved `HOME` (T4):** done 2026-09-27, moved to `open-items-done.md` §P on 2026-09-28; its
   accepted cases are in §Q (*Linux harness: ssh cases not covered under the moved `HOME`*). Prompts are the row
   below.
-- **ssh prompts the app can't answer well (found in the T4 review; measured 2026-09-27).**
-  - **The setup:** the git runner (`crates/git-core/src/cli/runner.rs`) sets no `SSH_ASKPASS` or `BatchMode`, and
-    runs git with stdin null. The app has no ssh prompt UI, and a stuck op ends only on Cancel. There is no timeout:
-    an accepted limit, moved to §Q (*No timeout on git ops*), 2026-09-28.
-  - **What ssh does when it has to ask:** it asks about a key's passphrase (with no agent) and about an unknown host
-    key. From a desktop launch, with no terminal, it falls back to `SSH_ASKPASS` (Ubuntu's default is
-    `/usr/bin/ssh-askpass`) when `DISPLAY` or `WAYLAND_DISPLAY` is set.
-    - **No askpass installed** (the 2026-09-27 machine), or no display: it fails at once. Either the key isn't used
-      (`Permission denied (publickey)`), or "Host key verification failed".
-    - **An askpass installed:** a desktop user gets its dialog, and it works. On the harness's Xvfb nobody sees it,
-      so the op hangs until Cancel.
-    - **A terminal launch:** ssh opens the terminal from a background process group, gets stopped, and the op hangs
-      until Cancel. This affects development only.
-  - **Scope:** Linux, and macOS (which fails at once without `DISPLAY`). Windows is unchecked: Git for Windows
-    ships its own askpass.
-  - **https has no prompt either** (added in triage, 2026-09-27). On Linux and macOS, with no helper that can prompt,
-    an https op that needs auth fails at once. `GIT_TERMINAL_PROMPT=0` turns the terminal off, and git asks no
-    askpass unless one is configured (`GIT_ASKPASS`, `core.askPass` or an exported `SSH_ASKPASS`, not ssh's built-in
-    default). osxkeychain and libsecret only store credentials, so a first auth still fails. With an exported
-    `SSH_ASKPASS`, the prompt appears, and on Xvfb it would hang unseen. Windows has GCM, which prompts (done file
-    §B, "Dogfooding, the credential half"; that laptop is Windows, confirmed 2026-09-27). The decision below covers
-    both: a clear message for each.
-  - **Measured 2026-09-27** (`docs/archive/plans/2026-09-27-ssh-prompts-check-and-cli-pin-plan.md`, Part A).
-    - **How:** the app's environment (`LC_ALL=C GIT_TERMINAL_PROMPT=0`, stdin null, no terminal under `setsid`)
-      with `timeout 30`, against GitHub.
-    - **Setup:** `DISPLAY` set; no `SSH_ASKPASS`, `GIT_ASKPASS`, `core.askPass` or credential helper;
-      `/usr/bin/ssh-askpass` missing; `StrictHostKeyChecking ask`.
-    - **A passphrase key, no agent:** 1.4 s. ssh tried the askpass
-      (`exec(/usr/bin/ssh-askpass): No such file or directory`), then `Permission denied (publickey)`.
-    - **The same with `BatchMode=yes`:** 1.4 s, `Permission denied (publickey)`, with no askpass attempt.
-    - **An unknown host key:** 0.9 s. The askpass was attempted, then `Host key verification failed`.
-    - **The same with `BatchMode=yes`:** 0.9 s, `Host key verification failed`.
-    - **https that needs auth:** 0.5 s,
-      `could not read Username for 'https://github.com': terminal prompts disabled`.
-    - **None hangs.** Each exits 128. The ssh cases end with git's `fatal: Could not read from remote repository.`
-    - `BatchMode` changes nothing the user sees here: it only skips the askpass attempt.
-    - The ssh messages don't say why (a passphrase, a new host). The https one is clear enough.
-    - The real `known_hosts` was unchanged (md5), and the scratch one stayed empty.
-    - **Holds for this setup only:** with an askpass installed or exported, ssh and git would show a dialog instead
-      (and hang unseen on Xvfb).
-  - **Decided 2026-09-27: fail fast with a clear message.** The app recognises these failures and names the cause
-    and the fix. The in-app prompt and "leave it as is" were rejected.
-    - **Reversed in planning:** `BatchMode=yes` is dropped. Without an askpass, ssh already fails fast, and
-      `BatchMode` would only remove working askpass dialogs.
-    - Plus the terminal-launch `setsid` fix, and clone classification.
-    - Plan: `docs/plans/2026-09-27-ssh-fail-fast-plan.md`, reviewed and decided; its own PR after #18.
 - ~~**`xclip` (T9).**~~ Done 2026-09-26 (triage): it was installed, and is now a listed prerequisite.
 - **Re-test WebDriver with two windows (T7)** once the restore hang is fixed (two came up on 2026-09-27 in WSL; not
   a verdict). If it works, multi-window rows get DOM access back.
@@ -669,6 +623,11 @@ phases that accepted them; each origin keeps a pointer.
   until quit + relaunch, after which it read "Open in nosuch" (`settingsStore.ts:87-96`). Accepted 2026-10-06 (the
   Linux track's C+D walk). **Reopen:** a report that a tool set outside the app isn't picked up. *From
   `docs/archive/walks/2026-10-06-linux-track-c-d-walk.md`.*
+- **A local clone into its own source folder makes an empty repository.** The Clone dialog auto-fills the folder
+  name from a local path inside the chosen parent; git creates the destination, finds it as an empty source and
+  "clones" an empty repository, which the app opens. Measured on Windows; git's own behaviour; pre-existing.
+  Accepted 2026-10-06 (the ssh-fail-fast triage, T11). **Reopen:** a report of an empty repository after a local
+  clone.
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review, deferred
 

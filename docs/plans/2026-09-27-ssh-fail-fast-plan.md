@@ -4,6 +4,9 @@ _Written 2026-09-27, revised through review round 2. Source: the open-items row 
 measured the same day (Part A of `docs/archive/plans/2026-09-27-ssh-prompts-check-and-cli-pin-plan.md`). The user chose
 "fail fast with a clear message"._
 
+**Executed 2026-10-06** on the owner's go, on branch `ssh-fail-fast`: walked on Windows and Linux; review passes 1–5
+found no blockers; triage done. Ships in the next release.
+
 ## Refresh (2026-10-06, against `main` `c9e2dc4`)
 
 Nothing here is implemented yet. The design and the decisions hold. Every "What is known" fact still reads true in the
@@ -218,7 +221,7 @@ On Unix, run git in its own session instead of just its own process group: **rep
 ## Decisions (2026-09-27)
 
 1. **Clone:** in, via (a): a new `authFailed` error kind, rendered with the same cause text. Other failures show the
-   last `fatal:` line.
+   last `fatal:` line. **(amended 2026-10-06: the first `fatal:` line, W2)**
 2. **`BatchMode`:** A, no runner change. This reverses the earlier "`BatchMode=yes`": the measurements showed
    `BatchMode` would only remove working askpass dialogs.
 3. **The harness guard:** added: `SSH_ASKPASS_REQUIRE=never` plus `GIT_ASKPASS=` on the `tauri-driver` line.
@@ -241,3 +244,46 @@ On Unix, run git in its own session instead of just its own process group: **rep
 - The changed-host-key stderr wasn't checked against a real sshd (none installed); it rests on the OpenSSH source
   (`error()` for the banner, then `fatal()`, both to stderr).
 - The `setsid` test runs on Linux only.
+
+## Execution and rulings (2026-10-06)
+
+- **The coder's deviations (round 1):** the toast text's wording was approved without the backticks the plan's
+  draft used; the clone banner wraps for an auth error (a new `wrap` prop on the shared `Banner`, used only by the
+  Clone dialog).
+- **Windows walk findings and rulings:**
+  - **W1:** `credential.interactive=false` makes git print "fatal: unable to get password from user", which fell
+    to `Other` ("Operation failed"). Ruled: add the pattern to `NoCredentials`.
+  - **W2:** a missing local source prints two `fatal:` lines; the banner showed the last one, losing the cause on
+    the line before. Ruled: show the **first** `fatal:` line instead. This amends Decision 1 above, which said
+    "last".
+  - **W3:** a failed clone logged nothing (only a success logs "cloned"). Ruled: log clone failures too, and
+    redact userinfo from clone URLs in the log — the existing "cloned" line was leaking `https://user:password@…`
+    URLs to the log, pre-existing.
+- **Credential-leak rulings (round 4, after the owner's re-look):** the debug "spawned git" line, the dock's
+  started-event command, and the CLI error command (blame/history/status) showed a URL's credentials. Ruled: all
+  three go through `display_cmd`, which now redacts every argument with userinfo in a URL.
+- **The banner icon:** aligned beside the first line on a wrapped banner, not kept vertically centred.
+- **Triage T1–T12** (the running triage list, 2026-10-06):
+  - T1 icon on a wrapped banner: fixed (aligned to the first line).
+  - T2 the Clone dialog's own frontend preview shows the typed password: accepted, closed.
+  - T3 `display_cmd` shortens any URL-like argument with userinfo, even outside a clone (e.g. a commit message):
+    accepted, closed.
+  - T4 an unescaped `/` in a URL password isn't stripped by `redact_url`: accepted, closed.
+  - T5 `GitError::AuthFailed`'s message is the bare cause, clone-only today: accepted, closed.
+  - T6 ops reporting through `cli_failure` (rebase -i, checkout -b, worktree remove, tag -a) keep the plain
+    "authentication failed" with no cause: accepted, closed.
+  - T7 other spawns via `host_command` get no `setsid`: accepted, closed.
+  - T8 a stray "Couldn't open repository" toast from an earlier StartScreen test's `openRepo` mock: fixed (the
+    mock now returns a proper repo summary).
+  - T9 hand-written test stderr lines and a rebuilt/abbreviated changed-host-key banner (not captured from a real
+    sshd): accepted, closed.
+  - T10 a live check of the redacted dock/log/debug lines: fixed by a walk (a 401 clone with `user:secret`,
+    `RUST_LOG=debug`).
+  - T11 a local clone into its own source folder makes an empty repository (pre-existing git behaviour): accepted,
+    moved to `open-items.md` §Q.
+  - T12 the reviewers' and coder's "fine" list across passes 1–4 (pattern order, serde shapes, callers exhaustive,
+    clone fallback, setsid/kill pgid, `pre_exec` safety, cfg compile, wording, test counts, rustfmt noise, README
+    line drift, a rustc OOM rerun, the `stage.rs` quoting side effect, git's own ssh `-G` probe, a cancelled GCM
+    dialog as an accepted limit, a tester's own mangled-path warning): accepted, closed.
+- **The parent-folder ruling:** a failed clone leaves an empty parent folder that git created, when the chosen
+  parent didn't exist before. Accepted, closed.

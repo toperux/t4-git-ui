@@ -907,6 +907,12 @@ fixes and the walk added three more. The walk is `docs/archive/walks/2026-09-19-
     `07333c6`, the gtk and gstreamer scripts dropped (the bundler embeds them). linuxdeploy `07333c6` excludes
     `libwayland-client` itself, so the AppImage repack and its re-sign are gone, and a new step fails the run if the
     library comes back. The release's dry run and the v0.10.19 gate prove the pipeline (the plan's Verify).
+- ~~**ssh prompts the app can't answer well (found in the T4 review; measured 2026-09-27).**~~ Fixed 2026-10-06 on
+  the `ssh-fail-fast` branch (`docs/plans/2026-09-27-ssh-fail-fast-plan.md`), walked on Windows and Linux: `authFailed`
+  now names its cause (a changed or untrusted host key, an ssh key not accepted, credentials needed or rejected) and
+  what to do; a failed clone is classified the same way, showing the first `fatal:` line rather than
+  "Cloning into…"; on Unix git runs in its own session (`setsid`), so a terminal launch no longer hangs ssh. No
+  timeout on a stuck op stays an accepted limit, in `open-items.md` §Q (*No timeout on git ops*).
 
 ## Q. Accepted limits — the rows since closed
 
@@ -1429,3 +1435,28 @@ No reopen trigger on any of these.
   `atk-bridge` under the private bus): harness noise.
 - **G2** The editor opened on Xvfb instead of the real desktop, unlike the v0.10.18 gate: a harness difference
   between the two runs, cause not traced.
+
+## AB. Added 2026-10-06 — ssh fail-fast: accepted, closed
+
+Ruled by the owner 2026-10-06, in the `ssh-fail-fast` triage (`docs/plans/2026-09-27-ssh-fail-fast-plan.md`,
+"Execution and rulings"). No reopen trigger on any of these.
+
+- **T2** The Clone dialog's own frontend-built preview (and the "$ git clone …" line) shows the typed password —
+  the user's own input, also visible in the URL field.
+- **T3** `display_cmd` shortens any URL-like argument carrying userinfo, not just a clone URL (e.g. a commit
+  message containing a URL with a username).
+- **T4** An unescaped `/` in a URL's password isn't stripped by `redact_url`.
+- **T5** `GitError::AuthFailed`'s message is the bare cause, clone-only today (any non-clone command returning it
+  would toast the raw cause word, such as "hostKey").
+- **T6** Ops reporting through `cli_failure` (rebase -i, checkout -b, worktree remove, tag -a) keep the plain
+  "authentication failed", with no cause.
+- **T7** Other spawns via `host_command` (`git --version`, `history.rs`, tools, `conflict.rs`) get no `setsid`;
+  believed not to reach ssh.
+- **T9** The Rust test uses hand-written stderr lines, and an abbreviated/rebuilt changed-host-key banner (not
+  captured from a real sshd).
+- **T12** The reviewers' and coder's "fine" list across review passes 1–4: test row counts; rustfmt reformatting
+  untouched variants; README line drift; a rustc OOM that passed on rerun (toolchain, not code); the `stage.rs`
+  quoting side effect from switching to `display_cmd`; git's own ssh `-G` probe also hitting the stub (harmless);
+  a cancelled GCM dialog reading as `NoCredentials` (an accepted limit); and a tester's own mangled-path warning.
+- **The parent-folder ruling:** a failed clone leaves an empty parent folder that git created, when the chosen
+  parent didn't exist before.
