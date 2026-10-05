@@ -966,6 +966,12 @@ stays.
   History / Changes switch (D3), and Option+↓ still opens the list. Walked as smoke group BN 4 on the Mac (`ef1855d`;
   `docs/archive/walks/2026-10-04-phase-5-macos-walk.md`). Its accepted edges (Option+digit characters, Option+Space,
   ⌘+Option) are in §Z. *From `open-items.md` §R (Phase 2a's change review).*
+- **Esc after a self-disabling control was unverified on WebKitGTK.** The Phase 2a fix (`Dialog.tsx`, a document
+  `keydown` listener for Esc / Tab on `<body>`) rested on focus falling to `<body>` when the focused button
+  disables itself; walked on WebView2 only (BH 4), not on WebKitGTK. **Verified 2026-10-06** (the Linux track's
+  C+D walk, C1): on the Linux VM, Check now's `activeElement` goes BUTTON (disabled) → BODY within 30 ms, and a
+  real Escape at +154 ms (target BODY) closes Settings by +300 ms; same result once the check has finished.
+  `docs/archive/walks/2026-10-06-linux-track-c-d-walk.md`.
 
 ## S. Added 2026-09-29 — v0.10.13's AppImage release walk: the rows since closed
 
@@ -1099,6 +1105,20 @@ T10 is the sibling app's README comma, to be pushed there on the owner's word.)
   (`crates/git-core/tests/global_config.rs`), which also redirects libgit2's ProgramData config level, so a
   machine-wide `C:\ProgramData\Git\config` can't leak into it (C-9; not part of the cause). **Reopen:** the
   `git init … expected N bytes` error seen again. Case (a), the CRLF `add_path` error, stays open there.
+- **Row 3's unix tool-start walk.** `~/t4-no-such-tool "$LOCAL" "$REMOTE"` on Linux, an error toast within
+  ~300 ms (exit 127, caught by D3(c)). **Walked 2026-10-06** (the Linux track's C+D walk, D1) PASS: toast at
+  +52 ms, "Couldn't open the diff tool" / "~/t4-no-such-tool could not start (exit 127) — check the tool's
+  command in Settings". Found on the way: the tool list is read only at app start, not while running — moved to
+  `open-items.md` §Q (*External diff/merge tools set outside the app are read only at startup*).
+  `docs/archive/walks/2026-10-06-linux-track-c-d-walk.md`.
+- **Row 11's non-UTF-8 walk.** `touch $'caf\xe9.txt'; git add .` on Linux, then the Files tab (working tree and at
+  a commit): the file should stay out of both listings, with the *N files … aren't shown* note. **Walked
+  2026-10-06** (the Linux track's C+D walk, D2) PASS at a commit: header "310 files", no `caf` row, banner "1 file
+  with a name that isn't UTF-8 isn't shown". The working-tree half isn't reachable in this UI: `ChangedFileList`
+  is used only in `DetailsPane` and `DiffDialog`, the working-tree row opens Changes (no Files tab), and no UI
+  path produces a `workdir` `DiffTarget` — `treeTargetOf`'s working-tree branch looks unreachable (read from code,
+  not exhaustive; left as a remark, not a finding). Owner's ruling: closed at the commit.
+  `docs/archive/walks/2026-10-06-linux-track-c-d-walk.md`.
 - **Stashes browser's left column clips text (triage E2).** The left (list) column could show *"No changes"*
   clipped to *"Nc"*, with a horizontal scrollbar, instead of wrapping or eliding. Found in the BK walk, 2026-10-01.
   **Fixed 2026-10-04** for close-out Phase 4 Stage B (row 66, `docs/archive/plans/2026-10-03-phase-4-plan.md`): `.side`

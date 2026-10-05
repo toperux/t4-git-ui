@@ -667,15 +667,16 @@ phases that accepted them; each origin keeps a pointer.
   it (v0.10.19 Linux gate, G3).** Not reproduced; whether the harness or the app is at fault isn't known. Accepted
   2026-10-05 (the v0.10.19 gate). **Reopen:** a report of a menu item needing two clicks. *From
   `docs/archive/walks/2026-10-05-v0.10.19-release-gate-linux.md`.*
+- **External diff/merge tools set outside the app are read only at startup.** A tool set directly in git config
+  (not through Settings) shows no effect until the app is relaunched: Settings › Diff & merge and the diff
+  button still show the old tool (or None) until then. Measured on Linux (D1 of the walk below): a `difftool`
+  added to the isolated `.gitconfig` by hand left the button saying "No diff tool set" and Settings showing None
+  until quit + relaunch, after which it read "Open in nosuch" (`settingsStore.ts:87-96`). Accepted 2026-10-06 (the
+  Linux track's C+D walk). **Reopen:** a report that a tool set outside the app isn't picked up. *From
+  `docs/archive/walks/2026-10-06-linux-track-c-d-walk.md`.*
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review, deferred
 
-- **Esc after a self-disabling control is unverified on WebKitGTK.** The Phase 2a fix (`Dialog.tsx`, a document
-  `keydown` listener for Esc / Tab on `<body>`) rests on focus falling to `<body>` when the focused button disables
-  itself; walked on WebView2 (BH 4). If WebKitGTK keeps focus on the disabled button and doesn't dispatch keys to
-  it, Esc stays dead there. (WKWebView doesn't focus a button on a mouse click, so `<body>` is already the target
-  there.) *(Close-out Linux track: record `activeElement` after Check now and whether Esc closes Settings; reopen
-  the fix if not.)*
 - **macOS: an Option-typed character never reaches a select's type-ahead:** fixed 2026-10-04 (close-out Phase 5, M4),
   moved to `open-items-done.md` §R.
 
@@ -692,11 +693,6 @@ Found in close-out Phase 2b (plan `docs/archive/plans/2026-10-01-phase-2b-plan.m
 plan owed it, every item the triage sent here with a *DEFER §V* ruling (from the BK walk and the review passes),
 and the §Q flake row whose trigger fired.
 
-- **Row 3's unix tool-start walk.** `~/t4-no-such-tool "$LOCAL" "$REMOTE"` on Linux should show an error toast
-  within ~300 ms (exit 127, caught by D3(c)); unwalked, this machine being Windows. *(Linux track.)*
-- **Row 11's non-UTF-8 walk.** `touch $'caf\xe9.txt'; git add .` on Linux, then the Files tab (working tree and
-  at a commit): the file stays out of both listings, with the *N files … aren't shown* note; unwalked. *(Linux
-  track.)*
 - **The Stashes browser's Files tab blame-gutter / "Select in graph" doesn't drill down (triage D-1).** Opened from
   Changes with a preview on stash X: a blame-gutter hunk click or "Select in graph" calls `blameAt`, which hits another
   commit Y and clears the preview; the browser's own "lost its preview" effect re-previews stash X, so the browser snaps

@@ -325,18 +325,23 @@ CLI pin change, `release.yml` and `checks.yml` only, ran from Windows):
   - Then tick AZ 11 Linux (`smoke-test-post-v1.md:1889`) and move §O to the done file.
 - **T7:** re-test WebDriver with two windows after Phase B.
 - **T5:** AT-SPI driving (`2026-09-27-t5-atspi-plan.md`).
-- **Phase 2a's Esc fix on WebKitGTK** (open-items §R): after Check now in Settings, record `activeElement` and
-  whether Esc closes Settings; reopen the fix if it doesn't.
-- **Phase 2a's Super fix** (`11b5b42`): Meta+Q in a repo window and Meta+O on the start screen do nothing, over
-  WebDriver on Xvfb; record `navigator.userAgent` (no `Mac`), since the unit tests only stub it.
+- ~~Phase 2a's Esc fix on WebKitGTK~~ **done 2026-10-06** (open-items §R): after Check now in Settings, record
+  `activeElement` and whether Esc closes Settings; reopen the fix if it doesn't. Verified —
+  `docs/archive/walks/2026-10-06-linux-track-c-d-walk.md` (C1).
+- ~~Phase 2a's Super fix~~ **done 2026-10-06** (`11b5b42`): Meta+Q in a repo window and Meta+O on the start screen
+  do nothing, over WebDriver on Xvfb; record `navigator.userAgent` (no `Mac`), since the unit tests only stub it.
+  WebDriver's Meta+Q proved it; a real Super chord on Xvfb carries no `metaKey` (Xvfb's keymap puts `Meta_L` on
+  mod1 with Alt), so it can't exercise the Meta path — accepted closed by the owner.
+  `docs/archive/walks/2026-10-06-linux-track-c-d-walk.md` (C2).
 - **#18's follow-up PRs, each planned:**
   - ssh fail-fast (`2026-09-27-ssh-fail-fast-plan.md`).
   - ~~The CLI-pin bump to 2.11.5~~ **done 2026-09-28**
     (`docs/archive/plans/2026-09-27-ssh-prompts-check-and-cli-pin-plan.md`, Part B). The first release after it
     unlocks `requireSignedVersion` (§Q; Phase 1b turns it on).
 - **The AppImage release walks:** in the gate above.
-- **Phase 2b's two Linux walks** (`open-items.md` §V, added 2026-10-01): row 3's unix tool-start walk, row 11's
-  non-UTF-8 walk.
+- ~~Phase 2b's two Linux walks~~ **done 2026-10-06** (`open-items.md` §V, added 2026-10-01): row 3's unix
+  tool-start walk, row 11's non-UTF-8 walk. Row 11 closed at a commit only, per the owner's ruling (the UI has no
+  working-tree Files tab). `docs/archive/walks/2026-10-06-linux-track-c-d-walk.md` (D1, D2).
 
 ## Phase 5 — other hardware (§B, whenever available)
 
