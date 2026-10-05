@@ -5,8 +5,10 @@
   ReadRegStr $R9 SHCTX "${MANUKEY}\t4-git-ui" ""
   ${If} $R8 != ""
   ${AndIf} $R9 != ""
-    ; Ask before the silent uninstaller kills it unasked. Uses $0 and $R0-$R3.
-    !insertmacro CheckIfAppIsRunning "${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
+    ; Ask before the silent uninstaller kills it unasked. Uses $0, $1-$3 and $R0-$R3. The macro
+    ; takes a full path (Restart Manager, tauri-bundler 2.10): a bare name would resolve against
+    ; the new install folder, not the old copy's.
+    !insertmacro CheckIfAppIsRunning "$R9\${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
     ClearErrors
     ExecWait '$R8 /S _?=$R9' $R7
     ${IfNot} ${Errors}
