@@ -16,6 +16,7 @@ use git_core::cli::ops::{
     RemoteTag,
 };
 use git_core::cli::rebase::{self, RebaseFlags, RebaseTodo, TodoStep};
+use git_core::cli::runner::redact_url;
 use git_core::cli::{CliEvent, CliOutput};
 use git_core::repo::repo_relative;
 use git_core::status;
@@ -1268,21 +1269,6 @@ pub async fn clone_repo(
     open_repo(app, window, state, dest).await
 }
 
-/// `url` without its userinfo, for the log: `scheme://user:pass@host/x` →
-/// `scheme://host/x`. An scp-style `git@host:path` or a local path has no
-/// `://` and is kept as it is.
-fn redact_url(url: &str) -> String {
-    let Some(i) = url.find("://") else {
-        return url.to_string();
-    };
-    let (scheme, rest) = url.split_at(i + 3);
-    let host_end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
-    match rest[..host_end].rfind('@') {
-        Some(at) => format!("{scheme}{}", &rest[at + 1..]),
-        None => url.to_string(),
-    }
-}
-
 /// A failed clone, classified like the other ops: a login failure is an
 /// `authFailed` error carrying its cause, anything else a `cli` error with the
 /// first `fatal:` line — not the first stderr line, which for a clone that
@@ -1305,7 +1291,7 @@ fn clone_failure(url: &str, out: &CliOutput) -> AppError {
         None => failure_message(&f),
     };
     GitError::Cli {
-        cmd: format!("git clone {url}"),
+        cmd: format!("git clone {}", redact_url(url)),
         code: out.code,
         stderr,
     }
@@ -1343,8 +1329,8 @@ pub async fn init_repo(
 #[cfg(test)]
 mod tests {
     use super::{
-        clone_failure, is_rebase, oid_arg, opt_ref, pause_message, redact_url, ref_arg,
-        remote_tags_of, resolve_dest,
+        clone_failure, is_rebase, oid_arg, opt_ref, pause_message, ref_arg, remote_tags_of,
+        resolve_dest,
     };
     use crate::AppError;
     use git_core::cli::ops::AuthCause;
@@ -1383,26 +1369,11 @@ mod tests {
             clone_failure("x", &quiet),
             AppError::Git(GitError::Cli { stderr, .. }) if stderr == "error: something else"
         ));
-    }
-
-    #[test]
-    fn a_logged_clone_url_carries_no_credentials() {
-        for (url, logged) in [
-            ("https://user:pass@host/u/x.git", "https://host/u/x.git"),
-            ("https://user@host:8443/x", "https://host:8443/x"),
-            // An `@` in the password, unescaped: the host starts after the last one.
-            ("https://u:p@ss@host/x", "https://host/x"),
-            ("ssh://git@host/x.git", "ssh://host/x.git"),
-            // An `@` past the host is the path's, not userinfo.
-            ("https://host/u/x@y.git", "https://host/u/x@y.git"),
-            ("https://host", "https://host"),
-            ("file:///C:/src/x", "file:///C:/src/x"),
-            ("git@github.com:u/x.git", "git@github.com:u/x.git"),
-            ("C:/src/x", "C:/src/x"),
-            ("/home/u/x", "/home/u/x"),
-        ] {
-            assert_eq!(redact_url(url), logged, "{url}");
-        }
+        // The error's command carries no credentials.
+        assert!(matches!(
+            clone_failure("https://u:p@host/x.git", &quiet),
+            AppError::Git(GitError::Cli { cmd, .. }) if cmd == "git clone https://host/x.git"
+        ));
     }
 
     #[test]

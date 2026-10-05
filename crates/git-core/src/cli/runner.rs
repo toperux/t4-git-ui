@@ -121,12 +121,15 @@ impl CliOutput {
     }
 }
 
-/// The command line as shown to the user (`git …`): an argument with
-/// whitespace or a quote is double-quoted the way a shell would want it, so
-/// `git stash push -m "wip: two words"` reads as one message.
+/// The command line as shown to the user (`git …`) and logged: each argument
+/// through [`redact_url`], so a `user:password@` never reaches the dock, an
+/// error or the log; an argument with whitespace or a quote is double-quoted
+/// the way a shell would want it, so `git stash push -m "wip: two words"`
+/// reads as one message. Display only: git itself gets the argv as given.
 pub fn display_cmd(args: &[&str]) -> String {
     let mut out = String::from("git");
     for a in args {
+        let a = redact_url(a);
         out.push(' ');
         if a.is_empty()
             || a.chars()
@@ -136,10 +139,25 @@ pub fn display_cmd(args: &[&str]) -> String {
             out.push_str(&a.replace('"', "\\\""));
             out.push('"');
         } else {
-            out.push_str(a);
+            out.push_str(&a);
         }
     }
     out
+}
+
+/// `url` without its userinfo: `scheme://user:pass@host/x` → `scheme://host/x`.
+/// An scp-style `git@host:path` or a local path has no `://` and is kept as
+/// it is.
+pub fn redact_url(url: &str) -> String {
+    let Some(i) = url.find("://") else {
+        return url.to_string();
+    };
+    let (scheme, rest) = url.split_at(i + 3);
+    let host_end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+    match rest[..host_end].rfind('@') {
+        Some(at) => format!("{scheme}{}", &rest[at + 1..]),
+        None => url.to_string(),
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -622,6 +640,43 @@ mod tests {
     }
 
     #[test]
+    fn display_cmd_drops_a_urls_credentials() {
+        assert_eq!(
+            display_cmd(&[
+                "clone",
+                "--end-of-options",
+                "https://u:p@host/x.git",
+                "C:/src/x"
+            ]),
+            "git clone --end-of-options https://host/x.git C:/src/x"
+        );
+        assert_eq!(
+            display_cmd(&["clone", "git@github.com:u/x.git", "/home/u/x"]),
+            "git clone git@github.com:u/x.git /home/u/x"
+        );
+    }
+
+    #[test]
+    fn redact_url_drops_userinfo_only() {
+        for (url, shown) in [
+            ("https://user:pass@host/u/x.git", "https://host/u/x.git"),
+            ("https://user@host:8443/x", "https://host:8443/x"),
+            // An `@` in the password, unescaped: the host starts after the last one.
+            ("https://u:p@ss@host/x", "https://host/x"),
+            ("ssh://git@host/x.git", "ssh://host/x.git"),
+            // An `@` past the host is the path's, not userinfo.
+            ("https://host/u/x@y.git", "https://host/u/x@y.git"),
+            ("https://host", "https://host"),
+            ("file:///C:/src/x", "file:///C:/src/x"),
+            ("git@github.com:u/x.git", "git@github.com:u/x.git"),
+            ("C:/src/x", "C:/src/x"),
+            ("/home/u/x", "/home/u/x"),
+        ] {
+            assert_eq!(redact_url(url), shown, "{url}");
+        }
+    }
+
+    #[test]
     fn drain_splits_lines_and_progress() {
         let (tx, mut rx) = mpsc::unbounded_channel();
         let mut pending = b"a\nb\r\nc\rd\re".to_vec();
@@ -755,6 +810,33 @@ mod tests {
             Some(CliEvent::Exit { code: 0, .. })
         ));
         assert_eq!(events.len(), 3, "{events:?}");
+    }
+
+    /// The dock's `started` line carries no credentials; git still gets them.
+    #[tokio::test]
+    async fn the_started_line_drops_a_urls_credentials() {
+        if !have_git() {
+            return;
+        }
+        let t = TempRepo::new();
+        let (events, sink) = collect();
+        let out = GitCli::new("git")
+            .run(
+                t.path(),
+                "op-r",
+                &["-c", "t4.url=https://u:p@host/x", "config", "t4.url"],
+                None,
+                CancellationToken::new(),
+                sink,
+            )
+            .await
+            .expect("run");
+        assert_eq!(out.stdout.trim(), "https://u:p@host/x");
+        let events = events.lock().unwrap();
+        assert!(
+            matches!(&events[0], CliEvent::Started { cmd, .. } if cmd == "git -c t4.url=https://host/x config t4.url"),
+            "{events:?}"
+        );
     }
 
     #[tokio::test]

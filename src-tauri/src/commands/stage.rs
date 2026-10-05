@@ -7,6 +7,7 @@ use std::future::Future;
 use std::sync::Arc;
 use std::time::Instant;
 
+use git_core::cli::runner::display_cmd;
 use git_core::diff::{self, DiffOptions, DiffTarget};
 use git_core::patch::{self, PatchSelection};
 use git_core::watch::{ChangeKind, RepoChange};
@@ -255,7 +256,7 @@ async fn run_checkout_merge(
             false,
         )
         .await?;
-        run.out.check(&format!("git {}", argv.join(" ")))?;
+        run.out.check(&display_cmd(&argv))?;
         Ok(())
     })
     .await
@@ -300,7 +301,7 @@ pub async fn resolve_conflict(
                 false,
             )
             .await?;
-            run.out.check(&format!("git {}", argv.join(" ")))?;
+            run.out.check(&display_cmd(&argv))?;
             stage_via_cli(app, state, &handle, &present).await?;
         }
         if !missing.is_empty() {
@@ -390,7 +391,7 @@ async fn apply_selection(
             false,
         )
         .await?;
-        run.out.check(&format!("git {}", args.join(" ")))?;
+        run.out.check(&display_cmd(&args))?;
         Ok(())
     })
     .await
