@@ -59,7 +59,11 @@ forward in `4705c6c` and re-walked on Linux and Windows; triage T26–T30 ruled,
 2026-10-04** (`be820a0`, release run 37210277628); **its gate passed the same day** on the Windows VM, the Linux VM and
 the owner's Mac, the first macOS update with `requireSignedVersion` on
 (`docs/archive/walks/2026-10-04-v0.10.18-release-gate.md` and
-`docs/archive/walks/2026-10-04-v0.10.18-release-gate-linux.md`). Open decisions: none.
+`docs/archive/walks/2026-10-04-v0.10.18-release-gate-linux.md`). **The Tauri 2.12 bump** (Dependabot #19 and #20,
+plan `docs/plans/2026-10-04-tauri-2.12-plan.md`) **released as v0.10.19 2026-10-05** (`6102721`, release run
+37307176681); **its gate passed the same day** on the Windows VM, the Linux VM and the owner's Mac
+(`docs/archive/walks/2026-10-05-v0.10.19-release-gate.md` and
+`docs/archive/walks/2026-10-05-v0.10.19-release-gate-linux.md`). Open decisions: none.
 
 Row references are to `docs/plans/open-items.md` sections (§A–§Z), and code and smoke-doc line numbers are as of
 2026-09-28 (`main` after #18; `release.yml` cites after the CLI pin change). The Phase 1 section keeps its original

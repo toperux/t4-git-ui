@@ -663,6 +663,10 @@ phases that accepted them; each origin keeps a pointer.
   a `std::thread` per event, so a drag can have roughly 20–40 threads alive at once; a per-label pending timer
   (~10 lines) would avoid it. Accepted 2026-10-05 (the Tauri 2.12 triage, round 2). **Reopen:** a drag stutters, or
   the thread count spikes.
+- **A menu item's first XTEST click under Xvfb (no window manager) only highlighted it; a second click activated
+  it (v0.10.19 Linux gate, G3).** Not reproduced; whether the harness or the app is at fault isn't known. Accepted
+  2026-10-05 (the v0.10.19 gate). **Reopen:** a report of a menu item needing two clicks. *From
+  `docs/archive/walks/2026-10-05-v0.10.19-release-gate-linux.md`.*
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review, deferred
 

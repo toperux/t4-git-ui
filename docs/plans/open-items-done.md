@@ -1393,3 +1393,9 @@ No reopen trigger on any of these.
 - **R16** Windows system-menu mode (a lone Alt tap, or a window's system menu left open) holds a second launch's
   new window hidden and its `WM_CLOSE` unanswered until the mode ends — the standard Win32 modal loop, predating
   2.12 (diagnosed as BO 12.2's "hang", see the walk record).
+
+**Accepted and closed (the v0.10.19 gate, `docs/archive/walks/2026-10-05-v0.10.19-release-gate-linux.md`):**
+- **G1** A new stderr line after the update, "A connection to the bus can't be made" (source not identified, likely
+  `atk-bridge` under the private bus): harness noise.
+- **G2** The editor opened on Xvfb instead of the real desktop, unlike the v0.10.18 gate: a harness difference
+  between the two runs, cause not traced.

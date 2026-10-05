@@ -204,6 +204,8 @@ skill's *Checking the packaging*). Learned on the blank-window fix
 
 - **Give it a display of its own:** `Xvfb :98 -screen 0 1600x1000x24` in the background, stopped afterwards with
   `pkill -f '^Xvfb :98'`. The harness app on `:99` has the same window title, and a root screenshot would catch it.
+  With the real store, size the display above the store's saved `main` (`.window-state.json`), e.g. 1920 × 1200: a
+  saved window taller than the display stalls the launch (T26, `open-items.md` §Q; v0.10.19 gate).
 - **Launch it isolated:**
   `HOME=$S/home DISPLAY=:98 SSH_ASKPASS_REQUIRE=never GIT_ASKPASS= setsid dbus-run-session --
   ./<file>.AppImage > $S/appimage.log 2>&1 &` (the askpass guard as in §2).
