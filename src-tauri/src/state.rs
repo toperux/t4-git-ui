@@ -28,6 +28,13 @@ pub struct AppState {
     /// What each window last reported having open, plus the ones closed a
     /// moment ago (window.rs `restorable`).
     layouts: Mutex<Layouts>,
+    /// How many times each secondary window has moved or resized: a settle
+    /// timer samples it only if no newer event came meanwhile (window.rs
+    /// `sample_soon`).
+    moves: Mutex<HashMap<String, u64>>,
+    /// The window that last had the focus: a second launch's window cascades
+    /// from it (window.rs `cascade_from`).
+    focused: Mutex<Option<String>>,
     /// The window a detached tab drag is over, so it can be told when the drag
     /// leaves it again (`tab-drag-out`).
     drag_target: Mutex<Option<String>>,
@@ -60,6 +67,8 @@ impl Default for AppState {
             holders: Mutex::new(HashMap::new()),
             pending: Mutex::new(HashMap::new()),
             layouts: Mutex::new(Layouts::default()),
+            moves: Mutex::new(HashMap::new()),
+            focused: Mutex::new(None),
             drag_target: Mutex::new(None),
             last_update: Mutex::new(UpdateCheck::default()),
             drafts: Mutex::new(HashMap::new()),
@@ -132,6 +141,27 @@ impl AppState {
 
     pub fn drag_target(&self) -> MutexGuard<'_, Option<String>> {
         lock(&self.drag_target)
+    }
+
+    /// Counts a move of `label`; the count a timer started now waits on.
+    pub fn moved(&self, label: &str) -> u64 {
+        let mut moves = lock(&self.moves);
+        let n = moves.entry(label.to_string()).or_default();
+        *n += 1;
+        *n
+    }
+
+    /// Whether `count` is still `label`'s last move.
+    pub fn is_last_move(&self, label: &str, count: u64) -> bool {
+        lock(&self.moves).get(label) == Some(&count)
+    }
+
+    pub fn set_focused(&self, label: &str) {
+        *lock(&self.focused) = Some(label.to_string());
+    }
+
+    pub fn last_focused(&self) -> Option<String> {
+        lock(&self.focused).clone()
     }
 
     /// Label for the next window: `w1`, `w2`, … (`main` is Tauri's own).

@@ -22,6 +22,23 @@ use crate::AppState;
 pub struct Layout {
     pub tabs: Vec<String>,
     pub active: String,
+    /// Where a secondary window stood ([`record`]); `main` never has one (window-state places
+    /// it). Left out of the file when `None`, and missing from an older one, which reads as
+    /// `None`: an older app reads a newer file as before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rect: Option<Rect>,
+}
+
+/// A secondary window's restored (not maximized) frame: its outer top-left in the units a
+/// [`Screen`] moves in (physical on Windows, logical elsewhere), its inner size in logical
+/// pixels (as [`place`] builds it), and whether it was maximized over it.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Rect {
+    pub x: i32,
+    pub y: i32,
+    pub width: f64,
+    pub height: f64,
+    pub maximized: bool,
 }
 
 const LAYOUT_FILE: &str = "layout.json";
@@ -117,10 +134,15 @@ pub fn focus_window(app: &AppHandle, label: &str) {
 
 /// Creates a window showing `payload`'s tabs, at `placement` (a physical screen
 /// point for its top-left, in `source`'s scale; kept on that screen by
-/// [`place`]) or wherever the OS puts it. Returns its label.
+/// [`place`]) or wherever the OS puts it. Returns its label. A payload with a
+/// [`Rect`] (a restored window) goes back to it instead, at its own size,
+/// maximized if it was.
 /// `source` is the window the tabs came from, told if the build fails; `None`
 /// for a second launch of the app (`lib.rs`), which moves nothing and whose
 /// window has to come forward by itself — no click of the user's raised it.
+/// `reference` is the window a second launch cascades from ([`cascade_from`]):
+/// `placement` is in its scale, and the new window takes its size rather than
+/// `main`'s, shrunk where it would not fit at the offset ([`place`]).
 ///
 /// The build runs on a worker thread on purpose: `build()` waits on the event
 /// loop to construct the webview, and this command already runs *on* that loop,
@@ -132,6 +154,7 @@ pub fn spawn(
     source: Option<String>,
     payload: Layout,
     placement: Option<(f64, f64)>,
+    reference: Option<String>,
 ) -> String {
     // In a block: `state` borrows `app`, and the thread below takes a clone of it.
     let label = {
@@ -144,15 +167,38 @@ pub fn spawn(
         label
     };
 
+    let rect = payload.rect;
     // Logical, not physical: the builder's size is in CSS pixels, and main may
-    // be on a scaled monitor.
-    let size = app.get_webview_window("main").and_then(|w| {
-        let s = w.inner_size().ok()?;
-        let scale = w.scale_factor().unwrap_or(1.0);
-        Some((s.width as f64 / scale, s.height as f64 / scale))
-    });
-    // Here, not on the thread below: see `screen_at`.
-    let screen = placement.and_then(|(x, y)| screen_at(app, source.as_deref(), x, y));
+    // be on a scaled monitor. A restored window has its own; a cascade takes its
+    // reference's. A minimized main reads near zero: the builder's default then.
+    let size = match rect {
+        Some(r) => Some((r.width, r.height)),
+        None => app
+            .get_webview_window(reference.as_deref().unwrap_or("main"))
+            .filter(|w| w.is_minimized().is_ok_and(|m| !m))
+            .and_then(|w| {
+                let s = w.inner_size().ok()?;
+                let scale = w.scale_factor().unwrap_or(1.0);
+                Some((s.width as f64 / scale, s.height as f64 / scale))
+            }),
+    };
+    let screen = match rect {
+        // Looked up by its centre: a window flush left on Windows has its top-left at about
+        // x = −7, outside every monitor. The size is logical, so on a scaled Windows monitor
+        // the point is nearer the top-left than the centre, still well inside the window.
+        Some(r) => screen_at(
+            app,
+            (r.x as f64 + r.width / 2.0, r.y as f64 + r.height / 2.0),
+        )
+        .map(|s| Screen {
+            point: (r.x, r.y),
+            ..s
+        }),
+        None => placement
+            .and_then(|(x, y)| lookup_point(app, reference.as_deref().or(source.as_deref()), x, y))
+            .and_then(|p| screen_at(app, p)),
+    };
+    let cascade = rect.is_none() && reference.is_some();
     let target = label.clone();
     let app = app.clone();
     std::thread::spawn(move || {
@@ -167,15 +213,22 @@ pub fn spawn(
         match builder.build() {
             Ok(win) => {
                 if let Some(s) = screen {
-                    place(&win, s, size);
+                    place(&win, s, size, cascade);
                 } else if let Some((x, y)) = placement {
                     let _ =
                         win.set_position(PhysicalPosition::new(x.round() as i32, y.round() as i32));
+                }
+                // Before the show: on Windows a hidden window's maximize applies as it shows; on
+                // macOS it zooms after, from the restored size.
+                if rect.is_some_and(|r| r.maximized) {
+                    let _ = win.maximize();
                 }
                 crate::show_with_theme(&app, &win);
                 if source.is_none() {
                     let _ = win.set_focus();
                 }
+                // Whoever placed it, the OS too (no rect): its entry gets the frame it shows at.
+                sample_soon(&app, &target);
             }
             Err(e) => {
                 tracing::warn!(label = %target, error = %e, "window failed to open");
@@ -220,18 +273,23 @@ struct Screen {
     k: f64,
 }
 
-/// The [`Screen`] for a drop at the physical point `(x, y)` from `source`: the
-/// monitor under it, else main's, else the primary one. On the main thread
-/// only — building a `Monitor` asks AppKit or GDK for its scale and work area
-/// on the calling thread. `None` when there is no monitor, or off Windows no
-/// source scale to convert the point with.
-fn screen_at(app: &AppHandle, source: Option<&str>, x: f64, y: f64) -> Option<Screen> {
-    let (x, y) = if cfg!(windows) {
-        (x, y)
-    } else {
-        let s = app.get_webview_window(source?)?.scale_factor().ok()?;
-        (x / s, y / s)
-    };
+/// The physical point `(x, y)` in `window`'s scale (a drop's source, a
+/// cascade's reference) in the units monitors are looked up in ([`screen_at`]):
+/// as is on Windows, over that scale elsewhere. `None` off Windows with no
+/// window's scale to convert it with.
+fn lookup_point(app: &AppHandle, window: Option<&str>, x: f64, y: f64) -> Option<(f64, f64)> {
+    if cfg!(windows) {
+        return Some((x, y));
+    }
+    let s = app.get_webview_window(window?)?.scale_factor().ok()?;
+    Some((x / s, y / s))
+}
+
+/// The [`Screen`] for the point `(x, y)`, in [`Screen`]'s units: the monitor
+/// under it, else main's, else the primary one. Any thread: runtime-wry builds
+/// the `Monitor` on the event loop, which a call from another thread waits on
+/// and one on the main thread runs inline. `None` when there is no monitor.
+fn screen_at(app: &AppHandle, (x, y): (f64, f64)) -> Option<Screen> {
     let m = app
         .monitor_from_point(x, y)
         .ok()
@@ -253,9 +311,11 @@ fn screen_at(app: &AppHandle, source: Option<&str>, x: f64, y: f64) -> Option<Sc
     })
 }
 
-/// Puts a torn-off window's top-left at the drop point, kept whole on the
-/// screen under it: dropped near the bottom-right corner it would otherwise
-/// open off the edge or under the Dock, and the tab seem to vanish.
+/// Puts a new window's top-left at its point (a drop, a cascade, a restored
+/// rect), kept whole on the screen under it: dropped near the bottom-right
+/// corner it would otherwise open off the edge or under the Dock, and the tab
+/// seem to vanish. A `cascade` that would not fit at its offset is shrunk by it
+/// first ([`cascade_fit`]).
 ///
 /// The size clamped is the one the window was `built` with (logical; `None`
 /// when there was no main window to copy), not what the fresh window reports:
@@ -264,7 +324,7 @@ fn screen_at(app: &AppHandle, source: Option<&str>, x: f64, y: f64) -> Option<Sc
 /// where they are not known yet either, the clamp is short by the window
 /// manager's frame: a window dropped at the bottom or right edge can overhang
 /// by about a title bar.
-fn place(win: &tauri::WebviewWindow, s: Screen, built: Option<(f64, f64)>) {
+fn place(win: &tauri::WebviewWindow, s: Screen, built: Option<(f64, f64)>, cascade: bool) {
     // ponytail: with no main window the OS picks the size, unknown here; the floor
     // stands in for it, so such a window may still hang over by the difference.
     let (bw, bh) = built.unwrap_or((MIN_W, MIN_H));
@@ -288,7 +348,16 @@ fn place(win: &tauri::WebviewWindow, s: Screen, built: Option<(f64, f64)>) {
         (MIN_W * s.k).round() as u32 + deco.0,
         (MIN_H * s.k).round() as u32 + deco.1,
     );
-    let ((x, y), (w, h)) = clamp_rect(s.point, size, s.area, min);
+    let fit = if cascade {
+        let off = (CASCADE * s.k).round() as u32;
+        (
+            cascade_fit(s.point.0, size.0, s.area.0, s.area.2, off),
+            cascade_fit(s.point.1, size.1, s.area.1, s.area.3, off),
+        )
+    } else {
+        size
+    };
+    let ((x, y), (w, h)) = clamp_rect(s.point, fit, s.area, min);
     // Logical, which a move across monitors keeps.
     if w < size.0 || h < size.1 {
         let _ = win.set_size(LogicalSize::new(
@@ -301,6 +370,44 @@ fn place(win: &tauri::WebviewWindow, s: Screen, built: Option<(f64, f64)>) {
     } else {
         win.set_position(LogicalPosition::new(x, y))
     };
+}
+
+/// One axis of a cascaded window's size: shrunk by the `offset` it was moved by
+/// when it would run past the area's far edge (a cascade from a maximized
+/// window, whose size is the work area's), so the clamp does not move it back
+/// over the window it cascades from. [`clamp_rect`]'s floor still wins.
+fn cascade_fit(pos: i32, size: u32, start: i32, len: u32, offset: u32) -> u32 {
+    if pos + size as i32 > start + len as i32 {
+        size.saturating_sub(offset)
+    } else {
+        size
+    }
+}
+
+/// How far a second launch's window sits from the one it cascades from, each
+/// way, in logical pixels.
+const CASCADE: f64 = 32.0;
+
+/// Where a second launch's window goes ([`spawn`]'s `reference` and
+/// `placement`): [`CASCADE`] from the window last focused, at its outer
+/// position plus the offset in its scale (physical, as `outer_position` is). A
+/// minimized one (at about (−32000, −32000) on Windows) or a closed one (its
+/// label finds no window) gives way to any other open window that is not
+/// minimized; `None`, and the OS places it, when there is none.
+pub(crate) fn cascade_from(app: &AppHandle) -> Option<(String, (f64, f64))> {
+    let usable = |w: &tauri::WebviewWindow| w.is_minimized().is_ok_and(|m| !m);
+    let w = app
+        .state::<AppState>()
+        .last_focused()
+        .and_then(|label| app.get_webview_window(&label))
+        .filter(usable)
+        .or_else(|| app.webview_windows().into_values().find(usable))?;
+    let pos = w.outer_position().ok()?;
+    let off = CASCADE * w.scale_factor().ok()?;
+    Some((
+        w.label().to_string(),
+        (pos.x as f64 + off, pos.y as f64 + off),
+    ))
 }
 
 /// One axis of a window's frame: what its `outer` read has over the larger of
@@ -335,7 +442,13 @@ pub fn spawn_window(
     payload: Layout,
     placement: Option<(f64, f64)>,
 ) -> String {
-    spawn(&app, Some(window.label().to_string()), payload, placement)
+    spawn(
+        &app,
+        Some(window.label().to_string()),
+        payload,
+        placement,
+        None,
+    )
 }
 
 /// Hands this window whatever it was created to open. Consumed on first call;
@@ -354,10 +467,138 @@ pub fn set_layout(app: AppHandle, window: Window, layout: Layout, restored: Opti
     let state = app.state::<AppState>();
     let mut layouts = state.layouts();
     let path = layout_file(&app);
-    layouts.open.insert(window.label().to_string(), layout);
+    report(&mut layouts, window.label(), layout);
     persist(&mut layouts, &path, Instant::now());
     if restored == Some(true) {
         settle(&mut layouts, &path, window.label());
+    }
+}
+
+/// A window's report replaces its entry's tabs, not its rect: the frontend
+/// knows nothing of that, only samples set it ([`record`]).
+fn report(l: &mut Layouts, label: &str, layout: Layout) {
+    let rect = l.open.get(label).and_then(|old| old.rect);
+    l.open.insert(label.to_string(), Layout { rect, ..layout });
+}
+
+/// How long a secondary window has to keep still before it is sampled
+/// ([`sample_soon`]).
+const SETTLE: Duration = Duration::from_millis(300);
+
+/// A secondary window moved, resized or has just shown: it is sampled once it
+/// has kept still for [`SETTLE`], rather than recorded from each event. The
+/// events around a maximize, a zoom or full screen come in a different order on
+/// each OS, and a state can trail its geometry; a sample after they stop asks
+/// the window what it is now. Each call makes the timers before it stale (the
+/// count in [`AppState::moved`], a lock of its own: the event handler never
+/// waits on `layouts`).
+pub(crate) fn sample_soon(app: &AppHandle, label: &str) {
+    if label == "main" {
+        return;
+    }
+    let count = app.state::<AppState>().moved(label);
+    let app = app.clone();
+    let label = label.to_string();
+    std::thread::spawn(move || {
+        std::thread::sleep(SETTLE);
+        if !app.state::<AppState>().is_last_move(&label, count) {
+            return;
+        }
+        // Read before the lock: each getter waits on the event loop, which may be waiting on
+        // the lock. A getter that fails is a window that is gone: nothing is recorded.
+        if let Some(s) = read_window(&app, &label) {
+            record(&mut app.state::<AppState>().layouts(), &label, s);
+        }
+    });
+}
+
+/// What a sample reads of a window: its state, and its frame in a [`Rect`]'s
+/// units ([`rect_units`]).
+#[derive(Debug, Clone, Copy)]
+struct Sample {
+    minimized: bool,
+    fullscreen: bool,
+    maximized: bool,
+    pos: (i32, i32),
+    size: (f64, f64),
+}
+
+fn read_window(app: &AppHandle, label: &str) -> Option<Sample> {
+    let w = app.get_webview_window(label)?;
+    let scale = w.scale_factor().ok()?;
+    let pos = w.outer_position().ok()?;
+    let size = w.inner_size().ok()?;
+    let (pos, size) = rect_units(
+        (pos.x, pos.y),
+        (size.width, size.height),
+        scale,
+        cfg!(windows),
+    );
+    Some(Sample {
+        minimized: w.is_minimized().ok()?,
+        fullscreen: w.is_fullscreen().ok()?,
+        maximized: w.is_maximized().ok()?,
+        pos,
+        size,
+    })
+}
+
+/// A window's physical outer position and inner size in a [`Rect`]'s units: the
+/// position stays physical where windows move in physical pixels (`physical`:
+/// Windows) and goes over the window's scale elsewhere; the size goes over it
+/// everywhere.
+fn rect_units(
+    pos: (i32, i32),
+    size: (u32, u32),
+    scale: f64,
+    physical: bool,
+) -> ((i32, i32), (f64, f64)) {
+    let p = |v: i32| {
+        if physical {
+            v
+        } else {
+            (v as f64 / scale).round() as i32
+        }
+    };
+    (
+        (p(pos.0), p(pos.1)),
+        (size.0 as f64 / scale, size.1 as f64 / scale),
+    )
+}
+
+/// What a sample makes of a window's rect. Minimized or full screen, nothing:
+/// neither is a frame to come back to (minimized first: Windows clears tao's
+/// maximized flag on a minimize). Maximized, the restored rect stays and is
+/// marked maximized; with none yet, there is none (the window comes back at
+/// `main`'s size, not maximized). Otherwise the frame it has now, so an
+/// un-maximize, or a maximized window moved to another monitor and restored
+/// there, records where it now is.
+fn sampled(old: Option<Rect>, s: Sample) -> Option<Rect> {
+    if s.minimized || s.fullscreen {
+        return old;
+    }
+    if s.maximized {
+        return old.map(|r| Rect {
+            maximized: true,
+            ..r
+        });
+    }
+    Some(Rect {
+        x: s.pos.0,
+        y: s.pos.1,
+        width: s.size.0,
+        height: s.size.1,
+        maximized: false,
+    })
+}
+
+/// Puts a sample in `label`'s entry, in memory only: the next write carries it
+/// (a report's, a close's, or the one at exit, [`save_on_exit`]). Only while the
+/// window is still open: a close has moved its entry to the closed chain, and a
+/// late sample must not bring it back.
+fn record(l: &mut Layouts, label: &str, s: Sample) {
+    if let Some(entry) = l.open.get_mut(label) {
+        entry.rect = sampled(entry.rect, s);
     }
 }
 
@@ -432,11 +673,16 @@ fn clear_mark(l: &mut Layouts, path: &Path) {
     }
 }
 
-/// [`clear_mark`] for `RunEvent::Exit` and the update install.
-pub(crate) fn end_restore(app: &AppHandle) {
+/// For `RunEvent::Exit` and the update install: writes the layout one last
+/// time, since a window moved after the last write is only in memory
+/// ([`record`]), then [`clear_mark`]. Before `main`'s read nothing is written
+/// ([`persist`]).
+pub(crate) fn save_on_exit(app: &AppHandle) {
     let state = app.state::<AppState>();
     let mut layouts = state.layouts();
-    clear_mark(&mut layouts, &layout_file(app));
+    let path = layout_file(app);
+    persist(&mut layouts, &path, Instant::now());
+    clear_mark(&mut layouts, &path);
 }
 
 /// What a close does to the state; `false` for a window with no entry in `open`.
@@ -560,8 +806,16 @@ fn take(l: &mut Layouts, path: &Path) -> Taken {
         };
     }
     let layouts = read_layouts(path);
+    // Without its rect: the first entry can be a second window's that outlived `main`, and
+    // window-state places `main`.
     if let Some(first) = layouts.first() {
-        l.open.insert("main".to_string(), first.clone());
+        l.open.insert(
+            "main".to_string(),
+            Layout {
+                rect: None,
+                ..first.clone()
+            },
+        );
     }
     arm(l, path);
     Taken {
@@ -766,6 +1020,7 @@ pub fn drop_tab(
             let payload = Layout {
                 tabs: vec![path.clone()],
                 active: path,
+                rect: None,
             };
             spawn_window(
                 app.clone(),
@@ -822,6 +1077,7 @@ mod tests {
         Layout {
             tabs: tabs.iter().map(|s| (*s).to_string()).collect(),
             active: tabs[0].to_string(),
+            rect: None,
         }
     }
 
@@ -954,10 +1210,7 @@ mod tests {
     #[test]
     fn with_no_tab_open_anywhere_the_chain_is_kept() {
         let t0 = Instant::now();
-        let empty = Layout {
-            tabs: Vec::new(),
-            active: String::new(),
-        };
+        let empty = Layout::default();
         let mut l = Layouts {
             open: HashMap::from([("main".to_string(), empty)]),
             closed: vec![(t0, "w1".to_string(), layout(&["c:/b"]))],
@@ -1364,6 +1617,205 @@ mod tests {
         assert_eq!(
             clamp_rect((300, 200), (1280, 800), area, (700, 500)),
             ((300, 200), (1280, 800))
+        );
+    }
+
+    fn rect(x: i32, y: i32, maximized: bool) -> Rect {
+        Rect {
+            x,
+            y,
+            width: 1000.0,
+            height: 700.0,
+            maximized,
+        }
+    }
+
+    /// A sample of a window at (x, y), 1000×700, with these flags.
+    fn sample(x: i32, y: i32, minimized: bool, fullscreen: bool, maximized: bool) -> Sample {
+        Sample {
+            minimized,
+            fullscreen,
+            maximized,
+            pos: (x, y),
+            size: (1000.0, 700.0),
+        }
+    }
+
+    /// Each state a sample can find, from a window that has a rect and from one
+    /// that has none yet.
+    #[test]
+    fn a_sample_keeps_the_restored_rect() {
+        let old = Some(rect(10, 20, false));
+        // Normal: the frame it has now, an un-maximize included.
+        assert_eq!(
+            sampled(old, sample(50, 60, false, false, false)),
+            Some(rect(50, 60, false))
+        );
+        assert_eq!(
+            sampled(
+                Some(rect(10, 20, true)),
+                sample(50, 60, false, false, false)
+            ),
+            Some(rect(50, 60, false))
+        );
+        // Maximized: the restored rect stays, marked; with none, none.
+        assert_eq!(
+            sampled(old, sample(-8, -8, false, false, true)),
+            Some(rect(10, 20, true))
+        );
+        assert_eq!(sampled(None, sample(-8, -8, false, false, true)), None);
+        // Minimized (whatever the maximized flag says) or full screen: nothing.
+        assert_eq!(
+            sampled(old, sample(-32000, -32000, true, false, false)),
+            old
+        );
+        assert_eq!(sampled(old, sample(-32000, -32000, true, false, true)), old);
+        assert_eq!(sampled(old, sample(0, 0, false, true, false)), old);
+        assert_eq!(sampled(None, sample(0, 0, false, true, false)), None);
+        // A window the OS placed gets its first rect.
+        assert_eq!(
+            sampled(None, sample(50, 60, false, false, false)),
+            Some(rect(50, 60, false))
+        );
+    }
+
+    /// A sample that lands after the window closed changes nothing: its entry
+    /// is in the closed chain, and a window not in `open` is not added.
+    #[test]
+    fn a_sample_after_a_close_changes_nothing() {
+        let t0 = Instant::now();
+        let mut l = Layouts {
+            open: HashMap::from([("main".to_string(), layout(&["c:/a"]))]),
+            ..Default::default()
+        };
+        spawned(
+            &mut l,
+            "w1",
+            Layout {
+                rect: Some(rect(10, 20, false)),
+                ..layout(&["c:/b"])
+            },
+        );
+        record(&mut l, "w1", sample(50, 60, false, false, false));
+        assert_eq!(l.open["w1"].rect, Some(rect(50, 60, false)));
+        assert!(close(&mut l, "w1", t0));
+        record(&mut l, "w1", sample(90, 90, false, false, false));
+        assert!(!l.open.contains_key("w1"));
+        assert_eq!(l.closed[0].2.rect, Some(rect(50, 60, false)));
+    }
+
+    /// A report carries tabs only: the entry keeps the rect its samples set.
+    #[test]
+    fn a_report_keeps_the_rect() {
+        let mut l = Layouts::default();
+        report(&mut l, "w1", layout(&["c:/b"]));
+        assert_eq!(l.open["w1"].rect, None);
+        record(&mut l, "w1", sample(50, 60, false, false, false));
+        report(&mut l, "w1", layout(&["c:/b", "c:/c"]));
+        assert_eq!(
+            l.open["w1"],
+            Layout {
+                rect: Some(rect(50, 60, false)),
+                ..layout(&["c:/b", "c:/c"])
+            }
+        );
+    }
+
+    /// The first entry seeds `main` without its rect (window-state places
+    /// `main`); the others keep theirs for `spawn`, in the file too.
+    #[test]
+    fn main_is_seeded_without_a_rect() {
+        let path = temp_path("seed-rect");
+        let with_rect = |tabs, x| Layout {
+            rect: Some(rect(x, 20, x > 100)),
+            ..layout(tabs)
+        };
+        write_layouts(
+            &path,
+            &HashMap::from([
+                ("w1".to_string(), with_rect(&["c:/a"], 10)),
+                ("w2".to_string(), with_rect(&["c:/b"], 200)),
+            ]),
+        );
+        let mut l = Layouts::default();
+        let taken = take(&mut l, &path);
+        assert_eq!(
+            taken.layouts,
+            vec![with_rect(&["c:/a"], 10), with_rect(&["c:/b"], 200)]
+        );
+        assert_eq!(l.open["main"], layout(&["c:/a"]));
+        remove(&path);
+    }
+
+    /// No rect, no `rect` key: an older app reads the file as before, and a
+    /// file it wrote reads as no rect.
+    #[test]
+    fn a_layout_without_a_rect_reads_and_writes_as_before() {
+        let text = serde_json::to_string(&layout(&["c:/a"])).unwrap();
+        assert_eq!(text, r#"{"tabs":["c:/a"],"active":"c:/a"}"#);
+        assert_eq!(
+            serde_json::from_str::<Layout>(&text).unwrap(),
+            layout(&["c:/a"])
+        );
+    }
+
+    /// The getters are physical: the position stays so on Windows and goes
+    /// over the window's scale elsewhere; the size goes over it everywhere.
+    #[test]
+    fn a_frame_is_taken_to_the_rects_units() {
+        assert_eq!(
+            rect_units((-11, 300), (1500, 1050), 1.5, true),
+            ((-11, 300), (1000.0, 700.0))
+        );
+        assert_eq!(
+            rect_units((3000, 300), (2000, 1400), 2.0, false),
+            ((1500, 150), (1000.0, 700.0))
+        );
+    }
+
+    /// A cascade from a maximized window (Windows at 100 %: outer at −8, inner
+    /// the 1920×1040 work area, an 8 px border each side) lands 32 px in at its
+    /// size less the offset, not moved back over it; one that fits keeps its
+    /// size; on a small work area the floor wins and it lands over it.
+    #[test]
+    fn a_cascade_that_would_not_fit_shrinks_by_the_offset() {
+        let area = (0, 0, 1920, 1040);
+        let min = (716, 508);
+        let fit = |pos: (i32, i32), size: (u32, u32), area: (i32, i32, u32, u32)| {
+            let fit = (
+                cascade_fit(pos.0, size.0, area.0, area.2, 32),
+                cascade_fit(pos.1, size.1, area.1, area.3, 32),
+            );
+            clamp_rect(pos, fit, area, min)
+        };
+        // Maximized: offset from (−8, −8), the work area plus its borders.
+        assert_eq!(fit((24, 24), (1936, 1056), area), ((16, 16), (1904, 1024)));
+        // Mid-screen: offset, at its size.
+        assert_eq!(
+            fit((332, 232), (1016, 708), area),
+            ((332, 232), (1016, 708))
+        );
+        // Near the right edge only: that axis shrinks, the other keeps.
+        assert_eq!(
+            fit((1032, 232), (916, 708), area),
+            ((1032, 232), (884, 708))
+        );
+        // A work area under the floor plus the offset: the floor, moved back in, less than
+        // the offset from the window at (0, 0).
+        assert_eq!(
+            fit((32, 32), (744, 536), (0, 0, 740, 530)),
+            ((24, 22), (716, 508))
+        );
+    }
+
+    /// A window flush left on Windows sits at about x = −7, its invisible
+    /// border off the screen: it comes back those few pixels in.
+    #[test]
+    fn a_restored_rect_is_kept_on_the_screen() {
+        let area = (0, 0, 1920, 1040);
+        assert_eq!(
+            clamp_rect((-7, 0), (1014, 707), area, (714, 507)),
+            ((0, 0), (1014, 707))
         );
     }
 }

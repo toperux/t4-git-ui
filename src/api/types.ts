@@ -34,6 +34,17 @@ export type AppErrorKind =
 export interface Layout {
   tabs: string[];
   active: string;
+  /** Where a secondary window stood (the backend's samples): handed back to `spawn_window` as read. */
+  rect?: WindowRect;
+}
+
+/** A secondary window's restored frame (`Rect` in `window.rs`): outer top-left, logical inner size, maximized. */
+export interface WindowRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  maximized: boolean;
 }
 
 /** Where this window's content starts on the virtual screen, for turning a pointer position into a screen point. */

@@ -143,13 +143,22 @@ pub fn run() {
         // repository under a second set of locks. The second process exits, and
         // what it was started for — another window — is opened here instead, on
         // the start screen: an empty layout, so it does not reach for the
-        // repository another window already holds. Where single-instance can't
+        // repository another window already holds. It cascades from the window
+        // last focused (`commands::window::cascade_from`); this callback runs
+        // off the main thread on macOS and Linux. Where single-instance can't
         // run (no session bus), a second process started before the first write
         // restores the same session again, where before it got nothing — or,
         // while the first one is still restoring, takes its restore mark for a
         // crash and sets the session aside (`commands::window::take`).
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            commands::window::spawn(app, None, commands::window::Layout::default(), None);
+            let (reference, placement) = commands::window::cascade_from(app).unzip();
+            commands::window::spawn(
+                app,
+                None,
+                commands::window::Layout::default(),
+                placement,
+                reference,
+            );
         }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -285,10 +294,18 @@ pub fn run() {
             commands::ops::clone_repo,
             commands::ops::init_repo
         ])
-        .on_window_event(|window, event| {
-            if let WindowEvent::Destroyed = event {
-                on_window_destroyed(&window.app_handle().clone(), window.label());
+        .on_window_event(|window, event| match event {
+            WindowEvent::Destroyed => {
+                on_window_destroyed(&window.app_handle().clone(), window.label())
             }
+            WindowEvent::Moved(_) | WindowEvent::Resized(_) => {
+                commands::window::sample_soon(window.app_handle(), window.label())
+            }
+            WindowEvent::Focused(true) => window
+                .app_handle()
+                .state::<AppState>()
+                .set_focused(window.label()),
+            _ => {}
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -300,9 +317,10 @@ pub fn run() {
                 .exiting
                 .store(true, Ordering::Relaxed),
             // A normal exit is no crash, whether or not every window of the
-            // restore had reported yet.
+            // restore had reported yet; and a window moved since the last
+            // write keeps its place.
             RunEvent::Exit => {
-                commands::window::end_restore(app);
+                commands::window::save_on_exit(app);
                 // An update installed into an AppImage (`install_update`): the
                 // new one starts once the plugins let go (single-instance's
                 // D-Bus name), with the host's environment and in the

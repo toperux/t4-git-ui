@@ -205,9 +205,10 @@ pub async fn install_update(app: AppHandle, state: State<'_, AppState>) -> Resul
     refuse_while_busy(&state)?;
 
     // On Windows `install` ends the process itself, so `RunEvent::Exit` never
-    // clears the restore mark: a restart into the new version must not look
-    // like a crash.
-    crate::commands::window::end_restore(&app);
+    // runs: the layout is written here (a window may have moved since the
+    // last write), and the restore mark cleared — a restart into the new
+    // version must not look like a crash.
+    crate::commands::window::save_on_exit(&app);
     update
         .install(bytes)
         .map_err(|e| AppError::Internal(e.to_string()))?;
