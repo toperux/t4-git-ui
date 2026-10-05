@@ -795,6 +795,15 @@ fixes and the walk added three more. The walk is `docs/archive/walks/2026-09-19-
 
 ## P. Added 2026-09-26 — the Linux harness follow-ups: the rows since closed
 
+- ~~**Drive GTK's native parts through AT-SPI (T5).**~~ Done 2026-10-06 (close-out Linux track, plan
+  `docs/archive/plans/2026-09-27-t5-atspi-plan.md`): `docs/smoke/atspi.py` (`dump`, `menu`, `click`, `wait`) and
+  `smoke-linux.md`'s *AT-SPI: GTK's native parts*. Walked on the Linux VM on a debug build of `6bffe6d`, Xvfb, a
+  private session: the tree and the text-field menu match the spike (8 items, Paste sensitive); tauri-driver's app
+  shares the private bus, so `wd.mjs` and `atspi.py` see the same app; Paste through `atspi.py click` filled Search
+  commits; `gsettings` switched the theme both ways in about 150 ms. The desktop's `toolkit-accessibility` and
+  `color-scheme` were unchanged. Live Wayland, DPI and the AppImage's theme (`GSETTINGS_BACKEND=memory`) stay out of
+  reach.
+
 - ~~**ssh under the moved `HOME` (T4).**~~ Done 2026-09-27 (`linux-smoke-and-fixes`): ssh finds the real `~/.ssh`
   through the passwd entry, and a GitHub ssh `ls-remote` works with `HOME` moved. `smoke-linux.md` §2 records it,
   with the caveat that ssh isn't isolated. Its accepted cases (other ssh hosts, a fetch/push through the app itself,

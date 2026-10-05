@@ -229,11 +229,6 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
 - ~~**`xclip` (T9).**~~ Done 2026-09-26 (triage): it was installed, and is now a listed prerequisite.
 - **Re-test WebDriver with two windows (T7)** once the restore hang is fixed (two came up on 2026-09-27 in WSL; not
   a verdict). If it works, multi-window rows get DOM access back.
-- **Drive live Wayland through AT-SPI (T5):** the page itself is now driven on live Wayland through WebDriver
-  (`smoke-linux.md`, "Not reachable here"). What stays hand-walked is GTK's native popups, the OS theme switch
-  and DPI. Plan: `docs/plans/2026-09-27-t5-atspi-plan.md`, from a spike on Xvfb (2026-09-27): AT-SPI reaches the
-  page and GTK's text-field menu, and the OS theme switches through `gsettings` in a private session. DPI stays out
-  of reach in a one-display VM.
 - **The AppImage blank-window bug** (found in the AC :761 walk, 2026-09-26; fixed in #18, merged 2026-09-27) — **done
   2026-10-01**, moved to `open-items-done.md` §P: both release walks it waited on (0.10.12 → 0.10.13, 0.10.13 → 0.10.14)
   landed, and AC ticked at 0.10.14 → 0.10.15.

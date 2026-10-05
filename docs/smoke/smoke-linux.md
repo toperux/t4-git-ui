@@ -63,6 +63,8 @@ copied text too, as on Windows.
   `xdialog.sh <pid> --dump`.
 - `docs/smoke/fixtures/smoke-fixtures.sh`: the main fixture, into `/tmp/t4`. The group `.sh` fixtures
   take `T4_ROOT=/tmp/t4`.
+- `docs/smoke/atspi.py`: GTK's native parts through AT-SPI (`dump`, `menu`, `click`, `wait`), inside a private
+  session; see *AT-SPI: GTK's native parts*.
 
 ## 1. Build
 
@@ -193,6 +195,44 @@ windows once the fix lands:
 The group AZ walk's findings (`docs/archive/walks/2026-09-26-group-az-linux-walk.md`) are the app's own,
 not the harness's: both were reproduced without WebDriver.
 
+## AT-SPI: GTK's native parts
+
+What WebDriver can't see: a text field's native menu (Cut / Copy / Paste …), and the OS theme switch. **Xvfb only:** on
+the live desktop the session bus is the user's, so turning accessibility on and switching the theme would change the
+user's settings.
+
+- **A private session.** `HOME` comes first, so the dconf service the private bus starts writes the scratch home, not
+  the desktop's. tauri-driver runs inside it, and the app it launches inherits the bus (checked 2026-10-06), so
+  `wd.mjs` and `atspi.py` see the same app:
+
+  ```bash
+  S=<scratchpad>/app; mkdir -p $S/home; cp ~/.gitconfig $S/home/
+  Xvfb :99 -screen 0 1600x1000x24                                        # background
+  HOME=$S/home env -u WAYLAND_DISPLAY dbus-run-session -- sh -c '
+    echo "$DBUS_SESSION_BUS_ADDRESS" > "$HOME/bus"
+    gdbus call --session --dest org.a11y.Bus --object-path /org/a11y/bus \
+      --method org.freedesktop.DBus.Properties.Set org.a11y.Status IsEnabled "<true>"
+    DISPLAY=:99 GDK_BACKEND=x11 TAURI_WEBVIEW_AUTOMATION=true SSH_ASKPASS_REQUIRE=never GIT_ASKPASS= tauri-driver'
+                                                                           # background
+  node docs/smoke/wd.mjs start "$PWD/target/debug/t4-git-ui"
+  ```
+
+- **Every later shell joins it:** `export DBUS_SESSION_BUS_ADDRESS=$(cat $S/home/bus) HOME=$S/home`, then `atspi.py`
+  and `gsettings` act on the private session.
+- **`docs/smoke/atspi.py`** (python3-gi only): `dump [depth]`, `menu`, `click "<role>" "<name>"` (`do_action(0)`),
+  `wait "<role>" "<name>" [s]`. Every verb prints one line per item, and exits 1 when it fails. Outside a session
+  with accessibility on, GLib aborts it with "Couldn't connect to accessibility bus".
+- **A text field's menu:** right-click the field with xdotool (a real click; `do_action` is not a pointer event), then
+  `atspi.py wait "menu item" "Paste"`, `atspi.py menu` (each item, and whether it is sensitive), and
+  `atspi.py click "menu item" "Paste"`. Read the result over WebDriver. Walked 2026-10-06 on Search commits: the
+  eight items and the paste.
+- **The OS theme** needs only the session, not AT-SPI: `gsettings set org.gnome.desktop.interface color-scheme
+  prefer-dark` (or `default`). The page's `data-theme` followed in about 150 ms both ways (2026-10-06). **Debug build
+  only:** inside an AppImage the app sets `GSETTINGS_BACKEND=memory`, so a `gsettings` switch can't reach it.
+- **Stop:** quit the app (§4), then kill tauri-driver. The `sh -c` ends, and `dbus-run-session` takes the bus and its
+  at-spi down with it. Then check the desktop is as it was: `gsettings get org.gnome.desktop.interface
+  toolkit-accessibility` and `color-scheme`.
+
 ## Testing an AppImage
 
 For checking a published or CI-built AppImage (the `packages-Linux` artifact of a `workflow_dispatch` Release run;
@@ -273,8 +313,9 @@ skill's *Checking the packaging*). Learned on the blank-window fix
 ## Not reachable here
 
 - **The live Wayland desktop:** no xdotool, and the OS theme switch and DPI are not reachable. These rows
-  stay hand-walked. On Xvfb the OS theme can be switched, in a private D-Bus session through `gsettings`, and AT-SPI
-  reaches GTK's text-field menu: not built yet, see `docs/plans/2026-09-27-t5-atspi-plan.md`.
+  stay hand-walked. On Xvfb a text field's native menu and the OS theme are driven through a private session
+  (*AT-SPI: GTK's native parts* above); on the live desktop they stay asked of the user, since that session is
+  theirs. Still out of reach: DPI (one display; `text-scaling-factor` isn't DPI) and the AppImage's theme.
   - **WebDriver still works there** (2026-09-27): run §2's `tauri-driver` line with `GDK_BACKEND=wayland` in place
     of `DISPLAY=:99 GDK_BACKEND=x11`, and no Xvfb. The window opens on the user's desktop. `wd.mjs` drives the
     page, and `shot` captures it.

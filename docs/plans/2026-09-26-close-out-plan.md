@@ -324,7 +324,8 @@ CLI pin change, `release.yml` and `checks.yml` only, ran from Windows):
   - Then the AZ row 3 re-walks: Linux (T20) and Windows, which also answers §O's "whether it happens on Windows".
   - Then tick AZ 11 Linux (`smoke-test-post-v1.md:1889`) and move §O to the done file.
 - **T7:** re-test WebDriver with two windows after Phase B.
-- **T5:** AT-SPI driving (`2026-09-27-t5-atspi-plan.md`).
+- ~~**T5:** AT-SPI driving (`docs/archive/plans/2026-09-27-t5-atspi-plan.md`).~~ **done 2026-10-06**:
+  `docs/smoke/atspi.py` and `smoke-linux.md`'s *AT-SPI: GTK's native parts* (open-items-done §P).
 - ~~Phase 2a's Esc fix on WebKitGTK~~ **done 2026-10-06** (open-items §R): after Check now in Settings, record
   `activeElement` and whether Esc closes Settings; reopen the fix if it doesn't. Verified —
   `docs/archive/walks/2026-10-06-linux-track-c-d-walk.md` (C1).

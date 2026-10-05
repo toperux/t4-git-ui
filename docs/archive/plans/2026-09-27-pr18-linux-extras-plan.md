@@ -10,7 +10,7 @@ opens on the user's desktop._
 - `docs/archive/walks/2026-09-27-group-ai-aj-linux-walk.md`: AI and AJ pass (already ticked on Windows by close-out
   Phase 1 the day before);
 - the Wayland walk's addendum: the dock's range and collapse pass on Xvfb;
-- `docs/plans/2026-09-27-t5-atspi-plan.md`: the T5 plan, from the spike;
+- `docs/archive/plans/2026-09-27-t5-atspi-plan.md`: the T5 plan, from the spike;
 - `direct.sh`: rewrapped, and `declare -f` is identical before and after.
 
 ## Shared setup
@@ -198,7 +198,7 @@ is unset.
   - a GTK popup after a right-click on a text field;
   - the file chooser (in-process GTK3 via rfd, so it's in the app's own tree)?
 
-**Output:** `docs/plans/2026-09-27-t5-atspi-plan.md`, covering:
+**Output:** `docs/archive/plans/2026-09-27-t5-atspi-plan.md`, covering:
 - what AT-SPI can reach;
 - a small helper design (`docs/smoke/atspi.py`: dump, find by role/name, click, type);
 - which smoke rows it would unlock.

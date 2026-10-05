@@ -1,5 +1,9 @@
 # Plan: drive GTK's native parts through AT-SPI (T5)
 
+_Status: **done 2026-10-06** on the owner's go: Steps 1–4 walked on the Linux VM (debug build of `6bffe6d`, Xvfb, a
+private session); Step 2's premise checked (tauri-driver's app inherits the private bus). Script `docs/smoke/atspi.py`,
+doc section in `smoke-linux.md`; record in open-items-done §P._
+
 _Written 2026-09-27, from a spike on Xvfb (`docs/archive/plans/2026-09-27-pr18-linux-extras-plan.md`, item 4). Plan only:
 nothing here is implemented. Source: open-items §P, "Drive live Wayland through AT-SPI (T5)". Refreshed 2026-10-06
 against `main` `c9e2dc4`: row citations by text, not line; the theme switch scoped to the debug build (the AppImage

@@ -345,5 +345,5 @@ that already exists.
    to keep the A/B (D2 decides from its numbers if it does). The T18 audit was done 2026-09-27, before it.
 5. **Phase B**, then T20 (Linux row 3), T19's second half (Windows row 3), and T7 (WebDriver with two windows).
 6. ~~**T4** (the ssh check under a moved `HOME`).~~ Done 2026-09-27.
-7. **T5 AT-SPI:** plan written 2026-09-27 (`2026-09-27-t5-atspi-plan.md`); built when it's picked up.
-   ~~**T21:** when a Mac is available.~~ Done 2026-10-04 (close-out Phase 5).
+7. **T5 AT-SPI:** plan written 2026-09-27 (`docs/archive/plans/2026-09-27-t5-atspi-plan.md`); **built 2026-10-06**
+   (open-items-done §P). ~~**T21:** when a Mac is available.~~ Done 2026-10-04 (close-out Phase 5).
