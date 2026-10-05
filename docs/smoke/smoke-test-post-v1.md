@@ -2762,7 +2762,7 @@ and 10). Record `docs/archive/walks/2026-10-05-group-bo-walk.md`._
       can raise it now), then it's replaced (one install left, under `T4 Git UI`). Keep the default *Add/Reinstall* on
       the same-version page, as in 8. No prompt at all is the failure: 0.10.8's own uninstaller then closed it unasked
       (it runs with `/S`).
-- [ ] 10. **Linux: the AppImage stays on X11** (N1). A local AppImage of the branch, built on the Linux VM
+- [x] 10. **Linux: the AppImage stays on X11** (N1). A local AppImage of the branch, built on the Linux VM
       (`npm run tauri -- build --bundles appimage --config '{"bundle":{"createUpdaterArtifacts":false}}'`, so no
       signing key is needed there). Launched on the live GNOME session from a terminal there, with the real `HOME` and
       the session's own D-Bus, no other T4 Git copy running (single-instance would hand the launch to it), and
@@ -2785,7 +2785,13 @@ and 10). Record `docs/archive/walks/2026-10-05-group-bo-walk.md`._
       Built on Ubuntu 26.04, not CI's 22.04, so its bundled GIO modules differ from the release's: the GIO comparison
       stays with the dry run's AppImage (the plan's *Verify*). Left open: on a local Ubuntu 26.04 build the picker
       opens inside the mount (Ubuntu's `10_ubuntu-settings.gschema.override` sets `startup-mode` to `cwd`, bundled
-      from the build host); decided on the dry run's CI-built AppImage.
+      from the build host); decided on the dry run's CI-built AppImage. *(Walked 2026-10-05 on the release dry run's
+      CI-built AppImage, run 37296029478 on `main` `e0936f6`, on the Linux VM's live GNOME session: `xwininfo` lists
+      the window, `WebKitWebProcess` shows `GDK_BACKEND=x11` and `GSETTINGS_BACKEND=memory`; renders; the picker
+      (Ctrl+T) opened on *Recent*, *Other Locations* listed the mounted volumes (the owner's hand); *Open* on
+      `README.md` started the host's handler, with the user's `GDK_BACKEND`; *Save as…* opened in Downloads with the
+      file's name and saved it byte-identical. The image bundles no `10_ubuntu-settings` override (only
+      `10_gsettings-desktop-schemas`), no `libwayland-client`; `appimage-digest.py --check` ok; runtime `dd6cebe`.)*
 - [x] 11. **Windows and the Mac: a second window comes back at its own rect** (N6). Each step waits about 1 s after
       the last move before Quit (the settle; a move in the last ~300 ms before Quit is lost, accepted):
       - `main` maximized and a second window at its own rect, not maximized; quit, relaunch → each back at its own

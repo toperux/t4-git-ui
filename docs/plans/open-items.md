@@ -738,7 +738,12 @@ and the §Q flake row whose trigger fired.
   walk, 2026-10-03; likely the bundled GLib being older than the host's (reasoned, not checked). Open (`xdg-open` →
   `gio open`) and an HTTPS fetch worked; features that go through GVFS (network locations, trash on a mount) or dconf
   were not tried. **Reopen:** a Linux report of a feature failing that goes through GVFS or dconf, or a change to the
-  bundled GLib. *From the v0.10.16 gate.*
+  bundled GLib. *From the v0.10.16 gate.* **Since the Tauri 2.12 bump** (0.10.19): the bundler's gtk hook bundles the
+  build host's GIO modules and points `GIO_MODULE_DIR` at them, so the host's are no longer tried and the three
+  `Failed to load module` lines are gone (the dry run's CI-built AppImage, run 37296029478, 2026-10-05). It bundles
+  `libdconfsettings.so`, but the app sets `GSETTINGS_BACKEND=memory` (N4), so dconf is not read; no GVFS module is
+  bundled, so GVFS features stay unavailable as before, though the picker's *Other Locations* still listed the mounted
+  volumes.
 
 ## X. Added 2026-10-03 — close-out Phase 3
 
@@ -833,6 +838,14 @@ fixes"), with its reopen trigger.
   button no focus, so after Escape returns the focus to the opener, Enter on it (which should reopen the menu)
   does nothing; seen in the Mac walk. Deferred 2026-10-05. **Reopen:** a keyboard-after-mouse report, or the next
   focus work.
+- **A release run builds ssign and the Tauri CLI from source every time.** Measured on the dry run (run 37296029478):
+  `cargo install tauri-cli` took 9 m 28 s on Windows, 6 m 42 s on macOS and 5 m 37 s on Linux, and the ssign build
+  2 m 54 s, because rust-cache restored nothing. A tag reads caches only from its own ref or `main`, and an unused
+  cache is evicted after 7 days. Options: an `actions/cache` keyed on ssign's pinned rev, upstream's prebuilt ssign
+  zip pinned by hash, or the prebuilt `@tauri-apps/cli` that `npm ci` already installs. The last two trust a binary
+  built upstream; whether the npm CLI carries bundler 2.10.1, which the AppImage pins are read from, wasn't checked.
+  Deferred 2026-10-05. **Reopen:** the next change to the release workflow, or a release run's build time becoming a
+  problem.
 
 ## Order
 

@@ -295,6 +295,40 @@ by hand to `df14320` (not pushed); `main` only, at (208,208) 1296 × 839, minimi
 - Patched, `main` normal and focused: outer (240,240), inner 1280 × 800 = `main` + 32 at its size, unchanged.
 - Store restored from `-p8`, cmp identical; log has no ERROR/WARN; the clone back to clean `df14320`.
 
+## The release dry run and its AppImage
+
+Run 37296029478, a `workflow_dispatch` of Release on `main` `e0936f6` (the squashed branch), 10:21–10:47Z: every job
+green, `checks` skipped as on any dispatch.
+- *Pin the AppImage tools*: four `OK`. ``Installed package `tauri-cli v2.12.1` `` on all three legs (a cold cache:
+  rust-cache restored nothing). No "bundler downloaded a tool" failure. D7's AppDir check green.
+- macOS signature valid and its designated requirement met; Windows: the Certum signature valid on the exe and the
+  uninstaller. `verify`: OK ×3. `publish`: draft `dry-run-37296029478` made and deleted, no tag left.
+- Which appimage output plugin linuxdeploy used isn't in the log (the bundler isn't verbose); the runtime is
+  `dd6cebe`, as 0.10.18's.
+
+**BO 10 on the CI-built AppImage** (the Linux VM, live GNOME, real `HOME`, `GDK_BACKEND=wayland
+WEBKIT_DISABLE_DMABUF_RENDERER=1`) — PASS:
+- `appimage-digest.py --check` → `digest ok: f091a3ed…`; `--appimage-version` → type2-runtime `dd6cebe`.
+- `unsquashfs -l` against the published 0.10.18 (532 entries vs 364): removed `/usr/bin/xdg-open` (no
+  `bundleXdgOpen`), the old `x86_64-linux-gnu/gio/modules/libgiognutls.so`, 11 `copyright` files; added
+  `/usr/lib/gio/modules/` (`giomodule.cache`, `libdconfsettings.so`, `libgioenvironmentproxy.so`,
+  `libgiognomeproxy.so`, `libgiognutls.so`, `libgiolibproxy.so`), `libproxy.so.1`, an empty `/usr/share/pixmaps`, 92
+  `copyright` files of libraries already bundled. No `libwayland-client`; the only schema override is
+  `10_gsettings-desktop-schemas` (no `10_ubuntu-settings`); no GVFS module.
+- N1: `xwininfo` lists the window; `WebKitWebProcess` and `WebKitNetworkProcess` show `GDK_BACKEND=x11`,
+  `GSETTINGS_BACKEND=memory`, `GIO_MODULE_DIR` in the mount.
+- Renders. *Open* on `README.md` started the host's viewer, its environment with the user's `GDK_BACKEND=wayland`
+  and none of the app's (N8).
+- By the owner's hand: the picker (Ctrl+T) opened on *Recent*, a `usr` sidebar entry as expected; *Other Locations*
+  listed the mounted volumes (the owner's word). *Save as…* opened in Downloads with the name `README.md`, and the
+  saved file's `git hash-object` matched `e0936f6:README.md`.
+- stderr: only `canberra-gtk-module` ×4; 0.10.18's three `libgvfscommon.so` / `libgvfsdbus.so` failures are gone
+  (`GIO_MODULE_DIR` replaces the host's folder); no "Using the 'memory' GSettings backend" line, as expected.
+- Seen: mid-walk, another session in the shared store's log (19:19:01–19:19:14 local, the repo opened, closed after
+  13 s) and Firefox opening the releases page at 19:19:09; which copy it was isn't known.
+- Cleanup: quit with Ctrl+Q; the saved file removed; both stores restored, `diff -r` and `cmp` ok; `~/.gitconfig`
+  unchanged.
+
 ## Cleanup
 
 Kept on the owner's word, for cleanup when said:
