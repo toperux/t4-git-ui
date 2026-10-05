@@ -101,6 +101,39 @@ verification step 3 says whether they share the bug; if they do, that goes in a 
   (`useTabDrag.tsx:236` → `drop_tab`, `window.rs:448`) and a second launch (single-instance → `lib.rs:147`) all take
   the same `spawn`.
 
+**Refresh (2026-10-06, against `main` `c9e2dc4`, Tauri 2.12.1).** Phase A hasn't run. Since this was written, the
+window code changed under it: the #18 fix batch, the Phase 5 tear-off clamp (`5ed01d8`) and X11 size fix (`4705c6c`),
+and N6/N7 of the Tauri 2.12 plan (`714f1f0`). Found by reading the code; nothing re-measured.
+- **Where things are now:**
+
+  | Thing | Now |
+  |---|---|
+  | `spawn` | `window.rs:152`, five parameters (`reference` added), still on a `std::thread` (`:204`) |
+  | `show_with_theme` | `lib.rs:90-115`, its store read at `:93-97`, `win.theme()` at `:101` (unchanged) |
+  | `restoreTabs` | `App.tsx:47-86`; the first async call, `kvGet("gitPath")`, at `:99` |
+  | `take` | `window.rs:777`, Phase C's seed and the gate folded in |
+  | `take_pending` | `window.rs:457-459` (sync) |
+  | `spawn_window` | `window.rs:439-452` |
+  | the single-instance spawn | `lib.rs:154-161` |
+  | `killapp` | `docs/smoke/fixtures/direct.sh:41` (with `seed`, `dlaunch`, `waitfor`) |
+
+  The `protocol.rs:75` and `window_getter!` citations are tauri 2.11.6's; re-read them in 2.12.1 before relying on
+  them.
+- **Two new main-thread waits on the restore path.** Since v0.10.19, a restored second window carries its saved rect.
+  - **Before `build()`:** `spawn` looks up the rect's monitor with `screen_at` (`window.rs:292-312`) on the calling
+    thread. That's `monitor_from_point`, falling back to `current_monitor` and `primary_monitor`, and each waits on
+    the event loop when called off the main thread.
+  - **After the show:** `sample_soon` (`window.rs:495-513`) starts a thread that, 300 ms later, reads six getters
+    (`read_window`, `window.rs:526-544`). Each is a main-thread round trip. It then takes the `layouts` lock.
+  - The cascade (`cascade_from`) runs only on a second launch, never on the restore path.
+- **So Phase A changes:**
+  - step 2's read order adds what the spawn thread waits on in `screen_at`, and any `sample_soon` thread's wait;
+  - step 4's spans add `screen_at` and `read_window`;
+  - the baseline runs on today's `main`, so it measures these changes too (D-b unchanged);
+  - one more probe, reasoned only: §O records a 2026-10-04 tear-off whose page never started, and T26's launch stall
+    when `main` is saved bigger than the screen. Loop both to see whether they share the cause.
+- Phase B's `window.rs:102-104` citation (`spawn_window` runs on the main thread) is stale too; re-check it there.
+
 ### Phase A — diagnose (no code change)
 
 1. **A repro loop** in the walk's scratch style: seed a two-window `layout.json`, launch directly on Xvfb, and

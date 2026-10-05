@@ -4,6 +4,26 @@ _Written 2026-09-27, revised through review round 2. Source: the open-items row 
 measured the same day (Part A of `docs/archive/plans/2026-09-27-ssh-prompts-check-and-cli-pin-plan.md`). The user chose
 "fail fast with a clear message"._
 
+## Refresh (2026-10-06, against `main` `c9e2dc4`)
+
+Nothing here is implemented yet. The design and the decisions hold. Every "What is known" fact still reads true in the
+code, the clone one included (reasoned from `clone_repo` → `run.out.check()` → `cliDetail`'s first stderr line, not
+re-measured). N9's `resolve_dest` and `cb886f4`'s clippy fix don't touch the error path. The callers are still
+exhaustive matches, so the compiler and `tsc` still find them. Line numbers below have drifted; the current ones:
+
+| Cited | Now |
+|---|---|
+| `classify_failure` `:645-697`, its auth arm `:660-661` | starts `cli/ops.rs:654`, the auth arm `:669-670` |
+| `OpFailure` `:77`; `AuthFailed` | `cli/ops.rs:76-77`; still a unit variant, `:96` |
+| `auth_patterns` test `:1284-1292`; `failure_serde_shape` `:1350` | `cli/ops.rs:1332`; `:1419` |
+| `opsStore.ts:160`, `:201`, `:241` | `:178-179`, `:219`, `:259` |
+| `types.ts:613` | `:627` (`AppErrorKind` at `:8` still has no `authFailed`) |
+| `src-tauri/src/commands/ops.rs:838` (`failure_message`) | `:834-844`, the arm at `:839` |
+| `clone_repo` `:1254-1256` | `:1210-1261`, `run.out.check()` at `:1256-1258` |
+| `toastStore.ts:104-107` | `:104-106` |
+| `GitError::kind()` `error.rs:40-50` | `crates/git-core/src/error.rs:40-54` |
+| the `process_group(0)` comment `runner.rs:486-487` | `process_group(0)` at `cli/runner.rs:227`, its comment `:499-500` |
+
 ## What is known
 
 - **Measured:** with no askpass (this machine), every case already fails fast, in 0.5–1.4 s, exit 128. What a user
