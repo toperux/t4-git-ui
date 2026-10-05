@@ -59,12 +59,21 @@ Start-Sleep -Seconds $WaitSeconds
 # The port answering is the real readiness signal; MainWindowTitle can lag it.
 $version = try { (Invoke-WebRequest -Uri "http://127.0.0.1:$Port/json/version" -UseBasicParsing -TimeoutSec 5).Content } catch { $null }
 
+# MainWindowTitle can name the single-instance plugin's helper window (dev.topher.t4gitui-siw)
+# rather than the app's: the process's top-level windows are read instead, that one skipped.
+Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+$A = [System.Windows.Automation.AutomationElement]
+$title = @($A::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children,
+    (New-Object System.Windows.Automation.PropertyCondition($A::ProcessIdProperty, $p.Id))) |
+  ForEach-Object { $_.Current.Name } |
+  Where-Object { $_ -and $_ -ne 'dev.topher.t4gitui-siw' }) | Select-Object -First 1
+
 [pscustomobject]@{
   Pid       = $p.Id
   Exe       = $Exe
   Port      = $Port
   DataDir   = $DataDir
-  Title     = $p.MainWindowTitle
+  Title     = $title
   CdpAnswer = if ($version) { 'yes' } else { 'no - give it longer, or check for another instance' }
 } | Format-List
 

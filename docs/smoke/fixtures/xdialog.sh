@@ -22,8 +22,15 @@ title=$3 what=$4
 find_dialog() {
   xdotool search --all --onlyvisible --pid "$pid" --name "$title" 2>/dev/null | head -1 | grep .
 }
-dlg=$(find_dialog || true)
-[[ -n $dlg ]] || { echo "no dialog matching '$title' open for pid $pid"; exit 1; }
+# The box maps a moment after the click that opens it, and a first call made right after that
+# click found nothing: up to 5 s for it to show up.
+dlg=
+for _ in $(seq 10); do
+  dlg=$(find_dialog || true)
+  [[ -n $dlg ]] && break
+  sleep 0.5
+done
+[[ -n $dlg ]] || { echo "no dialog matching '$title' open for pid $pid after 5 s"; exit 1; }
 xdotool windowfocus --sync "$dlg"
 case $what in
   --cancel) xdotool key Escape ;;

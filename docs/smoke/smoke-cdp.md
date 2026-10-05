@@ -236,6 +236,15 @@ hunk confirm: **Cancel** kept the edit and **Discard** reverted it.
   unanswered confirm looks exactly like an action that silently did nothing, so check that line.
 - **Matching:** only the app's own windows match, so a box with the same title from another program is
   never pressed.
+- **The Save dialog** (*Save as…* on a commit's file): its file-name box and **Save** button aren't in UI
+  Automation, so the script can neither read the name nor press Save. Read the name with `WM_GETTEXT` on the
+  dialog's `Edit` control with id 1001, and press Save by sending the dialog `WM_COMMAND` with `IDOK` (group BO 4,
+  2026-10-05). Setting a name should be `WM_SETTEXT` on the same control; not tried yet.
+- **Never focus a window with a synthetic lone Alt tap** (`keybd_event VK_MENU`): if an app window already holds
+  the foreground, the tap puts it into its system-menu modal loop. A second launch's new window then stays hidden,
+  `WM_CLOSE` is ignored, and CDP dies (diagnosed in BO 12.2, `GetGUIThreadInfo` flags `0xc`). Focus a window with
+  `AttachThreadInput` + `SetForegroundWindow` instead, and check `GetGUIThreadInfo` flags read 0 before a launch
+  (group BO 12, round 2, 2026-10-05).
 
 
 ## Fixture and cleanup

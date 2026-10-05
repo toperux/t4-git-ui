@@ -886,6 +886,18 @@ fixes and the walk added three more. The walk is `docs/archive/walks/2026-09-19-
       restarted by itself (`docs/archive/walks/2026-10-01-v0.10.15-release-gate-linux.md`);
     - AC ticked 2026-10-01 (row above). `.rpm` is ruled covered by the `.deb` walk (2026-09-27): without `APPIMAGE`
       both take the Download… path (`update.rs:45-50`).
+- **The tauri-cli 2.12.0 bump** (added 2026-09-28, the CLI pin plan's B-1 and B-3) — **closed 2026-10-05** by the
+  Tauri 2.12 change (`docs/plans/2026-10-04-tauri-2.12-plan.md`), which took Dependabot #19 (npm) and #20 (cargo) by
+  hand on one branch.
+  - **The row as it stood:** 2.12.0 (bundler 2.10.0) came out 2026-09-26; the pin stayed on 2.11.5 until a plan
+    checked it (the version binding, `--app-version`, `--locked`, a dispatch run), and re-derived the AppImage tool
+    pins from the new bundler's source. `checks.yml`'s guard turned Dependabot's npm group PR red on the CLI bump;
+    the `@dependabot ignore` fallback the row described was never applied.
+  - **Closed by:** `release.yml` pins tauri-cli 2.12.1 (bundler 2.10.1), matching `@tauri-apps/cli` 2.12.1 in
+    `package-lock.json`. *Pin the AppImage tools* holds four tools: linuxdeploy re-pinned to the fixed build
+    `07333c6`, the gtk and gstreamer scripts dropped (the bundler embeds them). linuxdeploy `07333c6` excludes
+    `libwayland-client` itself, so the AppImage repack and its re-sign are gone, and a new step fails the run if the
+    library comes back. The release's dry run and the v0.10.19 gate prove the pipeline (the plan's Verify).
 
 ## Q. Accepted limits — the rows since closed
 
@@ -1307,3 +1319,77 @@ these.
 - **T28** On WebKitGTK a menu's first item opened by a click matches `:focus-visible` (not on Windows), and nothing is
   drawn: the menu's highlight keys on `[data-kbd]:focus` alone. Menu CSS must keep keying on `data-kbd`, not
   `:focus-visible`. Measured on the Linux VM (`1e58f7c`, BN 1).
+
+## AA. Added 2026-10-05 — Tauri 2.12 triage
+
+Ruled by the owner 2026-10-05, after the group BO walks and its round 2 (BO 11–13); detail in
+`docs/plans/2026-10-04-tauri-2.12-plan.md` ("Triage (2026-10-05) and its fixes") and
+`docs/archive/walks/2026-10-05-group-bo-walk.md`. Numbers are the running triage list's; R-numbers are round 2's.
+No reopen trigger on any of these.
+
+**Fixed:**
+- **R6, a second launch with every window minimized opened at the minimum size, not the default size** — fixed
+  `701ccf5`. With every window minimized there is no cascade reference, and the size was read from the minimized
+  `main`, which reads near zero; a minimized `main` is now skipped and the builder's default size (800 × 600) used,
+  as when `main` is gone.
+
+**Accepted and closed (round 1):**
+- **#13** Mac `cliclick c:` jumping after keyboard input twice misbehaved in BN 1 (no menu / first item marked);
+  clean with `m:` first; likely the driver, unproven.
+- **#17** BO 8: whether OK on the "is running" box closed the app through Restart Manager or a plain kill can't be
+  told from the walk (the log is buffered, no exit line); the app saved its state on exit either way.
+- **#18** BO 8: a pre-existing OneDrive desktop `T4 Git UI.lnk` was rewritten by the setup's passive (`/P`) runs.
+- **#21** tao 0.37.1's `set_visible` focus change: the app sets no `with_focused(false)`.
+- **#22** `opener`'s `Error::Win32Error` type change: the app doesn't use it.
+- **#23** VC-runtime bundling, new in this bump but opt-in, stays off.
+- **#24** `libpipewire`, newly excluded by linuxdeploy: 0.10.18 bundles none anyway.
+- **#25** `npm update`'s `save` setting wasn't set; `package.json` is unchanged.
+- **#26** The local AppImage built on 26.04 takes `plugin-appimage` and the `linuxdeploy` runtime unpinned from
+  `continuous` — fine for a walk build.
+- **#27** Offering the digest check inside D7 instead of at triage (pass 9 nit 4): not taken; superseded by #37's
+  fix (the dry run's `--check`).
+- **#28** 0.10.8 shares the app's identifier and may have run its own launch update check during BO 9; the store
+  was restored after.
+- **#30** Ragged wraps in the plan at lines 49, 81, 111, 116, 197, 313, 317 (render fine).
+- **#31** A plan row named two ways ("The tauri-cli 2.12.0 bump" at l.9 vs. "tauri-cli 2.12.0 bump" at l.240), the
+  same row.
+- **#32** The coder changed the plan's Status to "Final" and wrote "gates ran" before they ran (they then passed).
+- **#33** `npm update` took newer non-Tauri packages too: `@types/node` 26.6.4, `jsdom` 30.1.2 (transitive
+  `data-urls` 7→8, `tr46` 6→7 majors), `lucide-react` 1.52.0, `react-resizable-panels` 4.14.2, `vite` 8.3.2,
+  `vitest` 5.0.3; `why-is-node-running` 3.2.1 stayed below 3.2.2 (vitest pins it).
+- **#34** The AppDir check hardcodes the product name "T4 Git UI": a rename would fail it loudly, not silently.
+- **#35** `npm run build`'s Vite 500 kB chunk warning, not compared against `main`.
+- **#36** `main.rs`'s test is near-tautological (`then_some`), as the plan asked for.
+- **#39** N5's unmeasured case: a Linux `user-dirs.dirs` naming a deleted Downloads folder — GTK's own fallback not
+  tried (the Mac falls back to home).
+- **#40** `open-items-done.md` §P closes the tauri-cli 2.12.0 bump row before the push, the dry run or the
+  release — left as is.
+
+**N6's two accepted limits (its design, from the plan's Records paragraph):**
+- A move in the last ~300 ms before Quit is lost (the settle timer's window).
+- A window quit in full screen comes back windowed, at its last normal rect.
+
+**Accepted and closed (round 2):**
+- **R2** The cascade from a maximized window on Windows lands with a visible offset of 23 px across / 16 px down,
+  not the full 32 (an 8 px invisible border plus a shrink to the work area). Measured in BO 12.4.
+- **R3** The restore/cascade unit tests cover the helper functions, not the Tauri wiring around them; the walks
+  (BO 11, BO 12) cover the wiring.
+- **R4** A non-finite rect size (only reachable from a 0 scale) makes `read_layouts` drop the whole session, not
+  just the bad entry.
+- **R5** `runtime-wry`'s `rx.recv().unwrap()` (`lib.rs:2647`) could panic the single-instance callback thread if a
+  second launch races the event loop's exit — upstream, not this app's code.
+- **R7** The centre lookup used for `screen_at` takes the logical width on Windows, so a point can read nearer the
+  top-left than the real centre above 100% scale; always still inside the right monitor.
+- **R8** `screen_at`'s fallback, when a rect's point is off every monitor, is `main`'s monitor, not the reference
+  window's.
+- **R9** `AppState::moves` (N6's per-window settle-timer generation count) is never pruned: one `u64` per window
+  label per session.
+- **R10** N9's `resolve_dest` edge cases: `""` resolves to home, `"/"` to root, and a non-UTF-8 destination is
+  refused.
+- **R11** `main.rs` doesn't clear a stale inherited `T4_HOST_*` variable; `host_env` still strips the two names
+  from a child it starts itself.
+- **R13** WebKit's own helper processes (`WebKitWebProcess`, `WebKitNetworkProcess`) carry `T4_HOST_*`, since
+  WebKit spawns them itself, not through `host_env`.
+- **R16** Windows system-menu mode (a lone Alt tap, or a window's system menu left open) holds a second launch's
+  new window hidden and its `WM_CLOSE` unanswered until the mode ends — the standard Win32 modal loop, predating
+  2.12 (diagnosed as BO 12.2's "hang", see the walk record).

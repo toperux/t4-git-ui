@@ -55,6 +55,8 @@ copied text too, as on Windows.
     gate walk, 2026-10-03).
   - `<pid> --title '^Discard hunk$' --ok|--cancel`: an `ask()` box. Return is the affirmative button
     (**Discard**) and Escape is Cancel. Both were checked against the file's checksum.
+  - It waits up to 5 s for the box, so it can run right after the click that opens it: before, a first call made
+    then reported "no dialog" and only a second one answered (group BO 4, 2026-10-05).
 - `docs/smoke/fixtures/xclose.py <window id>`: closes a window as its title-bar × does, by sending
   `WM_DELETE_WINDOW`. Xvfb has no window manager to do it, and `xdotool windowclose` destroys the window
   instead, skipping the app's close handling. Run it with `DISPLAY=:99`; take the id from
@@ -147,6 +149,17 @@ The DOM is the one `smoke-cdp.md` § *Selectors that hold* describes, and its tr
   hover is needed.
 - **Never click a broad fallback selector:** WebDriver clicks whatever matches first. A stray
   `button:has(> span)` once opened the repository tab's menu.
+- **A WebDriver right-click breaks the later WebDriver clicks on that page:** `wd.mjs rclick` leaves button 2
+  pressed (a `WebKitWebDriver` artifact, the same on `main`, group BO 7, 2026-10-05), and every later click logs no
+  pointer events. Rows that check which menu item is marked (BN 1, BN 2) use real XTEST clicks
+  (`DISPLAY=:99 xdotool mousemove <x> <y> click 1`, or `click 3` for the menu), or no WebDriver right-click earlier
+  in the same page load.
+- **Open and Reveal reach the live desktop:** the harness isolates `HOME` and the display, not the session bus, so
+  *Open* (an editor, through D-Bus activation) and *Reveal* (the file manager) start on the user's own desktop
+  (group BO 4, 2026-10-05). Close them after the row.
+- **`xdotool search --name` takes a regex:** an unanchored title can match more than the window intended —
+  `'other$'` also matched the main window (`"T4 Git UI - other"` vs. the main titles, group BO 11, round 2,
+  2026-10-05). Use exact, anchored titles (`^…$`).
 - **OS level.** There is no window manager: `windowfocus` works but doesn't raise, and windows stack at 0,0.
   - `DISPLAY=:99 xdotool windowfocus --sync <win> key ctrl+Tab` sends a real key.
   - `xdotool windowsize` respects the window's minimum size.
@@ -197,7 +210,8 @@ skill's *Checking the packaging*). Learned on the blank-window fix
   - The identifier is the installed app's (`dev.topher.t4gitui`), not `.smoke`. Without its own session bus, a new
     launch hands off to any copy already running (the installed app, a previous run) and exits: an empty log and
     no window, which looks like a render failure.
-  - The AppImage forces `GDK_BACKEND=x11` itself (its GTK hook), so it is always X11, under XWayland on a desktop.
+  - The AppImage forces `GDK_BACKEND=x11` itself (the app sets it in `main.rs` since tauri-cli 2.12.1, whose GTK hook
+    no longer does), so it is always X11, under XWayland on a desktop.
 - **Judge the render from a screenshot (a rough check):** first confirm the window exists
   (`xdotool search --name 'T4 Git UI'`). Then `import -window root`, then `convert <png> -format %k info:`.
   - A blank window, or no window, is 1–2 colours; the start screen is several hundred.
@@ -211,7 +225,8 @@ skill's *Checking the packaging*). Learned on the blank-window fix
 - **Never `pkill -f` a pattern that is in your own command line:** it kills the shell running it. Put kill logic in
   a script written in a separate call.
 - **Inspect without running it:** the payload starts at the ELF's `e_shoff + e_shentsize * e_shnum`, 944632 in
-  0.10.12. `unsquashfs -l -o <offset>` lists it (no `libwayland-client` after the fix). Check the signature with
+  0.10.12. `unsquashfs -l -o <offset>` lists it (no `libwayland-client` since the fix: repacked out up to 0.10.18,
+  excluded by linuxdeploy itself from tauri-cli 2.12.1 on). Check the signature with
   `python3 .github/scripts/verify-updater-sig.py <file> <file>.sig src-tauri/tauri.conf.json <version>`, and the
   embedded digest with `python3 .github/scripts/appimage-digest.py --check <file>`.
 - **On a VMware guest's desktop** the fixed AppImage still needs `WEBKIT_DISABLE_DMABUF_RENDERER=1` (the README
@@ -266,10 +281,9 @@ skill's *Checking the packaging*). Learned on the blank-window fix
   - See `docs/archive/walks/2026-09-27-linux-wayland-rendering-walk.md`.
 - **`.deb` / `.rpm` updates** (`smoke-test-post-v1.md` AC): these need bundled packages (the signing key),
   `sudo dpkg -i`, and a published release newer than the build. Walk them by hand.
-- **AppImage updates** can be walked before a release: a `workflow_dispatch` Release run (signed and repacked as a
-  release) of a throwaway branch versioned below the published release, set the release skill's way; without a
-  tag the version job skips its tag checks, so a lower version builds (`release.yml:60-74`). Its `packages-Linux`
-  AppImage then updates to the published one through Settings (group BI 8). The branch goes into the `signing`
-  environment's deployment-branch policies for the run and comes out after; the owner approves the run under
-  *Review deployments*; the dispatch also makes and deletes a draft release. Still a hand walk: the push, the policy
-  change and the run are the user's go.
+- **AppImage updates** can be walked before a release: a `workflow_dispatch` Release run (signed as a release) of a
+  throwaway branch versioned below the published release, set the release skill's way; without a tag the version job
+  skips its tag checks, so a lower version builds (`release.yml:60-74`). Its `packages-Linux` AppImage then updates to
+  the published one through Settings (group BI 8). The branch goes into the `signing` environment's deployment-branch
+  policies for the run and comes out after; the owner approves the run under *Review deployments*; the dispatch also
+  makes and deletes a draft release. Still a hand walk: the push, the policy change and the run are the user's go.

@@ -2711,6 +2711,135 @@ WebDriver, X11 with no window manager): pass; 8 there is under 8. The record is
       case → the 1600 × 1000 screen) and on Windows ((a), a mid drop, and the shrink case with `main` maximized → the
       work area).)*
 
+## BO. Tauri 2.12: the crate bumps, the installer's running-app check, the AppImage on X11
+
+Plan: `docs/plans/2026-10-04-tauri-2.12-plan.md` (*Verify*; N1, N3, N4 and N5 under *Decisions*). The bump moves the
+crates under tear-off, window restore, single-instance, the updater and the installer (tauri 2.12.1, tao 0.37.1, wry
+0.57.0, tauri-bundler 2.10.1), which unit tests and CI don't reach. Walked on a local build of the branch: the Windows
+VM over CDP (the Chrome DevTools Protocol, which WebView2 exposes), the Linux VM over WebDriver (10 on its live GNOME
+desktop, the folder picker by the owner's hand), and 1, 2, 6 and 7 on the Mac (the plan's D5 (a)). Local builds use the
+npm CLI (`npm run tauri -- build …`, 2.12.1), never `cargo tauri`; each machine's `npx tauri --version` and
+`rustc --version` (1.90 or later) are read before its first build. Each machine's store is backed up first and restored
+after. Rows 11–13 are the fixes of the plan's *Triage (2026-10-05) and its fixes*, walked on a build with them.
+
+_Walked 2026-10-05 on `102b47e` (Windows VM, Linux VM, Mac: 1, 2, 6, 7) and `75aecc3` (4's *Save as…* on all three,
+and 10). Record `docs/archive/walks/2026-10-05-group-bo-walk.md`._
+
+- [x] 1. **Launch and single-instance:** launch, open `work` → refs and status load; a second launch hands over to the
+      running app.
+- [x] 2. **Tear-off placement:** a tab dropped near the bottom-right corner opens wholly on screen at full size; one
+      dropped mid-screen opens at the drop; on Windows, with `main` maximized, the new window is clamped to the work
+      area (BN 8's three cases).
+- [x] 3. **Restore:** two windows, one maximized, quit, relaunch → both come back with their tabs, the maximized one
+      maximized. *(The maximized part walked on Windows only: no window manager under Xvfb on the Linux VM.)*
+- [x] 4. **Plugins:** a native confirm (Discard) answers; *Copy SHA* shows the toast; *Open* a file, and *Reveal in
+      folder*; *Save as…* in a commit's file menu (History › a commit › its file) opens in Downloads with the file's
+      name (home when `~/.config/user-dirs.dirs` names none, Linux), and saves there.
+- [x] 5. **Store:** a Settings change survives a relaunch.
+- [x] 6. **Updater 2.13's check:** Settings › Check now on a build versioned 0.10.18 → "T4 Git UI 0.10.18 is up to
+      date" (the check over HTTPS).
+- [x] 7. **Menus:** BN 1 and BN 2 once (a click never marks the first item, a key always does).
+- [x] 8. **Windows: the installer closes the running app and it comes back** (tao 0.37 exits on `WM_ENDSESSION`). The
+      branch's NSIS setup, **built on the Windows VM** (`npm run tauri -- build --bundles nsis --config <file>`, the
+      file holding `{"bundle":{"createUpdaterArtifacts":false}}`, as BO 10 does inline; a file because PowerShell
+      mangles inline JSON quotes; UTF-8 with no byte-order mark, written with node or the Write tool, not PowerShell's
+      `>` or `Set-Content`). Not code-signed, and with no updater signature no key is needed, unlike group BC's build.
+      Install it first, so the app open during the next runs is the branch build (the installed 0.10.18 has tao 0.35).
+      Start it with two windows, then run the same setup again:
+      - (i) interactively (double-click, no flags; on the same-version page keep the default *Add/Reinstall*:
+        *Uninstall* would run the uninstaller first, whose *Delete app data* box could wipe the store) → it asks to
+        close the app; OK → Restart Manager closes it (`RmForceShutdown`, which sends `WM_ENDSESSION`), the install
+        runs; the finish page's *Run* box → the app comes back with both windows;
+      - (ii) restart it with two windows, then `setup.exe /P /UPDATE /R` → no question (passive mode), and the app
+        comes back with both windows.
+      Both test the `WM_ENDSESSION` exit, which a real update rarely sends: there the updater exits the app itself
+      before the installer's check.
+- [x] 9. **Windows: group BC's rename path, the hook's full path** (N3). First quit the branch app 8 left running, so
+      nothing but 0.10.8 can answer the check (the installer runs our hook, then its own check for
+      `$INSTDIR\t4-git-ui.exe`, and both show the same "T4 Git UI is running" box; 0.10.8 has no single-instance, so
+      both apps could run side by side). Install the published 0.10.8 (the last under the old name `t4-git-ui`), start
+      it, then run the branch's setup interactively → exactly one prompt, before the old copy is closed (only the hook
+      can raise it now), then it's replaced (one install left, under `T4 Git UI`). Keep the default *Add/Reinstall* on
+      the same-version page, as in 8. No prompt at all is the failure: 0.10.8's own uninstaller then closed it unasked
+      (it runs with `/S`).
+- [ ] 10. **Linux: the AppImage stays on X11** (N1). A local AppImage of the branch, built on the Linux VM
+      (`npm run tauri -- build --bundles appimage --config '{"bundle":{"createUpdaterArtifacts":false}}'`, so no
+      signing key is needed there). Launched on the live GNOME session from a terminal there, with the real `HOME` and
+      the session's own D-Bus, no other T4 Git copy running (single-instance would hand the launch to it), and
+      `GDK_BACKEND=wayland WEBKIT_DISABLE_DMABUF_RENDERER=1` in the launching shell (the VMware guest opens blank under
+      XWayland without the second). Both store folders backed up first and restored after:
+      `~/.local/share/dev.topher.t4gitui` and `~/.config/dev.topher.t4gitui` (window state only, a dotfile).
+      - it runs under X11: `xwininfo -root -tree | grep 'T4 Git'` (package `x11-utils`) lists the window, and
+        `WebKitWebProcess`'s `/proc/<pid>/environ` shows `GDK_BACKEND=x11` (the app's own still shows what it was
+        started with);
+      - it renders;
+      - **by the owner's hand:** the folder picker (*Open repository…*: Ctrl+O on the start screen, Ctrl+T in a
+        repository window) opens on *Recent* (with GNOME's File History on), not inside the image's mount (the app
+        sets `GSETTINGS_BACKEND=memory`, so a user's `startup-mode` of `cwd` can't send it there; a `usr` entry in
+        the sidebar is the app's working folder, expected; the variable shows in WebKit's helper processes'
+        `/proc/<pid>/environ`, not the app's own, which is its start-time one; N4). Its *Other Locations* lists the
+        mounted volumes;
+      - *Open* on a file in the Files list starts the host's handler;
+      - **by the owner's hand:** *Save as…* in a commit's file menu opens the Save dialog in Downloads with the
+        file's name, and the file saves there (N5).
+      Built on Ubuntu 26.04, not CI's 22.04, so its bundled GIO modules differ from the release's: the GIO comparison
+      stays with the dry run's AppImage (the plan's *Verify*). Left open: on a local Ubuntu 26.04 build the picker
+      opens inside the mount (Ubuntu's `10_ubuntu-settings.gschema.override` sets `startup-mode` to `cwd`, bundled
+      from the build host); decided on the dry run's CI-built AppImage.
+- [x] 11. **Windows and the Mac: a second window comes back at its own rect** (N6). Each step waits about 1 s after
+      the last move before Quit (the settle; a move in the last ~300 ms before Quit is lost, accepted):
+      - `main` maximized and a second window at its own rect, not maximized; quit, relaunch → each back at its own
+        rect, inside the work area;
+      - a second window moved *after* the last tab change; quit, relaunch → at the moved rect;
+      - a second window moved and resized, then maximized; quit, relaunch → back maximized, and un-maximizing
+        returns it to the moved rect;
+      - relaunched maximized, quit again without un-maximizing, relaunch, un-maximize → still the moved rect;
+      - the Mac: a second window quit in full screen → back windowed at its last normal rect.
+      On the Linux VM's harness (no window manager, so no maximize and no decorations): the second window's position
+      and size. Not covered: a second monitor (none on any walking machine), and the Windows update path (a second
+      window moved after its last tab change, then an update), which first runs at the v0.10.20 gate's update, where
+      0.10.19 is the outgoing app. *(Walked 2026-10-05 on `df14320`. Windows: 11.1 `other` at (300,150) 1100 × 700 →
+      rect `{300,150,1084×661,false}`, relaunch there, `work` zoomed. 11.2 moved to (500,250) → relaunch there. 11.3
+      (400,200) 1000 × 650 then maximized → rect `{400,200,984×611,true}`, relaunch zoomed, un-max → (400,200)
+      1000 × 650. 11.4 quit again maximized → rect unchanged, relaunch, un-max → (400,200) 1000 × 650. Mac: 11.1
+      `other` 300,200 900 × 600 → rect `{300,200,900×600,false}`, relaunch both. 11.2 moved 420,260 → there. 11.3
+      200,150 1000 × 650 then zoom → rect `{200,150,1000×650,true}` (no intermediate frame), relaunch zoomed, un-zoom
+      → 200,150 1000 × 650. 11.4 quit again zoomed → same rect, un-zoom → 200,150. 11.5 250,180 950 × 620 then full
+      screen → rect `{250,180,950×620,false}`, back windowed there. Linux (Xvfb, no window manager, scratch `HOME`):
+      `other` torn off, moved to 210,130 and sized 1000 × 700, Ctrl+Q → rect `{210,130,1000×700,false}`, relaunch
+      `main` (0,0) 1280 × 800, `other` (210,130) 1000 × 700, rendered.)*
+- [x] 12. **A second launch cascades from the last-focused window** (N7). A second launch → the new window offset from
+      the last-focused one, at its size; with a second window in front → offset from it; with the last-focused window
+      minimized → offset from another. On Windows and the Mac also with `main` maximized in front → offset and shrunk,
+      not over `main`. On the Linux harness, a second launch's placement (no window manager: no maximize, focus events
+      unverified). *(Walked 2026-10-05 on `df14320`. Windows: 12.1 `work` (208,208) 1296 × 839 focused → second launch
+      at (240,240) 1296 × 839 = `work` + 32 at its size. 12.2 first looked like a hang: a synthetic lone Alt tap put the
+      foreground window into system-menu mode (harness, not the app; see the walk record); without the Alt tap, `other`
+      focused → second launch at outer (432,232) 1000 × 650 = `other` (400,200) + 32 at its size. 12.3 (focus by
+      `AttachThreadInput` + `SetForegroundWindow`): `other` focused, foreground moved out of the app, `other` minimized
+      → second launch at outer (240,240) 1296 × 839 = `work` + 32 at its size. 12.4 `work` maximized, focused → second
+      launch at outer (16,16) 1904 × 1136, frame offset 23 px across / 16 px down from `main`'s (the invisible border
+      and a shrink, not the full 32). Mac: A `work` focused (1,34 1280 × 800) → 33,66 1280 × 800; B `other` (250,180 950
+      × 620) → 282,212 950 × 620; C `other` minimized → 33,66 from `work`; D `work` zoomed → 32,66 1480 × 916 (shrunk by
+      32, on screen, not over `main`). Linux (real XTEST clicks): click `main` → second launch at (32,32) 1280 × 800;
+      click `other` → (242,162) 1000 × 700; back to `main` → (32,32); focus tracking followed the XTEST clicks.)*
+- [x] 13. **Linux: a program the AppImage starts gets the user's `GDK_BACKEND` and `GSETTINGS_BACKEND`** (N8). Run on
+      a private Xvfb with a scratch `HOME`, not the live desktop: the diff tool is set in git's *global* config, so on
+      the live desktop with the real `HOME` the walk would edit the walker's own `~/.gitconfig`. On the Linux VM's
+      AppImage, the external diff tool pointed at a script that writes its `env` to a file (not a
+      D-Bus-activated handler, whose environment comes from the session), started from the app three times:
+      - the shell with `GDK_BACKEND=wayland` (10's launch recipe) → the child has `wayland`;
+      - the shell without it → the child has no `GDK_BACKEND`;
+      - the shell with `GSETTINGS_BACKEND=keyfile` → the child has `keyfile`.
+      Each: no `T4_HOST_*` in the child, and `WebKitWebProcess` still shows `x11` and `memory`. *(Walked 2026-10-05 on
+      `df14320`, a private Xvfb `:98` with a scratch `HOME`: `envdump.sh` as the diff tool; A shell with
+      `GDK_BACKEND=wayland` → child `wayland`; B none → child none; C `GSETTINGS_BACKEND=keyfile` → child `keyfile`;
+      each with no `T4_HOST_*` and no mount paths; WebKit's own helpers `x11` + `memory`; rendered.)*
+
+**After BO 8 and 9:** reinstall the published 0.10.18 setup on the Windows VM, restore its store, and read the installed
+exe's version (0.10.18) and signature. Otherwise the v0.10.19 gate would run the branch build's updater (2.13) instead
+of 0.10.18's (2.12), and wouldn't prove what it's for.
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the

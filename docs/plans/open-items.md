@@ -56,9 +56,10 @@ Custom titlebar (revisited in M6, native kept) · i18n · plugins.
   Either way **do not switch to `ubuntu-latest`**: the replacement (a `container: ubuntu:22.04` job,
   or `cargo-zigbuild`) has to be picked once for all three t4 repos. Recorded in
   `docs/archive/plans/ci-alignment-round-2.md` §5; nothing breaks on the deprecation date itself.
-  - (2026-09-27) **Whatever replaces it keeps the AppImage repack.** `release.yml` strips the build host's
-    `libwayland-client` from the AppImage (§P). Any older-than-the-user build host needs that, a `container:
-    ubuntu:22.04` job included.
+  - (2026-09-27, updated 2026-10-05) **Whatever replaces it keeps `libwayland-client` out of the AppImage.** The build
+    host's copy breaks newer hosts (§P). The repack that stripped it went with tauri-cli 2.12.1, whose linuxdeploy
+    (`07333c6`) excludes it itself; `release.yml`'s *Check the AppImage has no libwayland-client* fails the run if it
+    comes back. Any older-than-the-user build host needs that check, a `container: ubuntu:22.04` job included.
   - (§K, 2026-09-16) **Still pinned** in `checks.yml:28` and `release.yml:116`, and **the sibling app
     is in exactly the same state** (asked and answered 2026-09-16: still pinned, no decision recorded,
     the reasoning lives only in its archived `ci-alignment*.md`). So the cross-repo decision is genuinely
@@ -236,18 +237,8 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
 - **The AppImage blank-window bug** (found in the AC :761 walk, 2026-09-26; fixed in #18, merged 2026-09-27) — **done
   2026-10-01**, moved to `open-items-done.md` §P: both release walks it waited on (0.10.12 → 0.10.13, 0.10.13 → 0.10.14)
   landed, and AC ticked at 0.10.14 → 0.10.15.
-- **The tauri-cli 2.12.0 bump** (added 2026-09-28, the CLI pin plan's B-1 and B-3). Not planned yet. 2.12.0 (bundler
-  2.10.0) came out 2026-09-26; the pin stays on 2.11.5 until a plan checks it (the version binding, `--app-version`,
-  `--locked`, a dispatch run). If the bump moves the bundler version (2.12.0 does, to 2.10.0), it also re-derives
-  the six AppImage tool names, URLs and hashes in `release.yml`'s *Pin the AppImage tools* from that bundler's
-  source. `checks.yml`'s guard keeps `release.yml`'s pin and `package-lock.json` in step, so
-  Dependabot's npm group PR carrying 2.12.0 will go red on it. **Then:** comment
-  `@dependabot ignore @tauri-apps/cli minor version` on that PR (on the user's word). That closes the group PR; the
-  other bumps come back at the next weekly run. The ignore is stored by GitHub, not in the repo, and covers every
-  later minor too: `@dependabot show @tauri-apps/cli ignore conditions` shows it. Lift it with
-  `@dependabot unignore @tauri-apps/cli` on an open npm group PR, even if the bump is done by hand, or later minors
-  are never proposed. When the ignore is applied, add *ignore active since <date>* here (a docs commit on `main`,
-  pushed on the user's word).
+- **The tauri-cli 2.12.0 bump** (added 2026-09-28) — **closed 2026-10-05**, moved to `open-items-done.md` §P: taken
+  as 2.12.1 with Dependabot #19 and #20 (`docs/plans/2026-10-04-tauri-2.12-plan.md`).
 - **Turn on `requireSignedVersion`:** an accepted limit, moved to §Q (*`requireSignedVersion` is off*), 2026-09-28;
   closed 2026-10-01 (close-out Phase 1b), moved to `open-items-done.md` §Q.
 - **Only the AppImage's updater `.sig` is verified in CI:** done 2026-10-01 (close-out Phase 1b), moved to
@@ -286,11 +277,14 @@ phases that accepted them; each origin keeps a pointer.
 - **AppImage fix untested on an Ubuntu 22.04 host and with the NVIDIA proprietary driver.** Accepted 2026-09-26 (the
   22.04 host) and 2026-09-27 (NVIDIA), in the AppImage plan (L5). **Reopen:** a report from either. *From §P, the
   AppImage row (now in the done file §P).*
-- **AppImage always under XWayland; some GPUs need `WEBKIT_DISABLE_DMABUF_RENDERER=1`.** The AppImage's GTK hook forces
-  `GDK_BACKEND=x11`. On a VMware SVGA II guest, XWayland also needs `WEBKIT_DISABLE_DMABUF_RENDERER=1`; the system
-  `.deb` under `GDK_BACKEND=x11` is blank too. Decided 2026-09-27: no switch in the app (it would slow every AppImage
-  user); the README documents the variable instead. **Reopen:** a report that the README workaround isn't enough, or
-  Tauri's AppImage dropping the forced `GDK_BACKEND=x11`. *From §P, the AppImage row (now in the done file §P).*
+- **AppImage always under XWayland; some GPUs need `WEBKIT_DISABLE_DMABUF_RENDERER=1`.** The app forces
+  `GDK_BACKEND=x11` itself inside an AppImage (`src-tauri/src/main.rs`), since the GTK hook of tauri-cli 2.12.1 no
+  longer does. On a VMware SVGA II guest, XWayland also needs `WEBKIT_DISABLE_DMABUF_RENDERER=1`; the system `.deb`
+  under `GDK_BACKEND=x11` is blank too. Decided 2026-09-27: no `WEBKIT_DISABLE_DMABUF_RENDERER` switch in the app (it
+  would slow every AppImage user); the README documents the variable instead. **Reopen:** a report that the README
+  workaround isn't enough. The second trigger, Tauri's AppImage dropping the forced `GDK_BACKEND=x11`, fired with
+  tauri-cli 2.12.1 (2026-10-04); the owner kept X11, always (N1 of `docs/plans/2026-10-04-tauri-2.12-plan.md`), so the
+  row stands. *From §P, the AppImage row (now in the done file §P).*
 - **No timeout on git ops.** A stuck ssh or https op ends only on Cancel. By choice (triage 2026-09-27): a timeout
   would misfire on a slow fetch or clone. **Reopen:** a report of a hang the ssh fail-fast change doesn't cover.
   *From §P, the ssh prompts row.*
@@ -430,14 +424,15 @@ phases that accepted them; each origin keeps a pointer.
   image unmounted, during the v0.10.14 gate (`docs/archive/walks/2026-09-29-v0.10.14-release-gate-linux.md`), so it
   isn't unique to the hotfix. *From the 0.10.14 hotfix's BI re-walk.*
 - **What the Release build still fetches unpinned.** `toolchain: stable` (whatever rustup resolves that day); the apt
-  packages, unpinned — only `squashfs-tools` has a version floor (triage U5), `python3-cryptography` an import check;
-  and two downloads the Windows bundler makes during *Bundle and sign* with the keys in env, `nsis-3.11.zip` and
-  `nsis_tauri_utils.dll` v0.5.3 (both from `tauri-apps` GitHub releases; the DLL is then signed with our certificate
-  as an NSIS plugin; seen in dry run 36674994686's log). The bundler checks both against a SHA-1 (read in
-  tauri-bundler 2.9.4, `nsis/mod.rs`). The `Downloading` check on the bundle log runs on Linux
-  only, so a third Windows download would not be caught. Accepted 2026-10-01 (close-out Phase 1b, triage T3).
-  **Reopen:** a bundler change moves either fetch or adds a Windows download, or a toolchain release breaks the build.
-  *From Phase 1b's change review (`docs/plans/2026-09-30-phase-1b-plan.md`, "Not in this phase").*
+  packages, unpinned and with no version floor (`squashfs-tools`' floor, triage U5, went with the AppImage repack at
+  tauri-cli 2.12.1), `python3-cryptography` an import check; and two downloads the Windows bundler makes during *Bundle
+  and sign* with the keys in env, `nsis-3.11.zip` and `nsis_tauri_utils.dll` v0.5.3 (both from `tauri-apps` GitHub
+  releases; the DLL is then signed with our certificate as an NSIS plugin; seen in dry run 36674994686's log). The
+  bundler checks both against a SHA-1 (read in tauri-bundler 2.9.4, `nsis/mod.rs`; 2.10.1, which tauri-cli 2.12.1 locks,
+  has the same URLs, `nsis_tauri_utils` v0.5.3). The `Downloading` check on the bundle log runs on Linux only, so a
+  third Windows download would not be caught. Accepted 2026-10-01 (close-out Phase 1b, triage T3). **Reopen:** a bundler
+  change moves either fetch or adds a Windows download, or a toolchain release breaks the build. *From Phase 1b's change
+  review (`docs/plans/2026-09-30-phase-1b-plan.md`, "Not in this phase").*
 - **On Linux and macOS a tool open holds the repository's git2 lock ~300 ms.** Detecting an early-failing custom
   tool (exit 126/127 within 300 ms, unix only) waits under the lock; other git2 reads of that repository stall
   meanwhile. A `ponytail:` comment in `crates/git-core/src/tools.rs` names it. Accepted 2026-10-01 (close-out
@@ -624,6 +619,50 @@ phases that accepted them; each origin keeps a pointer.
   window sometimes never starts". `smoke-linux.md` §2 says to keep the saved window within the screen. Accepted
   2026-10-04 (close-out Phase 5 triage, T26). **Reopen:** seen on a real desktop or under a window manager, or §O's
   hang is pinned down.
+- **Updater 2.13's install path is unproven until the v0.10.20 gate.** The v0.10.19 gate updates 0.10.18 with
+  0.10.18's own updater (tauri-plugin-updater 2.12); 2.13 first installs an update at the release after. If its
+  install path were broken, every installed 0.10.19 would be stranded: it could check for updates but not install
+  one, and users would have to download the next release by hand, unnoticed until the 0.10.20 gate. The measured
+  diff of the install path is refactors only (`let`-chains); the one behaviour change, the Linux certificate
+  variables, is covered by smoke group BO 6 on a Debian-family host. Accepted 2026-10-05 (D6 (a)). **Reopen:** the
+  v0.10.20 gate's update install fails, or a second window's moved rect is lost across the v0.10.20 gate's update
+  (N6's Windows update-path persist, unproven until then, added to this row by the Tauri 2.12 triage). *From
+  `docs/plans/2026-10-04-tauri-2.12-plan.md`, D6.*
+- **N6's Linux full screen, set from the window manager's own menu, isn't seen.** tao's `fullscreen()` on Linux
+  reflects only the app's own full screen (`linux/window.rs:699-710`), so a window manager's full screen is
+  recorded as a screen-sized normal rect, and relaunched clamped to the work area. Accepted 2026-10-05 (the Tauri
+  2.12 triage, N6's design). **Reopen:** a Linux report of a window coming back screen-sized. *From
+  `docs/plans/2026-10-04-tauri-2.12-plan.md`, "Triage (2026-10-05) and its fixes" (Records).*
+- **N8's first session after an update from 0.10.18 records `x11` as the user's `GDK_BACKEND`.** The relaunch from
+  0.10.18's old hook passes `GDK_BACKEND=x11`, which N8 then records as if it were the user's own value, and hands
+  it back to children in later sessions. Accepted 2026-10-05 (the Tauri 2.12 triage, N8's design). **Reopen:** a
+  tool started from the app under XWayland right after an update. *From
+  `docs/plans/2026-10-04-tauri-2.12-plan.md`, "Triage (2026-10-05) and its fixes" (Records).*
+- **TLS roots for the update check on a non-Debian distribution (#1).** Updater 2.13 dropped the `SSL_CERT_*`
+  defaults the old hook set; walked only on Debian-family hosts. Accepted 2026-10-05 (the Tauri 2.12 triage).
+  **Reopen:** a report of a failing update check from a non-Debian distribution.
+- **CI loses its only `appimage-digest.py --check` on the built image (#2).** The strip script that ran it was
+  removed; the gate's walk still checks the *published* AppImage. Accepted 2026-10-05 (the Tauri 2.12 triage).
+  **Reopen:** the gate's `--check` fails on a published AppImage.
+- **New AppImage stderr line, `GStreamer element appsink not found. Please install it.` (#4).** Seen on the
+  branch's AppImage in BO 10, new with the 2.12 bundle; its cause not traced. Accepted 2026-10-05 (the Tauri 2.12
+  triage). **Reopen:** media is needed in the webview, or a GStreamer-related crash is reported.
+- **With GNOME File History off, every AppImage picker opens in the mount (#6).** Pre-existing in 0.10.18 (the
+  bundled XSETTINGS), not a 2.12 regression; N4's `GSETTINGS_BACKEND=memory` fix doesn't reach it. Accepted
+  2026-10-05 (the Tauri 2.12 triage). **Reopen:** a report of a picker opening inside the AppImage.
+- **The AppImage ignores the user's GNOME settings (#7).** As 0.10.18 did; the GNOME proxy is moot under the
+  app's CSP. Accepted 2026-10-05 (the Tauri 2.12 triage). **Reopen:** a report that a GNOME setting isn't honoured
+  in the AppImage.
+- **Linux: BO 3's maximize is unreachable under Xvfb (#38).** No window manager on the Linux VM's harness; BO 3's
+  maximized case walked on Windows only. Accepted 2026-10-05 (the Tauri 2.12 triage). **Reopen:** a window manager
+  in the Linux harness, or a Linux maximize report.
+- **The folder-picker sidebar shows a `usr` entry (#41).** Cosmetic: it's the app's own working folder inside the
+  AppImage mount, pre-existing. Accepted 2026-10-05 (the Tauri 2.12 triage). **Reopen:** a report, or start-folder
+  work on the pickers.
+- **One thread per `Moved`/`Resized` event during a drag (round 2, R1).** N6's settle timer (`sample_soon`) spawns
+  a `std::thread` per event, so a drag can have roughly 20–40 threads alive at once; a per-label pending timer
+  (~10 lines) would avoid it. Accepted 2026-10-05 (the Tauri 2.12 triage, round 2). **Reopen:** a drag stutters, or
+  the thread count spikes.
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review, deferred
 
@@ -784,6 +823,16 @@ for one plan together.
   times) and seen on the Mac the same day; reasoned to happen on every OS. Fix sketch: track whether the focus is in the
   panel, and on a hover close put it back on the parent row. Deferred 2026-10-04. **Reopen:** a report of dead keys in a
   menu after the mouse moved.
+
+## AA. Added 2026-10-05 — the Tauri 2.12 triage
+
+Deferred in the Tauri 2.12 triage (plan `docs/plans/2026-10-04-tauri-2.12-plan.md`, "Triage (2026-10-05) and its
+fixes"), with its reopen trigger.
+
+- **WebKit: Enter after Escape on a click-opened menu does nothing (macOS / Linux; #14).** WebKit gives a clicked
+  button no focus, so after Escape returns the focus to the opener, Enter on it (which should reopen the menu)
+  does nothing; seen in the Mac walk. Deferred 2026-10-05. **Reopen:** a keyboard-after-mouse report, or the next
+  focus work.
 
 ## Order
 
