@@ -4,7 +4,7 @@ import { useState } from "react";
 import { cloneRepo } from "../../api/ipc";
 import { onOpEventReady } from "../../api/events";
 import { cancelOp, toAppError } from "../../api/ipc";
-import type { RepoSummary } from "../../api/types";
+import type { AppError, AuthCause, RepoSummary } from "../../api/types";
 import { Banner } from "../../components/ui/Banner/Banner";
 import { Button } from "../../components/ui/Button/Button";
 import { Checkbox } from "../../components/ui/Checkbox/Checkbox";
@@ -14,6 +14,7 @@ import { Input } from "../../components/ui/Input/Input";
 import { Progress } from "../../components/ui/Progress/Progress";
 import { Spinner } from "../../components/ui/Spinner/Spinner";
 import { isAbsolutePath, joinPath, repoNameFromUrl } from "../../lib/paths";
+import { authFailedText } from "../../store/opsStore";
 import { cliDetail } from "../../store/toastStore";
 import s from "./CloneDialog.module.css";
 
@@ -25,10 +26,28 @@ export interface CloneDialogProps {
   onCloned: (repo: RepoSummary, parent: string) => void;
 }
 
+/** The banner's text; `wrap` for a login failure, whose advice has to be read whole. */
+type CloneError = { text: string; wrap: boolean };
+
 type Phase =
-  | { kind: "idle"; error: string | null }
+  | { kind: "idle"; error: CloneError | null }
   /** `opId` is known once the `started` event arrives (enables Cancel). */
   | { kind: "running"; opId: string | null; line: string };
+
+/** Every cause, so the bare `message` of an `authFailed` error is checked before it is trusted. */
+const AUTH_CAUSES: Record<AuthCause, true> = { hostKeyChanged: true, hostKey: true, sshKey: true, noCredentials: true, rejected: true };
+const isAuthCause = (s: string): s is AuthCause => Object.keys(AUTH_CAUSES).includes(s);
+
+/** A failed clone: a login failure in the same words as an op's toast, else git's line. */
+function cloneError(err: AppError): CloneError | null {
+  if (err.kind === "cancelled") return null;
+  if (err.kind === "authFailed") {
+    if (!isAuthCause(err.message)) return { text: "Authentication failed", wrap: true };
+    const { title, detail } = authFailedText(err.message);
+    return { text: `${title} — ${detail}`, wrap: true };
+  }
+  return { text: cliDetail(err.message), wrap: false };
+}
 
 export function CloneDialog({ defaultParent, onClose, onCloned }: CloneDialogProps) {
   const [url, setUrl] = useState("");
@@ -80,7 +99,7 @@ export function CloneDialog({ defaultParent, onClose, onCloned }: CloneDialogPro
       onCloned(repo, parent.trim());
     } catch (e) {
       const err = toAppError(e);
-      setPhase({ kind: "idle", error: err.kind === "cancelled" ? null : cliDetail(err.message) });
+      setPhase({ kind: "idle", error: cloneError(err) });
     } finally {
       unlisten();
     }
@@ -114,8 +133,8 @@ export function CloneDialog({ defaultParent, onClose, onCloned }: CloneDialogPro
       }
     >
       {phase.kind === "idle" && phase.error && (
-        <Banner kind="danger">
-          <span title={phase.error}>{phase.error}</span>
+        <Banner kind="danger" wrap={phase.error.wrap}>
+          <span title={phase.error.wrap ? undefined : phase.error.text}>{phase.error.text}</span>
         </Banner>
       )}
       <Field label="URL">

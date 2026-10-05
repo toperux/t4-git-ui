@@ -33,3 +33,19 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* `wrap`: grows past 32px for text that has to be read whole (the clone dialog's login advice). */
+/* 8 + 16 + 8: one line is the plain banner's 32px, text and icon where they were. */
+.wrap {
+  height: auto;
+  padding-top: var(--space-4);
+  padding-bottom: var(--space-4);
+  align-items: flex-start;
+}
+.wrap .text {
+  white-space: normal;
+}
+/* One text line tall, the icon centred in it: it sits beside the first line, not mid-banner. */
+.wrap .icon {
+  height: var(--lh-sm);
+  align-items: center;
+}

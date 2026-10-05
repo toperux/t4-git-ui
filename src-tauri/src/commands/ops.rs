@@ -1205,7 +1205,7 @@ fn remote_tags_of(out: &CliOutput) -> Result<Vec<RemoteTag>, AppError> {
 // ---- repo creation ----
 
 /// `git clone` into `dest` (streams `op://event` with `repoId: null`), then
-/// opens the result. A failed clone is a `cli` error carrying git's stderr.
+/// opens the result. A failed clone is an error from [`clone_failure`].
 #[tauri::command]
 pub async fn clone_repo(
     app: AppHandle,
@@ -1253,11 +1253,63 @@ pub async fn clone_repo(
     )
     .await
     .map_err(cleanup)?;
-    run.out
-        .check(&format!("git clone {url}"))
-        .map_err(|e| cleanup(AppError::from(e)))?;
-    tracing::info!(%url, %dest, "cloned");
+    // A url's `user:password@` must not reach the log; git's stderr can echo it, so it isn't logged.
+    let logged_url = redact_url(&url);
+    if run.out.code != 0 {
+        let err = clone_failure(&url, &run.out);
+        let (kind, cause) = match &err {
+            AppError::Git(GitError::AuthFailed(c)) => ("authFailed", Some(*c)),
+            _ => ("cli", None),
+        };
+        tracing::info!(url = %logged_url, %dest, code = run.out.code, kind, ?cause, "clone failed");
+        return Err(cleanup(err));
+    }
+    tracing::info!(url = %logged_url, %dest, "cloned");
     open_repo(app, window, state, dest).await
+}
+
+/// `url` without its userinfo, for the log: `scheme://user:pass@host/x` →
+/// `scheme://host/x`. An scp-style `git@host:path` or a local path has no
+/// `://` and is kept as it is.
+fn redact_url(url: &str) -> String {
+    let Some(i) = url.find("://") else {
+        return url.to_string();
+    };
+    let (scheme, rest) = url.split_at(i + 3);
+    let host_end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+    match rest[..host_end].rfind('@') {
+        Some(at) => format!("{scheme}{}", &rest[at + 1..]),
+        None => url.to_string(),
+    }
+}
+
+/// A failed clone, classified like the other ops: a login failure is an
+/// `authFailed` error carrying its cause, anything else a `cli` error with the
+/// first `fatal:` line — not the first stderr line, which for a clone that
+/// reached the remote is `Cloning into 'x'...`, and not the last `fatal:`,
+/// which after a missing source (`'<path>' does not appear to be a git
+/// repository`) only adds `Could not read from remote repository.`. Without
+/// a `fatal:` line, `classify_failure`'s own.
+fn clone_failure(url: &str, out: &CliOutput) -> AppError {
+    let f = gitops::classify_failure(out.code, &out.stdout, &out.stderr);
+    if let OpFailure::AuthFailed { cause } = f {
+        return GitError::AuthFailed(cause).into();
+    }
+    let stderr = match out
+        .stderr
+        .lines()
+        .map(str::trim)
+        .find(|l| l.starts_with("fatal:"))
+    {
+        Some(line) => line.to_string(),
+        None => failure_message(&f),
+    };
+    GitError::Cli {
+        cmd: format!("git clone {url}"),
+        code: out.code,
+        stderr,
+    }
+    .into()
 }
 
 /// `dest` made absolute against `home`. The dialog sends an absolute one; a
@@ -1291,11 +1343,67 @@ pub async fn init_repo(
 #[cfg(test)]
 mod tests {
     use super::{
-        is_rebase, oid_arg, opt_ref, pause_message, ref_arg, remote_tags_of, resolve_dest,
+        clone_failure, is_rebase, oid_arg, opt_ref, pause_message, redact_url, ref_arg,
+        remote_tags_of, resolve_dest,
     };
     use crate::AppError;
+    use git_core::cli::ops::AuthCause;
     use git_core::cli::CliOutput;
     use git_core::GitError;
+
+    #[test]
+    fn a_failed_clone_names_a_login_cause_or_its_first_fatal_line() {
+        let failed = |stderr: &str| CliOutput {
+            code: 128,
+            stdout: String::new(),
+            stderr: stderr.into(),
+            stdout_truncated: false,
+        };
+        let auth = failed("Cloning into 'x'...\ngit@github.com: Permission denied (publickey).\nfatal: Could not read from remote repository.\n");
+        assert!(matches!(
+            clone_failure("git@github.com:u/x.git", &auth),
+            AppError::Git(GitError::AuthFailed(AuthCause::SshKey))
+        ));
+        // A missing local source: the first `fatal:` says why, the second only that it failed.
+        let other = failed("Cloning into 'x'...\nfatal: 'C:/no/such' does not appear to be a git repository\nfatal: Could not read from remote repository.\n");
+        match clone_failure("C:/no/such", &other) {
+            AppError::Git(GitError::Cli { cmd, code, stderr }) => {
+                assert_eq!(cmd, "git clone C:/no/such");
+                assert_eq!(code, 128);
+                assert_eq!(
+                    stderr,
+                    "fatal: 'C:/no/such' does not appear to be a git repository"
+                );
+            }
+            e => panic!("{e:?}"),
+        }
+        // No `fatal:` at all: `classify_failure`'s line.
+        let quiet = failed("error: something else\n");
+        assert!(matches!(
+            clone_failure("x", &quiet),
+            AppError::Git(GitError::Cli { stderr, .. }) if stderr == "error: something else"
+        ));
+    }
+
+    #[test]
+    fn a_logged_clone_url_carries_no_credentials() {
+        for (url, logged) in [
+            ("https://user:pass@host/u/x.git", "https://host/u/x.git"),
+            ("https://user@host:8443/x", "https://host:8443/x"),
+            // An `@` in the password, unescaped: the host starts after the last one.
+            ("https://u:p@ss@host/x", "https://host/x"),
+            ("ssh://git@host/x.git", "ssh://host/x.git"),
+            // An `@` past the host is the path's, not userinfo.
+            ("https://host/u/x@y.git", "https://host/u/x@y.git"),
+            ("https://host", "https://host"),
+            ("file:///C:/src/x", "file:///C:/src/x"),
+            ("git@github.com:u/x.git", "git@github.com:u/x.git"),
+            ("C:/src/x", "C:/src/x"),
+            ("/home/u/x", "/home/u/x"),
+        ] {
+            assert_eq!(redact_url(url), logged, "{url}");
+        }
+    }
 
     #[test]
     fn a_truncated_ls_remote_is_not_parsed() {

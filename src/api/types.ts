@@ -19,6 +19,8 @@ export type AppErrorKind =
   | "config"
   /** A safety check declined the operation (e.g. deleting an unmerged branch). */
   | "refused"
+  /** A clone's failed login; `message` is the bare `AuthCause`, for the clone dialog only. */
+  | "authFailed"
   /** Another mutating operation holds the repo's op lock. */
   | "busy"
   /** The requested walk generation was superseded — restart the walk. */

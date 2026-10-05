@@ -8,12 +8,14 @@ export interface BannerProps {
   children: ReactNode;
   /** `sm` buttons, right-aligned. */
   actions?: ReactNode;
+  /** Text that has to be read whole wraps onto more lines instead of being cut off. */
+  wrap?: boolean;
   className?: string;
 }
 
-export function Banner({ kind, children, actions, className }: BannerProps) {
+export function Banner({ kind, children, actions, wrap, className }: BannerProps) {
   return (
-    <div className={cx(s.banner, s[kind], className)} role={kind === "danger" ? "alert" : "status"}>
+    <div className={cx(s.banner, s[kind], wrap && s.wrap, className)} role={kind === "danger" ? "alert" : "status"}>
       <span className={s.icon}>
         <TriangleAlert size={14} aria-hidden />
       </span>

@@ -12,7 +12,8 @@ vi.mock("../../api/ipc", async (importOriginal) => {
   const pending = () => new Promise<never>(() => {});
   return {
     ...actual,
-    openRepo: vi.fn(),
+    // A real `RepoSummary`: an empty answer made the open fail and left a toast behind.
+    openRepo: vi.fn((path: string) => Promise.resolve({ id: path, name: "repo", path, head: { oid: "a", branch: "main", detached: false } })),
     getRefs: vi.fn(pending),
     getLinked: vi.fn(() => Promise.resolve(null)),
     startLog: vi.fn(pending),
@@ -229,5 +230,48 @@ describe("StartScreen", () => {
 
     fireEvent.click(getByRole("button", { name: "Cancel" }));
     expect(ipc.cancelOp).toHaveBeenCalledWith("op1");
+  });
+
+  it("a failed clone shows a login failure's cause and fix, or git's own line", async () => {
+    const cloneRepo = ipc.cloneRepo as ReturnType<typeof vi.fn>;
+    const { getByRole, findByRole } = render(<StartScreen />);
+    fireEvent.click(getByRole("button", { name: /^Clone…/ }));
+    await findByRole("dialog", { name: "Clone repository" });
+    const banner = () => getByRole("alert");
+    const text = () => banner().lastElementChild!;
+    const failWith = async (error: unknown) => {
+      cloneRepo.mockImplementationOnce(() => Promise.reject(error));
+      await act(async () => {
+        fireEvent.click(getByRole("button", { name: "Clone" }));
+      });
+    };
+    fireEvent.change(getByRole("textbox", { name: "URL" }), { target: { value: "git@github.com:x/repo.git" } });
+
+    // A login failure's advice wraps, whole, rather than being cut off behind a tooltip.
+    await failWith({ kind: "authFailed", message: "hostKey" });
+    expect(banner().textContent).toBe("Host key not trusted — Connect once from a terminal (e.g. ssh -T git@<host>) and follow what ssh says");
+    expect(banner().className).toMatch(/wrap/);
+    expect(text().querySelector("[title]")).toBeNull();
+
+    // Anything else stays one line, cut off, with the whole line as its tooltip.
+    await failWith({ kind: "cli", message: "`git clone x` exited with code 128: fatal: repository 'x' not found" });
+    expect(banner().textContent).toBe("fatal: repository 'x' not found");
+    expect(banner().className).not.toMatch(/wrap/);
+    expect(text().querySelector("[title]")?.getAttribute("title")).toBe("fatal: repository 'x' not found");
+  });
+
+  it("a clone login failure with a cause the dialog doesn't know says only that", async () => {
+    (ipc.cloneRepo as ReturnType<typeof vi.fn>).mockImplementationOnce(() => Promise.reject({ kind: "authFailed", message: "somethingNew" }));
+    const { getByRole, findByRole } = render(<StartScreen />);
+    fireEvent.click(getByRole("button", { name: /^Clone…/ }));
+    await findByRole("dialog", { name: "Clone repository" });
+    fireEvent.change(getByRole("textbox", { name: "URL" }), { target: { value: "git@github.com:x/repo.git" } });
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: "Clone" }));
+    });
+    const alert = getByRole("alert");
+    expect(alert.textContent).toBe("Authentication failed");
+    expect(alert.className).toMatch(/wrap/);
+    expect(alert.querySelector("[title]")).toBeNull();
   });
 });

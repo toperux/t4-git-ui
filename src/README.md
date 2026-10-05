@@ -566,7 +566,12 @@ it runs, follows `op://event` with `repoId === null` — the subscription is awa
 so the `started` event that supplies the `opId` used by Cancel (`cancel_op`) cannot be missed; later `progress` /
 `stderr` lines feed the single status line. A cancelled or failed clone removes the half-written destination
 (backend) unless it already existed. The backend opens the clone itself, so success just hands the `RepoSummary` back and the app switches to
-`RepoWindow`; a failure returns to the form with the stderr first line in a banner.
+`RepoWindow`; a failure returns to the form with a banner. The backend classifies a failed clone like the other ops: a
+login failure is an `authFailed` error whose `message` is the bare cause, shown in `authFailedText`'s words (clone-only:
+no other command returns that kind, so `toastError` never shows the bare cause; a cause the dialog doesn't know reads
+"Authentication failed"), in a `wrap` banner so the advice shows whole; anything else is a `cli` error with the first
+`fatal:` line (it names the cause; a second only adds `Could not read from remote repository.`), not git's first line
+(`Cloning into 'x'...`), on one line cut off, with the whole line as its tooltip.
 
 ## Operations (M4)
 

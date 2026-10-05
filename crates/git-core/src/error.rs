@@ -2,6 +2,8 @@ use std::path::PathBuf;
 
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 
+use crate::cli::ops::AuthCause;
+
 #[derive(Debug, thiserror::Error)]
 pub enum GitError {
     /// libgit2's own message only. `git2::Error`'s Display appends `; class=Os (2); code=NotFound (-3)`,
@@ -33,6 +35,10 @@ pub enum GitError {
     /// A safety check declined the operation (e.g. deleting an unmerged branch).
     #[error("{0}")]
     Refused(String),
+    /// A clone's failed login. The message is the bare cause (`hostKey`), which only the clone
+    /// dialog turns into words: nothing else may return it.
+    #[error("{0}")]
+    AuthFailed(AuthCause),
 }
 
 impl GitError {
@@ -50,6 +56,7 @@ impl GitError {
             GitError::InvalidPatch => "invalidPatch",
             GitError::Config(_) => "config",
             GitError::Refused(_) => "refused",
+            GitError::AuthFailed(_) => "authFailed",
         }
     }
 }
@@ -80,5 +87,21 @@ mod tests {
         let v = serde_json::to_value(&e).unwrap();
         assert_eq!(v["kind"], "git");
         assert_eq!(v["message"], "could not find repository at 'x'");
+    }
+
+    /// The clone dialog reads the cause back from `message`, by the same names as `OpFailure`'s.
+    #[test]
+    fn a_clone_login_failure_carries_its_cause_as_the_message() {
+        for cause in [
+            AuthCause::HostKeyChanged,
+            AuthCause::HostKey,
+            AuthCause::SshKey,
+            AuthCause::NoCredentials,
+            AuthCause::Rejected,
+        ] {
+            let v = serde_json::to_value(GitError::AuthFailed(cause)).unwrap();
+            assert_eq!(v["kind"], "authFailed");
+            assert_eq!(v["message"], serde_json::to_value(cause).unwrap());
+        }
     }
 }

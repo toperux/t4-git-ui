@@ -114,6 +114,20 @@ pub enum AuthCause {
     Rejected,
 }
 
+/// The serde name (`hostKey`): a clone's [`GitError::AuthFailed`](crate::GitError::AuthFailed)
+/// carries it as its message.
+impl std::fmt::Display for AuthCause {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            AuthCause::HostKeyChanged => "hostKeyChanged",
+            AuthCause::HostKey => "hostKey",
+            AuthCause::SshKey => "sshKey",
+            AuthCause::NoCredentials => "noCredentials",
+            AuthCause::Rejected => "rejected",
+        })
+    }
+}
+
 fn args<const N: usize>(fixed: [&str; N]) -> Vec<String> {
     fixed.iter().map(|s| s.to_string()).collect()
 }
