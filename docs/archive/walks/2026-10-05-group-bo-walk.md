@@ -1,8 +1,8 @@
 # Group BO: Tauri 2.12 — the crate bumps, the installer's running-app check, the AppImage on X11 — 2026-10-05
 
-The walk of `smoke-test-post-v1.md` › group BO, rows 1–10 (`docs/plans/2026-10-04-tauri-2.12-plan.md`, *Verify*). BO
-covers the crates the Tauri 2.12 bump moves under tear-off, window restore, single-instance, the updater and the
-installer, on branch `deps/tauri-2.12`. BO 1–10's first pass walked `102b47e`; BO 4's *Save as…* and BO 10 were
+The walk of `smoke-test-post-v1.md` › group BO, rows 1–10 (`docs/archive/plans/2026-10-04-tauri-2.12-plan.md`,
+*Verify*). BO covers the crates the Tauri 2.12 bump moves under tear-off, window restore, single-instance, the updater
+and the installer, on branch `deps/tauri-2.12`. BO 1–10's first pass walked `102b47e`; BO 4's *Save as…* and BO 10 were
 re-walked on `75aecc3` after the N4 and N5 fixes landed.
 
 **Setup:**

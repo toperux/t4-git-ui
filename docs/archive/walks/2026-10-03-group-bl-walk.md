@@ -1,10 +1,10 @@
 # Group BL: close-out Phase 3 — 2026-10-02 / 2026-10-03
 
-The walk of `smoke-test-post-v1.md` › group BL, steps 1–11 (`docs/plans/2026-10-01-phase-3-plan.md`, *Smoke group
-BL*): steps 1–9 on Windows over CDP, with the timing lines; step 10 on the Linux VM and step 11 on the owner's Mac,
-behavior only (D2). Steps 1 and 6 failed on Windows, were fixed (Q22, Q24) and re-walked the same day. Beside the walk:
-Q25's 3000-branch measurement, C-4's frame-rate A/B on the Windows VM, the WebKitGTK abort's repro cycles, and BL 10's
-re-walk (C-10). Judged as in Stage A: ≥ 250 ms on a real action, or jank (a frame gap ≥ 100 ms, or > 10 % of frames
+The walk of `smoke-test-post-v1.md` › group BL, steps 1–11 (`docs/archive/plans/2026-10-01-phase-3-plan.md`, *Smoke
+group BL*): steps 1–9 on Windows over CDP, with the timing lines; step 10 on the Linux VM and step 11 on the owner's
+Mac, behavior only (D2). Steps 1 and 6 failed on Windows, were fixed (Q22, Q24) and re-walked the same day. Beside the
+walk: Q25's 3000-branch measurement, C-4's frame-rate A/B on the Windows VM, the WebKitGTK abort's repro cycles, and BL
+10's re-walk (C-10). Judged as in Stage A: ≥ 250 ms on a real action, or jank (a frame gap ≥ 100 ms, or > 10 % of frames
 over 50 ms). Samples: the first run is cold, median / worst over runs 2–6.
 
 **Setup:**

@@ -238,7 +238,7 @@ The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its deci
   2026-10-01**, moved to `open-items-done.md` §P: both release walks it waited on (0.10.12 → 0.10.13, 0.10.13 → 0.10.14)
   landed, and AC ticked at 0.10.14 → 0.10.15.
 - **The tauri-cli 2.12.0 bump** (added 2026-09-28) — **closed 2026-10-05**, moved to `open-items-done.md` §P: taken
-  as 2.12.1 with Dependabot #19 and #20 (`docs/plans/2026-10-04-tauri-2.12-plan.md`).
+  as 2.12.1 with Dependabot #19 and #20 (`docs/archive/plans/2026-10-04-tauri-2.12-plan.md`).
 - **Turn on `requireSignedVersion`:** an accepted limit, moved to §Q (*`requireSignedVersion` is off*), 2026-09-28;
   closed 2026-10-01 (close-out Phase 1b), moved to `open-items-done.md` §Q.
 - **Only the AppImage's updater `.sig` is verified in CI:** done 2026-10-01 (close-out Phase 1b), moved to
@@ -283,8 +283,8 @@ phases that accepted them; each origin keeps a pointer.
   under `GDK_BACKEND=x11` is blank too. Decided 2026-09-27: no `WEBKIT_DISABLE_DMABUF_RENDERER` switch in the app (it
   would slow every AppImage user); the README documents the variable instead. **Reopen:** a report that the README
   workaround isn't enough. The second trigger, Tauri's AppImage dropping the forced `GDK_BACKEND=x11`, fired with
-  tauri-cli 2.12.1 (2026-10-04); the owner kept X11, always (N1 of `docs/plans/2026-10-04-tauri-2.12-plan.md`), so the
-  row stands. *From §P, the AppImage row (now in the done file §P).*
+  tauri-cli 2.12.1 (2026-10-04); the owner kept X11, always (N1 of `docs/archive/plans/2026-10-04-tauri-2.12-plan.md`),
+  so the row stands. *From §P, the AppImage row (now in the done file §P).*
 - **No timeout on git ops.** A stuck ssh or https op ends only on Cancel. By choice (triage 2026-09-27): a timeout
   would misfire on a slow fetch or clone. **Reopen:** a report of a hang the ssh fail-fast change doesn't cover.
   *From §P, the ssh prompts row.*
@@ -432,7 +432,7 @@ phases that accepted them; each origin keeps a pointer.
   has the same URLs, `nsis_tauri_utils` v0.5.3). The `Downloading` check on the bundle log runs on Linux only, so a
   third Windows download would not be caught. Accepted 2026-10-01 (close-out Phase 1b, triage T3). **Reopen:** a bundler
   change moves either fetch or adds a Windows download, or a toolchain release breaks the build. *From Phase 1b's change
-  review (`docs/plans/2026-09-30-phase-1b-plan.md`, "Not in this phase").*
+  review (`docs/archive/plans/2026-09-30-phase-1b-plan.md`, "Not in this phase").*
 - **On Linux and macOS a tool open holds the repository's git2 lock ~300 ms.** Detecting an early-failing custom
   tool (exit 126/127 within 300 ms, unix only) waits under the lock; other git2 reads of that repository stall
   meanwhile. A `ponytail:` comment in `crates/git-core/src/tools.rs` names it. Accepted 2026-10-01 (close-out
@@ -627,17 +627,17 @@ phases that accepted them; each origin keeps a pointer.
   variables, is covered by smoke group BO 6 on a Debian-family host. Accepted 2026-10-05 (D6 (a)). **Reopen:** the
   v0.10.20 gate's update install fails, or a second window's moved rect is lost across the v0.10.20 gate's update
   (N6's Windows update-path persist, unproven until then, added to this row by the Tauri 2.12 triage). *From
-  `docs/plans/2026-10-04-tauri-2.12-plan.md`, D6.*
+  `docs/archive/plans/2026-10-04-tauri-2.12-plan.md`, D6.*
 - **N6's Linux full screen, set from the window manager's own menu, isn't seen.** tao's `fullscreen()` on Linux
   reflects only the app's own full screen (`linux/window.rs:699-710`), so a window manager's full screen is
   recorded as a screen-sized normal rect, and relaunched clamped to the work area. Accepted 2026-10-05 (the Tauri
   2.12 triage, N6's design). **Reopen:** a Linux report of a window coming back screen-sized. *From
-  `docs/plans/2026-10-04-tauri-2.12-plan.md`, "Triage (2026-10-05) and its fixes" (Records).*
+  `docs/archive/plans/2026-10-04-tauri-2.12-plan.md`, "Triage (2026-10-05) and its fixes" (Records).*
 - **N8's first session after an update from 0.10.18 records `x11` as the user's `GDK_BACKEND`.** The relaunch from
   0.10.18's old hook passes `GDK_BACKEND=x11`, which N8 then records as if it were the user's own value, and hands
   it back to children in later sessions. Accepted 2026-10-05 (the Tauri 2.12 triage, N8's design). **Reopen:** a
   tool started from the app under XWayland right after an update. *From
-  `docs/plans/2026-10-04-tauri-2.12-plan.md`, "Triage (2026-10-05) and its fixes" (Records).*
+  `docs/archive/plans/2026-10-04-tauri-2.12-plan.md`, "Triage (2026-10-05) and its fixes" (Records).*
 - **TLS roots for the update check on a non-Debian distribution (#1).** Updater 2.13 dropped the `SSL_CERT_*`
   defaults the old hook set; walked only on Debian-family hosts. Accepted 2026-10-05 (the Tauri 2.12 triage).
   **Reopen:** a report of a failing update check from a non-Debian distribution.
@@ -688,7 +688,7 @@ phases that accepted them; each origin keeps a pointer.
 
 ## V. Added 2026-10-01 — close-out Phase 2b
 
-Found in close-out Phase 2b (plan `docs/plans/2026-10-01-phase-2b-plan.md`): the Linux track's two walks the
+Found in close-out Phase 2b (plan `docs/archive/plans/2026-10-01-phase-2b-plan.md`): the Linux track's two walks the
 plan owed it, every item the triage sent here with a *DEFER §V* ruling (from the BK walk and the review passes),
 and the §Q flake row whose trigger fired.
 
@@ -751,15 +751,15 @@ and the §Q flake row whose trigger fired.
 
 ## X. Added 2026-10-03 — close-out Phase 3
 
-Deferred in close-out Phase 3 (plan `docs/plans/2026-10-01-phase-3-plan.md`), each with a reopen trigger: one from
-its measuring walk (`docs/archive/walks/2026-10-01-phase-3-measure.md`), the rest from its decisions, its change
+Deferred in close-out Phase 3 (plan `docs/archive/plans/2026-10-01-phase-3-plan.md`), each with a reopen trigger: one
+from its measuring walk (`docs/archive/walks/2026-10-01-phase-3-measure.md`), the rest from its decisions, its change
 review's triage and the walk of smoke group BL (`docs/archive/walks/2026-10-03-group-bl-walk.md`).
 
 - **The interactive rebase dialog's todo read takes ~400 ms at 500 commits.** Row 7 (`canSquash` per row) measured fine,
   but under the dialog's open the backend's todo read (the read pass, a real `rebase -i --autostash`) took 392–418 ms of
   a 457–502 ms open on `perf-rebase` (1 pick + 499 fixups), 2026-10-01. Deferred: the read sits outside row 7's scope,
-  which covered `canSquash` only (`docs/plans/2026-10-01-phase-3-plan.md` §Stage B decisions). **Reopen:** the dialog's
-  open reported slow, or measured ≥ 250 ms on a real rebase.
+  which covered `canSquash` only (`docs/archive/plans/2026-10-01-phase-3-plan.md` §Stage B decisions). **Reopen:** the
+  dialog's open reported slow, or measured ≥ 250 ms on a real rebase.
 - **Discard on an intent-to-add file empties it (D-7), and a deleted one reads as a plain deletion (Q15).** Since
   fix 3 an intent-to-add file (`git add -N`) reads as working-tree Added; Discard on it empties the file — libgit2
   restores the empty placeholder (`crates/git-core/src/stage.rs:209-236`; reasoned) — while the row reads "added".
@@ -792,8 +792,8 @@ review's triage and the walk of smoke group BL (`docs/archive/walks/2026-10-03-g
 
 ## Y. Added 2026-10-04 — close-out Phase 4 Stage B
 
-Deferred from close-out Phase 4 Stage B's change review triage (plan `docs/plans/2026-10-03-phase-4-plan.md`), each with
-a reopen trigger.
+Deferred from close-out Phase 4 Stage B's change review triage (plan `docs/archive/plans/2026-10-03-phase-4-plan.md`),
+each with a reopen trigger.
 
 - **In dark mode the unfocused selection tint is close to the hover tint.** `--bg-selected-unfocused` sits close to
   `--bg-hover`. Seen on the Direction B canvas render; the app uses the same tokens. **Reopen:** a user can't tell
@@ -804,7 +804,7 @@ a reopen trigger.
 
 ## Z. Added 2026-10-04 — close-out Phase 5
 
-Deferred in close-out Phase 5's triage (plan `docs/plans/2026-10-04-phase-5-plan.md`, walk record
+Deferred in close-out Phase 5's triage (plan `docs/archive/plans/2026-10-04-phase-5-plan.md`, walk record
 `docs/archive/walks/2026-10-04-phase-5-macos-walk.md`), each with a reopen trigger. The first three are macOS polish,
 for one plan together.
 
@@ -835,7 +835,7 @@ for one plan together.
 
 ## AA. Added 2026-10-05 — the Tauri 2.12 triage
 
-Deferred in the Tauri 2.12 triage (plan `docs/plans/2026-10-04-tauri-2.12-plan.md`, "Triage (2026-10-05) and its
+Deferred in the Tauri 2.12 triage (plan `docs/archive/plans/2026-10-04-tauri-2.12-plan.md`, "Triage (2026-10-05) and its
 fixes"), with its reopen trigger.
 
 - **WebKit: Enter after Escape on a click-opened menu does nothing (macOS / Linux; #14).** WebKit gives a clicked

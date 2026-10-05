@@ -1,6 +1,6 @@
 # Group BI: the 0.10.14 AppImage hotfix on Linux — 2026-09-29
 
-The walk of `smoke-test-post-v1.md` › group BI, rows 1–8 (`docs/plans/2026-09-29-appimage-env-hotfix-plan.md`,
+The walk of `smoke-test-post-v1.md` › group BI, rows 1–8 (`docs/archive/plans/2026-09-29-appimage-env-hotfix-plan.md`,
 step 6). Row 9 is Windows and walked there.
 
 **Setup:**

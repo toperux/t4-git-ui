@@ -1,9 +1,9 @@
 # Close-out Phase 5: the macOS walks and group BN — 2026-10-04
 
-The walks of close-out Phase 5 (`docs/plans/2026-10-04-phase-5-plan.md`): the macOS update (M6), macOS rendering (M1),
-AZ 11's macOS line (M2), T12 before and after its fix (M3), the Option-typed type-ahead measurement (M4), D9's event
-logs, and smoke group BN (`smoke-test-post-v1.md` › BN, rows 1–8) on the Mac and on the Windows VM, on the three builds
-of `phase-5` the fixes went through. Findings were triaged with the owner the same day (T1–T25, below).
+The walks of close-out Phase 5 (`docs/archive/plans/2026-10-04-phase-5-plan.md`): the macOS update (M6), macOS rendering
+(M1), AZ 11's macOS line (M2), T12 before and after its fix (M3), the Option-typed type-ahead measurement (M4), D9's
+event logs, and smoke group BN (`smoke-test-post-v1.md` › BN, rows 1–8) on the Mac and on the Windows VM, on the three
+builds of `phase-5` the fixes went through. Findings were triaged with the owner the same day (T1–T25, below).
 
 **Setup:**
 - **Mac:** the owner's own (`topher-osx.local`, macOS 26.7.1 25G241, Apple silicon), input source U.S. Not a VM: the

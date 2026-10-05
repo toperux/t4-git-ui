@@ -1,7 +1,7 @@
 # Phase 1b walk — group BJ (2026-09-30)
 
-Close-out Phase 1b (`docs/plans/2026-09-30-phase-1b-plan.md`). Rows 1–3 are the `requireSignedVersion` update test
-(D4); rows 4–6 read the two Release dry runs.
+Close-out Phase 1b (`docs/archive/plans/2026-09-30-phase-1b-plan.md`). Rows 1–3 are the `requireSignedVersion` update
+test (D4); rows 4–6 read the two Release dry runs.
 
 ## Rows 1–3 — the update test, on Windows
 

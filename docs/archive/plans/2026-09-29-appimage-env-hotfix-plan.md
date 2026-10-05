@@ -1,6 +1,7 @@
 # Plan: hotfix 0.10.14 — the AppImage's environment stops reaching the processes it starts, 2026-09-29
 
-_Written 2026-09-29. Status: executing on `hotfix/0.10.14`; change review in progress. Decision taken before writing:
+_Written 2026-09-29. Status: **done** — released as v0.10.14 2026-09-29 (`51433d3`), its gate passed
+(`docs/archive/walks/2026-09-29-v0.10.14-release-gate-linux.md`). Decision taken before writing:
 hotfix 0.10.14 with an environment scrub, ahead of Phase 1b (the user, 2026-09-29). Plan review: pass 1 — 1 blocker (the
 test build must come from 22.04), 6 should-fix, 5 nits, folded in; D1–D3 and D5–D10 and T1–T7 ruled. Pass 2 — 3
 should-fix, 10 nits, folded in; D11 ruled (drop `releaseUrl`), D10 kept after a correction to its reasoning. Pass 3 — 4

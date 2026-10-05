@@ -2152,7 +2152,7 @@ offered.
 
 ## BI. The AppImage's environment stays out of the processes it starts (0.10.14 hotfix, Ubuntu 26.04 VM)
 
-Plan: `docs/plans/2026-09-29-appimage-env-hotfix-plan.md` (step 6); BI 9 is walked on Windows. The build is the
+Plan: `docs/archive/plans/2026-09-29-appimage-env-hotfix-plan.md` (step 6); BI 9 is walked on Windows. The build is the
 hotfix as an AppImage **built on Ubuntu 22.04** and versioned **0.10.12** (a `workflow_dispatch` Release run of a
 throwaway `walk/0.10.12` branch, the plan's D9): one built on the 26.04 VM would carry 26.04's libraries, and every
 control would pass without the fix. The VM runs Ubuntu 26.04 with the rust-coreutils backport. Before rows 1–6
@@ -2227,8 +2227,8 @@ clone of the GitHub repository fast-forwarded `origin/main`; *Open* on a file de
 
 ## BJ. Close-out Phase 1b: Windows signing, the signing environment, requireSignedVersion
 
-Plan: `docs/plans/2026-09-30-phase-1b-plan.md` (*Local checks › Group BJ*, *Outward actions* O4 and O8, D4). Rows
-1–3 are a local update test on Windows: a `tauri build --no-bundle` of `phase-1b` versioned **0.10.13**, its
+Plan: `docs/archive/plans/2026-09-30-phase-1b-plan.md` (*Local checks › Group BJ*, *Outward actions* O4 and O8, D4).
+Rows 1–3 are a local update test on Windows: a `tauri build --no-bundle` of `phase-1b` versioned **0.10.13**, its
 `--config` pointing `endpoints` at `http://127.0.0.1:8765/latest.json` (with `dangerousInsecureTransportProtocol`),
 `python -m http.server 8765 --bind 127.0.0.1` started in a scratch folder before the launch, and `smoke-launch.ps1`
 without `-Proxy`. The updater runs the published setup into the owner's own install. Before the build, back up
@@ -2266,7 +2266,7 @@ without `-Proxy`. The updater runs the published setup into the owner's own inst
 
 ## BK. Close-out Phase 2b: the design-needed rows
 
-Plan: `docs/plans/2026-10-01-phase-2b-plan.md` (each step names its row). Walked over CDP on a local
+Plan: `docs/archive/plans/2026-10-01-phase-2b-plan.md` (each step names its row). Walked over CDP on a local
 `tauri build --no-bundle` of `phase-2b` (`docs/smoke/smoke-cdp.md`), the store folder `%APPDATA%\dev.topher.t4gitui`
 backed up first and restored byte-exact after. `T` below is `${T4_ROOT:-/c/tmp/t4}`, the fixtures' default. Linux-only
 checks (the tool start's exit 126/127, non-UTF-8 names) are open-items §V, for the Linux track.
@@ -2337,13 +2337,13 @@ stash. Fixed (plan row 16) and walked as BK 9 the same day on a release build of
 
 ## BL. Close-out Phase 3: the performance fixes
 
-Plan: `docs/plans/2026-10-01-phase-3-plan.md` (*Stage B — fix*; each step names its row or fix). Walked over CDP on a
-local `tauri build --no-bundle` of the throwaway branch `phase-3b-time` (`phase-3b` plus Stage A's `p3` timing lines,
-never pushed or merged), launched with `smoke-launch.ps1` (`docs/smoke/smoke-cdp.md`). The store folder
+Plan: `docs/archive/plans/2026-10-01-phase-3-plan.md` (*Stage B — fix*; each step names its row or fix). Walked over CDP
+on a local `tauri build --no-bundle` of the throwaway branch `phase-3b-time` (`phase-3b` plus Stage A's `p3` timing
+lines, never pushed or merged), launched with `smoke-launch.ps1` (`docs/smoke/smoke-cdp.md`). The store folder
 `%APPDATA%\dev.topher.t4gitui` is backed up before the installed app is closed, and restored byte-exact after. Fixtures:
 Stage A's (`perf-synth`, `perf-git`, `perf-reset`), under `T` = `${T4_ROOT:-/c/tmp/t4}`. Judged as in Stage A: a step
-fails at ≥ 250 ms on a real action, or jank (a frame gap ≥ 100 ms, or > 10 % of frames over 50 ms). Timings are taken
-on Windows only; step 10 checks behavior on Linux.
+fails at ≥ 250 ms on a real action, or jank (a frame gap ≥ 100 ms, or > 10 % of frames over 50 ms). Timings are taken on
+Windows only; step 10 checks behavior on Linux.
 
 _Walked 2026-10-02 over CDP on local release builds of `phase-3b-time` (Windows 11, `smoke-launch.ps1`): steps 1–9 on
 `bf75367` (`phase-3b` `b6e3da6` plus the `p3` lines). Steps 1 and 6 failed; fixed (Q22, Q24) and re-walked the same
@@ -2540,17 +2540,17 @@ store was restored byte-exact after each Windows walk. The record, with the pre-
 
 ## BM. Close-out Phase 4 Stage B: the app fixes
 
-Plan: `docs/plans/2026-10-03-phase-4-plan.md` (*Part 1 — app fixes*; each row names its fix). One bullet per row,
-from each row's "Walk:" line. Walked over CDP on the Windows VM (`docs/smoke/cdp.mjs`), on a local
-`tauri build --no-bundle` of the Stage B commits, launched with `docs/smoke/fixtures/smoke-launch.ps1`. The store
-folder `%APPDATA%\dev.topher.t4gitui` is backed up first and restored byte-exact after. Fixtures, built from the repo
-checkout in this order into a fresh `C:\tmp\t4cap` (`smoke-fixtures.ps1` refuses a folder that exists, and `-Force`
-wipes it): from PowerShell, `powershell -ExecutionPolicy Bypass -File docs/smoke/fixtures/smoke-fixtures.ps1
-C:\tmp\t4cap` (`work`, `other`), then in Git Bash `T4_ROOT=/c/tmp/t4cap bash docs/smoke/fixtures/irebase-fixture.sh`
-(`irebase`; without `T4_ROOT` it writes to `/c/tmp/t4`), then `node docs/smoke/fixtures/perf-repo.mjs
-C:/tmp/t4cap/perf` (`perf`). Git steps below run in Git Bash. Native confirms (Restore conflict) are answered from
-PowerShell with `powershell -ExecutionPolicy Bypass -File docs/smoke/fixtures/smoke-dialog.ps1 -Title … -Button …`, as
-CDP can't click them.
+Plan: `docs/archive/plans/2026-10-03-phase-4-plan.md` (*Part 1 — app fixes*; each row names its fix). One bullet per
+row, from each row's "Walk:" line. Walked over CDP on the Windows VM (`docs/smoke/cdp.mjs`), on a local
+`tauri build --no-bundle` of the Stage B commits, launched with `docs/smoke/fixtures/smoke-launch.ps1`. The store folder
+`%APPDATA%\dev.topher.t4gitui` is backed up first and restored byte-exact after. Fixtures, built from the repo checkout
+in this order into a fresh `C:\tmp\t4cap` (`smoke-fixtures.ps1` refuses a folder that exists, and `-Force` wipes it):
+from PowerShell, `powershell -ExecutionPolicy Bypass -File docs/smoke/fixtures/smoke-fixtures.ps1 C:\tmp\t4cap` (`work`,
+`other`), then in Git Bash `T4_ROOT=/c/tmp/t4cap bash docs/smoke/fixtures/irebase-fixture.sh` (`irebase`; without
+`T4_ROOT` it writes to `/c/tmp/t4`), then `node docs/smoke/fixtures/perf-repo.mjs C:/tmp/t4cap/perf` (`perf`). Git steps
+below run in Git Bash. Native confirms (Restore conflict) are answered from PowerShell with
+`powershell -ExecutionPolicy Bypass -File docs/smoke/fixtures/smoke-dialog.ps1 -Title … -Button …`, as CDP can't click
+them.
 
 The merge conflict for 6, 7 and 10: in `work` (on `main`), right-click `conflict` in the sidebar → *Merge into main…* →
 Merge (or `git merge conflict`) → `conflict.txt` conflicted; the fixture's other dirty files are untouched. After 10:
@@ -2635,8 +2635,8 @@ the walker's notes. The record is `docs/archive/walks/2026-10-04-group-bm-walk.m
 
 ## BN. Close-out Phase 5: menu marks and Option type-ahead
 
-Plan: `docs/plans/2026-10-04-phase-5-plan.md` (D6, M4). A menu row's keyboard mark is `data-kbd` on the focused item
-(`src/lib/kbdFocus.ts`); read it over CDP on Windows, or through a scratch title readout on macOS (the plan's Order
+Plan: `docs/archive/plans/2026-10-04-phase-5-plan.md` (D6, M4). A menu row's keyboard mark is `data-kbd` on the focused
+item (`src/lib/kbdFocus.ts`); read it over CDP on Windows, or through a scratch title readout on macOS (the plan's Order
 step 3). Repository › **More recent** shows with more than five other recents: seed `recents.json` with seven or more
 repositories first (store backed up, restored after). Bullet 4 is macOS only and needs a branch whose name starts with
 an Option character (`ø-test`).
@@ -2713,8 +2713,8 @@ WebDriver, X11 with no window manager): pass; 8 there is under 8. The record is
 
 ## BO. Tauri 2.12: the crate bumps, the installer's running-app check, the AppImage on X11
 
-Plan: `docs/plans/2026-10-04-tauri-2.12-plan.md` (*Verify*; N1, N3, N4 and N5 under *Decisions*). The bump moves the
-crates under tear-off, window restore, single-instance, the updater and the installer (tauri 2.12.1, tao 0.37.1, wry
+Plan: `docs/archive/plans/2026-10-04-tauri-2.12-plan.md` (*Verify*; N1, N3, N4 and N5 under *Decisions*). The bump moves
+the crates under tear-off, window restore, single-instance, the updater and the installer (tauri 2.12.1, tao 0.37.1, wry
 0.57.0, tauri-bundler 2.10.1), which unit tests and CI don't reach. Walked on a local build of the branch: the Windows
 VM over CDP (the Chrome DevTools Protocol, which WebView2 exposes), the Linux VM over WebDriver (10 on its live GNOME
 desktop, the folder picker by the owner's hand), and 1, 2, 6 and 7 on the Mac (the plan's D5 (a)). Local builds use the

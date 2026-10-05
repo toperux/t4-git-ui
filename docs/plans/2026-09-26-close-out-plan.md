@@ -22,45 +22,46 @@ per-view sidebar → 2a). **Phase 2a done 2026-09-29** (13 commits `d116c2d`–`
 `docs/archive/walks/2026-09-29-group-bh-walk.md`). **v0.10.13 released 2026-09-29** (`c02f367`, release run 36476596805;
 every `.sig` carries `version:0.10.13`); **its gate passed the same day**: the user's 0.10.12 updated through Check now
 → Install and came back as 0.10.13 with its windows. **The 0.10.14 hotfix** (the AppImage's environment no longer
-reaches the processes it starts; `docs/plans/2026-09-29-appimage-env-hotfix-plan.md`, smoke group BI) **released
+reaches the processes it starts; `docs/archive/plans/2026-09-29-appimage-env-hotfix-plan.md`, smoke group BI) **released
 2026-09-29** (`51433d3`, release run 36573068704; every `.sig` carries `version:0.10.14`); **its gate passed**: the
 user's Windows 0.10.13 updated to 0.10.14 through the app, and on the Linux VM the published 0.10.13 AppImage updated in
 place and, started by hand as the release notes say, fetched over HTTPS and opened files
 (`docs/archive/walks/2026-09-29-v0.10.14-release-gate-linux.md`). **Phase 1b done 2026-10-01**
-(`docs/plans/2026-09-30-phase-1b-plan.md`, walk record `docs/archive/walks/2026-09-30-phase-1b-walk.md`, `main`
+(`docs/archive/plans/2026-09-30-phase-1b-plan.md`, walk record `docs/archive/walks/2026-09-30-phase-1b-walk.md`, `main`
 `edcc19c`): the Windows installer signed (Certum), the `signing` environment with approval, every action SHA-pinned (and
 required), the Tauri CLI from crates.io, a `verify` job for all three `.sig` with `version:`, dispatch dry runs that
 publish and delete a draft, and `requireSignedVersion` on; the first signed release is 2b's. **Phase 2b executed
-2026-10-01** (`docs/plans/2026-10-01-phase-2b-plan.md`, smoke group BK). **v0.10.15 released 2026-10-01** (`db77c78`,
-release run 36843045866; every `.sig` carries `version:0.10.15`) — the first signed release, and the first with
-`requireSignedVersion` on (the update from v0.10.15 to the next release is its first real check); **its Windows gate
-passed the same day**: the owner's 0.10.14 updated through the updater and came back as 0.10.15 with its tabs,
+2026-10-01** (`docs/archive/plans/2026-10-01-phase-2b-plan.md`, smoke group BK). **v0.10.15 released 2026-10-01**
+(`db77c78`, release run 36843045866; every `.sig` carries `version:0.10.15`) — the first signed release, and the first
+with `requireSignedVersion` on (the update from v0.10.15 to the next release is its first real check); **its Windows
+gate passed the same day**: the owner's 0.10.14 updated through the updater and came back as 0.10.15 with its tabs,
 `Get-AuthenticodeSignature` `Valid` (`docs/archive/walks/2026-10-01-v0.10.15-release-gate.md`). **The Linux AppImage
 half passed the same day too**: the owner's installed 0.10.14 AppImage updated in place to 0.10.15 and **restarted by
 itself**, the first update that can (`docs/archive/walks/2026-10-01-v0.10.15-release-gate-linux.md`). **Phase 3 done
-2026-10-03** (`docs/plans/2026-10-01-phase-3-plan.md`, walk records `docs/archive/walks/2026-10-01-phase-3-measure.md`
-and `docs/archive/walks/2026-10-03-group-bl-walk.md`, smoke group BL): rows 1–5 and 6a fixed, plus T7; 6b, 7 and 8
-measured fine; pushed to `main` as `6ca9960..625b886` plus `cb886f4` (a clippy 1.99 fix), CI green. **v0.10.16 released
-2026-10-03** (`f53e8bf`, release run 37109623419; the green `verify` job checked that every `.sig` carries
-`version:0.10.16`); **its gate passed the same day**, the Windows half on a VM rather than the owner's desktop, the
-Linux half on the usual Ubuntu VM (`docs/archive/walks/2026-10-03-v0.10.16-release-gate.md` and
+2026-10-03** (`docs/archive/plans/2026-10-01-phase-3-plan.md`, walk records
+`docs/archive/walks/2026-10-01-phase-3-measure.md` and `docs/archive/walks/2026-10-03-group-bl-walk.md`, smoke group
+BL): rows 1–5 and 6a fixed, plus T7; 6b, 7 and 8 measured fine; pushed to `main` as `6ca9960..625b886` plus `cb886f4` (a
+clippy 1.99 fix), CI green. **v0.10.16 released 2026-10-03** (`f53e8bf`, release run 37109623419; the green `verify` job
+checked that every `.sig` carries `version:0.10.16`); **its gate passed the same day**, the Windows half on a VM rather
+than the owner's desktop, the Linux half on the usual Ubuntu VM
+(`docs/archive/walks/2026-10-03-v0.10.16-release-gate.md` and
 `docs/archive/walks/2026-10-03-v0.10.16-release-gate-linux.md`) — also `requireSignedVersion`'s first real check (the
 first update out of a build with it on), which passed. **Phase 4 Stage A done 2026-10-03, Stage B executed 2026-10-04**
-(plan `docs/plans/2026-10-03-phase-4-plan.md`): the app fixes and the canvas updates, local; the change review and
-triage done, group BM walked 2026-10-04 (record `docs/archive/walks/2026-10-04-group-bm-walk.md`), squashed and pushed
-2026-10-04 (`0e6d333..7bbc25b`). **v0.10.17 released 2026-10-04** (`30c062e`, release run 37186324581); **its gate
-passed the same day** on both VMs (`docs/archive/walks/2026-10-04-v0.10.17-release-gate.md` and
+(plan `docs/archive/plans/2026-10-03-phase-4-plan.md`): the app fixes and the canvas updates, local; the change review
+and triage done, group BM walked 2026-10-04 (record `docs/archive/walks/2026-10-04-group-bm-walk.md`), squashed and
+pushed 2026-10-04 (`0e6d333..7bbc25b`). **v0.10.17 released 2026-10-04** (`30c062e`, release run 37186324581); **its
+gate passed the same day** on both VMs (`docs/archive/walks/2026-10-04-v0.10.17-release-gate.md` and
 `docs/archive/walks/2026-10-04-v0.10.17-release-gate-linux.md`). **Phase 5 executed 2026-10-04** on the owner's Mac
-(plan `docs/plans/2026-10-04-phase-5-plan.md`, walk record `docs/archive/walks/2026-10-04-phase-5-macos-walk.md`, smoke
-group BN): the Mac's 0.10.12 updated to 0.10.17, macOS rendering and AZ 11's macOS line walked, T12 fixed for every
-menu, the Option type-ahead fixed, plus five more fixes found on the way; triaged, squashed and pushed
-(`a6a7a76..1e58f7c`). The Linux VM's walk of BN the same day found torn-off windows shrunk to 700 × 500 on X11, fixed
-forward in `4705c6c` and re-walked on Linux and Windows; triage T26–T30 ruled, records `70d0247`. **v0.10.18 released
-2026-10-04** (`be820a0`, release run 37210277628); **its gate passed the same day** on the Windows VM, the Linux VM and
-the owner's Mac, the first macOS update with `requireSignedVersion` on
-(`docs/archive/walks/2026-10-04-v0.10.18-release-gate.md` and
-`docs/archive/walks/2026-10-04-v0.10.18-release-gate-linux.md`). **The Tauri 2.12 bump** (Dependabot #19 and #20,
-plan `docs/plans/2026-10-04-tauri-2.12-plan.md`) **released as v0.10.19 2026-10-05** (`6102721`, release run
+(plan `docs/archive/plans/2026-10-04-phase-5-plan.md`, walk record
+`docs/archive/walks/2026-10-04-phase-5-macos-walk.md`, smoke group BN): the Mac's 0.10.12 updated to 0.10.17, macOS
+rendering and AZ 11's macOS line walked, T12 fixed for every menu, the Option type-ahead fixed, plus five more fixes
+found on the way; triaged, squashed and pushed (`a6a7a76..1e58f7c`). The Linux VM's walk of BN the same day found
+torn-off windows shrunk to 700 × 500 on X11, fixed forward in `4705c6c` and re-walked on Linux and Windows; triage
+T26–T30 ruled, records `70d0247`. **v0.10.18 released 2026-10-04** (`be820a0`, release run 37210277628); **its gate
+passed the same day** on the Windows VM, the Linux VM and the owner's Mac, the first macOS update with
+`requireSignedVersion` on (`docs/archive/walks/2026-10-04-v0.10.18-release-gate.md` and
+`docs/archive/walks/2026-10-04-v0.10.18-release-gate-linux.md`). **The Tauri 2.12 bump** (Dependabot #19 and #20, plan
+`docs/archive/plans/2026-10-04-tauri-2.12-plan.md`) **released as v0.10.19 2026-10-05** (`6102721`, release run
 37307176681); **its gate passed the same day** on the Windows VM, the Linux VM and the owner's Mac
 (`docs/archive/walks/2026-10-05-v0.10.19-release-gate.md` and
 `docs/archive/walks/2026-10-05-v0.10.19-release-gate-linux.md`). Open decisions: none.
@@ -80,7 +81,7 @@ Agreed with the user 2026-09-28 (`docs/archive/plans/2026-09-28-close-out-refres
 3. ~~The 0.10.14 hotfix, ahead of Phase 1b~~ Released and gated 2026-09-29. The 0.10.14 hotfix, ahead of Phase 1b (the
    user, 2026-09-29): the AppImage's environment no longer reaches the processes it starts (every HTTPS fetch,
    coreutils hooks, custom tools, *Open* and the relaunch after an update fail from the AppImage on newer hosts). Plan
-   `docs/plans/2026-09-29-appimage-env-hotfix-plan.md`, walked as smoke group BI on the Ubuntu 26.04 VM, then
+   `docs/archive/plans/2026-09-29-appimage-env-hotfix-plan.md`, walked as smoke group BI on the Ubuntu 26.04 VM, then
    released.
 4. ~~Phase 1b (signing, and turning on `requireSignedVersion` with its local update test).~~ Done 2026-10-01. After
    2a, so 2a's known fixes don't wait on the signing setup.
@@ -158,7 +159,7 @@ Turn on `requireSignedVersion` in `tauri.conf.json` (open-items §Q). It ships i
 *Order*) and acts from the update after that, since the setting works in the app that ships it. Before it ships,
 test it: a local build with it on, versioned below the published 2a release, updates to that release through
 `docs/smoke/fixtures/throttle-proxy.mjs`, as in Phase 1's updater walk. Its first real check is the update from
-2b's release to the next. (Superseded by the Phase 1b plan's D4, `docs/plans/2026-09-30-phase-1b-plan.md`: a
+2b's release to the next. (Superseded by the Phase 1b plan's D4, `docs/archive/plans/2026-09-30-phase-1b-plan.md`: a
 negative and a positive case against a local endpoint, no proxy — smoke group BJ 1–3.)
 
 The dry run cannot prove an installed copy still updates to a release built this way; the release gate below
@@ -281,7 +282,7 @@ Phase 2: signing ships in whichever release follows it.
 
 ## Phase 3 — measure once, then fix or close
 
-**Done 2026-10-03** — `docs/plans/2026-10-01-phase-3-plan.md`, walk records
+**Done 2026-10-03** — `docs/archive/plans/2026-10-01-phase-3-plan.md`, walk records
 `docs/archive/walks/2026-10-01-phase-3-measure.md` (Stage A) and `docs/archive/walks/2026-10-03-group-bl-walk.md`
 (smoke group BL, on Windows, Linux and macOS); pushed to `main` as `6ca9960..625b886` plus `cb886f4` (a clippy 1.99
 fix), CI green. The merged-badge walk, the hunk / line rebuilds, `status.rs`, the output dock, the 1800-file reset
@@ -307,7 +308,7 @@ visible scroll jank.
 ## Phase 4 — UI-vs-canvas pass (§B)
 
 After Phases 2–3, so the UI is stable: CDP screenshots of the built app against the canvases; fix what differs
-or update the canvas. **The reference** (settled by R1, `docs/plans/2026-10-03-phase-4-plan.md`): Direction B
+or update the canvas. **The reference** (settled by R1, `docs/archive/plans/2026-10-03-phase-4-plan.md`): Direction B
 (`docs/design/canvases/direction-b/`) wins where it draws an element; `docs/design/canvases/screens/` is the
 reference for the rest, content only.
 
@@ -339,7 +340,7 @@ CLI pin change, `release.yml` and `checks.yml` only, ran from Windows):
 
 ## Phase 5 — other hardware (§B, whenever available)
 
-**Done 2026-10-04** on the owner's Mac — `docs/plans/2026-10-04-phase-5-plan.md`, walk record
+**Done 2026-10-04** on the owner's Mac — `docs/archive/plans/2026-10-04-phase-5-plan.md`, walk record
 `docs/archive/walks/2026-10-04-phase-5-macos-walk.md` (smoke group BN, on the Mac, the Windows VM and the Linux VM). The
 macOS update (0.10.12 → 0.10.17), macOS rendering and AZ 11's macOS line walked; T12 held on WebView2 too and was fixed
 for every menu (D6); the Option type-ahead fixed; the `window.rs` ceiling accepted (D1, open-items §Q); five more fixes
@@ -372,7 +373,7 @@ AppImage tool pins are tied to the builder too — recheck them.
 2. ~~**Phase 3 threshold** — the 250 ms / visible-jank proposal. Before Phase 3.~~ Decided 2026-10-01 as proposed (the
    Phase 3 plan's T1).
 3. ~~**Phase 4 reference** — which canvas set rules where they differ. Before Phase 4.~~ Decided 2026-10-03 as R1
-   (the Phase 4 plan, `docs/plans/2026-10-03-phase-4-plan.md`): Direction B wins where it draws an element;
+   (the Phase 4 plan, `docs/archive/plans/2026-10-03-phase-4-plan.md`): Direction B wins where it draws an element;
    `screens/` counts for content only.
 4. ~~**Hardware** — a Mac coming, or close Phase 5 on CI's macOS leg (Linux has a machine since #18). Before Phase 5.~~
    Answered 2026-10-04: a Mac is here, the owner's own; Phase 5 ran on it.

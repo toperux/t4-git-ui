@@ -1,7 +1,7 @@
 # Group BH: close-out Phase 2a — 2026-09-29
 
-The walk of `smoke-test-post-v1.md` › group BH, the Phase 2a fixes (`docs/plans/2026-09-28-phase-2a-plan.md`, rows
-1, 2, 3, 6, 7, 9 and 14, and the triage T8 proxy check). The `smoke-walk` skill's Windows route was used.
+The walk of `smoke-test-post-v1.md` › group BH, the Phase 2a fixes (`docs/archive/plans/2026-09-28-phase-2a-plan.md`,
+rows 1, 2, 3, 6, 7, 9 and 14, and the triage T8 proxy check). The `smoke-walk` skill's Windows route was used.
 
 **Setup:**
 - **Build:** a local `tauri build --no-bundle` of `e5d8eb5` (the `phase-2a` head), version 0.10.12. Windows 11 Pro

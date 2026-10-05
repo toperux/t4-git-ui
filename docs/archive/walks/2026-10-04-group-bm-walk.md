@@ -1,7 +1,7 @@
 # Group BM: close-out Phase 4 Stage B — 2026-10-04
 
-The walk of `smoke-test-post-v1.md` › group BM, rows 1–13 (`docs/plans/2026-10-03-phase-4-plan.md`, *Part 1 — app
-fixes*).
+The walk of `smoke-test-post-v1.md` › group BM, rows 1–13 (`docs/archive/plans/2026-10-03-phase-4-plan.md`, *Part 1 —
+app fixes*).
 
 **Setup:**
 - **Build:** `target\release\t4-git-ui.exe`, a local `tauri build --no-bundle` release build of `e13d479` on
@@ -62,7 +62,7 @@ fixes*).
 
 ## BM 11's acceptance
 
-Row 11's plan (`docs/plans/2026-10-03-phase-4-plan.md`, Part 1 row 24) said the walk records the measured row
+Row 11's plan (`docs/archive/plans/2026-10-03-phase-4-plan.md`, Part 1 row 24) said the walk records the measured row
 count, and if it shows 2, that goes to the owner — the plan aimed for ≥ 3. The walk measured 2 whole rows and a
 third cut by 3 px (viewport 75 px). The owner accepted 2 whole rows plus most of a third on 2026-10-04, instead of
 asking for an unequal split. The bullet in `smoke-test-post-v1.md` was reworded to say so.

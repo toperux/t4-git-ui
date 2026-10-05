@@ -82,10 +82,10 @@ reopen trigger — are in `open-items.md` §Q (since 2026-09-28); a row moved th
   app's staging must not interleave) and the refs snapshot reads on a private `Repository`: one
   slow scan, then 50 ms, and the sidebar never waits for it.
 
-The three rows below were closed 2026-10-03 by close-out Phase 3 (`docs/plans/2026-10-01-phase-3-plan.md`), measured
-first (`docs/archive/walks/2026-10-01-phase-3-measure.md`) and walked as smoke group BL
-(`docs/archive/walks/2026-10-03-group-bl-walk.md`). The fixtures: `perf-synth` (100k commits, 332 local branches,
-100k files) and `perf-git` (a git/git clone).
+The three rows below were closed 2026-10-03 by close-out Phase 3 (`docs/archive/plans/2026-10-01-phase-3-plan.md`),
+measured first (`docs/archive/walks/2026-10-01-phase-3-measure.md`) and walked as smoke group BL
+(`docs/archive/walks/2026-10-03-group-bl-walk.md`). The fixtures: `perf-synth` (100k commits, 332 local branches, 100k
+files) and `perf-git` (a git/git clone).
 
 - **`reachers` merged-badge walk** (2026-09-02 review P1): the merged computation walked every commit newer than the
   *oldest* tip — remote branches included — and reran whenever any tip oid changed (every commit, fetch, checkout).
@@ -197,8 +197,8 @@ first (`docs/archive/walks/2026-10-01-phase-3-measure.md`) and walked as smoke g
     release gate: with the installed 0.10.14, a commit summary typed in Changes, then Settings › *Update to
     0.10.15…* asked before dropping the typed message (`docs/archive/walks/2026-10-01-v0.10.15-release-gate.md`).
     The confirm itself is F10, fixed 2026-09-25 (§I).
-- **Windows code signing** — **done 2026-10-01** (close-out Phase 1b, `docs/plans/2026-09-30-phase-1b-plan.md`). The row
-  as it stood: the NSIS setup is not Authenticode-signed, so every new Windows user meets SmartScreen's "Windows
+- **Windows code signing** — **done 2026-10-01** (close-out Phase 1b, `docs/archive/plans/2026-09-30-phase-1b-plan.md`).
+  The row as it stood: the NSIS setup is not Authenticode-signed, so every new Windows user meets SmartScreen's "Windows
   protected your PC" and has to pick *More info › Run anyway*. The updater's minisign signature is a different thing: it
   protects updates, not the first download. Close-out Phase 1b ports the sibling app's setup — its
   `.github/workflows/release.yml` is the reference implementation, and the user's `signing-and-repo-setup.md` (a working
@@ -215,10 +215,10 @@ first (`docs/archive/walks/2026-10-01-phase-3-measure.md`) and walked as smoke g
     gate read the installed exe `Valid`, thumbprint `F06C…8151`, timestamped
     (`docs/archive/walks/2026-10-01-v0.10.15-release-gate.md`). The certificate's expiry is a dated row in
     `open-items.md` §E.
-- **UI-vs-canvas comparison pass (v1 plan M6 leftover)** — screenshots of the real app against the screens canvas,
-  one pass, fix what differs or update the canvas: done as close-out Phase 4. Stage A ran 2026-10-03 (the Results and
-  Rulings in `docs/plans/2026-10-03-phase-4-plan.md`); Stage B's app fixes and canvas updates landed 2026-10-04, and
-  smoke group BM was walked the same day (`docs/archive/walks/2026-10-04-group-bm-walk.md`). Moved here 2026-10-04.
+- **UI-vs-canvas comparison pass (v1 plan M6 leftover)** — screenshots of the real app against the screens canvas, one
+  pass, fix what differs or update the canvas: done as close-out Phase 4. Stage A ran 2026-10-03 (the Results and
+  Rulings in `docs/archive/plans/2026-10-03-phase-4-plan.md`); Stage B's app fixes and canvas updates landed 2026-10-04,
+  and smoke group BM was walked the same day (`docs/archive/walks/2026-10-04-group-bm-walk.md`). Moved here 2026-10-04.
 
 ## C. Roadmap
 ~~Submodules · worktrees~~ — shipped 2026-09-13, see the Context bullet.
@@ -844,7 +844,7 @@ fixes and the walk added three more. The walk is `docs/archive/walks/2026-09-19-
   triage T1) — **closed 2026-09-28**: run 36391567783's *Verify the macOS signature* step passed at tauri-cli
   2.11.5, so the bundler still signs the `.app` before packing the `.app.tar.gz` and `.dmg`.
 - **Only the AppImage's updater `.sig` is verified in CI** (triaged 2026-09-27, the AppImage plan's Triage L4) —
-  **done 2026-10-01** (close-out Phase 1b, `docs/plans/2026-09-30-phase-1b-plan.md`). The row as it stood: the
+  **done 2026-10-01** (close-out Phase 1b, `docs/archive/plans/2026-09-30-phase-1b-plan.md`). The row as it stood: the
   Windows `.exe.sig` and the macOS `.app.tar.gz.sig` come straight from the bundler and nothing touches the files
   after signing, so the risk the AppImage check guards against doesn't apply. To extend it, run
   `.github/scripts/verify-updater-sig.py` on those legs too, and make it check the signed `version:` on every leg.
@@ -886,8 +886,8 @@ fixes and the walk added three more. The walk is `docs/archive/walks/2026-09-19-
       restarted by itself (`docs/archive/walks/2026-10-01-v0.10.15-release-gate-linux.md`);
     - AC ticked 2026-10-01 (row above). `.rpm` is ruled covered by the `.deb` walk (2026-09-27): without `APPIMAGE`
       both take the Download… path (`update.rs:45-50`).
-- **The tauri-cli 2.12.0 bump** (added 2026-09-28, the CLI pin plan's B-1 and B-3) — **closed 2026-10-05** by the
-  Tauri 2.12 change (`docs/plans/2026-10-04-tauri-2.12-plan.md`), which took Dependabot #19 (npm) and #20 (cargo) by
+- **The tauri-cli 2.12.0 bump** (added 2026-09-28, the CLI pin plan's B-1 and B-3) — **closed 2026-10-05** by the Tauri
+  2.12 change (`docs/archive/plans/2026-10-04-tauri-2.12-plan.md`), which took Dependabot #19 (npm) and #20 (cargo) by
   hand on one branch.
   - **The row as it stood:** 2.12.0 (bundler 2.10.0) came out 2026-09-26; the pin stayed on 2.11.5 until a plan
     checked it (the version binding, `--app-version`, `--locked`, a dispatch run), and re-derived the AppImage tool
@@ -911,11 +911,11 @@ stays.
   precondition holds — every artifact a `latest.json` can point at carries a version, true from the first release
   after the CLI pin change (2026-09-28). Then set it in `tauri.conf.json`: scheduled in close-out Phase 1b
   (2026-09-28). *From `open-items.md` §P.*
-  - **Closed 2026-10-01** (close-out Phase 1b, `docs/plans/2026-09-30-phase-1b-plan.md`; `f27dfef`): `tauri.conf.json`
-    sets `"requireSignedVersion": true`, so the app refuses an update whose signature carries no version. Smoke group BJ
-    1–3 walked it on a local build (the plan's D4): a version-less 0.10.12 setup offered as 0.10.14 was refused with the
-    plugin's `MissingSignedVersion` text, then the published 0.10.14 installed. Both dry runs' `verify` job (Release
-    runs 36674994686 and 36753506004) proved every `.sig` carries `version:`
+  - **Closed 2026-10-01** (close-out Phase 1b, `docs/archive/plans/2026-09-30-phase-1b-plan.md`; `f27dfef`):
+    `tauri.conf.json` sets `"requireSignedVersion": true`, so the app refuses an update whose signature carries no
+    version. Smoke group BJ 1–3 walked it on a local build (the plan's D4): a version-less 0.10.12 setup offered as
+    0.10.14 was refused with the plugin's `MissingSignedVersion` text, then the published 0.10.14 installed. Both dry
+    runs' `verify` job (Release runs 36674994686 and 36753506004) proved every `.sig` carries `version:`
     (`docs/archive/walks/2026-09-30-phase-1b-walk.md`). It shipped in v0.10.15, 2b's release (2026-10-01); the update
     from v0.10.15 to the next release is its first real check — passed 2026-10-03 in the v0.10.16 gate.
 - **Q23: the details pane goes blank when another commit is selected.** Until the new commit's details arrive, the
@@ -972,7 +972,7 @@ stays.
 - **Launching the extracted image (`squashfs-root/AppRun`, no `APPIMAGE`) isn't scrubbed.** The 0.10.14 gate
   (`git_core::in_appimage`) needs `APPIMAGE`, which only the AppImage runtime sets, so an image unpacked with
   `--appimage-extract` and started through its `AppRun` passes the image's environment on as before. Dev-only.
-  **Closed accepted limit** (triage T5 of `docs/plans/2026-09-29-appimage-env-hotfix-plan.md`, 2026-09-29). No
+  **Closed accepted limit** (triage T5 of `docs/archive/plans/2026-09-29-appimage-env-hotfix-plan.md`, 2026-09-29). No
   reopen trigger.
 - **The AppImage's environment leaks into the processes it spawns; the post-update restart fails on Ubuntu 26.04.**
   The AppImage bundles 22.04's `libsystemd.so.0` (249) and its `AppRun` puts `$APPDIR/usr/lib` on
@@ -985,7 +985,7 @@ stays.
   fails (the bundled `libnghttp2.so.14` shadows the one the host's `libcurl` needs); hooks that call coreutils
   fail and a `#!/usr/bin/env bash` hook can't start; a custom diff tool fails silently; git from a terminal and the
   `.deb` (0.10.11) pass. **Decided 2026-09-29: hotfix 0.10.14**, scrubbing the image's paths from the environment
-  of every process the app starts — plan `docs/plans/2026-09-29-appimage-env-hotfix-plan.md`. The restart is the
+  of every process the app starts — plan `docs/archive/plans/2026-09-29-appimage-env-hotfix-plan.md`. The restart is the
   *old* app's, so the fix helps only updates from 0.10.14 on.
   `docs/archive/walks/2026-09-29-appimage-release-walk.md` (`41025ce`).
   **Closed 2026-09-29:** fixed on `hotfix/0.10.14`; smoke group BI rows 1–8 walked green on the final build (Release
@@ -1011,7 +1011,8 @@ stays.
 ## T. Added 2026-09-29 — the 0.10.14 hotfix's change review: accepted in bulk, to be reviewed
 
 Accepted as closed by the owner on 2026-09-29 without a one-by-one ruling, kept apart so they can be reviewed later
-(open-items §S points here). From change review passes 1–6 of `docs/plans/2026-09-29-appimage-env-hotfix-plan.md`.
+(open-items §S points here). From change review passes 1–6 of
+`docs/archive/plans/2026-09-29-appimage-env-hotfix-plan.md`.
 
 1. `open_on_host` with no launcher at all returns a NotFound error instead of the `open` crate's panic; the
    launcher list is never empty.
@@ -1051,8 +1052,8 @@ Accepted as closed by the owner on 2026-09-29 without a one-by-one ruling, kept 
 
 ## U. Added 2026-10-01 — close-out Phase 1b's change review: accepted, closed
 
-Ruled one by one by the owner; detail in the *Triage* section of `docs/plans/2026-09-30-phase-1b-plan.md`. (T2 and
-T7 were fixed; T3 is an open accepted limit, `open-items.md` §Q, *What the Release build still fetches unpinned*;
+Ruled one by one by the owner; detail in the *Triage* section of `docs/archive/plans/2026-09-30-phase-1b-plan.md`. (T2
+and T7 were fixed; T3 is an open accepted limit, `open-items.md` §Q, *What the Release build still fetches unpinned*;
 T10 is the sibling app's README comma, to be pushed there on the owner's word.)
 
 - **T1** The `signing` environment lets admins bypass its approval (`can_admins_bypass: true`); the owner is the
@@ -1100,11 +1101,11 @@ T10 is the sibling app's README comma, to be pushed there on the owner's word.)
   `git init … expected N bytes` error seen again. Case (a), the CRLF `add_path` error, stays open there.
 - **Stashes browser's left column clips text (triage E2).** The left (list) column could show *"No changes"*
   clipped to *"Nc"*, with a horizontal scrollbar, instead of wrapping or eliding. Found in the BK walk, 2026-10-01.
-  **Fixed 2026-10-04** for close-out Phase 4 Stage B (row 66, `docs/plans/2026-10-03-phase-4-plan.md`): `.side`
+  **Fixed 2026-10-04** for close-out Phase 4 Stage B (row 66, `docs/archive/plans/2026-10-03-phase-4-plan.md`): `.side`
   takes `flex: 1; min-width: 0` (`StashesDialog.module.css:2`). Walked 2026-10-04 as smoke BM 4. Moved here
   2026-10-04.
 
-The triage's accepted items, ruled one by one by the owner 2026-10-01 (`docs/plans/2026-10-01-phase-2b-plan.md`,
+The triage's accepted items, ruled one by one by the owner 2026-10-01 (`docs/archive/plans/2026-10-01-phase-2b-plan.md`,
 *Triage*). No reopen trigger on any of these.
 
 - **A2 (row 7's path-filter blame fix).** The fix for `blameAt`'s reload race is proven by unit tests only; the
@@ -1131,7 +1132,7 @@ The triage's accepted items, ruled one by one by the owner 2026-10-01 (`docs/pla
 
 ## W. Added 2026-10-01 — the smoke helpers' change review: accepted, closed
 
-Ruled one by one by the owner; detail in the *Triage* section of `docs/plans/2026-10-01-smoke-helpers-plan.md`
+Ruled one by one by the owner; detail in the *Triage* section of `docs/archive/plans/2026-10-01-smoke-helpers-plan.md`
 (T1, T2, T5, T6, T7 and, from passes 3–6, R1–R4, S1–S4, U1, U3, V1 and V2 were fixed).
 
 - **T3** `docs/reflow.mjs` refuses some ranges that would be safe to rewrap: a multi-line quote, a bare backtick run
@@ -1144,7 +1145,7 @@ Ruled one by one by the owner; detail in the *Triage* section of `docs/plans/202
 
 ## X. Added 2026-10-03 — close-out Phase 3: fixed, recorded and accepted, closed
 
-Ruled by the owner 2026-10-02 and 2026-10-03; detail in `docs/plans/2026-10-01-phase-3-plan.md` (*Stage B
+Ruled by the owner 2026-10-02 and 2026-10-03; detail in `docs/archive/plans/2026-10-01-phase-3-plan.md` (*Stage B
 decisions*). The rows Phase 3 closed are in §A, §I, §M, §Q and §V above, its open rows in `open-items.md` §Q and §X.
 The walk records are `docs/archive/walks/2026-10-01-phase-3-measure.md` and
 `docs/archive/walks/2026-10-03-group-bl-walk.md`. No reopen trigger on any of these.
@@ -1217,8 +1218,8 @@ The walk records are `docs/archive/walks/2026-10-01-phase-3-measure.md` and
 
 ## Y. Added 2026-10-04 — close-out Phase 4: the accepted rows
 
-**B3** (`docs/plans/2026-10-03-phase-4-plan.md`, Stage B decisions), the owner, 2026-10-03: one closed-accepted entry
-for the *Rulings* section's accepted rows, rather than the plan as the only record. No reopen trigger on any of
+**B3** (`docs/archive/plans/2026-10-03-phase-4-plan.md`, Stage B decisions), the owner, 2026-10-03: one closed-accepted
+entry for the *Rulings* section's accepted rows, rather than the plan as the only record. No reopen trigger on any of
 these.
 
 - **Rows 5, 15, 18, 21, 22, 23, 25, 26, 28, 32, 40, 45** (the Start screen's dark version text colour; History ·
@@ -1255,11 +1256,11 @@ these.
 
 ## Z. Added 2026-10-04 — close-out Phase 5: fixed, walked and accepted, closed
 
-Ruled by the owner 2026-10-04; detail in `docs/plans/2026-10-04-phase-5-plan.md` (*Decisions*, D1–D11) and the walk
-record `docs/archive/walks/2026-10-04-phase-5-macos-walk.md` (*Triage*). The T-numbers here are Phase 5's own triage
-rows, not the 2026-09-26 Linux menu-focus plan's T12 / T21. Hashes are pre-squash commits of `phase-5`. The Option
-type-ahead fix (M4) is in §R above; Phase 5's open rows are in `open-items.md` §Q and §Z. No reopen trigger on any of
-these.
+Ruled by the owner 2026-10-04; detail in `docs/archive/plans/2026-10-04-phase-5-plan.md` (*Decisions*, D1–D11) and the
+walk record `docs/archive/walks/2026-10-04-phase-5-macos-walk.md` (*Triage*). The T-numbers here are Phase 5's own
+triage rows, not the 2026-09-26 Linux menu-focus plan's T12 / T21. Hashes are pre-squash commits of `phase-5`. The
+Option type-ahead fix (M4) is in §R above; Phase 5's open rows are in `open-items.md` §Q and §Z. No reopen trigger on
+any of these.
 
 **Fixed and walked** (smoke group BN, on the Mac and the Windows VM):
 - **D6, one rule for every menu's keyboard mark — and the Linux plan's T12** — **fixed 2026-10-04** (`ef3711b`; BN 1–3).
@@ -1323,7 +1324,7 @@ these.
 ## AA. Added 2026-10-05 — Tauri 2.12 triage
 
 Ruled by the owner 2026-10-05, after the group BO walks and its round 2 (BO 11–13); detail in
-`docs/plans/2026-10-04-tauri-2.12-plan.md` ("Triage (2026-10-05) and its fixes") and
+`docs/archive/plans/2026-10-04-tauri-2.12-plan.md` ("Triage (2026-10-05) and its fixes") and
 `docs/archive/walks/2026-10-05-group-bo-walk.md`. Numbers are the running triage list's; R-numbers are round 2's.
 No reopen trigger on any of these.
 

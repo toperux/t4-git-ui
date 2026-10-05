@@ -1,7 +1,7 @@
 # Group BK: close-out Phase 2b — 2026-10-01
 
-The walk of `smoke-test-post-v1.md` › group BK, rows 1–8, and row 9 (added after the first walk for its finding,
-walked later the same day on a build of `95f5b9b`; its own section below) (`docs/plans/2026-10-01-phase-2b-plan.md`,
+The walk of `smoke-test-post-v1.md` › group BK, rows 1–8, and row 9 (added after the first walk for its finding, walked
+later the same day on a build of `95f5b9b`; its own section below) (`docs/archive/plans/2026-10-01-phase-2b-plan.md`,
 *Smoke group BK*).
 
 **Setup:**

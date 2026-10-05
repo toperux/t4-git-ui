@@ -1,6 +1,6 @@
 # Phase 3 Stage A, the measuring walk — 2026-10-01
 
-Stage A of `docs/plans/2026-10-01-phase-3-plan.md`: rows 1–8 timed once on the fixtures and the owner's two real
+Stage A of `docs/archive/plans/2026-10-01-phase-3-plan.md`: rows 1–8 timed once on the fixtures and the owner's two real
 repositories, against T1 (≥ 250 ms on a real action, or visible jank by D3). The numbers are summed up in the plan's
 *Results*; this record keeps the samples and the attribution behind them.
 
