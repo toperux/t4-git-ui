@@ -735,11 +735,13 @@ pub(crate) fn window_closed(app: &AppHandle, label: &str) {
 
 /// The layout the last exit left, read and left in place: `main` opens the
 /// first entry itself and spawns a window for each of the others, and the next
-/// write (a `spawn`, or `main`'s one-shot report) replaces the file. Empty on a
-/// first launch — the frontend falls back to `lastOpen` then — and after a
-/// launch that died restoring (`crashed`, see [`take`]). Of two processes
-/// without single-instance (no reachable session bus), one started while the
-/// other restores finds its mark and takes that for a crash; accepted.
+/// write (a `spawn`, or `main`'s one-shot report) replaces the file. Empty
+/// with no saved session or an empty one — the frontend falls back to
+/// `lastOpen` then: the last active repository, unless every tab was closed
+/// since, which clears it — and after a launch that died restoring (`crashed`,
+/// see [`take`]). Of two processes without single-instance (no reachable
+/// session bus), one started while the other restores finds its mark and takes
+/// that for a crash; accepted.
 #[tauri::command]
 pub fn take_layout(app: AppHandle) -> Taken {
     take(&mut app.state::<AppState>().layouts(), &layout_file(&app))

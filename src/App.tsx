@@ -37,8 +37,9 @@ let restoring = false;
 /**
  * What this window opens at launch: the tabs it was created with (a torn-off tab, or one of the
  * windows a layout is being restored into), else — in the main window — the layout the last exit
- * left, which also spawns the other windows. With neither, the repository `lastOpen` names, which is
- * what a first launch after the upgrade to tabs has.
+ * left, which also spawns the other windows. With neither (no saved session, or an empty one), the
+ * repository `lastOpen` names: the last active one, unless every tab was closed since, which clears
+ * it.
  *
  * If the last launch died while it restored (`crashed`, the backend's crash-loop breaker), nothing
  * opens: not the layout, which the backend has set aside, and not `lastOpen`, which would reopen the
