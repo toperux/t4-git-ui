@@ -137,17 +137,24 @@ function useMenuDismiss(
  * the menu and mounts the dialog in the same commit, and the dialog's `autoFocus` field has already
  * taken the focus by the time this cleanup runs — pulling it back to the trigger would leave the
  * dialog on its Close button.
+ *
+ * `clicked` is the trigger a `Menu`'s last click landed on (none for a `ContextMenu`). macOS WebKit
+ * focuses no clicked button, so the focus is on <body> at open: the trigger is the opener then, or
+ * Escape would strand the keyboard there. A pointer close puts the focus back only where the click
+ * had found it, so a mouse user gets no focus (or ring) the click didn't give; a key always does.
  */
-function useRestoreFocus(open: boolean) {
+function useRestoreFocus(open: boolean, clicked?: RefObject<{ trigger: HTMLElement; wasFocused: boolean } | null>) {
   useEffect(() => {
     if (!open) return;
-    const opener = document.activeElement as HTMLElement | null;
+    let opener = document.activeElement as HTMLElement | null;
+    if (opener === document.body && clicked?.current) opener = clicked.current.trigger;
     return () => {
       const active = document.activeElement;
       const lost = !active || active === document.body || !active.isConnected;
-      if (lost && opener?.isConnected) opener.focus();
+      const back = lastInputWasKey() || !clicked?.current || clicked.current.wasFocused;
+      if (lost && back && opener?.isConnected) opener.focus();
     };
-  }, [open]);
+  }, [open, clicked]);
 }
 
 /** Escape closes the menu and stops there: a `Dialog` around it handles Escape too and must not close as well. */
@@ -218,7 +225,8 @@ export function Menu({ open, onClose, anchor, label, children, align = "right", 
   const menu = useRef<HTMLDivElement>(null);
   const [openSub, setOpenSub] = useState<object | null>(null);
   const grace = useRef<number | undefined>(undefined);
-  useRestoreFocus(open);
+  const clicked = useRef<{ trigger: HTMLElement; wasFocused: boolean } | null>(null);
+  useRestoreFocus(open, clicked);
   useMenuDismiss(open, onClose, wrap, menu);
 
   // A closed menu has no open submenu, and no timer left running to open one.
@@ -256,7 +264,17 @@ export function Menu({ open, onClose, anchor, label, children, align = "right", 
   }, [openSub, onClose]);
 
   return (
-    <div ref={wrap} className={cx(s.wrap, className)} onKeyDown={closeOnEscape(open, onClose)}>
+    <div
+      ref={wrap}
+      className={cx(s.wrap, className)}
+      onKeyDown={closeOnEscape(open, onClose)}
+      // Every click on the trigger, the closing one too: recorded, not focused — a script focus here
+      // would also land on a repo-button drag's last click, which only the button's own onClick spots.
+      onClickCapture={(e) => {
+        const trigger = (e.target as Element).closest("button");
+        if (trigger && !trigger.closest('[role="menu"]')) clicked.current = { trigger, wasFocused: document.activeElement === trigger };
+      }}
+    >
       {anchor}
       {open && (
         <div ref={menu} role="menu" aria-label={label} className={cx(s.menu, align === "left" && s.left)} onKeyDown={onMenuKeyDown(onClose)}>

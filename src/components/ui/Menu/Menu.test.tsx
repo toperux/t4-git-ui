@@ -84,6 +84,42 @@ describe("Menu", () => {
     expect(first.hasAttribute("data-kbd")).toBe(false);
   });
 
+  // #14: jsdom, like macOS WebKit, leaves a clicked button unfocused, so the focus is on <body> at open.
+  it("Escape after a click-open gives the focus to the trigger, marked", () => {
+    const { getByRole } = render(<Harness />);
+    const trigger = getByRole("button", { name: "Open" });
+    fireEvent.pointerDown(trigger);
+    fireEvent.click(trigger);
+    fireEvent.keyDown(getByRole("menuitem", { name: "First" }), { key: "Escape" });
+    expect(document.activeElement).toBe(trigger);
+    expect(trigger.hasAttribute("data-kbd")).toBe(true);
+  });
+
+  it("a click that closes the menu leaves the focus where the click found it", () => {
+    const { getByRole, queryByRole } = render(<Harness />);
+    const trigger = getByRole("button", { name: "Open" });
+    fireEvent.pointerDown(trigger);
+    fireEvent.click(trigger);
+    act(() => (document.activeElement as HTMLElement).blur());
+    fireEvent.pointerDown(trigger);
+    fireEvent.click(trigger);
+    expect(queryByRole("menu")).toBeNull();
+    expect(document.activeElement).not.toBe(trigger);
+  });
+
+  it("opened from the keyboard, then closed by a click on its unfocused trigger, it leaves the focus alone", () => {
+    const { getByRole, queryByRole } = render(<Harness />);
+    const trigger = getByRole("button", { name: "Open" });
+    act(() => trigger.focus());
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    fireEvent.click(trigger);
+    act(() => (document.activeElement as HTMLElement).blur());
+    fireEvent.pointerDown(trigger);
+    fireEvent.click(trigger);
+    expect(queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(document.body);
+  });
+
   it("a shortcut chip is a picture, not part of the item's name", () => {
     const { getByRole } = render(
       <Menu open onClose={() => {}} label="History" anchor={null}>

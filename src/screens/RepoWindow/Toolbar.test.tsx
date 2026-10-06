@@ -63,6 +63,15 @@ describe("Toolbar Fetch", () => {
     fireEvent.click(getByRole("button", { name: "Fetch options" }));
     expect(useDialogStore.getState().dialog).toEqual({ kind: "fetch" });
   });
+
+  // jsdom, like macOS WebKit, focuses no clicked button: the dialog would record <body> as its opener.
+  it("a click focuses Fetch options and Pull, so their dialogs return the focus to them", () => {
+    const { getByRole } = render(<Toolbar />);
+    fireEvent.click(getByRole("button", { name: "Fetch options" }));
+    expect(document.activeElement).toBe(getByRole("button", { name: "Fetch options" }));
+    fireEvent.click(getByRole("button", { name: "Pull" }));
+    expect(document.activeElement).toBe(getByRole("button", { name: "Pull" }));
+  });
 });
 
 describe("Toolbar settings", () => {
@@ -155,6 +164,18 @@ describe("Toolbar Branch menu", () => {
 
     act(() => useDialogStore.getState().close());
     expect(document.activeElement).toBe(getByRole("button", { name: "Branch" }));
+  });
+
+  it("the click that closes it doesn't focus the trigger the click left unfocused", () => {
+    const { getByRole, queryByRole } = render(<Toolbar />);
+    const branch = getByRole("button", { name: "Branch" });
+    fireEvent.pointerDown(branch);
+    fireEvent.click(branch);
+    act(() => (document.activeElement as HTMLElement).blur());
+    fireEvent.pointerDown(branch);
+    fireEvent.click(branch);
+    expect(queryByRole("menu", { name: "Branch" })).toBeNull();
+    expect(document.activeElement).not.toBe(branch);
   });
 });
 

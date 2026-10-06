@@ -17,7 +17,17 @@ export function ToolbarButton({ icon, count, className, children, type = "button
   // most-seen "why is this dead?" message in the app, and the one Chromium refuses to show.
   return (
     <DisabledHint disabled={rest.disabled} title={rest.title}>
-      <button type={type} className={cx(s.btn, className)} {...rest}>
+      <button
+        type={type}
+        className={cx(s.btn, className)}
+        {...rest}
+        // macOS WebKit focuses no clicked button, so a dialog it opens would record <body> as the
+        // opener to return to. A menu trigger is left alone: its `Menu` owns where the focus goes.
+        onClick={(e) => {
+          if (!rest["aria-haspopup"]) e.currentTarget.focus({ preventScroll: true });
+          rest.onClick?.(e);
+        }}
+      >
         <span className={s.icon}>{icon}</span>
         {children != null && <span data-label>{children}</span>}
         {count ? <span className={s.cnt}>{count}</span> : null}
