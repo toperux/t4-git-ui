@@ -7,12 +7,14 @@ scheduled in `2026-09-26-close-out-plan.md`; §Q's accepted limits wait on their
 also in a close-out phase, the `status.rs` row, closed in Phase 3 on 2026-10-03)._
 
 _Done, fixed, walked and closed rows live in `open-items-done.md` (split 2026-09-24), under the same section letters — a
-letter with nothing open left (§A, §D, §F, §G, §H, §I, §J, §K, §L, §M, §N, §O, §P, §T, §U, §W) is only there. When a row
-here is done, move it there. Accepted limits with a reopen trigger are open, in §Q (since 2026-09-28); those with none
-are closed, in the done file; most of §V's deferred rows wait on a later fix batch._
+letter with nothing open left (§A, §D, §F, §G, §H, §I, §J, §K, §L, §M, §N, §O, §P, §T, §U, §W, §AD) is only there.
+When a row here is done, move it there. Accepted limits with a reopen trigger are open, in §Q (since 2026-09-28); those
+with none are closed, in the done file; of §V's deferred rows, only the CRLF test flake and the GIO-modules row remain
+after the 2026-10-06 fix batch._
 
 ## B. Verification and release
-- **Unticked smoke lines — recounted 2026-10-06: none**, in either `smoke-test-post-v1.md` or `smoke-test.md`. AZ 11's
+- **Unticked smoke lines — recounted 2026-10-06: one**, BP 4 in `smoke-test-post-v1.md` (the fix batch's tooltip
+  row: the Mac passed, Linux failed 0 of 4; kept open with §Z T15 and §Q G3, D35). None in `smoke-test.md`. AZ 11's
   Linux line (now `smoke-test-post-v1.md:1892`) was ticked 2026-10-06. Its macOS line (now
   `smoke-test-post-v1.md:1898`) was ticked 2026-10-04 in close-out Phase 5
   (`docs/archive/walks/2026-10-04-phase-5-macos-walk.md`). AC (`:762`) ticked 2026-10-01 at the v0.10.15 release gate's
@@ -505,10 +507,14 @@ phases that accepted them; each origin keeps a pointer.
 - **A menu item's first XTEST click under Xvfb (no window manager) only highlighted it; a second click activated
   it (v0.10.19 Linux gate, G3).** Reproduced 1 of 1 at the v0.10.20 Linux gate (2026-10-06, the same bare Xvfb):
   the file row's native tooltip sat over the menu next to *Open* just before the click; that the tooltip takes the
-  click is a guess, not checked. Whether the harness or the app is at fault isn't known; the next Linux gate runs
-  under openbox to tell (the owner, 2026-10-06). Accepted 2026-10-05 (the v0.10.19 gate). **Reopen:** a report of a
-  menu item needing two clicks, or a reproduction under a window manager. *From
-  `docs/archive/walks/2026-10-05-v0.10.19-release-gate-linux.md`.*
+  click is a guess, not checked. The D14 pre-check reproduced it on v0.10.20 under openbox with the gate's
+  1920×1200 recipe: an app/WebKitGTK interaction, not the harness. Accepted 2026-10-05 (the v0.10.19 gate).
+  **Reopen:** a report of a menu item needing two clicks, or a reproduction under a window manager. *From
+  `docs/archive/walks/2026-10-05-v0.10.19-release-gate-linux.md`.* **Added 2026-10-06 (BP 4):** the fix batch's row 4
+  (strip the anchor's `title` while the context menu is open) still failed 0 of 4 under openbox with the gate's
+  1920×1200 recipe — see `open-items.md` §Z, T15, and `docs/archive/walks/2026-10-06-bp-walk.md`. This row still
+  merges into T15 at the post-gate docs commit (D33); the gate's G3 check is a record of this known interaction,
+  not a release blocker (D35).
 - **Return in the Fetch dialog's remote dropdown seemed to start a fetch once on Linux.** At the v0.10.20 Linux gate
   (bare Xvfb), `git` started before the Fetch click, right after a Return in the dropdown; a second try didn't. On
   the Windows VM (2026-10-06, `cc6d58f`, CDP) Return there never submits: the dropdown is a custom combobox whose
@@ -549,33 +555,6 @@ Found in close-out Phase 2b (plan `docs/archive/plans/2026-10-01-phase-2b-plan.m
 plan owed it, every item the triage sent here with a *DEFER §V* ruling (from the BK walk and the review passes),
 and the §Q flake row whose trigger fired.
 
-- **The Stashes browser's Files tab blame-gutter / "Select in graph" doesn't drill down (triage D-1).** Opened from
-  Changes with a preview on stash X: a blame-gutter hunk click or "Select in graph" calls `blameAt`, which hits another
-  commit Y and clears the preview; the browser's own "lost its preview" effect re-previews stash X, so the browser snaps
-  back to the stash while History's grid behind it moves to Y and stays pinned to the stale Y. Pre-existing, also on
-  `main`. Found in change review pass 6, 2026-10-01. **Next:** a later fix batch.
-- **A closed Stashes browser leaves History's pane on the stash (triage D-2).** Closing the browser after previewing a
-  stash leaves History's details pane on the stash (the grid highlights a commit, the sidebar's Stashes section stays
-  collapsed) — the documented rule, "a previewed stash wins over the selection", working as designed, but confusing.
-  Pre-existing, also on `main`. Found in the BK 9 walk, 2026-10-01. **Next:** the owner's next pass.
-- **Fast back-to-back tab switching can lose the grid selection (triage D-3).** Switching tabs rapidly (×10, once seen
-  at ×3) can bring a tab back selected on HEAD instead of where it was left; no stuck loading, no wrong content shown.
-  Pre-existing, also on `main`. Found in the BK 9 walk, 2026-10-01. **Next:** a later fix batch.
-- **`treeSelection` keys are shared across repos and tabs; a last-tab close in Changes doesn't clear
-  `diffStore` (triage D-4).** Pre-existing, outside the Phase 2b branch — read during change review pass 3,
-  2026-10-01, while checking row 16's fix. At worst, another repo's working tree preselects a same-named file in
-  the Files tab; no wrong content is shown. Not reproduced as a user-visible bug. **Next:** a later fix batch.
-- **Merge banner says "resolve conflicts" after a hook refused a conflict-free merge (triage E1).** A `pre-merge-commit`
-  hook refusing a merge that has no conflicts still shows the conflicts banner's wording. Found in the BK walk,
-  2026-10-01. **Next:** a later fix batch.
-- **The worktree row menu offers Lock… on the main worktree row (triage E3).** git refuses locking the main worktree;
-  the app's menu doesn't grey the option out. Found in the BK walk, 2026-10-01. **Next:** a later fix batch.
-- **Alt+2 typed into the History search box does nothing (triage F1).** Unclear what, if anything, Alt+2 is meant to do
-  there; found in the BK walk, 2026-10-01. **Next:** a later fix batch.
-- **An empty session's `lastOpen` fallback may only be meant for the first launch (triage F2).** With `layout.json` as
-  `[]`, the app opened a repository from `lastOpen` rather than the start screen; a later launch with the same empty
-  session went to the start screen instead. Whether `lastOpen` should fall back past the first launch wasn't confirmed.
-  Found in the BK walk, 2026-10-01. **Next:** confirm the fallback's intended rule, then a later fix batch.
 - **A Windows flake inside `TempRepo` test helpers.** First seen 2026-09-29
   (`blames_the_working_tree_and_marks_the_uncommitted_line` panicked at `test_util.rs:84` during the 0.10.14
   hotfix's gates, passed on re-run; accepted then as likely a pre-existing file-timing flake, unconfirmed). Its
@@ -630,10 +609,6 @@ review's triage and the walk of smoke group BL (`docs/archive/walks/2026-10-03-g
   before we could read it" (`diff_file.c:345`), blanking every count for that round. Seen once in BL 4: a 35 s call
   ended `ok=false` during edits to a listed file (the link reasoned, not checked). Pre-existing. **Reopen:** counts
   reported blank after an edit.
-- **Each tab open calls `open_repo` twice (C-2).** `tabsStore.ts:88`, then `repoStore.ts:324`; the second finds the
-  open handle (one watcher, ~3–10 ms; the doubled `opened repo` line was seen on Windows, Linux and macOS, 0.10.15
-  included). The fix: pass the summary through and skip the second call. **Reopen:** an open measured slow because of
-  it.
 - **A WebKitGTK web-process abort on quit, seen once.** On the Linux VM (WebKitGTK 2.52.6, a debug build of
   `8246a97`), a quit with the output dock at its cap (25,010 rows) aborted `WebKitWebProcess` with `free(): corrupted
   unsorted chunks` (SIGABRT): 1 in 32 quits at the cap, 0 in 30 repro cycles (10 of them with `content-visibility`
@@ -650,9 +625,6 @@ each with a reopen trigger.
 - **In dark mode the unfocused selection tint is close to the hover tint.** `--bg-selected-unfocused` sits close to
   `--bg-hover`. Seen on the Direction B canvas render; the app uses the same tokens. **Reopen:** a user can't tell
   a selected row in an unfocused list from a hovered one in dark mode.
-- **Under Windows PowerShell 5.1, `docs/smoke/fixtures/smoke-fixtures.ps1` drops the quotes around the `slow`
-  remote's upload-pack path (~:93).** Measured 2026-10-04; it works while the path has no spaces. **Reopen:** a
-  smoke group uses the `slow` remote on the VM, or the fixture root gains a space.
 
 ## Z. Added 2026-10-04 — close-out Phase 5
 
@@ -676,24 +648,19 @@ for one plan together.
   own plan. **Reopen:** a macOS user asks for it, or the hints plan above is picked up.
 - **A commit row's hover tooltip can cover its context menu (triage T15).** In the Mac walk (M1) the row's native
   `title` tooltip sat over the menu's first item; seen once. Fix sketch: no `title` on `GridRow` while the grid's menu
-  is open. Deferred 2026-10-04. **Reopen:** it recurs, or a report.
-- **A hover that closes a focused submenu drops the focus to `<body>` (triage T22).** With the focus in a submenu (after
-  a click or key on its row, D10), resting the pointer on another row of the parent menu closes the submenu; its rows
-  unmount and the focus falls to `<body>`, so the keys are dead until a click or Escape (Escape closes the menu and puts
-  the focus back on its opener, marked). Measured 2026-10-04 on Windows (`02c04f6`, BN 6's last part: ↓ dead three
-  times) and seen on the Mac the same day; reasoned to happen on every OS. Fix sketch: track whether the focus is in the
-  panel, and on a hover close put it back on the parent row. Deferred 2026-10-04. **Reopen:** a report of dead keys in a
-  menu after the mouse moved.
+  is open. Deferred 2026-10-04. **Reopen:** it recurs, or a report. **The 2026-10-06 fix batch's row 4** strips the
+  anchor's `title` while the context menu is open (D4, D14, D33): walked on the Mac, pass (no tooltip over the menu);
+  walked on Linux under openbox with the gate's 1920×1200 recipe, **failed 0 of 4** — the DOM confirms the `title` is
+  stripped, but a one-motion move-and-right-click still shows WebKitGTK's own already-scheduled tooltip with the old
+  text (inferred cause: it reads the text off the motion event before `contextmenu` strips the attribute). Kept by
+  the owner anyway (D35); stays open; at the post-gate docs commit G3 merges into it (D33) and both stay open
+  (D35). *Walk: `docs/archive/walks/2026-10-06-bp-walk.md`.*
 
 ## AA. Added 2026-10-05 — the Tauri 2.12 triage
 
 Deferred in the Tauri 2.12 triage (plan `docs/archive/plans/2026-10-04-tauri-2.12-plan.md`, "Triage (2026-10-05) and its
 fixes"), with its reopen trigger.
 
-- **WebKit: Enter after Escape on a click-opened menu does nothing (macOS / Linux; #14).** WebKit gives a clicked
-  button no focus, so after Escape returns the focus to the opener, Enter on it (which should reopen the menu)
-  does nothing; seen in the Mac walk. Deferred 2026-10-05. **Reopen:** a keyboard-after-mouse report, or the next
-  focus work.
 - **A release run builds ssign and the Tauri CLI from source every time.** Measured on the dry run (run 37296029478):
   `cargo install tauri-cli` took 9 m 28 s on Windows, 6 m 42 s on macOS and 5 m 37 s on Linux, and the ssign build
   2 m 54 s, because rust-cache restored nothing. A tag reads caches only from its own ref or `main`, and an unused
@@ -703,15 +670,25 @@ fixes"), with its reopen trigger.
   Deferred 2026-10-05. **Reopen:** the next change to the release workflow, or a release run's build time becoming a
   problem.
 
-## AD. Added 2026-10-06 — the v0.10.20 gate's follow-ups
+## AE. Added 2026-10-06 — the fix batch
 
-Deferred in the triage of the v0.10.20 gate records (`docs/archive/walks/2026-10-06-v0.10.20-release-gate.md`).
+Deferred in the 2026-10-06 fix batch (plan `docs/plans/2026-10-06-fix-batch-plan.md`, *Not in this batch* and the BP
+walk), each with a reopen trigger.
 
-- **After the Fetch dialog submits, the focus lands on the page body, not back on *Fetch options*.** Seen on the
-  Windows VM (a local build of `cc6d58f`, over CDP, 2026-10-06): a keyboard user starting a fetch from the dialog
-  loses their place. Likely because the opener is disabled while the op runs (inferred, not traced); other dialogs
-  with a disabled opener weren't checked. Deferred 2026-10-06. **Reopen:** a keyboard user's report, or the next
-  focus work.
+- **The split *Fetch* button and the Stash menu's *Pop latest* / *Apply latest* disable their trigger with no dialog
+  in the picture (D21).** `Toolbar.tsx:362-367`: the menu closes and the op disables `stashBtn` in one commit, so
+  `useRestoreFocus` focuses a disabled button and ends on `<body>`. The split *Fetch* button's own locus: it
+  disables itself while focused (`Toolbar.tsx:270-278`). The row's design question (where the focus should go) is
+  still open. **Reopen:** a keyboard user's report, or the next focus work.
+- **`selectWorkingTree(false)` can drop a sidebar stash preview in History (D23).** `repoStore.ts:512`, via
+  `dropWorkingTreeIfClean` (`statusStore.ts:190`): a clean-tree status drops the preview. **Reopen:** a report of a
+  stash preview vanishing, or the next stash work.
+- **A focus ring shows on the *Fetch options* chevron after a mouse Cancel or submit, on the Mac (D36).** Seen in the
+  BP walk (W1, `docs/archive/walks/2026-10-06-bp-walk.md`): `data-kbd=false`, a blue ring visible after a mouse
+  Cancel (BP 3) and a mouse submit (BP 2, BP 3); WebKit's own `:focus-visible` after a script focus (inferred).
+  Before this batch, the same actions left the focus on `<body>` (no ring, but keyboard stranded). Idea:
+  `focus({ focusVisible: false })`, untested on WKWebView. **Reopen:** the ring is found distracting, or the idea is
+  checked.
 
 ## Order
 

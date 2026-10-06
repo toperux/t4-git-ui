@@ -1236,6 +1236,63 @@ T10 is the sibling app's README comma, to be pushed there on the owner's word.)
   **Fixed 2026-10-04** for close-out Phase 4 Stage B (row 66, `docs/archive/plans/2026-10-03-phase-4-plan.md`): `.side`
   takes `flex: 1; min-width: 0` (`StashesDialog.module.css:2`). Walked 2026-10-04 as smoke BM 4. Moved here
   2026-10-04.
+- **The Stashes browser's Files tab blame-gutter / "Select in graph" doesn't drill down (triage D-1).**
+  Pre-existing, also on `main`. Found in change review pass 6, 2026-10-01. Opened from Changes with a preview on
+  stash X, a blame-gutter hunk click or "Select in graph" called `blameAt`, hit another commit Y and cleared the
+  preview, so the browser snapped back to the stash while History's grid behind it moved to Y and stayed pinned
+  there.
+  **Fixed 2026-10-06** for the fix batch (row 5, D5): the drill-down now leaves the browser and lands in History
+  on the commit, instead of re-previewing the stash. Walked 2026-10-06 (BP 5, pass, on Windows):
+  `docs/archive/walks/2026-10-06-bp-walk.md`.
+- **A closed Stashes browser leaves History's pane on the stash (triage D-2).** Pre-existing, also on `main`.
+  Found in the BK 9 walk, 2026-10-01. Its open sibling D23 is in `open-items.md` §AE. Closing the browser after
+  previewing a stash left History's details pane on the stash instead of its pre-open state. **Fixed 2026-10-06**
+  for the fix batch (row 6, D6, D15, D16, D18, D23, D25, D27, D28, D30): the browser now captures `preview` and
+  `compare` at mount and restores them on dismiss (`showHistory` clears the preview only when called from inside
+  the browser); its remaining edges — a tab switch keeping the preview in the snapshot of the tab left (D18), the
+  compare guard reading null while the selected row's page is still loading (D25), and the
+  working-tree-row-already-selected case where Escape restores a stale stash (D30) — are accepted limits with no
+  reopen trigger, below. Walked 2026-10-06 (BP 6, pass, three ways, on Windows):
+  `docs/archive/walks/2026-10-06-bp-walk.md`.
+- **Fast back-to-back tab switching can lose the grid selection (triage D-3).** Pre-existing, also on `main`. Found in
+  the BK 9 walk, 2026-10-01. Switching tabs rapidly (×10, once seen at ×3) could bring a tab back selected on HEAD
+  instead of where it was left; no stuck loading, no wrong content shown. **Two causes, both closed:** a failed row
+  lookup is no verdict — the fix batch's row 7 (D7) stopped treating a failed `findIndex` as "the commit is gone"; and a
+  second, distinct cause found by the BP 7 walk — the reselect/reanchor logic judged a stale `null` lookup against the
+  log's post-await `complete` flag, so a result that arrived late looked like a real miss. **Fixed 2026-10-06**
+  (`8d5734e`, both causes, D7, D37): reselect and reanchor now read `complete` from before the `await`, with a test for
+  each. Walked 2026-10-06: failed intermittently on a build of `5392166` (5 of ~30 sequences), then passed 21 of 21 on
+  the re-walk of `34dbdae`, 13 of them under added CPU load (builds of the day, before the squash; the map is in the
+  walk record). The first cause (`findIndex`) was inferred, not reproduced; BP 7 reproduced and fixed the second. The
+  two residual limits noted in the fix batch's triage (D29) — a stale `undefined` with no restart following can leave
+  `selectedIndex` on a renumbered row, and the misleading *Not in the current view* toast on an IPC error from
+  `revealOid` — are accepted, no reopen trigger, below. `docs/archive/walks/2026-10-06-bp-walk.md`.
+- **`treeSelection` keys are shared across repos and tabs; a last-tab close in Changes doesn't clear `diffStore`
+  (triage D-4).** Pre-existing, outside the Phase 2b branch — read during change review pass 3, 2026-10-01, while
+  checking row 16's fix. Corrected 2026-10-06: the shared-keys half is unreachable (the keys are the oid or
+  `"workingTree"`, which is never loaded; an oid names one tree in any repository); the `diffStore` half was
+  real, from either view, and showed no wrong content. **Fixed 2026-10-06** (fix-batch row 8, D8): `diffStore`
+  clears itself when the repository closes (`repo` goes to null). Unit-tested, not walked.
+- **Merge banner says "resolve conflicts" after a hook refused a conflict-free merge (triage E1).** Found in the
+  BK walk, 2026-10-01. A `pre-merge-commit` hook refusing a merge that has no conflicts still showed the
+  conflicts banner's wording. **Fixed 2026-10-06** for the fix batch (row 9, D9, D12): a no-conflict wording for
+  merge only (narrowed from every op by D12; `crates/git-core/tests/ops.rs:650-674`). Walked 2026-10-06 (BP 9,
+  pass, on Windows): `docs/archive/walks/2026-10-06-bp-walk.md`.
+- **The worktree row menu offers Lock… on the main worktree row (triage E3).** Found in the BK walk, 2026-10-01.
+  git refuses locking the main worktree; the app's menu didn't grey the option out. **Fixed 2026-10-06** for the
+  fix batch (row 10): disabled, as *Remove* already is. Covered by its unit test only, not walked.
+- **Alt+2 typed into the History search box does nothing (triage F1).** Found in the BK walk, 2026-10-01. **Fixed
+  2026-10-06** for the fix batch (row 12, D10, D13): Alt+digit now switches views from text fields too, on
+  Windows and Linux (narrowed from every OS by D13 — on Swedish and Finnish Mac layouts
+  Option+2 types `@`, inferred). Walked 2026-10-06 (BP 12, pass, on Windows, the Mac and Linux under openbox, the
+  Linux step added by D34): `docs/archive/walks/2026-10-06-bp-walk.md`. Whether IBus or fcitx claims Alt+digit
+  stays untested (no input method under Xvfb).
+- **An empty session's `lastOpen` fallback may only be meant for the first launch (triage F2).** Found in the BK
+  walk, 2026-10-01: an empty `[]` session opened `lastOpen`, and a later launch went to the start screen. **Fixed
+  2026-10-06** for the fix batch (row 13, D11): the rule is kept (the fallback still
+  applies past the first launch), and the comments that suggested otherwise are corrected. The rule: with no
+  saved session or an empty one, the app reopens `lastOpen`, the last active repository, unless every tab was
+  closed since, which clears it. Comments only; no test, not walked.
 
 The triage's accepted items, ruled one by one by the owner 2026-10-01 (`docs/archive/plans/2026-10-01-phase-2b-plan.md`,
 *Triage*). No reopen trigger on any of these.
@@ -1348,6 +1405,13 @@ The walk records are `docs/archive/walks/2026-10-01-phase-3-measure.md` and
   scans and 2 refs reads in the first 10 s, none in the next 52 s); and the Unix kill test in a container whose PID 1
   doesn't reap, where the killed `sleep` would stay a zombie. Accepted 2026-10-03.
 
+### Added 2026-10-06 — the fix batch
+
+- **Each tab open calls `open_repo` twice (C-2).** `tabsStore.ts:88`, then `repoStore.ts:324`; the second found the
+  open handle (one watcher, ~3–10 ms; the doubled `opened repo` line was seen on Windows, Linux and macOS, 0.10.15
+  included). **Fixed 2026-10-06** for the fix batch (row 11): the summary is now passed through, skipping the
+  second call. Covered by its unit test only, not walked.
+
 ## Y. Added 2026-10-04 — close-out Phase 4: the accepted rows
 
 **B3** (`docs/archive/plans/2026-10-03-phase-4-plan.md`, Stage B decisions), the owner, 2026-10-03: one closed-accepted
@@ -1385,6 +1449,14 @@ these.
   they predate Stage B and aren't the reference set.
 - The screens/ cherry-pick and Empty repository minis take the app's 180 px minimum sidebar, so their working-tree
   subjects show whole; their sidebar labels clip a little more ("diff-vie…"), as the app's do at 180.
+
+### Added 2026-10-06 — the fix batch
+
+- **Under Windows PowerShell 5.1, `docs/smoke/fixtures/smoke-fixtures.ps1` drops the quotes around the `slow`
+  remote's upload-pack path (~:93).** Measured 2026-10-04; it worked while the path had no spaces. **Fixed
+  2026-10-06** for the fix batch (row 14): single quotes inside, so neither PowerShell 5.1 nor 7 rewrites them (a
+  root with a `'` breaks it); run on both 5.1 and 7. Seen in passing during the BP walk (row 14 isn't itself
+  walked, only its quoting): `docs/archive/walks/2026-10-06-bp-walk.md`.
 
 ## Z. Added 2026-10-04 — close-out Phase 5: fixed, walked and accepted, closed
 
@@ -1453,6 +1525,16 @@ any of these.
   drawn: the menu's highlight keys on `[data-kbd]:focus` alone. Menu CSS must keep keying on `data-kbd`, not
   `:focus-visible`. Measured on the Linux VM (`1e58f7c`, BN 1).
 
+### Added 2026-10-06 — the fix batch
+
+- **A hover that closes a focused submenu drops the focus to `<body>` (triage T22).** With the focus in a submenu
+  (after a click or key on its row, Phase 5 D10), resting the pointer on another row of the parent menu closed the
+  submenu; its rows unmounted and the focus fell to `<body>`, so the keys were dead until a click or Escape
+  (Escape closes the menu and puts the focus back on its opener, marked). Measured 2026-10-04 on Windows
+  (`02c04f6`, BN 6's last part: ↓ dead three times) and seen on the Mac the same day; reasoned to happen on every
+  OS. **Fixed 2026-10-06** for the fix batch (row 1, D1): the parent row is refocused before the hover close.
+  Walked 2026-10-06 (BP 1, pass, on Windows and the Mac): `docs/archive/walks/2026-10-06-bp-walk.md`.
+
 ## AA. Added 2026-10-05 — Tauri 2.12 triage
 
 Ruled by the owner 2026-10-05, after the group BO walks and its round 2 (BO 11–13); detail in
@@ -1465,6 +1547,15 @@ No reopen trigger on any of these.
   `701ccf5`. With every window minimized there is no cascade reference, and the size was read from the minimized
   `main`, which reads near zero; a minimized `main` is now skipped and the builder's default size (800 × 600) used,
   as when `main` is gone.
+- **#14, macOS WebKit: Enter after Escape on a click-opened menu does nothing** (title corrected from "macOS /
+  Linux" — the bug is macOS-only, C1 measured that Linux WebKitGTK focuses a clicked button). macOS WebKit gives a
+  clicked button no focus, so after Escape returned the focus to the opener, Enter on it (which should reopen the
+  menu) did nothing; seen in the Mac walk. Deferred 2026-10-05. **Fixed 2026-10-06** for the fix batch (row 3,
+  D3, D17, D19, D20, D22, D24, D26, D31, D32): the `Menu` wrap records the clicked trigger and whether it already
+  had the focus, and `useRestoreFocus` takes it as the opener instead of `<body>` on macOS WebKit; no script
+  focus is needed, since the first item takes the focus at once. Walked 2026-10-06 (BP 3, pass, on the Mac;
+  Windows and Linux as regression looks only, the fix being macOS-only):
+  `docs/archive/walks/2026-10-06-bp-walk.md`.
 
 **Accepted and closed (round 1):**
 - **#13** Mac `cliclick c:` jumping after keyboard input twice misbehaved in BN 1 (no menu / first item marked);
@@ -1586,3 +1677,50 @@ Ruled by the owner 2026-10-06, in the triage after the records' review
   it. Wording only.
 - **Review "fine" items:** the macOS gate record names only this repository's tab; the release-run facts (run ids,
   the Actions incident, assets, signatures) come from the session's own `gh` queries, not the VMs' reports.
+
+## AD. Added 2026-10-06 — the fix batch: closed
+
+Ruled by the owner 2026-10-06; detail in `docs/plans/2026-10-06-fix-batch-plan.md` (row 2) and the walk record
+`docs/archive/walks/2026-10-06-bp-walk.md` (BP 2). No reopen trigger.
+
+- **After the Fetch dialog submits, the focus lands on the page body, not back on *Fetch options*.** Seen on the
+  Windows VM (a local build of `cc6d58f`, over CDP, 2026-10-06): a keyboard user starting a fetch from the dialog
+  lost their place — likely because the opener was disabled while the op ran. **Fixed 2026-10-06** for the fix
+  batch (row 2, D2, D20, D21, D29): `Dialog` refocuses a disabled opener once it is enabled again. Walked
+  2026-10-06 (BP 2, pass, on Windows, the Mac and Linux under openbox): `docs/archive/walks/2026-10-06-bp-walk.md`.
+  The Mac's ring after a mouse submit/Cancel is D36, `open-items.md` §AE.
+
+## AE. Added 2026-10-06 — the fix batch: accepted, closed
+
+Ruled by the owner across the fix batch's plan review passes (`docs/plans/2026-10-06-fix-batch-plan.md`, *Not in
+this batch*, D18, D22, D25, D29, D30) and its change review triage (T2–T5) and BP walk (W2,
+`docs/archive/walks/2026-10-06-bp-walk.md`). No reopen trigger on any of these.
+
+- **D18** a tab switch while the Stashes browser is open keeps its preview in the snapshot of the tab left
+  (`tabsStore.ts:120`, `:71`, `:99-103`); rare (the scrim blocks tab clicks, and shortcuts are off while a dialog is
+  open).
+- **D22** the Settings gear's Cancel still returns the focus to `<body>` on macOS WebKit (on Linux the click
+  focuses the gear, so Cancel returns to it — inferred; C1 measured a plain button); it's an `IconButton`, never
+  disabled, so row 3's fix doesn't reach it. macOS-only.
+- **D25** the compare guard via `selectSelectedOid` also reads null while the selected row's page is still loading
+  (`repoStore.ts:610-612`), so a walk restart while the Stashes browser is open can drop a valid compare on
+  dismiss; the result is the plain commit instead of the compare. Not measured to reproduce.
+- **D29's two residual limits (row 7):** a stale `undefined` with no restart following can leave `selectedIndex`
+  on a renumbered row (inferred, rare); and the misleading *Not in the current view* toast on an IPC error from
+  `revealOid` stays.
+- **D30** with the working-tree row already selected and a sidebar stash preview (`Sidebar.tsx:521`), opening the
+  Stashes browser and a conflicted Apply/Pop inside it (`opsStore.ts:250` → `selectWorkingTree()`, which clears
+  `preview`, `repoStore.ts:512`) leaves `wtSelected` true→true, so D28's false→true check doesn't fire and Escape
+  restores the old stash while the grid shows the working tree with conflicts. Reasoned from the code, not run;
+  rare (three conditions together).
+- **T2** Alt+digit from a text field the view switch removes (History's search box on Alt+2, the commit message on
+  Alt+1) leaves the focus on `<body>`, same as the grid does today. Window shortcuts still work; the draft is kept.
+- **T3** RefChips' "+N more" button: a right-click lands on the inner Chip, whose own title `closest()` strips, so
+  the button's own "N more refs" tooltip can still cover the menu. Inferred, cosmetic.
+- **T4** Row 2's optional `Toolbar.test.tsx` Host integration test for the Dialog observer wasn't written;
+  `Dialog.test.tsx` covers the observer.
+- **T5** A commit with an empty author name (imported history only), recycled onto an unloaded commit while its
+  menu is open, gets the old " <email>" tooltip back until the page loads. Same mechanism as the row-4 fix, not a
+  regression.
+- **W2** A typed-but-unapplied History search query was dropped by a view switch, on the Mac (BP 12's walk);
+  pre-existing? unknown.

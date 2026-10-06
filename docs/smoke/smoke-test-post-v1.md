@@ -2853,6 +2853,118 @@ and 10). Record `docs/archive/walks/2026-10-05-group-bo-walk.md`._
 exe's version (0.10.18) and signature. Otherwise the v0.10.19 gate would run the branch build's updater (2.13) instead
 of 0.10.18's (2.12), and wouldn't prove what it's for.
 
+## BP. The fix batch: focus, selection and small fixes
+
+Plan: `docs/plans/2026-10-06-fix-batch-plan.md` (Smoke group BP; each row's fix is in the Summary table). One step per
+walk bullet, taking its row number, so the numbering has gaps on purpose — rows 8, 10, 11, 13 and 14 are covered by
+their unit tests, not walked. Windows over CDP on a local `tauri build --no-bundle` of `fix-batch`
+(`docs/smoke/smoke-cdp.md`), the store folder `%APPDATA%\dev.topher.t4gitui` backed up first and restored byte-exact
+after; the Mac by the owner's Mac session; Linux under Xvfb with openbox (`docs/smoke/smoke-linux.md`, *A window
+manager: openbox*). The Mac and Linux walks need `fix-batch` pushed as a side branch (its own go).
+
+- [x] 1. **A hover close of a focused submenu drops the focus to `<body>`:** setup first — *More* exists only in the
+      `icons` toolbar tier (`Toolbar.tsx:415-461`), so narrow the window to that tier first; or use *More recent*
+      instead, which needs at least 6 other recents (`INLINE_RECENTS` = 5, `Toolbar.tsx:59`, used at `:243`). Windows
+      (CDP) and the Mac: open *More › Branch* with a click, move the pointer to a plain row of *More*, then
+      ArrowDown moves within *More*. *(Walked 2026-10-06 of `5392166` (fix D1). Windows: window narrowed to the icons
+      tier; *More › Branch* → "Create branch…" unmarked; pointer to *Refresh* 500 ms → submenu closes, focus on
+      *More*'s "Branch" row, unmarked; ArrowDown moves within *More*. The Mac: same shape, pointer rest 1.2 s, focus
+      on "Branch", ArrowDown → "Stash…" marked. `docs/archive/walks/2026-10-06-bp-walk.md`.)*
+- [x] 2. **After a dialog submits, the focus lands on `<body>`:** Windows: Tab to *Fetch options*, Enter, then Tab to
+      the *Fetch* button (or the Prune checkbox), Enter — the Remote `Select` autofocuses and its own Enter would
+      open its list instead of submitting (`OpsDialogs.tsx:54`; `Input.tsx:243-247`; §Q `open-items.md:518-526`,
+      measured on the Windows VM) → the fetch runs, and when it ends the focus is on *Fetch options* (marked, since
+      Enter submitted); the same for Pull and Push. The Mac: click *Fetch options*, submit → back on it at the end.
+      Linux (openbox): click *Fetch options*, submit with the mouse, wait for the fetch to end → the focus is on it
+      (ring? — D20, D29). *(Walked 2026-10-06 of `5392166` (fix D2, D20, D29; D21 deferred). Windows (keyboard):
+      Fetch/Pull/Push each end with the focus marked back on their opener. The Mac: click *Fetch options*, submit
+      → back on it, with a focus ring (`data-kbd=false`). Linux (openbox, mouse): submit, wait for the fetch to
+      end → focus on *Fetch options*, `kbd=false`, no ring. `docs/archive/walks/2026-10-06-bp-walk.md`.)*
+- [x] 3. **macOS WebKit: Enter after Escape on a click-opened menu does nothing:** D17 can't be tested on the Branch
+      menu — every Branch item opens a dialog (`Toolbar.tsx:154-169`, `pickDialog`), which takes the focus. Walk the
+      pointer close with an outside click, More › Refresh or the theme switch (`Toolbar.tsx:446-451`), or a Message
+      history item (`MessageColumn.tsx:144-147`); not Stash › Apply/Pop latest (they disable the trigger). The Mac
+      and Linux (openbox, real XTEST clicks): click Branch, Escape, Enter → the menu reopens (on Linux, a regression
+      look only: WebKitGTK focuses a clicked button, measured, C1, so this row's fix shows on the Mac); click the
+      chosen pointer-close trigger → no ring on the Mac (D17, D20); on Linux, a regression look: the focus is back
+      on the trigger as on v0.10.20; note whether a ring shows (pre-existing if v0.10.20 shows it too); click the
+      trigger, click it again → no ring on Linux (the re-entrant click); click *Fetch options*, Cancel → the focus
+      is on it (ring? — D20; on Linux a regression look, same reason); click *Fetch options*, submit with the mouse,
+      wait for the fetch to end → the focus is on it (ring? — D20, D29; on Linux the observer's refocus is new, so
+      this step isn't a regression look there). Windows: focus back on the trigger as today (a regression look
+      only). *(Walked 2026-10-06 of `5392166` (fix D3, D17, D19, D20, D22, D24, D26, D31, D32). The Mac: Branch
+      click, Escape, Enter → reopens; only the outside-click pointer close walked (focus to the diff body, no ring
+      on Branch); Fetch options Cancel and mouse submit → on the chevron, `kbd=false`, ring visible (D36). Windows:
+      back on the trigger, no ring (an outside click on the status bar → `<body>`); a mouse submit goes `<body>` →
+      Fetch options at 491 ms. Linux: back on the trigger, no ring anywhere.
+      `docs/archive/walks/2026-10-06-bp-walk.md`.)*
+- [ ] 4. **A row's native tooltip covers its context menu:** the Mac: hover a commit row until its tooltip shows,
+      right-click → no tooltip over the menu. Linux, this recipe (the layout and clicks measured in the pre-check,
+      which ran the installed AppImage under `dbus-run-session`; the smoke-build launch below is not run yet):
+      - Fixture: `git init -b main`; `file-001.txt` … `file-600.txt` at the root (`for i in $(seq -w 1 600); do echo
+        "line $i" > "file-$i.txt"; done`), one commit. The direct-launch setup (`smoke-linux.md` *Several windows: a
+        direct launch*), with Xvfb at 1920×1200 instead of its 1600×1000 (`smoke-linux.md:213`) under openbox. `seed`
+        `layout.json` with the repo as the only tab, and seed the main window maximized:
+        `$S/home/.config/dev.topher.t4gitui.smoke/.window-state.json` (`mkdir -p` the folder first) =
+        `{"main":{"width":1280,"height":800,"x":0,"y":0,"prev_x":0,"prev_y":0,"maximized":true,"visible":true,"decorated":true,"fullscreen":false}}`
+        (the window-state plugin reads the config dir, not the data dir, and silently ignores the file if any field
+        is missing; verified in the plugin source, window-state 2.5.0 `lib.rs:91-105`, `:423`, `:541`; not run —
+        openbox then maximizes it to 1920×1179 at y 21, as in the pre-check). Launch by hand instead of `dlaunch`,
+        which has no session bus of its own, so *Open* would reach the VM's live desktop
+        (`smoke-linux.md:162-164`):
+        `(HOME=$S/home DISPLAY=:99 GDK_BACKEND=x11 SSH_ASKPASS_REQUIRE=never GIT_ASKPASS= setsid dbus-run-session -- "$APP" >>$S/direct.log 2>&1 &)`;
+        `killapp` still matches it (inferred). Dark theme via the toolbar toggle. X Y below are screen coordinates
+        read off a root screenshot (under openbox, add the window's frame offset, `smoke-linux.md:230`).
+      - The app opens in History with that commit selected; the details pane's file list (header "600 files
+        changed", **Changes** tab, the default flat list). Rows 26 px apart.
+      - Right-click the path text of a row near the top (file-002 … file-011) with no hover wait (`xdotool
+        mousemove X Y click 3`); the menu opens downward (Copy path, *Open*, Save as…, Blame, History). Wait 1 s,
+        screenshot → no tooltip over the menu (v0.10.20: the file-name tooltip, about 96×47, over *Open*'s icon and
+        first letters).
+      - Then the gate's click, no pause: `xdotool mousemove X Y click 1` onto *Open*'s left part (its icon and first
+        letters) → the menu closes on that first click (root screenshot: no menu; G3's failure is *Open* highlighted,
+        the menu still open) and *Open* runs: the handler starts (`pgrep -n gnome-text-editor` shows a new pid, not
+        one there before the click; not `xdg-open`, which exits within milliseconds, `smoke-linux.md:319`); kill it
+        before the next run, since a running editor gets reused (`smoke-linux.md:323`). 4 runs (v0.10.20: 0 of 4).
+      *(Walked 2026-10-06 of `5392166` (fix D4, D14, D33): the Mac passed — hover 2.5 s, right-click, no tooltip over
+      the menu (v0.10.20 wasn't walked the same way on the Mac, so row 4's share of the Mac pass isn't measured).
+      Linux (openbox, the gate's 1920×1200 recipe) failed 0 of 4: the row's `title` IS stripped in the DOM,
+      but a one-motion move-and-right-click still shows the old tooltip window — WebKitGTK reads the tooltip text off
+      the motion event before `contextmenu` strips the attribute (inferred). Kept by the owner despite the Linux fail
+      (D35); `open-items.md` §Z T15 and §Q's G3 row stay open with this measurement.
+      `docs/archive/walks/2026-10-06-bp-walk.md`.)*
+- [x] 5. **A drill-down in the Stashes browser snaps back to the stash:** Changes → Stashes browser → a stash's
+      Files tab → turn Blame on before the gutter click → a gutter click on a line from an older commit → the
+      browser closes, History shows that commit's Files tab with the blame on the file. *(Walked 2026-10-06 of
+      `5392166` (fix D5) on Windows: stash 3 → Files → `a.txt` → Blame on → a gutter click on an older commit → the
+      browser closes, History shows that commit's Files tab with Blame on. `docs/archive/walks/2026-10-06-bp-walk.md`.)*
+- [x] 6. **A closed Stashes browser leaves History's pane on the stash:** History on a commit → open the browser,
+      browse two stashes, Escape → the pane is back on the commit; preview a stash from the sidebar → open the
+      browser from the pane's *Open browser* (`DetailsPane.tsx:310`), browse another, close → the pane is back on
+      the first stash; set a compare pair, open the browser, close → the same compare is back. *(Walked 2026-10-06
+      of `5392166` (fix D6, D15, D16, D27, D28; D18, D25, D30 accepted; D23 deferred) on Windows, three ways: a
+      commit → browse two stashes, Escape → back on the commit; a sidebar stash preview → the pane's *Open
+      browser* → browse another, close → back on the first stash; a compare pair → open the browser, close → the
+      same compare. `docs/archive/walks/2026-10-06-bp-walk.md`.)*
+- [x] 7. **Fast tab switching loses the grid selection:** a regression look only (D-3 never reproduced). Two tabs,
+      each selected on a lower row; Ctrl+Tab ×20 quickly, then stop → both tabs keep their rows. *(Walked 2026-10-06
+      of `5392166`: failed intermittently (5 of ~30 sequences) — the reselect judged a stale `null` against the
+      log's post-await `complete`; fixed with a test each for reselect and reanchor, now in `8d5734e` (D37).
+      Re-walked on `34dbdae`: 21 of 21 kept, 13 under added CPU load. `docs/archive/walks/2026-10-06-bp-walk.md`,
+      which maps the day's hashes to the squashed ones.)*
+- [x] 9. **The merge banner says "resolve conflicts" with nothing to resolve:** a `pre-merge-commit` hook that exits
+      1, a conflict-free merge → the banner reads *Merge in progress — nothing to resolve…*; remove the hook, commit
+      → the banner goes. *(Walked 2026-10-06 of `5392166` (fix D9, D12) on Windows: a refusing `pre-merge-commit`
+      hook on a conflict-free merge shows "nothing to resolve…"; the hook removed, Commit merge clears the banner.
+      `docs/archive/walks/2026-10-06-bp-walk.md`.)*
+- [x] 12. **Alt+2 in the History search box does nothing:** Windows: focus History's search box, Alt+2 → Changes;
+      Linux (openbox): the same with `xdotool key alt+2` → Changes (no input method under Xvfb, so whether IBus or
+      fcitx claims Alt+digit stays untested); the Mac: Option+2 in the box keeps typing its character, no view
+      switch; outside a text field, Option+2 still switches to Changes. *(Walked 2026-10-06 of `5392166` (fix D10,
+      D13, D34). Windows: Alt+2 in History's search box → Changes. Linux (openbox): `xdotool key alt+2` → Changes
+      (IBus/fcitx untested — no input method under Xvfb). The Mac: Option+2 in the box keeps typing "™", no view
+      switch; outside a field it still switches. `docs/archive/walks/2026-10-06-bp-walk.md`.)*
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the
