@@ -608,6 +608,18 @@ describe("Sidebar linked checkouts", () => {
     expect(remove.getAttribute("title")).toBe("The main working tree stays");
   });
 
+  it("greys Lock… on the main worktree only", () => {
+    const spare = { ...LINKED.worktrees[1], path: "C:/src/work-spare", locked: false, lockReason: null };
+    useRepoStore.setState({ linked: { ...LINKED, worktrees: [...LINKED.worktrees, spare] } });
+    const view = render(<Sidebar />);
+    const mainLock = rowMenu("C:/src/work", view).getByRole("menuitem", { name: "Lock…" });
+    expect((mainLock as HTMLButtonElement).disabled).toBe(true);
+    expect(mainLock.getAttribute("title")).toBe("The main working tree can't be locked");
+    const spareLock = rowMenu("C:/src/work-spare", view).getByRole("menuitem", { name: "Lock…" });
+    expect((spareLock as HTMLButtonElement).disabled).toBe(false);
+    expect(spareLock.getAttribute("title")).toBeNull();
+  });
+
   it("greys Open on a submodule that has no checkout, and updates one from its row", () => {
     const view = render(<Sidebar />);
     const menu = rowMenu("git@x/lib.git", view);

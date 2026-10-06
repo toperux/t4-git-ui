@@ -794,6 +794,7 @@ function RefContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number 
         // git refuses a locked worktree outright (`remove -f -f` is the override), so Unlock above
         // is the way through — Remove would only come back with an error.
         const noRemove = wt.main ? "The main working tree stays" : wt.current ? "It is the open repository" : wt.locked ? "Unlock it first" : null;
+        const noLock = wt.main ? "The main working tree can't be locked" : null;
         return (
           <>
             <MenuItem icon={<FolderGit2 size={16} aria-hidden />} {...(noOpen ? { disabled: true, title: noOpen } : {})} {...op} onClick={run(() => switchRepo(wt.path))}>
@@ -809,7 +810,7 @@ function RefContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number 
                 Unlock
               </MenuItem>
             ) : (
-              <MenuItem icon={<Lock size={16} aria-hidden />} {...op} onClick={run(() => openDialog({ kind: "lockWorktree", path: wt.path }))}>
+              <MenuItem icon={<Lock size={16} aria-hidden />} {...(noLock ? { disabled: true, title: noLock } : {})} {...op} onClick={run(() => openDialog({ kind: "lockWorktree", path: wt.path }))}>
                 Lock…
               </MenuItem>
             )}
