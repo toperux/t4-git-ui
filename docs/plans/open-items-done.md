@@ -701,6 +701,11 @@ fixes and the walk added three more. The walk is `docs/archive/walks/2026-09-19-
   `.gitignore` stage in 0.62 s against 0.48 s on 0.10.7; 1800 modified files in 0.57 s against 0.60 s.
 - **`smoke-cdp.md` said a local build cannot rewrite the installed app's `recents.json`.** It can, and
   `layout.json` with it: only the WebView2 profile is isolated. Corrected there, with the backup recipe.
+- **The open box in group AZ, row 11 (Linux and macOS: 3a, 3b, 3d, 3i and bullet 6, by hand).** Done 2026-10-06.
+  macOS was walked 2026-10-04 in close-out Phase 5 (`docs/archive/walks/2026-10-04-phase-5-macos-walk.md`, M2).
+  Linux failed on 6 on 2026-09-26 (fixed in #18, 2026-09-27) and hit the restored-window hang (§O); re-walked
+  2026-10-06 on `cc6d58f`, row 3 under Xvfb + openbox: all pass, light and dark
+  (`docs/archive/walks/2026-10-06-restore-hang-and-az-rewalk.md`). Both lines ticked.
 
 ## N. Added 2026-09-20 — full codebase review at v0.10.9, fixed 2026-09-21
 
@@ -793,6 +798,84 @@ fixes and the walk added three more. The walk is `docs/archive/walks/2026-09-19-
   and in a non-UTF-8 file; Squash is unavailable with "Always create a merge commit"; Install waits
   for running git operations.
 
+## O. Added 2026-09-26 — the Linux walk of group AZ 11: closed 2026-10-06
+
+The walk is `docs/archive/walks/2026-09-26-group-az-linux-walk.md`: a debug build of `1e795ad` on Ubuntu 26.04.1,
+WebKitGTK 2.52.6, driven under Xvfb (`docs/smoke/smoke-linux.md`). Rows 3a, 3b, 3d and 3i pass. It found two bugs,
+both reproduced without WebDriver. Fix plan, with a status section:
+`docs/archive/plans/2026-09-26-linux-menu-focus-and-restore-plan.md`.
+
+The 2026-09-27 fix batch and its decisions (D-a, D-b, R5b): `docs/archive/plans/2026-09-27-pr18-fix-batch-plan.md`.
+
+- **Menus show no keyboard focus on WebKitGTK: fixed** (branch `linux-smoke-and-fixes`, merged in #18 on
+  2026-09-27).
+  - **The bug:** `Menu.tsx` focused items by script, WebKitGTK never gives those `:focus-visible`, and every highlight
+    and the clipped-name wrap were keyed on it.
+  - **The fix:** `focusItem` marks a keyboard-focused item `data-kbd`, and the CSS styles `[data-kbd]:focus` beside
+    `:focus-visible`.
+  - **Checked:** AZ 6 passes in full on Linux (2026-09-26, direct launch, real X keys).
+  - ~~**Linux audit** of other script-focused widgets~~ **Done 2026-09-27**
+    (`docs/archive/walks/2026-09-27-t18-linux-focus-audit.md`). After a click, keys that move focus by script
+    showed no ring on ten paths (the sidebar tree, both tab strips, the diff cursor, Esc back to an opener, …).
+    Fixed for every widget at once: `src/lib/kbdFocus.ts` marks keyboard focus `data-kbd` on every `focusin`, and
+    each `:focus-visible` rule has a `[data-kbd]:focus` twin. All ten re-walked and pass on Linux.
+  - ~~**Windows re-walk of AZ 6** over CDP.~~ **Done 2026-09-27** (`docs/archive/walks/2026-09-27-t19-windows-walk.md`),
+    against the installed 0.10.12 as the baseline:
+    - AZ 6 and all ten audit paths look as before (Chromium already rang them).
+    - *Tab, then click* was already so on Windows.
+    - The one visible change was a click then **Ctrl+Comma**, which rang Settings' Close. The user decided
+      against it: only Ctrl/⌘ + a navigation key (arrows, Home, End, PageUp, PageDown) counts as keyboard input;
+      every other Ctrl/⌘ chord is ignored. The same on every OS — a visible change on Windows too (R5b).
+- **A restored second window sometimes never starts: closed 2026-10-06 as a harness artifact, not an app bug.**
+  - **The bug, as it first looked:** `w1` stays on the *Starting* spinner for good.
+    - **Rate:** 3 of 16 two-window restores before step C were real hangs (a live `w1` that never got its
+      repository title; the one under WebDriver on the *Starting* spinner). A later 7 of 20, measured with a
+      kill-and-relaunch loop, likely raced `killapp`'s own kill against the next launch; whether those 7 were alive
+      wasn't recorded. With the wait added to `killapp`, 0 of 20 raced. On WSL, 0 of 40 two-window runs hung for
+      real (4 of them, with the old helper, were the race and never reached `spawn`).
+    - **Log:** nothing from `w1`. Under WebDriver its `plugin:store|load` never returned, and async commands then
+      stalled app-wide while a sync one still answered, so the main thread was alive.
+    - **Seen again 2026-10-04 on a tear-off** (close-out Phase 5, BN 8's shrink case on `4705c6c`, Xvfb with no
+      window manager, triage T30): under WebDriver the torn-off window opened at the right size but its page never
+      started (blank, untitled, an eval in it hung), 1 of 1; by direct launch 0 of 4. The same day a `main` saved
+      bigger than the screen stalled on launch with the page's calls to Rust lost (`open-items.md` §Q, T26) — the
+      same signature, as the 2026-10-06 diagnosis found.
+  - **Done, on `linux-smoke-and-fixes` (plan step C):** `spawn` writes the new window's tabs to `layout.json` at
+    once, and after
+    `restoreTabs` the frontend reports once, so a window that never starts keeps its tabs. Checked: 20 of 20
+    restores kept them; if those 7 were the race, the guard checked nothing for them, and it is untested against a
+    real hang.
+    - **Gated since 2026-09-27** (found in #18's review, fixed on the branch): no `layout.json` write happens
+      until `main` has read the last session (`take_layout`). Without the gate, a second launch during startup
+      wrote `[]` over the saved session before `main` read it, and every window and tab of the last session was
+      lost. Plan: `docs/archive/plans/2026-09-27-pr18-windows-plan.md`.
+    - **Gated since 2026-09-27** (`afc40f3`, Step 1 of `docs/archive/plans/2026-09-27-pr18-fix-batch-plan.md`): `take` no
+      longer deletes `layout.json` and seeds `main`'s saved entry in memory, so every write from the read on holds
+      it; nothing shrinks while the session restores.
+  - **Diagnosed 2026-10-06 (jobs 4–6):** the stall needs Xvfb with no window manager: a new window's page never called
+    Rust (`take_pending`) after Rust had built and shown the window in 33 of 150 detaches on bare Xvfb, 0 of 300 with a
+    window manager (a real desktop or openbox). Ruled a harness artifact: Phase B (a fix) was not needed. Full detail in
+    `docs/archive/walks/2026-10-06-restore-hang-and-az-rewalk.md` and the combined row, `open-items.md` §Q, T26.
+    - ~~**Whether it happens on Windows**~~ — not seen: the Windows AZ row 3 re-walk on 2026-10-06 passed
+      (`docs/archive/walks/2026-10-06-restore-hang-and-az-rewalk.md`).
+- **Triaged 2026-09-26:** every decision and accepted limit is recorded in the plan's *Decisions* section; the order
+  of the remaining work is its *Order* section. T14 (a test for the `catch` path) is done. T11 was reversed 2026-09-27
+  (D-a): `main` is now seeded first in `take`, so the §P crash loop widens instead, to cover crashes inside `open_repo`;
+  its loop-breaker is the real fix. Then Phase A, remeasured on the native Linux host with the fixed helper (D-b); its
+  own review decides whether to keep the A/B. If step C raises the rate, its write moves onto the build thread (D2).
+  Then Phase B (the T18 audit was done 2026-09-27). Windows: AZ 6 as soon as the branch is up, row 3 after Phase B.
+  (2026-10-06: Phase A ran as jobs 4–6; Phase B was not needed; Windows row 3 was re-walked 2026-10-06, all pass.) macOS
+  (AZ 11 and the WebKit click-focus check, T12): done 2026-10-04 in close-out Phase 5 (AZ 11 macOS ticked; T12 held on
+  WebView2 too, fixed for every menu by D6).
+- **F7, accepted 2026-09-27 (the fix batch):** an accepted limit, moved to §Q (*F7 of the 2026-09-27 fix batch*),
+  2026-09-28.
+
+**Closed 2026-10-06.** Jobs 4–6 (`docs/archive/walks/2026-10-06-restore-hang-and-az-rewalk.md`) traced the restore
+hang to the Linux harness (Xvfb with no window manager); the owner ruled it closes as that artifact, folded into
+`open-items.md` §Q's T26 row, with the Linux harness using openbox for multi-window and restore rows from here on.
+Job 7 then re-walked AZ 11 Linux (row 3 under openbox, row 6 on bare Xvfb) and T7;
+all pass. AZ 11's Linux line is ticked (`docs/smoke/smoke-test-post-v1.md`), and this section moved here.
+
 ## P. Added 2026-09-26 — the Linux harness follow-ups: the rows since closed
 
 - ~~**Drive GTK's native parts through AT-SPI (T5).**~~ Done 2026-10-06 (close-out Linux track, plan
@@ -804,6 +887,10 @@ fixes and the walk added three more. The walk is `docs/archive/walks/2026-09-19-
   `color-scheme` were unchanged. Live Wayland, DPI and the AppImage's theme (`GSETTINGS_BACKEND=memory`) stay out of
   reach.
 
+- ~~**Re-test WebDriver with two windows (T7).**~~ Done 2026-10-06 (job 7,
+  `docs/archive/walks/2026-10-06-restore-hang-and-az-rewalk.md`): under openbox, 10 of 10 `wd.mjs` runs got 2
+  handles (`w1` first, then `main`) and both pages answered; start → both titles shown in 1.48–1.91 s; quit left
+  no stale sessions. Multi-window rows get DOM access back under openbox.
 - ~~**ssh under the moved `HOME` (T4).**~~ Done 2026-09-27 (`linux-smoke-and-fixes`): ssh finds the real `~/.ssh`
   through the passwd entry, and a GitHub ssh `ls-remote` works with `HOME` moved. `smoke-linux.md` §2 records it,
   with the caveat that ssh isn't isolated. Its accepted cases (other ssh hosts, a fetch/push through the app itself,
@@ -1460,3 +1547,32 @@ Ruled by the owner 2026-10-06, in the `ssh-fail-fast` triage (`docs/plans/2026-0
   a cancelled GCM dialog reading as `NoCredentials` (an accepted limit); and a tester's own mangled-path warning.
 - **The parent-folder ruling:** a failed clone leaves an empty parent folder that git created, when the chosen
   parent didn't exist before.
+
+## AC. Added 2026-10-06 — the restore hang's close-out and the v0.10.20 gate: closed
+
+Ruled by the owner 2026-10-06, in the triage after the records' review
+(`docs/archive/walks/2026-10-06-restore-hang-and-az-rewalk.md`,
+`docs/archive/walks/2026-10-06-v0.10.20-release-gate.md` and its `-linux` record). No reopen trigger on any of these.
+
+- **Updater 2.13's install path (the install half of the §Q row, D6 (a) of the Tauri 2.12 plan).** Proven at the
+  v0.10.20 gate: 0.10.19's own updater (tauri-plugin-updater 2.13) installed 0.10.20 on Windows, macOS and the Linux
+  AppImage, each restarting by itself. The row's other half, N6's Windows update-path persist, stays in
+  `open-items.md` §Q for the v0.10.21 gate.
+- **The §Q row "the breaker can trip without a crash"** dropped its reopen trigger "the §O fix lands (re-check)": no
+  fix is coming. Its other trigger stays.
+- **Bare file-name mentions of the restore plan** in three archived plans (the triage plan, the pr18 fix-batch and
+  pr18-windows plans) carry no path to rewrite; left as history.
+- **AZ 6 on Linux: the menu opened on the grid's last visible row** wasn't walked (that row held other refs); the
+  long-branch row in a 560 px window stood in, and the menu still moved up.
+- **The stall wasn't checked on native Wayland** (no input tool on the VM) **or on desktops other than GNOME**;
+  §Q's T26 reopen trigger covers it.
+- **The v0.10.20 Linux gate's ssh check didn't run "no key loaded at all"**: unloading the key would change the VM
+  user's agent session. The unit tests and the ssh fail-fast walks cover `noCredentials`.
+- **The archived restore plan's body still reads pending in places** (its Status, the T7/T17/T19/T20/T23 rows,
+  Order items 4–5); its status line and Outcome section say done.
+- **T27's reopen trigger ("a walk under a window manager measures it") is now reachable** with openbox; nothing has
+  fired. No action.
+- **The plan's Outcome calls "0 hangs in 50 launches" superseded**, though job 4's 0 of 50 restores literally meets
+  it. Wording only.
+- **Review "fine" items:** the macOS gate record names only this repository's tab; the release-run facts (run ids,
+  the Actions incident, assets, signatures) come from the session's own `gh` queries, not the VMs' reports.

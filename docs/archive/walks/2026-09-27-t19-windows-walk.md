@@ -1,6 +1,6 @@
 # T19 (first half): the focus fix on Windows — 2026-09-27
 
-PR #18's pre-merge walk (`docs/plans/2026-09-26-linux-menu-focus-and-restore-plan.md`, T19;
+PR #18's pre-merge walk (`docs/archive/plans/2026-09-26-linux-menu-focus-and-restore-plan.md`, T19;
 `docs/plans/2026-09-27-pr18-windows-plan.md`, Step 6). The `data-kbd` fix (`src/lib/kbdFocus.ts`, Menu's own mark)
 is shared, so Windows was re-walked: AZ 6, the T18 audit's ten paths, and its two cases new on Windows. The
 `smoke-walk` skill's Windows route was used throughout, which is also T8.

@@ -11,6 +11,7 @@ runs a walk; the how-to lives in the docs it names, so read them rather than wor
 
 - Windows: `docs/smoke/smoke-cdp.md` — WebView2 over CDP, `cdp.mjs`, the `.ps1` fixtures and dialog script.
 - Linux: `docs/smoke/smoke-linux.md` — WebKitGTK over WebDriver (`wd.mjs`, tauri-driver, Xvfb), `xdialog.sh`.
+  Multi-window and restore rows run under openbox (its section *A window manager: openbox*); bare Xvfb can stall them.
 
 ## 1. Pick the rows
 

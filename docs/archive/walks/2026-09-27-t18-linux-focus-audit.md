@@ -1,7 +1,7 @@
 # T18: script-focused widgets on WebKitGTK — 2026-09-27
 
-The follow-up to the AZ 6 menu bug (`docs/plans/2026-09-26-linux-menu-focus-and-restore-plan.md`, T18): which other
-widgets that move focus by script show no focus on Linux? Plan: `docs/plans/2026-09-27-pr18-linux-extras-plan.md`,
+The follow-up to the AZ 6 menu bug (`docs/archive/plans/2026-09-26-linux-menu-focus-and-restore-plan.md`, T18): which
+other widgets that move focus by script show no focus on Linux? Plan: `docs/plans/2026-09-27-pr18-linux-extras-plan.md`,
 item 1.
 
 **Setup:**

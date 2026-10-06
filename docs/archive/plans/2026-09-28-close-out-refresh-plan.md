@@ -61,7 +61,7 @@ it); this touches what is stale, plus where `requireSignedVersion` lands (D2).
 5. **Phase 1's AJ note (`:37`, D3):** "AJ's box is now at `:1256`" → `:1272` (Remove from list; `:1256` is AJ's
    Dismiss box).
 6. **The Linux track (`:180`):** drop "Proposed:" (the *Order* records it as agreed); the restore-hang bullet
-   (`:182-187`) cites its plan, `docs/plans/2026-09-26-linux-menu-focus-and-restore-plan.md`.
+   (`:182-187`) cites its plan, `docs/archive/plans/2026-09-26-linux-menu-focus-and-restore-plan.md`.
 
 ## Other files
 

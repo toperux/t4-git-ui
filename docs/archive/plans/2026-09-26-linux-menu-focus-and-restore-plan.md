@@ -1,5 +1,9 @@
 # Plan: the two Linux bugs from the AZ 11 walk
 
+_Status: **done 2026-10-06.** Task 1 (the menu focus fix) shipped 2026-09-27 in #18. Task 2's Phase A traced the
+restored-second-window hang to the Linux harness (Xvfb with no window manager), ruled an artifact, not an app bug;
+Phase B (a fix) was not needed. See "Outcome" below._
+
 _Written 2026-09-26. Source: `docs/plans/open-items.md` §O and `docs/archive/walks/2026-09-26-group-az-linux-walk.md`.
 Both bugs reproduce on Ubuntu 26.04.1 / WebKitGTK 2.52.6 without WebDriver. Two independent tasks: either can ship
 first. Line numbers are as of `1e795ad`, before these changes; search by name in the working tree._
@@ -347,3 +351,27 @@ that already exists.
 6. ~~**T4** (the ssh check under a moved `HOME`).~~ Done 2026-09-27.
 7. **T5 AT-SPI:** plan written 2026-09-27 (`docs/archive/plans/2026-09-27-t5-atspi-plan.md`); **built 2026-10-06**
    (open-items-done §P). ~~**T21:** when a Mac is available.~~ Done 2026-10-04 (close-out Phase 5).
+
+## Outcome (2026-10-06)
+
+Jobs 4–6 ran Phase A (`docs/archive/walks/2026-10-06-restore-hang-and-az-rewalk.md`): rate loops and gdb (job 4), a
+timing patch (job 5), then a real desktop and Xvfb with openbox (job 6). The stall needs the Linux harness's Xvfb with
+no window manager: a new window's page never called Rust (`take_pending`) after Rust had built and shown the window
+in 33 of 150 bare-Xvfb detaches, 0 of 300 with a
+window manager (real desktop or openbox). Why a window manager prevents it is reasoned, not measured. §O's "a restored
+second window sometimes never starts" and §Q's T26 row ("a `main` saved bigger than the screen can launch stuck on the
+start spinner") show the same signature; they were folded into the T26 row (`open-items.md` §Q) and §O was closed and
+moved to `open-items-done.md` §O.
+
+Phase B (the fix) was not needed: the owner ruled it a harness artifact.
+
+The plan's verification items are recorded as follows:
+- **0 hangs in 50 launches on the native host:** superseded by job 6's 150-run comparisons (0/300 with a window
+  manager), in the walk record above.
+- **Linux re-walk of AZ 3a/3b/3c/3d/3f/3h/3i/3k, then AZ 6:** job 7, in the walk record above; all pass. AZ 11
+  Linux is ticked (`docs/smoke/smoke-test-post-v1.md`).
+- **Windows re-walk of AZ row 3:** in the walk record above; all pass.
+- **T7, re-test WebDriver with two windows:** job 7, 10 of 10 runs under openbox; moved to `open-items-done.md` §P.
+
+The Linux harness now runs openbox for multi-window and restore rows (`docs/smoke/smoke-linux.md`, "A window
+manager: openbox"); single-window rows stay on bare Xvfb.

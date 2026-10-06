@@ -317,13 +317,15 @@ reference for the rest, content only.
 #18 came from a Linux session on Ubuntu 26.04 (native Wayland, and Xvfb through `docs/smoke/smoke-linux.md`), so
 the Linux rows no longer wait on hardware. They run in that session, beside the Windows phases (the
 CLI pin change, `release.yml` and `checks.yml` only, ran from Windows):
-- **The restore hang (§O)** (`docs/plans/2026-09-26-linux-menu-focus-and-restore-plan.md`):
-  - Phase A: diagnose on the native host with the fixed `killapp`; a 30-launch baseline, and no A/B unless A's
-    review wants one (D-b).
-  - Phase B: the fix. Verify with 0 hangs in 50 launches.
-  - Then the AZ row 3 re-walks: Linux (T20) and Windows, which also answers §O's "whether it happens on Windows".
-  - Then tick AZ 11 Linux (`smoke-test-post-v1.md:1889`) and move §O to the done file.
-- **T7:** re-test WebDriver with two windows after Phase B.
+- ~~**The restore hang (§O)**~~ (`docs/archive/plans/2026-09-26-linux-menu-focus-and-restore-plan.md`) **done
+  2026-10-06**: jobs 4–6 traced it to the Linux harness (Xvfb with no window manager: a new window's page never
+  called Rust (`take_pending`) after Rust had built and shown the window, 33 of 150 bare vs 0 of 300 with a window
+  manager), ruled an artifact, not an app bug; Phase B (a fix) was not needed. Job 7 then re-walked AZ row 3 (Linux,
+  under openbox) and the Windows AZ row 3 re-walk followed, both all pass; AZ 11 Linux is ticked
+  (`smoke-test-post-v1.md:1892`) and §O moved to the done file.
+  `docs/archive/walks/2026-10-06-restore-hang-and-az-rewalk.md`.
+- ~~**T7:**~~ re-test WebDriver with two windows, **done 2026-10-06**: 10 of 10 runs under openbox got 2 handles,
+  both pages answered. `docs/archive/walks/2026-10-06-restore-hang-and-az-rewalk.md`.
 - ~~**T5:** AT-SPI driving (`docs/archive/plans/2026-09-27-t5-atspi-plan.md`).~~ **done 2026-10-06**:
   `docs/smoke/atspi.py` and `smoke-linux.md`'s *AT-SPI: GTK's native parts* (open-items-done §P).
 - ~~Phase 2a's Esc fix on WebKitGTK~~ **done 2026-10-06** (open-items §R): after Check now in Settings, record
@@ -357,7 +359,7 @@ with the line references refreshed.
 **Shrunk by #18:** Linux has a machine now (the Linux track), real-Wayland rendering was walked 2026-09-27 (§B),
 and AC's `.deb` is walked (the AppImage part is in the release gate; `.rpm` ruled covered). Left:
 - macOS rendering;
-- AZ 11's macOS line (`smoke-test-post-v1.md:1892`) and T12 (a clicked WebKit submenu may inherit the mark);
+- AZ 11's macOS line (`smoke-test-post-v1.md:1898`) and T12 (a clicked WebKit submenu may inherit the mark);
 - the §I `window.rs:627` ceiling (tab adoption's pointer position: macOS and X11 could answer natively; Wayland
   cannot). The X11 half can now be tried on the Linux machine;
 - open-items §R's Option-typed type-ahead (Phase 2a triage, 2026-09-29).

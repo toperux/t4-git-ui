@@ -28,6 +28,9 @@ The 26.04 name is the one this doc was first written with, on that host; the 24.
 `xclip` reads the Xvfb clipboard: `xclip -display :99 -selection clipboard -o`. The `Copied …` toast carries the
 copied text too, as on Windows.
 
+openbox is not installed here: multi-window and restore rows unpack it into the scratchpad per walk (no root),
+recipe under "A window manager: openbox" below.
+
 ## Scripts
 
 - `docs/smoke/wd.mjs`, run from the repo root. Every verb prints one line; a WebDriver error prints one
@@ -170,13 +173,13 @@ The DOM is the one `smoke-cdp.md` § *Selectors that hold* describes, and its tr
 
 ## Several windows: a direct launch
 
-A restored second window sometimes never starts: the app's own bug, 3 of 16 two-window restores, with or without
-WebDriver (`docs/plans/open-items.md` §O). A later count of 7 of 20 was likely a race in the harness's own
-`killapp`, fixed on 2026-09-27: a relaunch straight after a kill handed off to the dying instance and exited. The
-first two-window attempt under WebDriver (2026-09-26) hit the real hang, after which the app's async commands
-stalled; two on 2026-09-27 (WSL, the reload check) came up, which is not a verdict. Until the hang is fixed,
-multi-window rows run without WebDriver, which also leaves no stale session behind. Re-test WebDriver with two
-windows once the fix lands:
+A restored second window sometimes never starts: ruled 2026-10-06 an artifact of the harness, not the app's
+(`docs/plans/open-items.md` §Q, T26; `docs/archive/walks/2026-10-06-restore-hang-and-az-rewalk.md`) — Xvfb with no
+window manager left a new window's page never calling Rust (`take_pending`) after Rust had built and shown the
+window in 22% of detaches (33 of 150), and 0 of 300 with a
+window manager (a real desktop or openbox). So multi-window and restore rows run under openbox (below); single-window
+rows stay on bare Xvfb. WebDriver with two windows works under openbox: T7 (the same walk) got 10 of 10, with the handle
+order `w1` first, then `main`.
 
 - **The helpers are in `docs/smoke/fixtures/direct.sh`:** `S=<scratchpad>/app; . docs/smoke/fixtures/direct.sh`,
   then `seed` / `dlaunch` / `waitfor` / `xclosetitle` / `lay` / `killapp` (its header has an example). What they
@@ -193,7 +196,38 @@ windows once the fix lands:
   A session left behind by a killed app refuses a new one (*Maximum number of active sessions*).
 
 The group AZ walk's findings (`docs/archive/walks/2026-09-26-group-az-linux-walk.md`) are the app's own,
-not the harness's: both were reproduced without WebDriver.
+not the harness's: both were reproduced without WebDriver. The second one, the restore hang, was ruled the
+harness's on 2026-10-06 (above).
+
+### A window manager: openbox
+
+Multi-window and restore rows run with openbox started before the app; single-window rows stay on bare Xvfb (a
+bare Xvfb that just ran openbox often never got Ctrl+Shift+N to the app — start a fresh one for the next bare
+row). No root is needed:
+
+```bash
+O=<scratchpad>/openbox; mkdir -p $O/deb && cd $O/deb
+apt-get download openbox libobt2 libobrender32 libimlib2t64     # Ubuntu 26.04: 3.6.1-12ubuntu3
+for d in *.deb; do dpkg -x $d $O/root; done
+LD_LIBRARY_PATH=$O/root/usr/lib/x86_64-linux-gnu ldd $O/root/usr/bin/openbox | grep 'not found'   # must be empty
+Xvfb :99 -screen 0 1600x1000x24 -nolisten tcp &
+HOME=$S/home DISPLAY=:99 LD_LIBRARY_PATH=$O/root/usr/lib/x86_64-linux-gnu XDG_CONFIG_DIRS=$O/root/etc/xdg \
+  XDG_DATA_DIRS=$O/root/usr/share:/usr/share setsid $O/root/usr/bin/openbox > $S/openbox.log 2>&1 &
+sleep 2; w=$(DISPLAY=:99 xprop -root _NET_SUPPORTING_WM_CHECK | awk '{print $NF}'); DISPLAY=:99 xprop -id $w _NET_WM_NAME   # "Openbox"
+```
+
+- On 26.04, `libobt2v5` and `libobrender32v5` don't exist; `libimlib2t64` was the one library `ldd` found missing.
+- `$S/openbox.log` carries a harmless line: "Unable to find a valid menu file /var/lib/openbox/debian-menu.xml".
+- Stop with `pkill -x openbox` before killing Xvfb.
+
+**Differences with a window manager:**
+- Focus a window with `xdotool windowactivate --sync <id>`, then `xdotool key …` — not `windowfocus`.
+- openbox places windows (seen at w1 318,173; w2 0,173), so their rects show up in `layout.json`.
+- `xclose.py` is unchanged.
+- `xdotool search --pid` returns the client windows, not their frames.
+- A bare Xvfb that just ran openbox often never got Ctrl+Shift+N to the app (15 of 25 runs failed) — use a fresh
+  Xvfb for the next bare-Xvfb row.
+- Page coordinates equal screen coordinates on a bare Xvfb; under openbox, add the window's frame offset.
 
 ## AT-SPI: GTK's native parts
 
@@ -306,7 +340,7 @@ skill's *Checking the packaging*). Learned on the blank-window fix
   pkill -f '^tauri-driver$'; pkill -f '^/usr/bin/WebKitWebDriver'; pkill -f '^Xvfb :99'
   ```
 
-  Then `pgrep -af '^[^ ]*(target/debug/t4-git-ui|tauri-driver|WebKitWebDriver|Xvfb :99)'` should be empty.
+  Then `pgrep -af '^[^ ]*(target/debug/t4-git-ui|tauri-driver|WebKitWebDriver|Xvfb :99|openbox)'` should be empty.
 - **Nothing to restore:** the user's store and `~/.gitconfig` were never touched. That was checked by
   checksum before and after on 2026-09-26.
 

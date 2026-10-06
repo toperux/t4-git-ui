@@ -68,4 +68,4 @@ AZ 11 Linux stays unticked because 6 failed.
 - **Finding 1 is guarded** (a spawned window's tabs are written at once) but its cause is not found.
 - **The analysis above is superseded.** The store-lock suspect is unlikely (both paths take the locks in the same
   order), and the stacks need no sudo: run the app under gdb as its parent.
-- See `docs/plans/2026-09-26-linux-menu-focus-and-restore-plan.md` (status section) and `open-items.md` §O.
+- See `docs/archive/plans/2026-09-26-linux-menu-focus-and-restore-plan.md` (status section) and `open-items.md` §O.

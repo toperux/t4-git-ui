@@ -1849,9 +1849,10 @@ commits the same day; they and the whole of 3 were walked again on the build tha
 bottom-edge / light-theme half of 6 were added and walked after that, 3m with a CDP drag of the repo-name handle, 7's
 native confirm answered with an Enter on the `#32770` dialog; the bottom edge was a second finding — the wrapped
 **Delete** row lost its last line below the window — fixed (the menu re-fits when its size changes) and re-walked.
-Open (updated 2026-10-04): 11's Linux line (walked 2026-09-26, see `docs/plans/open-items.md` §O); its macOS line was
-walked 2026-10-04 (`docs/archive/walks/2026-10-04-phase-5-macos-walk.md`); 10 was walked 2026-09-24, and 9 is `[n/a]`
-(unit-tested only). The record is `docs/archive/walks/2026-09-19-group-az-walk.md`._
+Nothing is open as of 2026-10-06: 11's Linux line was re-walked and ticked 2026-10-06
+(`docs/archive/walks/2026-10-06-restore-hang-and-az-rewalk.md`); its macOS line was walked 2026-10-04
+(`docs/archive/walks/2026-10-04-phase-5-macos-walk.md`); 10 was walked 2026-09-24, and 9 is `[n/a]` (unit-tested
+only). The record is `docs/archive/walks/2026-09-19-group-az-walk.md`._
 
 1. - [x] **A negated ignore rule stages**: `.gitignore` with `*.log` and `!keep.log`; create `keep.log` and `debug.log` → only `keep.log` is listed, and staging it works. The check is libgit2's, so this holds on git 2.24–2.26 too.
 2. - [x] **Stage all is no slower**: stage ~1800 modified files → the `stage_paths` log line is no higher than on 0.10.7. One `git` spawn per stage now, none for the ignore check. Measured on a scratch repo, three runs each: 1800 modified files 0.57 s (0.10.7: 0.60 s); 1861 untracked files under 61 nested `.gitignore` 0.62 s (0.10.7: 0.48 s) — libgit2 reads the ignore files per path, the price of 1.
@@ -1878,6 +1879,9 @@ walked 2026-10-04 (`docs/archive/walks/2026-10-04-phase-5-macos-walk.md`); 10 wa
    | 3l [x] | Close B, then under 4 s later close C's last tab, so C closes itself with no tab | A + B until B's own 4 s are up, then A — C's close does not restart the clock | — |
    | 3m [x] | Drag B's only tab (its repo-name handle) onto A's tab strip | A with that tab, the repository listed once — at once and after the 4 s; B is gone | — |
 
+   **Re-walked 2026-10-06** on `cc6d58f`: Linux (openbox) and Windows re-walked 3a, 3b, 3c, 3d, 3f, 3h, 3i, 3k — all
+   pass. `docs/archive/walks/2026-10-06-restore-hang-and-az-rewalk.md`.
+
 4. - [x] **A lock that cannot be made is not a Retry**: make `.git` read-only (or deny write), stage a file → the toast shows git's own message (`Permission denied`), not "index is locked" with a Retry. A held `index.lock` (`touch .git/index.lock`) still offers Retry. The same two for **Unstage**, which writes through libgit2: its own `failed to create locked file … Access is denied` (`Permission denied` off Windows), no Retry; the held lock a Retry.
 5. - [x] **History comes back where it was**: scroll the grid to about row 50, Alt+2, Alt+1 → the same rows; do it again with a fetch that brings commits in between → the viewport stays on the same commits. Also with the commit arriving as History mounts (Alt+1 and a `git commit` from a terminal in the same moment).
 6. - [x] **A clipped menu name is readable from the keyboard**: a branch name longer than the row menu's 280 px; open the row menu with Shift+F10 and arrow onto it → the row wraps and shows the whole name, the rows that fit do not change; with the mouse the row stays one line and the hover `title` still has the full name. Check a two-half item (`Merge X into Y`) reads right when wrapped: one sentence at the row's width. After arrow keys in the grid a right-click menu opens with no highlight — its first item is focused but not marked `data-kbd`, one line tall, no accent background, no focus ring — as a native menu opened by the pointer; Shift+F10 or the Menu key opens it with the first item highlighted (Phase 2b row 4). At the window's bottom edge (a short window, the menu opened on the last visible row, **End** for the Delete row) the menu moves up as the row wraps, so the row being read is never cut. The light theme reads the same. The sidebar's branch menu has no names in its rows; a submenu's rows (Repository › More recent) are ordinary rows and wrap alike if one ever clips. *(Re-walked 2026-09-27 on Windows over CDP on a local build of `639856e`, after the shared `data-kbd` fix: passes, light and dark; `docs/archive/walks/2026-09-27-t19-windows-walk.md`.)*
@@ -1886,9 +1890,12 @@ walked 2026-10-04 (`docs/archive/walks/2026-10-04-phase-5-macos-walk.md`); 10 wa
 9. - [n/a] **Closed 2026-09-26 as a record: no hand recipe, unit-tested.** **A skipped path says so**: when `git update-index` skips a path of a batch, the toast reads `git skipped <path>; any other paths were staged` and the lists refresh. No hand recipe known — unit-tested (`check_staged`).
 10. - [x] **An update's restart keeps every window**: with two windows open, install an update from the in-app prompt → the relaunch restores both (the restart takes the Quit path, 3k). Needs a published update newer than the build — walk it with group AC. Walked 2026-09-24 on the installed 0.10.10 updating to the published 0.10.11, through `docs/smoke/fixtures/throttle-proxy.mjs` (`docs/archive/walks/2026-09-24-update-walk.md`). Two windows (`work`, `dogfood`) came back within 5 s on 0.10.11.
 11. **Other platforms** — nothing here is OS-specific code, but only Windows was walked. Repeat 3a, 3b, 3d, 3i (close windows, `cat` the file) and 6:
-    - [ ] Linux (WebKitGTK) — walked 2026-09-26 on a debug build of `1e795ad`: 3a, 3b, 3d, 3i pass; 6 **fails** (WebKitGTK gives
+    - [x] Linux (WebKitGTK) — walked 2026-09-26 on a debug build of `1e795ad`: 3a, 3b, 3d, 3i pass; 6 **fails** (WebKitGTK gives
       script-focused menu items no `:focus-visible`: no highlight, no wrap), and a restored second window sometimes
-      never starts. `docs/archive/walks/2026-09-26-group-az-linux-walk.md`.
+      never starts. `docs/archive/walks/2026-09-26-group-az-linux-walk.md`. Re-walked 2026-10-06 on a debug build of
+      `cc6d58f` (row 3 under Xvfb + openbox): 3a, 3b, 3d, 3i (with 3c, 3f, 3h, 3k) and 6 pass, light and dark; the
+      second window that never started was ruled the harness's (Xvfb with no window manager).
+      `docs/archive/walks/2026-10-06-restore-hang-and-az-rewalk.md`.
     - [x] macOS — walked 2026-10-04 on the owner's Mac (macOS 26.7.1) on a debug build of `a6a7a76`: 3a, 3b, 3d, 3i
       and 6 pass, light and dark. `docs/archive/walks/2026-10-04-phase-5-macos-walk.md`.
 
@@ -2803,8 +2810,8 @@ and 10). Record `docs/archive/walks/2026-10-05-group-bo-walk.md`._
       - the Mac: a second window quit in full screen → back windowed at its last normal rect.
       On the Linux VM's harness (no window manager, so no maximize and no decorations): the second window's position
       and size. Not covered: a second monitor (none on any walking machine), and the Windows update path (a second
-      window moved after its last tab change, then an update), which first runs at the v0.10.20 gate's update, where
-      0.10.19 is the outgoing app. *(Walked 2026-10-05 on `df14320`. Windows: 11.1 `other` at (300,150) 1100 × 700 →
+      window moved after its last tab change, then an update), which the v0.10.20 gate didn't exercise (one window); it
+      moves to the v0.10.21 gate's Windows half (`open-items.md` §Q). *(Walked 2026-10-05 on `df14320`. Windows: 11.1 `other` at (300,150) 1100 × 700 →
       rect `{300,150,1084×661,false}`, relaunch there, `work` zoomed. 11.2 moved to (500,250) → relaunch there. 11.3
       (400,200) 1000 × 650 then maximized → rect `{400,200,984×611,true}`, relaunch zoomed, un-max → (400,200)
       1000 × 650. 11.4 quit again maximized → rect unchanged, relaunch, un-max → (400,200) 1000 × 650. Mac: 11.1
