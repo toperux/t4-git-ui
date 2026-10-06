@@ -103,7 +103,7 @@ export const useTabsStore = create<TabsStore>()((set, get) => ({
       saved: active ? { ...get().saved, [active]: take() } : get().saved,
     });
     try {
-      await useRepoStore.getState().openRepo(summary.path);
+      await useRepoStore.getState().openRepo(summary.path, summary);
     } catch (e) {
       // The tab is only worth keeping if something loaded into it.
       await get().closeTab(summary.id);

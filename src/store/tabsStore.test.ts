@@ -54,6 +54,12 @@ describe("openTab", () => {
     expect(useTabsStore.getState().active).toBe("/a");
   });
 
+  it("asks the backend to open the repository once per tab open", async () => {
+    await useTabsStore.getState().openTab("/a");
+    expect(mocked.openRepo).toHaveBeenCalledTimes(1);
+    expect(useRepoStore.getState().repo?.id).toBe("/a");
+  });
+
   it("says nothing when another window has the repository: it has been focused instead", async () => {
     mocked.openRepo.mockRejectedValueOnce({ kind: "openElsewhere", message: "a is open in another window" });
     await expect(useTabsStore.getState().openTab("/a")).resolves.toBeUndefined();

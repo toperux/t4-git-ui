@@ -64,7 +64,8 @@ export interface RepoStore {
   reveal: { index: number; seq: number; align?: "start" } | null;
 
   setGitVersion(v: string | null): void;
-  openRepo(path: string): Promise<void>;
+  /** `summary`: what `ipc.openRepo` already answered for `path`, so it isn't asked twice. */
+  openRepo(path: string, summary?: RepoSummary): Promise<void>;
   closeRepo(): Promise<void>;
   refreshRefs(): Promise<void>;
   /**
@@ -325,10 +326,10 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
 
     setGitVersion: (gitVersion) => set({ gitVersion }),
 
-    async openRepo(path) {
+    async openRepo(path, summary) {
       set({ opening: baseName(path) });
       try {
-        const repo = await ipc.openRepo(path);
+        const repo = summary ?? (await ipc.openRepo(path));
         startSeq++;
         resetPages();
         pendingSelect = null;
