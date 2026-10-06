@@ -148,8 +148,11 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
     return index >= 0 && loaded.has(Math.floor(index / PAGE_SIZE)) ? index : null;
   }
 
-  /** Index of `oid` in walk `generation`: from the loaded rows, else asked of the backend. */
-  async function findIndex(oid: string, generation: number): Promise<number | null> {
+  /**
+   * Index of `oid` in walk `generation`: from the loaded rows, else asked of the backend. `null` = the
+   * walk has no such row; `undefined` = the backend couldn't answer (a stale generation, say): no verdict.
+   */
+  async function findIndex(oid: string, generation: number): Promise<number | null | undefined> {
     const local = loadedIndex(oid);
     if (local !== null) return local;
     const repo = get().repo;
@@ -157,7 +160,7 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
     try {
       return await ipc.findLogRow(repo.id, generation, oid);
     } catch {
-      return null;
+      return undefined;
     }
   }
 
@@ -173,8 +176,11 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
     const index = await findIndex(pending.oid, log.generation);
     const s = get();
     if (pendingSelect !== pending || s.repo?.id !== repo.id || s.log.generation !== log.generation) return;
+    if (index === undefined) return; // no verdict: not "gone for good"
     if (index === null) {
-      if (!s.log.complete) return; // `onProgress` retries once the walk is complete
+      // Judged by the walk as it was when asked: a miss from a half-walked backend whose `complete`
+      // overtook the answer is no verdict either. `onProgress` retries once the walk is complete.
+      if (!log.complete) return;
       pendingSelect = null;
       // Gone for good: back to the top rather than whatever now sits at the old index.
       set({ selectedIndex: s.rows[0] ? 0 : null, compare: null });
@@ -202,8 +208,9 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
     const s = get();
     // `topRow` moved: the reader scrolled while the page loaded, and their scroll wins over ours.
     if (pendingAnchor !== pending || s.repo?.id !== repo.id || s.log.generation !== log.generation || topRow !== pending.index) return;
+    if (index === undefined) return; // no verdict
     if (index === null) {
-      if (!s.log.complete) return; // `onProgress` retries once the walk is complete
+      if (!log.complete) return; // as in `reselect`: as walked when asked; `onProgress` retries
       pendingAnchor = null; // gone for good (rewritten, filtered out): leave the scroll alone
       return;
     }
@@ -522,7 +529,8 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
         if (!repo || log.generation === null) return false;
         const index = await findIndex(oid, log.generation);
         const s = get();
-        if (index === null || s.repo?.id !== repo.id || s.log.generation !== log.generation) return false;
+        // No verdict counts as a miss here: there is no row to reveal.
+        if (index === null || index === undefined || s.repo?.id !== repo.id || s.log.generation !== log.generation) return false;
         await fetchPage(Math.floor(index / PAGE_SIZE));
         const after = get();
         if (after.repo?.id !== repo.id) return false;

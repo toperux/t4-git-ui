@@ -113,6 +113,55 @@ describe("repoStore walk restarts", () => {
     expect(mocked.getLogPage).toHaveBeenLastCalledWith(REPO.id, 2, 500, PAGE_SIZE);
   });
 
+  // A superseded walk can begin after the newest on the backend: the lookup fails stale while the
+  // walk's `complete` has already arrived. That is no verdict, not "gone for good".
+  it("keeps the selection when the row lookup fails rather than answers", async () => {
+    mocked.startLog.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
+    mocked.getLogPage
+      .mockImplementationOnce((_id: string, gen: number, offset: number) => Promise.resolve(page(gen, offset, 5, 5)))
+      .mockImplementationOnce(() => new Promise<LogPage>(() => {}));
+    mocked.findLogRow.mockRejectedValue({ kind: "staleGeneration", message: "stale" });
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    useRepoStore.getState().select(3);
+
+    // Walk 2's first page stays in flight; its `complete` event arrives first.
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    useRepoStore.getState().onProgress({ repoId: REPO.id, generation: 2, total: 5, complete: true, error: null });
+    await flush();
+    expect(mocked.findLogRow).toHaveBeenCalledWith(REPO.id, 2, "oid3");
+    expect(useRepoStore.getState().selectedIndex).toBe(3);
+  });
+
+  // Under load the walk lands after the first page was read: the lookup asks a half-walked backend
+  // and answers "not found", but the walk's `complete` event overtakes that answer. Asked before the
+  // walk was complete, the miss is no verdict; `onProgress`'s retry has the real one.
+  it("keeps the selection when a 'not found yet' answer lands after the walk completed", async () => {
+    mocked.startLog.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
+    mocked.getLogPage
+      .mockResolvedValueOnce(page(1, 0, 12, 12))
+      .mockResolvedValueOnce(page(2, 0, 0, 0, false))
+      .mockResolvedValue(page(2, 0, 12, 12));
+    let first!: (index: number | null) => void;
+    let second!: (index: number | null) => void;
+    mocked.findLogRow
+      .mockImplementationOnce(() => new Promise((r) => (first = r)))
+      .mockImplementationOnce(() => new Promise((r) => (second = r)));
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    useRepoStore.getState().select(10);
+
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    useRepoStore.getState().onProgress({ repoId: REPO.id, generation: 2, total: 12, complete: true, error: null });
+    await flush();
+    first(null);
+    await flush();
+    second(10);
+    await flush();
+    expect(useRepoStore.getState().selectedIndex).toBe(10);
+  });
+
   it("falls back to the first row when the selected commit is gone from the new walk", async () => {
     mocked.startLog.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
     mocked.getLogPage.mockImplementation((_id: string, gen: number, offset: number) => Promise.resolve(page(gen, offset + (gen === 1 ? 0 : 10), 3, 3)));
@@ -221,6 +270,32 @@ describe("repoStore walk restarts", () => {
     // The walk finished: the backend can place the anchor now (three rows lower than it was).
     mocked.findLogRow.mockImplementation((_id: string, _gen: number, oid: string) => Promise.resolve(oid === "oid10" ? 13 : 3));
     useRepoStore.getState().onProgress({ repoId: REPO.id, generation: 2, total: 33, complete: true, error: null });
+    await flush();
+    expect(useRepoStore.getState().reveal).toMatchObject({ index: 13, align: "start" });
+  });
+
+  it("keeps the anchor when a 'not found yet' answer lands after the walk completed", async () => {
+    mocked.startLog.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
+    mocked.getLogPage
+      .mockResolvedValueOnce(page(1, 0, 30, 30))
+      .mockResolvedValueOnce(page(2, 0, 0, 0, false))
+      // `reselect`'s page-0 refetch stays in flight, so page 0 never loads and the retry asks the backend too.
+      .mockImplementation(() => new Promise<LogPage>(() => {}));
+    const answers: ((index: number | null) => void)[] = [];
+    mocked.findLogRow.mockImplementation((_id: string, _gen: number, oid: string) =>
+      oid === "oid10" ? new Promise((r) => answers.push(r)) : Promise.resolve(0),
+    );
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    noteTopRow(10);
+
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    useRepoStore.getState().onProgress({ repoId: REPO.id, generation: 2, total: 33, complete: true, error: null });
+    await flush();
+    answers[0](null);
+    await flush();
+    answers[1](13);
     await flush();
     expect(useRepoStore.getState().reveal).toMatchObject({ index: 13, align: "start" });
   });
