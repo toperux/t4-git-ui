@@ -84,13 +84,15 @@ $bareUrl = $bare -replace '\\', '/'
 # does not exist (local, so it fails at once instead of waiting on DNS), and `slow`, bare.git
 # again but served through an upload-pack that sleeps first, so a fetch from it hangs long
 # enough to be cancelled. Quoted so git hands the command to sh instead of trying to exec
-# a .sh file itself.
+# a .sh file itself. Single quotes, not double: Windows PowerShell 5.1 drops embedded double
+# quotes from a native command's argument (7.3+ escapes them); a root with a ' in it breaks this.
+# smoke-fixtures.sh keeps double quotes: bash passes them through, so it never had the problem.
 function Add-ExtraRemotes {
     Invoke-Git -C $work remote add nowhere (Join-Path $Root 'does-not-exist')
     $slowPack = Join-Path $Root 'slow-upload-pack.sh'
     Write-Text $slowPack "#!/bin/sh`nsleep 60`nexec git upload-pack `"`$@`"`n"
     Invoke-Git -C $work remote add slow $bareUrl
-    Invoke-Git -C $work config remote.slow.uploadpack "sh `"$($slowPack -replace '\\', '/')`""
+    Invoke-Git -C $work config remote.slow.uploadpack "sh '$($slowPack -replace '\\', '/')'"
 }
 
 if ($RemotesOnly) {
