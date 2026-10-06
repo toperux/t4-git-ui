@@ -221,8 +221,11 @@ export async function blameAt(oid: string, path: string) {
  */
 export function showHistory(path: string) {
   // The filtered grid is the result, and it sits behind any dialog the row menu was opened in. One
-  // dialog is open at a time and the click came from inside it.
+  // dialog is open at a time and the click came from inside it. From the Stashes browser, its stash
+  // preview goes too: the pane follows the grid. A sidebar stash preview stays.
+  const fromStashes = useDialogStore.getState().dialog?.kind === "stashes";
   useDialogStore.getState().close();
+  if (fromStashes) useRepoStore.getState().previewStash(null);
   useViewStore.getState().setView("history");
   const st = useRepoStore.getState();
   void st.startLog(st.spec, { ...st.filter, path });

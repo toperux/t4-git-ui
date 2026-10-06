@@ -176,6 +176,18 @@ describe("History and Blame from a file row", () => {
     expect(useDialogStore.getState().dialog).toBeNull();
   });
 
+  it("History from the Stashes browser drops its stash preview; from anywhere else the preview stays", () => {
+    useRepoStore.setState({ preview: { oid: "s0", index: 0 } as never });
+    useDialogStore.setState({ dialog: null });
+    showHistory("a.txt");
+    expect(useRepoStore.getState().preview).toEqual({ oid: "s0", index: 0 });
+
+    useDialogStore.setState({ dialog: { kind: "stashes" } });
+    showHistory("a.txt");
+    expect(useDialogStore.getState().dialog).toBeNull();
+    expect(useRepoStore.getState().preview).toBeNull();
+  });
+
   it("Blame does the same from the commit dialog", async () => {
     await blameAt("abc", "a.txt");
     expect(useDiffStore.getState().selectTreePathAt).toHaveBeenCalledWith("abc", "a.txt", true);

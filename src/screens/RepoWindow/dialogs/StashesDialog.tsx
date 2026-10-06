@@ -12,7 +12,7 @@ import { cx } from "../../../lib/cx";
 import { relativeDate } from "../../../lib/relativeDate";
 import { useDiffStore } from "../../../store/diffStore";
 import { selectRunning, useOpsStore } from "../../../store/opsStore";
-import { useRepoStore } from "../../../store/repoStore";
+import { selectSelectedOid, useRepoStore } from "../../../store/repoStore";
 import { useStatusStore } from "../../../store/statusStore";
 import { stashApply, stashClear, stashDrop, stashPop } from "../actions";
 import { ChangedFileList } from "../ChangedFileList/ChangedFileList";
@@ -33,6 +33,12 @@ const NO_STASHES: Stash[] = [];
  * files and diff for a stash (the same stores as the pane behind the scrim, so both show one stash).
  */
 export function StashesDialog({ onClose }: { onClose: () => void }) {
+  // What the pane showed before the browser opened, put back on dismiss. Captured in the first render:
+  // the effect below previews stash@{0} on mount, and a preview clears the compare.
+  const [before] = useState(() => {
+    const st = useRepoStore.getState();
+    return { preview: st.preview, compare: st.compare, wtSelected: st.wtSelected };
+  });
   const stashes = useRepoStore((st) => st.refs?.stashes ?? NO_STASHES);
   const preview = useRepoStore((st) => st.preview);
   const previewStash = useRepoStore((st) => st.previewStash);
@@ -109,6 +115,24 @@ export function StashesDialog({ onClose }: { onClose: () => void }) {
     else select(stashes[next]);
   }
 
+  /**
+   * Esc or ×: the pane goes back to what it showed before. The stash is re-found by oid (a push or drop
+   * here shifts every index), and the compare comes back only while the selection is still one of its
+   * pair. A conflicted Apply / Pop here moved the selection onto the working tree: nothing comes back
+   * then. Not an unmount cleanup: a tab switch closes the dialog before the next tab's store comes in.
+   */
+  function dismiss() {
+    const st = useRepoStore.getState();
+    if (!before.wtSelected && st.wtSelected) st.previewStash(null);
+    else {
+      const preview = before.preview ? (st.refs?.stashes.find((x) => x.oid === before.preview?.oid) ?? null) : null;
+      const oid = selectSelectedOid(st);
+      const compare = before.compare && (oid === before.compare.from.oid || oid === before.compare.to.oid) ? before.compare : null;
+      useRepoStore.setState({ preview, compare });
+    }
+    onClose();
+  }
+
   const canPush = files.length > 0 && !running;
   function submitPush() {
     if (!canPush) return;
@@ -123,7 +147,7 @@ export function StashesDialog({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <Dialog title="Stashes" full onClose={onClose} onSubmit={submitPush}>
+    <Dialog title="Stashes" full onClose={dismiss} onSubmit={submitPush}>
       <Group orientation="horizontal" className={d.pane}>
         <Panel defaultSize={280} minSize={220} maxSize={420} className={w.panel}>
           <div className={s.side}>

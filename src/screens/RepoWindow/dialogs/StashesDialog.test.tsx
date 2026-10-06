@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, waitFor, within } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RefsSnapshot, Stash, StatusEntry } from "../../../api/types";
 import { useDialogStore } from "../../../store/dialogStore";
@@ -252,6 +253,92 @@ describe("StashesDialog", () => {
     const button = document.querySelector<HTMLButtonElement>('button[title="No changes"]')!;
     expect(button.disabled).toBe(true);
     expect(view.getByText("Submodules and nested repositories aren't stashed")).toBeTruthy();
+  });
+});
+
+// Closing the browser puts back what the details pane showed before it opened.
+describe("StashesDialog dismiss", () => {
+  // As `DialogHost` does: the close unmounts the browser in the same render as the restore, so its
+  // "lost its preview" effect never sees the cleared preview.
+  function Host() {
+    const [shown, setShown] = useState(true);
+    return <Synced>{shown && <StashesDialog onClose={() => setShown(false)} />}</Synced>;
+  }
+  const open = () => render(<Host />);
+  const escape = () => fireEvent.keyDown(document.body, { key: "Escape" });
+  const commitRow = (oid: string) => ({ row: { commit: { oid } } }) as never;
+  const PAIR = { from: { oid: "A" }, to: { oid: "B" } } as never;
+
+  it("no preview before: the stash it opened on goes", () => {
+    open();
+    expect(useRepoStore.getState().preview).toEqual(STASHES[0]);
+    escape();
+    expect(useRepoStore.getState().preview).toBeNull();
+  });
+
+  it("a stash previewed before comes back, not the one browsed last", () => {
+    useRepoStore.setState({ preview: STASHES[1] });
+    const view = open();
+    fireEvent.click(rows(view)[0]);
+    escape();
+    expect(useRepoStore.getState().preview).toEqual(STASHES[1]);
+  });
+
+  it("a stash previewed before and dropped meanwhile does not come back", () => {
+    useRepoStore.setState({ preview: STASHES[1] });
+    const view = open();
+    fireEvent.click(rows(view)[0]);
+    act(() => useRepoStore.setState({ refs: refs([STASHES[0]]) }));
+    escape();
+    expect(useRepoStore.getState().preview).toBeNull();
+  });
+
+  it("a push inside the browser: the stash comes back under its new index", async () => {
+    useRepoStore.setState({ preview: STASHES[1] });
+    dirty(entry("a.txt"));
+    const view = open();
+    fireEvent.click(view.getByRole("button", { name: "Stash 1 file" }));
+    await waitFor(() => expect(ipc.stashPush).toHaveBeenCalled());
+    const fresh = { ...stash(0, "later"), oid: "fresh" };
+    act(() => useRepoStore.setState({ refs: refs([fresh, ...STASHES.map((st) => ({ ...st, index: st.index + 1 }))]) }));
+    expect(useRepoStore.getState().preview).toEqual(fresh);
+    escape();
+    expect(useRepoStore.getState().preview).toEqual({ ...STASHES[1], index: 2 });
+  });
+
+  it("a compare the preview cleared comes back, unless the selection left its pair meanwhile", () => {
+    useRepoStore.setState({ rows: [commitRow("X"), commitRow("A"), commitRow("B")], selectedIndex: 1, compare: PAIR });
+    open();
+    expect(useRepoStore.getState().compare).toBeNull();
+    escape();
+    expect(useRepoStore.getState().compare).toBe(PAIR);
+    expect(useRepoStore.getState().preview).toBeNull();
+
+    cleanup();
+    open();
+    // An outside rewrite: `reselect` hands the selection to the first row.
+    act(() => useRepoStore.setState({ selectedIndex: 0 }));
+    escape();
+    expect(useRepoStore.getState().compare).toBeNull();
+    expect(useRepoStore.getState().preview).toBeNull();
+  });
+
+  it("a conflicted Apply inside moved the selection onto the working tree: the stash before does not come back", async () => {
+    (ipc.stashApply as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ...ok, code: 1, conflicts: ["a"], failure: { kind: "conflicts", paths: ["a"] } });
+    useRepoStore.setState({ preview: STASHES[1] });
+    const view = open();
+    fireEvent.click(view.getByRole("button", { name: "Apply" }));
+    await waitFor(() => expect(useRepoStore.getState().wtSelected).toBe(true));
+    escape();
+    expect(useRepoStore.getState().preview).toBeNull();
+  });
+
+  it("the working tree selected before, with a stash previewed: the stash comes back", () => {
+    useRepoStore.setState({ wtSelected: true, preview: STASHES[1] });
+    const view = open();
+    fireEvent.click(rows(view)[0]);
+    escape();
+    expect(useRepoStore.getState().preview).toEqual(STASHES[1]);
   });
 });
 
