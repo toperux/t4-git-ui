@@ -200,8 +200,12 @@ export async function blameAt(oid: string, path: string) {
   const reloads = !inHistory || !sameRepo || (hit && useDiffStore.getState().target?.kind === "commitRange");
   // The blame shows in the History layout. From the Changes view the click changed nothing on screen;
   // from the commit dialog it changed the view *behind* the dialog. A diff window stays: it is bound to
-  // the same store, so it shows the blame itself and a hunk click drills down inside it.
-  if (useDialogStore.getState().dialog?.kind === "commit") useDialogStore.getState().close();
+  // the same store, so it shows the blame itself and a hunk click drills down inside it. The Stashes
+  // browser closes on a hit too, and drops its preview — which its own effect may have put back during
+  // the reveal — so History lands on the commit; a miss keeps it open.
+  const kind = useDialogStore.getState().dialog?.kind;
+  if (kind === "commit" || (kind === "stashes" && hit)) useDialogStore.getState().close();
+  if (kind === "stashes" && hit) useRepoStore.getState().previewStash(null);
   useViewStore.getState().setView("history");
   const diff = useDiffStore.getState();
   diff.setTab("files");

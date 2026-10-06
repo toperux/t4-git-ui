@@ -163,7 +163,7 @@ describe("checkoutTag", () => {
 describe("History and Blame from a file row", () => {
   const startLog = vi.fn();
   beforeEach(() => {
-    useRepoStore.setState({ startLog: startLog as never, revealOid: vi.fn(() => Promise.resolve(true)) as never });
+    useRepoStore.setState({ startLog: startLog as never, revealOid: vi.fn(() => Promise.resolve(true)) as never, preview: null });
     useDiffStore.setState({ target: null, setTab: vi.fn(), selectTreePathAt: vi.fn(), setBlameOn: vi.fn() } as never);
     useViewStore.setState({ view: "changes" });
     useDialogStore.setState({ dialog: { kind: "commit" }, returnFocus: null });
@@ -274,6 +274,30 @@ describe("History and Blame from a file row", () => {
     useDiffStore.setState({ repoId: "other", target: { kind: "stash", oid: "abc" } } as never);
     await blameAt("abc", "a.txt");
     expect(useDiffStore.getState().setBlameOn).not.toHaveBeenCalled();
+    expect(toasts().map((t) => t.title)).toEqual(["Not in the current view — clear the filter"]);
+  });
+
+  // The browser's "lost its preview" effect can re-preview the stash while the reveal is awaited.
+  it("Blame from the Stashes browser leaves it on a hit and drops the stash preview", async () => {
+    useDialogStore.setState({ dialog: { kind: "stashes" } });
+    useRepoStore.setState({
+      revealOid: vi.fn(() => {
+        useRepoStore.setState({ preview: { oid: "s0", index: 0 } as never });
+        return Promise.resolve(true);
+      }) as never,
+    });
+    await blameAt("abc", "a.txt");
+    expect(useDialogStore.getState().dialog).toBeNull();
+    expect(useRepoStore.getState().preview).toBeNull();
+    expect(useViewStore.getState().view).toBe("history");
+  });
+
+  it("a miss keeps the Stashes browser open", async () => {
+    useDialogStore.setState({ dialog: { kind: "stashes" } });
+    useRepoStore.setState({ revealOid: vi.fn(() => Promise.resolve(false)) as never, preview: { oid: "s0", index: 0 } as never });
+    await blameAt("abc", "a.txt");
+    expect(useDialogStore.getState().dialog).toEqual({ kind: "stashes" });
+    expect(useRepoStore.getState().preview).toEqual({ oid: "s0", index: 0 });
     expect(toasts().map((t) => t.title)).toEqual(["Not in the current view — clear the filter"]);
   });
 });
