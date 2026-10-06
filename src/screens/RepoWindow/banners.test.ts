@@ -67,6 +67,17 @@ describe("banners", () => {
     expect(computeBanners(refs({ state: "rebase" }), null)[0].text).toBe("Rebase in progress — resolve conflicts and stage them, then continue");
   });
 
+  it("a merge with nothing conflicted says so; with conflicts, or before the status lands, it says resolve", () => {
+    // A refused `pre-merge-commit` hook stops with the merge staged and no conflicts.
+    const m = computeBanners(refs({ state: "merge" }), status(0, "merge"));
+    expect(m.map((x) => x.id)).toEqual(["merge"]);
+    expect(m[0].text).toBe("Merge in progress — nothing to resolve; commit to finish, or Abort");
+    expect(m[0].text).not.toContain("resolve conflicts");
+    expect(computeBanners(refs({ state: "merge" }), status(2, "merge"))[0].text).toBe("Merge in progress — resolve conflicts, then commit to finish");
+    expect(computeBanners(refs({ state: "merge" }), null)[0].text).toBe("Merge in progress — resolve conflicts, then commit to finish");
+    expect(computeBanners(refs({ state: "merge" }), status(0))[0].text).toBe("Merge in progress — resolve conflicts, then commit to finish");
+  });
+
   it("a status scanned before the rebase started is stale, not clean: no pause text on its word", () => {
     // Its `state` still says `clean`, so its zero conflicts describe the tree as it was, not the stop.
     expect(computeBanners(refs({ state: "rebase" }), status(0))[0].text).toBe("Rebase in progress — resolve conflicts and stage them, then continue");

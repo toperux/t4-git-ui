@@ -57,7 +57,12 @@ export function computeBanners(refs: RefsSnapshot | null, status: WorkdirStatus 
     out.push({
       id: "merge",
       kind: "warning",
-      text: "Merge in progress — resolve conflicts, then commit to finish",
+      // A refused `pre-merge-commit` hook stops with the merge staged and nothing conflicted. A stale or
+      // missing status assumes conflicts, as the rebase text does.
+      text:
+        fresh !== null && fresh.conflicted === 0
+          ? "Merge in progress — nothing to resolve; commit to finish, or Abort"
+          : "Merge in progress — resolve conflicts, then commit to finish",
       buttons: [
         { label: "Abort", action: "mergeAbort" },
         { label: "Commit merge", action: "commitMerge", primary: true },
