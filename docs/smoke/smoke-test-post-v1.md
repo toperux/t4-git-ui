@@ -2872,7 +2872,7 @@ manager: openbox*). The Mac and Linux walks need `fix-batch` pushed as a side br
       on "Branch", ArrowDown → "Stash…" marked. `docs/archive/walks/2026-10-06-bp-walk.md`.)*
 - [x] 2. **After a dialog submits, the focus lands on `<body>`:** Windows: Tab to *Fetch options*, Enter, then Tab to
       the *Fetch* button (or the Prune checkbox), Enter — the Remote `Select` autofocuses and its own Enter would
-      open its list instead of submitting (`OpsDialogs.tsx:54`; `Input.tsx:243-247`; §Q `open-items.md:518-526`,
+      open its list instead of submitting (`OpsDialogs.tsx:54`; `Input.tsx:243-247`; §Q `open-items.md:504-512`,
       measured on the Windows VM) → the fetch runs, and when it ends the focus is on *Fetch options* (marked, since
       Enter submitted); the same for Pull and Push. The Mac: click *Fetch options*, submit → back on it at the end.
       Linux (openbox): click *Fetch options*, submit with the mouse, wait for the fetch to end → the focus is on it

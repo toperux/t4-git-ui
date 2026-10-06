@@ -112,7 +112,7 @@ Branch: `fix-batch` off local `main` (`236b4a9`). One commit per row while worki
   the observer's refocus after a mouse submit (below) is new. Row 3's `ToolbarButton` change fixes the macOS half.
 - **Walk (BP 2):** Windows: Tab to *Fetch options*, Enter, then Tab to the *Fetch* button (or the Prune checkbox),
   Enter — the Remote `Select` autofocuses and its own Enter would open its list instead of submitting
-  (`OpsDialogs.tsx:54`; `Input.tsx:243-247`; §Q `open-items.md:518-526`, measured on the Windows VM) → the fetch
+  (`OpsDialogs.tsx:54`; `Input.tsx:243-247`; §Q `open-items.md:504-512`, measured on the Windows VM) → the fetch
   runs, and when it ends the focus is on *Fetch options* (marked, since Enter submitted); the same for Pull and
   Push. The Mac: click *Fetch options*, submit → back on it at the end. Linux (openbox): click *Fetch options*,
   submit with the mouse, wait for the fetch to end → the focus is on it (ring? — D20, D29).
@@ -747,10 +747,10 @@ Plan review pass 8, 2026-10-06, after the owner's ruling:
 
 Plan review pass 9, 2026-10-06, after the owner's ruling:
 
-- **D33 (row 4, docs):** G3's §Q row (`open-items.md:507-517`) has hit its own reopen trigger ("a reproduction
-  under a window manager"). At the post-gate docs commit, G3 leaves §Q and merges into T15 in `open-items.md` §Z
-  (row 4's open-items row): it closes with T15 when BP 4 and the gate check pass; if D4 reverts row 4, it stays
-  open there with the measured repro.
+- **D33 (row 4, docs):** G3's §Q row (then `open-items.md:507-517`; merged into §Z T15 2026-10-07) has hit its own
+  reopen trigger ("a reproduction under a window manager"). At the post-gate docs commit, G3 leaves §Q and merges
+  into T15 in `open-items.md` §Z (row 4's open-items row): it closes with T15 when BP 4 and the gate check pass; if
+  D4 reverts row 4, it stays open there with the measured repro.
 
 Execution, 2026-10-06, the owner's rulings:
 
@@ -782,3 +782,11 @@ Execution, 2026-10-06, the owner's rulings:
 - **W2 (Mac walk):** a typed-but-unapplied History search query, dropped by a view switch — accepted, closed (no
   reopen trigger; → `open-items-done.md` §AE).
 - **W3 (Windows walk):** the output dock is per window, not per tab — no record kept (the owner's call).
+
+**Release and gate, 2026-10-07:** v0.10.21 released (bump `e93221f`); the gate passed on all three OS
+(`docs/archive/walks/2026-10-07-v0.10.21-release-gate.md` and its `-linux` record). N6's Windows update-path persist
+passed, closing that §Q row (`open-items-done.md` §Q). The Linux G3 check recorded 0 of 4 again, as D35 expected;
+it merged into T15 (D33), and both stay open in `open-items.md` §Z. M1 (a Mac tab activation mismatch) and L1 (the
+Linux AppImage update's truncate-then-rewrite window) are deferred to `open-items.md` (the owner). The Linux VM's
+scratch (the openbox unpack, the BP and G3 run files, test repos and clones, and the gate's `gate21` backups) and
+the Mac's `t4-bp` were deleted on the owner's word.

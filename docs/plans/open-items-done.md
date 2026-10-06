@@ -1062,6 +1062,13 @@ stays.
   - **Closed 2026-10-02** (close-out Phase 3, Q21; `0c9608a`), fixed instead of widened: the branch's heavier tests
     made it flaky in the gates. The test now binds a free port for its `git daemon` and times only cancel → return
     (< 500 ms; the kill itself measured 3–11 ms).
+- **N6's Windows update-path persist.** The other half of the §Q row split at the v0.10.20 gate (the install half
+  closed there, §AC below): a second window moved after its last tab change, then an update, was unproven since the
+  v0.10.20 gate had one window. Accepted 2026-10-05 (D6 (a), the Tauri 2.12 triage). **Closed 2026-10-07** (the
+  v0.10.21 gate, `docs/archive/walks/2026-10-07-v0.10.21-release-gate.md`): the Windows half opened a second window,
+  moved it with no further change, and after the update it came back at the moved rect — the update path wrote the
+  moved rect into `layout.json` before the restart. **PASS.** *From
+  `docs/archive/plans/2026-10-04-tauri-2.12-plan.md`, D6.*
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review: the rows since closed
 
@@ -1658,7 +1665,7 @@ Ruled by the owner 2026-10-06, in the triage after the records' review
 - **Updater 2.13's install path (the install half of the §Q row, D6 (a) of the Tauri 2.12 plan).** Proven at the
   v0.10.20 gate: 0.10.19's own updater (tauri-plugin-updater 2.13) installed 0.10.20 on Windows, macOS and the Linux
   AppImage, each restarting by itself. The row's other half, N6's Windows update-path persist, stays in
-  `open-items.md` §Q for the v0.10.21 gate.
+  `open-items.md` §Q for the v0.10.21 gate (closed 2026-10-07, §Q above).
 - **The §Q row "the breaker can trip without a crash"** dropped its reopen trigger "the §O fix lands (re-check)": no
   fix is coming. Its other trigger stays.
 - **Bare file-name mentions of the restore plan** in three archived plans (the triage plan, the pr18 fix-batch and

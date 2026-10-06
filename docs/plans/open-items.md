@@ -14,8 +14,8 @@ after the 2026-10-06 fix batch._
 
 ## B. Verification and release
 - **Unticked smoke lines — recounted 2026-10-06: one**, BP 4 in `smoke-test-post-v1.md` (the fix batch's tooltip
-  row: the Mac passed, Linux failed 0 of 4; kept open with §Z T15 and §Q G3, D35). None in `smoke-test.md`. AZ 11's
-  Linux line (now `smoke-test-post-v1.md:1892`) was ticked 2026-10-06. Its macOS line (now
+  row: the Mac passed, Linux failed 0 of 4; kept open with §Z T15, G3 merged in, D33, D35). None in
+  `smoke-test.md`. AZ 11's Linux line (now `smoke-test-post-v1.md:1892`) was ticked 2026-10-06. Its macOS line (now
   `smoke-test-post-v1.md:1898`) was ticked 2026-10-04 in close-out Phase 5
   (`docs/archive/walks/2026-10-04-phase-5-macos-walk.md`). AC (`:762`) ticked 2026-10-01 at the v0.10.15 release gate's
   AppImage half. BH 12 (the update badge in a new window) ticked 2026-10-01 at the v0.10.15 release gate. A grep for
@@ -463,12 +463,7 @@ phases that accepted them; each origin keeps a pointer.
   `smoke-linux.md` §2 says to keep the saved window within the screen; the Linux harness now runs openbox for
   multi-window and restore rows. Accepted 2026-10-04 (close-out Phase 5 triage, T26); refined 2026-10-06. **Reopen:**
   seen on a real desktop or under a window manager.
-- **N6's Windows update-path persist is unproven: a second window moved after its last tab change, then an
-  update.** The v0.10.20 gate had one window, so it didn't exercise it. The install half of this row (updater 2.13's
-  install path) passed at that gate on all three OS and moved to `open-items-done.md` §AC (the owner, 2026-10-06).
-  Accepted 2026-10-05 (D6 (a), the Tauri 2.12 triage). **Reopen:** a second window's moved rect is lost across the
-  v0.10.21 gate's update, whose Windows half moves a second window before updating. *From
-  `docs/archive/plans/2026-10-04-tauri-2.12-plan.md`, D6.*
+- **N6's Windows update-path persist:** done 2026-10-07 (the v0.10.21 gate), moved to `open-items-done.md` §Q.
 - **N6's Linux full screen, set from the window manager's own menu, isn't seen.** tao's `fullscreen()` on Linux
   reflects only the app's own full screen (`linux/window.rs:699-710`), so a window manager's full screen is
   recorded as a screen-sized normal rect, and relaunched clamped to the work area. Accepted 2026-10-05 (the Tauri
@@ -504,17 +499,8 @@ phases that accepted them; each origin keeps a pointer.
   a `std::thread` per event, so a drag can have roughly 20–40 threads alive at once; a per-label pending timer
   (~10 lines) would avoid it. Accepted 2026-10-05 (the Tauri 2.12 triage, round 2). **Reopen:** a drag stutters, or
   the thread count spikes.
-- **A menu item's first XTEST click under Xvfb (no window manager) only highlighted it; a second click activated
-  it (v0.10.19 Linux gate, G3).** Reproduced 1 of 1 at the v0.10.20 Linux gate (2026-10-06, the same bare Xvfb):
-  the file row's native tooltip sat over the menu next to *Open* just before the click; that the tooltip takes the
-  click is a guess, not checked. The D14 pre-check reproduced it on v0.10.20 under openbox with the gate's
-  1920×1200 recipe: an app/WebKitGTK interaction, not the harness. Accepted 2026-10-05 (the v0.10.19 gate).
-  **Reopen:** a report of a menu item needing two clicks, or a reproduction under a window manager. *From
-  `docs/archive/walks/2026-10-05-v0.10.19-release-gate-linux.md`.* **Added 2026-10-06 (BP 4):** the fix batch's row 4
-  (strip the anchor's `title` while the context menu is open) still failed 0 of 4 under openbox with the gate's
-  1920×1200 recipe — see `open-items.md` §Z, T15, and `docs/archive/walks/2026-10-06-bp-walk.md`. This row still
-  merges into T15 at the post-gate docs commit (D33); the gate's G3 check is a record of this known interaction,
-  not a release blocker (D35).
+- **G3 (a menu item's first XTEST click needing two):** merged into T15, `open-items.md` §Z, at the post-gate docs
+  commit (D33); both stay open (D35).
 - **Return in the Fetch dialog's remote dropdown seemed to start a fetch once on Linux.** At the v0.10.20 Linux gate
   (bare Xvfb), `git` started before the Fetch click, right after a Return in the dropdown; a second try didn't. On
   the Windows VM (2026-10-06, `cc6d58f`, CDP) Return there never submits: the dropdown is a custom combobox whose
@@ -648,13 +634,21 @@ for one plan together.
   own plan. **Reopen:** a macOS user asks for it, or the hints plan above is picked up.
 - **A commit row's hover tooltip can cover its context menu (triage T15).** In the Mac walk (M1) the row's native
   `title` tooltip sat over the menu's first item; seen once. Fix sketch: no `title` on `GridRow` while the grid's menu
-  is open. Deferred 2026-10-04. **Reopen:** it recurs, or a report. **The 2026-10-06 fix batch's row 4** strips the
-  anchor's `title` while the context menu is open (D4, D14, D33): walked on the Mac, pass (no tooltip over the menu);
-  walked on Linux under openbox with the gate's 1920×1200 recipe, **failed 0 of 4** — the DOM confirms the `title` is
-  stripped, but a one-motion move-and-right-click still shows WebKitGTK's own already-scheduled tooltip with the old
-  text (inferred cause: it reads the text off the motion event before `contextmenu` strips the attribute). Kept by
-  the owner anyway (D35); stays open; at the post-gate docs commit G3 merges into it (D33) and both stay open
-  (D35). *Walk: `docs/archive/walks/2026-10-06-bp-walk.md`.*
+  is open. Deferred 2026-10-04. **The 2026-10-06 fix batch's row 4** strips the anchor's `title` while the context menu
+  is open (D4, D14, D33): walked on the Mac, pass (no tooltip over the menu); walked on Linux under openbox with the
+  gate's 1920×1200 recipe, **failed 0 of 4** — the DOM confirms the `title` is stripped, but a one-motion
+  move-and-right-click still shows WebKitGTK's own already-scheduled tooltip with the old text (inferred cause: it reads
+  the text off the motion event before `contextmenu` strips the attribute). Kept by the owner anyway (D35); stays open.
+  *Walk: `docs/archive/walks/2026-10-06-bp-walk.md`.* **G3 merges in here (D33)** — a menu item's first XTEST click
+  under Xvfb only highlighted it, a second activated it (the v0.10.19 Linux gate). Accepted 2026-10-05 (the v0.10.19
+  gate). Reproduced 1 of 1 at the v0.10.20 Linux gate (bare Xvfb, 2026-10-06): the file row's native tooltip sat over
+  the menu next to *Open* just before the click; that the tooltip takes the click is inferred, not traced (D14). The D14
+  pre-check reproduced it on v0.10.20 under openbox with the gate's 1920×1200 recipe, pointing at an app/WebKitGTK
+  interaction, not the harness. BP 4's Linux walk failed the same way, as above. The v0.10.21 Linux gate recorded it
+  again, 0 of 4, under openbox (D35 — a record, not a release blocker):
+  `docs/archive/walks/2026-10-07-v0.10.21-release-gate-linux.md`. Both T15 and G3 stay open (D35). **Reopen:** a report
+  of a menu item needing two clicks, a tooltip over a context menu, or a reproduction that doesn't match the tooltip
+  theory. *From `docs/archive/walks/2026-10-05-v0.10.19-release-gate-linux.md`.*
 
 ## AA. Added 2026-10-05 — the Tauri 2.12 triage
 
@@ -689,6 +683,20 @@ walk), each with a reopen trigger.
   Before this batch, the same actions left the focus on `<body>` (no ring, but keyboard stranded). Idea:
   `focus({ focusVisible: false })`, untested on WKWebView. **Reopen:** the ring is found distracting, or the idea is
   checked.
+
+## AF. Added 2026-10-07 — the v0.10.21 gate
+
+Found walking the v0.10.21 release gate (`docs/archive/walks/2026-10-07-v0.10.21-release-gate.md` and its `-linux`
+record), each with a reopen trigger.
+
+- **M1: a saved tab didn't come up active on the Mac.** `layout.json` named the `t4-git-ui` tab active, but another
+  of the 4 tabs came up active at launch, and stayed so across the update's restart. Seen once; not investigated;
+  unknown whether it is new. **Reopen:** seen again, or reproduced.
+- **L1: the Linux AppImage update truncates the file before rewriting it.** The installed AppImage drops to 0 bytes,
+  then is rewritten in place (about 1 s, 20:04:07.565–08.516 at the gate); a crash or power loss inside that window
+  would leave a broken AppImage needing a fresh download. Measured once; that this is `tauri-plugin-updater`'s own
+  install path, not the harness, is inferred. **Reopen:** a broken AppImage reported, or the updater gains an
+  atomic replace.
 
 ## Order
 
