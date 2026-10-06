@@ -3,6 +3,10 @@
 _Written 2026-09-26. Source: `docs/plans/open-items.md` §P (the AppImage row) and
 `docs/archive/walks/2026-09-26-group-ac-linux-walk.md`. Line numbers are as of `af1d3db`._
 
+**Done 2026-10-01:** fixed in #18 (merged 2026-09-27); both release walks it waited on (0.10.12 → 0.10.13,
+0.10.13 → 0.10.14) landed, and AC ticked at 0.10.14 → 0.10.15 (`open-items-done.md` §P). The status below is as of
+2026-09-27.
+
 ## Status (2026-09-27)
 
 - **Implemented** on `linux-smoke-and-fixes`:

@@ -5,7 +5,7 @@ measured the same day (Part A of `docs/archive/plans/2026-09-27-ssh-prompts-chec
 "fail fast with a clear message"._
 
 **Executed 2026-10-06** on the owner's go, on branch `ssh-fail-fast`: walked on Windows and Linux; review passes 1–5
-found no blockers; triage done. Ships in the next release.
+found no blockers; triage done. Shipped in v0.10.20 (released and gated 2026-10-06).
 
 ## Refresh (2026-10-06, against `main` `c9e2dc4`)
 

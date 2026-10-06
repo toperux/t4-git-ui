@@ -337,7 +337,8 @@ CLI pin change, `release.yml` and `checks.yml` only, ran from Windows):
   mod1 with Alt), so it can't exercise the Meta path — accepted closed by the owner.
   `docs/archive/walks/2026-10-06-linux-track-c-d-walk.md` (C2).
 - **#18's follow-up PRs, each planned:**
-  - ssh fail-fast (`2026-09-27-ssh-fail-fast-plan.md`).
+  - ~~ssh fail-fast~~ **done 2026-10-06**, shipped in v0.10.20
+    (`docs/archive/plans/2026-09-27-ssh-fail-fast-plan.md`).
   - ~~The CLI-pin bump to 2.11.5~~ **done 2026-09-28**
     (`docs/archive/plans/2026-09-27-ssh-prompts-check-and-cli-pin-plan.md`, Part B). The first release after it
     unlocks `requireSignedVersion` (§Q; Phase 1b turns it on).

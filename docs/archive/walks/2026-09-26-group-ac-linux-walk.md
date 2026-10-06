@@ -47,4 +47,4 @@ The row stays unticked: `.rpm` wasn't walked, and the AppImage works only with t
 - **The desktop result above was a second problem.** The AppImage always runs under XWayland, and on this VM
   XWayland also needs `WEBKIT_DISABLE_DMABUF_RENDERER=1`: the system `.deb` is blank under `GDK_BACKEND=x11` too.
   That one is documented in the README, not fixed.
-- See `docs/plans/2026-09-26-appimage-blank-window-plan.md`.
+- See `docs/archive/plans/2026-09-26-appimage-blank-window-plan.md`.

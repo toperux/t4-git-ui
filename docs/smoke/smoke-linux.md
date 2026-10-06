@@ -124,7 +124,7 @@ node docs/smoke/wd.mjs start "$PWD/target/debug/t4-git-ui"
 - **No askpass on Xvfb:** `SSH_ASKPASS_REQUIRE=never` and an empty `GIT_ASKPASS` stop ssh (a passphrase, an unknown
   host) and git (https credentials) from opening an askpass dialog on the invisible display. It would hang the
   walk until Cancel. They fail at once instead, as they do with no askpass installed
-  (`docs/plans/2026-09-27-ssh-fail-fast-plan.md`).
+  (`docs/archive/plans/2026-09-27-ssh-fail-fast-plan.md`).
 
 - **Env doesn't carry between Bash calls**, so each command carries what it needs.
 - **Check ports and displays first:** `ss -ltn | grep -E ':444[45]'` should be empty. Use `:99` unless
@@ -274,7 +274,7 @@ For checking a published or CI-built AppImage (the `packages-Linux` artifact of 
 `signing` environment's deployment-branch policies for the run and removed after, each on the owner's word; the run
 waits for the owner's approval under *Review deployments*, and makes and deletes a draft release (the `release`
 skill's *Checking the packaging*). Learned on the blank-window fix
-(`docs/plans/2026-09-26-appimage-blank-window-plan.md`):
+(`docs/archive/plans/2026-09-26-appimage-blank-window-plan.md`):
 
 - **Give it a display of its own:** `Xvfb :98 -screen 0 1600x1000x24` in the background, stopped afterwards with
   `pkill -f '^Xvfb :98'`. The harness app on `:99` has the same window title, and a root screenshot would catch it.

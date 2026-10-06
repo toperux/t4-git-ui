@@ -7,9 +7,9 @@ scheduled in `2026-09-26-close-out-plan.md`; §Q's accepted limits wait on their
 also in a close-out phase, the `status.rs` row, closed in Phase 3 on 2026-10-03)._
 
 _Done, fixed, walked and closed rows live in `open-items-done.md` (split 2026-09-24), under the same section letters — a
-letter with nothing open left (§A, §D, §F, §G, §H, §I, §J, §K, §L, §N, §O, §T, §U, §W) is only there. When a row here is
-done, move it there. Accepted limits with a reopen trigger are open, in §Q (since 2026-09-28); those with none are
-closed, in the done file; most of §V's deferred rows wait on a later fix batch._
+letter with nothing open left (§A, §D, §F, §G, §H, §I, §J, §K, §L, §M, §N, §O, §P, §T, §U, §W) is only there. When a row
+here is done, move it there. Accepted limits with a reopen trigger are open, in §Q (since 2026-09-28); those with none
+are closed, in the done file; most of §V's deferred rows wait on a later fix batch._
 
 ## B. Verification and release
 - **Unticked smoke lines — recounted 2026-10-06: none**, in either `smoke-test-post-v1.md` or `smoke-test.md`. AZ 11's
@@ -62,9 +62,10 @@ Custom titlebar (revisited in M6, native kept) · i18n · plugins.
   or `cargo-zigbuild`) has to be picked once for all three t4 repos. Recorded in
   `docs/archive/plans/ci-alignment-round-2.md` §5; nothing breaks on the deprecation date itself.
   - (2026-09-27, updated 2026-10-05) **Whatever replaces it keeps `libwayland-client` out of the AppImage.** The build
-    host's copy breaks newer hosts (§P). The repack that stripped it went with tauri-cli 2.12.1, whose linuxdeploy
-    (`07333c6`) excludes it itself; `release.yml`'s *Check the AppImage has no libwayland-client* fails the run if it
-    comes back. Any older-than-the-user build host needs that check, a `container: ubuntu:22.04` job included.
+    host's copy breaks newer hosts (`open-items-done.md` §P). The repack that stripped it went with tauri-cli 2.12.1,
+    whose linuxdeploy (`07333c6`) excludes it itself; `release.yml`'s *Check the AppImage has no libwayland-client*
+    fails the run if it comes back. Any older-than-the-user build host needs that check, a `container: ubuntu:22.04` job
+    included.
   - (§K, 2026-09-16) **Still pinned** in `checks.yml:28` and `release.yml:116`, and **the sibling app
     is in exactly the same state** (asked and answered 2026-09-16: still pinned, no decision recorded,
     the reasoning lives only in its archived `ci-alignment*.md`). So the cross-repo decision is genuinely
@@ -76,45 +77,6 @@ Custom titlebar (revisited in M6, native kept) · i18n · plugins.
   signature*; releases already signed stay valid (the signatures are timestamped). **Renew by 2027-08-22**, then
   update the thumbprint in `release.yml` (*Check the Windows signature*) and in the sibling app's. Added
   2026-09-30 (close-out Phase 1b, D5).
-
-## M. Added 2026-09-19 — review of `v0.10.1..HEAD`, its fixes, and the walk of group AZ
-
-The walk is `docs/archive/walks/2026-09-19-group-az-walk.md`. What is left, so it is not rediscovered.
-**Since 2026-09-26 these are scheduled in the close-out plan** (AZ 11 Linux in the Linux track, macOS in Phase 5); "left
-until one bites" below is kept as history. The toast-detail and default-remote rows are fixed, in the done file's §M;
-the menu row's fix is in the done file's §M too (close-out Phase 2b), its row-shift half accepted in §Q.
-
-- The open box in group AZ, row 11 (Linux and macOS): done 2026-10-06, both lines ticked, in the done file's §M.
-- The 1800-file `git reset` delay seen in the walk: fixed 2026-10-02 in close-out Phase 3, in the done file's §M.
-
-## P. Added 2026-09-26 — the Linux harness follow-ups, and one row found in review
-
-The harness is `docs/smoke/smoke-linux.md` plus the `smoke-walk` skill. Its decisions are in
-`docs/archive/plans/2026-09-26-linux-menu-focus-and-restore-plan.md`.
-
-- ~~**Portable fixture script (T2).**~~ Done 2026-09-26 (`linux-smoke-and-fixes`): `smoke-fixtures.sh` uses `awk`
-  instead of GNU `sed`, with the same output.
-- ~~**Promote the direct-launch helpers (D4).**~~ Done 2026-09-26 (`linux-smoke-and-fixes`):
-  `docs/smoke/fixtures/direct.sh`, pointed to from `smoke-linux.md`.
-- **AC :761 walked 2026-09-26 (T6):** done 2026-10-01 at the v0.10.15 release gate's AppImage half, moved to
-  `open-items-done.md` §P.
-- **ssh under the moved `HOME` (T4):** done 2026-09-27, moved to `open-items-done.md` §P on 2026-09-28; its
-  accepted cases are in §Q (*Linux harness: ssh cases not covered under the moved `HOME`*). Prompts are the row
-  below.
-- ~~**`xclip` (T9).**~~ Done 2026-09-26 (triage): it was installed, and is now a listed prerequisite.
-- ~~**Re-test WebDriver with two windows (T7)**~~ **done 2026-10-06**, moved to `open-items-done.md` §P: 10 of 10
-  runs under openbox got 2 handles, both pages answered (`docs/archive/walks/2026-10-06-restore-hang-and-az-rewalk.md`).
-  Multi-window rows get DOM access back under openbox.
-- **The AppImage blank-window bug** (found in the AC :761 walk, 2026-09-26; fixed in #18, merged 2026-09-27) — **done
-  2026-10-01**, moved to `open-items-done.md` §P: both release walks it waited on (0.10.12 → 0.10.13, 0.10.13 → 0.10.14)
-  landed, and AC ticked at 0.10.14 → 0.10.15.
-- **The tauri-cli 2.12.0 bump** (added 2026-09-28) — **closed 2026-10-05**, moved to `open-items-done.md` §P: taken
-  as 2.12.1 with Dependabot #19 and #20 (`docs/archive/plans/2026-10-04-tauri-2.12-plan.md`).
-- **Turn on `requireSignedVersion`:** an accepted limit, moved to §Q (*`requireSignedVersion` is off*), 2026-09-28;
-  closed 2026-10-01 (close-out Phase 1b), moved to `open-items-done.md` §Q.
-- **Only the AppImage's updater `.sig` is verified in CI:** done 2026-10-01 (close-out Phase 1b), moved to
-  `open-items-done.md` §P.
-- **T15 (a reloaded `main` re-spawns every other window):** closed 2026-09-27, moved to `open-items-done.md` §P.
 
 ## Q. Accepted limits — open, each with a reopen trigger
 
@@ -144,7 +106,7 @@ phases that accepted them; each origin keeps a pointer.
 - **Linux harness: ssh cases not covered under the moved `HOME`.** Other ssh hosts, a fetch/push through the app
   itself, the unisolated `~/.ssh`, and ssh signing under the moved `HOME` (the last two documented in
   `smoke-linux.md` §2). Accepted in the 2026-09-27 triage of the T4 row (ssh under the moved `HOME`).
-  **Reopen:** a harness walk that needs one of them. *From §P, the T4 row (now in the done file §P).*
+  **Reopen:** a harness walk that needs one of them. *From `open-items-done.md` §P, the T4 row.*
 - **AppImage fix untested on an Ubuntu 22.04 host and with the NVIDIA proprietary driver.** Accepted 2026-09-26 (the
   22.04 host) and 2026-09-27 (NVIDIA), in the AppImage plan (L5). **Reopen:** a report from either. *From §P, the
   AppImage row (now in the done file §P).*
@@ -158,14 +120,14 @@ phases that accepted them; each origin keeps a pointer.
   so the row stands. *From §P, the AppImage row (now in the done file §P).*
 - **No timeout on git ops.** A stuck ssh or https op ends only on Cancel. By choice (triage 2026-09-27): a timeout
   would misfire on a slow fetch or clone. **Reopen:** a report of a hang the ssh fail-fast change doesn't cover.
-  *From §P, the ssh prompts row.*
+  *From `open-items-done.md` §P, the ssh prompts row.*
 - **A crash after the restore report still loops.** The report fires when the log walk starts
   (`repoStore.ts:347`); a crash later in the walk or the refs load happens after the breaker's mark clears.
-  **Reopen:** a loop is reported that gets past the breaker. *From §P.*
+  **Reopen:** a loop is reported that gets past the breaker. *From `open-items-done.md` §P.*
 - **The breaker can trip without a crash.** A kill during a slow restore (any OS; on a bare Xvfb, the stall with a
   second window stuck on *Starting*, `open-items-done.md` §O) can't be told from a crash; and without single-instance
   (no session bus, `window.rs:287-288`), a second process finds the first one's live mark. Either way the session is set
-  aside once, with the file kept. **Reopen:** a false trip is reported. *From §P.*
+  aside once, with the file kept. **Reopen:** a false trip is reported. *From `open-items-done.md` §P.*
 - **`Ctrl+,` does nothing while the start screen opens a repository.** While a repository opens, the *Opening…*
   overlay (`App.tsx:232`, `z-index: 50`, above dialogs at 40, swallowing clicks) covers the start screen, so
   Settings opened then would sit invisible under it, holding the keyboard, until the repo window replaces it.

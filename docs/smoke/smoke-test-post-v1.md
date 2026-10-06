@@ -765,7 +765,7 @@ they stay clear._
       (`docs/archive/walks/2026-09-26-group-ac-linux-walk.md`):
       - `.deb`: passes.
       - AppImage: installs in place, but only with a workaround. As shipped it opens a blank window (EGL abort
-        from its bundled `libwayland-client`, open-items §P). On a VMware guest's desktop it also needs
+        from its bundled `libwayland-client`, `open-items-done.md` §P). On a VMware guest's desktop it also needs
         `WEBKIT_DISABLE_DMABUF_RENDERER=1` (the README note).
       - `.rpm`: not walked; ruled covered by the `.deb` walk (2026-09-27): without `APPIMAGE` both take
         the Download… path (`update.rs:45-50`).

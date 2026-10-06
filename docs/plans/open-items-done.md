@@ -878,6 +878,16 @@ all pass. AZ 11's Linux line is ticked (`docs/smoke/smoke-test-post-v1.md`), and
 
 ## P. Added 2026-09-26 — the Linux harness follow-ups: the rows since closed
 
+The whole section closed 2026-10-06: its last open row, T7, was done, and the three rows below, done 2026-09-26,
+moved here from `open-items.md` the same day. The harness decisions are in
+`docs/archive/plans/2026-09-26-linux-menu-focus-and-restore-plan.md`.
+
+- ~~**Portable fixture script (T2).**~~ Done 2026-09-26 (`linux-smoke-and-fixes`): `smoke-fixtures.sh` uses `awk`
+  instead of GNU `sed`, with the same output.
+- ~~**Promote the direct-launch helpers (D4).**~~ Done 2026-09-26 (`linux-smoke-and-fixes`):
+  `docs/smoke/fixtures/direct.sh`, pointed to from `smoke-linux.md`.
+- ~~**`xclip` (T9).**~~ Done 2026-09-26 (triage): it was installed, and is now a listed prerequisite.
+
 - ~~**Drive GTK's native parts through AT-SPI (T5).**~~ Done 2026-10-06 (close-out Linux track, plan
   `docs/archive/plans/2026-09-27-t5-atspi-plan.md`): `docs/smoke/atspi.py` (`dump`, `menu`, `click`, `wait`) and
   `smoke-linux.md`'s *AT-SPI: GTK's native parts*. Walked on the Linux VM on a debug build of `6bffe6d`, Xvfb, a
@@ -958,7 +968,7 @@ all pass. AZ 11's Linux line is ticked (`docs/smoke/smoke-test-post-v1.md`), and
   The 0.10.13 and 0.10.14 release walks (2026-09-29) installed in place but neither restarted by itself, so the user
   held the tick for 2b's release, the first that can.
 - **The AppImage opened a blank window on Ubuntu 26.04** (found in the AC :761 walk, 2026-09-26) — **closed
-  2026-10-01**. Plan: `docs/plans/2026-09-26-appimage-blank-window-plan.md`.
+  2026-10-01**. Plan: `docs/archive/plans/2026-09-26-appimage-blank-window-plan.md`.
   - **Symptom:** WebKit's web process aborted with `Could not create default EGL display: EGL_BAD_PARAMETER`, and
     the window stayed blank. The published 0.10.11 and 0.10.12 AppImages were affected; the `.deb` rendered fine.
   - **Cause:** the AppImage is built on `ubuntu-22.04` and bundles its `libwayland-client` (1.20). The host's Mesa
@@ -994,12 +1004,12 @@ all pass. AZ 11's Linux line is ticked (`docs/smoke/smoke-test-post-v1.md`), and
     `07333c6`, the gtk and gstreamer scripts dropped (the bundler embeds them). linuxdeploy `07333c6` excludes
     `libwayland-client` itself, so the AppImage repack and its re-sign are gone, and a new step fails the run if the
     library comes back. The release's dry run and the v0.10.19 gate prove the pipeline (the plan's Verify).
-- ~~**ssh prompts the app can't answer well (found in the T4 review; measured 2026-09-27).**~~ Fixed 2026-10-06 on
-  the `ssh-fail-fast` branch (`docs/plans/2026-09-27-ssh-fail-fast-plan.md`), walked on Windows and Linux: `authFailed`
-  now names its cause (a changed or untrusted host key, an ssh key not accepted, credentials needed or rejected) and
-  what to do; a failed clone is classified the same way, showing the first `fatal:` line rather than
-  "Cloning into…"; on Unix git runs in its own session (`setsid`), so a terminal launch no longer hangs ssh. No
-  timeout on a stuck op stays an accepted limit, in `open-items.md` §Q (*No timeout on git ops*).
+- ~~**ssh prompts the app can't answer well (found in the T4 review; measured 2026-09-27).**~~ Fixed 2026-10-06 on the
+  `ssh-fail-fast` branch (`docs/archive/plans/2026-09-27-ssh-fail-fast-plan.md`), walked on Windows and Linux:
+  `authFailed` now names its cause (a changed or untrusted host key, an ssh key not accepted, credentials needed or
+  rejected) and what to do; a failed clone is classified the same way, showing the first `fatal:` line rather than
+  "Cloning into…"; on Unix git runs in its own session (`setsid`), so a terminal launch no longer hangs ssh. No timeout
+  on a stuck op stays an accepted limit, in `open-items.md` §Q (*No timeout on git ops*).
 
 ## Q. Accepted limits — the rows since closed
 
@@ -1525,7 +1535,7 @@ No reopen trigger on any of these.
 
 ## AB. Added 2026-10-06 — ssh fail-fast: accepted, closed
 
-Ruled by the owner 2026-10-06, in the `ssh-fail-fast` triage (`docs/plans/2026-09-27-ssh-fail-fast-plan.md`,
+Ruled by the owner 2026-10-06, in the `ssh-fail-fast` triage (`docs/archive/plans/2026-09-27-ssh-fail-fast-plan.md`,
 "Execution and rulings"). No reopen trigger on any of these.
 
 - **T2** The Clone dialog's own frontend-built preview (and the "$ git clone …" line) shows the typed password —
