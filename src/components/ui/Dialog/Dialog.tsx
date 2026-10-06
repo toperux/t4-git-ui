@@ -81,7 +81,28 @@ export function Dialog({ title, wide, full, onClose, busy, onSubmit, preview, fo
       const active = document.activeElement;
       const lost = !active || active === document.body || !active.isConnected;
       const el = resolveFocus(back);
-      if (lost && el?.isConnected) el.focus();
+      if (!lost || !el?.isConnected) return;
+      if (!el.matches(":disabled")) {
+        el.focus();
+        return;
+      }
+      // An op the dialog started disables its opener in the same commit (Fetch options, Pull, Push, the
+      // Branch and Stash menus): focus it once the op ends and enables it again, unless the user has
+      // moved on meanwhile. Detached (a resize into the icons tier), it waits for that next input.
+      const stop = () => {
+        watch.disconnect();
+        document.removeEventListener("pointerdown", stop, true);
+        document.removeEventListener("keydown", stop, true);
+      };
+      const watch = new MutationObserver(() => {
+        if (el.isConnected && el.matches(":disabled")) return;
+        stop();
+        const now = document.activeElement;
+        if (el.isConnected && (!now || now === document.body)) el.focus();
+      });
+      watch.observe(el, { attributes: true, attributeFilter: ["disabled"] });
+      document.addEventListener("pointerdown", stop, true);
+      document.addEventListener("keydown", stop, true);
     };
   }, []);
 

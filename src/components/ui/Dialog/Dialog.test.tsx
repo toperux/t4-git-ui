@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render } from "@testing-library/react";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Button } from "../Button/Button";
 import { Dialog, DialogReturnFocus, Field } from "./Dialog";
@@ -44,6 +44,20 @@ describe("Dialog", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
     unmount();
     expect(document.activeElement).toBe(opener);
+    opener.remove();
+  });
+
+  it("an opener its submit disabled takes the focus back once it is enabled again", async () => {
+    // The dialog unmounts in the same commit that starts the op and disables its button (§AD).
+    const opener = document.createElement("button");
+    document.body.appendChild(opener);
+    opener.focus();
+    const { unmount } = render(<Harness onClose={() => {}} />);
+    opener.disabled = true;
+    unmount();
+    expect(document.activeElement).toBe(document.body);
+    opener.disabled = false;
+    await waitFor(() => expect(document.activeElement).toBe(opener));
     opener.remove();
   });
 
