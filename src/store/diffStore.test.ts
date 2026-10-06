@@ -8,6 +8,7 @@ vi.mock("../api/ipc", async (importOriginal) => {
 
 import * as ipc from "../api/ipc";
 import { __resetTreeCacheForTests, restore, snapshot, treeTargetOf, useDiffStore } from "./diffStore";
+import { useRepoStore } from "./repoStore";
 
 type Mock = ReturnType<typeof vi.fn>;
 const mocked = ipc as unknown as { getChangedFiles: Mock; getFileDiff: Mock; listTree: Mock; readFile: Mock; getBlame: Mock };
@@ -417,6 +418,23 @@ describe("diffStore — Files tab", () => {
     await useDiffStore.getState().load("r", commit("c1"));
     await flush();
     expect(mocked.listTree).toHaveBeenCalledTimes(2);
+  });
+
+  // Closing the last tab swaps to the start screen at once: no details pane is left to load `null`.
+  it("clears itself when the repository closes", async () => {
+    mocked.getChangedFiles.mockResolvedValue([file("a.ts")]);
+    mocked.readFile.mockImplementation((_i: string, _t: unknown, p: string) => Promise.resolve(contentFor(p)));
+    useRepoStore.setState({ repo: { id: "r", name: "r", path: "/r", head: { oid: "a", branch: "main", detached: false } } });
+    await useDiffStore.getState().load("r", commit("c1"));
+    useDiffStore.getState().selectTreePath("a.ts");
+    await flush();
+
+    useRepoStore.setState({ repo: null });
+    expect(useDiffStore.getState().repoId).toBeNull();
+    expect(useDiffStore.getState().target).toBeNull();
+    // The closed repository's per-commit memory went with it.
+    await useDiffStore.getState().load("r", commit("c1"));
+    expect(useDiffStore.getState().treeSelectedPath).toBeNull();
   });
 
   it("never caches the working tree — it changes under us", async () => {

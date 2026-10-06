@@ -6,6 +6,7 @@ import * as ipc from "../api/ipc";
 import { toAppError } from "../api/ipc";
 import type { Blame, DiffTarget, FileChange, FileContent, FileDiff, RepoId, TreeEntry, TreeTarget } from "../api/types";
 import { pick } from "../lib/pick";
+import { useRepoStore } from "./repoStore";
 
 export type DiffView = "unified" | "split";
 export type FileListMode = "flat" | "tree";
@@ -451,3 +452,10 @@ export function __resetTreeCacheForTests() {
   treeSelection.clear();
   pinned = null;
 }
+
+// Closing the last tab swaps the window to the start screen in the same render, so the details pane
+// never loads `null`: clear here, or the closed repository's target, tree and memory outlive it. A tab
+// switch never passes through `repo: null`.
+useRepoStore.subscribe((st, prev) => {
+  if (prev.repo && !st.repo) void useDiffStore.getState().load(null, null);
+});
