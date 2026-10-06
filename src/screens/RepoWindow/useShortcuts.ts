@@ -3,10 +3,12 @@
 // no meaning in a field, and the dock prompt (the field most likely to have focus) lives in the dock
 // it collapses; the tab and window keys (Ctrl+Tab, Ctrl+W, Ctrl+T, Ctrl+Shift+N, Ctrl+Q, Ctrl+1..9),
 // Ctrl+, (the platform's own settings key) and Ctrl+Shift+` (the sidebar rail) are the same case.
-// Alt+1 / Alt+2 pick the History | Changes view (spec §1). Ctrl+K opens the command palette, which
-// then owns the keyboard until Ctrl+K (or Esc) closes it again (spec §4).
+// Alt+1 / Alt+2 pick the History | Changes view (spec §1), from a text field too on Windows and
+// Linux, where Alt+digit types nothing — not on macOS, where Option+digit types a character. Ctrl+K
+// opens the command palette, which then owns the keyboard until Ctrl+K (or Esc) closes it again
+// (spec §4).
 import { useEffect } from "react";
-import { ctrlOrCmd } from "../../lib/keys";
+import { ctrlOrCmd, isMac } from "../../lib/keys";
 import { useDialogStore } from "../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../store/opsStore";
 import { useTabsStore } from "../../store/tabsStore";
@@ -102,20 +104,27 @@ export function useShortcuts() {
         useViewStore.getState().toggleRail(layoutFor(window.innerWidth).railAuto);
         return;
       }
-      if (inTextField(e.target)) return;
+      // `code`, not `key`: Option+1 on a Mac keyboard types `¡`. Alt+digit types nothing into a
+      // field on Windows and Linux, so the view switch works from one there too; on macOS Option+digit
+      // types a character (`@` on Option+2 on Swedish and Finnish layouts), so a field keeps it.
+      const textField = inTextField(e.target);
+      const alt = e.altKey && !ctrl && !e.shiftKey && !(textField && isMac());
+      if (alt && e.code === "Digit1") {
+        e.preventDefault();
+        useViewStore.getState().setView("history");
+        return;
+      }
+      if (alt && e.code === "Digit2") {
+        e.preventDefault();
+        useViewStore.getState().setView("changes");
+        return;
+      }
+      if (textField) return;
       const open = useDialogStore.getState().open;
       const busy = selectRunning(useOpsStore.getState());
       const key = e.key.toLowerCase();
 
-      // `code`, not `key`: Option+1 on a Mac keyboard types `¡`.
-      const alt = e.altKey && !ctrl && !e.shiftKey;
-      if (alt && e.code === "Digit1") {
-        e.preventDefault();
-        useViewStore.getState().setView("history");
-      } else if (alt && e.code === "Digit2") {
-        e.preventDefault();
-        useViewStore.getState().setView("changes");
-      } else if (e.key === "F5" && !ctrl) {
+      if (e.key === "F5" && !ctrl) {
         e.preventDefault();
         refreshAll();
       } else if (ctrl && e.key === "F5") {

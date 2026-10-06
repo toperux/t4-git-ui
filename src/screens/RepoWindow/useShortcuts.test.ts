@@ -101,6 +101,33 @@ describe("useShortcuts", () => {
     expect(useViewStore.getState().view).toBe("history");
   });
 
+  it("Alt+2 switches the view from a text field on Windows and Linux; a plain 2 is the field's", () => {
+    renderHook(() => useShortcuts());
+    const input = document.body.appendChild(document.createElement("input"));
+    for (const ua of ["Mozilla/5.0 (Windows NT 10.0; Win64; x64)", "Mozilla/5.0 (X11; Linux x86_64)"]) {
+      vi.spyOn(navigator, "userAgent", "get").mockReturnValue(ua);
+      useViewStore.getState().setView("history");
+      expect(fireEvent.keyDown(input, { key: "2", code: "Digit2" })).toBe(true);
+      expect(useViewStore.getState().view).toBe("history");
+      expect(fireEvent.keyDown(input, { key: "2", code: "Digit2", altKey: true })).toBe(false);
+      expect(useViewStore.getState().view).toBe("changes");
+    }
+    input.remove();
+  });
+
+  // Option+2 types a character on a Mac (`@` on Swedish and Finnish layouts): the field keeps it.
+  it("Option+2 in a text field on macOS types, and doesn't switch the view", () => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)");
+    renderHook(() => useShortcuts());
+    const input = document.body.appendChild(document.createElement("input"));
+    expect(fireEvent.keyDown(input, { key: "@", code: "Digit2", altKey: true })).toBe(true);
+    expect(useViewStore.getState().view).toBe("history");
+    // Outside a field it still switches.
+    fireEvent.keyDown(window, { key: "@", code: "Digit2", altKey: true });
+    expect(useViewStore.getState().view).toBe("changes");
+    input.remove();
+  });
+
   it("Ctrl+Shift+` toggles the sidebar rail, even from a text field", () => {
     window.innerWidth = 1280;
     renderHook(() => useShortcuts());
