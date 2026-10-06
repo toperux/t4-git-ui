@@ -364,6 +364,45 @@ describe("MenuItem submenu", () => {
     }
   });
 
+  // T22: the panel holding the focus unmounts under a hover, and the focus must not drop to <body>.
+  it("a hover that closes the focused panel hands the focus back to its row", () => {
+    vi.useFakeTimers();
+    try {
+      const { getByRole, queryByRole } = render(<SubHarness />);
+      const item = openMenu(getByRole);
+      fireEvent.pointerDown(item);
+      fireEvent.click(item);
+      expect(document.activeElement).toBe(getByRole("menuitem", { name: "Sixth" }));
+
+      const first = getByRole("menuitem", { name: "First" });
+      fireEvent.mouseOver(first);
+      act(() => vi.advanceTimersByTime(150));
+      expect(queryByRole("menu", { name: "More recent" })).toBeNull();
+      expect(document.activeElement).toBe(item);
+      fireEvent.keyDown(item, { key: "ArrowDown" });
+      expect(document.activeElement).toBe(first);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("the row a hover close hands the focus back to is marked when the last input was a key", () => {
+    vi.useFakeTimers();
+    try {
+      const { getByRole } = render(<SubHarness />);
+      const item = openMenu(getByRole);
+      fireEvent.keyDown(item, { key: "ArrowRight" });
+      expect(document.activeElement).toBe(getByRole("menuitem", { name: "Sixth" }));
+
+      fireEvent.mouseOver(getByRole("menuitem", { name: "First" }));
+      act(() => vi.advanceTimersByTime(150));
+      expect(document.activeElement).toBe(item);
+      expect(item.hasAttribute("data-kbd")).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("hover opens the panel after a grace, and only a settled hover on a sibling closes it", () => {
     vi.useFakeTimers();
     try {

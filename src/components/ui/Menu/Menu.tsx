@@ -243,7 +243,14 @@ export function Menu({ open, onClose, anchor, label, children, align = "right", 
       },
       hover: (id) => {
         keepOpen();
-        grace.current = window.setTimeout(() => setOpenSub(id), SUBMENU_HOVER_MS);
+        grace.current = window.setTimeout(() => {
+          // Closing the panel the focus is in would drop it to <body>, where no key reaches the menu:
+          // hand it to the panel's row first, which is still open, so its `onFocus` changes nothing.
+          const panel = wrap.current?.querySelector('[role="menu"][aria-labelledby]');
+          const row = panel?.contains(document.activeElement) ? document.getElementById(panel.getAttribute("aria-labelledby")!) : null;
+          if (row && id !== openSub) focusItem(row, lastInputWasKey());
+          setOpenSub(id);
+        }, SUBMENU_HOVER_MS);
       },
     };
   }, [openSub, onClose]);
