@@ -579,4 +579,96 @@ describe("ContextMenu", () => {
       Reflect.deleteProperty(document, "elementFromPoint");
     }
   });
+
+  // T15: the row's native tooltip would cover the menu's top items.
+  it("strips the title of the row under the click point while open, and puts it back on close", () => {
+    const { getByTestId } = render(
+      <div data-testid="row" title="src/a.txt">
+        <span data-testid="name">a.txt</span>
+      </div>,
+    );
+    const name = getByTestId("name");
+    document.elementFromPoint = (() => name) as typeof document.elementFromPoint;
+    try {
+      const menu = (at: { x: number; y: number } | null) => (
+        <ContextMenu at={at} onClose={() => {}} label="File">
+          <MenuItem>Open</MenuItem>
+        </ContextMenu>
+      );
+      const { rerender } = render(menu({ x: 10, y: 10 }));
+      expect(getByTestId("row").hasAttribute("title")).toBe(false);
+      rerender(menu(null));
+      expect(getByTestId("row").getAttribute("title")).toBe("src/a.txt");
+    } finally {
+      Reflect.deleteProperty(document, "elementFromPoint");
+    }
+  });
+
+  it("doesn't put the title back on a row recycled for another item while the menu was open", () => {
+    // A grid row whose new commit's page hasn't loaded: React leaves it no title and no text yet.
+    const { getByTestId } = render(
+      <div data-testid="row" title="Ann <ann@x>">
+        <span data-testid="name">Ann</span>
+      </div>,
+    );
+    const name = getByTestId("name");
+    document.elementFromPoint = (() => name) as typeof document.elementFromPoint;
+    try {
+      const menu = (at: { x: number; y: number } | null) => (
+        <ContextMenu at={at} onClose={() => {}} label="Commit">
+          <MenuItem>Copy</MenuItem>
+        </ContextMenu>
+      );
+      const { rerender } = render(menu({ x: 10, y: 10 }));
+      name.textContent = "";
+      rerender(menu(null));
+      expect(getByTestId("row").hasAttribute("title")).toBe(false);
+    } finally {
+      Reflect.deleteProperty(document, "elementFromPoint");
+    }
+  });
+
+  it("puts the title back on the same item whose text ticked while the menu was open", () => {
+    // A branch row's ahead count after a fetch, a stash's "4m ago" turning "5m ago": same title prop.
+    const { getByTestId } = render(
+      <div data-testid="row" title="feature/a-long-branch-name">
+        <span data-testid="name">feature/a… ↑2</span>
+      </div>,
+    );
+    const name = getByTestId("name");
+    document.elementFromPoint = (() => name) as typeof document.elementFromPoint;
+    try {
+      const menu = (at: { x: number; y: number } | null) => (
+        <ContextMenu at={at} onClose={() => {}} label="Branch">
+          <MenuItem>Checkout</MenuItem>
+        </ContextMenu>
+      );
+      const { rerender } = render(menu({ x: 10, y: 10 }));
+      name.textContent = "feature/a… ↑3";
+      rerender(menu(null));
+      expect(getByTestId("row").getAttribute("title")).toBe("feature/a-long-branch-name");
+    } finally {
+      Reflect.deleteProperty(document, "elementFromPoint");
+    }
+  });
+
+  it("puts the title back on an element that never had text", () => {
+    // A blame gutter span past a hunk's first line: a title and nothing to read.
+    const { getByTestId } = render(<span data-testid="gutter" title="abc1234 Ann, 3 days ago" />);
+    const gutter = getByTestId("gutter");
+    document.elementFromPoint = (() => gutter) as typeof document.elementFromPoint;
+    try {
+      const menu = (at: { x: number; y: number } | null) => (
+        <ContextMenu at={at} onClose={() => {}} label="Blame">
+          <MenuItem>Select in graph</MenuItem>
+        </ContextMenu>
+      );
+      const { rerender } = render(menu({ x: 10, y: 10 }));
+      expect(gutter.hasAttribute("title")).toBe(false);
+      rerender(menu(null));
+      expect(gutter.getAttribute("title")).toBe("abc1234 Ann, 3 days ago");
+    } finally {
+      Reflect.deleteProperty(document, "elementFromPoint");
+    }
+  });
 });

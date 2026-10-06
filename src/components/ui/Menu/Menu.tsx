@@ -307,6 +307,22 @@ export function ContextMenu({ at, onClose, label, children }: ContextMenuProps) 
   useRestoreFocus(open);
   useMenuDismiss(open, onClose, menu, menu, anchor);
 
+  // The row's native tooltip, pending or shown at the click point, would sit over the menu's top items
+  // (and on Linux eat the first click on one): no `title` while the menu is open. Put back only if
+  // React set none meanwhile and the element hasn't emptied — a virtual row recycled for another item has
+  // its own title, or none and no text yet while its page loads. A count or date that ticked meanwhile
+  // is still the same item: its title comes back.
+  useEffect(() => {
+    const el = open ? anchor.current?.closest("[title]") : null;
+    if (!el) return;
+    const title = el.getAttribute("title")!;
+    const hadText = !!el.textContent;
+    el.removeAttribute("title");
+    return () => {
+      if (!el.hasAttribute("title") && (el.textContent || !hadText)) el.setAttribute("title", title);
+    };
+  }, [open]);
+
   // Clamp to the viewport once the menu has a size — and again when that size changes: a row focused
   // from the keyboard wraps (Menu.module.css), and at the window's bottom edge the taller menu would
   // put the very row being read below it.
