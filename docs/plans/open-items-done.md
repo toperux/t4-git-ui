@@ -1731,3 +1731,49 @@ this batch*, D18, D22, D25, D29, D30) and its change review triage (T2–T5) and
   regression.
 - **W2** A typed-but-unapplied History search query was dropped by a view switch, on the Mac (BP 12's walk);
   pre-existing? unknown.
+
+## AG. Added 2026-10-07 — checkout-remote-elsewhere: fixed and accepted, closed
+
+Ruled by the owner in the triage of the checkout-remote-elsewhere change (plan
+`docs/plans/2026-10-07-checkout-remote-elsewhere-plan.md`, its change reviews and the BQ walk,
+`docs/archive/walks/2026-10-07-bq-walk.md`). The rows below were accepted, with no reopen trigger on any of them; the
+ones fixed in the triage follow them.
+
+- **T4** With 2+ local branches tracking a remote ref, any one of them sitting at the commit drops the remote from
+  the Merge list (on `main` only the first match counted). The same commit stays mergeable under the local name;
+  follows D-multi.
+- **T6** (not a finding) The review read the dialog's focus return as possibly landing on a recycled grid row after
+  the ahead/behind await; `menu.el` is the grid itself on both paths (`RevisionGrid.tsx:64` right-click, `:140`
+  Shift+F10, whose handler is on the grid `<div>`), never a row.
+- **T9** `force` (`-B`) without a branch name is a silent no-op in both arg builders; documented, tested, and no
+  caller passes it.
+- **T10** The Tauri `checkout` command's `force: bool` is required while `ipc.checkout` defaults it; every call goes
+  through `ipc.checkout`, as with `track` and `detach`.
+- **T11** `actions.test.ts` mocks `ipc.resetBranch` only to assert the checkout action never calls it: a guard
+  against the old two-step move coming back.
+- **T16** A tracker held in another worktree can be offered before `linked` loads; git refuses it and nothing moves.
+  The existing *Reset `<branch>` to `<remote>`…* item behaves the same.
+- **T18** `--end-of-options` before the target is the same for `-B` as for the existing `-b`; older-git quirks
+  apply to both, and the walks' git 2.55 / 2.53 ran it.
+- **T20** The BQ fixture's commit dates differ between cases: on the Windows walk one row read "11m ago" among
+  "5m ago" rows. The cause is unknown; the script itself runs in seconds. No row depends on dates.
+- **R1** *Reset other local to <remote>…* opens the reset picker titled "Reset branch", as the plain *Reset
+  local…* does; unlike its checkout sibling (W5, now "Checkout other local branch"), the title never said
+  "local", so it doesn't contradict the item.
+
+**Fixed in the triage.** Code in `8944725` (T1, T5, T8, T14), `af99b76` (T1's follow-ups) and `439cf94` (W5, N1);
+the plan's own wording (T12, T13) in `63e4bb5`.
+- **T1** A move refuses if the branch moved since the counts were taken: "<branch> moved since you looked — try
+  again", and git never runs. Walked as BQ 7.
+- **T5** Several trackers beside a current one read "other local": *Reset other local to <remote>…* and *Checkout
+  other local…*. Walked as BQ 8.
+- **T8** The picker's confirm button reads "Checkout" on a fast-forward pick, not "Checkout and reset". Walked in BQ 5's
+  re-walk.
+- **T12** The plan named `ResetToRemote` for the candidates; the code uses `CheckoutToRemote`.
+- **T13** D1's reason was worded for the old two-step move (`git branch -f` then `git checkout`).
+- **T14** The `commitBranchActions` comment said the current tracker can be checked out; it gets the reset only.
+- **W5** The "other local" picker was titled "Checkout local branch"; it now reads "Checkout other local branch".
+  Seen on the BQ re-walk; unit-tested, not walked.
+- **N1** The moved-branch check's backend comment said the oid came "from the menu"; it now says "where the counts
+  were taken", which covers the picker too.
+

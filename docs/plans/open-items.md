@@ -522,6 +522,17 @@ phases that accepted them; each origin keeps a pointer.
   "clones" an empty repository, which the app opens. Measured on Windows; git's own behaviour; pre-existing.
   Accepted 2026-10-06 (the ssh-fail-fast triage, T11). **Reopen:** a report of an empty repository after a local
   clone.
+- **The *Checkout local…* picker blanks every option's counts when one comparison fails.** It fetches every
+  candidate's ahead/behind in one `Promise.all` with an empty `catch` (`OpsDialogs.tsx`, `CheckoutLocalDialog`), so
+  one failed walk (a missing or corrupt object) leaves every option as a plain name with the general warning and a
+  danger button, and no message says why. Fails safe; unmeasured how often a walk fails. Accepted 2026-10-07 (the
+  checkout-remote-elsewhere triage, T2). **Reopen:** a picker shows blank counts in real use, or any comparison
+  failure is reported.
+- **The *Checkout local…* picker starts every candidate's comparison at once.** Each opens its own repository
+  handle (~100 ms cold, per the comment at `repo.rs:219-220`), so 50 trackers of one remote means 50 opens together
+  and counts that may lag; until they land, plain names and a danger button. Not measured at that size; 50 trackers
+  of one remote is a pathological setup. Accepted 2026-10-07 (the checkout-remote-elsewhere triage, T3).
+  **Reopen:** a real repository with enough trackers of one remote that the counts lag visibly.
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review, deferred
 
@@ -697,6 +708,30 @@ record), each with a reopen trigger.
   would leave a broken AppImage needing a fresh download. Measured once; that this is `tauri-plugin-updater`'s own
   install path, not the harness, is inferred. **Reopen:** a broken AppImage reported, or the updater gains an
   atomic replace.
+
+## AG. Added 2026-10-07 — checkout-remote-elsewhere, deferred
+
+Deferred in the triage of the checkout-remote-elsewhere change (plan
+`docs/plans/2026-10-07-checkout-remote-elsewhere-plan.md`, its change reviews and the BQ walk,
+`docs/archive/walks/2026-10-07-bq-walk.md`). All four are pre-existing and app-wide, not caused by the change.
+
+- **T7: a failed op's toast cuts git's error at its colon.** With an `error:` line, the toast carries that line alone
+  (`crates/git-core/src/cli/ops.rs:749-750`), so "would be overwritten by checkout:" never names the file or gives
+  git's "commit or stash" advice; the output dock has them. Seen on both BQ 6 walks; every op hitting that refusal
+  (checkout, merge, pull, cherry-pick) shows it. Idea: when the `error:` line ends with ":", append the indented
+  lines after it (a few file names). **Reopen:** a user finds the cut-off toast confusing, or the next pass over
+  error wording.
+- **T15: a checkout during a resolved-but-uncommitted merge quietly abandons it.** The commit menu's checkout items
+  block only mid-rebase / mid-bisect; mid-merge, `git checkout` succeeds and drops `MERGE_HEAD` (the resolved files
+  stay in the tree). The plain *Checkout `<branch>`* item already did this; not walked. **Reopen:** someone loses a
+  merge this way.
+- **T17: a dialog left open across a repo switch acts on the new repo.** Every dialog reads the open repo when it
+  confirms, not when it opened; usually the branch name doesn't exist there and git fails, but with a matching name
+  and commit it would act on the wrong repo. Reasoned from the code, not observed. Idea: bind each dialog to its
+  repo, or close dialogs on a switch. **Reopen:** any report of an action hitting the wrong repo.
+- **T19: the status bar shows "Clean" next to "1 unstaged".** Seen on the Linux BQ 6 walk with `shared.txt` edited;
+  "Clean" likely means no operation in progress, not a clean tree (not checked). **Reopen:** the next status-bar
+  change, or anyone finds it confusing.
 
 ## Order
 
