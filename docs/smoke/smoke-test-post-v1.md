@@ -2965,6 +2965,70 @@ manager: openbox*). The Mac and Linux walks need `fix-batch` pushed as a side br
       (IBus/fcitx untested — no input method under Xvfb). The Mac: Option+2 in the box keeps typing "™", no view
       switch; outside a field it still switches. `docs/archive/walks/2026-10-06-bp-walk.md`.)*
 
+## BQ. Checkout a remote branch whose local tracker sits elsewhere
+
+Plan: `docs/plans/2026-10-07-checkout-remote-elsewhere-plan.md` (D1–D4, D-multi, E1–E4). Fixture:
+`docs/smoke/fixtures/bq-fixture.sh` (`T4_ROOT=/tmp/t4` on Linux) builds `bq`, one local branch per case, each
+tracking its own `origin/<case>` from elsewhere, each case on its own file. Open `bq`; every row right-clicks the
+History row of the commit carrying `origin/<case>` — the row, not the chip: once a case is checked out its chip
+merges into "<case> (synced with origin/<case>)". Check outcomes in git (`git -C <fixture>/bq branch -vv`,
+`rev-parse`, `branch --show-current`), not the UI's word. Windows over CDP on a local `tauri build --no-bundle`
+of `checkout-remote-elsewhere` (`docs/smoke/smoke-cdp.md`, store backed up and restored); Linux under Xvfb
+(`docs/smoke/smoke-linux.md`).
+
+- [x] 1. **Behind → a silent fast-forward:** `origin/behind`'s commit → the menu has *Checkout behind* and *Reset
+      behind to origin/behind…*; *Checkout behind* → no dialog, a "Checked out behind at <short>" toast; `behind`
+      now equals `origin/behind`, HEAD is `behind`, upstream still `origin/behind`. *(Walked 2026-10-07 of
+      `201f136` on Windows (CDP) and Linux (Xvfb, XTEST): no dialog, the toast, `git checkout -B behind` in the
+      dock; git agrees, upstream kept. Re-walked the same day of `3784d36` (with the moved-branch check) on both:
+      same result. `docs/archive/walks/2026-10-07-bq-walk.md`.)*
+- [x] 2. **Ahead → asks first:** `origin/ahead`'s commit → *Checkout ahead* → a dialog saying `ahead` is 2 commits
+      ahead and they stay reachable only through the reflog, a danger *Checkout and reset*, preview
+      `git checkout -B ahead --end-of-options <oid>`. Cancel → nothing moved. Again, confirm → `ahead` at
+      `origin/ahead`, HEAD `ahead`, the 2 commits in `git reflog ahead`. *(Walked 2026-10-07 of `201f136` on
+      Windows and Linux: the dialog text, danger button and preview as written; Cancel moved nothing; confirm →
+      git agrees, the 2 commits at `ahead@{1}`. `docs/archive/walks/2026-10-07-bq-walk.md`.)*
+- [x] 3. **Diverged → both counts:** `origin/diverged`'s commit → *Checkout diverged* → the dialog names 2 commits
+      only on `diverged` and 3 only on `origin/diverged`; confirm → `diverged` at `origin/diverged`, HEAD
+      `diverged`. *(Walked 2026-10-07 of `201f136` on Windows and Linux: both counts named, danger button; git
+      agrees. `docs/archive/walks/2026-10-07-bq-walk.md`.)*
+- [x] 4. **Held in another worktree → not offered:** `origin/held`'s commit → no *Checkout held* and no *Reset
+      held to origin/held…* (`held` is checked out in `bq-held`); `held` unmoved. *(Walked 2026-10-07 of
+      `201f136` on Windows and Linux: neither item in the menu; `held` unmoved, still in `bq-held`.
+      `docs/archive/walks/2026-10-07-bq-walk.md`.)*
+- [x] 5. **Two trackers → the pickers:** `origin/multi`'s commit → *Checkout local…* and *Reset local to origin/multi…*,
+      no row naming `multi-a` or `multi-b`. *Checkout local…* → no branch picked, the button disabled; options read
+      `multi-a — behind 1` and `multi-b — diverged 1·2`; picking `multi-a` → the button is primary and reads *Checkout*,
+      `multi-b` → danger, *Checkout and reset*; confirm `multi-b` → `multi-b` at `origin/multi`, HEAD `multi-b`,
+      `multi-a` unmoved. Then `git checkout main` and `git branch -f multi-b 'multi-b@{1}'` (quoted for PowerShell; the
+      confirm made `multi-b` a branch here, so the reset item names `multi-a` alone until it's moved back); *Reset local
+      to origin/multi…* opens the reset picker with both branches (Cancel). *(Walked 2026-10-07 of `201f136`, then
+      re-walked of `3784d36` for the button label, on Windows and Linux: labels, options and button variants as written,
+      *Checkout* on the `multi-a` pick; only `multi-b` moved; the reset picker lists both, Cancel moves nothing.
+      `docs/archive/walks/2026-10-07-bq-walk.md`.)*
+- [x] 6. **A refused checkout leaves the branch put:** `git -C <fixture>/bq checkout main`, then
+      `echo edit > <fixture>/bq/shared.txt`; `origin/dirty`'s commit → *Checkout dirty* (a fast-forward, so no
+      dialog) → an error toast quoting git's "would be overwritten"; `dirty` still on `main`'s commit, HEAD still
+      `main`, `shared.txt` still reads `edit`. *(Walked 2026-10-07 of `201f136` on Windows and Linux: the toast,
+      git's full refusal in the dock, exit 1; `dirty`, HEAD and `shared.txt` unchanged. Re-walked of `3784d36` on
+      both: same result. `docs/archive/walks/2026-10-07-bq-walk.md`.)*
+- [x] 7. **A branch moved while the menu is open → never moved blind:** `origin/racer`'s commit → open the menu,
+      then move the branch from outside and click *Checkout racer* at once — scripted, the click within ~0.1 s of
+      `git -C <fixture>/bq branch -f racer racer-next` (it was a fast-forward when the menu opened, so no dialog)
+      → an error toast "racer moved since you looked — try again", no `git checkout` in the dock; `racer` still at
+      `racer-next`, HEAD unchanged. At human speed (~1 s) the file watcher refreshes the open menu first, so the
+      click compares the new position and opens the confirm dialog instead (1 commit only on `racer`) — also a
+      pass; Cancel. Either way, reopen the menu → *Checkout racer* opens that dialog. *(Walked 2026-10-07 of
+      `3784d36` on Windows and Linux: a ~1 s / ~0.3 s click got the confirm dialog (the watcher had refreshed the
+      menu); a back-to-back move and click got the refusal toast, no `git checkout` in the dock, `racer` at
+      `racer-next`, HEAD unchanged; reopened → the dialog. `docs/archive/walks/2026-10-07-bq-walk.md`.)*
+- [x] 8. **The current branch plus two other trackers → "other local":** `git -C <fixture>/bq checkout trio`;
+      `origin/trio`'s commit → *Reset trio to origin/trio…*, *Reset other local to origin/trio…* and *Checkout
+      other local…*; *Checkout other local…* lists `trio-b — behind 2` and `trio-c — diverged 1·2`, not `trio`
+      (Cancel); *Reset other local to origin/trio…* lists `trio-b` and `trio-c` (Cancel). Nothing moved.
+      *(Walked 2026-10-07 of `3784d36` on Windows and Linux: the three items, both pickers as written; nothing
+      moved. `docs/archive/walks/2026-10-07-bq-walk.md`.)*
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the
