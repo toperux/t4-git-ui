@@ -1,11 +1,14 @@
 // Static render check: chips lead the row, HEAD chip before the branch chip, before the subject.
-import { cleanup, fireEvent, render, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as ipc from "../../../api/ipc";
 import type { Branch, LogRow, RefsSnapshot } from "../../../api/types";
+import { checkoutAndResetBranch } from "../actions";
 import { useDialogStore } from "../../../store/dialogStore";
 import { useOpsStore } from "../../../store/opsStore";
 import { __resetForTests as resetRepo, lastTopRow, noteTopRow, useRepoStore } from "../../../store/repoStore";
 import { __resetForTests as resetStatus, useStatusStore } from "../../../store/statusStore";
+import { useToastStore } from "../../../store/toastStore";
 import { useViewStore } from "../../../store/viewStore";
 import { RevisionGrid } from "./RevisionGrid";
 
@@ -15,8 +18,12 @@ vi.mock("../../../api/ipc", () => ({
   // The row menus reach `actions`, which reaches `commitStore`: a repo state of "merge" prefills the
   // editor from git's own message, and that asks for it.
   getMergeMessage: vi.fn(() => Promise.resolve(null)),
+  aheadBehind: vi.fn(),
   toAppError: (e: unknown) => ({ kind: "unknown", message: String(e) }),
 }));
+
+// The fast-forward path runs the op straight away: only that it was asked for matters here.
+vi.mock("../actions", async (importOriginal) => ({ ...(await importOriginal<typeof import("../actions")>()), checkoutAndResetBranch: vi.fn() }));
 
 // jsdom has no layout: give the virtualizer a viewport so it renders rows.
 vi.mock("@tanstack/react-virtual", async (importOriginal) => {
@@ -322,6 +329,7 @@ describe("RevisionGrid", () => {
       "Rebase main onto feature…",
       "Reset main to origin/main…",
       "Reset stale to origin/renamed…",
+      "Checkout stale",
       "Cherry-pick oid1…",
       "Revert oid1…",
       "Bisect: mark good",
@@ -457,6 +465,84 @@ describe("RevisionGrid", () => {
     fireEvent.contextMenu(rows[2]);
     expect(pick("Reset feature to here…")).toEqual({ kind: "resetBranch", branches: ["feature"], target: "oid2" });
     useDialogStore.setState({ dialog: null, returnFocus: null });
+  });
+
+  it("checks out a remote branch's tracker from elsewhere: silent on a fast-forward, asks otherwise, picks among several", async () => {
+    withRefs();
+    useDialogStore.setState({ dialog: null, returnFocus: null });
+    vi.mocked(checkoutAndResetBranch).mockClear();
+    const { container, getByRole } = render(<RevisionGrid />);
+    const rows = container.querySelectorAll(ROWS);
+    const click = (name: string) => fireEvent.click(getByRole("menuitem", { name }));
+
+    // `stale` tracks `origin/renamed` (at oid1) from oid0: strictly behind → no dialog, the op just runs.
+    vi.mocked(ipc.aheadBehind).mockResolvedValueOnce({ ahead: 0, behind: 3 });
+    fireEvent.contextMenu(rows[1]);
+    click("Checkout stale");
+    // Where the counts were taken from goes along: the backend refuses if `stale` moved since.
+    await waitFor(() => expect(checkoutAndResetBranch).toHaveBeenCalledWith("stale", "oid1", "oid0"));
+    expect(ipc.aheadBehind).toHaveBeenLastCalledWith("r", "oid0", "oid1");
+    expect(useDialogStore.getState().dialog).toBeNull();
+
+    // Ahead of it (or diverged): the move loses commits, so it asks.
+    vi.mocked(ipc.aheadBehind).mockResolvedValueOnce({ ahead: 2, behind: 1 });
+    fireEvent.contextMenu(rows[1]);
+    click("Checkout stale");
+    await waitFor(() => expect(useDialogStore.getState().dialog).toEqual({ kind: "checkoutReset", branch: "stale", remote: "origin/renamed", target: "oid1", localOid: "oid0", ahead: 2, behind: 1 }));
+    expect(checkoutAndResetBranch).toHaveBeenCalledTimes(1);
+
+    // Two trackers: the generic item, and the picker gets both with where each sits.
+    useDialogStore.setState({ dialog: null, returnFocus: null });
+    useRepoStore.setState({ refs: { ...REFS, local: [...REFS.local, branch("stale2", "oid2", { upstream: "origin/renamed" })] } });
+    fireEvent.contextMenu(rows[1]);
+    click("Checkout local…");
+    expect(useDialogStore.getState().dialog).toEqual({
+      kind: "checkoutLocal",
+      remote: "origin/renamed",
+      target: "oid1",
+      candidates: [
+        { branch: "stale", localOid: "oid0" },
+        { branch: "stale2", localOid: "oid2" },
+      ],
+      other: false,
+    });
+    // The reset item beside it follows the same rule: generic, and the dialog picks among both.
+    fireEvent.contextMenu(rows[1]);
+    click("Reset local to origin/renamed…");
+    expect(useDialogStore.getState().dialog).toEqual({ kind: "resetBranch", branches: ["stale", "stale2"], target: "origin/renamed" });
+
+    // `main` (current) and `main2` both track `origin/main`: two reset rows, one checkout row.
+    useRepoStore.setState({ refs: { ...REFS, local: [...REFS.local, branch("main2", "oid2", { upstream: "origin/main" })] } });
+    fireEvent.contextMenu(rows[1]);
+    const items = within(getByRole("menu", { name: "Commit actions" }))
+      .getAllByRole("menuitem")
+      .map((el) => el.textContent);
+    expect(items.filter((t) => t?.includes("origin/main") || t === "Checkout main2")).toEqual(["Reset main to origin/main…", "Reset main2 to origin/main…", "Checkout main2"]);
+
+    // Two more beside the current one: the generic rows say "other local", title included.
+    useRepoStore.setState({ refs: { ...REFS, local: [...REFS.local, branch("main2", "oid2", { upstream: "origin/main" }), branch("main3", "oid0", { upstream: "origin/main" })] } });
+    fireEvent.contextMenu(rows[1]);
+    const menu = within(getByRole("menu", { name: "Commit actions" }));
+    expect(menu.getAllByRole("menuitem").map((el) => el.textContent).filter((t) => t?.includes("origin/main") || t?.startsWith("Checkout other"))).toEqual(["Reset main to origin/main…", "Reset other local to origin/main…", "Checkout other local…"]);
+    expect(menu.getByRole("menuitem", { name: "Reset other local to origin/main…" }).getAttribute("title")).toBe("Reset other local to origin/main");
+    // The picker it opens says "other" too.
+    fireEvent.click(menu.getByRole("menuitem", { name: "Checkout other local…" }));
+    expect(useDialogStore.getState().dialog).toMatchObject({ kind: "checkoutLocal", remote: "origin/main", other: true });
+    useDialogStore.setState({ dialog: null, returnFocus: null });
+  });
+
+  it("a failed ahead/behind check toasts the error and neither moves nor asks", async () => {
+    withRefs();
+    useDialogStore.setState({ dialog: null, returnFocus: null });
+    useToastStore.setState({ toasts: [] });
+    vi.mocked(checkoutAndResetBranch).mockClear();
+    const { container, getByRole } = render(<RevisionGrid />);
+    vi.mocked(ipc.aheadBehind).mockRejectedValueOnce("walk failed");
+    fireEvent.contextMenu(container.querySelectorAll(ROWS)[1]);
+    fireEvent.click(getByRole("menuitem", { name: "Checkout stale" }));
+    await waitFor(() => expect(useToastStore.getState().toasts).toEqual([expect.objectContaining({ kind: "error", title: "Couldn't compare stale with origin/renamed", detail: "walk failed" })]));
+    expect(checkoutAndResetBranch).not.toHaveBeenCalled();
+    expect(useDialogStore.getState().dialog).toBeNull();
   });
 
   it("offers the interactive rebase wherever the commit has a parent — HEAD's own included, never on a root commit or mid-rebase", () => {

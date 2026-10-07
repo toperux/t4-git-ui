@@ -1,7 +1,7 @@
 // Push / Pull / Fetch / Merge / Rebase — the dialogs that drive a streaming remote or history op.
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as ipc from "../../../api/ipc";
-import type { FfMode, PullMode, ResetMode } from "../../../api/types";
+import type { AheadBehind, FfMode, PullMode, ResetMode } from "../../../api/types";
 import { Button } from "../../../components/ui/Button/Button";
 import { Checkbox } from "../../../components/ui/Checkbox/Checkbox";
 import { Dialog, DialogText, Field, FieldRow, Mono, Options } from "../../../components/ui/Dialog/Dialog";
@@ -10,8 +10,8 @@ import { useCommitStore } from "../../../store/commitStore";
 import { useDialogStore } from "../../../store/dialogStore";
 import { runOp } from "../../../store/opsStore";
 import { useRepoStore } from "../../../store/repoStore";
-import { currentBranch, defaultRemote } from "../actions";
-import { cherryPickArgs, fetchArgs, gitCmd, mergeArgs, pullArgs, pushArgs, rebaseArgs, rebaseInteractiveArgs, resetArgs, resetBranchArgs, revertArgs } from "./gitArgs";
+import { checkoutAndResetBranch, currentBranch, defaultRemote } from "../actions";
+import { checkoutArgs, cherryPickArgs, fetchArgs, gitCmd, mergeArgs, pullArgs, pushArgs, rebaseArgs, rebaseInteractiveArgs, resetArgs, resetBranchArgs, revertArgs } from "./gitArgs";
 
 /** Remote names of the open repo. */
 export function useRemotes() {
@@ -607,6 +607,131 @@ export function ResetBranchDialog({ onClose, branches, target }: { onClose: () =
           <Mono>{name}</Mono> reaches stay reachable only through the reflog.
         </DialogText>
       )}
+    </Dialog>
+  );
+}
+
+const commits = (n: number) => `${n} commit${n === 1 ? "" : "s"}`;
+
+const checkoutResetPreview = (branch: string, target: string) => gitCmd(checkoutArgs(target, branch, false, false, true));
+
+/** What checking `branch` out moved to `remote` does to it, by where it sits now; without the counts, the general warning. */
+function CheckoutResetText({ branch, remote, counts }: { branch: string; remote: string; counts?: AheadBehind }) {
+  const b = <Mono>{branch}</Mono>;
+  const r = <Mono>{remote}</Mono>;
+  if (!counts)
+    return (
+      <DialogText>
+        Moves {b} to {r} and checks it out. Commits only {b} reaches stay reachable only through the reflog.
+      </DialogText>
+    );
+  const { ahead, behind } = counts;
+  if (ahead === 0)
+    return (
+      <DialogText>
+        {b} is behind {r} by {commits(behind)}: checking it out here fast-forwards it.
+      </DialogText>
+    );
+  if (behind === 0)
+    return (
+      <DialogText>
+        {b} is ahead of {r} by {commits(ahead)}. Checking it out here moves it back to {r}; those commits stay reachable only through the reflog.
+      </DialogText>
+    );
+  return (
+    <DialogText>
+      {b} and {r} have diverged: {commits(ahead)} only on {b}, {behind} only on {r}. Checking it out here moves it to {r}; the {commits(ahead)}{" "}
+      {ahead === 1 ? "stays" : "stay"} reachable only through the reflog.
+    </DialogText>
+  );
+}
+
+/** Check out a local branch that tracks `remote` from elsewhere, moved to it (`git checkout -B`) — the move loses commits, so it asks. */
+export function CheckoutResetDialog({ onClose, branch, remote, target, localOid, ahead, behind }: { onClose: () => void; branch: string; remote: string; target: string; localOid: string } & AheadBehind) {
+  function submit() {
+    onClose();
+    void checkoutAndResetBranch(branch, target, localOid);
+  }
+
+  return (
+    <Dialog
+      title={`Checkout ${branch}`}
+      onClose={onClose}
+      onSubmit={submit}
+      preview={checkoutResetPreview(branch, target)}
+      footer={
+        <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="danger" type="submit">
+            Checkout and reset
+          </Button>
+        </>
+      }
+    >
+      <CheckoutResetText branch={branch} remote={remote} counts={{ ahead, behind }} />
+    </Dialog>
+  );
+}
+
+const whereLabel = (ab?: AheadBehind) => (!ab ? "" : ab.ahead === 0 ? ` — behind ${ab.behind}` : ab.behind === 0 ? ` — ahead ${ab.ahead}` : ` — diverged ${ab.ahead}·${ab.behind}`);
+
+/** Several local branches track `remote` from elsewhere: pick the one to check out, moved to it. */
+export function CheckoutLocalDialog({ onClose, remote, target, candidates, other = false }: { onClose: () => void; remote: string; target: string; candidates: { branch: string; localOid: string }[]; other?: boolean }) {
+  // No default pick: the move can lose commits, so it must not run on Enter against a branch nobody chose.
+  const [name, setName] = useState("");
+  const [counts, setCounts] = useState<Record<string, AheadBehind>>({});
+  // Every candidate's counts at once on open: the list is short, and switching the pick never shows a
+  // line still waiting for its own. Unknown counts keep the plain names and the general warning.
+  useEffect(() => {
+    const repo = useRepoStore.getState().repo;
+    if (!repo) return;
+    let live = true;
+    void Promise.all(candidates.map((c) => ipc.aheadBehind(repo.id, c.localOid, target).then((ab) => [c.branch, ab] as const)))
+      .then((all) => {
+        if (live) setCounts(Object.fromEntries(all));
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [candidates, target]);
+  const picked = counts[name];
+
+  function submit() {
+    const c = candidates.find((x) => x.branch === name);
+    if (!c) return;
+    onClose();
+    void checkoutAndResetBranch(c.branch, target, c.localOid);
+  }
+
+  return (
+    <Dialog
+      title={other ? "Checkout other local branch" : "Checkout local branch"}
+      onClose={onClose}
+      onSubmit={submit}
+      preview={name ? checkoutResetPreview(name, target) : ""}
+      footer={
+        <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant={picked?.ahead === 0 ? "primary" : "danger"} type="submit" disabled={!name}>
+            {picked?.ahead === 0 ? "Checkout" : "Checkout and reset"}
+          </Button>
+        </>
+      }
+    >
+      <Field label="Branch">
+        <Select aria-label="Branch" value={name} onChange={(e) => setName(e.target.value)} autoFocus>
+          <option value="" disabled>
+            Pick a branch
+          </option>
+          {candidates.map((c) => (
+            <option key={c.branch} value={c.branch}>
+              {c.branch + whereLabel(counts[c.branch])}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      {name && <CheckoutResetText branch={name} remote={remote} counts={picked} />}
     </Dialog>
   );
 }

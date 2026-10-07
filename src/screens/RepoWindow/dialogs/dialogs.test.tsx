@@ -8,7 +8,7 @@ import { useRepoStore } from "../../../store/repoStore";
 import { useStatusStore } from "../../../store/statusStore";
 import { useToastStore } from "../../../store/toastStore";
 import { DialogHost } from "./DialogHost";
-import { DeleteRemoteTagDialog, FetchDialog, MergeDialog, PickDialog, PullDialog, PushDialog, PushTagDialog, RebaseDialog, ResetBranchDialog, ResetDialog } from "./OpsDialogs";
+import { CheckoutLocalDialog, CheckoutResetDialog, DeleteRemoteTagDialog, FetchDialog, MergeDialog, PickDialog, PullDialog, PushDialog, PushTagDialog, RebaseDialog, ResetBranchDialog, ResetDialog } from "./OpsDialogs";
 import { RebaseInteractiveDialog } from "./RebaseInteractiveDialog";
 import { CheckoutBranchDialog, CheckoutDialog, CreateBranchDialog, CreateTagDialog, DeleteRemoteBranchDialog, DeleteTagDialog } from "./RefDialogs";
 import { AddRemoteDialog, RemoveRemoteDialog, RenameRemoteDialog, SetRemoteUrlDialog } from "./RemoteDialogs";
@@ -51,6 +51,7 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
     getStatus: vi.fn(() => new Promise(() => {})),
     getRefs: vi.fn(() => new Promise(() => {})),
     getLinked: vi.fn(() => Promise.resolve(null)),
+    aheadBehind: vi.fn((_id: string, a: string) => Promise.resolve(a === "b" ? { ahead: 2, behind: 1 } : { ahead: 0, behind: 4 })),
   };
 });
 
@@ -248,6 +249,69 @@ describe("ResetBranchDialog", () => {
     expect(preview(dialog)).toBe(`git branch -f --end-of-options feature/lane-graph ${oid}`);
     fireEvent.click(getByRole("button", { name: "Reset" }));
     await waitFor(() => expect(mocked.resetBranch).toHaveBeenCalledWith("r", "feature/lane-graph", oid));
+  });
+});
+
+describe("CheckoutResetDialog / CheckoutLocalDialog", () => {
+  const oid = "deadbeefcafe0123456789abcdef0123456789ab";
+
+  it("says what a diverged move loses, then moves and checks out in one `git checkout -B`", async () => {
+    const { getByRole } = render(<CheckoutResetDialog onClose={() => {}} branch="feature/lane-graph" remote="origin/topic" target={oid} localOid="b" ahead={2} behind={1} />);
+    const dialog = getByRole("dialog", { name: "Checkout feature/lane-graph" });
+    expect(dialog.textContent).toContain("have diverged: 2 commits only on feature/lane-graph, 1 only on origin/topic");
+    expect(dialog.textContent).toContain("the 2 commits stay reachable only through the reflog");
+    expect(preview(dialog)).toBe(`git checkout -B feature/lane-graph --end-of-options ${oid}`);
+    fireEvent.click(getByRole("button", { name: "Checkout and reset" }));
+    // Where the counts were taken from goes along: the backend refuses if the branch moved since.
+    await waitFor(() => expect(mocked.checkout).toHaveBeenCalledWith("r", oid, "feature/lane-graph", false, false, true, "b"));
+    expect(mocked.resetBranch).not.toHaveBeenCalled();
+  });
+
+  it("names one lost commit in the singular", () => {
+    const { getByRole } = render(<CheckoutResetDialog onClose={() => {}} branch="topic" remote="origin/topic" target={oid} localOid="c" ahead={1} behind={1} />);
+    expect(getByRole("dialog", { name: "Checkout topic" }).textContent).toContain("the 1 commit stays reachable only through the reflog");
+  });
+
+  it("labels every candidate with where it sits, and waits for a pick", async () => {
+    const candidates = [
+      { branch: "feature/lane-graph", localOid: "b" },
+      { branch: "topic", localOid: "c" },
+    ];
+    const { getByRole, unmount } = render(<CheckoutLocalDialog onClose={() => {}} remote="origin/topic" target={oid} candidates={candidates} other />);
+    // Opened from "Checkout other local…": the title matches the item.
+    getByRole("dialog", { name: "Checkout other local branch" });
+    unmount();
+    render(<CheckoutLocalDialog onClose={() => {}} remote="origin/topic" target={oid} candidates={candidates} />);
+    const dialog = getByRole("dialog", { name: "Checkout local branch" });
+    expect((getByRole("button", { name: "Checkout and reset" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.submit(dialog);
+    expect(mocked.resetBranch).not.toHaveBeenCalled();
+    fireEvent.click(getByRole("combobox", { name: "Branch" }));
+    await waitFor(() => expect(getByRole("option", { name: "feature/lane-graph — diverged 2·1" })).toBeTruthy());
+    // A pick that loses commits is a danger "Checkout and reset"; a fast-forward is a plain "Checkout".
+    fireEvent.click(getByRole("option", { name: "feature/lane-graph — diverged 2·1" }));
+    expect(getByRole("button", { name: "Checkout and reset" }).className).toMatch(/_danger_/);
+    fireEvent.click(getByRole("combobox", { name: "Branch" }));
+    fireEvent.click(getByRole("option", { name: "topic — behind 4" }));
+    const button = getByRole("button", { name: "Checkout" });
+    expect(button.className).toMatch(/_primary_/);
+    expect(dialog.textContent).toContain("topic is behind origin/topic by 4 commits: checking it out here fast-forwards it.");
+    fireEvent.click(button);
+    // The pick's own oid goes along: the backend refuses if it moved since.
+    await waitFor(() => expect(mocked.checkout).toHaveBeenCalledWith("r", oid, "topic", false, false, true, "c"));
+    expect(mocked.resetBranch).not.toHaveBeenCalled();
+  });
+
+  it("without the counts, every pick is a danger action with the general warning", async () => {
+    // One per candidate: both are asked for at once.
+    vi.mocked(ipc.aheadBehind).mockRejectedValueOnce({ kind: "other", message: "walk failed" }).mockRejectedValueOnce({ kind: "other", message: "walk failed" });
+    const { getByRole } = render(<CheckoutLocalDialog onClose={() => {}} remote="origin/topic" target={oid} candidates={[{ branch: "topic", localOid: "c" }, { branch: "feature/lane-graph", localOid: "b" }]} />);
+    await waitFor(() => expect(ipc.aheadBehind).toHaveBeenCalledTimes(2));
+    fireEvent.click(getByRole("combobox", { name: "Branch" }));
+    // Plain names: nothing known about where they sit.
+    fireEvent.click(getByRole("option", { name: "topic" }));
+    expect(getByRole("button", { name: "Checkout and reset" }).className).toMatch(/_danger_/);
+    expect(getByRole("dialog", { name: "Checkout local branch" }).textContent).toContain("Moves topic to origin/topic and checks it out. Commits only topic reaches stay reachable only through the reflog.");
   });
 });
 

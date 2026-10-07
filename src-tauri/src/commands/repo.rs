@@ -245,6 +245,31 @@ pub async fn get_linked(
     .await
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AheadBehind {
+    pub ahead: usize,
+    pub behind: usize,
+}
+
+/// How far commit `a` is ahead of and behind commit `b`. A failed walk is an
+/// error, never `0/0`. Its own `Repository`, like [`get_refs`].
+#[tauri::command]
+pub async fn ahead_behind(
+    state: State<'_, AppState>,
+    id: RepoId,
+    a: String,
+    b: String,
+) -> Result<AheadBehind, AppError> {
+    let handle = state.repo(&id)?;
+    blocking(move || {
+        let repo = handle.open_private()?;
+        let (ahead, behind) = refs::ahead_behind(&repo, &a, &b)?;
+        Ok(AheadBehind { ahead, behind })
+    })
+    .await
+}
+
 #[tauri::command]
 pub async fn get_commit(
     state: State<'_, AppState>,

@@ -246,6 +246,12 @@ export interface RefsSnapshot {
   bisect?: BisectRefs | null;
 }
 
+/** `ahead_behind`: how far one commit is ahead of and behind another. */
+export interface AheadBehind {
+  ahead: number;
+  behind: number;
+}
+
 // --- linked.rs ---
 
 export interface Worktree {

@@ -1,6 +1,7 @@
 // Typed wrappers around Tauri `invoke`, one per Rust command. Every rejection is an `AppError`.
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  AheadBehind,
   AppError,
   Author,
   BisectTerm,
@@ -146,6 +147,9 @@ export const getRefs = (id: RepoId) => call<RefsSnapshot>("get_refs", { id });
 
 /** Linked worktrees and submodules — a repository open per row, so it is asked for separately from the refs. */
 export const getLinked = (id: RepoId) => call<LinkedSnapshot>("get_linked", { id });
+
+/** How far commit `a` is ahead of and behind commit `b`. */
+export const aheadBehind = (id: RepoId, a: string, b: string) => call<AheadBehind>("ahead_behind", { id, a, b });
 
 export const getCommit = (id: RepoId, oid: string) => call<CommitDetail>("get_commit", { id, oid });
 
@@ -372,9 +376,14 @@ export const bisectMark = (id: RepoId, term: BisectTerm, oid: string | null) => 
 /** `git bisect reset` — ends the bisect and checks the starting branch back out. */
 export const bisectReset = (id: RepoId) => call<OpResult>("bisect_reset", { id });
 
-/** `git checkout [--track] [-b <createBranch>] [--detach] <target>`; `track` only applies with `createBranch`, `detach` only without it. */
-export const checkout = (id: RepoId, target: string, createBranch: string | null, track: boolean, detach = false) =>
-  call<OpResult>("checkout", { id, target, createBranch, track, detach });
+/**
+ * `git checkout [--track] [-b|-B <createBranch>] [--detach] <target>`; `track` and `force` only apply with
+ * `createBranch`, `detach` only without it. `force` (`-B`) resets an existing branch as part of the
+ * checkout: it moves only if the checkout succeeds. `expect` (with `createBranch`) is the oid the branch was
+ * seen at: elsewhere now, or gone, rejects with kind `refused` and git never runs.
+ */
+export const checkout = (id: RepoId, target: string, createBranch: string | null, track: boolean, detach = false, force = false, expect: string | null = null) =>
+  call<OpResult>("checkout", { id, target, createBranch, track, detach, force, expect });
 
 /** `git reset (--soft | --mixed | --hard) <target>` — moves the current branch (or a detached HEAD). */
 export const reset = (id: RepoId, mode: ResetMode, target: string) => call<OpResult>("reset", { id, mode, target });

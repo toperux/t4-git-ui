@@ -5,7 +5,7 @@ import { useDialogStore, type DialogSpec } from "../../../store/dialogStore";
 import { SettingsDialog } from "../../SettingsDialog/SettingsDialog";
 import { CommitDialog } from "./CommitDialog";
 import { DiffDialog } from "./DiffDialog";
-import { DeleteRemoteTagDialog, FetchDialog, MergeDialog, PickDialog, PullDialog, PushDialog, PushTagDialog, RebaseDialog, ResetBranchDialog, ResetDialog } from "./OpsDialogs";
+import { CheckoutLocalDialog, CheckoutResetDialog, DeleteRemoteTagDialog, FetchDialog, MergeDialog, PickDialog, PullDialog, PushDialog, PushTagDialog, RebaseDialog, ResetBranchDialog, ResetDialog } from "./OpsDialogs";
 import { RebaseInteractiveDialog } from "./RebaseInteractiveDialog";
 import {
   CheckoutBranchDialog,
@@ -67,6 +67,10 @@ function renderDialog(dialog: DialogSpec, close: () => void): ReactNode {
       return <ResetDialog onClose={close} target={dialog.target} />;
     case "resetBranch":
       return <ResetBranchDialog onClose={close} branches={dialog.branches} target={dialog.target} />;
+    case "checkoutReset":
+      return <CheckoutResetDialog onClose={close} branch={dialog.branch} remote={dialog.remote} target={dialog.target} localOid={dialog.localOid} ahead={dialog.ahead} behind={dialog.behind} />;
+    case "checkoutLocal":
+      return <CheckoutLocalDialog onClose={close} remote={dialog.remote} target={dialog.target} candidates={dialog.candidates} other={dialog.other} />;
     case "checkoutBranch":
       return <CheckoutBranchDialog onClose={close} branches={dialog.branches} />;
     case "createBranch":

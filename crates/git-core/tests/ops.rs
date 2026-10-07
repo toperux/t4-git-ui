@@ -472,20 +472,111 @@ async fn checkout_creates_branch_and_detaches() {
     }
     let t = TempRepo::new();
     let a = t.commit(&[("f.txt", "1\n")], "A");
-    run_ok(&t, &ops::checkout("master", Some("topic"), false, false)).await;
+    run_ok(
+        &t,
+        &ops::checkout("master", Some("topic"), false, false, false),
+    )
+    .await;
     let h = refs::head_info(&t.repo).unwrap();
     assert_eq!((h.branch.as_deref(), h.detached), (Some("topic"), false));
     assert_eq!(ref_oid(&t, "refs/heads/topic"), Some(a));
 
-    run_ok(&t, &ops::checkout(&a.to_string(), None, false, true)).await;
+    run_ok(&t, &ops::checkout(&a.to_string(), None, false, true, false)).await;
     let h = refs::head_info(&t.repo).unwrap();
     assert_eq!((h.branch, h.detached), (None, true));
 
-    run_ok(&t, &ops::checkout("master", None, false, false)).await;
+    run_ok(&t, &ops::checkout("master", None, false, false, false)).await;
     assert_eq!(
         refs::head_info(&t.repo).unwrap().branch.as_deref(),
         Some("master")
     );
+}
+
+/// `checkout -B` on an existing branch: moves it and checks it out in one step, keeps its
+/// upstream, and leaves it where it was when the checkout is refused.
+#[tokio::test]
+async fn checkout_force_moves_an_existing_branch_only_if_the_checkout_succeeds() {
+    if !have_git() {
+        return;
+    }
+    let t = TempRepo::new();
+    let a = t.commit(&[("f.txt", "1\n")], "A");
+    let b = t.commit(&[("f.txt", "2\n")], "B");
+    t.branch("topic", a);
+    t.remote("origin");
+    t.reference("refs/remotes/origin/topic", a);
+    t.set_upstream("topic", "origin/topic");
+    let upstream = |t: &TempRepo| {
+        let cfg = t.repo.config().unwrap();
+        (
+            cfg.get_string("branch.topic.remote").ok(),
+            cfg.get_string("branch.topic.merge").ok(),
+        )
+    };
+    let tracked = (
+        Some("origin".to_string()),
+        Some("refs/heads/topic".to_string()),
+    );
+
+    // (a) moved and checked out; (b) the upstream survives.
+    let target = b.to_string();
+    run_ok(
+        &t,
+        &ops::checkout(&target, Some("topic"), false, false, true),
+    )
+    .await;
+    assert_eq!(ref_oid(&t, "refs/heads/topic"), Some(b));
+    assert_eq!(
+        refs::head_info(&t.repo).unwrap().branch.as_deref(),
+        Some("topic")
+    );
+    assert_eq!(upstream(&t), tracked);
+
+    // (c) a dirty file the switch would overwrite: refused, and the branch stays put.
+    run_ok(&t, &ops::checkout("master", None, false, false, false)).await;
+    t.write("f.txt", "dirty\n");
+    let target = a.to_string();
+    let (out, _) = run(
+        t.path(),
+        &ops::checkout(&target, Some("topic"), false, false, true),
+    )
+    .await;
+    assert_ne!(out.code, 0, "{}", out.stdout);
+    assert!(
+        out.stderr.contains("would be overwritten"),
+        "{}",
+        out.stderr
+    );
+    reload(&t);
+    assert_eq!(ref_oid(&t, "refs/heads/topic"), Some(b));
+    assert_eq!(
+        refs::head_info(&t.repo).unwrap().branch.as_deref(),
+        Some("master")
+    );
+    assert_eq!(upstream(&t), tracked);
+}
+
+/// The check the `checkout` command runs, under the op lock, before its `-B`: a branch still where
+/// the menu saw it passes; one moved since, or gone, is refused. The command's own ordering (check,
+/// then git) has no harness here; this covers the check alone.
+#[test]
+fn expect_branch_at_passes_a_branch_in_place_and_refuses_a_moved_or_missing_one() {
+    let t = TempRepo::new();
+    let a = t.commit(&[("f.txt", "1\n")], "A");
+    let b = t.commit(&[("f.txt", "2\n")], "B");
+    t.branch("topic", a);
+    let seen = a.to_string();
+    refs::expect_branch_at(&t.repo, "topic", &seen).expect("unmoved");
+
+    t.reference("refs/heads/topic", b);
+    match refs::expect_branch_at(&t.repo, "topic", &seen) {
+        Err(GitError::Refused(m)) => assert_eq!(m, "topic moved since you looked — try again"),
+        r => panic!("{r:?}"),
+    }
+    assert!(matches!(
+        refs::expect_branch_at(&t.repo, "gone", &seen),
+        Err(GitError::Refused(_))
+    ));
 }
 
 #[tokio::test]
@@ -690,14 +781,18 @@ async fn a_failing_post_checkout_reports_the_checkout_and_the_hook() {
     };
 
     // From a branch: the checkout happened.
-    let (out, _) = run(t.path(), &ops::checkout("side", None, false, false)).await;
+    let (out, _) = run(t.path(), &ops::checkout("side", None, false, false, false)).await;
     assert_eq!(failure(&out), failed, "{}", out.stderr);
     assert_eq!(t.repo.head().unwrap().shorthand().unwrap(), "side");
 
     // From a detached HEAD leaving a commit behind: git's warning comes first.
     t.detach(a);
     t.commit(&[("g.txt", "g\n")], "left behind");
-    let (out, _) = run(t.path(), &ops::checkout("master", None, false, false)).await;
+    let (out, _) = run(
+        t.path(),
+        &ops::checkout("master", None, false, false, false),
+    )
+    .await;
     assert!(
         out.stderr.contains("leaving 1 commit behind"),
         "{}",
@@ -728,7 +823,7 @@ async fn a_failing_post_checkout_reports_the_checkout_and_the_hook() {
 
     // A silent hook: no detail to add.
     t.hook("post-checkout", "exit 1\n");
-    let (out, _) = run(t.path(), &ops::checkout("side", None, false, false)).await;
+    let (out, _) = run(t.path(), &ops::checkout("side", None, false, false, false)).await;
     assert_eq!(
         failure(&out),
         OpFailure::Other {

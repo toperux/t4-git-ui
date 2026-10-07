@@ -29,6 +29,10 @@ export type DialogSpec =
   | { kind: "reset"; target: string }
   /** Move a branch that is not checked out to `target` (`git branch -f`); one `branches` entry is the branch, several hand the pick to the dialog. */
   | { kind: "resetBranch"; branches: string[]; target: string }
+  /** Check out `branch` (it tracks `remote`, sitting elsewhere) moved to commit `target`; the move is not a fast-forward. */
+  | { kind: "checkoutReset"; branch: string; remote: string; target: string; localOid: string; ahead: number; behind: number }
+  /** Same, with several local branches tracking `remote`: pick the one to check out. */
+  | { kind: "checkoutLocal"; remote: string; target: string; candidates: { branch: string; localOid: string }[]; other?: boolean }
   /** `startPoint` = ref name / oid preselected as the start point (default HEAD). */
   | { kind: "createBranch"; startPoint?: string }
   | { kind: "deleteBranch"; name: string }

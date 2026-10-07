@@ -9,7 +9,7 @@ import { useRepoStore } from "../../store/repoStore";
 import { useToastStore } from "../../store/toastStore";
 import { useTabsStore } from "../../store/tabsStore";
 import { useViewStore } from "../../store/viewStore";
-import { blameAt, busyLabel, checkoutTag, closeTab, pickAndOpenRepo, runGit, showHistory, stashDrop, switchRepo } from "./actions";
+import { blameAt, busyLabel, checkoutAndResetBranch, checkoutTag, closeTab, pickAndOpenRepo, runGit, showHistory, stashDrop, switchRepo } from "./actions";
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(() => Promise.resolve("/elsewhere")), ask: vi.fn(() => Promise.resolve(true)) }));
 vi.mock("@tauri-apps/plugin-clipboard-manager", () => ({ writeText: vi.fn() }));
@@ -19,6 +19,7 @@ vi.mock("../../api/ipc", async (importOriginal) => {
     ...actual,
     runGit: vi.fn(),
     checkout: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
+    resetBranch: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     stashDrop: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     // `runOp`'s trailing refresh / syncRefs must never resolve, or they'd race the assertions.
     getStatus: vi.fn(() => new Promise(() => {})),
@@ -30,7 +31,7 @@ vi.mock("../../api/ipc", async (importOriginal) => {
 import { ask, open as openFolder } from "@tauri-apps/plugin-dialog";
 import * as ipc from "../../api/ipc";
 
-const mocked = ipc as unknown as Record<"runGit" | "checkout" | "stashDrop", ReturnType<typeof vi.fn>>;
+const mocked = ipc as unknown as Record<"runGit" | "checkout" | "resetBranch" | "stashDrop", ReturnType<typeof vi.fn>>;
 const asked = ask as unknown as ReturnType<typeof vi.fn>;
 const openTab = vi.fn(() => Promise.resolve());
 const closeTabStore = vi.fn(() => Promise.resolve());
@@ -155,6 +156,19 @@ describe("checkoutTag", () => {
     await checkoutTag("v1.0");
     expect(mocked.checkout).toHaveBeenCalledWith("r", "refs/tags/v1.0", null, false, true);
     expect(toasts().map((t) => t.title)).toContain("Checked out v1.0 (detached)");
+  });
+});
+
+describe("checkoutAndResetBranch", () => {
+  it("moves and checks out in one `git checkout -B`: a failed checkout leaves the branch where it was", async () => {
+    const oid = "deadbeefcafe0123456789abcdef0123456789ab";
+    const seen = "0123456789abcdef0123456789abcdef01234567";
+    await checkoutAndResetBranch("topic", oid, seen);
+    expect(mocked.checkout).toHaveBeenCalledTimes(1);
+    // Where the branch was seen goes along: the backend refuses if it moved since.
+    expect(mocked.checkout).toHaveBeenCalledWith("r", oid, "topic", false, false, true, seen);
+    expect(mocked.resetBranch).not.toHaveBeenCalled();
+    expect(toasts().map((t) => t.title)).toContain("Checked out topic at deadbee");
   });
 });
 

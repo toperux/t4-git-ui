@@ -211,6 +211,7 @@ pub fn run() {
             commands::repo::close_repo,
             commands::repo::get_refs,
             commands::repo::get_linked,
+            commands::repo::ahead_behind,
             commands::repo::get_commit,
             commands::repo::start_log,
             commands::repo::get_log_page,

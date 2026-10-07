@@ -32,6 +32,7 @@ describe("gitArgs (preview line)", () => {
       "git merge --ff --squash -m 'Merge branch '\\''feat'\\'' into main' --end-of-options feat",
     );
     expect(checkoutArgs("origin/x", "x", true)).toEqual(["checkout", "--track", "-b", "x", "--end-of-options", "origin/x"]);
+    expect(checkoutArgs("abc1234", "x", false, false, true)).toEqual(["checkout", "-B", "x", "--end-of-options", "abc1234"]);
     expect(checkoutArgs("main", null, true)).toEqual(["checkout", "--end-of-options", "main"]);
     expect(checkoutArgs("refs/tags/v1", null, false, true)).toEqual([
       "checkout",

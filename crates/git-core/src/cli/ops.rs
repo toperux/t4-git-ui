@@ -328,21 +328,24 @@ pub fn bisect_reset() -> Vec<String> {
     args(["bisect", "reset"])
 }
 
-/// `checkout [--track] [-b <name>] [--detach] --end-of-options <target>`; `track` only applies
-/// with `-b`, `detach` only without it. Without `--detach` a name that is both
-/// a tag and a branch resolves to the branch, leaving HEAD attached.
+/// `checkout [--track] [-b|-B <name>] [--detach] --end-of-options <target>`; `track` and
+/// `force` only apply with a branch name, `detach` only without it. `force` (`-B`) resets an
+/// existing branch to `target` as part of the checkout: the branch moves only if the checkout
+/// succeeds. Without `--detach` a name that is both a tag and a branch resolves to the branch,
+/// leaving HEAD attached.
 pub fn checkout(
     target: &str,
     create_branch: Option<&str>,
     track: bool,
     detach: bool,
+    force: bool,
 ) -> Vec<String> {
     let mut a = args(["checkout"]);
     if let Some(name) = create_branch {
         if track {
             a.push("--track".into());
         }
-        a.push("-b".into());
+        a.push(if force { "-B" } else { "-b" }.into());
         a.push(name.into());
     } else if detach {
         a.push("--detach".into());
@@ -1081,19 +1084,28 @@ mod tests {
     #[test]
     fn checkout_and_branch_args() {
         assert_eq!(
-            checkout("main", None, true, false),
+            checkout("main", None, true, false, false),
             ["checkout", "--end-of-options", "main"]
         );
         assert_eq!(
-            checkout("v1.0", None, false, true),
+            checkout("v1.0", None, false, true, false),
             ["checkout", "--detach", "--end-of-options", "v1.0"]
         );
         assert_eq!(
-            checkout("origin/x", Some("x"), false, false),
+            checkout("origin/x", Some("x"), false, false, false),
             ["checkout", "-b", "x", "--end-of-options", "origin/x"]
         );
         assert_eq!(
-            checkout("origin/x", Some("x"), true, false),
+            checkout("abc1234", Some("x"), false, false, true),
+            ["checkout", "-B", "x", "--end-of-options", "abc1234"]
+        );
+        // `force` without a branch name has nothing to reset.
+        assert_eq!(
+            checkout("main", None, false, false, true),
+            ["checkout", "--end-of-options", "main"]
+        );
+        assert_eq!(
+            checkout("origin/x", Some("x"), true, false, false),
             [
                 "checkout",
                 "--track",
@@ -1105,7 +1117,7 @@ mod tests {
         );
         // `-b` wins: git refuses the two together.
         assert_eq!(
-            checkout("origin/x", Some("x"), false, true),
+            checkout("origin/x", Some("x"), false, true, false),
             ["checkout", "-b", "x", "--end-of-options", "origin/x"]
         );
         assert_eq!(

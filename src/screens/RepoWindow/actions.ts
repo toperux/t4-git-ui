@@ -58,6 +58,16 @@ export function checkoutRemoteBranch(rb: RemoteBranch, remote: string) {
   return runOp(`Checking out ${local}…`, (id) => ipc.checkout(id, rb.name, local, true), { success: `Checked out ${local} (tracking ${rb.name})` });
 }
 
+/**
+ * Moves a branch that is not checked out to commit `target` and checks it out, in one `git checkout -B`:
+ * a failed checkout leaves the branch where it was. `expect` is where the branch was seen: one moved
+ * since is refused rather than carried off.
+ */
+export const checkoutAndResetBranch = (branch: string, target: string, expect: string) =>
+  runOp(`Checking out ${branch}…`, (id) => ipc.checkout(id, target, branch, false, false, true, expect), {
+    success: `Checked out ${branch} at ${target.slice(0, 7)}`,
+  });
+
 /** Tag or commit → detached HEAD. */
 export const checkoutDetached = (target: string, label = target) =>
   runOp(`Checking out ${label}…`, (id) => ipc.checkout(id, target, null, false, true), { success: `Checked out ${label} (detached)` });

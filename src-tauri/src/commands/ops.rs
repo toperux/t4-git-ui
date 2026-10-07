@@ -670,6 +670,7 @@ pub async fn bisect_reset(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn checkout(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -678,14 +679,28 @@ pub async fn checkout(
     create_branch: Option<String>,
     track: bool,
     detach: bool,
+    force: bool,
+    expect: Option<String>,
 ) -> Result<OpResult, AppError> {
     let args = gitops::checkout(
         ref_arg(&target)?,
         opt_ref(create_branch.as_deref())?,
         track,
         detach,
+        force,
     );
-    cli_op(&app, &state, &id, args, false).await
+    let app = &app;
+    let state: &AppState = &state;
+    mutate(app, state, &id, ALL_KINDS, |handle| async move {
+        // `-B` with the branch's oid where the counts were taken: it moves only if nothing moved it
+        // since, checked under the op lock right before git runs.
+        if let (Some(oid), Some(branch)) = (expect, create_branch) {
+            let h = Arc::clone(&handle);
+            blocking(move || Ok(refs::expect_branch_at(&h.git2.lock(), &branch, &oid)?)).await?;
+        }
+        run_and_classify(app, state, handle, args, false).await
+    })
+    .await
 }
 
 /// `git reset (--soft | --mixed | --hard) <target>`: moves the current branch
@@ -808,7 +823,13 @@ pub async fn create_branch(
     checkout: bool,
 ) -> Result<(), AppError> {
     if checkout {
-        let args = gitops::checkout(ref_arg(&target)?, Some(ref_arg(&name)?), false, false);
+        let args = gitops::checkout(
+            ref_arg(&target)?,
+            Some(ref_arg(&name)?),
+            false,
+            false,
+            false,
+        );
         let result = cli_op(&app, &state, &id, args, false).await?;
         return match result.failure {
             None => Ok(()),

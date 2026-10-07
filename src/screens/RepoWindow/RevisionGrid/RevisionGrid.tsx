@@ -1,6 +1,8 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Bug, Cherry, ChevronDown, Copy, GitBranch, GitCommitHorizontal, GitMerge, History, ListRestart, Pencil, Plus, RotateCcw, Search, Tag, Trash2, Undo2 } from "lucide-react";
-import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { Fragment, useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import * as ipc from "../../../api/ipc";
+import { toAppError } from "../../../api/ipc";
 import type { CommitInfo } from "../../../api/types";
 import { Button } from "../../../components/ui/Button/Button";
 import { EmptyState } from "../../../components/ui/EmptyState/EmptyState";
@@ -8,12 +10,13 @@ import { ContextMenu, MenuItem, MenuRef, MenuSeparator } from "../../../componen
 import { Progress } from "../../../components/ui/Progress/Progress";
 import { useDialogStore, type DialogSpec } from "../../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../../store/opsStore";
-import { bisectMark, checkoutBranch, checkoutDetached, checkoutRemoteBranch, copyText, openCommitPanel } from "../actions";
+import { bisectMark, checkoutAndResetBranch, checkoutBranch, checkoutDetached, checkoutRemoteBranch, copyText, openCommitPanel } from "../actions";
 import { cx } from "../../../lib/cx";
 import { lastTopRow, noteTopRow, useMerging, useRepoStore } from "../../../store/repoStore";
 import { selectChangeCount, useShowWorkingTree, useStatusStore } from "../../../store/statusStore";
+import { toastError } from "../../../store/toastStore";
 import { useThemeTokens } from "../../../theme/useThemeTokens";
-import { commitBranchActions, type BranchAt, type DeleteAt } from "./commitMenu";
+import { commitBranchActions, type BranchAt, type CheckoutToRemote, type CommitBranchActions, type DeleteAt } from "./commitMenu";
 import { graphWidth } from "./graphGeometry";
 import { GridRow } from "./GridRow";
 import s from "./RevisionGrid.module.css";
@@ -323,6 +326,35 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
   // side and none leads an empty run. The pointer group is the only one that can empty out; the
   // apply group and the bisect group both stand or fall with Revert's condition, an unborn HEAD.
   const pointer = canApply || branches.canRebase || (branches.canRebaseInteractive && parents.length > 0) || branches.reset.length > 0 || branches.resetHere.length > 0;
+  // A lone tracker is compared first: a fast-forward loses nothing and just runs, anything else asks.
+  const checkoutMoved = async ({ branch, remote, localOid }: CheckoutToRemote) => {
+    const repo = useRepoStore.getState().repo;
+    if (!repo) return;
+    try {
+      const { ahead, behind } = await ipc.aheadBehind(repo.id, localOid, oid);
+      if (useRepoStore.getState().repo?.id !== repo.id) return;
+      if (ahead === 0) void checkoutAndResetBranch(branch, oid, localOid);
+      else openDialog({ kind: "checkoutReset", branch, remote, target: oid, localOid, ahead, behind });
+    } catch (e) {
+      if (useRepoStore.getState().repo?.id === repo.id) toastError(toAppError(e), `Couldn't compare ${branch} with ${remote}`);
+    }
+  };
+  // Several trackers name none of them: the picker lists each with where it sits.
+  const checkoutResetItem = ({ remote, candidates, besideCurrent }: CommitBranchActions["checkoutReset"][number]) =>
+    candidates.length === 1 ? (
+      <MenuItem key={`checkout ${remote}`} icon={<GitBranch size={16} aria-hidden />} title={`Checkout ${candidates[0].branch}`} {...op} onClick={run(() => void checkoutMoved(candidates[0]))}>
+        Checkout <MenuRef>{candidates[0].branch}</MenuRef>
+      </MenuItem>
+    ) : (
+      <MenuItem
+        key={`checkout ${remote}`}
+        icon={<GitBranch size={16} aria-hidden />}
+        {...op}
+        onClick={run(() => openDialog({ kind: "checkoutLocal", remote, target: oid, candidates: candidates.map((c) => ({ branch: c.branch, localOid: c.localOid })), other: besideCurrent }))}
+      >
+        Checkout {besideCurrent ? "other local" : "local"}…
+      </MenuItem>
+    );
   return (
     <ContextMenu at={menu.at} onClose={onClose} label="Commit actions">
       {branches.checkout.length === 1 && (
@@ -407,21 +439,25 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
         </MenuItem>
       )}
       {branches.reset.map((r) => (
-        <MenuItem
-          key={r.remote}
-          icon={<RotateCcw size={16} aria-hidden />}
-          title={`Reset ${r.branch} to ${r.remote}`}
-          {...op}
-          onClick={run(() => openDialog(r.current ? { kind: "reset", target: r.remote } : { kind: "resetBranch", branches: [r.branch], target: r.remote }))}
-        >
-          {/* Either name can be long: the local chip and the "to <remote>…" tail each ellipsize on their own. */}
-          <span className={s.menuLabel}>
-            Reset <MenuRef className={s.menuBranch}>{r.branch}</MenuRef>{" "}
-            <span className={s.menuBranch}>
-              to <MenuRef remote>{r.remote}</MenuRef>…
+        <Fragment key={`${r.remote}:${r.current}`}>
+          <MenuItem
+            icon={<RotateCcw size={16} aria-hidden />}
+            title={`Reset ${r.branches.length === 1 ? r.branches[0] : r.besideCurrent ? "other local" : "local"} to ${r.remote}`}
+            {...op}
+            onClick={run(() => openDialog(r.current ? { kind: "reset", target: r.remote } : { kind: "resetBranch", branches: r.branches, target: r.remote }))}
+          >
+            {/* Either name can be long: the local chip and the "to <remote>…" tail each ellipsize on their own. */}
+            <span className={s.menuLabel}>
+              Reset {r.branches.length === 1 ? <MenuRef className={s.menuBranch}>{r.branches[0]}</MenuRef> : r.besideCurrent ? "other local" : "local"}{" "}
+              <span className={s.menuBranch}>
+                to <MenuRef remote>{r.remote}</MenuRef>…
+              </span>
             </span>
-          </span>
-        </MenuItem>
+          </MenuItem>
+          {/* Moving them without switching, above; switching into one, moved, right after. Both come
+              from the same set, so every checkout row has its non-current reset row. */}
+          {!r.current && branches.checkoutReset.filter((c) => c.remote === r.remote).map(checkoutResetItem)}
+        </Fragment>
       ))}
       {/* Any other local branch can be force-moved here; with several the dialog does the picking. */}
       {branches.resetHere.length > 0 && (

@@ -235,6 +235,15 @@ impl AheadBehindCache {
     }
 }
 
+/// `(ahead, behind)` of any two commits by oid, `a` counted against `b`. Not
+/// through [`AheadBehindCache`]: its `(0, 0)` on a failed walk reads as "nothing
+/// to lose" to a caller deciding whether to force-move a branch.
+pub fn ahead_behind(repo: &Repository, a: &str, b: &str) -> Result<(usize, usize), GitError> {
+    let parse = |s: &str| Oid::from_str(s).map_err(map_git2);
+    repo.graph_ahead_behind(parse(a)?, parse(b)?)
+        .map_err(map_git2)
+}
+
 /// One branch as `fill_merged_into` sees it: local branches first, then every
 /// remote's, in snapshot order.
 struct Tip {
@@ -1237,6 +1246,23 @@ pub fn is_merged_into_head(repo: &Repository, name: &str) -> Result<bool, GitErr
     }
 }
 
+/// Refuses unless local branch `name` still sits at `oid`: a move decided from an
+/// older snapshot must not carry off commits made since. A missing branch is refused too.
+pub fn expect_branch_at(repo: &Repository, name: &str, oid: &str) -> Result<(), GitError> {
+    // Peeled like the snapshot's `Branch.oid`, so the two compare like for like.
+    let at = repo
+        .find_reference(&format!("refs/heads/{name}"))
+        .and_then(|r| r.peel_to_commit())
+        .ok()
+        .map(|c| c.id());
+    if at.map(|o| o.to_string()).as_deref() == Some(oid) {
+        return Ok(());
+    }
+    Err(GitError::Refused(format!(
+        "{name} moved since you looked — try again"
+    )))
+}
+
 /// Deletes local branch `name`. Without `force` the branch must be merged
 /// into HEAD or into its upstream (git's `branch -d` rule); the checked-out
 /// branch is never deleted. Refusals are [`GitError::Refused`].
@@ -1331,8 +1357,8 @@ mod tests {
     use git2::Oid;
 
     use super::{
-        children_first, full_reach, label_map, natural_cmp, snapshot, snapshot_with, update_reach,
-        upstream_ref, AheadBehindCache, ConflictSides, Reach, RefKind, RepoState,
+        ahead_behind, children_first, full_reach, label_map, natural_cmp, snapshot, snapshot_with,
+        update_reach, upstream_ref, AheadBehindCache, ConflictSides, Reach, RefKind, RepoState,
     };
     use crate::test_util::TempRepo;
 
@@ -1382,6 +1408,22 @@ mod tests {
         t.checkout("master");
         let master = t.commit(&[("a.txt", "ours\n")], "ours");
         (t, master, feature)
+    }
+
+    #[test]
+    fn ahead_behind_counts_both_sides_and_errors_rather_than_reporting_zero() {
+        let (t, master, feature) = two_branches();
+        let (f, m) = (feature.to_string(), master.to_string());
+        assert_eq!(ahead_behind(&t.repo, &f, &m).unwrap(), (1, 1));
+        // Lopsided, so swapped arguments show: master two past the base, and the base two behind it.
+        let base = t.repo.find_commit(master).unwrap().parent_id(0).unwrap();
+        let top = t.commit(&[("b.txt", "b\n")], "more").to_string();
+        let base = base.to_string();
+        assert_eq!(ahead_behind(&t.repo, &top, &base).unwrap(), (2, 0));
+        assert_eq!(ahead_behind(&t.repo, &base, &top).unwrap(), (0, 2));
+        let missing = "0123456789abcdef0123456789abcdef01234567";
+        assert!(ahead_behind(&t.repo, missing, &m).is_err());
+        assert!(ahead_behind(&t.repo, "not-an-oid", &m).is_err());
     }
 
     #[test]
