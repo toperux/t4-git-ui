@@ -749,6 +749,8 @@ they stay clear._
 - [x] **Up to date**: on the current build, open Settings → the status line names this build **without**
       claiming anything (`T4 Git UI <v>`, no verdict) → **Check now** → `Checking…` → `T4 Git UI <v> is up
       to date`, and **Update to…** stays disabled reading `Up to date`
+      Offered on launch, The install and Up to date re-walked 2026-10-08 on Windows, the installed 0.10.21 updating to
+      the published 0.10.22 (rustls 0.23.45): all pass (`docs/archive/walks/2026-10-08-v0.10.22-update-walk.md`).
 - [x] **The toggle governs the launch check only**: switch *Check for updates on launch* off, close
       and reopen the app → no badge, nothing asked → open Settings → **Check now** still answers;
       the setting survives a restart

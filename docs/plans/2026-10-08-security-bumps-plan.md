@@ -69,7 +69,8 @@ source-map-js 1.2.1 => 1.2.2". The checks below confirm the real run matches.
 
 - **U1 — an in-app update in the v0.10.22 release gate:** taken 2026-10-08, option A. After v0.10.22 is published,
   the Windows VM installs v0.10.21, updates in the app, and checks it restarts on v0.10.22. A failure means v0.10.23.
-  Linux (AppImage) is not walked. If it passes, check whether it closes the update half of smoke group AC.
+  Linux (AppImage) is not walked. Walked 2026-10-08: pass (`docs/archive/walks/2026-10-08-v0.10.22-update-walk.md`).
+  Group AC was already fully ticked, so it re-walked three of its rows rather than closing one.
 - **U2 — a "no open Dependabot alerts or PRs" line in the release skill's gates:** taken 2026-10-08, option A. Step 1
   of `.claude/skills/release/SKILL.md` now lists open alerts and Dependabot PRs; each goes to the owner (fix, defer,
   accept) before tagging. Both commands were run on 2026-10-08 and list #2, #3 and PRs #22, #23. Edited in the working
