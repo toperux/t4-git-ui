@@ -1,7 +1,7 @@
 #!/bin/sh
 # Group BQ fixture: $T4_ROOT/bq (+ bq-origin.git, the bq-held worktree). Throwaway; T4_ROOT defaults to /c/tmp/t4.
-# One local branch per case, each tracking its own origin branch from elsewhere, each case on its own file so
-# switching between them never conflicts.
+# Each case's local branches (one, or several for multi and trio) track its own origin branch from elsewhere. Each
+# case is on its own file so switching between them never conflicts, except dirty, which edits shared.txt on purpose.
 set -e
 R=${T4_ROOT:-/c/tmp/t4}
 rm -rf "$R/bq" "$R/bq-origin.git" "$R/bq-held"

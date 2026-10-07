@@ -1761,6 +1761,23 @@ ones fixed in the triage follow them.
   local…* does; unlike its checkout sibling (W5, now "Checkout other local branch"), the title never said
   "local", so it doesn't contradict the item.
 
+Ruled 2026-10-08 on the docs review of the squashed commits (A3 was fixed: the fixture header now says multi and
+trio have several branches and dirty shares `shared.txt` on purpose):
+- **A1** BQ rows 2–4 were walked only on `201f136`, before T1; the single-candidate confirm dialog with the
+  moved-branch check is unit-tested (`dialogs.test.tsx`), not walked. The check itself is shared and was walked
+  through rows 1, 5 and 7.
+- **A2** The BQ intro and ticks cite pre-squash hashes and the `checkout-remote-elsewhere` branch, as BP does with
+  `fix-batch`; the squash map below covers them.
+- **A4** The `mk` helper in `bq-fixture.sh` runs to ~130 characters; shell fixtures aren't held to 120.
+- **A5** The plan's "What's there today" and Step 8 describe the code before the build (base `98c04ff`): a dated
+  starting point, kept as is.
+- **A6** T7 (open-items §AG) cites `crates/git-core/src/cli/ops.rs:749-750`, where the toast's message is picked;
+  the `error` line it uses is found a few lines earlier in the same function.
+- **A7** D2 records the one-vs-several rule as ruled; T5's "other local" refinement is its own ruling.
+- **A8** Some plan paragraphs wrap narrower than 120 after edits in different passes; renders the same.
+- **A9** On the Linux re-walk an XTEST right-click on a row scrolled out of view did nothing: the History grid is
+  virtualized, so no row was drawn there. A harness artifact; a user can't click a row they can't see.
+
 **Fixed in the triage.** Code in `8944725` (T1, T5, T8, T14), `af99b76` (T1's follow-ups) and `439cf94` (W5, N1);
 the plan's own wording (T12, T13) in `63e4bb5`.
 - **T1** A move refuses if the branch moved since the counts were taken: "<branch> moved since you looked — try
