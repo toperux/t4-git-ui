@@ -1777,3 +1777,13 @@ the plan's own wording (T12, T13) in `63e4bb5`.
 - **N1** The moved-branch check's backend comment said the oid came "from the menu"; it now says "where the counts
   were taken", which covers the picker too.
 
+**Squash map.** The plan, the BQ walk record and the rows above cite the branch's pre-squash commits; the branch
+was squashed into three on 2026-10-08 (tree identical, rehearsed in a throwaway worktree), the docs review's fixes
+folded into the two docs commits:
+- `1cc061d` (feat, all code and tests) ← `62e2c30`, `1c26d9a`, `e048be4`, `dd863a5`, `0e5503f` (its code part),
+  `4f0d3a4`, `8944725`, `af99b76`, `439cf94`.
+- `4cf43a7` (smoke group BQ, fixture, walk record) ← `201f136`, `3784d36`, `8f0847b`.
+- `a6d9b7a` (plan and records) ← `ddd9b87`, `38f8526`, `0e5503f` (its plan part), `63e4bb5`, `afc87bf`.
+- The walks' builds: `201f136` is the code before the triage fixes (`8944725`, `af99b76`, `439cf94`); `3784d36`
+  is the code before `439cf94` (the "other local" picker's title, unit-tested, not walked).
+
