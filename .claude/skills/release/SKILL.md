@@ -76,6 +76,14 @@ carries no version.
    npm --prefix "<repo>" test -- --run
    ```
 
+   Then the open Dependabot alerts and PRs. Each one goes to the owner to fix, defer or accept
+   before tagging: v0.10.21 shipped with two alerts and their PRs two days old, unseen.
+
+   ```sh
+   gh api 'repos/toperux/t4-git-ui/dependabot/alerts?state=open' --jq '.[] | [.number, .security_advisory.severity, .dependency.package.name] | @tsv'
+   gh pr list --repo toperux/t4-git-ui --author app/dependabot
+   ```
+
 2. **Bump.** Edit `Cargo.toml` and `package.json`, then `cargo check` and `npm install` to
    pull the two lock files along. Update the version in `docs/smoke/smoke-test.md` too — it names
    the installer path and the start-screen header.
