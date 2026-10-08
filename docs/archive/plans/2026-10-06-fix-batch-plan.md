@@ -11,6 +11,9 @@ result folded in; plan review pass 9: 3 should-fix and 4 nits fixed; decision D3
 should-fix and 2 nits fixed; plan review pass 11: 3 should-fix and 3 nits fixed; plan review pass 12: 3 nits fixed; plan
 review pass 13: clean. Execution waits on the owner's go._
 
+**Done 2026-10-07:** shipped in v0.10.21, gated on all three OS (*Release and gate*, at the end). The status above is
+as of the plan's last review pass.
+
 **Goal:** fix the open-items rows that are plain fixes waiting on no trigger, walk them as smoke group **BP**, and
 release (v0.10.21 when the owner names it). Its gate also owes two checks from the v0.10.20 triage: a Windows
 two-window update step (§Q, *N6's Windows update-path persist*) and the Linux half under openbox (§Q, G3).

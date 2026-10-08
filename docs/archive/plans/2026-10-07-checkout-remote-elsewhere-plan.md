@@ -24,6 +24,8 @@ rows 1–6 pass). Triage T1–T20 ruled 2026-10-07 (fixes `8944725`, `af99b76`; 
 open-items-done §AG); BQ re-walked on both of `3784d36` (rows 1, 5, 6 and new 7, 8 pass); W5 (seen on that walk) and
 N1 (a review nit) fixed (`439cf94`), R1 accepted._
 
+**Done 2026-10-08:** shipped in v0.10.22. The commit hashes above are pre-squash.
+
 **Goal:** right-clicking a commit that carries a remote branch ref (e.g. `origin/feature`) whose local
 tracking branch (`feature`) already exists but currently points at a *different* commit offers no way to
 check that local branch out here. Today the menu only offers **Reset `feature` to `origin/feature`…**,

@@ -2857,9 +2857,9 @@ of 0.10.18's (2.12), and wouldn't prove what it's for.
 
 ## BP. The fix batch: focus, selection and small fixes
 
-Plan: `docs/plans/2026-10-06-fix-batch-plan.md` (Smoke group BP; each row's fix is in the Summary table). One step per
-walk bullet, taking its row number, so the numbering has gaps on purpose — rows 8, 10, 11, 13 and 14 are covered by
-their unit tests, not walked. Windows over CDP on a local `tauri build --no-bundle` of `fix-batch`
+Plan: `docs/archive/plans/2026-10-06-fix-batch-plan.md` (Smoke group BP; each row's fix is in the Summary table). One
+step per walk bullet, taking its row number, so the numbering has gaps on purpose — rows 8, 10, 11, 13 and 14 are
+covered by their unit tests, not walked. Windows over CDP on a local `tauri build --no-bundle` of `fix-batch`
 (`docs/smoke/smoke-cdp.md`), the store folder `%APPDATA%\dev.topher.t4gitui` backed up first and restored byte-exact
 after; the Mac by the owner's Mac session; Linux under Xvfb with openbox (`docs/smoke/smoke-linux.md`, *A window
 manager: openbox*). The Mac and Linux walks need `fix-batch` pushed as a side branch (its own go).
@@ -2969,7 +2969,7 @@ manager: openbox*). The Mac and Linux walks need `fix-batch` pushed as a side br
 
 ## BQ. Checkout a remote branch whose local tracker sits elsewhere
 
-Plan: `docs/plans/2026-10-07-checkout-remote-elsewhere-plan.md` (D1–D4, D-multi, E1–E4). Fixture:
+Plan: `docs/archive/plans/2026-10-07-checkout-remote-elsewhere-plan.md` (D1–D4, D-multi, E1–E4). Fixture:
 `docs/smoke/fixtures/bq-fixture.sh` (`T4_ROOT=/tmp/t4` on Linux) builds `bq`, one local branch per case, each
 tracking its own `origin/<case>` from elsewhere, each case on its own file. Open `bq`; every row right-clicks the
 History row of the commit carrying `origin/<case>` — the row, not the chip: once a case is checked out its chip

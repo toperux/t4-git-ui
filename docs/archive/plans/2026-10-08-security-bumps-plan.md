@@ -6,6 +6,9 @@ updater gap overstated), decisions U1 and U2 raised; U1 and U2 taken (A, A); pas
 clean. Go given 2026-10-08; S1 raised in step 1 and taken (A); gates green (cargo test 412 passed, 0 failed). Change review pass 1: 1 finding fixed
 (the alerts call read only the first page and filtered client-side; now `?state=open`); pass 2: clean._
 
+**Done 2026-10-08:** shipped in v0.10.22; U1's update walk passed. Step 7 checked 2026-10-08: no open Dependabot
+alert, no open PR.
+
 **Goal:** close GitHub's two open Dependabot alerts on `main` with lockfile-only patch bumps, so they ride along in
 v0.10.22. No app code changes; the only other edit is the release-skill check from decision U2.
 

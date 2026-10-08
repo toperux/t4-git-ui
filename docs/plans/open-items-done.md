@@ -1687,7 +1687,7 @@ Ruled by the owner 2026-10-06, in the triage after the records' review
 
 ## AD. Added 2026-10-06 — the fix batch: closed
 
-Ruled by the owner 2026-10-06; detail in `docs/plans/2026-10-06-fix-batch-plan.md` (row 2) and the walk record
+Ruled by the owner 2026-10-06; detail in `docs/archive/plans/2026-10-06-fix-batch-plan.md` (row 2) and the walk record
 `docs/archive/walks/2026-10-06-bp-walk.md` (BP 2). No reopen trigger.
 
 - **After the Fetch dialog submits, the focus lands on the page body, not back on *Fetch options*.** Seen on the
@@ -1699,7 +1699,7 @@ Ruled by the owner 2026-10-06; detail in `docs/plans/2026-10-06-fix-batch-plan.m
 
 ## AE. Added 2026-10-06 — the fix batch: accepted, closed
 
-Ruled by the owner across the fix batch's plan review passes (`docs/plans/2026-10-06-fix-batch-plan.md`, *Not in
+Ruled by the owner across the fix batch's plan review passes (`docs/archive/plans/2026-10-06-fix-batch-plan.md`, *Not in
 this batch*, D18, D22, D25, D29, D30) and its change review triage (T2–T5) and BP walk (W2,
 `docs/archive/walks/2026-10-06-bp-walk.md`). No reopen trigger on any of these.
 
@@ -1735,7 +1735,7 @@ this batch*, D18, D22, D25, D29, D30) and its change review triage (T2–T5) and
 ## AG. Added 2026-10-07 — checkout-remote-elsewhere: fixed and accepted, closed
 
 Ruled by the owner in the triage of the checkout-remote-elsewhere change (plan
-`docs/plans/2026-10-07-checkout-remote-elsewhere-plan.md`, its change reviews and the BQ walk,
+`docs/archive/plans/2026-10-07-checkout-remote-elsewhere-plan.md`, its change reviews and the BQ walk,
 `docs/archive/walks/2026-10-07-bq-walk.md`). The rows below were accepted, with no reopen trigger on any of them; the
 ones fixed in the triage follow them.
 

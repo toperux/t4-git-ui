@@ -677,8 +677,8 @@ fixes"), with its reopen trigger.
 
 ## AE. Added 2026-10-06 — the fix batch
 
-Deferred in the 2026-10-06 fix batch (plan `docs/plans/2026-10-06-fix-batch-plan.md`, *Not in this batch* and the BP
-walk), each with a reopen trigger.
+Deferred in the 2026-10-06 fix batch (plan `docs/archive/plans/2026-10-06-fix-batch-plan.md`, *Not in this batch* and
+the BP walk), each with a reopen trigger.
 
 - **The split *Fetch* button and the Stash menu's *Pop latest* / *Apply latest* disable their trigger with no dialog
   in the picture (D21).** `Toolbar.tsx:362-367`: the menu closes and the op disables `stashBtn` in one commit, so
@@ -712,7 +712,7 @@ record), each with a reopen trigger.
 ## AG. Added 2026-10-07 — checkout-remote-elsewhere, deferred
 
 Deferred in the triage of the checkout-remote-elsewhere change (plan
-`docs/plans/2026-10-07-checkout-remote-elsewhere-plan.md`, its change reviews and the BQ walk,
+`docs/archive/plans/2026-10-07-checkout-remote-elsewhere-plan.md`, its change reviews and the BQ walk,
 `docs/archive/walks/2026-10-07-bq-walk.md`). All four are pre-existing and app-wide, not caused by the change.
 
 - **T7: a failed op's toast cuts git's error at its colon.** With an `error:` line, the toast carries that line alone
