@@ -7,7 +7,7 @@ scheduled in `2026-09-26-close-out-plan.md`; §Q's accepted limits wait on their
 also in a close-out phase, the `status.rs` row, closed in Phase 3 on 2026-10-03)._
 
 _Done, fixed, walked and closed rows live in `open-items-done.md` (split 2026-09-24), under the same section letters — a
-letter with nothing open left (§A, §D, §F, §G, §H, §I, §J, §K, §L, §M, §N, §O, §P, §T, §U, §W, §AD) is only there.
+letter with nothing open left (§A, §D, §F, §G, §H, §I, §J, §K, §L, §M, §N, §O, §P, §T, §U, §W, §AD, §AG) is only there.
 When a row here is done, move it there. Accepted limits with a reopen trigger are open, in §Q (since 2026-09-28); those
 with none are closed, in the done file; of §V's deferred rows, only the CRLF test flake and the GIO-modules row remain
 after the 2026-10-06 fix batch._
@@ -177,17 +177,21 @@ phases that accepted them; each origin keeps a pointer.
   2026-09-10. **Reopen:** Tauri's pin starts carrying something this app does call (worth a look at each Tauri
   bump). *From the done file §B.*
 - **A ref or remote dialog closes, and its input is lost, when its op is refused.** These dialogs call `onClose()`
-  before `runOp` (e.g. `src/screens/RepoWindow/dialogs/RefDialogs.tsx:243-244`, `RemoteDialogs.tsx:29-30`); if
-  another operation is running, `runOp` refuses with *Operation in progress* (`src/store/opsStore.ts:189-191`) after
-  the dialog has closed. No known path is left: the detached-HEAD banner's **Create branch…** button
-  (`RepoWindow.tsx:386`, `banners.ts:52`) was the last ungated opener, fixed 2026-09-29 (`d7cfc61`; the row is now
-  in the done file's §I). Every other opener is gated: the grid and
-  sidebar menus (`RevisionGrid.tsx:310`, `Sidebar.tsx:428`, `:618`), the toolbar, the palette and Ctrl+B; shortcuts
-  are ignored while a dialog is open (`useShortcuts.ts:36`); nothing starts an op in the background. Recorded in
-  the worktrees + submodules notes (shipped 2026-09-13). The fix, when reopened: stay open on a `busy` refusal, as
-  `WorktreeDialogs.tsx:150-152` does (`runOp` already returns `error.kind === "busy"`; the source's "`ran` flag on
-  `runOp`" is superseded). **Reopen:** it bites — a report of a dialog closing on a refused op. *From the done
-  file's context notes.*
+  before `runOp` (e.g. `src/screens/RepoWindow/dialogs/RefDialogs.tsx:243-244`, `RemoteDialogs.tsx:29-30`); if another
+  operation is running, `runOp` refuses with *Operation in progress* (`src/store/opsStore.ts:227-229`) after the dialog
+  has closed. No known path to a busy refusal is left: the detached-HEAD banner's **Create branch…** button
+  (`RepoWindow.tsx:366-367`, `banners.ts:53`) was the last ungated opener, fixed 2026-09-29 (`d7cfc61`; the row is now
+  in the done file's §I). Every other opener is gated: the grid and sidebar menus (`RevisionGrid.tsx:310`,
+  `Sidebar.tsx:428`, `:618`), the toolbar, the palette and Ctrl+B; shortcuts are ignored while a dialog is open
+  (`useShortcuts.ts:36`); nothing starts an op in the background. Recorded in the worktrees + submodules notes (shipped
+  2026-09-13). The fix, when reopened: stay open on a `busy` refusal, as `WorktreeDialogs.tsx:150-152` does (`runOp`
+  already returns `error.kind === "busy"`; the source's "`ran` flag on `runOp`" is superseded). **Reopen:** it bites — a
+  report of a dialog closing on a refused op. *From the done file's context notes.* **Reached again 2026-10-08** (the
+  app-wide fixes, §AG T15, W1): the backend `checkout` now refuses mid-merge, cherry-pick, revert or rebase, and *Create
+  branch…* with *Check out* ticked closes before that refusal (`RefDialogs.tsx:57-60`), so its typed name is lost (seen
+  in BR 3 on Windows, `docs/archive/walks/2026-10-08-br-walk.md`); the other checkout dialogs lose only a pick. A walk
+  sighting, not a user's report: kept as accepted by the owner. The fix, when reopened, then also covers a `refused`
+  error.
 - **The crash breaker doesn't catch a webview-only crash.** It catches the app process dying. If only the webview
   dies (WebView2's renderer process, WebKit's web process) while the app lives on, the window goes blank, and
   closing it counts as that window's report (`window_closed` settles it by design), so a repository that kills just
@@ -533,6 +537,26 @@ phases that accepted them; each origin keeps a pointer.
   and counts that may lag; until they land, plain names and a danger button. Not measured at that size; 50 trackers
   of one remote is a pathological setup. Accepted 2026-10-07 (the checkout-remote-elsewhere triage, T3).
   **Reopen:** a real repository with enough trackers of one remote that the counts lag visibly.
+- **The error toast names only the last refusal block's files.** When one checkout prints two refusal blocks (local
+  changes, then untracked files), the toast's file list (§AG T7, `classify_failure`, `crates/git-core/src/cli/ops.rs`)
+  follows git's last `error:` line, so the first block's files aren't named; the dock has both. Reasoned, not seen.
+  Accepted 2026-10-08 (the app-wide fixes triage, C4). **Reopen:** a report of a toast missing files.
+- **Mid-bisect on a clean tree the status bar shows only "Bisect in progress".** No counts (there are no entries)
+  and no Clean (an operation is in progress, §AG T19); mid-merge the staged merge shows its counts. Seen on both BR
+  walks. Accepted 2026-10-08 (the app-wide fixes triage, W2). **Reopen:** someone reads the bisect bar as dirty.
+- **After a checkout mid-bisect, the bisect banner reads "testing <the checked-out commit>".** That commit is HEAD,
+  not one bisect picked. Pre-existing (a checkout mid-bisect was always allowed); BR 4 made it visible on both
+  walks (`docs/archive/walks/2026-10-08-br-walk.md`). Accepted 2026-10-08 (the app-wide fixes triage, W6).
+  **Reopen:** a user is confused by it, or the next bisect work.
+- **The status bar's right side shifts when Clean hides or shows.** Since §AG T19, editing the first file of a clean
+  tree swaps `✓ Clean` for the counts, so the right-hand group changes width; the left side doesn't move. Not
+  measured; neither walk reported a layout issue. Accepted 2026-10-08 (the app-wide fixes triage, C1). **Reopen:** the
+  shift is reported as jumpy.
+- **Right after a merge commit, the merge's counts show for a moment with no Clean.** The commit clears the merge
+  state at once, but the status scanned during the merge stays until the next scan; the counts read it as is, while
+  Clean waits for a scan of the current state (`freshStatus`, D4 of the app-wide fixes). Reasoned by the change
+  review, not timed. Accepted 2026-10-08 (the app-wide fixes triage, C2). **Reopen:** stale counts seen for more than
+  a moment.
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review, deferred
 
@@ -708,30 +732,6 @@ record), each with a reopen trigger.
   would leave a broken AppImage needing a fresh download. Measured once; that this is `tauri-plugin-updater`'s own
   install path, not the harness, is inferred. **Reopen:** a broken AppImage reported, or the updater gains an
   atomic replace.
-
-## AG. Added 2026-10-07 — checkout-remote-elsewhere, deferred
-
-Deferred in the triage of the checkout-remote-elsewhere change (plan
-`docs/archive/plans/2026-10-07-checkout-remote-elsewhere-plan.md`, its change reviews and the BQ walk,
-`docs/archive/walks/2026-10-07-bq-walk.md`). All four are pre-existing and app-wide, not caused by the change.
-
-- **T7: a failed op's toast cuts git's error at its colon.** With an `error:` line, the toast carries that line alone
-  (`crates/git-core/src/cli/ops.rs:749-750`), so "would be overwritten by checkout:" never names the file or gives
-  git's "commit or stash" advice; the output dock has them. Seen on both BQ 6 walks; every op hitting that refusal
-  (checkout, merge, pull, cherry-pick) shows it. Idea: when the `error:` line ends with ":", append the indented
-  lines after it (a few file names). **Reopen:** a user finds the cut-off toast confusing, or the next pass over
-  error wording.
-- **T15: a checkout during a resolved-but-uncommitted merge quietly abandons it.** The commit menu's checkout items
-  block only mid-rebase / mid-bisect; mid-merge, `git checkout` succeeds and drops `MERGE_HEAD` (the resolved files
-  stay in the tree). The plain *Checkout `<branch>`* item already did this; not walked. **Reopen:** someone loses a
-  merge this way.
-- **T17: a dialog left open across a repo switch acts on the new repo.** Every dialog reads the open repo when it
-  confirms, not when it opened; usually the branch name doesn't exist there and git fails, but with a matching name
-  and commit it would act on the wrong repo. Reasoned from the code, not observed. Idea: bind each dialog to its
-  repo, or close dialogs on a switch. **Reopen:** any report of an action hitting the wrong repo.
-- **T19: the status bar shows "Clean" next to "1 unstaged".** Seen on the Linux BQ 6 walk with `shared.txt` edited;
-  "Clean" likely means no operation in progress, not a clean tree (not checked). **Reopen:** the next status-bar
-  change, or anyone finds it confusing.
 
 ## Order
 

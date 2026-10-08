@@ -1804,3 +1804,41 @@ folded into the two docs commits:
 - The walks' builds: `201f136` is the code before the triage fixes (`8944725`, `af99b76`, `439cf94`); `3784d36`
   is the code before `439cf94` (the "other local" picker's title, unit-tested, not walked).
 
+**Closed 2026-10-08 — the app-wide fixes** (plan `docs/plans/2026-10-08-app-wide-fixes-plan.md`, walk record
+`docs/archive/walks/2026-10-08-br-walk.md`, smoke group BR). The four rows §AG deferred on 2026-10-07; §AG has no
+open row left. Hashes are the branch's pre-squash commits.
+- **T7: a failed op's toast cut git's error at its colon — fixed.** An `error:` / `fatal:` line ending in `:` now
+  carries the indented file names after it, the first three then "and N more" (`3a2c7d7`). Walked as BR 1 on
+  Windows and Linux. Its two-block limit is in `open-items.md` §Q.
+- **T15: a checkout during a resolved-but-uncommitted merge quietly abandoned it — fixed.** The row was wider than
+  written: plain checkout had no state guard on any path, not only the commit menu, and git also silently drops a
+  resolved cherry-pick or revert (measured, git 2.55). The backend `checkout` command now refuses mid-merge,
+  cherry-pick, revert or rebase, under the op lock and before the moved-branch check; a bisect still allows it
+  (`69b4c5e`). The unused `create_branch --checkout` path, which would have skipped the guard, is gone (`9b2f4ac`,
+  D6). Walked as BR 3 (five entry points) and BR 4 on Windows and Linux.
+- **T17: a dialog left open across a repo switch would act on the new repo — not reachable.** Every switch closes the
+  dialog first: `show()` (`src/store/tabsStore.ts:69-74`) for `activate` and `closeTab`, and `openTab` itself
+  (`:99`), with no gap before the new repository is set; the tab strip is under the dialog's scrim and shortcuts
+  are off while a dialog is open. A test now pins it (`2f1155a`).
+- **T19: the status bar showed "Clean" next to "1 unstaged" — fixed.** "Clean" named no operation in progress; it
+  now shows only beside a working tree known clean (`freshStatus`), and the design canvases and style guide follow
+  (`38864f6`, `1efe5f5`). Walked as BR 2 on Windows and Linux. Its accepted edges (the right side's shift, a
+  moment of stale counts after a merge commit, the bisect bar) are in `open-items.md` §Q.
+
+Accepted, closed, in the triage of the BR walk (2026-10-08), no reopen trigger:
+- **W3** An error toast stays up until dismissed (BR 1's stayed over a minute): error toasts don't expire, by
+  design (`src/store/toastStore.ts:81`).
+- **W4** The mid-operation refusals write no app-log line, as no refusal does (BQ 7's "moved since you looked"
+  neither); the toast is the only trace.
+- **W5** The commit's dock line shows the temp message file's full path, the local user name included
+  (`C:\Users\<name>\AppData\Local\Temp\t4-commit-msg-….txt`). Local UI only; pre-existing.
+
+**Squash map.** The plan, the walk record and the rows above cite the branch's pre-squash commits; the branch was
+squashed into four on 2026-10-08 (tree identical, rehearsed in a throwaway worktree):
+- `c444fb8` (fix, all code and tests) ← `3a2c7d7`, `69b4c5e`, `9b2f4ac`, `38864f6`, `2f1155a`, `2f898b1` (its test).
+- `1e55e6b` (style guide and canvases) ← `1efe5f5` (its design part), `2f898b1` (the style guide), `5a88649`.
+- `50649a8` (smoke group BR and the walk record) ← `1efe5f5` (its smoke part), `2f898b1` (its smoke parts),
+  `17a62a8`.
+- The plan and records commit ← `a634cbb`, `1efe5f5` (its plan note), `77295c1`, and this map.
+- The walks' build, `5a88649`, has the squashed code as is: only docs changed after it.
+
