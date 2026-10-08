@@ -55,11 +55,11 @@ export function CreateBranchDialog({ onClose, startPoint: initial }: { onClose: 
   function submit() {
     if (!valid || !startExists) return;
     onClose();
-    // `create_branch --checkout` runs `git checkout -b`; --track needs the CLI path too.
+    // Checking out runs `git checkout -b` through `checkout`, the one path with its guards; --track needs the CLI too.
     if (checkout) {
       void runOp(`Creating ${name}…`, (id) => ipc.checkout(id, start, name, isRemote && track), { success: `Created and checked out ${name}` });
     } else {
-      void runOp(`Creating ${name}…`, (id) => ipc.createBranch(id, name, start, false), { success: `Created ${name}` });
+      void runOp(`Creating ${name}…`, (id) => ipc.createBranch(id, name, start), { success: `Created ${name}` });
     }
   }
 

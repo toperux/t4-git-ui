@@ -692,6 +692,10 @@ pub async fn checkout(
     let app = &app;
     let state: &AppState = &state;
     mutate(app, state, &id, ALL_KINDS, |handle| async move {
+        // First: git would drop a resolved merge, pick or revert, and a moved `-B` branch should
+        // meet this refusal, not a "try again" that would only lead to it.
+        let h = Arc::clone(&handle);
+        blocking(move || Ok(refs::refuse_mid_op(&h.git2.lock())?)).await?;
         // `-B` with the branch's oid where the counts were taken: it moves only if nothing moved it
         // since, checked under the op lock right before git runs.
         if let (Some(oid), Some(branch)) = (expect, create_branch) {
@@ -811,8 +815,7 @@ pub async fn run_git(
 
 // ---- git2-backed ops ----
 
-/// Creates `name` at `target`. With `checkout` it runs `git checkout -b`
-/// instead (streams `op://event`, hooks run) and fails on a non-zero exit.
+/// Creates `name` at `target`.
 #[tauri::command]
 pub async fn create_branch(
     app: AppHandle,
@@ -820,22 +823,7 @@ pub async fn create_branch(
     id: RepoId,
     name: String,
     target: String,
-    checkout: bool,
 ) -> Result<(), AppError> {
-    if checkout {
-        let args = gitops::checkout(
-            ref_arg(&target)?,
-            Some(ref_arg(&name)?),
-            false,
-            false,
-            false,
-        );
-        let result = cli_op(&app, &state, &id, args, false).await?;
-        return match result.failure {
-            None => Ok(()),
-            Some(f) => Err(cli_failure("git checkout -b", result.code, &f)),
-        };
-    }
     git2_op(&app, &state, &id, REFS, move |h| {
         refs::create_branch(&h.git2.lock(), &name, &target, false).map(|_| ())
     })

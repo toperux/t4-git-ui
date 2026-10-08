@@ -24,6 +24,7 @@ vi.mock("../lib/appWindow", () => ({ isMainWindow: () => label === "main", close
 
 import * as ipc from "../api/ipc";
 import { useCommitStore } from "./commitStore";
+import { useDialogStore } from "./dialogStore";
 import { __resetForTests as resetRepo, useRepoStore } from "./repoStore";
 import { draftRepos, type Snapshot, useTabsStore } from "./tabsStore";
 
@@ -166,6 +167,27 @@ describe("reorder", () => {
     expect(tabs().map((t) => t.path)).toEqual(["/c", "/a", "/b"]);
     useTabsStore.getState().reorder(0, 9);
     expect(tabs().map((t) => t.path)).toEqual(["/c", "/a", "/b"]);
+  });
+});
+
+describe("an open dialog", () => {
+  // A dialog reads the open repository when it confirms: every switch has to close it first.
+  it("is closed by every switch of the window's repository", async () => {
+    const open = () => useDialogStore.getState().open({ kind: "createBranch" });
+    const dialog = () => useDialogStore.getState().dialog;
+    await useTabsStore.getState().openTab("/a");
+    open();
+    await useTabsStore.getState().openTab("/b");
+    expect(dialog()).toBeNull();
+
+    open();
+    useTabsStore.getState().activate("/a");
+    expect(dialog()).toBeNull();
+
+    open();
+    await useTabsStore.getState().closeTab("/a");
+    expect(useTabsStore.getState().active).toBe("/b");
+    expect(dialog()).toBeNull();
   });
 });
 

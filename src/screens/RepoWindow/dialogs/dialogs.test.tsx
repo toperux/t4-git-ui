@@ -463,7 +463,7 @@ describe("CreateBranchDialog", () => {
     expect(preview(getByRole("dialog"))).toBe(`git checkout -b fix --end-of-options ${oid}`);
     fireEvent.click(getByRole("checkbox", { name: "Check out after create" }));
     fireEvent.click(getByRole("button", { name: "Create" }));
-    await waitFor(() => expect(mocked.createBranch).toHaveBeenCalledWith("r", "fix", oid, false));
+    await waitFor(() => expect(mocked.createBranch).toHaveBeenCalledWith("r", "fix", oid));
   });
 
   it("disarms Create when a refs refresh removes the chosen start point", () => {

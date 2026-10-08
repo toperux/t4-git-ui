@@ -1263,6 +1263,29 @@ pub fn expect_branch_at(repo: &Repository, name: &str, oid: &str) -> Result<(), 
     )))
 }
 
+/// Refuses a checkout while a merge, cherry-pick, revert or rebase is in progress: git would
+/// drop a resolved merge, pick or revert without a word. A bisect moves around by design.
+pub fn refuse_mid_op(repo: &Repository) -> Result<(), GitError> {
+    match mid_op_refusal(RepoState::from(repo.state())) {
+        Some(message) => Err(GitError::Refused(message)),
+        None => Ok(()),
+    }
+}
+
+/// The refusal for `state`, worded after its banner's buttons.
+fn mid_op_refusal(state: RepoState) -> Option<String> {
+    let op = match state {
+        RepoState::Clean | RepoState::Bisect => return None,
+        RepoState::Rebase => {
+            return Some("A rebase is in progress — continue or abort it first".into())
+        }
+        RepoState::Merge => "merge",
+        RepoState::CherryPick => "cherry-pick",
+        RepoState::Revert => "revert",
+    };
+    Some(format!("A {op} is in progress — commit or abort it first"))
+}
+
 /// Deletes local branch `name`. Without `force` the branch must be merged
 /// into HEAD or into its upstream (git's `branch -d` rule); the checked-out
 /// branch is never deleted. Refusals are [`GitError::Refused`].
@@ -1357,10 +1380,33 @@ mod tests {
     use git2::Oid;
 
     use super::{
-        ahead_behind, children_first, full_reach, label_map, natural_cmp, snapshot, snapshot_with,
-        update_reach, upstream_ref, AheadBehindCache, ConflictSides, Reach, RefKind, RepoState,
+        ahead_behind, children_first, full_reach, label_map, mid_op_refusal, natural_cmp, snapshot,
+        snapshot_with, update_reach, upstream_ref, AheadBehindCache, ConflictSides, Reach, RefKind,
+        RepoState,
     };
     use crate::test_util::TempRepo;
+
+    #[test]
+    fn mid_op_refusal_follows_the_banner() {
+        assert_eq!(
+            mid_op_refusal(RepoState::Merge).as_deref(),
+            Some("A merge is in progress — commit or abort it first")
+        );
+        assert_eq!(
+            mid_op_refusal(RepoState::CherryPick).as_deref(),
+            Some("A cherry-pick is in progress — commit or abort it first")
+        );
+        assert_eq!(
+            mid_op_refusal(RepoState::Revert).as_deref(),
+            Some("A revert is in progress — commit or abort it first")
+        );
+        assert_eq!(
+            mid_op_refusal(RepoState::Rebase).as_deref(),
+            Some("A rebase is in progress — continue or abort it first")
+        );
+        assert_eq!(mid_op_refusal(RepoState::Bisect), None);
+        assert_eq!(mid_op_refusal(RepoState::Clean), None);
+    }
 
     #[test]
     fn natural_order_reads_numbers_and_ignores_case() {

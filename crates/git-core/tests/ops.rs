@@ -465,6 +465,72 @@ async fn revert_undoes_head_and_takes_a_mainline_on_a_merge() {
     assert!(!t.path().join("g.txt").exists());
 }
 
+/// The check the `checkout` command runs first: a resolved merge, pick or revert (which git would
+/// drop) and a stopped rebase are refused; a bisect and a clean repository pass.
+#[tokio::test]
+async fn refuse_mid_op_refuses_a_checkout_during_an_operation() {
+    if !have_git() {
+        return;
+    }
+    let refused = |t: &TempRepo, op: &str| {
+        let r = refs::refuse_mid_op(&t.repo);
+        assert!(
+            matches!(&r, Err(GitError::Refused(m)) if m.starts_with(&format!("A {op} is"))),
+            "{op}: {r:?}"
+        );
+    };
+    let resolve = |t: &TempRepo| {
+        t.write("f.txt", "resolved\n");
+        t.stage(&["f.txt"]);
+    };
+    let t = TempRepo::new();
+    let (master, feat) = conflicting_branches(&t);
+    refs::refuse_mid_op(&t.repo).expect("clean");
+
+    let (out, _) = run(t.path(), &ops::merge("feat", &MergeOpts::default())).await;
+    assert_ne!(out.code, 0);
+    resolve(&t);
+    assert_eq!(RepoState::from(t.repo.state()), RepoState::Merge);
+    refused(&t, "merge");
+    run_ok(&t, &ops::merge_abort()).await;
+
+    let (out, _) = run(
+        t.path(),
+        &ops::cherry_pick(&feat.to_string(), &PickOpts::default()),
+    )
+    .await;
+    assert_ne!(out.code, 0);
+    resolve(&t);
+    assert_eq!(RepoState::from(t.repo.state()), RepoState::CherryPick);
+    refused(&t, "cherry-pick");
+    run_ok(&t, &ops::cherry_pick_abort()).await;
+
+    // Reverting `master` once the line it changed has changed again: a conflict.
+    t.commit(&[("f.txt", "third\n")], "third");
+    let (out, _) = run(
+        t.path(),
+        &ops::revert(&master.to_string(), &PickOpts::default()),
+    )
+    .await;
+    assert_ne!(out.code, 0);
+    resolve(&t);
+    assert_eq!(RepoState::from(t.repo.state()), RepoState::Revert);
+    refused(&t, "revert");
+    run_ok(&t, &ops::revert_abort()).await;
+
+    t.checkout("feat");
+    let (out, _) = run(t.path(), &ops::rebase("master")).await;
+    assert_ne!(out.code, 0);
+    reload(&t);
+    assert_eq!(RepoState::from(t.repo.state()), RepoState::Rebase);
+    refused(&t, "rebase");
+    run_ok(&t, &ops::rebase_abort()).await;
+
+    run_ok(&t, &ops::bisect_start()).await;
+    assert_eq!(RepoState::from(t.repo.state()), RepoState::Bisect);
+    refs::refuse_mid_op(&t.repo).expect("bisect");
+}
+
 #[tokio::test]
 async fn checkout_creates_branch_and_detaches() {
     if !have_git() {
@@ -547,6 +613,11 @@ async fn checkout_force_moves_an_existing_branch_only_if_the_checkout_succeeds()
         "{}",
         out.stderr
     );
+    // The toast names the file git listed after its colon.
+    match failure(&out) {
+        OpFailure::Other { message } => assert!(message.ends_with("f.txt"), "{message}"),
+        other => panic!("{other:?}\n{}", out.stderr),
+    }
     reload(&t);
     assert_eq!(ref_oid(&t, "refs/heads/topic"), Some(b));
     assert_eq!(

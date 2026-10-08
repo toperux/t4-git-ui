@@ -8,6 +8,7 @@ import { Spinner } from "../../components/ui/Spinner/Spinner";
 import { StatusBar, StatusItem } from "../../components/ui/StatusBar/StatusBar";
 import { ToastStack } from "../../components/ui/Toast/Toast";
 import { AheadBehind } from "../../components/ui/TreeRow/TreeRow";
+import { freshStatus } from "../../lib/freshStatus";
 import { prettyUrl } from "../../lib/paths";
 import { useDialogStore } from "../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../store/opsStore";
@@ -445,6 +446,9 @@ export function RepoStatusBar() {
   // The branch's own remote, else origin, else whatever comes first — not the alphabetical first.
   const remote = refs?.remotes.find((r) => current?.upstream?.startsWith(`${r.name}/`)) ?? refs?.remotes.find((r) => r.name === "origin") ?? refs?.remotes[0];
   const state = refs?.state ?? "clean";
+  // "Clean" names no operation in progress; beside a dirty tree (or one not known yet) it would mislead.
+  const fresh = freshStatus(status, refs?.state);
+  const showState = state !== "clean" || (fresh !== null && fresh.entries.length === 0);
   // Mid-rebase HEAD is detached; the branch being rebased is the "theirs" side (`HEAD` when the rebase started detached).
   const rebasing = refs?.state === "rebase" && head?.detached ? refs.conflictSides?.theirs : undefined;
 
@@ -498,10 +502,12 @@ export function RepoStatusBar() {
               {status.conflicted > 0 ? ` · ${status.conflicted} conflicted` : ""}
             </StatusItem>
           )}
-          <StatusItem>
-            {state === "clean" ? <CircleCheck size={12} aria-hidden /> : <TriangleAlert size={12} aria-hidden />}
-            {STATE_LABEL[state]}
-          </StatusItem>
+          {showState && (
+            <StatusItem>
+              {state === "clean" ? <CircleCheck size={12} aria-hidden /> : <TriangleAlert size={12} aria-hidden />}
+              {STATE_LABEL[state]}
+            </StatusItem>
+          )}
           {gitVersion && <StatusItem>git {gitVersion.replace(/^git version\s*/i, "")}</StatusItem>}
         </>
       }

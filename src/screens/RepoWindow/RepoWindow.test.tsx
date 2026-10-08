@@ -112,6 +112,32 @@ describe("RepoStatusBar", () => {
     expect(getByText("abcdef0")).toBeTruthy();
     expect(getByText(/\(detached\)/)).toBeTruthy();
   });
+
+  it("says Clean only beside a clean tree; an operation shows whatever the tree holds", () => {
+    const edited = { path: "a", oldPath: null, index: null, workdir: "modified" as const, conflicted: false, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1", indexStamp: null };
+    const tree = (dirty: boolean, state: "clean" | "merge" = "clean") => ({ entries: dirty ? [edited] : [], staged: 0, unstaged: dirty ? 1 : 0, untracked: 0, conflicted: 0, state });
+    useStatusStore.setState({ status: tree(true) });
+    const dirty = render(<RepoStatusBar />);
+    expect(dirty.getByText("1 unstaged · 0 staged")).toBeTruthy();
+    expect(dirty.queryByText("Clean")).toBeNull();
+    cleanup();
+
+    useStatusStore.setState({ status: tree(false) });
+    expect(render(<RepoStatusBar />).getByText("Clean")).toBeTruthy();
+    cleanup();
+
+    // Not known yet — an empty scan from another state, or none — is never "Clean".
+    useStatusStore.setState({ status: tree(false, "merge") });
+    expect(render(<RepoStatusBar />).queryByText("Clean")).toBeNull();
+    cleanup();
+    useStatusStore.setState({ status: null });
+    expect(render(<RepoStatusBar />).queryByText("Clean")).toBeNull();
+    cleanup();
+
+    useRepoStore.setState({ refs: { ...REFS, state: "merge" } });
+    useStatusStore.setState({ status: tree(true, "merge") });
+    expect(render(<RepoStatusBar />).getByText("Merge in progress")).toBeTruthy();
+  });
 });
 
 describe("RepoWindow sidebar", () => {

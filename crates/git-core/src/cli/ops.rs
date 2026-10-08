@@ -721,12 +721,12 @@ pub fn classify_failure(code: i32, stdout: &str, stderr: &str) -> OpFailure {
         };
     }
     let lines: Vec<&str> = stderr.lines().map(str::trim).collect();
-    let error = lines
+    let error_at = lines
         .iter()
-        .rfind(|l| l.starts_with("fatal:") || l.starts_with("error:"));
+        .rposition(|l| l.starts_with("fatal:") || l.starts_with("error:"));
     // A failing post-checkout hook: git checked out and said so, then exited with the hook's code.
     // Any line, not the first: leaving a detached commit behind prints a warning ahead of it.
-    if error.is_none() {
+    if error_at.is_none() {
         if let Some(i) = lines
             .iter()
             .position(|l| CHECKOUT_DONE.iter().any(|p| l.starts_with(p)))
@@ -746,8 +746,27 @@ pub fn classify_failure(code: i32, stdout: &str, stderr: &str) -> OpFailure {
     // with a hint ("Otherwise, please use…"). A pull's fetch talks first and a `warning:` may come
     // before the advice, so those are passed over; the paragraph is joined up to its blank line,
     // four lines at most, or a toast could carry a whole help text.
-    let message = error
-        .map(|l| l.to_string())
+    //
+    // An error line ending in `:` ("…would be overwritten by checkout:") has git's file list on
+    // the indented lines after it: the first three are named, the dock has the rest.
+    let message = error_at
+        .map(|i| {
+            let line = lines[i];
+            if !line.ends_with(':') {
+                return line.to_string();
+            }
+            let listed: Vec<&str> = stderr
+                .lines()
+                .skip(i + 1)
+                .take_while(|l| l.starts_with('\t') || l.starts_with(' '))
+                .map(str::trim)
+                .collect();
+            match listed.len() {
+                0 => line.to_string(),
+                1..=3 => format!("{line} {}", listed.join(", ")),
+                n => format!("{line} {} and {} more", listed[..3].join(", "), n - 3),
+            }
+        })
         .or_else(|| {
             lines
                 .iter()
@@ -1482,6 +1501,36 @@ mod tests {
             classify_failure(1, "", "remote: Enumerating objects: 4, done.\n"),
             OpFailure::Other {
                 message: "remote: Enumerating objects: 4, done.".into()
+            }
+        );
+    }
+
+    #[test]
+    fn error_colon_names_the_files() {
+        let head =
+            "error: Your local changes to the following files would be overwritten by checkout:";
+        let tail =
+            "Please commit your changes or stash them before you switch branches.\nAborting\n";
+        let one = format!("{head}\n\tf.txt\n{tail}");
+        assert_eq!(
+            classify_failure(1, "", &one),
+            OpFailure::Other {
+                message: format!("{head} f.txt")
+            }
+        );
+        let five = format!("{head}\n\tf.txt\n\tg.txt\n\th.txt\n\ti.txt\n\tj.txt\n{tail}");
+        assert_eq!(
+            classify_failure(1, "", &five),
+            OpFailure::Other {
+                message: format!("{head} f.txt, g.txt, h.txt and 2 more")
+            }
+        );
+        // Nothing indented after the colon: the line as it is.
+        let bare = format!("{head}\n{tail}");
+        assert_eq!(
+            classify_failure(1, "", &bare),
+            OpFailure::Other {
+                message: head.into()
             }
         );
     }

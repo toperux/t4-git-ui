@@ -411,9 +411,8 @@ export const deleteRemoteBranch = (id: RepoId, remote: string, name: string) =>
 /** `git <args>` as typed by the user; rejects with kind `refused` for a flag that needs a terminal. */
 export const runGit = (id: RepoId, args: string[]) => call<OpResult>("run_git", { id, args });
 
-// git2-backed (no stream); `checkout: true` runs `git checkout -b` and rejects with kind `cli` on failure.
-export const createBranch = (id: RepoId, name: string, target: string, checkout: boolean) =>
-  call<void>("create_branch", { id, name, target, checkout });
+// git2-backed (no stream); creating and checking out goes through `checkout` instead.
+export const createBranch = (id: RepoId, name: string, target: string) => call<void>("create_branch", { id, name, target });
 
 /** Rejects with kind `refused` when the branch is unmerged and `force` is off. */
 export const deleteBranch = (id: RepoId, name: string, force: boolean) => call<void>("delete_branch", { id, name, force });
