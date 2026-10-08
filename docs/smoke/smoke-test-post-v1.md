@@ -510,7 +510,9 @@ _Shipped 2026-09-07 (this commit); walked the same day over CDP on the installed
       unticked → toast `1 conflict — resolve in the commit panel`, only the conflicts banner (no
       `CHERRY_PICK_HEAD`, the status bar still says `Clean`), and the editor's Summary reads
       `conflict branch side`; resolve, stage and commit from the panel, or from a shell `git reset
-      -- conflict.txt && git checkout -- conflict.txt` to drop it
+      -- conflict.txt && git checkout -- conflict.txt` to drop it *(2026-10-08, §AG T19: since group BR's fix
+      the status bar here shows the counts with `1 conflicted` and no `Clean` — `Clean` now shows only beside a
+      clean tree. The tick stands for the rest of the row.)*
 - [x] **Commit right away off and a conflicting revert** (§5): from a shell, commit a further edit to
       `conflict.txt` on `main`, then **Revert 837a5a9…** (`main side of the conflict`) with the box
       unticked → preview `git revert --no-edit -n --end-of-options …` → the `Revert in progress` banner (**Abort**,
@@ -3030,6 +3032,44 @@ of `checkout-remote-elsewhere` (`docs/smoke/smoke-cdp.md`, store backed up and r
       (Cancel); *Reset other local to origin/trio…* lists `trio-b` and `trio-c` (Cancel). Nothing moved.
       *(Walked 2026-10-07 of `3784d36` on Windows and Linux: the three items, both pickers as written; nothing
       moved. `docs/archive/walks/2026-10-07-bq-walk.md`.)*
+
+## BR. App-wide fixes: the error toast, checkout mid-operation, the status bar's Clean
+
+Plan: `docs/plans/2026-10-08-app-wide-fixes-plan.md` (open-items §AG T7, T15, T19; T17 is a unit test only). Fixture:
+`docs/smoke/fixtures/bq-fixture.sh` (`T4_ROOT=/tmp/t4` on Linux), **built fresh before row 1** — a `bq` already walked
+through BQ won't match (BQ 1 leaves `behind` on `origin/behind`, BQ 8 leaves HEAD on `trio`). Rows in order, all in
+`bq`. Check outcomes in git (`git -C <fixture>/bq status`, `branch --show-current`, `ls .git`), not the UI's word.
+Windows over CDP on a local `tauri build --no-bundle` of `app-wide-fixes` (`docs/smoke/smoke-cdp.md`, store backed up
+and restored); Linux under Xvfb with openbox (`docs/smoke/smoke-linux.md`).
+
+- [x] 1. **The toast names the file (T7):** BQ 6's setup — `echo edit > <fixture>/bq/shared.txt`; `origin/dirty`'s
+      commit → *Checkout dirty* → the error toast's detail ends "…would be overwritten by checkout: shared.txt".
+      Then `git -C <fixture>/bq checkout -- shared.txt`. *(Walked 2026-10-08 of `5a88649` on Windows (CDP) and
+      Linux (Xvfb + openbox, XTEST): the detail as written, git's full refusal in the dock; `dirty` and HEAD
+      unmoved. `docs/archive/walks/2026-10-08-br-walk.md`.)*
+- [x] 2. **Clean means a clean tree (T19):** the clean tree → the status bar shows `✓ Clean` (before the git version);
+      edit any file → only `1 unstaged · 0 staged`, no `Clean`; undo the edit → `✓ Clean` again. *(Walked
+      2026-10-08 of `5a88649` on Windows and Linux: as written. `docs/archive/walks/2026-10-08-br-walk.md`.)*
+- [x] 3. **A merge in progress refuses every checkout (T15):** on `main`, `git -C <fixture>/bq merge --no-ff
+      --no-commit ahead` (no conflict: `ahead` touches only `ahead.txt`) → the status bar reads `Merge in progress`.
+      Each of these → an error toast "A merge is in progress — commit or abort it first", the merge banner stays,
+      `MERGE_HEAD` still there, HEAD still `main`:
+      - *Checkout* `diverged` from the sidebar's branch menu;
+      - a double-click on `trio` in the sidebar;
+      - *Checkout multi-a* on `multi-a`'s History row;
+      - *Checkout behind* on `origin/behind`'s History row (a fast-forward: no dialog, `git checkout -B` with the
+        moved-branch check, which the merge refusal comes before);
+      - *Create branch…* with *Check out* ticked (no branch is created).
+
+      Then the banner's **Commit merge** → the panel's **Commit** → *Checkout* `diverged` from the sidebar now works.
+      *(Walked 2026-10-08 of `5a88649` on Windows and Linux: all five refused with the message as written — toast
+      titles "Checking out <branch> failed" / "Creating <name> failed" — no dock line (git never ran), `MERGE_HEAD`
+      and HEAD kept, no branch created; after the merge commit the checkout worked.
+      `docs/archive/walks/2026-10-08-br-walk.md`.)*
+- [x] 4. **A bisect still allows checkout (T15):** `git -C <fixture>/bq bisect start main main^` (HEAD detached on one
+      of `ahead`'s commits) → *Checkout trio* on `trio`'s History row → it lands, the bisect banner stays,
+      `BISECT_LOG` still there. Then `git -C <fixture>/bq bisect reset`. *(Walked 2026-10-08 of `5a88649` on Windows
+      and Linux: as written. `docs/archive/walks/2026-10-08-br-walk.md`.)*
 
 ## Reporting
 
