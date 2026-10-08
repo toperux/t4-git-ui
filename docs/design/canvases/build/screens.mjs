@@ -151,7 +151,7 @@ export function statusbar({
     ${busy ? `<span class="item">${spin}${busy}</span>` : ''}
     ${loading ? `<span class="item">${spin}Loading commits… ${loading}</span>` : ''}
     ${counts ? `<span class="item">${counts}</span>` : ''}
-    <span class="item">${icon(state === 'Clean' ? 'check-circle' : 'alert', 12)}${state}</span>
+    ${counts && state === 'Clean' ? '' : `<span class="item">${icon(state === 'Clean' ? 'check-circle' : 'alert', 12)}${state}</span>`}
     <span class="item">git ${git}</span>
   </div>`;
 }
