@@ -3071,6 +3071,65 @@ and restored); Linux under Xvfb with openbox (`docs/smoke/smoke-linux.md`).
       `BISECT_LOG` still there. Then `git -C <fixture>/bq bisect reset`. *(Walked 2026-10-08 of `5a88649` on Windows
       and Linux: as written. `docs/archive/walks/2026-10-08-br-walk.md`.)*
 
+## BS. The activity bar under the toolbar, the opening overlay from the click
+
+Plan: `docs/plans/2026-10-09-activity-indicator-plan.md` (A, D; D1–D13). Fixtures: `perf-synth` and `perf-git`
+(`node docs/smoke/fixtures/perf-repo.mjs <dir>/perf-synth --files 100000` and a `perf-git` clone of git.git, as in
+group BL) and a small throwaway repository. Windows over CDP on a local `tauri build --no-bundle` of
+`activity-indicator` (`docs/smoke/smoke-cdp.md`, store backed up and restored); Linux under Xvfb with openbox
+(`docs/smoke/smoke-linux.md`); the owner's Mac session if free (D7). The open gap itself — a Recents click to the new
+tab, timed over CDP on the code before the change (the plan's step 0) — is measured separately, not a row: 19–33 ms on
+Windows (`docs/archive/walks/2026-10-09-bs-walk.md`).
+
+- [x] 1. **The bar (A):** in `perf-git`, *Fetch* (a network fetch from GitHub, so it lasts) → a thin accent bar sweeps
+      along the toolbar's bottom edge until the op ends; the status bar's spinner and text as before. In `perf-synth`,
+      append a line to 1000 tracked files (a bare `touch` changes nothing git sees), then *Stage all* in the commit
+      panel → the bar too; the panel's own bar may outlast it by the status refresh (it follows `applying`, the
+      toolbar's follows `busy`, D1), not a fail; if the panel's own bar is gone within 150 ms, no toolbar bar is
+      expected (D13). Idle → no bar. In the small throwaway repository, stage one file → no flash on the toolbar
+      (D13; the panel's own bar has no delay and may flash). In `perf-synth`, *Unstage all*, open the commit dialog
+      (it holds the commit panel, `CommitDialog.tsx:11-18`) and *Stage all* there → only the bar's 16 px ends show,
+      dimmed (D9). Then `git reset --hard` in `perf-synth`. *(Walked 2026-10-09 of `41884df` on Windows (CDP), Linux
+      (Xvfb + openbox, XTEST) and macOS: the bar on the toolbar's edge during the fetch and *Stage all*, faded in
+      after 150 ms, none for a one-file stage (macOS by frame bursts); under the commit dialog only its 16 px ends,
+      dimmed — measured on Windows, hit-tested on Linux, and on macOS thin: one frame with a dim left end, none in the
+      other two runs. `docs/archive/walks/2026-10-09-bs-walk.md`.)*
+- [x] 2. **Reduced motion (A):** Windows: Settings › Accessibility › Visual effects › *Animation effects* off, or CDP
+      `Emulation.setEmulatedMedia` with `prefers-reduced-motion: reduce`; the Mac: System Settings › Accessibility ›
+      Display › *Reduce motion* → a fetch shows the bar after the delay, still, full width, half opacity. Linux: not
+      walked (how WebKitGTK reads it under the harness is unverified). *(Walked 2026-10-09 of `41884df` on Windows
+      (CDP media emulation) and macOS (Reduce motion, restored after): the bar after the delay, still, full width,
+      half opacity. `docs/archive/walks/2026-10-09-bs-walk.md`.)*
+- [x] 3. **Opening (D):**
+      - Close `perf-synth`'s tab (keep two others open, so the tab strip stays shown), then open it again from the
+        toolbar's Recents → `perf-synth`'s tab open and active, no overlay left behind. On Windows, timed, three runs:
+        step 0's click listener, installed again on this build, and a MutationObserver on `document.body`
+        (`subtree: true`; the scrim is portalled there, `BusyOverlay.tsx:17`, found by its text, since it is
+        `role="status"` like the status bar). Pass: in every run the scrim arrives in an earlier MutationObserver
+        callback than the tab (without D both come in one React commit, so one callback; this holds however fast the
+        open). Record click → scrim and click → tab per run; where tab − scrim exceeds 150 ms the overlay was visible
+        before the tab. On Linux and the Mac (the gap unmeasured there), by eye: the overlay shows, or doesn't for a
+        fast open, then clears.
+      - Open a repository already in a tab (the palette's Recents list it) → no overlay left behind, that tab active.
+      - A repository open in another window (two windows; Linux under openbox) → no overlay left behind, that window
+        forward.
+      - A Recents entry whose folder was deleted (open a throwaway repository, close its tab, delete the folder) → the
+        "Couldn't open repository" toast, no overlay left behind.
+
+      *(Walked 2026-10-09 of `41884df` on Windows, Linux and macOS: all four bullets as written. The scrim came in an
+      earlier observer callback than the tab in every timed run — on Windows 2–3 ms against 21–23 ms, so never
+      visible before the tab; on Linux (a debug build) the open took about 1 s and the *Opening perf-synth…* card
+      showed over the previous tab. `docs/archive/walks/2026-10-09-bs-walk.md`.)*
+- [x] 4. **The palette keeps its input (found on the BS walk's follow-up, S3):** open the command palette (Ctrl+K or
+      its toolbar button), click a group header (e.g. "Views") with the mouse, then type → the list filters; click
+      the footer line ("↑↓ navigate · ↵ run · Esc close"), then press Esc → the palette closes. Reopen it: right-click
+      a header, then type → it filters; press on a header, drag out over the dimmed backdrop and let go, then type →
+      it filters and the palette stays open. Press Tab, then Shift+Tab, then type → the focus stays in the input
+      and it filters. Clicking an option still runs it. *(Walked 2026-10-09 on Windows with real mouse and keyboard
+      input, on `perf-synth` (about 690 options) and a small repository: every step as written — the click steps of
+      `86e2032`, the Tab steps of `9ebd391`. A header pressed inside the scrolled list moved the focus to `<body>`,
+      not the list, and the release gave it back to the input. `docs/archive/walks/2026-10-09-bs-walk.md`.)*
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the
