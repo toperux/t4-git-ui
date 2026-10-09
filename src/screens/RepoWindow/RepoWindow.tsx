@@ -4,12 +4,14 @@ import { Group, Panel, Separator, usePanelRef } from "react-resizable-panels";
 import type { RepoState } from "../../api/types";
 import { Banner } from "../../components/ui/Banner/Banner";
 import { Button } from "../../components/ui/Button/Button";
+import { Progress } from "../../components/ui/Progress/Progress";
 import { Spinner } from "../../components/ui/Spinner/Spinner";
 import { StatusBar, StatusItem } from "../../components/ui/StatusBar/StatusBar";
 import { ToastStack } from "../../components/ui/Toast/Toast";
 import { AheadBehind } from "../../components/ui/TreeRow/TreeRow";
 import { freshStatus } from "../../lib/freshStatus";
 import { prettyUrl } from "../../lib/paths";
+import { useCommitStore } from "../../store/commitStore";
 import { useDialogStore } from "../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
@@ -119,6 +121,7 @@ export function RepoWindow() {
     <div className={s.window}>
       {stripped && <TabStrip />}
       <Toolbar />
+      <ActivityBar />
       <Group orientation="vertical" className={s.main} elementRef={dockGroup}>
         <Panel minSize={200} className={s.panel}>
           <div className={s.row}>
@@ -343,6 +346,24 @@ export function DockPanel({
     >
       <OutputDock />
     </Panel>
+  );
+}
+
+/**
+ * A thin bar along the toolbar's bottom edge while an op or the commit panel's work runs. Visual
+ * only (`aria-hidden`): the status bar already announces the op.
+ */
+function ActivityBar() {
+  const op = useOpsStore((st) => st.busy);
+  const busy = useCommitStore((st) => st.busy);
+  const committing = useCommitStore((st) => st.committing);
+  if (op === null && !busy) return null;
+  // The op's own label wins when both run; else the commit panel's bar's words.
+  const label = op ?? (committing ? "Committing" : "Applying changes");
+  return (
+    <div className={s.activity} aria-hidden data-testid="activity-bar">
+      <Progress thin label={label} />
+    </div>
   );
 }
 

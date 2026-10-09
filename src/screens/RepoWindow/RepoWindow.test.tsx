@@ -1,6 +1,7 @@
-import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RefsSnapshot } from "../../api/types";
+import { useCommitStore } from "../../store/commitStore";
 import { useDialogStore } from "../../store/dialogStore";
 import { useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
@@ -137,6 +138,45 @@ describe("RepoStatusBar", () => {
     useRepoStore.setState({ refs: { ...REFS, state: "merge" } });
     useStatusStore.setState({ status: tree(true, "merge") });
     expect(render(<RepoStatusBar />).getByText("Merge in progress")).toBeTruthy();
+  });
+});
+
+describe("RepoWindow activity bar", () => {
+  afterEach(() => useCommitStore.setState({ busy: false, committing: false }));
+
+  // The wrapper is `aria-hidden` and the status bar's spinner is a progressbar of the same name:
+  // find the wrapper first, then the bar inside it.
+  const bar = (queryByTestId: (id: string) => HTMLElement | null, name: string) => {
+    const wrapper = queryByTestId("activity-bar");
+    expect(wrapper).not.toBeNull();
+    expect(wrapper!.getAttribute("aria-hidden")).toBe("true");
+    return within(wrapper!).getByRole("progressbar", { name, hidden: true });
+  };
+
+  it("shows nothing while idle", () => {
+    useOpsStore.setState({ busy: null });
+    expect(render(<RepoWindow />).queryByTestId("activity-bar")).toBeNull();
+  });
+
+  it("shows the op's label while an op runs", () => {
+    expect(bar(render(<RepoWindow />).queryByTestId, "Fetching…")).toBeTruthy();
+  });
+
+  it("says Committing while the commit panel commits", () => {
+    useOpsStore.setState({ busy: null });
+    useCommitStore.setState({ busy: true, committing: true });
+    expect(bar(render(<RepoWindow />).queryByTestId, "Committing")).toBeTruthy();
+  });
+
+  it("says Applying changes while the commit panel stages", () => {
+    useOpsStore.setState({ busy: null });
+    useCommitStore.setState({ busy: true, committing: false });
+    expect(bar(render(<RepoWindow />).queryByTestId, "Applying changes")).toBeTruthy();
+  });
+
+  it("names the op when both are busy", () => {
+    useCommitStore.setState({ busy: true, committing: true });
+    expect(bar(render(<RepoWindow />).queryByTestId, "Fetching…")).toBeTruthy();
   });
 });
 

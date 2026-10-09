@@ -255,7 +255,8 @@ export default function App() {
         <StartScreen />
       )}
       {/* One overlay covers every path into `openRepo`: the start screen (recents, Open, a finished
-          clone, init) and switching repositories from the toolbar menu. */}
+          clone, init) and switching repositories from the toolbar menu. `tabsStore.openTab` sets
+          `opening` first, before the backend's answer, and `repoStore.openRepo` again after it. */}
       {opening && <BusyOverlay label={`Opening ${opening}…`} />}
     </>
   );

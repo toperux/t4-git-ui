@@ -7,6 +7,7 @@ import * as ipc from "../api/ipc";
 import { toAppError } from "../api/ipc";
 import type { RepoId } from "../api/types";
 import { closeThisWindow, isMainWindow } from "../lib/appWindow";
+import { baseName } from "../lib/paths";
 import { refreshAll, refusedWhileRunning } from "../screens/RepoWindow/actions";
 import { hasDraft, restore as restoreCommit, snapshot as commitSnapshot, type CommitSnapshot, useCommitStore } from "./commitStore";
 import { useDialogStore } from "./dialogStore";
@@ -80,34 +81,41 @@ export const useTabsStore = create<TabsStore>()((set, get) => ({
   caret: null,
 
   async openTab(path) {
-    let summary;
+    // The *Opening…* overlay from the click, not from the backend's answer: `repoStore.openRepo`
+    // sets it too, but only after the wait below, which showed nothing. Cleared on every way out.
+    useRepoStore.setState({ opening: baseName(path) });
     try {
-      // The backend answers with the id, which is the identity a tab is compared by: `\\?\`, case
-      // and slash variants of a path — and a subdirectory of a repository — all land on the same
-      // one. It is also what focuses the window that already has it.
-      summary = await ipc.openRepo(path);
-    } catch (e) {
-      // `openElsewhere`: that window has the focus now, and there is nothing to say here.
-      if (toAppError(e).kind === "openElsewhere") return;
-      throw e;
-    }
-    const { tabs, active } = get();
-    if (tabs.some((t) => t.id === summary.id)) {
-      get().activate(summary.id);
-      return;
-    }
-    useDialogStore.getState().close();
-    set({
-      tabs: [...tabs, { id: summary.id, path: summary.path, name: summary.name, stale: false }],
-      active: summary.id,
-      saved: active ? { ...get().saved, [active]: take() } : get().saved,
-    });
-    try {
-      await useRepoStore.getState().openRepo(summary.path, summary);
-    } catch (e) {
-      // The tab is only worth keeping if something loaded into it.
-      await get().closeTab(summary.id);
-      throw e;
+      let summary;
+      try {
+        // The backend answers with the id, which is the identity a tab is compared by: `\\?\`, case
+        // and slash variants of a path — and a subdirectory of a repository — all land on the same
+        // one. It is also what focuses the window that already has it.
+        summary = await ipc.openRepo(path);
+      } catch (e) {
+        // `openElsewhere`: that window has the focus now, and there is nothing to say here.
+        if (toAppError(e).kind === "openElsewhere") return;
+        throw e;
+      }
+      const { tabs, active } = get();
+      if (tabs.some((t) => t.id === summary.id)) {
+        get().activate(summary.id);
+        return;
+      }
+      useDialogStore.getState().close();
+      set({
+        tabs: [...tabs, { id: summary.id, path: summary.path, name: summary.name, stale: false }],
+        active: summary.id,
+        saved: active ? { ...get().saved, [active]: take() } : get().saved,
+      });
+      try {
+        await useRepoStore.getState().openRepo(summary.path, summary);
+      } catch (e) {
+        // The tab is only worth keeping if something loaded into it.
+        await get().closeTab(summary.id);
+        throw e;
+      }
+    } finally {
+      useRepoStore.setState({ opening: null });
     }
   },
 

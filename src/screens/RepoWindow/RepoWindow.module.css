@@ -10,6 +10,26 @@
   min-width: 0;
   min-height: 0;
 }
+/* Zero-height, as the commit panel's: the 3px bar lies over the toolbar's bottom edge, hairline
+   included (top: -3px), instead of pushing the panels down. The 150ms delay keeps a quick stage
+   click from flashing it ("both" holds opacity 0 until then). */
+.activity {
+  position: relative;
+  top: -3px;
+  flex: none;
+  height: 0;
+  z-index: 1;
+  animation: appear var(--dur-panel) var(--ease) 150ms both;
+}
+/* A local copy: CSS modules scope keyframe names per file, so BusyOverlay's can't be named here. */
+@keyframes appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
 /* The rail sits beside the horizontal group, outside it: only the sidebar panel is resizable. */
 .row {
   display: flex;

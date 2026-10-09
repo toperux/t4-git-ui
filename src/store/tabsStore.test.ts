@@ -29,7 +29,7 @@ import { __resetForTests as resetRepo, useRepoStore } from "./repoStore";
 import { draftRepos, type Snapshot, useTabsStore } from "./tabsStore";
 
 let label = "main";
-const mocked = ipc as unknown as Record<"openRepo" | "closeRepo" | "spawnWindow", ReturnType<typeof vi.fn>>;
+const mocked = ipc as unknown as Record<"openRepo" | "closeRepo" | "spawnWindow" | "startLog", ReturnType<typeof vi.fn>>;
 const summary = (path: string): RepoSummary => ({ id: path, name: path.slice(1), path, head: { oid: "a", branch: "main", detached: false } });
 const tabs = () => useTabsStore.getState().tabs;
 
@@ -65,6 +65,57 @@ describe("openTab", () => {
     mocked.openRepo.mockRejectedValueOnce({ kind: "openElsewhere", message: "a is open in another window" });
     await expect(useTabsStore.getState().openTab("/a")).resolves.toBeUndefined();
     expect(tabs()).toEqual([]);
+  });
+});
+
+describe("openTab's opening overlay", () => {
+  const opening = () => useRepoStore.getState().opening;
+  // `ipc.openRepo` held until the test answers it.
+  const held = () => {
+    const answer = {} as { resolve: (v: RepoSummary) => void; reject: (e: unknown) => void };
+    mocked.openRepo.mockImplementationOnce(() => new Promise<RepoSummary>((resolve, reject) => Object.assign(answer, { resolve, reject })));
+    return answer;
+  };
+
+  it("shows from the call, before the backend answers, and clears after an error", async () => {
+    const answer = held();
+    const done = useTabsStore.getState().openTab("/a");
+    expect(opening()).toBe("a");
+    answer.reject({ kind: "internal", message: "no such repository" });
+    await expect(done).rejects.toMatchObject({ kind: "internal" });
+    expect(opening()).toBeNull();
+  });
+
+  it("clears when another window has the repository", async () => {
+    const answer = held();
+    const done = useTabsStore.getState().openTab("/a");
+    expect(opening()).toBe("a");
+    answer.reject({ kind: "openElsewhere", message: "a is open in another window" });
+    await done;
+    expect(opening()).toBeNull();
+  });
+
+  it("clears when the repository already has a tab", async () => {
+    await useTabsStore.getState().openTab("/a");
+    await useTabsStore.getState().openTab("/b");
+    const answer = held();
+    const done = useTabsStore.getState().openTab("/a");
+    expect(opening()).toBe("a");
+    answer.resolve(summary("/a"));
+    await done;
+    expect(useTabsStore.getState().active).toBe("/a");
+    expect(opening()).toBeNull();
+  });
+
+  it("stays through the load after the backend answers, and clears once the tab is open", async () => {
+    let started!: (generation: number) => void;
+    mocked.startLog.mockImplementationOnce(() => new Promise<number>((r) => (started = r)));
+    const done = useTabsStore.getState().openTab("/a");
+    await vi.waitFor(() => expect(mocked.startLog).toHaveBeenCalled());
+    expect(opening()).toBe("a");
+    started(1);
+    await done;
+    expect(opening()).toBeNull();
   });
 });
 
