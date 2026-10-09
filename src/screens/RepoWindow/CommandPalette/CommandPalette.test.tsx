@@ -62,6 +62,35 @@ describe("CommandPalette", () => {
     fireEvent.keyDown(input, { key: "Escape" });
     expect(usePaletteStore.getState().open).toBe(false);
   });
+  it("Tab and Shift+Tab stay in the input", () => {
+    const { getByRole } = render(<CommandPalette />);
+    const input = getByRole("combobox", { name: "Command palette" });
+    expect(fireEvent.keyDown(input, { key: "Tab" })).toBe(false); // default prevented: the focus doesn't move
+    expect(fireEvent.keyDown(input, { key: "Tab", shiftKey: true })).toBe(false);
+    expect(usePaletteStore.getState().open).toBe(true);
+  });
+  it("a press off an option that takes the focus from the input gives it back on release", () => {
+    const { getByRole, getAllByRole } = render(<CommandPalette />);
+    const input = getByRole("combobox", { name: "Command palette" });
+    const header = getAllByRole("option")[0].previousElementSibling as HTMLElement;
+    const scrim = getByRole("dialog", { name: "Command palette" }).parentElement as HTMLElement;
+    expect(header).not.toBeNull();
+    // A click (or right-click) on a header: its mousedown moves the focus to <body>.
+    input.blur();
+    fireEvent.mouseUp(header, { button: 2 });
+    expect(document.activeElement).toBe(input);
+    // A press on a header let go over the scrim.
+    input.blur();
+    fireEvent.mouseUp(scrim);
+    expect(document.activeElement).toBe(input);
+    expect(usePaletteStore.getState().open).toBe(true);
+    // A scrolling list that took the focus itself (keyboard-focusable scrollers): not <body>, still not the input.
+    const list = getByRole("listbox");
+    list.tabIndex = -1;
+    list.focus();
+    fireEvent.mouseUp(list);
+    expect(document.activeElement).toBe(input);
+  });
   it("branches are Go to branch rows; items an operation would disable are disabled with the reason", () => {
     useOpsStore.setState({ busy: "Fetching…" });
     const { getByRole } = render(<CommandPalette />);

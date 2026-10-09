@@ -91,13 +91,24 @@ function PalettePanel() {
     else if (e.key === "ArrowUp") setActive(Math.max(cur - 1, 0));
     else if (e.key === "Enter") run(cur);
     else if (e.key === "Escape") setOpen(false);
-    else return;
+    // Tab would take the focus to the list (a scroller) or out of the palette, where typing and Esc don't reach.
+    else if (e.key !== "Tab") return;
     e.preventDefault();
   }
 
   let lastGroup: string | null = null;
   return createPortal(
-    <div className={s.scrim} onMouseDown={(e) => e.target === e.currentTarget && setOpen(false)}>
+    // A press on a group header or the footer takes the focus off the input (an option's press keeps it), and typing
+    // and Esc live there: give it back on the release — a click, a right-click, or a drag let go over the scrim.
+    // Nothing else in here should hold the focus, so "not the input" also covers a list that took it as a scroller.
+    <div
+      className={s.scrim}
+      onMouseDown={(e) => e.target === e.currentTarget && setOpen(false)}
+      onMouseUp={(e) => {
+        const input = e.currentTarget.querySelector("input");
+        if (document.activeElement !== input) input?.focus();
+      }}
+    >
       <div className={s.panel} role="dialog" aria-label="Command palette">
         <div className={s.head}>
           <Search size={16} aria-hidden />
