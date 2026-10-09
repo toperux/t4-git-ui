@@ -28,13 +28,20 @@ const BATCH_LINES: usize = 200;
 /// How long a batch may wait for more lines before it is emitted.
 const BATCH_AGE: Duration = Duration::from_millis(50);
 /// How long the pipes may stay *silent* after git itself has exited before the
-/// pumps are stopped. What git wrote is read within milliseconds; what is left
-/// is a child it spawned that kept the handles (a hook's `daemon &`), and that
-/// can be hours. Measured from the last line, not from the exit: a loaded
-/// machine still draining git's own output is never cut short.
+/// pumps are stopped. What git wrote is read within milliseconds unless the
+/// emitter holds it (a full [`QUEUE_LINES`] queue); what is left is a child it
+/// spawned that kept the handles (a hook's `daemon &`), and that can be hours.
+/// Measured from the last line, not from the exit: a loaded machine still
+/// draining git's own output is never cut short.
 pub(crate) const DRAIN_GRACE: Duration = Duration::from_millis(500);
 /// The most a child that keeps writing can add to an op after git exited.
+/// git's own output still waiting behind a slow emitter (a full
+/// [`QUEUE_LINES`] queue) is cut at it too.
 pub(crate) const DRAIN_CAP: Duration = Duration::from_secs(5);
+/// Lines queued between the pumps and the emitter: five [`BATCH_LINES`]
+/// batches of slack. Counted in lines, as a line is as long as git makes it.
+/// A full queue holds the pumps, and git then blocks on its write.
+const QUEUE_LINES: usize = 1024;
 /// Per-stream cap on the text handed back in [`CliOutput`]: everything before
 /// the last of these bytes is dropped (and, for stdout, `stdout_truncated` is set).
 const MAX_RETAINED: usize = 4 * 1024 * 1024;
@@ -261,12 +268,26 @@ pub(crate) fn git_command(git_path: &str, repo_dir: &Path, args: &[&str]) -> Com
     cmd
 }
 
-/// Spawns `cmd`; a missing executable is [`GitError::GitNotFound`].
+/// Spawns `cmd`; a missing executable is [`GitError::GitNotFound`], a missing
+/// working directory an `Io` error that names it.
 pub(crate) fn spawn(cmd: &mut Command) -> Result<Child, GitError> {
-    match cmd.spawn() {
-        Ok(c) => Ok(c),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Err(GitError::GitNotFound),
-        Err(e) => Err(e.into()),
+    let e = match cmd.spawn() {
+        Ok(c) => return Ok(c),
+        Err(e) => e,
+    };
+    // A deleted repository folder fails the spawn with `NotFound` on Unix (the
+    // child's `chdir`), which would read as a missing git, and with "directory
+    // name is invalid" on Windows. Checked only after a failed spawn.
+    if let Some(dir) = cmd.as_std().get_current_dir().filter(|d| !d.exists()) {
+        return Err(GitError::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("repository folder not found: {}", dir.display()),
+        )));
+    }
+    if e.kind() == std::io::ErrorKind::NotFound {
+        Err(GitError::GitNotFound)
+    } else {
+        Err(e.into())
     }
 }
 
@@ -298,10 +319,6 @@ impl GitCli {
     ) -> Result<CliOutput, GitError> {
         let cmd_line = display_cmd(args);
         let started = Instant::now();
-        on_event(CliEvent::Started {
-            op_id: op_id.to_string(),
-            cmd: cmd_line.clone(),
-        });
 
         let mut cmd = git_command(&self.git_path, repo_dir, args);
         cmd.stdin(if stdin.is_some() {
@@ -311,6 +328,13 @@ impl GitCli {
         });
         let mut child = spawn(&mut cmd)?;
         let tree = ProcessTree::attach(&child);
+        // After the spawn, so a failed one leaves no dock row that never ends (its
+        // error is the op's), and after the attach: on Windows a process git starts
+        // before it joins the job escapes Cancel's tree kill.
+        on_event(CliEvent::Started {
+            op_id: op_id.to_string(),
+            cmd: cmd_line.clone(),
+        });
         tracing::debug!(op_id, cmd = %cmd_line, pid = ?child.id(), "spawned git");
 
         if let (Some(bytes), Some(mut pipe)) = (stdin, child.stdin.take()) {
@@ -321,7 +345,7 @@ impl GitCli {
             });
         }
 
-        let (tx, mut rx) = mpsc::unbounded_channel();
+        let (tx, mut rx) = mpsc::channel(QUEUE_LINES);
         let stdout = child.stdout.take().expect("stdout piped");
         let stderr = child.stderr.take().expect("stderr piped");
         let stop = CancellationToken::new();
@@ -357,7 +381,12 @@ impl GitCli {
                 // Pipe EOF alone is not "git exited": a background child of a hook
                 // inherits the handles and keeps them open.
                 exited = child.wait(), if status.is_none() => {
-                    status = Some(exited?);
+                    // A failed wait leaves git's state unknown: end it and its tree,
+                    // so the pipes close and the loop ends as after an exit.
+                    if exited.is_err() {
+                        tree.kill(&mut child);
+                    }
+                    status = Some(exited);
                     exited_at = Some(Instant::now());
                 }
                 // git is gone and nothing has come through for `DRAIN_GRACE` (the
@@ -377,11 +406,29 @@ impl GitCli {
 
         let status = match status {
             Some(s) => s,
-            None => child.wait().await?,
+            // Both pipes closed but git may still run: Cancel still ends it. The
+            // wait goes first, so a git that exited as Cancel came reports its exit.
+            None => {
+                let exited = tokio::select! {
+                    biased;
+                    exited = child.wait() => exited,
+                    _ = cancel.cancelled(), if !cancelled => {
+                        cancelled = true;
+                        tracing::info!(op_id, "cancelling git command");
+                        tree.kill(&mut child);
+                        child.wait().await
+                    }
+                };
+                if exited.is_err() {
+                    tree.kill(&mut child);
+                }
+                exited
+            }
         };
         let (stdout, out_truncated) = out_task.await.unwrap_or_default();
         let (stderr, _) = err_task.await.unwrap_or_default();
-        let code = status.code().unwrap_or(-1);
+        let code = status.as_ref().map_or(-1, |s| s.code().unwrap_or(-1));
+        // Every way out after `Started` ends the dock row, a failed wait too.
         on_event(CliEvent::Exit {
             code,
             elapsed_ms: started.elapsed().as_millis() as u64,
@@ -389,6 +436,7 @@ impl GitCli {
         if cancelled {
             return Err(GitError::Cancelled);
         }
+        status?;
         tracing::debug!(op_id, code, elapsed = ?started.elapsed(), "git exited");
         Ok(CliOutput {
             code,
@@ -404,7 +452,7 @@ impl GitCli {
 async fn pump<R: AsyncRead + Unpin>(
     mut r: R,
     kind: Kind,
-    tx: mpsc::UnboundedSender<(Kind, String)>,
+    tx: mpsc::Sender<(Kind, String)>,
     limit: usize,
     stop: CancellationToken,
 ) -> (String, bool) {
@@ -413,7 +461,7 @@ async fn pump<R: AsyncRead + Unpin>(
     let mut truncated = false;
     let mut pending = Vec::new();
     let mut buf = [0u8; 8192];
-    loop {
+    'read: loop {
         let n = tokio::select! {
             read = r.read(&mut buf) => match read {
                 Ok(0) | Err(_) => break,
@@ -428,9 +476,23 @@ async fn pump<R: AsyncRead + Unpin>(
             truncated = true;
         }
         pending.extend_from_slice(&buf[..n]);
-        drain(&mut pending, false, kind, &tx);
+        // A full queue holds the pump here, and git blocks on its write. Once
+        // `stop` is set, the rest of this read is dropped: it belongs to
+        // whoever kept the pipe.
+        for seg in drain(&mut pending, false, kind) {
+            if stop.is_cancelled() || tx.send(seg).await.is_err() {
+                break 'read;
+            }
+        }
     }
-    drain(&mut pending, true, kind, &tx);
+    // At most one unterminated line or a trailing `\r`, always sent: it can't
+    // block for good, as the loop receives until every sender is dropped and
+    // this pump still holds its own.
+    for seg in drain(&mut pending, true, kind) {
+        if tx.send(seg).await.is_err() {
+            break;
+        }
+    }
     // The cut can land inside a multi-byte character; drop the continuation
     // bytes it left at the front so the tail starts on a character boundary
     // instead of a U+FFFD.
@@ -445,35 +507,36 @@ async fn pump<R: AsyncRead + Unpin>(
 
 /// Splits `pending` into `\n` / `\r\n` lines and `\r` progress segments,
 /// keeping an unterminated tail (or a trailing `\r` whose successor is unknown)
-/// for the next read unless `eof`.
-fn drain(pending: &mut Vec<u8>, eof: bool, kind: Kind, tx: &mpsc::UnboundedSender<(Kind, String)>) {
+/// for the next read unless `eof`. Returns the segments it cut.
+fn drain(pending: &mut Vec<u8>, eof: bool, kind: Kind) -> Vec<(Kind, String)> {
     let line = |bytes: &[u8]| (kind, String::from_utf8_lossy(bytes).into_owned());
     let progress = |bytes: &[u8]| (Kind::Progress, String::from_utf8_lossy(bytes).into_owned());
 
+    let mut segs = Vec::new();
     let mut start = 0;
     let mut i = 0;
     while i < pending.len() {
         match pending[i] {
             b'\n' => {
-                let _ = tx.send(line(&pending[start..i]));
+                segs.push(line(&pending[start..i]));
                 i += 1;
                 start = i;
             }
             b'\r' => {
                 if i + 1 < pending.len() {
                     if pending[i + 1] == b'\n' {
-                        let _ = tx.send(line(&pending[start..i]));
+                        segs.push(line(&pending[start..i]));
                         i += 2;
                     } else {
                         if i > start {
-                            let _ = tx.send(progress(&pending[start..i]));
+                            segs.push(progress(&pending[start..i]));
                         }
                         i += 1;
                     }
                     start = i;
                 } else if eof {
                     if i > start {
-                        let _ = tx.send(progress(&pending[start..i]));
+                        segs.push(progress(&pending[start..i]));
                     }
                     i += 1;
                     start = i;
@@ -485,10 +548,11 @@ fn drain(pending: &mut Vec<u8>, eof: bool, kind: Kind, tx: &mpsc::UnboundedSende
         }
     }
     if eof && start < pending.len() {
-        let _ = tx.send(line(&pending[start..]));
+        segs.push(line(&pending[start..]));
         start = pending.len();
     }
     pending.drain(..start);
+    segs
 }
 
 /// Handle used to kill the spawned process and everything it spawned.
@@ -678,22 +742,18 @@ mod tests {
 
     #[test]
     fn drain_splits_lines_and_progress() {
-        let (tx, mut rx) = mpsc::unbounded_channel();
+        let mut got = Vec::new();
         let mut pending = b"a\nb\r\nc\rd\re".to_vec();
-        drain(&mut pending, false, Kind::Stderr, &tx);
+        got.extend(drain(&mut pending, false, Kind::Stderr));
         assert_eq!(pending, b"e");
         let mut pending2 = b"x\r".to_vec();
-        drain(&mut pending2, false, Kind::Stderr, &tx);
+        assert!(drain(&mut pending2, false, Kind::Stderr).is_empty());
         assert_eq!(pending2, b"x\r", "trailing CR waits for the next byte");
-        drain(&mut pending2, true, Kind::Stderr, &tx);
+        got.extend(drain(&mut pending2, true, Kind::Stderr));
         assert!(pending2.is_empty());
         let mut pending3 = b"tail".to_vec();
-        drain(&mut pending3, true, Kind::Stderr, &tx);
+        got.extend(drain(&mut pending3, true, Kind::Stderr));
         assert!(pending3.is_empty(), "the emitted tail is consumed");
-        let mut got = Vec::new();
-        while let Ok(e) = rx.try_recv() {
-            got.push(e);
-        }
         let l = |s: &str| (Kind::Stderr, s.to_string());
         let p = |s: &str| (Kind::Progress, s.to_string());
         assert_eq!(got, vec![l("a"), l("b"), p("c"), p("d"), p("x"), l("tail")]);
@@ -720,7 +780,7 @@ mod tests {
         let data: Vec<u8> = (0..100u8)
             .flat_map(|i| format!("line {i}\n").into_bytes())
             .collect();
-        let (tx, mut rx) = mpsc::unbounded_channel();
+        let (tx, mut rx) = mpsc::channel(QUEUE_LINES);
         let (text, truncated) =
             pump(&data[..], Kind::Stdout, tx, 32, CancellationToken::new()).await;
         assert!(truncated);
@@ -732,7 +792,7 @@ mod tests {
         }
         assert_eq!(lines, 100, "every line is still streamed");
 
-        let (tx, _rx) = mpsc::unbounded_channel();
+        let (tx, _rx) = mpsc::channel(QUEUE_LINES);
         let (text, truncated) = pump(
             &data[..],
             Kind::Stdout,
@@ -750,7 +810,7 @@ mod tests {
         // 40 bytes of two-byte characters kept back to 15: the cut lands
         // between the halves of one of them.
         let data = "é".repeat(20).into_bytes();
-        let (tx, _rx) = mpsc::unbounded_channel();
+        let (tx, _rx) = mpsc::channel(QUEUE_LINES);
         let (text, truncated) =
             pump(&data[..], Kind::Stdout, tx, 15, CancellationToken::new()).await;
         assert!(truncated);
@@ -1066,5 +1126,183 @@ mod tests {
         assert_eq!(out.code, 0);
         assert!(!out.stdout_truncated);
         assert_eq!(out.stdout.trim(), "ok", "{:?}", out.stdout);
+    }
+
+    /// A spawn that fails leaves no dock row: `Started` comes after it.
+    #[tokio::test]
+    async fn a_failed_spawn_emits_no_events() {
+        let t = TempRepo::new();
+        let (events, sink) = collect();
+        let res = GitCli::new("no-such-git-xyz")
+            .run(
+                t.path(),
+                "op-ns",
+                &["--version"],
+                None,
+                CancellationToken::new(),
+                sink,
+            )
+            .await;
+        assert!(matches!(res, Err(GitError::GitNotFound)), "{res:?}");
+        assert!(events.lock().unwrap().is_empty());
+    }
+
+    /// A deleted repository folder is named, not reported as a missing git
+    /// (Unix) or an invalid directory name (Windows).
+    #[tokio::test]
+    async fn a_missing_folder_is_named() {
+        let t = TempRepo::new();
+        let dir = t.path().join("gone");
+        let res = GitCli::new("git")
+            .run(
+                &dir,
+                "op-gone",
+                &["status"],
+                None,
+                CancellationToken::new(),
+                |_| {},
+            )
+            .await;
+        let want = format!("repository folder not found: {}", dir.display());
+        assert!(
+            matches!(&res, Err(GitError::Io(e))
+                if e.kind() == std::io::ErrorKind::NotFound && e.to_string() == want),
+            "{res:?}"
+        );
+    }
+
+    /// A pipe written past its buffer into a capacity-1 queue nobody reads.
+    #[tokio::test]
+    async fn a_full_queue_holds_the_pump() {
+        let (mut w, r) = tokio::io::duplex(64);
+        let (tx, _rx) = mpsc::channel(1);
+        let _task = tokio::spawn(pump(
+            r,
+            Kind::Stdout,
+            tx,
+            MAX_RETAINED,
+            CancellationToken::new(),
+        ));
+        let data = "line\n".repeat(10_000);
+        let write =
+            tokio::time::timeout(Duration::from_millis(200), w.write_all(data.as_bytes())).await;
+        assert!(write.is_err(), "the writer was never held");
+    }
+
+    /// The same held pump, then `stop`.
+    #[tokio::test]
+    async fn stop_ends_a_held_pump() {
+        let (mut w, r) = tokio::io::duplex(64);
+        let (tx, mut rx) = mpsc::channel(1);
+        let stop = CancellationToken::new();
+        let mut task = tokio::spawn(pump(r, Kind::Stdout, tx, MAX_RETAINED, stop.clone()));
+        let data = "line\n".repeat(10_000);
+        let _ =
+            tokio::time::timeout(Duration::from_millis(200), w.write_all(data.as_bytes())).await;
+        stop.cancel();
+        // `w` stays open: only `stop` can end the pump. What still comes is the
+        // queued line, the held send and the read's unterminated tail; without
+        // the check before each send, the rest of what was read would too.
+        let mut after = 0;
+        let ended = tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                tokio::select! {
+                    r = &mut task => break r,
+                    Some(_) = rx.recv() => after += 1,
+                }
+            }
+        })
+        .await;
+        assert!(ended.is_ok(), "the pump didn't end");
+        assert!(after <= 3, "{after} segments sent after stop");
+        drop(w);
+    }
+
+    #[tokio::test]
+    async fn a_slow_receiver_loses_nothing() {
+        let data: String = (0..100_000).map(|i| format!("{i}\n")).collect();
+        let (tx, mut rx) = mpsc::channel(16);
+        let task = tokio::spawn(pump(
+            std::io::Cursor::new(data.into_bytes()),
+            Kind::Stdout,
+            tx,
+            MAX_RETAINED,
+            CancellationToken::new(),
+        ));
+        let mut n = 0;
+        while let Some((kind, line)) = rx.recv().await {
+            assert_eq!((kind, line), (Kind::Stdout, n.to_string()));
+            n += 1;
+            if n % 1000 == 0 {
+                tokio::time::sleep(Duration::from_millis(1)).await;
+            }
+        }
+        assert_eq!(n, 100_000);
+        task.await.expect("pump");
+    }
+
+    /// Backpressure holds git's own output in the pipe while the emitter is
+    /// slow; `DRAIN_CAP` must not cut it at a realistic rate.
+    #[tokio::test]
+    async fn a_slow_emitter_loses_nothing() {
+        if !have_git() {
+            return;
+        }
+        let t = TempRepo::new();
+        let next = Arc::new(Mutex::new(1u32));
+        let seen = Arc::clone(&next);
+        let out = GitCli::new("git")
+            .run(
+                t.path(),
+                "op-slow",
+                &["-c", "alias.count=!seq 1 200000", "count"],
+                None,
+                CancellationToken::new(),
+                move |e| {
+                    if let CliEvent::Stdout { lines } = e {
+                        let mut n = seen.lock().unwrap();
+                        for l in lines {
+                            assert_eq!(l, n.to_string());
+                            *n += 1;
+                        }
+                    }
+                    // A stand-in for a slow `emit_to`.
+                    std::thread::sleep(Duration::from_millis(1));
+                },
+            )
+            .await
+            .expect("run");
+        assert_eq!(out.code, 0, "{:?}", out.stderr);
+        assert_eq!(*next.lock().unwrap(), 200_001, "every line is streamed");
+        assert!(out.stdout.ends_with("\n200000\n"), "stdout cut short");
+    }
+
+    /// Cancel still ends an op whose pumps are held on a full queue.
+    #[tokio::test]
+    async fn cancel_ends_an_op_with_a_full_queue() {
+        if !have_git() {
+            return;
+        }
+        let t = TempRepo::new();
+        let cancel = CancellationToken::new();
+        let canceller = cancel.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(300)).await;
+            canceller.cancel();
+        });
+        let res = tokio::time::timeout(
+            Duration::from_secs(5),
+            GitCli::new("git").run(
+                t.path(),
+                "op-yes",
+                &["-c", "alias.y=!yes", "y"],
+                None,
+                cancel,
+                |_| std::thread::sleep(Duration::from_millis(5)),
+            ),
+        )
+        .await
+        .expect("cancel took over 5 s");
+        assert!(matches!(res, Err(GitError::Cancelled)), "{res:?}");
     }
 }

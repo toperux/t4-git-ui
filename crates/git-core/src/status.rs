@@ -371,7 +371,15 @@ async fn run_git(
     let read = Arc::new(Notify::new());
     let mut reader = tokio::spawn(read_both(stdout, stderr, stop.clone(), Arc::clone(&read)));
     let status = tokio::select! {
-        exited = child.wait() => exited?,
+        exited = child.wait() => match exited {
+            Ok(s) => s,
+            // git's state is unknown: end it and its tree, and the reader.
+            Err(e) => {
+                tree.kill(&mut child);
+                stop.cancel();
+                return Err(e.into());
+            }
+        },
         _ = cancel.cancelled() => {
             tree.kill(&mut child);
             let _ = child.wait().await;
