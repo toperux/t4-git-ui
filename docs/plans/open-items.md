@@ -557,6 +557,22 @@ phases that accepted them; each origin keeps a pointer.
   Clean waits for a scan of the current state (`freshStatus`, D4 of the app-wide fixes). Reasoned by the change
   review, not timed. Accepted 2026-10-08 (the app-wide fixes triage, C2). **Reopen:** stale counts seen for more than
   a moment.
+- **A hung repository open locks the window's mouse input.** Since the activity indicator's D8, `tabsStore.openTab`
+  raises the *Opening…* overlay before waiting on the backend, so if `open_repo` hangs (a dead network share, say)
+  the overlay swallows every click until it answers; keyboard shortcuts, Ctrl+Q and the window's close button still
+  work. The same lock already held once the backend had answered. How long a dead share hangs is not measured.
+  Accepted 2026-10-09 (the activity indicator plan, D10). **Reopen:** a user reports a stuck *Opening…* overlay.
+- **After the *Opening…* overlay closes, the branch list loads on with no bar.** On `perf-synth` (100k files) the
+  overlay closes once the grid is in (about 450 ms), and the refs read runs 0.9–1.9 s longer, with only the sidebar's
+  "Loading branches…" (`Sidebar.tsx:396-402`); the grid isn't blocked meanwhile (reasoned). Measured at step 0 of the
+  activity indicator walk (`docs/archive/walks/2026-10-09-bs-walk.md`, S1). Accepted 2026-10-09 (the activity indicator
+  triage). **Reopen:** a user misses that branches are still loading.
+- **The activity bar can blink between two back-to-back ops.** Create tag + push, delete remote tag + local tag, and add
+  remote + fetch run two ops in a row (`RefDialogs.tsx:244-247`, `:308-314`, `RemoteDialogs.tsx:30-33`); `runOp` clears
+  `busy` between them, so the bar unmounts and its 150 ms show delay starts again (`RepoWindow.module.css:22`). Reasoned
+  by the change review, not seen; in each pair one op is local and fast (the tag create, the local tag delete, the
+  remote add), so the bar mostly shows once rather than twice. The status bar's spinner does the same. Accepted
+  2026-10-09 (the activity indicator triage). **Reopen:** someone notices the bar blinking.
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review, deferred
 
@@ -732,6 +748,38 @@ record), each with a reopen trigger.
   would leave a broken AppImage needing a fresh download. Measured once; that this is `tauri-plugin-updater`'s own
   install path, not the harness, is inferred. **Reopen:** a broken AppImage reported, or the updater gains an
   atomic replace.
+
+## AH. Added 2026-10-09 — the activity indicator
+
+Deferred in the triage of the activity indicator (plan `docs/plans/2026-10-09-activity-indicator-plan.md`, its
+reviews and the BS walk, `docs/archive/walks/2026-10-09-bs-walk.md`), each with a reopen trigger. All predate the
+branch, or are cosmetic.
+
+- **A tab dropped in from another window switches repositories mid-op.** `onTabAdopt` (`TabStrip.tsx:28-41`) and
+  `onTabSpawnFailed` (`App.tsx:175-187`) call `openTab` with no `refusedWhileRunning` check, unlike every other tab
+  switch or open (`tabsStore.ts:127`, `:137`, `actions.ts:275`), so a drop during a fetch puts another repository on
+  screen while the op runs. Reasoned from the code, not seen. A refused drop needs an outcome (back to its window?),
+  which is open. **Reopen:** a drop during an op goes wrong, or the next tab work.
+- **The "Changed" dot on a clean tab right after launch (S2).** On the Windows BS walk `perf-synth`'s tab showed the dot
+  straight after launch with a clean status, before the walk touched that repository. Seen once; cause not looked into.
+  **Reopen:** seen again on a repository nobody changed.
+- **A see-through frame in the *Opening…* overlay (S4).** Mid-fade the translucent card lets the status bar's "Working
+  tree clean" icon show through over the "O" of "Opening…", like a second spinner for a frame (Linux, a debug build,
+  where opens took about 1 s). The fade is the overlay's own; D8 shows the overlay more often on slow opens. **Reopen:**
+  someone notices the double icon.
+- **A deleted folder's Recents entry says "not a git repository" (S6).** The toast reads "Couldn't open repository — not
+  a git repository: <path>" (all three BS walks), the app's not-a-repo error (`GitError::NotARepo`,
+  `crates/git-core/src/error.rs:21`, raised when libgit2's discover finds nothing, `repo.rs:103-111`) for a path that
+  isn't there at all. The walks opened it from the repo window (`switchRepo` → `toastError`, `actions.ts:274-280`),
+  whose toast has no action; only the start screen's Recents add "Remove from list" (`StartScreen.tsx:67-81`) — reasoned
+  from the code, not seen. **Reopen:** a user is confused by the wording, or asks to drop a dead entry from the repo
+  window.
+- **A tab tear-off drag stuck on its first release (S7).** On the macOS BS walk the first synthetic release outside
+  the window didn't land (the drag image stuck); a second completed it. Synthetic events (`cliclick`) only; the
+  session guessed they were the cause. **Reopen:** a real-mouse tear-off sticks on macOS.
+- **The History / Changes view is one per window, not per tab.** Switching one tab to Changes opens the next tab in
+  Changes too (the Windows BS 4 walk). By design: `viewStore.ts:1-3` keeps the view per window, per session.
+  **Reopen:** someone wants each tab to keep its own view.
 
 ## Order
 

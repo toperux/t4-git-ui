@@ -1842,3 +1842,52 @@ squashed into four on 2026-10-08 (tree identical, rehearsed in a throwaway workt
 - The plan and records commit ← `a634cbb`, `1efe5f5` (its plan note), `77295c1`, and this map.
 - The walks' build, `5a88649`, has the squashed code as is: only docs changed after it.
 
+## AH. Added 2026-10-09 — the activity indicator: accepted, closed
+
+Ruled by the owner in the plan reviews and the triage of the activity indicator (plan
+`docs/plans/2026-10-09-activity-indicator-plan.md`, walk record `docs/archive/walks/2026-10-09-bs-walk.md`, smoke
+group BS). Accepted, with no reopen trigger; the ones with a trigger are in `open-items.md` §Q and §AH.
+
+- **D4** The activity bar shows behind stash drop / clear's native confirmation: `ops.busy` is held then on purpose
+  (`actions.ts:104-131`), so a second drop can't hit a shifted index; the status bar already says so.
+- **D9** A `full` dialog (the commit dialog, Stashes, the diff view) covers the bar but for its 16 px ends, which the
+  scrim dims (`.scrimFull`'s padding). Measured on the Windows BS walk, hit-tested on Linux.
+- **D12** The *Opening…* overlay's label switches on a subfolder open ("Opening src…", then "Opening repo…" once
+  the backend names the repository), and with two opens in flight the first to finish clears it while the other
+  still loads, as `repoStore.openRepo` already did. Rare and cosmetic; counting opens would risk a stuck overlay.
+- **S5** After a second window closed with its frame's ×, `layout.json` still listed it (the Linux BS walk, read
+  about 3 s after the close): by design, a closed window keeps its place for `CLOSE_GRACE` (4 s,
+  `src-tauri/src/commands/window.rs:46-52`) so a close-all one window at a time, or a crash right after a close,
+  still comes back whole; a timer then rewrites the file without it (`:704-733`). Checked on Linux the same day: the
+  window still listed 1 s after the close, gone at 6 s, the rewrite 4.06 s after it.
+- **S3** The command palette's input lost the focus on the Windows BS walk: a harness artifact (a CDP click on an
+  option scrolled out of view lands on nothing). Checked twice on the same build, with real input and on
+  `perf-synth`'s 690 options: the input takes the focus every time.
+
+**Fixed in the triage.** Found on S3's checks: a click on a palette group header or the footer line moved the focus to
+`<body>`, the palette left open but deaf to typing and Esc. The palette now gives the focus back to its input on the
+mouse's release whenever the input lost it — a click, a right-click, or a press dragged out over the scrim, the last two
+raised by the fix's review and covered on the owner's ruling (`7e4fad1`, then the release handler). Its keyboard twin,
+also from that review and fixed on the owner's ruling: Tab in the input moved the focus to the list or out of the
+palette; Tab and Shift+Tab now stay in the input. Walked as BS 4 on Windows with real input.
+
+Not acted on, confirmed by the owner:
+- **P13** (the plan's review pass 13, a nit not acted on) The plan's status line counted the style guide ruling
+  under "every decision taken as recommended"; it was, so the wording stands.
+- **B1** (the BS 4 walk's first side observation) The command palette's backdrop (`--scrim`, 50 % black) barely shows
+  behind it in the dark theme (a CDP screenshot on the Windows BS 4 walk). Dark-on-dark dimming is subtle by nature; the
+  palette stands out on its own.
+
+**Squash map.** The plan, the walk record and the rows above cite the branch's pre-squash commits; the branch was
+squashed into five on 2026-10-09 (tree identical, rehearsed in a throwaway worktree):
+- `006107a` (feat, the bar and the opening overlay, code and tests) ← `9d8558a`, `6465024`, `621e18f` (its tests).
+- `11502b6` (fix, the command palette's focus) ← `7e4fad1`, `834defa` (its test), `62cd8ff`, `86e2032`, `9ebd391`,
+  `ca55ef5` and `1983863` (their tests).
+- `a04076b` (style guide, README and canvases) ← `f87c804` (its design part), the README parts of `621e18f`,
+  `41ff87b`, `ca55ef5` and `1983863`.
+- `5676208` (smoke group BS and the walk record) ← `f87c804` (its smoke part), `d7b9ca1`, `621e18f` (its smoke
+  part), `41ff87b`, `e90b62f`, `41884df` and the later walk-record and smoke commits.
+- The plan and records commit ← the plan's review commits (`145785e`–`e1fd07a`), the triage and records commits, and
+  this map.
+- The walks' builds: `41884df` has the squashed bar and overlay code as is (only the palette changed after it);
+  `86e2032` is the palette fix before Tab; `9ebd391` is the shipped code (later commits changed tests and docs only).
