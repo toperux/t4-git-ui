@@ -31,9 +31,14 @@ export function tabstrip({ tabs = ['t4-git-ui', 'libgit2'], active = 0, stale = 
 
 const SM = 'height: var(--control-h-sm);';
 
+/** RepoWindow.tsx `ActivityBar`: zero-height, so its 3px `Progress thin` lies over the toolbar's bottom hairline. */
+export const activityBar = () =>
+  `<div style="position: relative; top: -3px; flex: none; height: 0; z-index: 1;"><div class="progress thin indet"><div></div></div></div>`;
+
 /**
  * Toolbar.tsx order: sidebar toggle · | · Repository · | · Fetch▾ · Pull · Push · | · Branch · Stash · | · Commit ·
  * grow · file-history chip · search · branch filter · | · Refresh · ThemeToggle · UpdateBadge · Settings.
+ * `busy` = an op or the commit panel's work is running: the activity bar under it.
  */
 export function toolbar({
   repo = 't4-git-ui',
@@ -46,6 +51,7 @@ export function toolbar({
   history = null,
   update = null,
   theme = 'light',
+  busy = false,
 } = {}) {
   const cnt = (n) => (n ? ` <span class="cnt">${n}</span>` : '');
   return `<div class="toolbar" style="flex: none;">
@@ -70,7 +76,7 @@ export function toolbar({
     <span class="icon-btn">${icon(theme === 'dark' ? 'sun' : 'moon')}</span>
     ${update ? `<span class="btn primary sm">${icon('arrow-up-circle', 14)}${update}</span>` : ''}
     <span class="icon-btn">${icon('settings')}</span>
-  </div>`;
+  </div>${busy ? activityBar() : ''}`;
 }
 
 /* ------------------------------------------------------------------ sidebar */

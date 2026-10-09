@@ -26,7 +26,7 @@ function mergeDialog() {
 export function build(theme) {
   const body = `
   ${tabstrip()}
-  ${toolbar({ theme })}
+  ${toolbar({ theme, busy: true })}
   <div style="display: flex; flex: 1; min-height: 0;">
     ${sidebar({ compact: true })}
     ${splitH()}

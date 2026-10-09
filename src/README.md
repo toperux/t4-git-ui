@@ -37,11 +37,14 @@ src/
                            `update://checked` — every successful check's answer, to every window; a new window's own
                            `lastUpdateCheck()` waits for this listener to attach first, so a fast answer can't land unheard)
   store/
-    tabsStore.ts           zustand: tabs [{id, path, name, stale}], active, saved {<RepoId>: Snapshot}; openTab (open_repo first —
-                           the id is what a tab is compared by, and `openElsewhere` means another window has it and was
-                           focused, so nothing happens here), activate (snapshot the active slices, restore the target's,
-                           close the dialog, refreshAll), closeTab (always `close_repo`; the last tab closes a secondary
-                           window and leaves the main one on the start screen), markStale, detach (a no-op with one tab; spawn_window, then close
+    tabsStore.ts           zustand: tabs [{id, path, name, stale}], active, saved {<RepoId>: Snapshot}; openTab (sets
+                           repoStore.opening to the folder's name first, so the overlay covers the backend's wait too,
+                           and clears it in a `finally` on every way out; then open_repo — the id is what a tab is
+                           compared by, and `openElsewhere` means another window has it and was focused, so nothing
+                           happens here),
+                           activate (snapshot the active slices, restore the target's, close the dialog, refreshAll),
+                           closeTab (always `close_repo`; the last tab closes a secondary window and leaves the main
+                           one on the start screen), markStale, detach (a no-op with one tab; spawn_window, then close
                            the tab — never the other way round), reorder, setCaret (the slot a tab dragged from another
                            window would land in). Snapshot = repoStore (minus gitVersion) +
                            statusStore + commitStore + diffStore (minus the window-level view settings), each store owning
@@ -237,8 +240,9 @@ src/
                            dialog sees it, ↑/↓ walk the history — the walk resets on submit),
                            Input + Select (`<option>` children, `onChange` shaped like a native change; the list is
                            app-drawn and portalled — a native <select> popup is an OS window that ignores the theme),
-                           BusyOverlay (scrim + spinner card while repoStore.opening is set; rendered once in App.tsx
-                           so it covers the start screen and a toolbar-menu repo switch alike),
+                           BusyOverlay (scrim + spinner card while repoStore.opening is set — by tabsStore.openTab from
+                           the click, and by repoStore.openRepo; rendered once in App.tsx so it covers the start screen
+                           and a toolbar-menu repo switch alike),
                            Menu/MenuItem/MenuSeparator (anchor + dropdown, Esc handled on the menu itself so a surrounding
                            Dialog stays open, outside click, ↑/↓, `kbd` hint, `align`, focus back on the trigger,
                            the full label as a `title` when the row ellipsizes)
@@ -273,8 +277,10 @@ src/
                            checkboxes; each change → set_signing (global config only), a repo's own entry shown as a hint
     GitMissingScreen/      probe_git failed → "Git not found" + Retry + "Locate git…" (file picker → set_git_path, kept in kv `gitPath`;
                            Settings edits the same key)
-    RepoWindow/            RepoWindow (layout: [TabStrip] / toolbar 40 / sidebar 260 or rail 36 | StateBanners + (History: grid ÷
-                           DetailsPane | Changes: ChangesBar + CommitPanel) / dock / statusbar 24; viewStore picks the view,
+    RepoWindow/            RepoWindow (layout: [TabStrip] / toolbar 40 + ActivityBar (a zero-height `Progress thin` over
+                           its bottom edge while an op or the commit panel's work runs, after 150ms, aria-hidden) /
+                           sidebar 260 or rail 36 | StateBanners + (History: grid ÷ DetailsPane | Changes: ChangesBar +
+                           CommitPanel) / dock / statusbar 24; viewStore picks the view,
                            layout.ts the tiers from the window width; hosts DialogHost, CommandPalette, useShortcuts),
                            layout.ts (pure `layoutFor(width)` + the `useLayout` / `useToolbarTier` hooks behind it: the
                            `RAIL_BELOW 1000` / `TIGHT_BELOW 1340` / `ICONS_BELOW 800` breakpoints turned into
@@ -359,7 +365,9 @@ src/
                            within a group best first, so a group stays under one label; an empty query
                            leading with Recent; paletteStore.ts holds `open` + the last three ids (localStorage
                            `paletteRecent`); CommandPalette.tsx is the scrim + panel — input, grouped options with
-                           aria-activedescendant, ↑/↓ Enter Esc — which hands the focus back where it found it on close),
+                           aria-activedescendant, ↑/↓ Enter Esc — which hands the focus back where it found it on close;
+                           Tab stays in the input, and a mouse release anywhere in the palette gives the input back
+                           the focus),
                            dialogs/ (DialogHost + OpsDialogs Push/Push tag + Delete remote tag (`refs/tags/<name>` with a
                            remote picker, from the sidebar tag menu)/Pull/Fetch/Merge/Rebase — Merge and Rebase take a commit oid as
                            well as a branch, shown as an extra 7-char option; a commit merge defaults to git's

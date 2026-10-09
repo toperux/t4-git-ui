@@ -10,7 +10,7 @@ const out = join(here, '..', 'direction-b');
 const S = await import(pathToFileURL(join(build, 'screens.mjs')).href);
 const {
   icon: baseIcon, grid, DEMO_ROWS, WT_HINT, commitDetails, changedFiles, stashDetails, diffHeader, diffBody, diffBar,
-  conflictStrip, dock, statusbar, splitH, splitV, PAGE_BG,
+  conflictStrip, dock, statusbar, splitH, splitV, activityBar, PAGE_BG,
 } = S;
 
 const tokens = readFileSync(join(build, 'tokens.css'), 'utf8')
@@ -107,11 +107,13 @@ const segSwitch = (view, labels, count) => {
 
 /**
  * B toolbar: today's buttons, the History | Changes switch, and Ctrl+K at every size. `busy` = an op
- * is running (every op button greyed, Toolbar.tsx); `more` = the ⋯ menu is open (pressed).
+ * is running (every op button greyed, Toolbar.tsx, and the activity bar under it); `more` = the ⋯ menu is open
+ * (pressed).
  */
 function toolbarB(mode, view, { count = 6, update = false, theme = 'light', busy = false, more = false } = {}) {
   const seg = segSwitch(view, mode !== 'icons', count);
   const op = busy ? 'is-disabled' : '';
+  const bar = busy ? activityBar() : '';
   if (mode === 'full')
     return `<div class="toolbar" style="flex: none;">${iconBtn('panel-left')}<span class="tb-sep"></span>${repoBtn()}<span class="tb-sep"></span>
       ${fetchSplit(true, op)}${tb('arrow-down-up', 'Pull', 5, op)}${tb('arrow-up', 'Push', 2, op)}` +
@@ -120,19 +122,19 @@ function toolbarB(mode, view, { count = 6, update = false, theme = 'light', busy
       <div style="flex: 1;"></div>${view === 'history' ? search(update ? 160 : 200) + filterSel() : ''}` +
       `<span class="tb-sep"></span>${kbtn()}${iconBtn('refresh')}${themeBtn(theme)}` +
       `${update ? `<span class="btn primary sm">${icon('arrow-up-circle', 14)}Update</span>` : ''}` +
-      `${iconBtn('settings')}</div>`;
+      `${iconBtn('settings')}</div>${bar}`;
   if (mode === 'tight')
     return `<div class="toolbar" style="flex: none;">${iconBtn('panel-left')}<span class="tb-sep"></span>${repoBtn()}<span class="tb-sep"></span>
       ${fetchSplit(false, op)}${tbIcon('arrow-down-up', 5, op)}${tbIcon('arrow-up', 2, op)}` +
       `<span class="tb-sep"></span>${tbIcon('git-branch', 0, op)}${tbIcon('archive', 1, op)}` +
       `<span class="tb-sep"></span>${seg}
       <div style="flex: 1;"></div>${view === 'history' ? search(140) + filterSel(110) : ''}` +
-      `<span class="tb-sep"></span>${kbtn()}${iconBtn('refresh')}${themeBtn(theme)}${iconBtn('settings')}</div>`;
+      `<span class="tb-sep"></span>${kbtn()}${iconBtn('refresh')}${themeBtn(theme)}${iconBtn('settings')}</div>${bar}`;
   return `<div class="toolbar" style="flex: none; padding: 0 8px;">${iconBtn('panel-left')}<span class="tb-sep" style="margin: 0 4px;"></span>${repoBtn(false)}<span class="tb-sep" style="margin: 0 4px;"></span>
       ${fetchSplit(false, op)}${tbIcon('arrow-down-up', 5, op)}${tbIcon('arrow-up', 2, op)}` +
       `<span class="tb-sep" style="margin: 0 4px;"></span>${seg}
       <div style="flex: 1;"></div>${view === 'history' ? iconBtn('search') : ''}` +
-      `<span class="tb-sep" style="margin: 0 4px;"></span>${kbtn()}${iconBtn('ellipsis', more ? 'is-on' : '')}</div>`;
+      `<span class="tb-sep" style="margin: 0 4px;"></span>${kbtn()}${iconBtn('ellipsis', more ? 'is-on' : '')}</div>${bar}`;
 }
 
 /** The ⋯ menu the icons toolbar folds into, right-aligned under its button (Toolbar.tsx `More`). */

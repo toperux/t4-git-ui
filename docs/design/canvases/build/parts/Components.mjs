@@ -37,7 +37,16 @@ function toolbar() {
       <span class="btn primary sm">${icon('arrow-up-circle', 14)}Update</span>
       <span class="icon-btn">${icon('settings')}</span>
     </div>
-    <div class="xs muted">Trailing cluster: Refresh · ThemeToggle (Sun / Moon 16) · UpdateBadge (a <span class="mono">sm primary</span> Button, hidden until a check finds a version) · Settings. The file-history chip appears only under a path filter.</div>`);
+    <div class="xs muted">Trailing cluster: Refresh · ThemeToggle (Sun / Moon 16) · UpdateBadge (a <span class="mono">sm primary</span> Button, hidden until a check finds a version) · Settings. The file-history chip appears only under a path filter.</div>
+    <div style="display: flex; flex-direction: column; border: 1px solid var(--border); border-bottom: 0; border-radius: 6px 6px 0 0;">
+      <div class="toolbar">
+        <span class="tb-split"><span class="tb-btn is-disabled">${icon('arrow-down', 18)}Fetch</span><span class="tb-btn tb-more is-disabled">${icon('chevron-down', 16)}</span></span>
+        <span class="tb-btn is-disabled">${icon('arrow-down-up', 18)}Pull <span class="cnt">5</span></span>
+        <span class="tb-btn is-disabled">${icon('arrow-up', 18)}Push <span class="cnt">2</span></span>
+      </div>
+      <div style="position: relative; top: -3px; flex: none; height: 0; z-index: 1;"><div class="progress thin indet"><div></div></div></div>
+    </div>
+    <div class="xs muted">Busy: an op greys its buttons, and it or the commit panel’s work lays a <span class="mono">Progress thin</span> over the toolbar’s bottom hairline, after 150ms. <span class="mono">aria-hidden</span>: the status bar names the op.</div>`);
 }
 
 function tabStrip() {
