@@ -753,6 +753,7 @@ they stay clear._
       to date`, and **Update to…** stays disabled reading `Up to date`
       Offered on launch, The install and Up to date re-walked 2026-10-08 on Windows, the installed 0.10.21 updating to
       the published 0.10.22 (rustls 0.23.45): all pass (`docs/archive/walks/2026-10-08-v0.10.22-update-walk.md`).
+      Re-walked 2026-10-09, 0.10.22 to 0.10.23: all pass (`docs/archive/walks/2026-10-09-v0.10.23-update-walk.md`).
 - [x] **The toggle governs the launch check only**: switch *Check for updates on launch* off, close
       and reopen the app → no badge, nothing asked → open Settings → **Check now** still answers;
       the setting survives a restart
