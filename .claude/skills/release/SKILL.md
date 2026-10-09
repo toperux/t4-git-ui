@@ -84,6 +84,26 @@ carries no version.
    gh pr list --repo toperux/t4-git-ui --author app/dependabot
    ```
 
+   Before merging one, read its diff (`gh pr diff <n>`). Every changed line should be a version, pin
+   or checksum, and nothing should change outside those. Then check where each new version comes from:
+
+   - **An action's new pin** is a commit on the action's upstream default branch. `identical` or
+     `behind` passes; `diverged` or a 404 does not:
+
+     ```sh
+     gh api repos/<owner>/<action>/compare/<default-branch>...<new-sha> --jq .status
+     gh api repos/<owner>/<action>/compare/<old-sha>...<new-sha> --jq '.files[].filename, .commits[].commit.message'
+     ```
+
+   - **An npm lock entry** resolves to `registry.npmjs.org`, and its `integrity` matches the
+     registry's: `npm view <pkg>@<version> dist.integrity`.
+   - **A Cargo.lock entry** names `registry+https://github.com/rust-lang/crates.io-index`
+     as its `source`.
+
+   Merge with `gh pr merge <n> --squash --subject "<type>(deps): Bump <name> (#<n>)"`. A PR that
+   changes the shipped runtime (Cargo crates, npm production dependencies) also gets the owner's
+   ruling on whether it needs a walk before it ships.
+
 2. **Bump.** Edit `Cargo.toml` and `package.json`, then `cargo check` and `npm install` to
    pull the two lock files along. Update the version in `docs/smoke/smoke-test.md` too — it names
    the installer path and the start-screen header.
