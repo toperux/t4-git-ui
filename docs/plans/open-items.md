@@ -573,6 +573,31 @@ phases that accepted them; each origin keeps a pointer.
   by the change review, not seen; in each pair one op is local and fast (the tag create, the local tag delete, the
   remote add), so the bar mostly shows once rather than twice. The status bar's spinner does the same. Accepted
   2026-10-09 (the activity indicator triage). **Reopen:** someone notices the bar blinking.
+- **Windows: a failed job-object kill leaves Cancel doing nothing.** `ProcessTree::kill` calls `job.terminate()`
+  and returns without the `start_kill` fallback (`crates/git-core/src/cli/runner.rs:589-592`), and `terminate`
+  ignores `TerminateJobObject`'s result (`:651-653`): if it failed, Cancel wouldn't stop git, and the op would run on
+  or hang. The job is the app's own, created with full access (`:636`); never seen, reasoned from the code. Accepted
+  2026-10-09 (the runner exit paths triage, `docs/plans/2026-10-09-runner-exit-paths-plan.md`). **Reopen:** a Cancel
+  on Windows that doesn't stop git.
+- **Linux / macOS: a group kill could reach a reused process-group id.** `ProcessTree::kill` sends `kill(-pgid,
+  SIGKILL)` to git's group (`crates/git-core/src/cli/runner.rs:600`). Safe while git is unreaped or anything is left
+  in its group; but a Cancel after git was reaped (the ≤5 s pipe drain) or the kill after a failed wait (on
+  Unix most likely git already reaped elsewhere) would reach whatever group took that id, if the group was empty and
+  the id reused within seconds. Reasoned, never seen; the Cancel arm had the exposure before the runner exit paths
+  added the failed-wait kill. Accepted 2026-10-09 (the runner exit paths triage). **Reopen:** an unrelated process
+  reported killed on a Cancel.
+- **A slow emitter can cut git's own output without saying so.** Since the bounded output queue
+  (`QUEUE_LINES`, `crates/git-core/src/cli/runner.rs`), git's last output can wait in its pipe for queue space; if the
+  emitter is more than `DRAIN_CAP` (5 s) behind, the cap ends the reading: `CliOutput`'s text lacks the rest but
+  `stdout_truncated` stays false, and the dock's last line is the cut read's unterminated fragment. Needs an emitter
+  under ~400 lines/s with 80-byte lines; not measured — the plan estimates ~80× margin at 1 ms a batch, and the
+  slow-emitter test passes at that rate.
+  Accepted 2026-10-09 (the plan's Q1 and its change review's N2). **Reopen:** an op's output in the dock or a parsed
+  result is missing its end after a slow UI.
+- **The event queues past the runner may be unbounded.** The runner's output queue is bounded (`QUEUE_LINES`), but each
+  batch then goes through Tauri's `emit_to` (`src-tauri/src/commands/ops.rs:88-105`) and the webview's event
+  delivery, whose buffering is the framework's: a stalled webview could let them grow. Never seen, not measured.
+  Accepted 2026-10-09 (the runner exit paths triage). **Reopen:** memory grows during a long op with a frozen UI.
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review, deferred
 
@@ -791,6 +816,23 @@ Found walking the in-app update on Windows (`docs/archive/walks/2026-10-09-v0.10
   the updater or the installer; a VM's first-run scan of the new exe is a guess. The next update walk times the
   download, the installer and the launch apart. **Reopen:** that walk is over 8 s again, or a user reports a slow
   update.
+
+## AJ. Added 2026-10-09 — the runner exit paths
+
+Deferred in the triage of `docs/plans/2026-10-09-runner-exit-paths-plan.md` (its reviews and walk,
+`docs/archive/walks/2026-10-09-runner-exit-paths-walk.md`), with a reopen trigger. It predates the branch.
+
+- **A deleted repository folder goes unnoticed until an action, which then toasts twice.** On both walks the tab
+  kept its history and "Clean" after its folder was deleted — no toast, banner or log line (Windows ~25 s watched,
+  Linux checked at 4 s): the watcher logs nothing when the root itself goes (why isn't checked). The next op then
+  shows the runner's "repository folder not found: <path>" and, from the refs refresh `runOp` runs after an op on the
+  active tab (`src/store/opsStore.ts:272-276`, through libgit2), a second toast with the raw OS error ("Couldn't refresh
+  references / failed to resolve path '…': The system cannot find the file specified." / "No such file or
+  directory"). A fix would have the watcher notice the root is gone and the tab say so (a banner, or an offer to
+  close it), which also spares the second toast. (The "Changed" dot the Windows walk saw on the *other* tab, `work`,
+  means an event — `repo://changed` or `log://progress` — arrived for it in the background (`src/App.tsx:161-169`,
+  `TabStrip.tsx:99`); uncommitted changes don't set it. It wasn't checked before the delete, so it may predate it;
+  cause unknown.) **Reopen:** a user confused by a deleted repository's tab, or the next work on the watcher.
 
 ## Order
 

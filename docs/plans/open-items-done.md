@@ -1891,3 +1891,38 @@ squashed into five on 2026-10-09 (tree identical, rehearsed in a throwaway workt
   this map.
 - The walks' builds: `41884df` has the squashed bar and overlay code as is (only the palette changed after it);
   `86e2032` is the palette fix before Tab; `9ebd391` is the shipped code (later commits changed tests and docs only).
+
+## AJ. Added 2026-10-09 — the runner exit paths: accepted, closed
+
+Ruled by the owner in the plan reviews and the triage of the runner exit paths (plan
+`docs/plans/2026-10-09-runner-exit-paths-plan.md`, walk record
+`docs/archive/walks/2026-10-09-runner-exit-paths-walk.md`). Accepted, with no reopen trigger; the ones with a trigger
+are in `open-items.md` §Q and §AJ.
+
+- **Q3** A failed `child.wait()` ends the dock row with `Exit { code: -1 }`, which opens the dock (`reveal`,
+  `src/store/opsStore.ts:101`) beside the op's error toast: the double message D1 avoided for a failed spawn. Both
+  messages are right; a failed wait is near-impossible (inferred: nothing in the app provokes the OS wait call
+  failing).
+- **Output with no newline is rescanned on every read.** The runner's pump keeps an unterminated tail in `pending`
+  and `drain` rescans all of it after each 8 KB read (`crates/git-core/src/cli/runner.rs`, `pump` / `drain`): O(n²)
+  in the length of a `\n`-less stream or a very long line; the output queue's bound (in lines) doesn't cover it. No
+  built-in `-z` command hits it (a grep for `-z` / `--null` finds three): file history's `git log … --name-status -z`
+  (`log/history.rs:31-41`) writes a `\n` after every commit (measured, `od -c`), the status scan has its own reader
+  (`status.rs:353-358`), and staging's `-z` is git's input. Whether a built-in command can stream one very long line
+  wasn't checked. A typed Run command would be slow with `-z` output (`git ls-files -z` on a big repository) or a
+  very long line (`git log -p` of a minified file); not measured. The fix, if it's ever wanted: a scan cursor, so a
+  read scans only its new bytes. First deferred in the triage on the inference that file history had no `\n`; the
+  review of the triage records measured otherwise, and the owner then accepted it.
+- **N4** `a_slow_receiver_loses_nothing` and `a_slow_emitter_loses_nothing` (`crates/git-core/src/cli/runner.rs`)
+  guard the bounded queue (nothing lost under backpressure, and Q1's margin); they would pass with the old unbounded
+  queue too. The bound itself is covered by `a_full_queue_holds_the_pump`, `stop_ends_a_held_pump` and
+  `cancel_ends_an_op_with_a_full_queue`.
+
+**Squash map.** The plan, the walk record and the rows above cite the branch's pre-squash commits; the branch was
+squashed into four on 2026-10-09 (tree identical, rehearsed in a throwaway worktree):
+- `2b0107b` (v0.10.23's update walk) and `026c59e` (open-items §AI): kept as they were.
+- `4e76d6c` (fix, the runner's exit paths and its bounded queue, code and tests) ← `76dd6e9`, the code parts of
+  `62cde86` (the review's test and doc fixes) and `bcd0d05` (`DRAIN_CAP`'s doc).
+- The plan and records commit ← `a7d92b1` (the plan), the plan parts of `62cde86` and `bcd0d05`, `b27c10c`, the walk,
+  triage and records commits (`2e4ad7d`–`602c560`), and this map.
+- The walks' build: `b27c10c`'s code is the shipped code (every later commit changed docs only).
