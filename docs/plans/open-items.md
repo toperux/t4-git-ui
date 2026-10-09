@@ -781,6 +781,17 @@ branch, or are cosmetic.
   Changes too (the Windows BS 4 walk). By design: `viewStore.ts:1-3` keeps the view per window, per session.
   **Reopen:** someone wants each tab to keep its own view.
 
+## AI. Added 2026-10-09 — v0.10.23's update walk
+
+Found walking the in-app update on Windows (`docs/archive/walks/2026-10-09-v0.10.23-update-walk.md`).
+
+- **The update's restart took 9.1 s, not 4 s.** From the click on Update to the new process's first log line, against
+  4 s on the 2026-10-08 walk; the download itself took 2.0 s (1.6 s then). Measured once from the app log; where the
+  rest went (installer or launch) wasn't measured, and how the 4 s was timed isn't recorded. Nothing in 0.10.23 touches
+  the updater or the installer; a VM's first-run scan of the new exe is a guess. The next update walk times the
+  download, the installer and the launch apart. **Reopen:** that walk is over 8 s again, or a user reports a slow
+  update.
+
 ## Order
 
 The order is set by `docs/plans/2026-09-26-close-out-plan.md` (phases 0–6).
