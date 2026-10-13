@@ -834,6 +834,25 @@ Deferred in the triage of `docs/plans/2026-10-09-runner-exit-paths-plan.md` (its
   `TabStrip.tsx:99`); uncommitted changes don't set it. It wasn't checked before the delete, so it may predate it;
   cause unknown.) **Reopen:** a user confused by a deleted repository's tab, or the next work on the watcher.
 
+## AK. Added 2026-10-13 — the commit-message rules and the parked rewrite
+
+Deferred when the owner parked `docs/archive/plans/2026-10-13-rewrite-commit-messages-plan.md` (six review passes, the
+seventh's findings open), and in the triage of the commit-message rules commits.
+
+- **Old commit messages keep their Claude trailers.** 455 `Co-Authored-By: Claude` and 24 `Claude-Session:` lines in 453
+  of the 469 commits on all refs (as of `1fc2384`). A history rewrite was planned and rehearsed, then parked: GitHub's
+  `refs/pull/4..26/head`, which the owner can't delete, keep the old commits fetchable anyway. New commits are covered
+  by `CLAUDE.md` → *Commit messages* and by Claude Code's attribution turned off in the owner's user settings
+  (`"attribution": {"commit": "", "pr": "", "sessionUrl": false}`; by the T4 Markdown Viewer session's reading,
+  `sessionUrl: false` is what stops `Claude-Session:`, not tested here). The plan's own open work stays in it: review
+  pass 7's 11 unfixed findings and 2 unanswered questions (its status block), and a §Q row for ruling e once the plan
+  runs. **Reopen:** the owner asks GitHub Support to purge `refs/pull/*` and it's done, or the owner wants the rewrite
+  regardless.
+- **`docs/reflow.mjs` can't rewrap a quote that already spans several lines.** Its header says a quote's later lines
+  take `> `, but a later line that already starts with `>` is refused as a block start (`BLOCK`, `reflow.mjs:16`):
+  "4: starts a block (>)" on the parked plan's status block. So it can wrap a one-line quote, not rewrap a wrapped one.
+  **Reopen:** the next time a multi-line quote needs rewrapping.
+
 ## Order
 
 The order is set by `docs/plans/2026-09-26-close-out-plan.md` (phases 0–6).

@@ -52,3 +52,22 @@ Be concise, but never drop a detail that could lead to a wrong choice: a side ef
 platform difference, a cost that only shows later. Spell out every term and shorthand, such as check letters,
 commit hashes and internal names. When a question depends on earlier context, restate that context in a
 sentence; don't assume it is remembered.
+
+## Commit messages
+
+- **Summary line:** `type: summary` or `type(scope): summary`, a plain sentence with no full stop at the end. Aim for 72
+  characters; never go over 100.
+  - `feat:` and `fix:` say what changed for someone using the app, not which code changed.
+  - Other types (`docs:`, `test:`, `ci:`, `build:`, `perf:`, `refactor:`, `style:`, `chore:`) just say what changed.
+  - After the colon, start lowercase unless the first word is a name, an acronym or a code identifier.
+  - A release commit is `Bump the version to x.y.z` (the release skill).
+- **Body:**
+  - None, if the summary line says it all.
+  - Otherwise 1–2 lines.
+  - A squashed commit, a release commit, or a commit with several topics gets a body line for every topic (the summary
+    line covers the whole commit; none if the summary says it all), at most 72 characters each, with a blank line
+    between topics and no bullets.
+  - Wrap lines at 72 characters.
+- **No AI attribution:** no `Co-Authored-By: Claude` trailer, no `Claude-Session:` line, or any other AI attribution
+  line.
+- Dependabot's own commits (`<type>(deps…): Bump …`) and GitHub's merge commits (`Merge pull request #N …`) are exempt.

@@ -1926,3 +1926,12 @@ squashed into four on 2026-10-09 (tree identical, rehearsed in a throwaway workt
 - The plan and records commit ← `a7d92b1` (the plan), the plan parts of `62cde86` and `bcd0d05`, `b27c10c`, the walk,
   triage and records commits (`2e4ad7d`–`602c560`), and this map.
 - The walks' build: `b27c10c`'s code is the shipped code (every later commit changed docs only).
+
+## AK. Added 2026-10-13 — the commit-message rules: accepted, closed
+
+Ruled by the owner in the triage of the commit-message rules commits (the parked plan
+`docs/archive/plans/2026-10-13-rewrite-commit-messages-plan.md`). Accepted, with no reopen trigger; the ones with a
+trigger are in `open-items.md` §AK.
+
+- **The parked plan's status block wraps short of 120.** Lines 3–23 leave room for the next word on several lines. The
+  owner ruled the parked plan's wrapping be left alone, and `docs/reflow.mjs` refuses the block (§AK's reflow row).

@@ -1,7 +1,8 @@
 # docs/
 
-What lives where. A plan is archived once every open row it holds is carried by
-`plans/open-items.md`; the archive is the record, not a backlog.
+What lives where. A plan is archived once every open row it holds is carried by `plans/open-items.md`; the archive is
+the record, not a backlog. A parked plan may be archived with its open work still in it, as long as an `open-items.md`
+row points to that work and says when to reopen it.
 
 ```
 reflow.mjs         node docs/reflow.mjs <file> <from> <to>: rewraps one paragraph at 120 (below)
@@ -20,7 +21,8 @@ smoke/
 archive/
   plans/     executed plans and their review records (v1 plan, interactive rebase, Files/blame/history,
              CI alignment, the 2026-09-12 consolidated findings, review2-A–D, the 2026-09-20 review
-             findings and their fix plan, the 2026-09-25 update and staging fixes)
+             findings and their fix plan, the 2026-09-25 update and staging fixes), and parked ones (the
+             2026-10-13 commit-message rewrite)
   reviews/   dated whole-codebase reviews, 2026-09-01 … 09-06
   walks/     dated smoke-walk records and the findings they produced
 ```

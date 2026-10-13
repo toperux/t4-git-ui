@@ -108,8 +108,8 @@ carries no version.
    pull the two lock files along. Update the version in `docs/smoke/smoke-test.md` too — it names
    the installer path and the start-screen header.
 
-3. **Commit the bump alone**, subject `Bump the version to x.y.z`, body summarising what
-   landed since the last tag. Nothing else in that commit.
+3. **Commit the bump alone**, subject `Bump the version to x.y.z`, body one line per topic that landed since the last
+   tag, as `CLAUDE.md` → *Commit messages* says. Nothing else in that commit.
 
 4. **Push `main`, wait for its CI run, then push the tag.** Push `main` first: the tag's run
    checks out the commit, and a tag that arrives before its commit points at nothing on the
@@ -160,11 +160,10 @@ carries no version.
    gh release view v<x.y.z> --repo toperux/t4-git-ui --json assets -q '.assets[].name'
    ```
 
-7. **Read the notes.** `publish` generates them from the commits and prepends a fixed body
-   that carries the install instructions, the SmartScreen note (the Windows installer is signed, but
-   SmartScreen can warn while the certificate builds a download reputation) and the Gatekeeper
-   note (the macOS app is not notarized). Edit the release afterwards if the generated part reads
-   badly.
+7. **Read the notes.** `publish` generates them from the merged pull requests and prepends a fixed body that carries the
+   install instructions, the SmartScreen note (the Windows installer is signed, but SmartScreen can warn while the
+   certificate builds a download reputation) and the Gatekeeper note (the macOS app is not notarized). Edit the release
+   afterwards if the generated part reads badly.
 
 ## When it goes wrong
 
