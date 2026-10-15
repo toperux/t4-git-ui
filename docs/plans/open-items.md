@@ -860,6 +860,27 @@ reopen trigger. It predates the branch.
   unfinished. Reasoned from the code, never seen; the O1 fix (`0f3d67b`, `open-items-done.md` §AL) doesn't change it.
   Fix in its own plan. **Reopen:** History rows vanish, or the walk shows as loading after it finished.
 
+## AM. Added 2026-10-15 — Dependabot #27–#32 after v0.10.24
+
+Ruled by the owner after each PR's diff and sources were checked (`.claude/skills/release`, step 1). #27–#30 (CI
+action pins) and #31 (the Cargo group) merged; #31's macOS job passed on a re-run.
+
+- **#32 (the npm group) is held for its own plan.** It bumps `@tauri-apps/cli` to 2.12.2, and the Ubuntu leg's guard
+  fails because `release.yml` still pins `cargo install tauri-cli --version 2.12.1`; the two move together. A CLI bump
+  can move the bundler's AppImage tool pins (the release skill's *Pin the AppImage tools* note), so the plan bumps the
+  pin, re-derives the tool pins and runs a `workflow_dispatch` Release before the next tag. #32 also bumps shipped
+  front-end packages (lucide-react, react-resizable-panels, @tanstack/react-virtual, @lezer/css, the Tauri JS API and
+  dialog plugin). **Close:** #32 merged through that plan.
+- **Two Rust tests failed once on macOS CI and passed on a re-run.**
+  `watch::tests::ignored_dir_and_lock_files_are_silent` (`crates/git-core/src/watch.rs:395`, #31's first run) and
+  `cli::runner::tests::cancel_ends_an_op_with_a_full_queue` (#32's first run; the runner exit paths' test, shipped in
+  v0.10.24). Neither PR touches that code; flaky on the macOS runner, by the re-runs, cause not looked into. **Reopen:**
+  either fails again.
+- **#31's updater changes ship untested until two update walks.** #31 moves `tauri-plugin-updater` 2.13.1 → 2.13.3 and
+  its signature verifier `minisign-verify` 0.2.5 → 0.3.0. The installed copy verifies the update it downloads, so the
+  new verifier first runs updating *from* the release that carries it. Walk the in-app update on the next release
+  (old verifier, new package) and the one after (new verifier). **Close:** both walk records in `docs/archive/walks/`.
+
 ## Order
 
 The order is set by `docs/plans/2026-09-26-close-out-plan.md` (phases 0–6).
