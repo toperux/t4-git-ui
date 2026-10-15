@@ -230,6 +230,21 @@ describe("repoStore walk restarts", () => {
     expect(useRepoStore.getState().selectedIndex).toBe(0);
   });
 
+  it("shrinks the total to a shorter walk's complete page when its progress never arrived", async () => {
+    // A small repository's walk can finish before `start_log` resolves: its `log://progress` is dropped,
+    // and the restart kept walk 1's 27, so only the page can say the walk is now 25 long.
+    mocked.startLog.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
+    mocked.getLogPage.mockImplementation((_id: string, gen: number, offset: number) => Promise.resolve(gen === 1 ? page(1, offset, 27, 27) : page(2, offset, 25, 25)));
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    expect(useRepoStore.getState().log.total).toBe(27);
+
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    expect(useRepoStore.getState().log.total).toBe(25);
+    expect(useRepoStore.getState().rows).toHaveLength(25);
+  });
+
   /** Walk 1 is 30 rows; walk 2 carries three new commits on top of the same 30. */
   function fetchOfThree() {
     mocked.startLog.mockResolvedValueOnce(1).mockResolvedValueOnce(2);

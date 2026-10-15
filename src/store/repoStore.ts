@@ -266,7 +266,9 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
           // A page response can be older than the last `log://progress`; never move the walk backwards.
           // `error` too: a `log://progress` emitted before `start_log` resolved was dropped for
           // having no generation to match, and the page is where that failure is still readable.
-          log: { ...s.log, total: Math.max(s.log.total, page.total), complete: s.log.complete || page.complete, error: s.log.error ?? page.error },
+          // A complete page's total is the walk's last word, so it may shrink the total a restart kept:
+          // a shorter walk whose progress was dropped would otherwise leave blank rows at the end.
+          log: { ...s.log, total: page.complete ? page.total : Math.max(s.log.total, page.total), complete: s.log.complete || page.complete, error: s.log.error ?? page.error },
           selectedIndex: selectedIndex ?? (offset === 0 && page.rows.length > 0 && !pendingSelect ? 0 : null),
         });
         if (lg !== labelGen) {
