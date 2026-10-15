@@ -3139,7 +3139,7 @@ Windows (`docs/archive/walks/2026-10-09-bs-walk.md`).
 
 ## BT. "Checkout `origin/x`" in the commit menu's first group
 
-Plan: `docs/plans/2026-10-15-checkout-remote-first-group-plan.md` (P1–P4, F1, RA, RB, RC, RX). Fixture:
+Plan: `docs/archive/plans/2026-10-15-checkout-remote-first-group-plan.md` (P1–P4, F1, RA, RB, RC, RX). Fixture:
 `docs/smoke/fixtures/bq-fixture.sh` (`T4_ROOT=/tmp/t4` on Linux), **built fresh before row 1** — a `bq` already walked
 through BQ or BR won't match. Rows in order, all in `bq`; each right-clicks the History row of the commit carrying
 `origin/<case>`, as in BQ. "The first group" is everything above the menu's first separator. Check outcomes in git

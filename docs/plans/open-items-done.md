@@ -1938,13 +1938,14 @@ trigger are in `open-items.md` §AK.
 
 ## AL. Added 2026-10-15 — checkout-remote-first-group: fixed and accepted, closed
 
-Ruled by the owner in the change review and triage of `docs/plans/2026-10-15-checkout-remote-first-group-plan.md`.
-Fixed in the review loop: R1, the single Reset row ran the remote's short name, now its full ref (`d350915`); the
-Fast-forward row's icon, Merge's at first, now a fast-forward one (`7bb97e1`). Fixed from the BT walk
-(`docs/archive/walks/2026-10-15-bt-walk.md`): O1, older than this branch, History kept blank "—" rows after a reload
-that dropped commits, because a restart keeps the old total and a complete page could only grow it while the walk's
-own progress event was dropped on a small repository (`repoStore.ts` `fetchPage`; now a complete page's total stands,
-`2035491`). Accepted, with no reopen trigger; the one with a trigger is in `open-items.md` §Q.
+Ruled by the owner in the change review and triage of
+`docs/archive/plans/2026-10-15-checkout-remote-first-group-plan.md`. Fixed in the review loop: R1, the single Reset row
+ran the remote's short name, now its full ref (`d350915`); the Fast-forward row's icon, Merge's at first, now a
+fast-forward one (`7bb97e1`). Fixed from the BT walk (`docs/archive/walks/2026-10-15-bt-walk.md`): O1, older than this
+branch, History kept blank "—" rows after a reload that dropped commits, because a restart keeps the old total and a
+complete page could only grow it while the walk's own progress event was dropped on a small repository (`repoStore.ts`
+`fetchPage`; now a complete page's total stands, `2035491`). Accepted, with no reopen trigger; the one with a trigger is
+in `open-items.md` §Q.
 
 Fixed in review loop 2 (after the squash): R2, *Checkout `origin/x`* and *Fast-forward* now refuse a remote ref moved
 off the clicked commit since (plan Design 10, `8d62619`); the commit menu's late-answer flag, which duplicated the
@@ -1974,6 +1975,12 @@ cases (`2e9fa72`). Deferred: the late `log://progress` row, `open-items.md` §AL
   front-end tests show the clicked oid reaching `ipc.checkout` / `ipc.merge`, but nothing fails if the `checkout` or
   `merge` command skipped the check or ran it after git (`src-tauri/src/commands/ops.rs`). Same as `expect_branch_at`:
   the repo has no harness for a command's own ordering.
+- **The R2 guard is not walked** (after the v0.10.24 release). BT and the O1 re-check ran on builds from before review
+  loop 2; R2 is covered by `refs::expect_ref_at`'s real-git test and the front-end tests of the clicked oid reaching
+  the backend. A walk would need a fetch from outside the app while a confirm dialog is open.
+- **No macOS walk of group BT** (after the v0.10.24 release). BT checks the menu's logic and the git commands it runs,
+  which don't depend on the OS; Windows (WebView2) and Linux (WebKitGTK, the engine macOS uses too) were walked, and
+  the repo has no scripted macOS harness. Group BQ, the same menu's earlier change, was walked on the same two.
 - **git resolves the remote ref again after the R2 guard** (review loop 2). The check runs under the app's op lock,
   but a fetch from outside the app between it and git's own lookup still lands on the new tip; the same window as
   `expect_branch_at`. Passing the oid instead would change the preview RB set and, for `-B`, lose the CLI's upstream.

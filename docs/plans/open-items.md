@@ -603,8 +603,8 @@ phases that accepted them; each origin keeps a pointer.
   `src/screens/RepoWindow/RevisionGrid/RevisionGrid.tsx`); until it answers, Merge, Rebase onto and Cherry-pick stay
   enabled, and a click then only gets git's "Already up to date" or an empty pick. Between distant commits of a big
   history the greying could land late; not measured. Accepted 2026-10-15 (the checkout-remote-first-group triage,
-  `docs/plans/2026-10-15-checkout-remote-first-group-plan.md`, RX). **Reopen:** the greying shows up visibly late on a
-  large repository.
+  `docs/archive/plans/2026-10-15-checkout-remote-first-group-plan.md`, RX). **Reopen:** the greying shows up visibly
+  late on a large repository.
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review, deferred
 
@@ -862,14 +862,17 @@ seventh's findings open), and in the triage of the commit-message rules commits.
 
 ## AL. Added 2026-10-15 — checkout-remote-first-group, deferred
 
-Deferred in change review loop 2 of `docs/plans/2026-10-15-checkout-remote-first-group-plan.md`, with a reopen
-trigger. It predates the branch.
+From `docs/archive/plans/2026-10-15-checkout-remote-first-group-plan.md`: one row deferred in its change review loop 2,
+with a reopen trigger (it predates the branch), and the v0.10.24 release's update walk, pending.
 
 - **A late `log://progress` can roll the History grid back.** `onProgress` (`src/store/repoStore.ts:548-551`) sets
   `total` and `complete` straight from the event, so a non-complete progress event delivered after the walk's
   complete page (an invoke response and an event travel separately) could lower the total or mark a finished walk
   unfinished. Reasoned from the code, never seen; the O1 fix (`0f3d67b`, `open-items-done.md` §AL) doesn't change it.
   Fix in its own plan. **Reopen:** History rows vanish, or the walk shows as loading after it finished.
+- **v0.10.24's in-app update walk.** Installed 0.10.23 → published v0.10.24 on the Windows VM, the way
+  `docs/archive/walks/2026-10-09-v0.10.23-update-walk.md` did (smoke group AC's *Offered on launch*, *The install*,
+  *Up to date*). Requested 2026-10-15. **Close:** when its walk record is in `docs/archive/walks/`.
 
 ## Order
 

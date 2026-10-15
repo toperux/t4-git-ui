@@ -5,6 +5,9 @@ review pass 4 clean. Executed 2026-10-15, smoke group BT walked (`docs/archive/w
 Change review loop 2 (R2 below) done 2026-10-15: its second pass's rulings are in `open-items-done.md` §AL. Squashed
 to `85e5c4e` (feat) and `9223b96` (fix) plus the docs commit; §AL has the squash map._
 
+**Done 2026-10-15:** shipped in v0.10.24 (bump `68a050c`, Release run 38716006592). The commit hashes above are
+pre-squash unless the squash map says otherwise.
+
 **Goal:** right-clicking a commit where a remote branch (`origin/x`) sits always offers **Checkout `origin/x`** in the
 menu's first group, next to **Checkout (detached)**. It does what a CLI user types: `git checkout -B x origin/x`. Today
 that item exists only when no local branch tracks `origin/x`. When one does, v0.10.22's item ("Checkout `x`" /
