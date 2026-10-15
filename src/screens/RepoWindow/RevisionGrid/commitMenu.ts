@@ -37,10 +37,16 @@ export interface CommitBranchActions {
   checkout: BranchAt[];
   reset: ResetToRemote[];
   /**
-   * Per remote branch here, every local branch tracking it from elsewhere that `git checkout -B` can move:
-   * not the current one, not checked out in a worktree, nothing mid-rebase / mid-bisect.
+   * Per remote branch here (`short` is its name without the remote), every local branch tracking it from
+   * elsewhere that `git checkout -B` can move: the current one included, unless `fastForward` covers it;
+   * not checked out in another worktree, nothing mid-rebase / mid-bisect.
    */
-  checkoutReset: { remote: string; candidates: CheckoutToRemote[]; besideCurrent: boolean }[];
+  checkoutReset: { remote: string; short: string; candidates: CheckoutToRemote[] }[];
+  /**
+   * The current branch's upstream when it sits here and the branch is only behind it, nothing running:
+   * every merge, rebase or checkout onto this commit is that one fast-forward.
+   */
+  fastForward: string | null;
   /** Local branches `git branch -f` can move here: not the current one, not already here, not checked out in a worktree, not one `reset` already moves here. */
   resetHere: string[];
   /** Merge candidates: every branch at the commit but the current one and remotes a local sits on. */
@@ -67,11 +73,10 @@ export interface CommitBranchActions {
 /**
  * A remote branch's local counterparts are every branch tracking it, else the one with the same short
  * name. One at the same commit makes the remote a duplicate name; each elsewhere can be reset to the
- * remote or checked out there (the current one gets the reset only), offered under one remote ref only
- * (its own upstream when that sits here).
+ * remote or checked out there, offered under one remote ref only (its own upstream when that sits here).
  */
 export function commitBranchActions(refs: RefsSnapshot | null, oid: string, worktrees?: Worktree[]): CommitBranchActions {
-  if (!refs) return { checkout: [], reset: [], checkoutReset: [], resetHere: [], merge: [], rebaseOnto: null, canRebase: false, canRebaseInteractive: false, headCommit: false, unborn: false, remove: [], rename: [] };
+  if (!refs) return { checkout: [], reset: [], checkoutReset: [], fastForward: null, resetHere: [], merge: [], rebaseOnto: null, canRebase: false, canRebaseInteractive: false, headCommit: false, unborn: false, remove: [], rename: [] };
   const locals: BranchAt[] = refs.local.filter((b) => b.oid === oid && !b.isHead).map((b) => ({ name: b.name, remote: null }));
   const checkout: BranchAt[] = [...locals];
   const remotes: BranchAt[] = [];
@@ -90,6 +95,10 @@ export function commitBranchActions(refs: RefsSnapshot | null, oid: string, work
   // Two remote refs here can name the same local branch (`origin/x` it tracks, `fork/x` by short name):
   // it is offered once, under its own upstream when that sits here too, else under the first.
   const remotesHere = new Set(refs.remotes.flatMap((r) => r.branches.filter((rb) => rb.oid === oid).map((rb) => rb.name)));
+  // The snapshot's counts against the upstream: a failed walk reads 0/0, and `behind > 0` turns that
+  // into no fast-forward rather than a wrong one. A short-name tracker has no counts and never gets one.
+  const current = refs.head.detached ? undefined : refs.local.find((b) => b.isHead);
+  const fastForward = current?.upstream && remotesHere.has(current.upstream) && current.ahead === 0 && current.behind > 0 && refs.state === "clean" ? current.upstream : null;
   const offered = new Set<string>();
   for (const r of refs.remotes) {
     for (const rb of r.branches) {
@@ -109,14 +118,16 @@ export function commitBranchActions(refs: RefsSnapshot | null, oid: string, work
       // blocks; every other one is a `git branch -f` and answers to both.
       const head = fresh.find((b) => b.isHead);
       if (head) reset.push({ branches: [head.name], remote: rb.name, current: true, besideCurrent: false });
-      // Resetting and checking out (`git checkout -B`) offer the same set.
       const movable = frozen ? [] : fresh.filter((b) => !b.isHead && !checkedOut.has(b.name));
       if (movable.length > 0) {
-        // Unnamed, several read "local" — "other local" when the current one has its own item right above.
+        // Unnamed, several read "local" — "other local" when the current one has its own Reset row.
         const besideCurrent = head !== undefined && movable.length > 1;
         reset.push({ branches: movable.map((b) => b.name), remote: rb.name, current: false, besideCurrent });
-        checkoutReset.push({ remote: rb.name, candidates: movable.map((b) => ({ branch: b.name, remote: rb.name, localOid: b.oid })), besideCurrent });
       }
+      // Checking out (`git checkout -B`) moves the same set plus the current branch, like the CLI —
+      // unless the fast-forward is the same move under its own name.
+      const candidates = frozen ? [] : fresh.filter((b) => !checkedOut.has(b.name) && !(b.isHead && fastForward));
+      if (candidates.length > 0) checkoutReset.push({ remote: rb.name, short, candidates: candidates.map((b) => ({ branch: b.name, remote: rb.name, localOid: b.oid })) });
       // A local counterpart right here is the same commit under a shorter name: it is already offered.
       if (here) continue;
       remotes.push({ name: rb.name, remote: r.name });
@@ -133,11 +144,13 @@ export function commitBranchActions(refs: RefsSnapshot | null, oid: string, work
   // A rebase moves the current branch; detached there is none, and git would replay the loose commits.
   // Mid-merge / mid-rebase git refuses one outright, so the items go rather than fail.
   const canRebaseInteractive = !unborn && !refs.head.detached && refs.state === "clean";
-  const canRebase = canRebaseInteractive && !headCommit;
+  // Onto a commit the branch is only behind, a rebase is the fast-forward again.
+  const canRebase = canRebaseInteractive && !headCommit && !fastForward;
   return {
     checkout,
     reset,
     checkoutReset,
+    fastForward,
     resetHere,
     merge: headCommit || unborn ? [] : [...locals, ...remotes],
     rebaseOnto: canRebase ? (locals[0] ?? remotes[0] ?? null) : null,

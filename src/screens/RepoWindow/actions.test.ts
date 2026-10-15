@@ -9,7 +9,7 @@ import { useRepoStore } from "../../store/repoStore";
 import { useToastStore } from "../../store/toastStore";
 import { useTabsStore } from "../../store/tabsStore";
 import { useViewStore } from "../../store/viewStore";
-import { blameAt, busyLabel, checkoutAndResetBranch, checkoutTag, closeTab, pickAndOpenRepo, runGit, showHistory, stashDrop, switchRepo } from "./actions";
+import { blameAt, busyLabel, checkoutAndResetBranch, checkoutTag, closeTab, fastForwardTo, pickAndOpenRepo, runGit, showHistory, stashDrop, switchRepo } from "./actions";
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(() => Promise.resolve("/elsewhere")), ask: vi.fn(() => Promise.resolve(true)) }));
 vi.mock("@tauri-apps/plugin-clipboard-manager", () => ({ writeText: vi.fn() }));
@@ -20,6 +20,7 @@ vi.mock("../../api/ipc", async (importOriginal) => {
     runGit: vi.fn(),
     checkout: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     resetBranch: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
+    merge: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     stashDrop: vi.fn(() => Promise.resolve({ opId: "1", code: 0, conflicts: [], failure: null })),
     // `runOp`'s trailing refresh / syncRefs must never resolve, or they'd race the assertions.
     getStatus: vi.fn(() => new Promise(() => {})),
@@ -31,7 +32,7 @@ vi.mock("../../api/ipc", async (importOriginal) => {
 import { ask, open as openFolder } from "@tauri-apps/plugin-dialog";
 import * as ipc from "../../api/ipc";
 
-const mocked = ipc as unknown as Record<"runGit" | "checkout" | "resetBranch" | "stashDrop", ReturnType<typeof vi.fn>>;
+const mocked = ipc as unknown as Record<"runGit" | "checkout" | "resetBranch" | "merge" | "stashDrop", ReturnType<typeof vi.fn>>;
 const asked = ask as unknown as ReturnType<typeof vi.fn>;
 const openTab = vi.fn(() => Promise.resolve());
 const closeTabStore = vi.fn(() => Promise.resolve());
@@ -161,14 +162,24 @@ describe("checkoutTag", () => {
 
 describe("checkoutAndResetBranch", () => {
   it("moves and checks out in one `git checkout -B`: a failed checkout leaves the branch where it was", async () => {
-    const oid = "deadbeefcafe0123456789abcdef0123456789ab";
     const seen = "0123456789abcdef0123456789abcdef01234567";
-    await checkoutAndResetBranch("topic", oid, seen);
+    const at = "fedcba9876543210fedcba9876543210fedcba98";
+    await checkoutAndResetBranch("topic", "refs/remotes/origin/topic", seen, at);
     expect(mocked.checkout).toHaveBeenCalledTimes(1);
-    // Where the branch was seen goes along: the backend refuses if it moved since.
-    expect(mocked.checkout).toHaveBeenCalledWith("r", oid, "topic", false, false, true, seen);
+    // Where the branch and the remote ref were seen go along: the backend refuses if either moved since.
+    expect(mocked.checkout).toHaveBeenCalledWith("r", "refs/remotes/origin/topic", "topic", false, false, true, seen, at);
     expect(mocked.resetBranch).not.toHaveBeenCalled();
-    expect(toasts().map((t) => t.title)).toContain("Checked out topic at deadbee");
+    // The toast names the remote branch, not the ref.
+    expect(toasts().map((t) => t.title)).toContain("Checked out topic at origin/topic");
+  });
+});
+
+describe("fastForwardTo", () => {
+  it("merges the remote branch's full ref with `--ff-only`, no fetch", async () => {
+    await fastForwardTo("main", "origin/main", "oid1");
+    // Where the remote ref was seen goes along: the backend refuses if a fetch moved it since.
+    expect(mocked.merge).toHaveBeenCalledWith("r", "refs/remotes/origin/main", "only", false, null, "oid1");
+    expect(toasts().map((t) => t.title)).toContain("Fast-forwarded main to origin/main");
   });
 });
 

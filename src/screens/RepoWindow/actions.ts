@@ -59,14 +59,19 @@ export function checkoutRemoteBranch(rb: RemoteBranch, remote: string) {
 }
 
 /**
- * Moves a branch that is not checked out to commit `target` and checks it out, in one `git checkout -B`:
- * a failed checkout leaves the branch where it was. `expect` is where the branch was seen: one moved
- * since is refused rather than carried off.
+ * Moves a branch to remote branch `target` (its full ref, `refs/remotes/origin/x`) and checks it out, in
+ * one `git checkout -B`: a failed checkout leaves the branch where it was, and git makes `target` its
+ * upstream. `expect` is where the branch was seen: one moved since is refused rather than carried off;
+ * `at` is where `target` was seen: one a fetch moved since is refused rather than landed on.
  */
-export const checkoutAndResetBranch = (branch: string, target: string, expect: string) =>
-  runOp(`Checking out ${branch}…`, (id) => ipc.checkout(id, target, branch, false, false, true, expect), {
-    success: `Checked out ${branch} at ${target.slice(0, 7)}`,
+export const checkoutAndResetBranch = (branch: string, target: string, expect: string, at: string) =>
+  runOp(`Checking out ${branch}…`, (id) => ipc.checkout(id, target, branch, false, false, true, expect, at), {
+    success: `Checked out ${branch} at ${target.replace(/^refs\/remotes\//, "")}`,
   });
+
+/** The current branch onto remote branch `remote` (`origin/x`, seen at `at`), only if that is a fast-forward; no fetch. */
+export const fastForwardTo = (branch: string, remote: string, at: string) =>
+  runOp(`Fast-forwarding ${branch}…`, (id) => ipc.merge(id, `refs/remotes/${remote}`, "only", false, null, at), { success: `Fast-forwarded ${branch} to ${remote}` });
 
 /** Tag or commit → detached HEAD. */
 export const checkoutDetached = (target: string, label = target) =>

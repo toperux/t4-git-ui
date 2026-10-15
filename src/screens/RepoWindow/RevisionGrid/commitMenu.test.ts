@@ -33,10 +33,13 @@ const REFS: RefsSnapshot = {
   stashes: [],
 };
 
+// At `b`: the current `main` (at `a`) checked out moved to `origin/main`, like the CLI's `checkout -B`.
+const MAIN = { remote: "origin/main", short: "main", candidates: [{ branch: "main", remote: "origin/main", localOid: "a" }] };
+
 describe("commitBranchActions", () => {
   it("offers local branches at the commit, minus the current one", () => {
     // HEAD's own commit: no plain rebase (a no-op), but rebasing interactively *from* here is the point.
-    expect(commitBranchActions(REFS, "a")).toEqual({ checkout: [], reset: [], checkoutReset: [], resetHere: ["feature", "hotfix", "stale", "develop"], merge: [], rebaseOnto: null, canRebase: false, canRebaseInteractive: true, headCommit: true, unborn: false, remove: [], rename: ["main"] });
+    expect(commitBranchActions(REFS, "a")).toEqual({ checkout: [], reset: [], checkoutReset: [], fastForward: null, resetHere: ["feature", "hotfix", "stale", "develop"], merge: [], rebaseOnto: null, canRebase: false, canRebaseInteractive: true, headCommit: true, unborn: false, remove: [], rename: ["main"] });
     const { checkout } = commitBranchActions(REFS, "b");
     expect(checkout.filter((b) => !b.remote).map((b) => b.name)).toEqual(["feature", "hotfix"]);
   });
@@ -90,19 +93,21 @@ describe("commitBranchActions", () => {
   });
 
   it("checks out a remote branch's local trackers sitting elsewhere, moved here — every one of them", () => {
-    // `main` is current (a reset, never a checkout), `feature` is already here; `stale` tracks `origin/renamed` from `c`.
-    expect(commitBranchActions(REFS, "b").checkoutReset).toEqual([{ remote: "origin/renamed", candidates: [{ branch: "stale", remote: "origin/renamed", localOid: "c" }], besideCurrent: false }]);
+    // `main` is current — a candidate all the same, alone under `origin/main` — `feature` is already here;
+    // `stale` tracks `origin/renamed` from `c`.
+    expect(commitBranchActions(REFS, "b").checkoutReset).toEqual([MAIN, { remote: "origin/renamed", short: "renamed", candidates: [{ branch: "stale", remote: "origin/renamed", localOid: "c" }] }]);
     // A second tracker of the same remote branch is a second candidate, and the reset entry carries both.
     const two: RefsSnapshot = { ...REFS, local: [...REFS.local, branch("stale2", "f", { upstream: "origin/renamed" })] };
     const at = commitBranchActions(two, "b");
     expect(at.checkoutReset).toEqual([
+      MAIN,
       {
         remote: "origin/renamed",
+        short: "renamed",
         candidates: [
           { branch: "stale", remote: "origin/renamed", localOid: "c" },
           { branch: "stale2", remote: "origin/renamed", localOid: "f" },
         ],
-        besideCurrent: false,
       },
     ]);
     expect(at.reset).toEqual([
@@ -121,7 +126,7 @@ describe("commitBranchActions", () => {
       { branches: ["main"], remote: "origin/main", current: true, besideCurrent: false },
       { branches: ["stale"], remote: "origin/renamed", current: false, besideCurrent: false },
     ]);
-    expect(at.checkoutReset).toEqual([{ remote: "origin/renamed", candidates: [{ branch: "stale", remote: "origin/renamed", localOid: "c" }], besideCurrent: false }]);
+    expect(at.checkoutReset).toEqual([MAIN, { remote: "origin/renamed", short: "renamed", candidates: [{ branch: "stale", remote: "origin/renamed", localOid: "c" }] }]);
     // `here` stands in for the remote under a shorter name: not a merge candidate of its own.
     expect(at.merge.some((b) => b.name === "origin/renamed")).toBe(false);
   });
@@ -136,9 +141,11 @@ describe("commitBranchActions", () => {
       { branches: ["stale"], remote: "origin/renamed", current: false, besideCurrent: false },
     ]);
     expect(at.checkoutReset.map((c) => c.remote)).toEqual(["origin/main", "origin/renamed"]);
+    // Checking out is one entry: the current branch is a candidate beside the other.
+    expect(at.checkoutReset[0].candidates.map((c) => c.branch)).toEqual(["main", "main2"]);
   });
 
-  it("flags several non-current trackers beside a current one, so the menu says 'other local'", () => {
+  it("flags several non-current trackers beside a current one, so the reset row says 'other local'", () => {
     // `main` (current) plus `main2` and `main3` elsewhere, all tracking `origin/main` at `b`.
     const refs: RefsSnapshot = { ...REFS, local: [...REFS.local, branch("main2", "f", { upstream: "origin/main" }), branch("main3", "c", { upstream: "origin/main" })] };
     const at = commitBranchActions(refs, "b");
@@ -146,16 +153,26 @@ describe("commitBranchActions", () => {
       { branches: ["main"], remote: "origin/main", current: true, besideCurrent: false },
       { branches: ["main2", "main3"], remote: "origin/main", current: false, besideCurrent: true },
     ]);
-    expect(at.checkoutReset.find((c) => c.remote === "origin/main")?.besideCurrent).toBe(true);
+    // The checkout picker lists all three, the current one included: nothing is "other" there.
+    expect(at.checkoutReset[0]).toEqual({
+      remote: "origin/main",
+      short: "main",
+      candidates: [
+        { branch: "main", remote: "origin/main", localOid: "a" },
+        { branch: "main2", remote: "origin/main", localOid: "f" },
+        { branch: "main3", remote: "origin/main", localOid: "c" },
+      ],
+    });
   });
 
   it("checks out no tracker a `git branch -f` could not move — the item goes, it is not greyed", () => {
     const worktree: Worktree = { path: "/wt/stale", head: { oid: "c", branch: "stale", detached: false }, main: false, current: false, locked: false, lockReason: null, prunable: false };
-    expect(commitBranchActions(REFS, "b", [worktree]).checkoutReset).toEqual([]);
+    expect(commitBranchActions(REFS, "b", [worktree]).checkoutReset).toEqual([MAIN]);
+    // Mid-rebase / mid-bisect nothing moves, the current branch included.
     for (const state of ["rebase", "bisect"] as const) expect(commitBranchActions({ ...REFS, state }, "b").checkoutReset).toEqual([]);
     // With two trackers, the one in a worktree goes and the other stays.
     const two: RefsSnapshot = { ...REFS, local: [...REFS.local, branch("stale2", "f", { upstream: "origin/renamed" })] };
-    expect(commitBranchActions(two, "b", [worktree]).checkoutReset).toEqual([{ remote: "origin/renamed", candidates: [{ branch: "stale2", remote: "origin/renamed", localOid: "f" }], besideCurrent: false }]);
+    expect(commitBranchActions(two, "b", [worktree]).checkoutReset).toEqual([MAIN, { remote: "origin/renamed", short: "renamed", candidates: [{ branch: "stale2", remote: "origin/renamed", localOid: "f" }] }]);
   });
 
   it("two remotes at one commit are two independent entries", () => {
@@ -166,8 +183,8 @@ describe("commitBranchActions", () => {
       remotes: [{ ...REFS.remotes[0], branches: [...REFS.remotes[0].branches, { name: "origin/x", oid: "d", mergedInto: null }] }, REFS.remotes[1]],
     };
     expect(commitBranchActions(refs, "d").checkoutReset).toEqual([
-      { remote: "origin/x", candidates: [{ branch: "x", remote: "origin/x", localOid: "c" }], besideCurrent: false },
-      { remote: "fork/feature", candidates: [{ branch: "feature", remote: "fork/feature", localOid: "b" }], besideCurrent: false },
+      { remote: "origin/x", short: "x", candidates: [{ branch: "x", remote: "origin/x", localOid: "c" }] },
+      { remote: "fork/feature", short: "feature", candidates: [{ branch: "feature", remote: "fork/feature", localOid: "b" }] },
     ]);
   });
 
@@ -180,7 +197,7 @@ describe("commitBranchActions", () => {
     };
     const at = commitBranchActions(refs, "d");
     expect(at.reset).toEqual([{ branches: ["feature"], remote: "origin/feature", current: false, besideCurrent: false }]);
-    expect(at.checkoutReset).toEqual([{ remote: "origin/feature", candidates: [{ branch: "feature", remote: "origin/feature", localOid: "b" }], besideCurrent: false }]);
+    expect(at.checkoutReset).toEqual([{ remote: "origin/feature", short: "feature", candidates: [{ branch: "feature", remote: "origin/feature", localOid: "b" }] }]);
     // Two short-name matches and no upstream here: the first keeps it.
     const fork2 = { name: "fork2", url: null, branches: [{ name: "fork2/feature", oid: "d", mergedInto: null }] };
     const byName = commitBranchActions({ ...REFS, remotes: [...REFS.remotes, fork2] }, "d");
@@ -193,7 +210,8 @@ describe("commitBranchActions", () => {
     expect(commitBranchActions(REFS, "d")).toEqual({
       checkout: [{ name: "origin/new", remote: "origin" }],
       reset: [{ branches: ["feature"], remote: "fork/feature", current: false, besideCurrent: false }],
-      checkoutReset: [{ remote: "fork/feature", candidates: [{ branch: "feature", remote: "fork/feature", localOid: "b" }], besideCurrent: false }],
+      checkoutReset: [{ remote: "fork/feature", short: "feature", candidates: [{ branch: "feature", remote: "fork/feature", localOid: "b" }] }],
+      fastForward: null,
       // `feature` is left out: the reset above already moves it here, to `fork/feature`.
       resetHere: ["hotfix", "stale", "develop"],
       merge: [{ name: "origin/new", remote: "origin" }, { name: "fork/feature", remote: "fork" }],
@@ -281,7 +299,7 @@ describe("commitBranchActions", () => {
   });
 
   it("is empty without refs", () => {
-    expect(commitBranchActions(null, "a")).toEqual({ checkout: [], reset: [], checkoutReset: [], resetHere: [], merge: [], rebaseOnto: null, canRebase: false, canRebaseInteractive: false, headCommit: false, unborn: false, remove: [], rename: [] });
+    expect(commitBranchActions(null, "a")).toEqual({ checkout: [], reset: [], checkoutReset: [], fastForward: null, resetHere: [], merge: [], rebaseOnto: null, canRebase: false, canRebaseInteractive: false, headCommit: false, unborn: false, remove: [], rename: [] });
   });
 
   it("neither rebase is offered mid-merge, mid-rebase, on a detached or an unborn HEAD", () => {
@@ -292,5 +310,32 @@ describe("commitBranchActions", () => {
     expect(commitBranchActions(detached, "b")).toMatchObject({ canRebase: false, canRebaseInteractive: false });
     const unborn: RefsSnapshot = { ...REFS, head: { oid: null, branch: "wip", detached: false }, local: REFS.local.map((b) => ({ ...b, isHead: false })) };
     expect(commitBranchActions(unborn, "b")).toMatchObject({ canRebase: false, canRebaseInteractive: false });
+  });
+
+  it("fast-forwards a current branch only behind its upstream here: no rebase, no checkout of it", () => {
+    const behind = (extra: Partial<Branch>, local = REFS.local): RefsSnapshot => ({ ...REFS, local: local.map((b) => (b.isHead ? { ...b, ...extra } : b)) });
+    const at = commitBranchActions(behind({ behind: 2 }), "b");
+    expect(at.fastForward).toBe("origin/main");
+    expect(at).toMatchObject({ canRebase: false, rebaseOnto: null });
+    // The current branch leaves the checkout candidates; its Reset entry stays.
+    expect(at.checkoutReset.map((c) => c.remote)).toEqual(["origin/renamed"]);
+    expect(at.reset[0]).toEqual({ branches: ["main"], remote: "origin/main", current: true, besideCurrent: false });
+    // `merge` keeps its sources: the menu drops the Merge row on `fastForward` itself.
+    expect(at.merge.map((b) => b.name)).toEqual(["feature", "hotfix", "origin/main", "origin/renamed"]);
+    // A second tracker stays a candidate on its own.
+    const two = commitBranchActions(behind({ behind: 2 }, [...REFS.local, branch("main2", "f", { upstream: "origin/main" })]), "b");
+    expect(two.checkoutReset[0]).toEqual({ remote: "origin/main", short: "main", candidates: [{ branch: "main2", remote: "origin/main", localOid: "f" }] });
+  });
+
+  it("no fast-forward unless behind only, by upstream, with nothing running", () => {
+    const behind = (extra: Partial<Branch>, state: RefsSnapshot["state"] = "clean"): RefsSnapshot => ({ ...REFS, state, local: REFS.local.map((b) => (b.isHead ? { ...b, ...extra } : b)) });
+    // In sync (or a failed walk's 0/0), ahead, diverged.
+    for (const counts of [{}, { ahead: 1 }, { ahead: 1, behind: 2 }]) expect(commitBranchActions(behind(counts), "b")).toMatchObject({ fastForward: null, checkoutReset: [MAIN, expect.anything()] });
+    // A short-name tracker has no counts of its own: the plain rows.
+    expect(commitBranchActions(behind({ upstream: null, behind: 2 }), "b")).toMatchObject({ fastForward: null, checkoutReset: [MAIN, expect.anything()] });
+    // Mid-merge.
+    expect(commitBranchActions(behind({ behind: 2 }, "merge"), "b").fastForward).toBeNull();
+    // Its upstream is not at this commit.
+    expect(commitBranchActions(behind({ behind: 2 }), "d").fastForward).toBeNull();
   });
 });

@@ -498,8 +498,8 @@ const RESET_LABEL: Record<ResetMode, string> = {
   hard: "Hard — discard all uncommitted changes",
 };
 
-/** A target is an oid (shown abbreviated) or a ref name such as `origin/main` (shown as is). */
-export const shortRef = (target: string) => (/^[0-9a-f]{40}$/.test(target) ? target.slice(0, 7) : target);
+/** A target is an oid (shown abbreviated) or a ref name, shown without a `refs/remotes/` prefix (`origin/main`). */
+export const shortRef = (target: string) => (/^[0-9a-f]{40}$/.test(target) ? target.slice(0, 7) : target.replace(/^refs\/remotes\//, ""));
 
 /** Reset the current branch (or a detached HEAD) to a commit picked in the grid, or to a ref sitting there. */
 export function ResetDialog({ onClose, target }: { onClose: () => void; target: string }) {
@@ -646,16 +646,20 @@ function CheckoutResetText({ branch, remote, counts }: { branch: string; remote:
   );
 }
 
-/** Check out a local branch that tracks `remote` from elsewhere, moved to it (`git checkout -B`) — the move loses commits, so it asks. */
-export function CheckoutResetDialog({ onClose, branch, remote, target, localOid, ahead, behind }: { onClose: () => void; branch: string; remote: string; target: string; localOid: string } & AheadBehind) {
+/**
+ * Check out a local branch that tracks `remote` from elsewhere, moved to it (`git checkout -B`) — the move
+ * loses commits, so it asks. Titled like the menu item: "as `branch`" when its name isn't the remote's.
+ * `oid` is the commit `target` was seen at: the backend refuses if a fetch moved it since.
+ */
+export function CheckoutResetDialog({ onClose, branch, remote, short, target, oid, localOid, ahead, behind }: { onClose: () => void; branch: string; remote: string; short: string; target: string; oid: string; localOid: string } & AheadBehind) {
   function submit() {
     onClose();
-    void checkoutAndResetBranch(branch, target, localOid);
+    void checkoutAndResetBranch(branch, target, localOid, oid);
   }
 
   return (
     <Dialog
-      title={`Checkout ${branch}`}
+      title={branch === short ? `Checkout ${remote}` : `Checkout ${remote} as ${branch}`}
       onClose={onClose}
       onSubmit={submit}
       preview={checkoutResetPreview(branch, target)}
@@ -675,8 +679,12 @@ export function CheckoutResetDialog({ onClose, branch, remote, target, localOid,
 
 const whereLabel = (ab?: AheadBehind) => (!ab ? "" : ab.ahead === 0 ? ` — behind ${ab.behind}` : ab.behind === 0 ? ` — ahead ${ab.ahead}` : ` — diverged ${ab.ahead}·${ab.behind}`);
 
-/** Several local branches track `remote` from elsewhere: pick the one to check out, moved to it. */
-export function CheckoutLocalDialog({ onClose, remote, target, candidates, other = false }: { onClose: () => void; remote: string; target: string; candidates: { branch: string; localOid: string }[]; other?: boolean }) {
+/**
+ * Several local branches track `remote` from elsewhere: pick the one to check out, moved to `target` (its
+ * full ref). The counts are taken against the commit, `oid`: the walk takes oids only. The run takes it
+ * too: the backend refuses if a fetch moved `target` off it since.
+ */
+export function CheckoutLocalDialog({ onClose, remote, target, oid, candidates }: { onClose: () => void; remote: string; target: string; oid: string; candidates: { branch: string; localOid: string }[] }) {
   // No default pick: the move can lose commits, so it must not run on Enter against a branch nobody chose.
   const [name, setName] = useState("");
   const [counts, setCounts] = useState<Record<string, AheadBehind>>({});
@@ -686,7 +694,7 @@ export function CheckoutLocalDialog({ onClose, remote, target, candidates, other
     const repo = useRepoStore.getState().repo;
     if (!repo) return;
     let live = true;
-    void Promise.all(candidates.map((c) => ipc.aheadBehind(repo.id, c.localOid, target).then((ab) => [c.branch, ab] as const)))
+    void Promise.all(candidates.map((c) => ipc.aheadBehind(repo.id, c.localOid, oid).then((ab) => [c.branch, ab] as const)))
       .then((all) => {
         if (live) setCounts(Object.fromEntries(all));
       })
@@ -694,19 +702,19 @@ export function CheckoutLocalDialog({ onClose, remote, target, candidates, other
     return () => {
       live = false;
     };
-  }, [candidates, target]);
+  }, [candidates, oid]);
   const picked = counts[name];
 
   function submit() {
     const c = candidates.find((x) => x.branch === name);
     if (!c) return;
     onClose();
-    void checkoutAndResetBranch(c.branch, target, c.localOid);
+    void checkoutAndResetBranch(c.branch, target, c.localOid, oid);
   }
 
   return (
     <Dialog
-      title={other ? "Checkout other local branch" : "Checkout local branch"}
+      title={`Checkout ${remote}`}
       onClose={onClose}
       onSubmit={submit}
       preview={name ? checkoutResetPreview(name, target) : ""}

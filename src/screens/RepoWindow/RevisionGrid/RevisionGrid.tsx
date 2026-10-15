@@ -1,6 +1,6 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Bug, Cherry, ChevronDown, Copy, GitBranch, GitCommitHorizontal, GitMerge, History, ListRestart, Pencil, Plus, RotateCcw, Search, Tag, Trash2, Undo2 } from "lucide-react";
-import { Fragment, useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { Bug, Cherry, ChevronDown, Copy, FastForward, GitBranch, GitCommitHorizontal, GitMerge, History, ListRestart, Pencil, Plus, RotateCcw, Search, Tag, Trash2, Undo2 } from "lucide-react";
+import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import * as ipc from "../../../api/ipc";
 import { toAppError } from "../../../api/ipc";
 import type { CommitInfo } from "../../../api/types";
@@ -10,7 +10,7 @@ import { ContextMenu, MenuItem, MenuRef, MenuSeparator } from "../../../componen
 import { Progress } from "../../../components/ui/Progress/Progress";
 import { useDialogStore, type DialogSpec } from "../../../store/dialogStore";
 import { selectRunning, useOpsStore } from "../../../store/opsStore";
-import { bisectMark, checkoutAndResetBranch, checkoutBranch, checkoutDetached, checkoutRemoteBranch, copyText, openCommitPanel } from "../actions";
+import { bisectMark, checkoutAndResetBranch, checkoutBranch, checkoutDetached, checkoutRemoteBranch, copyText, fastForwardTo, openCommitPanel } from "../actions";
 import { cx } from "../../../lib/cx";
 import { lastTopRow, noteTopRow, useMerging, useRepoStore } from "../../../store/repoStore";
 import { selectChangeCount, useShowWorkingTree, useStatusStore } from "../../../store/statusStore";
@@ -286,17 +286,34 @@ export function RevisionGrid() {
 }
 
 /**
- * Commit row actions, grouped by what each one moves: HEAD (checkout a branch here / detached, reset
- * the current branch here), where the current branch points (merge / rebase, reset a branch to its
- * remote), what it contains (cherry-pick / revert this commit), the bisect search (mark good / bad),
- * new refs (branch / tag here), the clipboard (copy SHA), and last the refs here that can
- * go (delete a local / remote branch, a tag).
+ * Commit row actions, grouped by what each one moves: HEAD (fast-forward, checkout a branch here or
+ * moved here / detached, reset the current branch here), where the current branch points (merge /
+ * rebase, reset another branch to its remote), what it contains (cherry-pick / revert this commit),
+ * the bisect search (mark good / bad), new refs (branch / tag here), the clipboard (copy SHA), and
+ * last the refs here that can go (delete a local / remote branch, a tag).
  */
 function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: number }; commit: CommitInfo; el: HTMLElement | null } | null; onClose: () => void }) {
   const open = useDialogStore((st) => st.open);
   const running = useOpsStore(selectRunning);
   const refs = useRepoStore((st) => st.refs);
   const linked = useRepoStore((st) => st.linked);
+  // The menu HEAD is known to contain the commit of: Merge, Rebase onto and Cherry-pick would change
+  // nothing. Asked on open; until the answer, or on an error, the rows stay as they are.
+  const [inHead, setInHead] = useState<typeof menu>(null);
+  useEffect(() => {
+    if (!menu) return;
+    const { repo, refs: now } = useRepoStore.getState();
+    const head = now?.head.oid;
+    // HEAD's own commit and an unborn HEAD have none of the three rows.
+    if (!repo || !head || head === menu.commit.oid) return;
+    // A late answer only sets an old menu object: the `inHead === menu` check below drops it.
+    ipc.aheadBehind(repo.id, menu.commit.oid, head).then(
+      ({ ahead }) => {
+        if (ahead === 0) setInHead(menu);
+      },
+      () => {},
+    );
+  }, [menu]);
   if (!menu) return null;
   const { oid, summary, parents } = menu.commit;
   const short = oid.slice(0, 7);
@@ -311,6 +328,9 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
   const openDialog = (spec: DialogSpec) => open(spec, { returnFocusTo: menu.el });
   // Everything but Copy touches the repository: greyed while an operation runs, like the toolbar.
   const op = running ? { disabled: true, title: "Operation in progress" } : {};
+  // Greyed rather than hidden, so nothing moves under the pointer when the answer lands; a running
+  // operation's own title wins.
+  const applied = !running && inHead === menu ? { disabled: true, title: `Already in ${current}` } : op;
   // With no branch here the commit itself is the merge source; several branches name the first, like the
   // rebase item — the dialog opens on it and lets the others be picked.
   const m = branches.merge;
@@ -322,41 +342,75 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
   const canApply = !branches.headCommit && !branches.unborn;
   // The lone force-move candidate, named outright in its item; `null` when the dialog does the picking.
   const only = branches.resetHere.length === 1 ? branches.resetHere[0] : null;
+  // The current branch's Reset row names its remote when that sits here: the first group's row, the
+  // only one for it.
+  const currentReset = branches.reset.find((r) => r.current);
+  // Behind only: every merge onto this commit is the fast-forward row, so Merge goes.
+  const ff = branches.fastForward;
+  const canMerge = canApply && !ff;
   // Every group's separator hangs off exactly what that group renders, so two never end up side by
   // side and none leads an empty run. The pointer group is the only one that can empty out; the
   // apply group and the bisect group both stand or fall with Revert's condition, an unborn HEAD.
-  const pointer = canApply || branches.canRebase || (branches.canRebaseInteractive && parents.length > 0) || branches.reset.length > 0 || branches.resetHere.length > 0;
+  const pointer = canMerge || branches.canRebase || (branches.canRebaseInteractive && parents.length > 0) || branches.reset.some((r) => !r.current) || branches.resetHere.length > 0;
   // A lone tracker is compared first: a fast-forward loses nothing and just runs, anything else asks.
-  const checkoutMoved = async ({ branch, remote, localOid }: CheckoutToRemote) => {
+  // The move takes the remote's full ref, so a local branch named `origin/x` can't stand in for it;
+  // the counts take the commit, as the walk reads oids only. The commit goes along too: the backend
+  // refuses if a fetch moved the remote ref off it since.
+  const checkoutMoved = async ({ branch, remote, localOid }: CheckoutToRemote, shortName: string) => {
     const repo = useRepoStore.getState().repo;
     if (!repo) return;
+    const target = `refs/remotes/${remote}`;
     try {
       const { ahead, behind } = await ipc.aheadBehind(repo.id, localOid, oid);
       if (useRepoStore.getState().repo?.id !== repo.id) return;
-      if (ahead === 0) void checkoutAndResetBranch(branch, oid, localOid);
-      else openDialog({ kind: "checkoutReset", branch, remote, target: oid, localOid, ahead, behind });
+      if (ahead === 0) void checkoutAndResetBranch(branch, target, localOid, oid);
+      else openDialog({ kind: "checkoutReset", branch, remote, short: shortName, target, oid, localOid, ahead, behind });
     } catch (e) {
       if (useRepoStore.getState().repo?.id === repo.id) toastError(toAppError(e), `Couldn't compare ${branch} with ${remote}`);
     }
   };
-  // Several trackers name none of them: the picker lists each with where it sits.
-  const checkoutResetItem = ({ remote, candidates, besideCurrent }: CommitBranchActions["checkoutReset"][number]) =>
-    candidates.length === 1 ? (
-      <MenuItem key={`checkout ${remote}`} icon={<GitBranch size={16} aria-hidden />} title={`Checkout ${candidates[0].branch}`} {...op} onClick={run(() => void checkoutMoved(candidates[0]))}>
-        Checkout <MenuRef>{candidates[0].branch}</MenuRef>
-      </MenuItem>
-    ) : (
-      <MenuItem
-        key={`checkout ${remote}`}
-        icon={<GitBranch size={16} aria-hidden />}
-        {...op}
-        onClick={run(() => openDialog({ kind: "checkoutLocal", remote, target: oid, candidates: candidates.map((c) => ({ branch: c.branch, localOid: c.localOid })), other: besideCurrent }))}
-      >
-        Checkout {besideCurrent ? "other local" : "local"}…
+  // A lone tracker named otherwise than the remote is named too, the CLI's `-B feat`: a behind-only one
+  // runs with no dialog to say which branch moves. Several go to the picker, which lists each with
+  // where it sits.
+  const checkoutResetItem = ({ remote, short: shortName, candidates }: CommitBranchActions["checkoutReset"][number]) => {
+    if (candidates.length > 1)
+      return (
+        <MenuItem
+          key={`checkout ${remote}`}
+          icon={<GitBranch size={16} aria-hidden />}
+          {...op}
+          onClick={run(() => openDialog({ kind: "checkoutLocal", remote, target: `refs/remotes/${remote}`, oid, candidates: candidates.map((c) => ({ branch: c.branch, localOid: c.localOid })) }))}
+        >
+          Checkout <MenuRef remote>{remote}</MenuRef>…
+        </MenuItem>
+      );
+    const [c] = candidates;
+    const as = c.branch !== shortName;
+    return (
+      <MenuItem key={`checkout ${remote}`} icon={<GitBranch size={16} aria-hidden />} title={as ? `Checkout ${remote} as ${c.branch}` : `Checkout ${remote}`} {...op} onClick={run(() => void checkoutMoved(c, shortName))}>
+        Checkout <MenuRef remote>{remote}</MenuRef>
+        {as && (
+          <>
+            {" "}
+            as <MenuRef>{c.branch}</MenuRef>
+          </>
+        )}
       </MenuItem>
     );
+  };
   return (
     <ContextMenu at={menu.at} onClose={onClose} label="Commit actions">
+      {/* `git merge --ff-only` onto the remote ref here: no fetch, so it never lands past this commit. */}
+      {ff && (
+        <MenuItem icon={<FastForward size={16} aria-hidden />} title={`Fast-forward ${current} to ${ff}`} {...op} onClick={run(() => void fastForwardTo(current, ff, oid))}>
+          <span className={s.menuLabel}>
+            Fast-forward <MenuRef className={s.menuBranch}>{current}</MenuRef>{" "}
+            <span className={s.menuBranch}>
+              to <MenuRef remote>{ff}</MenuRef>
+            </span>
+          </span>
+        </MenuItem>
+      )}
       {branches.checkout.length === 1 && (
         <MenuItem icon={<GitBranch size={16} aria-hidden />} title={`Checkout ${branches.checkout[0].name}`} {...op} onClick={run(() => void checkout(branches.checkout[0]))}>
           Checkout <MenuRef remote={branches.checkout[0].remote !== null}>{branches.checkout[0].name}</MenuRef>
@@ -367,26 +421,36 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
           Checkout branch…
         </MenuItem>
       )}
+      {/* A local branch tracking a remote here, checked out moved to it (`git checkout -B`). */}
+      {branches.checkoutReset.map(checkoutResetItem)}
       <MenuItem icon={<GitBranch size={16} aria-hidden />} {...op} onClick={run(() => void checkoutDetached(oid, short))}>
         Checkout (detached)
       </MenuItem>
+      {/* With its remote here the same reset reads by that name: one row for both. */}
       <MenuItem
         icon={<RotateCcw size={16} aria-hidden />}
-        title={`Reset ${current} to here`}
+        title={`Reset ${current} to ${currentReset ? currentReset.remote : "here"}`}
         {...op}
-        onClick={run(() => openDialog({ kind: "reset", target: oid }))}
+        onClick={run(() => openDialog({ kind: "reset", target: currentReset ? `refs/remotes/${currentReset.remote}` : oid }))}
       >
         <span className={s.menuLabel}>
-          Reset <MenuRef className={s.menuBranch}>{current}</MenuRef> to here…
+          Reset <MenuRef className={s.menuBranch}>{current}</MenuRef>{" "}
+          {currentReset ? (
+            <span className={s.menuBranch}>
+              to <MenuRef remote>{currentReset.remote}</MenuRef>…
+            </span>
+          ) : (
+            "to here…"
+          )}
         </span>
       </MenuItem>
       {pointer && <MenuSeparator />}
       {/* On an unborn HEAD `git merge <oid>` moves the branch onto the commit and checks its tree out. */}
-      {canApply && (
+      {canMerge && (
         <MenuItem
           icon={<GitMerge size={16} aria-hidden />}
           title={mergeTitle}
-          {...op}
+          {...applied}
           onClick={run(() => openDialog({ kind: "merge", branch: m[0]?.name ?? oid }))}
         >
           {/* Either name can be long: the source chip and the "into <name>…" tail each ellipsize on their own. */}
@@ -414,7 +478,7 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
         <MenuItem
           icon={<ListRestart size={16} aria-hidden />}
           title={rebaseTitle}
-          {...op}
+          {...applied}
           onClick={run(() => openDialog({ kind: "rebase", onto: onto?.name ?? oid }))}
         >
           <span className={s.menuLabel}>
@@ -438,13 +502,16 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
           </span>
         </MenuItem>
       )}
-      {branches.reset.map((r) => (
-        <Fragment key={`${r.remote}:${r.current}`}>
+      {/* The current branch's own is the first group's Reset row. */}
+      {branches.reset
+        .filter((r) => !r.current)
+        .map((r) => (
           <MenuItem
+            key={r.remote}
             icon={<RotateCcw size={16} aria-hidden />}
             title={`Reset ${r.branches.length === 1 ? r.branches[0] : r.besideCurrent ? "other local" : "local"} to ${r.remote}`}
             {...op}
-            onClick={run(() => openDialog(r.current ? { kind: "reset", target: r.remote } : { kind: "resetBranch", branches: r.branches, target: r.remote }))}
+            onClick={run(() => openDialog({ kind: "resetBranch", branches: r.branches, target: r.remote }))}
           >
             {/* Either name can be long: the local chip and the "to <remote>…" tail each ellipsize on their own. */}
             <span className={s.menuLabel}>
@@ -454,11 +521,7 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
               </span>
             </span>
           </MenuItem>
-          {/* Moving them without switching, above; switching into one, moved, right after. Both come
-              from the same set, so every checkout row has its non-current reset row. */}
-          {!r.current && branches.checkoutReset.filter((c) => c.remote === r.remote).map(checkoutResetItem)}
-        </Fragment>
-      ))}
+        ))}
       {/* Any other local branch can be force-moved here; with several the dialog does the picking. */}
       {branches.resetHere.length > 0 && (
         <MenuItem
@@ -484,7 +547,7 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
         <MenuItem
           icon={<Cherry size={16} aria-hidden />}
           title={`Cherry-pick ${short} onto ${current}`}
-          {...op}
+          {...applied}
           onClick={run(() => openDialog({ kind: "cherryPick", oid, short, summary, parents }))}
         >
           <span className={s.menuLabel}>

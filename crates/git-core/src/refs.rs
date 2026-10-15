@@ -1249,15 +1249,26 @@ pub fn is_merged_into_head(repo: &Repository, name: &str) -> Result<bool, GitErr
 /// Refuses unless local branch `name` still sits at `oid`: a move decided from an
 /// older snapshot must not carry off commits made since. A missing branch is refused too.
 pub fn expect_branch_at(repo: &Repository, name: &str, oid: &str) -> Result<(), GitError> {
+    expect_ref_at(repo, &format!("refs/heads/{name}"), oid)
+}
+
+/// Refuses unless `full_ref` (`refs/heads/x`, `refs/remotes/origin/x`) still sits at `oid`: a move
+/// onto a ref must not land on a tip a fetch brought in since. A missing ref is refused too; the
+/// refusal names the ref without its `refs/heads/` or `refs/remotes/` prefix.
+pub fn expect_ref_at(repo: &Repository, full_ref: &str, oid: &str) -> Result<(), GitError> {
     // Peeled like the snapshot's `Branch.oid`, so the two compare like for like.
     let at = repo
-        .find_reference(&format!("refs/heads/{name}"))
+        .find_reference(full_ref)
         .and_then(|r| r.peel_to_commit())
         .ok()
         .map(|c| c.id());
     if at.map(|o| o.to_string()).as_deref() == Some(oid) {
         return Ok(());
     }
+    let name = full_ref
+        .strip_prefix("refs/heads/")
+        .or_else(|| full_ref.strip_prefix("refs/remotes/"))
+        .unwrap_or(full_ref);
     Err(GitError::Refused(format!(
         "{name} moved since you looked — try again"
     )))

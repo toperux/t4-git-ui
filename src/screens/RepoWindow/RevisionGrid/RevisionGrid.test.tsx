@@ -1,9 +1,9 @@
 // Static render check: chips lead the row, HEAD chip before the branch chip, before the subject.
-import { cleanup, fireEvent, render, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as ipc from "../../../api/ipc";
 import type { Branch, LogRow, RefsSnapshot } from "../../../api/types";
-import { checkoutAndResetBranch } from "../actions";
+import { checkoutAndResetBranch, fastForwardTo } from "../actions";
 import { useDialogStore } from "../../../store/dialogStore";
 import { useOpsStore } from "../../../store/opsStore";
 import { __resetForTests as resetRepo, lastTopRow, noteTopRow, useRepoStore } from "../../../store/repoStore";
@@ -22,8 +22,8 @@ vi.mock("../../../api/ipc", () => ({
   toAppError: (e: unknown) => ({ kind: "unknown", message: String(e) }),
 }));
 
-// The fast-forward path runs the op straight away: only that it was asked for matters here.
-vi.mock("../actions", async (importOriginal) => ({ ...(await importOriginal<typeof import("../actions")>()), checkoutAndResetBranch: vi.fn() }));
+// The fast-forward paths run the op straight away: only that it was asked for matters here.
+vi.mock("../actions", async (importOriginal) => ({ ...(await importOriginal<typeof import("../actions")>()), checkoutAndResetBranch: vi.fn(), fastForwardTo: vi.fn() }));
 
 // jsdom has no layout: give the virtualizer a viewport so it renders rows.
 vi.mock("@tanstack/react-virtual", async (importOriginal) => {
@@ -94,6 +94,8 @@ function withRefs() {
 // jsdom has no canvas backend; GraphCell skips drawing when getContext returns null.
 beforeEach(() => {
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+  // The menu asks on open whether HEAD already has the commit: unanswered, the rows stay as they are.
+  vi.mocked(ipc.aheadBehind).mockReset().mockReturnValue(new Promise(() => {}));
   resetRepo();
   resetStatus();
 });
@@ -323,13 +325,15 @@ describe("RevisionGrid", () => {
     expect(useRepoStore.getState().selectedIndex).toBe(1);
     expect(items()).toEqual([
       "Checkout branch…",
+      // Every checkout in the first group: the current branch too, and one named otherwise than its remote.
+      "Checkout origin/main",
+      "Checkout origin/renamed as stale",
       "Checkout (detached)",
-      "Reset main to here…",
+      // `main`'s remote sits here: one Reset row for it, by that name, and none in the second group.
+      "Reset main to origin/main…",
       "Merge feature into main…",
       "Rebase main onto feature…",
-      "Reset main to origin/main…",
       "Reset stale to origin/renamed…",
-      "Checkout stale",
       "Cherry-pick oid1…",
       "Revert oid1…",
       "Bisect: mark good",
@@ -350,10 +354,8 @@ describe("RevisionGrid", () => {
     // `toBe`: matching a DOM node structurally walks React's fiber props on it and never returns.
     expect(picker.returnFocus).toBe(getByRole("grid"));
     fireEvent.contextMenu(rows[1]);
-    expect(pick("Reset main to here…").dialog).toEqual({ kind: "reset", target: "oid1" });
-    fireEvent.contextMenu(rows[1]);
     // The current branch takes a `git reset`; another local moves with `branch -f`.
-    expect(pick("Reset main to origin/main…").dialog).toEqual({ kind: "reset", target: "origin/main" });
+    expect(pick("Reset main to origin/main…").dialog).toEqual({ kind: "reset", target: "refs/remotes/origin/main" });
     fireEvent.contextMenu(rows[1]);
     expect(pick("Reset stale to origin/renamed…").dialog).toEqual({ kind: "resetBranch", branches: ["stale"], target: "origin/renamed" });
     fireEvent.contextMenu(rows[1]);
@@ -384,6 +386,8 @@ describe("RevisionGrid", () => {
       "Delete tag v1…",
     ]);
     expect(pick("Create tag here…").dialog).toEqual({ kind: "createTag", target: "oid2" });
+    fireEvent.contextMenu(rows[2]);
+    expect(pick("Reset main to here…").dialog).toEqual({ kind: "reset", target: "oid2" });
     fireEvent.contextMenu(rows[2]);
     expect(pick("Delete tag v1…").dialog).toEqual({ kind: "deleteTag", name: "v1" });
     useDialogStore.setState({ dialog: null, returnFocus: null });
@@ -456,9 +460,9 @@ describe("RevisionGrid", () => {
     fireEvent.contextMenu(rows[2]);
     expect(pick("Reset branch to here…")).toEqual({ kind: "resetBranch", branches: ["feature", "hotfix", "stale"], target: "oid2" });
 
-    // `feature` / `hotfix` are already here, `main` is checked out, and `stale` is the reset-to-remote item above.
+    // `feature` / `hotfix` are already here, `main` is checked out, and `stale` is the reset-to-remote item.
     fireEvent.contextMenu(rows[1]);
-    expect(items().filter((t) => t?.endsWith(" to here…"))).toEqual(["Reset main to here…"]);
+    expect(items().filter((t) => t?.startsWith("Reset"))).toEqual(["Reset main to origin/main…", "Reset stale to origin/renamed…"]);
 
     // A lone candidate is named outright and skips the picker.
     useRepoStore.setState({ refs: { ...REFS, local: [branch("main", "oid0", { isHead: true }), branch("feature", "oid1")], remotes: [] } });
@@ -474,60 +478,71 @@ describe("RevisionGrid", () => {
     const { container, getByRole } = render(<RevisionGrid />);
     const rows = container.querySelectorAll(ROWS);
     const click = (name: string) => fireEvent.click(getByRole("menuitem", { name }));
+    const menuItems = () =>
+      within(getByRole("menu", { name: "Commit actions" }))
+        .getAllByRole("menuitem")
+        .map((el) => el.textContent);
 
     // `stale` tracks `origin/renamed` (at oid1) from oid0: strictly behind → no dialog, the op just runs.
-    vi.mocked(ipc.aheadBehind).mockResolvedValueOnce({ ahead: 0, behind: 3 });
+    // Its counts are set once the menu is open: opening it asks one of its own.
     fireEvent.contextMenu(rows[1]);
-    click("Checkout stale");
-    // Where the counts were taken from goes along: the backend refuses if `stale` moved since.
-    await waitFor(() => expect(checkoutAndResetBranch).toHaveBeenCalledWith("stale", "oid1", "oid0"));
+    vi.mocked(ipc.aheadBehind).mockResolvedValueOnce({ ahead: 0, behind: 3 });
+    click("Checkout origin/renamed as stale");
+    // The remote's full ref, where the counts were taken from and the clicked commit: the backend refuses
+    // if `stale` moved since, or a fetch moved `origin/renamed` off the commit.
+    await waitFor(() => expect(checkoutAndResetBranch).toHaveBeenCalledWith("stale", "refs/remotes/origin/renamed", "oid0", "oid1"));
     expect(ipc.aheadBehind).toHaveBeenLastCalledWith("r", "oid0", "oid1");
     expect(useDialogStore.getState().dialog).toBeNull();
 
     // Ahead of it (or diverged): the move loses commits, so it asks.
-    vi.mocked(ipc.aheadBehind).mockResolvedValueOnce({ ahead: 2, behind: 1 });
     fireEvent.contextMenu(rows[1]);
-    click("Checkout stale");
-    await waitFor(() => expect(useDialogStore.getState().dialog).toEqual({ kind: "checkoutReset", branch: "stale", remote: "origin/renamed", target: "oid1", localOid: "oid0", ahead: 2, behind: 1 }));
+    vi.mocked(ipc.aheadBehind).mockResolvedValueOnce({ ahead: 2, behind: 1 });
+    click("Checkout origin/renamed as stale");
+    await waitFor(() =>
+      expect(useDialogStore.getState().dialog).toEqual({ kind: "checkoutReset", branch: "stale", remote: "origin/renamed", short: "renamed", target: "refs/remotes/origin/renamed", oid: "oid1", localOid: "oid0", ahead: 2, behind: 1 }),
+    );
     expect(checkoutAndResetBranch).toHaveBeenCalledTimes(1);
 
-    // Two trackers: the generic item, and the picker gets both with where each sits.
+    // The current branch is a candidate too: `main` tracks `origin/main`, here.
     useDialogStore.setState({ dialog: null, returnFocus: null });
+    fireEvent.contextMenu(rows[1]);
+    vi.mocked(ipc.aheadBehind).mockResolvedValueOnce({ ahead: 0, behind: 1 });
+    click("Checkout origin/main");
+    await waitFor(() => expect(checkoutAndResetBranch).toHaveBeenCalledWith("main", "refs/remotes/origin/main", "oid0", "oid1"));
+
+    // Two trackers: the remote's item opens the picker, which gets both with where each sits.
     useRepoStore.setState({ refs: { ...REFS, local: [...REFS.local, branch("stale2", "oid2", { upstream: "origin/renamed" })] } });
     fireEvent.contextMenu(rows[1]);
-    click("Checkout local…");
+    click("Checkout origin/renamed…");
     expect(useDialogStore.getState().dialog).toEqual({
       kind: "checkoutLocal",
       remote: "origin/renamed",
-      target: "oid1",
+      target: "refs/remotes/origin/renamed",
+      oid: "oid1",
       candidates: [
         { branch: "stale", localOid: "oid0" },
         { branch: "stale2", localOid: "oid2" },
       ],
-      other: false,
     });
-    // The reset item beside it follows the same rule: generic, and the dialog picks among both.
+    // The reset row follows the same rule: generic, and the dialog picks among both.
     fireEvent.contextMenu(rows[1]);
     click("Reset local to origin/renamed…");
     expect(useDialogStore.getState().dialog).toEqual({ kind: "resetBranch", branches: ["stale", "stale2"], target: "origin/renamed" });
 
-    // `main` (current) and `main2` both track `origin/main`: two reset rows, one checkout row.
+    // `main` (current) and `main2` both track `origin/main`: one picker in the first group, a Reset row each.
     useRepoStore.setState({ refs: { ...REFS, local: [...REFS.local, branch("main2", "oid2", { upstream: "origin/main" })] } });
     fireEvent.contextMenu(rows[1]);
-    const items = within(getByRole("menu", { name: "Commit actions" }))
-      .getAllByRole("menuitem")
-      .map((el) => el.textContent);
-    expect(items.filter((t) => t?.includes("origin/main") || t === "Checkout main2")).toEqual(["Reset main to origin/main…", "Reset main2 to origin/main…", "Checkout main2"]);
+    expect(menuItems().filter((t) => t?.includes("origin/main"))).toEqual(["Checkout origin/main…", "Reset main to origin/main…", "Reset main2 to origin/main…"]);
 
-    // Two more beside the current one: the generic rows say "other local", title included.
+    // Two more beside the current one: the generic reset row says "other local", title included; the
+    // picker takes all three, the current one with them.
     useRepoStore.setState({ refs: { ...REFS, local: [...REFS.local, branch("main2", "oid2", { upstream: "origin/main" }), branch("main3", "oid0", { upstream: "origin/main" })] } });
     fireEvent.contextMenu(rows[1]);
     const menu = within(getByRole("menu", { name: "Commit actions" }));
-    expect(menu.getAllByRole("menuitem").map((el) => el.textContent).filter((t) => t?.includes("origin/main") || t?.startsWith("Checkout other"))).toEqual(["Reset main to origin/main…", "Reset other local to origin/main…", "Checkout other local…"]);
+    expect(menuItems().filter((t) => t?.includes("origin/main"))).toEqual(["Checkout origin/main…", "Reset main to origin/main…", "Reset other local to origin/main…"]);
     expect(menu.getByRole("menuitem", { name: "Reset other local to origin/main…" }).getAttribute("title")).toBe("Reset other local to origin/main");
-    // The picker it opens says "other" too.
-    fireEvent.click(menu.getByRole("menuitem", { name: "Checkout other local…" }));
-    expect(useDialogStore.getState().dialog).toMatchObject({ kind: "checkoutLocal", remote: "origin/main", other: true });
+    fireEvent.click(menu.getByRole("menuitem", { name: "Checkout origin/main…" }));
+    expect(useDialogStore.getState().dialog).toMatchObject({ kind: "checkoutLocal", remote: "origin/main", candidates: [{ branch: "main" }, { branch: "main2" }, { branch: "main3" }] });
     useDialogStore.setState({ dialog: null, returnFocus: null });
   });
 
@@ -537,12 +552,137 @@ describe("RevisionGrid", () => {
     useToastStore.setState({ toasts: [] });
     vi.mocked(checkoutAndResetBranch).mockClear();
     const { container, getByRole } = render(<RevisionGrid />);
-    vi.mocked(ipc.aheadBehind).mockRejectedValueOnce("walk failed");
     fireEvent.contextMenu(container.querySelectorAll(ROWS)[1]);
-    fireEvent.click(getByRole("menuitem", { name: "Checkout stale" }));
+    vi.mocked(ipc.aheadBehind).mockRejectedValueOnce("walk failed");
+    fireEvent.click(getByRole("menuitem", { name: "Checkout origin/renamed as stale" }));
     await waitFor(() => expect(useToastStore.getState().toasts).toEqual([expect.objectContaining({ kind: "error", title: "Couldn't compare stale with origin/renamed", detail: "walk failed" })]));
     expect(checkoutAndResetBranch).not.toHaveBeenCalled();
     expect(useDialogStore.getState().dialog).toBeNull();
+  });
+
+  it("fast-forwards a current branch only behind its remote here, in one row that replaces Merge, Rebase onto and its checkout", () => {
+    withRefs();
+    useRepoStore.setState({ refs: { ...REFS, local: REFS.local.map((b) => (b.isHead ? { ...b, behind: 2 } : b)) } });
+    vi.mocked(fastForwardTo).mockClear();
+    const { container, getByRole, getAllByRole } = render(<RevisionGrid />);
+    fireEvent.contextMenu(container.querySelectorAll(ROWS)[1]);
+    expect(
+      getAllByRole("menuitem")
+        .map((el) => el.textContent)
+        .slice(0, 7),
+    ).toEqual([
+      "Fast-forward main to origin/main",
+      "Checkout branch…",
+      "Checkout origin/renamed as stale",
+      "Checkout (detached)",
+      // Reset stays: its soft and mixed modes have no other way in.
+      "Reset main to origin/main…",
+      "Reset stale to origin/renamed…",
+      "Cherry-pick oid1…",
+    ]);
+    fireEvent.click(getByRole("menuitem", { name: "Fast-forward main to origin/main" }));
+    // The clicked commit goes along: the backend refuses if a fetch moved `origin/main` off it since.
+    expect(fastForwardTo).toHaveBeenCalledWith("main", "origin/main", "oid1");
+  });
+
+  it("draws no separator for a pointer group the fast-forward and the named Reset row empty out", () => {
+    withRefs();
+    // `main`, only behind `origin/main`, is its one tracker; the commit is a root (no interactive rebase)
+    // and no other local is there to reset: Merge and Rebase onto go to the fast-forward, and the
+    // current branch's Reset row sits in the first group. Nothing is left for the second group.
+    useRepoStore.setState({
+      refs: {
+        ...REFS,
+        local: [branch("main", "oid0", { upstream: "origin/main", isHead: true, behind: 2 })],
+        remotes: [{ name: "origin", url: null, branches: [{ name: "origin/main", oid: "oid1", mergedInto: null }] }],
+      },
+    });
+    const { container, getByRole } = render(<RevisionGrid />);
+    fireEvent.contextMenu(container.querySelectorAll(ROWS)[1]);
+    const run = Array.from(getByRole("menu", { name: "Commit actions" }).querySelectorAll('[role="separator"], [role="menuitem"]')).map((el) =>
+      el.getAttribute("role") === "separator" ? "—" : el.textContent,
+    );
+    expect(run.slice(0, 5)).toEqual(["Fast-forward main to origin/main", "Checkout (detached)", "Reset main to origin/main…", "—", "Cherry-pick oid1…"]);
+    expect(run.some((t, i) => t === "—" && run[i + 1] === "—")).toBe(false);
+  });
+
+  it("greys Merge, Rebase onto and Cherry-pick on a commit HEAD already contains, once git says so", async () => {
+    withRefs();
+    const { container, getByRole } = render(<RevisionGrid />);
+    const rows = container.querySelectorAll(ROWS);
+    const item = (name: string) => getByRole("menuitem", { name }) as HTMLButtonElement;
+    const three = ["Merge feature into main…", "Rebase main onto feature…", "Cherry-pick oid1…"];
+
+    vi.mocked(ipc.aheadBehind).mockResolvedValueOnce({ ahead: 0, behind: 2 });
+    fireEvent.contextMenu(rows[1]);
+    // Nothing on the commit that HEAD lacks.
+    expect(ipc.aheadBehind).toHaveBeenLastCalledWith("r", "oid1", "oid0");
+    await waitFor(() => expect(item(three[0]).disabled).toBe(true));
+    for (const name of three) expect([item(name).disabled, item(name).title]).toEqual([true, "Already in main"]);
+    // The undo still applies.
+    expect(item("Revert oid1…").disabled).toBe(false);
+
+    // Commits HEAD lacks, or no answer: the rows stay as they are.
+    for (const answer of [() => Promise.resolve({ ahead: 1, behind: 0 }), () => Promise.reject(new Error("walk failed"))]) {
+      vi.mocked(ipc.aheadBehind).mockImplementationOnce(answer);
+      fireEvent.contextMenu(rows[1]);
+      await act(async () => {});
+      for (const name of three) expect(item(name).disabled).toBe(false);
+    }
+
+    // An answer for a menu since reopened elsewhere is dropped.
+    let answer = (_: { ahead: number; behind: number }) => {};
+    vi.mocked(ipc.aheadBehind).mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+    fireEvent.contextMenu(rows[1]);
+    fireEvent.contextMenu(rows[2]);
+    await act(async () => answer({ ahead: 0, behind: 2 }));
+    expect(item("Merge origin/new into main…").disabled).toBe(false);
+    expect(item("Cherry-pick oid2…").disabled).toBe(false);
+
+    // An answer for a menu since closed is dropped too, even with the menu reopened on the same commit.
+    vi.mocked(ipc.aheadBehind).mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+    fireEvent.contextMenu(rows[1]);
+    fireEvent.keyDown(getByRole("menu", { name: "Commit actions" }), { key: "Escape" });
+    await act(async () => answer({ ahead: 0, behind: 2 }));
+    fireEvent.contextMenu(rows[1]);
+    await act(async () => {});
+    for (const name of three) expect(item(name).disabled).toBe(false);
+  });
+
+  it("a running operation's title wins over \"Already in main\"", async () => {
+    withRefs();
+    useOpsStore.setState({ busy: "Fetching…" });
+    vi.mocked(ipc.aheadBehind).mockResolvedValueOnce({ ahead: 0, behind: 2 });
+    const { container, getByRole } = render(<RevisionGrid />);
+    fireEvent.contextMenu(container.querySelectorAll(ROWS)[1]);
+    await act(async () => {});
+    for (const name of ["Merge feature into main…", "Rebase main onto feature…", "Cherry-pick oid1…"]) {
+      const el = getByRole("menuitem", { name }) as HTMLButtonElement;
+      expect([el.disabled, el.title]).toEqual([true, "Operation in progress"]);
+    }
+    useOpsStore.setState({ busy: null });
+  });
+
+  it("names HEAD in the greyed rows' note when it is detached", async () => {
+    withRefs();
+    useRepoStore.setState({ refs: { ...REFS, head: { oid: "oid0", branch: null, detached: true }, local: REFS.local.map((b) => ({ ...b, isHead: false })) } });
+    vi.mocked(ipc.aheadBehind).mockResolvedValueOnce({ ahead: 0, behind: 2 });
+    const { container, getByRole } = render(<RevisionGrid />);
+    fireEvent.contextMenu(container.querySelectorAll(ROWS)[1]);
+    expect(ipc.aheadBehind).toHaveBeenLastCalledWith("r", "oid1", "oid0");
+    // No rebase on a detached HEAD: Merge and Cherry-pick are the two left to grey.
+    await waitFor(() => expect((getByRole("menuitem", { name: "Merge feature into HEAD…" }) as HTMLButtonElement).disabled).toBe(true));
+    for (const name of ["Merge feature into HEAD…", "Cherry-pick oid1…"]) expect((getByRole("menuitem", { name }) as HTMLButtonElement).title).toBe("Already in HEAD");
+  });
+
+  it("asks nothing on HEAD's own commit or with an unborn HEAD: none of the three rows is there", () => {
+    withRefs();
+    const { container } = render(<RevisionGrid />);
+    const rows = container.querySelectorAll(ROWS);
+    fireEvent.contextMenu(rows[0]);
+    useRepoStore.setState({ refs: { ...REFS, head: { oid: null, branch: "wip", detached: false }, local: REFS.local.map((b) => ({ ...b, isHead: false })) } });
+    fireEvent.contextMenu(rows[1]);
+    expect(ipc.aheadBehind).not.toHaveBeenCalled();
   });
 
   it("offers the interactive rebase wherever the commit has a parent — HEAD's own included, never on a root commit or mid-rebase", () => {

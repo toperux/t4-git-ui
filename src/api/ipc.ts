@@ -325,9 +325,12 @@ export const pull = (id: RepoId, remote: string | null, branch: string | null, m
 export const push = (id: RepoId, remote: string, refspec: string | null, setUpstream: boolean, forceWithLease: boolean, tags: boolean) =>
   call<OpResult>("push", { id, remote, refspec, setUpstream, forceWithLease, tags });
 
-/** `git merge (--ff | --ff-only | --no-ff) [--squash] [-m <msg>] <branch>` */
-export const merge = (id: RepoId, branch: string, ff: FfMode, squash: boolean, message: string | null) =>
-  call<OpResult>("merge", { id, branch, ff, squash, message });
+/**
+ * `git merge (--ff | --ff-only | --no-ff) [--squash] [-m <msg>] <branch>`. `expectTarget` (with `branch` a
+ * full ref) is the oid the ref was seen at: elsewhere now, or gone, rejects with kind `refused` and git never runs.
+ */
+export const merge = (id: RepoId, branch: string, ff: FfMode, squash: boolean, message: string | null, expectTarget: string | null = null) =>
+  call<OpResult>("merge", { id, branch, ff, squash, message, expectTarget });
 
 export const rebase = (id: RepoId, onto: string) => call<OpResult>("rebase", { id, onto });
 
@@ -380,10 +383,11 @@ export const bisectReset = (id: RepoId) => call<OpResult>("bisect_reset", { id }
  * `git checkout [--track] [-b|-B <createBranch>] [--detach] <target>`; `track` and `force` only apply with
  * `createBranch`, `detach` only without it. `force` (`-B`) resets an existing branch as part of the
  * checkout: it moves only if the checkout succeeds. `expect` (with `createBranch`) is the oid the branch was
- * seen at: elsewhere now, or gone, rejects with kind `refused` and git never runs.
+ * seen at: elsewhere now, or gone, rejects with kind `refused` and git never runs. `expectTarget` (with `target`
+ * a full ref) is the same check on the ref the branch moves to.
  */
-export const checkout = (id: RepoId, target: string, createBranch: string | null, track: boolean, detach = false, force = false, expect: string | null = null) =>
-  call<OpResult>("checkout", { id, target, createBranch, track, detach, force, expect });
+export const checkout = (id: RepoId, target: string, createBranch: string | null, track: boolean, detach = false, force = false, expect: string | null = null, expectTarget: string | null = null) =>
+  call<OpResult>("checkout", { id, target, createBranch, track, detach, force, expect, expectTarget });
 
 /** `git reset (--soft | --mixed | --hard) <target>` — moves the current branch (or a detached HEAD). */
 export const reset = (id: RepoId, mode: ResetMode, target: string) => call<OpResult>("reset", { id, mode, target });

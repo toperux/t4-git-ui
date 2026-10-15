@@ -352,6 +352,7 @@ pub async fn push(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn merge(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -360,6 +361,7 @@ pub async fn merge(
     ff: FfMode,
     squash: bool,
     message: Option<String>,
+    expect_target: Option<String>,
 ) -> Result<OpResult, AppError> {
     let args = gitops::merge(
         ref_arg(&branch)?,
@@ -369,7 +371,18 @@ pub async fn merge(
             message,
         },
     );
-    cli_op(&app, &state, &id, args, true).await
+    let app = &app;
+    let state: &AppState = &state;
+    mutate(app, state, &id, ALL_KINDS, |handle| async move {
+        // `branch` (a full ref) at the commit the menu showed: a fetch since must not land the merge
+        // on a tip nobody saw. Checked under the op lock right before git runs.
+        if let Some(oid) = expect_target {
+            let h = Arc::clone(&handle);
+            blocking(move || Ok(refs::expect_ref_at(&h.git2.lock(), &branch, &oid)?)).await?;
+        }
+        run_and_classify(app, state, handle, args, true).await
+    })
+    .await
 }
 
 #[tauri::command]
@@ -681,6 +694,7 @@ pub async fn checkout(
     detach: bool,
     force: bool,
     expect: Option<String>,
+    expect_target: Option<String>,
 ) -> Result<OpResult, AppError> {
     let args = gitops::checkout(
         ref_arg(&target)?,
@@ -701,6 +715,12 @@ pub async fn checkout(
         if let (Some(oid), Some(branch)) = (expect, create_branch) {
             let h = Arc::clone(&handle);
             blocking(move || Ok(refs::expect_branch_at(&h.git2.lock(), &branch, &oid)?)).await?;
+        }
+        // And `target` (a full ref) at the commit the menu showed: a fetch since must not land the
+        // branch on a tip nobody saw.
+        if let Some(oid) = expect_target {
+            let h = Arc::clone(&handle);
+            blocking(move || Ok(refs::expect_ref_at(&h.git2.lock(), &target, &oid)?)).await?;
         }
         run_and_classify(app, state, handle, args, false).await
     })

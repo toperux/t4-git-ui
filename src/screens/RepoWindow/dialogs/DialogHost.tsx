@@ -68,9 +68,9 @@ function renderDialog(dialog: DialogSpec, close: () => void): ReactNode {
     case "resetBranch":
       return <ResetBranchDialog onClose={close} branches={dialog.branches} target={dialog.target} />;
     case "checkoutReset":
-      return <CheckoutResetDialog onClose={close} branch={dialog.branch} remote={dialog.remote} target={dialog.target} localOid={dialog.localOid} ahead={dialog.ahead} behind={dialog.behind} />;
+      return <CheckoutResetDialog onClose={close} branch={dialog.branch} remote={dialog.remote} short={dialog.short} target={dialog.target} oid={dialog.oid} localOid={dialog.localOid} ahead={dialog.ahead} behind={dialog.behind} />;
     case "checkoutLocal":
-      return <CheckoutLocalDialog onClose={close} remote={dialog.remote} target={dialog.target} candidates={dialog.candidates} other={dialog.other} />;
+      return <CheckoutLocalDialog onClose={close} remote={dialog.remote} target={dialog.target} oid={dialog.oid} candidates={dialog.candidates} />;
     case "checkoutBranch":
       return <CheckoutBranchDialog onClose={close} branches={dialog.branches} />;
     case "createBranch":

@@ -627,6 +627,84 @@ async fn checkout_force_moves_an_existing_branch_only_if_the_checkout_succeeds()
     assert_eq!(upstream(&t), tracked);
 }
 
+/// The commit menu's "Checkout `origin/x`": `-B` with the full remote ref, on the checked-out branch
+/// too. A dirty file the move changes refuses it; one it doesn't touch rides along. Like the CLI,
+/// the branch ends up tracking the remote branch.
+#[tokio::test]
+async fn checkout_force_to_a_remote_ref_moves_the_current_branch_and_tracks_it() {
+    if !have_git() {
+        return;
+    }
+    let t = TempRepo::new();
+    let a = t.commit(&[("f.txt", "1\n"), ("g.txt", "1\n")], "A");
+    let b = t.commit(&[("f.txt", "2\n")], "B");
+    t.branch("topic", a);
+    t.checkout("topic");
+    t.remote("origin");
+    t.reference("refs/remotes/origin/topic", b);
+    let upstream = |t: &TempRepo| {
+        let cfg = t.repo.config().unwrap();
+        (
+            cfg.get_string("branch.topic.remote").ok(),
+            cfg.get_string("branch.topic.merge").ok(),
+        )
+    };
+    assert_eq!(upstream(&t), (None, None));
+
+    // A dirty file the move would overwrite: refused, and the branch stays put.
+    t.write("f.txt", "dirty\n");
+    let (out, _) = run(
+        t.path(),
+        &ops::checkout(
+            "refs/remotes/origin/topic",
+            Some("topic"),
+            false,
+            false,
+            true,
+        ),
+    )
+    .await;
+    assert_ne!(out.code, 0, "{}", out.stdout);
+    assert!(
+        out.stderr.contains("would be overwritten"),
+        "{}",
+        out.stderr
+    );
+    reload(&t);
+    assert_eq!(ref_oid(&t, "refs/heads/topic"), Some(a));
+
+    // One the move doesn't touch: moved, the edit kept, and the remote branch is its upstream now.
+    t.write("f.txt", "1\n");
+    t.write("g.txt", "dirty\n");
+    run_ok(
+        &t,
+        &ops::checkout(
+            "refs/remotes/origin/topic",
+            Some("topic"),
+            false,
+            false,
+            true,
+        ),
+    )
+    .await;
+    assert_eq!(ref_oid(&t, "refs/heads/topic"), Some(b));
+    assert_eq!(
+        refs::head_info(&t.repo).unwrap().branch.as_deref(),
+        Some("topic")
+    );
+    assert_eq!(
+        std::fs::read_to_string(t.path().join("g.txt")).unwrap(),
+        "dirty\n"
+    );
+    assert_eq!(
+        upstream(&t),
+        (
+            Some("origin".to_string()),
+            Some("refs/heads/topic".to_string())
+        )
+    );
+}
+
 /// The check the `checkout` command runs, under the op lock, before its `-B`: a branch still where
 /// the menu saw it passes; one moved since, or gone, is refused. The command's own ordering (check,
 /// then git) has no harness here; this covers the check alone.
@@ -646,6 +724,31 @@ fn expect_branch_at_passes_a_branch_in_place_and_refuses_a_moved_or_missing_one(
     }
     assert!(matches!(
         refs::expect_branch_at(&t.repo, "gone", &seen),
+        Err(GitError::Refused(_))
+    ));
+}
+
+/// The check `checkout -B` and `merge --ff-only` from the commit menu run on the remote ref they move
+/// to: still at the clicked commit passes; moved since (an outside fetch) is refused, and the check
+/// itself moves nothing.
+#[test]
+fn expect_ref_at_passes_a_remote_ref_in_place_and_refuses_a_moved_one() {
+    let t = TempRepo::new();
+    let a = t.commit(&[("f.txt", "1\n")], "A");
+    let b = t.commit(&[("f.txt", "2\n")], "B");
+    t.reference("refs/remotes/origin/x", a);
+    let seen = a.to_string();
+    refs::expect_ref_at(&t.repo, "refs/remotes/origin/x", &seen).expect("unmoved");
+
+    t.reference("refs/remotes/origin/x", b);
+    match refs::expect_ref_at(&t.repo, "refs/remotes/origin/x", &seen) {
+        Err(GitError::Refused(m)) => assert_eq!(m, "origin/x moved since you looked — try again"),
+        r => panic!("{r:?}"),
+    }
+    assert_eq!(ref_oid(&t, "refs/remotes/origin/x"), Some(b));
+    assert_eq!(t.repo.head().unwrap().target(), Some(b));
+    assert!(matches!(
+        refs::expect_ref_at(&t.repo, "refs/remotes/origin/gone", &seen),
         Err(GitError::Refused(_))
     ));
 }
