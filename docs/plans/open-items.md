@@ -813,17 +813,6 @@ branch, or are cosmetic.
   Changes too (the Windows BS 4 walk). By design: `viewStore.ts:1-3` keeps the view per window, per session.
   **Reopen:** someone wants each tab to keep its own view.
 
-## AI. Added 2026-10-09 — v0.10.23's update walk
-
-Found walking the in-app update on Windows (`docs/archive/walks/2026-10-09-v0.10.23-update-walk.md`).
-
-- **The update's restart took 9.1 s, not 4 s.** From the click on Update to the new process's first log line, against
-  4 s on the 2026-10-08 walk; the download itself took 2.0 s (1.6 s then). Measured once from the app log; where the
-  rest went (installer or launch) wasn't measured, and how the 4 s was timed isn't recorded. Nothing in 0.10.23 touches
-  the updater or the installer; a VM's first-run scan of the new exe is a guess. The next update walk times the
-  download, the installer and the launch apart. **Reopen:** that walk is over 8 s again, or a user reports a slow
-  update.
-
 ## AJ. Added 2026-10-09 — the runner exit paths
 
 Deferred in the triage of `docs/plans/2026-10-09-runner-exit-paths-plan.md` (its reviews and walk,
@@ -862,17 +851,14 @@ seventh's findings open), and in the triage of the commit-message rules commits.
 
 ## AL. Added 2026-10-15 — checkout-remote-first-group, deferred
 
-From `docs/archive/plans/2026-10-15-checkout-remote-first-group-plan.md`: one row deferred in its change review loop 2,
-with a reopen trigger (it predates the branch), and the v0.10.24 release's update walk, pending.
+Deferred in change review loop 2 of `docs/archive/plans/2026-10-15-checkout-remote-first-group-plan.md`, with a
+reopen trigger. It predates the branch.
 
 - **A late `log://progress` can roll the History grid back.** `onProgress` (`src/store/repoStore.ts:548-551`) sets
   `total` and `complete` straight from the event, so a non-complete progress event delivered after the walk's
   complete page (an invoke response and an event travel separately) could lower the total or mark a finished walk
   unfinished. Reasoned from the code, never seen; the O1 fix (`0f3d67b`, `open-items-done.md` §AL) doesn't change it.
   Fix in its own plan. **Reopen:** History rows vanish, or the walk shows as loading after it finished.
-- **v0.10.24's in-app update walk.** Installed 0.10.23 → published v0.10.24 on the Windows VM, the way
-  `docs/archive/walks/2026-10-09-v0.10.23-update-walk.md` did (smoke group AC's *Offered on launch*, *The install*,
-  *Up to date*). Requested 2026-10-15. **Close:** when its walk record is in `docs/archive/walks/`.
 
 ## Order
 

@@ -1892,6 +1892,17 @@ squashed into five on 2026-10-09 (tree identical, rehearsed in a throwaway workt
 - The walks' builds: `41884df` has the squashed bar and overlay code as is (only the palette changed after it);
   `86e2032` is the palette fix before Tab; `9ebd391` is the shipped code (later commits changed tests and docs only).
 
+## AI. Added 2026-10-09 — v0.10.23's update walk: closed
+
+Found walking the in-app update on Windows (`docs/archive/walks/2026-10-09-v0.10.23-update-walk.md`); closed by the
+owner on 2026-10-15 after the next update walk (`docs/archive/walks/2026-10-15-v0.10.24-update-walk.md`).
+
+- **The update's restart took 9.1 s, not 4 s.** From the click on Update to the new process's first log line, against
+  4 s on the 2026-10-08 walk; the download itself took 2.0 s (1.6 s then). Where the rest went (installer or launch)
+  wasn't measured. Reopen trigger was the next update walk over 8 s again: 0.10.23 → 0.10.24 took 3.9 s to the first
+  log line (download 0.3 s, `work` reopened at 4.1 s). That walk didn't watch the installer window, so the 9.1 s stays
+  unexplained; a VM's first-run scan of the new exe remains a guess.
+
 ## AJ. Added 2026-10-09 — the runner exit paths: accepted, closed
 
 Ruled by the owner in the plan reviews and the triage of the runner exit paths (plan
@@ -1978,6 +1989,12 @@ cases (`2e9fa72`). Deferred: the late `log://progress` row, `open-items.md` §AL
 - **The R2 guard is not walked** (after the v0.10.24 release). BT and the O1 re-check ran on builds from before review
   loop 2; R2 is covered by `refs::expect_ref_at`'s real-git test and the front-end tests of the clicked oid reaching
   the backend. A walk would need a fetch from outside the app while a confirm dialog is open.
+- **v0.10.24's in-app update walk: done.** 0.10.23 → 0.10.24 on the Windows VM, all three of smoke group AC's rows
+  pass (`docs/archive/walks/2026-10-15-v0.10.24-update-walk.md`).
+- **The recents can hold one repository under two drive-letter spellings** (that walk). Its hand-written seed
+  `C:\tmp\t4\work` sat beside the app's own `c:\tmp\t4\work`, both listed. The app writes every repository path with
+  a lowercase drive letter (`normalize_workdir_string`, `crates/git-core/src/repo.rs`) and the recents match exactly
+  (`recentsStore.ts`), so only a hand-edited `recents.json` gets both; reasoned from the code.
 - **No macOS walk of group BT** (after the v0.10.24 release). BT checks the menu's logic and the git commands it runs,
   which don't depend on the OS; Windows (WebView2) and Linux (WebKitGTK, the engine macOS uses too) were walked, and
   the repo has no scripted macOS harness. Group BQ, the same menu's earlier change, was walked on the same two.
