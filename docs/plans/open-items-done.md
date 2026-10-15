@@ -1935,3 +1935,59 @@ trigger are in `open-items.md` §AK.
 
 - **The parked plan's status block wraps short of 120.** Lines 3–23 leave room for the next word on several lines. The
   owner ruled the parked plan's wrapping be left alone, and `docs/reflow.mjs` refuses the block (§AK's reflow row).
+
+## AL. Added 2026-10-15 — checkout-remote-first-group: fixed and accepted, closed
+
+Ruled by the owner in the change review and triage of `docs/plans/2026-10-15-checkout-remote-first-group-plan.md`.
+Fixed in the review loop: R1, the single Reset row ran the remote's short name, now its full ref (`d350915`); the
+Fast-forward row's icon, Merge's at first, now a fast-forward one (`7bb97e1`). Fixed from the BT walk
+(`docs/archive/walks/2026-10-15-bt-walk.md`): O1, older than this branch, History kept blank "—" rows after a reload
+that dropped commits, because a restart keeps the old total and a complete page could only grow it while the walk's
+own progress event was dropped on a small repository (`repoStore.ts` `fetchPage`; now a complete page's total stands,
+`2035491`). Accepted, with no reopen trigger; the one with a trigger is in `open-items.md` §Q.
+
+Fixed in review loop 2 (after the squash): R2, *Checkout `origin/x`* and *Fast-forward* now refuse a remote ref moved
+off the clicked commit since (plan Design 10, `8d62619`); the commit menu's late-answer flag, which duplicated the
+`inHead === menu` check, is dropped (`6ff01ee`); tests for the second group's separators and the "Already in" greying
+cases (`2e9fa72`). Deferred: the late `log://progress` row, `open-items.md` §AL.
+
+- **The checkout dialog's spec carries `short`, a field the plan didn't list.** The title adds "as `<branch>`" when
+  the branch isn't named like the remote branch, and that takes the remote branch's own name; testing the remote's
+  suffix instead would misread remote branches with a `/` in their name.
+- **The picker is titled "Checkout `origin/x`", with no "as".** Like the menu item that opens it; its list names
+  each branch.
+- **Only the picker's spec gained the commit's `oid`.** The plan said both dialog kinds; the single-branch dialog is
+  handed its counts and never asks for them, so the field would go unused there. (Superseded by R2: both specs carry
+  it now, for the guard on the remote ref.)
+- **The picker lists branches in the snapshot's (ref) order.** The current branch isn't pinned first.
+- **The "Already in `main`" greying can go stale.** It's asked once per menu open; if HEAD moves while the menu is
+  open, the rows reflect the old HEAD until it's reopened. A stale enabled row only gets git's "Already up to date";
+  a stale grey one can't be clicked until the reopen.
+- **O2: a dialog's command preview is cut with an ellipsis at 1280 px** ("Runs git checkout -B div…"); the full
+  command is in the DOM. Every dialog's preview line already behaves so.
+- **O3: a current branch matched by short name only keeps Merge and Rebase onto.** With no upstream there are no
+  snapshot counts, so no Fast-forward row (RB), and Merge / Rebase onto `origin/x` stay beside *Checkout `origin/x`*.
+  As designed.
+- **The checkout dialogs carry both `remote` and its full ref `target`** (review loop 2). `target` is always
+  `refs/remotes/${remote}`, and the toast strips the prefix again; explicit, kept.
+- **No command-level test of the R2 guard** (review loop 2). `refs::expect_ref_at` has a real-git test and the
+  front-end tests show the clicked oid reaching `ipc.checkout` / `ipc.merge`, but nothing fails if the `checkout` or
+  `merge` command skipped the check or ran it after git (`src-tauri/src/commands/ops.rs`). Same as `expect_branch_at`:
+  the repo has no harness for a command's own ordering.
+- **git resolves the remote ref again after the R2 guard** (review loop 2). The check runs under the app's op lock,
+  but a fetch from outside the app between it and git's own lookup still lands on the new tip; the same window as
+  `expect_branch_at`. Passing the oid instead would change the preview RB set and, for `-B`, lose the CLI's upstream.
+
+**Squash map.** The plan, the walk record and the rows above cite the branch's pre-squash commits. The branch was
+squashed twice on 2026-10-15, each time rehearsed in a throwaway worktree with the code checked identical: first to
+`7e255a6` / `0f3d67b` / `32c91e4` after the walks, then, after change review loop 2, into the three below (the code
+identical to `403a05a`'s; the docs commit adds this map):
+- `85e5c4e` (feat, the commit menu, code and tests) ← the code of `30cbe39`, `d350915` (R1), `7bb97e1` (the icon),
+  and loop 2's `8d62619` (R2), `6ff01ee` (the late-answer flag), `2e9fa72` (tests) and `6727372` (`shortRef`'s
+  comment). The first squash's `7e255a6` held the code before loop 2.
+- `9223b96` (fix, History's blank rows) ← `2035491` (the first squash's `0f3d67b`).
+- The docs commit ← the plan from `30cbe39`, `6d2ce1f` (smoke group BT), `b16246d` (the triage), `c3ac1a8` (the walk
+  and its triage), the Linux re-check of O1, the docs of `8d62619` and `6727372`, `79e47ca`, `0a1aeea`, `403a05a`
+  (loop 2's records and rewraps), and this map.
+- The walks' builds: BT ran on `b16246d` and the O1 re-check on `c3ac1a8`, both before loop 2. Loop 2's code (R2's
+  guard, the dropped flag) is covered by its unit and real-git tests, not by a walk.

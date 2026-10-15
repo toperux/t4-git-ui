@@ -2981,6 +2981,12 @@ merges into "<case> (synced with origin/<case>)". Check outcomes in git (`git -C
 of `checkout-remote-elsewhere` (`docs/smoke/smoke-cdp.md`, store backed up and restored); Linux under Xvfb
 (`docs/smoke/smoke-linux.md`).
 
+The records below are of the labels walked then. Since 2026-10-15 the checkout items sit in the menu's first group
+as *Checkout `origin/<case>`* (*… as `<branch>`* when the names differ), the picker as *Checkout `origin/<case>`…*,
+and the current branch is a candidate too; group BT walks those. The toasts read "… at origin/<case>" rather than a
+short oid, the previews end in `refs/remotes/origin/<case>`, and a current branch only behind its remote (BQ 8's
+`trio`) gets the *Fast-forward* row and the picker *Checkout `origin/<case>`…*.
+
 - [x] 1. **Behind → a silent fast-forward:** `origin/behind`'s commit → the menu has *Checkout behind* and *Reset
       behind to origin/behind…*; *Checkout behind* → no dialog, a "Checked out behind at <short>" toast; `behind`
       now equals `origin/behind`, HEAD is `behind`, upstream still `origin/behind`. *(Walked 2026-10-07 of
@@ -3130,6 +3136,60 @@ Windows (`docs/archive/walks/2026-10-09-bs-walk.md`).
       input, on `perf-synth` (about 690 options) and a small repository: every step as written — the click steps of
       `86e2032`, the Tab steps of `9ebd391`. A header pressed inside the scrolled list moved the focus to `<body>`,
       not the list, and the release gave it back to the input. `docs/archive/walks/2026-10-09-bs-walk.md`.)*
+
+## BT. "Checkout `origin/x`" in the commit menu's first group
+
+Plan: `docs/plans/2026-10-15-checkout-remote-first-group-plan.md` (P1–P4, F1, RA, RB, RC, RX). Fixture:
+`docs/smoke/fixtures/bq-fixture.sh` (`T4_ROOT=/tmp/t4` on Linux), **built fresh before row 1** — a `bq` already walked
+through BQ or BR won't match. Rows in order, all in `bq`; each right-clicks the History row of the commit carrying
+`origin/<case>`, as in BQ. "The first group" is everything above the menu's first separator. Check outcomes in git
+(`git -C <fixture>/bq branch -vv`, `rev-parse`, `branch --show-current`), not the UI's word. Windows over CDP on a
+local `tauri build --no-bundle` of `checkout-remote-first-group` (`docs/smoke/smoke-cdp.md`, store backed up and
+restored); Linux under Xvfb with openbox (`docs/smoke/smoke-linux.md`).
+
+- [x] 1. **Placement (P1, P4):** on `main`, `origin/diverged`'s commit → the first group reads *Checkout
+      origin/diverged*, *Checkout (detached)*, *Reset main to here…*; below it *Reset diverged to origin/diverged…*
+      and no checkout row. *Checkout origin/diverged* → a dialog titled "Checkout origin/diverged", both counts
+      named, preview `git checkout -B diverged --end-of-options refs/remotes/origin/diverged`. Cancel → nothing moved.
+      *(Walked 2026-10-15 of `b16246d` on Windows (CDP) and Linux (WebDriver, openbox): as written, "2 commits only on
+      diverged, 3 only on origin/diverged"; `diverged` unmoved. `docs/archive/walks/2026-10-15-bt-walk.md`.)*
+- [x] 2. **A picker, then one tracker named (F1):** `origin/multi`'s commit → *Checkout origin/multi…* → a dialog titled
+      "Checkout origin/multi", options `multi-a — behind 1` and `multi-b — diverged 1·2`; Cancel. Then
+      `git -C <fixture>/bq branch --unset-upstream multi-b` (no longer a tracker) → the same commit → *Checkout
+      origin/multi as multi-a* → no dialog, a "Checked out multi-a at origin/multi" toast; `multi-a` at
+      `origin/multi`, HEAD `multi-a`. Then `git -C <fixture>/bq checkout main`. *(Walked 2026-10-15 of `b16246d` on
+      Windows and Linux: as written; the dock ran `git checkout -B multi-a --end-of-options refs/remotes/origin/multi`,
+      `multi-b` unmoved. `docs/archive/walks/2026-10-15-bt-walk.md`.)*
+- [x] 3. **Fast-forward (RB):** `git -C <fixture>/bq checkout behind` (2 behind `origin/behind`) → `origin/behind`'s
+      commit → the first row is *Fast-forward behind to origin/behind*; no *Checkout origin/behind*, no *Merge…*, no
+      *Rebase behind onto…*; one *Reset behind to origin/behind…*, in the first group. *Fast-forward…* → no dialog, a
+      "Fast-forwarded behind to origin/behind" toast, `git merge --ff-only --end-of-options refs/remotes/origin/behind`
+      in the dock; `behind` at `origin/behind`, HEAD `behind`, upstream still `origin/behind`. *(Walked 2026-10-15 of
+      `b16246d` on Windows and Linux: as written. `docs/archive/walks/2026-10-15-bt-walk.md`.)*
+- [x] 4. **Already in the current branch (RX), one Reset row (RA):** `git -C <fixture>/bq checkout ahead` (2 ahead of
+      `origin/ahead`) → `origin/ahead`'s commit → *Merge origin/ahead into ahead…*, *Rebase ahead onto origin/ahead…*
+      and *Cherry-pick <short>…* greyed, each hovering "Already in ahead"; *Revert <short>…* not greyed; no row moved
+      as they greyed. The first group has *Checkout origin/ahead* and *Reset ahead to origin/ahead…* (RC: both kept),
+      and no Reset row for `ahead` below it. Escape. *(Walked 2026-10-15 of `b16246d` on Windows and Linux: as
+      written; a MutationObserver on the items' positions saw none move as the three greyed (Linux: 0 ms vs 12 ms;
+      Windows: watched ~1.5 s). `docs/archive/walks/2026-10-15-bt-walk.md`.)*
+- [x] 5. **The current branch ahead → asks (P2):** the same commit → *Checkout origin/ahead* → a dialog titled "Checkout
+      origin/ahead" saying `ahead` is 2 commits ahead, a danger *Checkout and reset*, preview `git checkout -B ahead
+      --end-of-options refs/remotes/origin/ahead`; confirm → a "Checked out ahead at origin/ahead" toast; `ahead` at
+      `origin/ahead`, HEAD `ahead`, the 2 commits in `git reflog ahead`. *(Walked 2026-10-15 of `b16246d` on Windows
+      and Linux: as written; `ahead@{1}` the old tip. `docs/archive/walks/2026-10-15-bt-walk.md`.)*
+- [x] 6. **The current branch behind → silent, and git sets the upstream (P2, P3):** `git -C <fixture>/bq checkout
+      racer`, then `git -C <fixture>/bq branch --unset-upstream` (a short-name tracker: no counts, so no
+      fast-forward row) → `origin/racer`'s commit → no *Fast-forward…*; *Checkout origin/racer* → no dialog, a
+      "Checked out racer at origin/racer" toast; `racer` at `origin/racer`, and `branch -vv` shows it tracking
+      `origin/racer` again. *(Walked 2026-10-15 of `b16246d` on Windows and Linux: as written, `branch -vv` shows
+      `[origin/racer]`. `docs/archive/walks/2026-10-15-bt-walk.md`.)*
+- [x] 7. **Fast-forward beside other trackers (RB):** `git -C <fixture>/bq checkout trio` (1 behind) → `origin/trio`'s
+      commit → *Fast-forward trio to origin/trio* first, then *Checkout origin/trio…*, which lists `trio-b — behind 2`
+      and `trio-c — diverged 1·2`, not `trio` (Cancel); *Reset trio to origin/trio…* in the first group, *Reset other
+      local to origin/trio…* below. Nothing moved. Then `git -C <fixture>/bq checkout main`. *(Walked 2026-10-15 of
+      `b16246d` on Windows and Linux: as written; the `trio*` branches' `branch -vv` identical before and after.
+      `docs/archive/walks/2026-10-15-bt-walk.md`.)*
 
 ## Reporting
 

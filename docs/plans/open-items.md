@@ -598,6 +598,13 @@ phases that accepted them; each origin keeps a pointer.
   batch then goes through Tauri's `emit_to` (`src-tauri/src/commands/ops.rs:88-105`) and the webview's event
   delivery, whose buffering is the framework's: a stalled webview could let them grow. Never seen, not measured.
   Accepted 2026-10-09 (the runner exit paths triage). **Reopen:** memory grows during a long op with a frozen UI.
+- **The commit menu's "Already in `main`" check is untimed on a large repository.** Each right-click on a commit that
+  isn't HEAD's own asks `ahead_behind(commit, HEAD)`, one history walk (`CommitContextMenu`,
+  `src/screens/RepoWindow/RevisionGrid/RevisionGrid.tsx`); until it answers, Merge, Rebase onto and Cherry-pick stay
+  enabled, and a click then only gets git's "Already up to date" or an empty pick. Between distant commits of a big
+  history the greying could land late; not measured. Accepted 2026-10-15 (the checkout-remote-first-group triage,
+  `docs/plans/2026-10-15-checkout-remote-first-group-plan.md`, RX). **Reopen:** the greying shows up visibly late on a
+  large repository.
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review, deferred
 
@@ -852,6 +859,17 @@ seventh's findings open), and in the triage of the commit-message rules commits.
   take `> `, but a later line that already starts with `>` is refused as a block start (`BLOCK`, `reflow.mjs:16`):
   "4: starts a block (>)" on the parked plan's status block. So it can wrap a one-line quote, not rewrap a wrapped one.
   **Reopen:** the next time a multi-line quote needs rewrapping.
+
+## AL. Added 2026-10-15 — checkout-remote-first-group, deferred
+
+Deferred in change review loop 2 of `docs/plans/2026-10-15-checkout-remote-first-group-plan.md`, with a reopen
+trigger. It predates the branch.
+
+- **A late `log://progress` can roll the History grid back.** `onProgress` (`src/store/repoStore.ts:548-551`) sets
+  `total` and `complete` straight from the event, so a non-complete progress event delivered after the walk's
+  complete page (an invoke response and an event travel separately) could lower the total or mark a finished walk
+  unfinished. Reasoned from the code, never seen; the O1 fix (`0f3d67b`, `open-items-done.md` §AL) doesn't change it.
+  Fix in its own plan. **Reopen:** History rows vanish, or the walk shows as loading after it finished.
 
 ## Order
 
