@@ -157,12 +157,12 @@ jobs:
         # Pinned exactly: this job holds the signing key. Pinned to match
         # @tauri-apps/cli in package-lock.json (they share versions); bump both
         # together. `--locked` keeps the tauri-bundler the CLI was released with
-        # (2.10.1 here), which the AppImage pins below are read from; without it
+        # (2.10.2 here), which the AppImage pins below are read from; without it
         # the build takes the newest bundler, which the pinned CLI may not
         # compile against (bundler 2.10.0 broke CLI 2.11.4). checks.yml fails a
         # PR whose package-lock.json and this pin differ; it reads the version
         # from the line below.
-        run: cargo install tauri-cli --version 2.12.1 --locked
+        run: cargo install tauri-cli --version 2.12.2 --locked
 
       # Staging picks the first file matching each glob, and the cache restores
       # target/ from an earlier run. A leftover installer from a previous
@@ -227,7 +227,7 @@ jobs:
       # but skips any file already in its cache dir. Seed pinned, hashed copies
       # there — and the runtime appimagetool would otherwise fetch from
       # `continuous`, which becomes the head of every AppImage shipped. Names
-      # are tauri-bundler 2.10.1's (tauri-cli 2.12.1), which fetches linuxdeploy
+      # are tauri-bundler 2.10.2's (tauri-cli 2.12.2), which fetches linuxdeploy
       # from a fixed build and carries the gtk and gstreamer plugin scripts
       # inside itself: it rewrites them into the cache whenever the cached copy
       # differs, so they are pinned by the CLI's crates.io checksum, not here.
