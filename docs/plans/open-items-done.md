@@ -2015,3 +2015,19 @@ identical to `403a05a`'s; the docs commit adds this map):
   (loop 2's records and rewraps), and this map.
 - The walks' builds: BT ran on `b16246d` and the O1 re-check on `c3ac1a8`, both before loop 2. Loop 2's code (R2's
   guard, the dropped flag) is covered by its unit and real-git tests, not by a walk.
+
+## AM. Added 2026-10-16 — Dependabot #32 after v0.10.24, closed
+
+- **#32 (the npm group) merged with the CLI pin moved to match.** It bumped `@tauri-apps/cli` to 2.12.2, which the
+  `checks.yml` guard failed while `release.yml` still installed `tauri-cli` 2.12.1. The pin commit (`33e710a`, on #32's
+  branch) moved it to 2.12.2. tauri-cli 2.12.2 locks tauri-bundler 2.10.2, whose Linux code is unchanged, so the four
+  AppImage tool pins stayed. #32 was squash-merged as `1fa3430`.
+  - Checks:
+    - all 33 changed lock entries resolve to `registry.npmjs.org` with matching integrity;
+    - local gates on #32 merged with `main`;
+    - the PR's CI green on three OS;
+    - a Windows walk of the front-end bumps, all 7 rows passed (`docs/archive/walks/2026-10-16-npm-group-32-walk.md`);
+    - dry-run Release 38902302809, all green: tauri-cli 2.12.2 installed on all three legs, the four AppImage pins
+      `OK`, `verify` OK ×3 with `version:0.10.24`, the draft made and removed with no tag left, and the AppImage runtime
+      type2-runtime `dd6cebe`.
+  - Plan: `docs/archive/plans/2026-10-15-npm-group-32-plan.md`.

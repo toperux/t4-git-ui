@@ -268,10 +268,11 @@ phases that accepted them; each origin keeps a pointer.
   and sign* with the keys in env, `nsis-3.11.zip` and `nsis_tauri_utils.dll` v0.5.3 (both from `tauri-apps` GitHub
   releases; the DLL is then signed with our certificate as an NSIS plugin; seen in dry run 36674994686's log). The
   bundler checks both against a SHA-1 (read in tauri-bundler 2.9.4, `nsis/mod.rs`; 2.10.1, which tauri-cli 2.12.1 locks,
-  has the same URLs, `nsis_tauri_utils` v0.5.3). The `Downloading` check on the bundle log runs on Linux only, so a
-  third Windows download would not be caught. Accepted 2026-10-01 (close-out Phase 1b, triage T3). **Reopen:** a bundler
-  change moves either fetch or adds a Windows download, or a toolchain release breaks the build. *From Phase 1b's change
-  review (`docs/archive/plans/2026-09-30-phase-1b-plan.md`, "Not in this phase").*
+  has the same URLs, `nsis_tauri_utils` v0.5.3; 2.10.2, which tauri-cli 2.12.2 locks, has `nsis/mod.rs` byte-identical,
+  and dry run 38902302809's Windows leg made the same two downloads). The `Downloading` check on the bundle log runs on
+  Linux only, so a third Windows download would not be caught. Accepted 2026-10-01 (close-out Phase 1b, triage T3).
+  **Reopen:** a bundler change moves either fetch or adds a Windows download, or a toolchain release breaks the build.
+  *From Phase 1b's change review (`docs/archive/plans/2026-09-30-phase-1b-plan.md`, "Not in this phase").*
 - **On Linux and macOS a tool open holds the repository's git2 lock ~300 ms.** Detecting an early-failing custom
   tool (exit 126/127 within 300 ms, unix only) waits under the lock; other git2 reads of that repository stall
   meanwhile. A `ponytail:` comment in `crates/git-core/src/tools.rs` names it. Accepted 2026-10-01 (close-out
@@ -743,9 +744,11 @@ fixes"), with its reopen trigger.
   2 m 54 s, because rust-cache restored nothing. A tag reads caches only from its own ref or `main`, and an unused
   cache is evicted after 7 days. Options: an `actions/cache` keyed on ssign's pinned rev, upstream's prebuilt ssign
   zip pinned by hash, or the prebuilt `@tauri-apps/cli` that `npm ci` already installs. The last two trust a binary
-  built upstream; whether the npm CLI carries bundler 2.10.1, which the AppImage pins are read from, wasn't checked.
+  built upstream; whether the npm CLI carries bundler 2.10.2, which the AppImage pins are read from, wasn't checked.
   Deferred 2026-10-05. **Reopen:** the next change to the release workflow, or a release run's build time becoming a
-  problem.
+  problem. **2026-10-16:** #32's CLI pin bump fired the trigger, and the owner kept it deferred (D5 of
+  `docs/archive/plans/2026-10-15-npm-group-32-plan.md`). Re-measured on dry run 38902302809 (tauri-cli 2.12.2):
+  10 m 19 s on Windows, 7 m 22 s on macOS, 5 m 59 s on Linux, ssign 3 m 01 s.
 
 ## AE. Added 2026-10-06 — the fix batch
 
@@ -863,14 +866,9 @@ reopen trigger. It predates the branch.
 ## AM. Added 2026-10-15 — Dependabot #27–#32 after v0.10.24
 
 Ruled by the owner after each PR's diff and sources were checked (`.claude/skills/release`, step 1). #27–#30 (CI
-action pins) and #31 (the Cargo group) merged; #31's macOS job passed on a re-run.
+action pins) and #31 (the Cargo group) merged; #31's macOS job passed on a re-run. #32 (the npm group) merged through
+its own plan on 2026-10-16 (`open-items-done.md` §AM).
 
-- **#32 (the npm group) is held for its own plan.** It bumps `@tauri-apps/cli` to 2.12.2, and the Ubuntu leg's guard
-  fails because `release.yml` still pins `cargo install tauri-cli --version 2.12.1`; the two move together. A CLI bump
-  can move the bundler's AppImage tool pins (the release skill's *Pin the AppImage tools* note), so the plan bumps the
-  pin, re-derives the tool pins and runs a `workflow_dispatch` Release before the next tag. #32 also bumps shipped
-  front-end packages (lucide-react, react-resizable-panels, @tanstack/react-virtual, @lezer/css, the Tauri JS API and
-  dialog plugin). **Close:** #32 merged through that plan.
 - **Two Rust tests failed once on macOS CI and passed on a re-run.**
   `watch::tests::ignored_dir_and_lock_files_are_silent` (`crates/git-core/src/watch.rs:395`, #32's first run,
   38734571211) and `cli::runner::tests::cancel_ends_an_op_with_a_full_queue` (#31's first run, 38734513344; the runner

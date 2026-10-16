@@ -154,7 +154,7 @@ files; the dry run's log checks cover the pipeline.
    - **Panels:** drag a splitter and double-click it; the layout persists across a restart.
    - **Icons:** the toolbar and context menus render.
 
-   Record in `docs/archive/walks/2026-10-15-npm-group-32-walk.md`.
+   Record in `docs/archive/walks/2026-10-16-npm-group-32-walk.md`.
 6. **Merge — owner's go:** `gh pr merge 32 --squash --admin` with the subject
    `build(deps): Bump the npm group with 11 updates (#32)` and an explicit body, one line for the pin, passed as
    `--body-file -` from a quoted heredoc. GitHub's default body for a squash wasn't measured (#27–#31 were merged with
@@ -203,3 +203,12 @@ files; the dry run's log checks cover the pipeline.
 - **Pass 2:** 3 low findings, all taken: the CLI `Cargo.toml` pins and what `tauri build` reads; the ResizeObserver
   change scoped to the container; the merge-body default marked unmeasured. Its "2.12.4 unverified" was answered by
   the crates.io API check (200).
+
+## Outcome (2026-10-16)
+
+- Pin commit `33e710a`, pushed to #32's branch by the owner; #32's CI green on three OS (run 38869808207).
+- The D3 walk passed all 7 rows (`docs/archive/walks/2026-10-16-npm-group-32-walk.md`). Row *Panels* was walked as an
+  observation for persistence: splitter sizes aren't stored, in 0.10.24 either.
+- #32 squash-merged as `1fa3430`. `main`'s CI then failed once on macOS on the flaky cancel test (38893872747), which
+  reopened its §AM row (`docs/plans/2026-10-16-flaky-cancel-test-plan.md`); the re-run passed.
+- Dry-run Release 38902302809 green; every step 7 check passed (`open-items-done.md` §AM).
