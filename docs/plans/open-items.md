@@ -872,10 +872,12 @@ action pins) and #31 (the Cargo group) merged; #31's macOS job passed on a re-ru
   front-end packages (lucide-react, react-resizable-panels, @tanstack/react-virtual, @lezer/css, the Tauri JS API and
   dialog plugin). **Close:** #32 merged through that plan.
 - **Two Rust tests failed once on macOS CI and passed on a re-run.**
-  `watch::tests::ignored_dir_and_lock_files_are_silent` (`crates/git-core/src/watch.rs:395`, #31's first run) and
-  `cli::runner::tests::cancel_ends_an_op_with_a_full_queue` (#32's first run; the runner exit paths' test, shipped in
-  v0.10.24). Neither PR touches that code; flaky on the macOS runner, by the re-runs, cause not looked into. **Reopen:**
-  either fails again.
+  `watch::tests::ignored_dir_and_lock_files_are_silent` (`crates/git-core/src/watch.rs:395`, #32's first run,
+  38734571211) and `cli::runner::tests::cancel_ends_an_op_with_a_full_queue` (#31's first run, 38734513344; the runner
+  exit paths' test, shipped in v0.10.24). Neither PR touches that code; flaky on the macOS runner, by the re-runs, cause
+  not looked into. **Reopen:** either fails again. **Reopened 2026-10-16:** the cancel test failed again on `main`'s CI
+  for #32's merge (38893872747, attempt 1); the owner ruled measure, then fix
+  (`docs/plans/2026-10-16-flaky-cancel-test-plan.md`).
 - **#31's updater changes ship untested until two update walks.** #31 moves `tauri-plugin-updater` 2.13.1 → 2.13.3 and
   its signature verifier `minisign-verify` 0.2.5 → 0.3.0. The installed copy verifies the update it downloads, so the
   new verifier first runs updating *from* the release that carries it. Walk the in-app update on the next release
