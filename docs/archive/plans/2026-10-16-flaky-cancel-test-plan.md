@@ -188,6 +188,17 @@ as long.
      - the test passes;
      - the drain stays well under 1 s (no sleeps left in it);
      - lines after cancel, the highest per OS against ~38 100 (F3).
+   - **Result (run 38939939436, 2026-10-17, `flaky-fix` at `38a09ea`, fix `33db7fa`):** every run passed.
+
+     | | runs | drain | lines after cancel |
+     |---|---|---|---|
+     | macOS, suite | 30 | 91–209 ms | 33 064–35 264 |
+     | macOS, alone | 10 | 125–211 ms | 34 464–35 464 |
+     | Ubuntu 22.04, alone | 10 | 92–96 ms | 34 056–35 256 |
+     | Windows, alone | 10 | 121–130 ms | 36 368–36 768 |
+
+     The drain fell from 2.8–5.2 s to ≤ 0.21 s on macOS. The highest count on every OS is ≤ ~38 100 (36 768, on
+     Windows), so by F3 the 40 000 bound stays.
 3. **To `main` — owner's go:** the fix commit alone, as `test: …`, with the line bound in or out per F3. CI on three
    OS.
 4. **Delete `flaky-fix` — owner's go,** after a PR lookup shows no PR backs it (the check-branch-before-delete rule).
@@ -239,3 +250,10 @@ as long.
   marked conditional.
 - **Pass 8:** nothing to fix; its one optional wording nit (the checks list naming F3's threshold) was taken.
 - **Pass 9:** nothing found.
+
+## Outcome (2026-10-17)
+
+- Fix `33db7fa` on `flaky-fix`, cherry-picked onto `main` as `a9baac7`. The 40 000 line bound was kept, per F3.
+- Verified by run 38939939436 (step 2's table).
+- Records: the cancel test's row closed into `open-items-done.md` §AM; the watch test now has its own row in
+  `open-items.md` §Q (F4).

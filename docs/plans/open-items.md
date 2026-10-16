@@ -606,6 +606,11 @@ phases that accepted them; each origin keeps a pointer.
   history the greying could land late; not measured. Accepted 2026-10-15 (the checkout-remote-first-group triage,
   `docs/archive/plans/2026-10-15-checkout-remote-first-group-plan.md`, RX). **Reopen:** the greying shows up visibly
   late on a large repository.
+- **The watch test `ignored_dir_and_lock_files_are_silent` failed once on macOS CI.** It failed on #32's first run
+  (38734571211, attempt 1, `crates/git-core/src/watch.rs:395`) and passed on the re-run. It then passed 30 of 30 inside
+  the full `git-core` suite on macOS (run 38908721633). At its CI rate that still happens ~9 % of the time, and the
+  cause wasn't looked into. Accepted 2026-10-17 (F4 of `docs/archive/plans/2026-10-16-flaky-cancel-test-plan.md`).
+  **Reopen:** it fails again.
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review, deferred
 
@@ -869,13 +874,6 @@ Ruled by the owner after each PR's diff and sources were checked (`.claude/skill
 action pins) and #31 (the Cargo group) merged; #31's macOS job passed on a re-run. #32 (the npm group) merged through
 its own plan on 2026-10-16 (`open-items-done.md` §AM).
 
-- **Two Rust tests failed once on macOS CI and passed on a re-run.**
-  `watch::tests::ignored_dir_and_lock_files_are_silent` (`crates/git-core/src/watch.rs:395`, #32's first run,
-  38734571211) and `cli::runner::tests::cancel_ends_an_op_with_a_full_queue` (#31's first run, 38734513344; the runner
-  exit paths' test, shipped in v0.10.24). Neither PR touches that code; flaky on the macOS runner, by the re-runs, cause
-  not looked into. **Reopen:** either fails again. **Reopened 2026-10-16:** the cancel test failed again on `main`'s CI
-  for #32's merge (38893872747, attempt 1); the owner ruled measure, then fix
-  (`docs/plans/2026-10-16-flaky-cancel-test-plan.md`).
 - **#31's updater changes ship untested until two update walks.** #31 moves `tauri-plugin-updater` 2.13.1 → 2.13.3 and
   its signature verifier `minisign-verify` 0.2.5 → 0.3.0. The installed copy verifies the update it downloads, so the
   new verifier first runs updating *from* the release that carries it. Walk the in-app update on the next release

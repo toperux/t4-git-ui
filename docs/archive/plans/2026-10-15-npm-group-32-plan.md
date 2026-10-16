@@ -210,5 +210,5 @@ files; the dry run's log checks cover the pipeline.
 - The D3 walk passed all 7 rows (`docs/archive/walks/2026-10-16-npm-group-32-walk.md`). Row *Panels* was walked as an
   observation for persistence: splitter sizes aren't stored, in 0.10.24 either.
 - #32 squash-merged as `1fa3430`. `main`'s CI then failed once on macOS on the flaky cancel test (38893872747), which
-  reopened its §AM row (`docs/plans/2026-10-16-flaky-cancel-test-plan.md`); the re-run passed.
+  reopened its §AM row (`docs/archive/plans/2026-10-16-flaky-cancel-test-plan.md`); the re-run passed.
 - Dry-run Release 38902302809 green; every step 7 check passed (`open-items-done.md` §AM).

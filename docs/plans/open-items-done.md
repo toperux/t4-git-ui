@@ -2031,3 +2031,12 @@ identical to `403a05a`'s; the docs commit adds this map):
       `OK`, `verify` OK ×3 with `version:0.10.24`, the draft made and removed with no tag left, and the AppImage runtime
       type2-runtime `dd6cebe`.
   - Plan: `docs/archive/plans/2026-10-15-npm-group-32-plan.md`.
+- **The flaky macOS cancel test, fixed.** `cli::runner::tests::cancel_ends_an_op_with_a_full_queue` failed on #31's
+  first run (38734513344) and on `main`'s CI for #32's merge (38893872747): "cancel took over 5 s". It was moved here
+  from `open-items.md` §AM, where it shared a row with the watch test (now its own row in `open-items.md` §Q).
+  - **Measured** (run 38908721633, 40 macOS runs): the kill worked every time. The time went into the test's own 5 ms
+    sleeps, which ran to ~55 ms on the runner.
+  - **Fixed** (`a9baac7`): the callback stops sleeping at cancel, and the test also bounds the lines after cancel at
+    40 000.
+  - **Verified** (run 38939939436): 60 runs on three OS, all passing, with the drain ≤ 0.21 s and at most 36 768 lines.
+  - Plan: `docs/archive/plans/2026-10-16-flaky-cancel-test-plan.md`.
