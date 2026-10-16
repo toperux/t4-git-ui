@@ -94,8 +94,9 @@ that way on 2026-09-19.
   (`T4 Git UI - <repo>`) and open one WebSocket per target. The title follows the active tab, so read the
   list again after a tab change or an adopted tab.
 - **N windows at launch**: write `layout.json` first — `[{"tabs":[…],"active":…}, …]` — with the paths
-  exactly as the app writes them (copy the spelling from a file the app wrote: backslashes on Windows). A
-  forward-slash path opens, but its `active` tab is not restored. A kill before the restore report leaves
+  exactly as the app writes them (copy the spelling from a file the app wrote: backslashes and a lowercase drive
+  letter on Windows, `c:\…`). A forward-slash path or an uppercase `C:\` opens, but its `active` tab is not restored
+  (the #32 walk, 2026-10-16). A kill before the restore report leaves
   `layout.restoring` next to `layout.json`, which trips the crash breaker on the next launch — delete it as
   part of seeding. Write the file with a file tool, not through shell-quoted JSON: a seed escaped through bash and
   `node -e` came out with mangled paths on 2026-10-01 (three *Couldn't open repository* toasts). And an empty `[]`

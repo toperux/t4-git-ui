@@ -819,7 +819,9 @@ branch, or are cosmetic.
   session guessed they were the cause. **Reopen:** a real-mouse tear-off sticks on macOS.
 - **The History / Changes view is one per window, not per tab.** Switching one tab to Changes opens the next tab in
   Changes too (the Windows BS 4 walk). By design: `viewStore.ts:1-3` keeps the view per window, per session.
-  **Reopen:** someone wants each tab to keep its own view.
+  **Reopen:** someone wants each tab to keep its own view. **Reopened 2026-10-17:** seen again in the #32 walk
+  (`docs/archive/walks/2026-10-16-npm-group-32-walk.md`), and the owner wants each tab to keep its own view. Its own
+  plan, not started.
 
 ## AJ. Added 2026-10-09 — the runner exit paths
 
@@ -878,6 +880,30 @@ its own plan on 2026-10-16 (`open-items-done.md` §AM).
   its signature verifier `minisign-verify` 0.2.5 → 0.3.0. The installed copy verifies the update it downloads, so the
   new verifier first runs updating *from* the release that carries it. Walk the in-app update on the next release
   (old verifier, new package) and the one after (new verifier). **Close:** both walk records in `docs/archive/walks/`.
+
+## AN. Added 2026-10-17 — seen in the #32 walk, deferred
+
+Seen on the way in `docs/archive/walks/2026-10-16-npm-group-32-walk.md` (Windows, a build of #32 merged into `main`),
+and none compared with 0.10.24. By reading the code, all predate #32. Deferred on the owner's word in the triage.
+
+- **The diff cursor at the top edge hides the hunk header.** In the staging diff, moving the cursor up scrolls only
+  until the cursor row is in view (`scrollToIndex(…, { align: "auto" })`, `DiffViewer.tsx:440`). At the first changed
+  line of a hunk, its `@@` header and the context lines above stay scrolled off. Options: a few rows of margin around
+  the cursor, or show the whole hunk when the cursor enters it. **Reopen:** it gets in the way while staging hunk by
+  hunk.
+- **A click in file content doesn't move the blame cursor.** In History › Files with Blame on, the cursor moves by
+  keys only. Clicking a line's text selects text, and the next ↓ moves from the old cursor (`FileContent.tsx:120-217`).
+  The staging diff's click does move its cursor (`DiffViewer.tsx:123, 136`), so the two views disagree. Fix: a click on
+  a line's text sets the cursor, with selection kept. **Reopen:** it gets in the way.
+- **The diff keeps its scroll position in pixels across a reload.** On a long diff scrolled to ~line 820, the
+  ignore-whitespace toggle roughly halves the height and the view lands at ~line 1640. An edit above the view shifts
+  the content (top line 657 → 650). Fix: remember the top visible file line before the reload and scroll back to it
+  after; the whitespace toggle maps lines between two diffs, so it needs its own plan. **Reopen:** the jump gets in
+  the way, or someone reports it.
+- **The staging diff cuts its hunk headers short.** The header text ends in an ellipsis ("@@ -7,7 +7,7 @@ fil…")
+  because the hunk's buttons, invisible until hover, still take their width (`DiffViewer.module.css`, `.dl` and
+  `.hunkActions`). Reasoned from the CSS. Fix: lay the buttons over the row's end on hover. **Reopen:** the cut text
+  gets in the way.
 
 ## Order
 
