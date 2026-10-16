@@ -82,9 +82,53 @@ CI*: it failed again on `main`'s CI for #32's merge (run 38893872747, 2026-10-16
 4. **Delete the branch — owner's go** (no PR backs it; the check-branch-before-delete rule). Its runs stay in the
    Actions history.
 
+## Phase A results (run 38908721633, 2026-10-16)
+
+Branch `flaky-measure` at `05d06de`, one `macos-latest` job. Per loop, with the range across runs:
+
+| | suite (full `git-core` lib, 30×) | control (the test alone, 10×) |
+|---|---|---|
+| failed | 1 of 30 (#30, the cancel test) | **10 of 10** |
+| drain (return − cancel) | 2.77–4.68 s | 5.05–5.18 s |
+| median sleep after cancel (asked: 5 ms) | 15.7–23.2 ms | 21.9–47.2 ms |
+| max sleep | ~28–55 ms | ~55 ms |
+| median gap between callbacks | 0.5–0.9 ms | 0.9–3.1 ms |
+| lines after cancel | 33 064–36 760 | 23 226–34 432 |
+| `pgrep -fx yes` 0.5 s after cancel | `dead` every run | `dead` every run |
+
+The watch test passed 30 of 30. After the run, `flaky-measure` was deleted on the remote and locally (owner's go, no PR
+backed it); the run stays in the Actions history.
+
+What it shows:
+
+- **The kill works, every time.** `yes` was dead 0.5 s after cancel in all 40 runs, and the lines after cancel never
+  passed the ~38 000-line backlog.
+- **The time is in the test's own sleeps.** A 5 ms `std::thread::sleep` takes 3–9× as long on the macOS runner, up to
+  ~55 ms. The gaps between callbacks (the runner's own work) have medians of 0.5–3 ms (max 6.8 ms), small next to the
+  sleeps.
+- **Contention isn't the cause; it's the other way round.** The test alone oversleeps *more* than inside the busy
+  suite: in all 10 control runs the drain ran into `DRAIN_CAP`. The run then returned at cancel + 5.05–5.18 s with the
+  backlog not yet drained, which is the ambiguous case, and `pgrep` settles it as a slow drain. Reasoned, not
+  verified: macOS timer coalescing on an idle machine.
+- **Runner (iii) isn't needed.** Nothing points at the app's code. In the app, Cancel ends the op once the backlog
+  (≤ ~38 000 lines) has gone through `emit_to`, which doesn't sleep.
+
+**Recommendation for Phase B: (i) "sleep only until cancel" with (iv).**
+- The callback keeps its 5 ms sleep until cancel fires, so the queue still fills and the pumps still block. After
+  cancel it doesn't sleep, so the drain no longer depends on the runner's timers.
+- The test then asserts two bounds (the line bound per F3, below):
+  - lines after cancel ≤ 40 000 (the backlog bound). A living `yes` would deliver millions of lines in the cap's 5 s;
+  - the run's return within 5 s of start.
+
+  With no sleeps in the drain, the 5 s timeout alone tells "the kill worked" from "the cap ended it" (a living `yes`
+  runs into the cap at ~5.3 s). The line bound is a second guard, for if the timeout is ever loosened.
+- Not the 1 ms variant: sleeps of 5 ms land anywhere up to ~55 ms, which looks like a coalescing window rather than an
+  overshoot that scales with the request. 1 ms requests weren't measured, so whether they'd shrink the drain is
+  unknown; "only until cancel" doesn't depend on it.
+
 ## Phase B — fix (shaped by Phase A, a plan update before any code)
 
-The likely fixes, to choose from once the numbers are in:
+The options as they stood before Phase A's results (kept for the record; the choice follows them):
 
 - **(i) The callback sleeps 1 ms, or only until cancel fires.** The queue still fills, since `yes` outruns any
   callback. "Only until cancel" makes the drain near-instant whatever the runner does. 1 ms shrinks it to ~20 % only if
@@ -99,10 +143,59 @@ The likely fixes, to choose from once the numbers are in:
 A multi-threaded runtime for the test isn't on the list: the callback still runs in `run`'s loop, so the drain takes
 as long.
 
-Phase B's fix gets the usual review loop and gates. It is verified by the same full-suite 30× macOS loop on the fix,
-before any merge to `main`: mainly by margin, with the drain time well under 4.7 s and the time per callback well under
-~25 ms in all 30 runs, not by 0 failures alone. Then `open-items.md` §AM's flaky row moves to `open-items-done.md` §AM,
-or stays open for the watch test if Phase A shows it flaky.
+**Owner's choice (2026-10-16): (i) "only until cancel" with (iv).** (iii) isn't needed.
+- **F3, the line bound:** kept only if, in the verification run, the highest count on every OS is at or below the
+  theoretical backlog of ~38 100 lines (at least ~1 900 under 40 000). Otherwise the count goes into the timeout's
+  message and isn't asserted; a count above ~38 100 would mean the backlog model is wrong for that OS.
+- **F4, the watch test:** it passed 30 of 30, but at its CI rate (1 in 13) that still happens ~9 % of the time, and its
+  cause wasn't looked into. It gets its own row in `open-items.md` §Q (accepted limits), with the reopen trigger
+  "fails again".
+
+### The change (test-only, `crates/git-core/src/cli/runner.rs`, `cancel_ends_an_op_with_a_full_queue`)
+
+- **The callback** keeps a clone of the cancel token. It sleeps 5 ms while the token isn't cancelled, as today, and
+  not at all once it is. It counts the lines of every Stdout/Stderr batch it receives after the token is cancelled
+  (an `Arc<AtomicUsize>`).
+- **The checks**, in order:
+  - `timeout(5 s)` → `expect("cancel took over 5 s")`, as today;
+  - `matches!(res, Err(GitError::Cancelled))`, as today;
+  - lines after cancel ≤ 40 000, with the count in the message (F3: only if step 2's highest count on every OS is
+    ≤ ~38 100).
+- **The doc comment** says why the callback stops sleeping: the drain after cancel mustn't depend on the runner's
+  sleep timing (Phase A: 5 ms sleeps took up to ~55 ms on the macOS runner).
+- **Why 40 000 holds, and its margin** (reasoned):
+  - The backlog bound is ~38 100: queue 1024, held segments ≤ 4096, a 64 KiB pipe 32 768, plus a part batch. Measured
+    maxima after cancel: 36 760 on macOS (run 38908721633, 40 runs), and 36 368 on Windows (3 local runs of
+    `05d06de`'s instrumented test). Margin to 40 000: 3 240 lines measured, ~1 900 against the theoretical bound.
+  - Lines can also come in between the token's cancel and the kill: `select!` picks among the ready branches at random,
+    so a few `rx.recv` passes, a line each, can run before the cancel branch. That's a handful of lines, not
+    thousands.
+  - A living `yes` with a callback that doesn't sleep would deliver at the loop's full speed until the cap: millions
+    of lines, unmeasured.
+  - *Not measured yet:* Linux. Its pipe buffer is 64 KiB by default and grows only through `F_SETPIPE_SZ`; step 2
+    measures it.
+
+### Gates and verification
+
+1. **Local:** fmt, clippy (`-D warnings`), and the `git-core` tests, with the changed test run 10× on its own.
+2. **On CI, before `main`:**
+   - Branch `flaky-fix`: the fix commit, plus a throwaway commit on top. The throwaway brings back the workflow file
+     from `05d06de` with `branches: [flaky-fix]`, and adds one `eprintln!` prefixed `CANCEL-TIMING` (the loop greps
+     for it) with the drain time and the lines after cancel.
+   - Besides the macOS job (30 suite runs + 10 control runs), the workflow gets short `ubuntu-22.04` and
+     `windows-latest` jobs: the changed test alone, 10× each, with the line printed.
+   - Push — owner's go. Then read, in every run on all three OS:
+     - the test passes;
+     - the drain stays well under 1 s (no sleeps left in it);
+     - lines after cancel, the highest per OS against ~38 100 (F3).
+3. **To `main` — owner's go:** the fix commit alone, as `test: …`, with the line bound in or out per F3. CI on three
+   OS.
+4. **Delete `flaky-fix` — owner's go,** after a PR lookup shows no PR backs it (the check-branch-before-delete rule).
+5. **Records:**
+   - §AM's flaky row moves to `open-items-done.md` §AM for the cancel test;
+   - the watch test gets its §Q row (F4);
+   - this plan is archived;
+   - push — owner's go.
 
 ## Not in this plan
 
@@ -133,3 +226,16 @@ or stays open for the watch test if Phase A shows it flaky.
   recorded as its own result.
 - **Pass 4:** 1 minor finding, taken: the timing line also prints on a 20 s `Elapsed`.
 - **Pass 5:** nothing found.
+- **Pass 6** (Phase A results and Phase B): the table and conclusion checked against the run's log. 7 findings, all
+  taken:
+  - the throwaway workflow's trigger and the `CANCEL-TIMING` prefix;
+  - Ubuntu and Windows legs in step 2, with the Windows figure's source named;
+  - F3 and F4, decided by the owner;
+  - wording on the gaps, the cap times and both margins;
+  - the old options list labelled;
+  - step 2's line check and step 4's PR lookup;
+  - `flaky-measure`'s deletion recorded.
+- **Pass 7:** 2 small findings, taken: F3's threshold (the owner chose ≤ ~38 100 on every OS) and the recommendation
+  marked conditional.
+- **Pass 8:** nothing to fix; its one optional wording nit (the checks list naming F3's threshold) was taken.
+- **Pass 9:** nothing found.
