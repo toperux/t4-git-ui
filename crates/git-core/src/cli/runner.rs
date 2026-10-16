@@ -664,6 +664,7 @@ mod job {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
@@ -1278,6 +1279,11 @@ mod tests {
     }
 
     /// Cancel still ends an op whose pumps are held on a full queue.
+    ///
+    /// The callback stops sleeping at cancel, so the drain doesn't hang on
+    /// the runner's sleep timing (5 ms sleeps took up to ~55 ms on macOS CI).
+    /// The lines after cancel are the backlog (queue + held segments + one
+    /// pipe buffer); a `yes` that survived the kill would blow past it.
     #[tokio::test]
     async fn cancel_ends_an_op_with_a_full_queue() {
         if !have_git() {
@@ -1290,6 +1296,9 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(300)).await;
             canceller.cancel();
         });
+        let cancelled = cancel.clone();
+        let lines_after = Arc::new(AtomicUsize::new(0));
+        let counter = Arc::clone(&lines_after);
         let res = tokio::time::timeout(
             Duration::from_secs(5),
             GitCli::new("git").run(
@@ -1298,11 +1307,19 @@ mod tests {
                 &["-c", "alias.y=!yes", "y"],
                 None,
                 cancel,
-                |_| std::thread::sleep(Duration::from_millis(5)),
+                move |e| {
+                    if !cancelled.is_cancelled() {
+                        std::thread::sleep(Duration::from_millis(5));
+                    } else if let CliEvent::Stdout { lines } | CliEvent::Stderr { lines } = e {
+                        counter.fetch_add(lines.len(), Ordering::Relaxed);
+                    }
+                },
             ),
         )
         .await
         .expect("cancel took over 5 s");
         assert!(matches!(res, Err(GitError::Cancelled)), "{res:?}");
+        let n = lines_after.load(Ordering::Relaxed);
+        assert!(n <= 40_000, "{n} lines after cancel: more than the backlog");
     }
 }
