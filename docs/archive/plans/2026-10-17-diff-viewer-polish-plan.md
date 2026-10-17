@@ -3,7 +3,9 @@
 _Written 2026-10-17. Status: decisions D1–D7 taken with the owner 2026-10-17; review passes 1–7 taken, pass 7 found
 nothing (the drill-down added as S2b in pass 1); step 14's re-walk narrowed to code/test conflicts (owner, after pass
 7); pass 8's README finding and the anchor plan's pass-8 F1/F2 applied; pass 9 found nothing; pass 10's 1 finding taken;
-pass 11's 1 nit taken; pass 12 found nothing: final; T1–T3 listed for triage._
+pass 11's 1 nit taken; pass 12 found nothing: final; T1–T3 listed for triage; executed 2026-10-17 (BU walked on
+Windows, rows 10, 11, 12 and 14 walked again after two fixes; T1–T3 and the review's findings ruled by the owner);
+squashed into `f2d5089`…`944bf0d` and `1471247`, records next; archived._
 
 **Goal:** three rows of `open-items.md` §AN, found on the way in the #32 walk
 (`docs/archive/walks/2026-10-16-npm-group-32-walk.md`, *Seen on the way*, its bullets 1, 2 and 6), plus one the owner

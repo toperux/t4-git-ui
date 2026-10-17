@@ -631,6 +631,11 @@ phases that accepted them; each origin keeps a pointer.
   operation waits for it (`openWhenIdle`, `src/screens/RepoWindow/actions.ts`); if that window closes first the tab
   is gone, and if the app quits first it is missing after a restart (it stays in Recents). Reasoned, not seen.
   Accepted by the owner, 2026-10-17 (the per-tab view's change review). **Reopen:** someone loses a dropped tab.
+- **Linux is not walked for the diff viewer polish.** WebKitGTK's hover, click targeting and scroll timing for the
+  staging diff's hunk headers and buttons, the content view's click and the drill-down's landing are unmeasured; the
+  walk was Windows only. Accepted by the owner, 2026-10-17 (T1, D5 (a) of
+  `docs/archive/plans/2026-10-17-diff-viewer-polish-plan.md`). **Reopen:** a Linux report about the staging diff or
+  the file content view.
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review, deferred
 
@@ -898,28 +903,18 @@ its own plan on 2026-10-16 (`open-items-done.md` §AM).
 Seen on the way in `docs/archive/walks/2026-10-16-npm-group-32-walk.md` (Windows, a build of #32 merged into `main`),
 and none compared with 0.10.24. By reading the code, all predate #32. Deferred on the owner's word in the triage.
 
-- **The diff cursor at the top edge hides the hunk header.** In the staging diff, moving the cursor up scrolls only
-  until the cursor row is in view (`scrollToIndex(…, { align: "auto" })`, `DiffViewer.tsx:440`). At the first changed
-  line of a hunk, its `@@` header and the context lines above stay scrolled off. Options: a few rows of margin around
-  the cursor, or show the whole hunk when the cursor enters it. **Reopen:** it gets in the way while staging hunk by
-  hunk.
-- **A click in file content doesn't move the blame cursor.** In History › Files with Blame on, the cursor moves by
-  keys only. Clicking a line's text selects text, and the next ↓ moves from the old cursor (`FileContent.tsx:120-217`).
-  The staging diff's click does move its cursor (`DiffViewer.tsx:123, 136`), so the two views disagree. Fix: a click on
-  a line's text sets the cursor, with selection kept. **Reopen:** it gets in the way.
 - **The diff keeps its scroll position in pixels across a reload.** On a long diff scrolled to ~line 820, the
   ignore-whitespace toggle roughly halves the height and the view lands at ~line 1640. An edit above the view shifts
   the content (top line 657 → 650). Fix: remember the top visible file line before the reload and scroll back to it
   after; the whitespace toggle maps lines between two diffs, so it needs its own plan. **Reopen:** the jump gets in
   the way, or someone reports it.
-- **The staging diff cuts its hunk headers short.** The header text ends in an ellipsis ("@@ -7,7 +7,7 @@ fil…")
-  because the hunk's buttons, invisible until hover, still take their width (`DiffViewer.module.css`, `.dl` and
-  `.hunkActions`). Reasoned from the CSS. Fix: lay the buttons over the row's end on hover. **Reopen:** the cut text
-  gets in the way.
+
+The other three rows (the hunk header at the top edge, the content view's click, the cut hunk headers) were fixed and
+moved to `open-items-done.md` §AN.
 
 ## AO. Added 2026-10-17 — sightings while planning the diff-viewer and per-tab view work, deferred
 
-Found by reading the code while drafting or reviewing `docs/plans/2026-10-17-diff-viewer-polish-plan.md`,
+Found by reading the code while drafting or reviewing `docs/archive/plans/2026-10-17-diff-viewer-polish-plan.md`,
 `docs/plans/2026-10-17-diff-scroll-anchor-plan.md` and `docs/archive/plans/2026-10-17-per-tab-view-plan.md`. None was
 reproduced. Deferred on the owner's word.
 
@@ -951,6 +946,15 @@ owner's word in the triage, each with a reopen trigger.
   someone trips on it.
 - **The output dock is per window, not per tab.** `other` showed `work`'s `git commit -F …` line. **Reopen:** someone
   wants it per tab.
+
+## AQ. Added 2026-10-17 — the BU walk's sightings, deferred
+
+Seen in `docs/archive/walks/2026-10-17-bu-walk.md` (Windows, the diff viewer polish's walk), and deferred on the
+owner's word in the triage. The walk's other sightings were fixed or are in `open-items-done.md` §AN.
+
+- **The focus moved once from the staging diff's cursor row to the "Staged files" listbox.** Right after the first
+  click in BU row 1, between two CDP runs. No cause found; not seen again. **Reopen:** seen again, by hand or in a
+  walk.
 
 ## Order
 

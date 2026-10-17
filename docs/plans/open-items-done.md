@@ -2051,6 +2051,39 @@ identical to `403a05a`'s; the docs commit adds this map):
   - **Verified** (run 38939939436): 60 runs on three OS, all passing, with the drain ≤ 0.21 s and at most 36 768 lines.
   - Plan: `docs/archive/plans/2026-10-16-flaky-cancel-test-plan.md`.
 
+## AN. Added 2026-10-17 — the #32 walk's diff viewer rows: fixed, closed
+
+Moved from `open-items.md` §AN (bullets 1, 2 and 4; bullet 3, the scroll position across a reload, stays there). Plan:
+`docs/archive/plans/2026-10-17-diff-viewer-polish-plan.md`. Walk record: `docs/archive/walks/2026-10-17-bu-walk.md`
+(smoke group BU; walked on the pre-squash `a0c64572`, rows 10, 11, 12 and 14 walked again on `6f1ca92b`).
+
+- **The diff cursor at the top edge hid the hunk header.** Moving up the staging diff showed the changed line with its
+  `@@` header scrolled off. **Fixed** (`f2d5089`, S1): ↑ brings the cursor's hunk header into view when it fits.
+  Walked, BU 1–4.
+- **A click in file content didn't move the blame cursor.** In History › Files with Blame on, the cursor moved by keys
+  only. **Fixed** (`f6e156d`, S2): a click on a line's text sets the cursor, with the selection kept. Walked, BU 6–7.
+- **The staging diff cut its hunk headers short.** The hidden hover buttons still took their width. **Fixed**
+  (`a5aa370`, S6): the buttons lie over the header's end on hover or focus and take no width. Walked, BU 5 and 15.
+- **A blame drill-down landed on the top of the commit it opened** (added in the plan's review, S2b). **Fixed**
+  (`393919f`, the parser keeps git's original line number on each hunk; `2934668`, the drill-down lands on the clicked
+  line in the commit it opens). Walked, BU 8–14.
+- **Blame parent was dead on a commit's later hunks** (BU walk, sighting 1). It predates the branch: git prints
+  `previous` and `filename` on a commit's first hunk only, and the parser read them per hunk. **Fixed** (`944bf0d`).
+  Row 10 walked again; the rename case by a parser test, since the fixture has no later hunk to rename.
+- **A drill-down's y wasn't clamped to the receiving view** (BU walk, sighting 2). The cursor line could sit off-screen
+  in a shorter pane. **Fixed**, folded into `2934668`; rows 12 and 14 walked again.
+- **Row 14's wording** (BU walk, sighting 4): the Stashes dialog's Blame toggle carries over the pane's on state.
+  **Fixed** in the row text (`1471247`).
+- **Accepted, closed, no reopen trigger** (owner, 2026-10-17):
+  - **The Stashes dialog route leaves the focus on the dialog's opener** (T2). The line and the cursor land; the focus
+    stays on "Manage stashes" (BU 14).
+  - **A remount of the same commit's file lands on the drilled line again** (T3). By design: both mounted views must
+    land.
+  - **After a drill-down, a focus attempt that finds no row leaves the reclaim armed** (review F1). A later blame
+    reload with the focus on `<body>` could then pull the focus in. Reasoned, not seen.
+  - **A commit reached under two paths hands its first path's `previous` to the second's hunks** (review F1 of the
+    parser fix, `944bf0d`). The app passes no copy or move detection; a code comment names the limit.
+
 ## AP. Added 2026-10-17 — per-tab view: accepted, closed
 
 Accepted by the owner in the change review's triage and the walk's triage of the per-tab view (plan
@@ -2073,3 +2106,5 @@ reopen trigger. The ones with a trigger are in `open-items.md` §Q and §AP.
   options* ▾ with a visible ring.
 - **Ctrl+Q sent over CDP did not quit once in the re-walk.** It quit in the first walk; no trigger (owner,
   2026-10-17).
+  - **Correction** (BU walk, sighting 5): it was a driver mistake, not an app issue. `cdp.mjs` takes `Ctrl+q`;
+    `Control+q` sent a bare "q".

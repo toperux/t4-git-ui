@@ -3193,7 +3193,7 @@ restored); Linux under Xvfb with openbox (`docs/smoke/smoke-linux.md`).
 
 ## BU. The diff viewer: the hunk header on ↑, a click moves the blame cursor, the drill-down's line, full headers
 
-Plan: `docs/plans/2026-10-17-diff-viewer-polish-plan.md` (S1, S2, S2b, S6; D1–D7). Beside AL (Blame) and F / AD
+Plan: `docs/archive/plans/2026-10-17-diff-viewer-polish-plan.md` (S1, S2, S2b, S6; D1–D7). Beside AL (Blame) and F / AD
 (staging) in subject, but on a fixture of its own. Windows VM (session git-ui-win) over CDP on a local
 `tauri build --no-bundle` of `diff-viewer-polish` (`docs/smoke/smoke-cdp.md`: other instances closed, store backed up
 and restored, `smoke-launch.ps1`, `cdp.mjs`). Linux and macOS: not walked (D5 (a)).
