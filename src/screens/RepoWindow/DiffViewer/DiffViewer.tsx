@@ -433,8 +433,11 @@ function DiffBody({ path, diff, view, rows, maxCols, lang, actions, selected, cu
     const prev = drawn.current;
     drawn.current = { path, diff, rows };
     const el = scrollRef.current;
-    const same = !!prev && prev.path === path;
+    // Not the same rows again: StrictMode's second mount run is no reload.
+    const same = !!prev && prev.path === path && prev.rows !== rows;
     if (same && el) {
+      // A cursor scroll still settling would aim its old row index at the new rows.
+      virtualizer.cancelScroll();
       // Still the old position: the browser's clamp to a shorter body reaches it only with the next
       // scroll event.
       const old = virtualizer.scrollOffset ?? 0;
@@ -515,8 +518,9 @@ function DiffBody({ path, diff, view, rows, maxCols, lang, actions, selected, cu
         upKey.current = e.key === "ArrowUp";
         // The first key after a reload acts on the cursor line, which the anchored view may not show:
         // bring it in first. `scrollOffset` takes the result at once, for the cursor effect's own
-        // scroll if the key moves the cursor. The line may only now mount: focus it again.
-        if (quiet.current && actions && cursorRow >= 0 && BODY_KEYS.has(e.key)) {
+        // scroll if the key moves the cursor. The line may only now mount: focus it again. Not from a
+        // hunk button, whose own Enter / Space would lose its click to the moved focus.
+        if (quiet.current && actions && cursorRow >= 0 && BODY_KEYS.has(e.key) && !(e.target as HTMLElement).closest("button")) {
           quiet.current = false;
           virtualizer.scrollToIndex(cursorRow, { align: "auto" });
           virtualizer.scrollOffset = e.currentTarget.scrollTop;

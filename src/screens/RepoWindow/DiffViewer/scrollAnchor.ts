@@ -59,13 +59,14 @@ export function carryOffset(prevDiff: FileDiff, prevRows: Row[], top: number, ne
 
   // A header takes its first line's numbers, a no-newline marker the line before it.
   const header = prevRows[a].kind === "hunk";
-  const n = nums(prevRows[header ? a + 1 : prevRows[a].kind === "nonl" ? a - 1 : a])!;
+  const marker = prevRows[a].kind === "nonl";
+  const n = nums(prevRows[header ? a + 1 : marker ? a - 1 : a])!;
   const side = n.new === null ? "old" : "new";
   const want = n[side]!;
   for (let k = 0; k < nextRows.length; k++) {
     const m = nums(nextRows[k])?.[side];
     if (m == null || m < want) continue;
-    if (m === want && !header) return now[k] + within;
+    if (m === want && !header) return now[marker && nextRows[k + 1]?.kind === "nonl" ? k + 1 : k] + within;
     return now[nextRows[k - 1].kind === "hunk" ? k - 1 : k];
   }
   return now[nextRows.length - 1];

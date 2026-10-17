@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FileDiff } from "../../../api/types";
-import { stripes } from "./diffFixtures";
+import { fileDiff, hunk, line, stripes } from "./diffFixtures";
 import { flattenSplit, flattenUnified, rowHeight } from "./diffRows";
 import { carryOffset } from "./scrollAnchor";
 
@@ -75,6 +75,13 @@ describe("carryOffset", () => {
     expect(carry(split, WS_HIDDEN, 6_656, WS)).toBe(13_380);
     // Case 4: context line 657, 16 px in, 140 px further down.
     expect(carry(split, stripes(), 65 * 164 + 24 + 16, stripes({ insertAfter: 9 }))).toBe(65 * 164 + 24 + 16 + 140);
+  });
+
+  it("a no-newline marker on top stays on top when its hunk is rewritten", () => {
+    // Rows: header 0, `1` 24, `-2` 44, `+2` 64, the marker 84. At 90 the marker is on top, 6 px in.
+    const end = (old: string) =>
+      fileDiff([hunk("@@ -1,2 +1,2 @@", [line("context", 1, 1, "1"), line("del", 2, null, old), line("add", null, 2, "b", true)])]);
+    expect(carry(unified, end("a"), 90, end("a2"))).toBe(90);
   });
 
   it("the ends: the top stays the top, and a line past the new end lands on the last row", () => {

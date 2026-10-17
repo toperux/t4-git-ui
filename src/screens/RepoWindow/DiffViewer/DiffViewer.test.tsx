@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import { StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { FileDiff } from "../../../api/types";
 import { loadLang } from "../../../lib/highlight";
@@ -16,7 +17,7 @@ vi.mock("../../../api/ipc", () => ({
 
 // jsdom neither lays out nor scrolls: give the virtualizer a viewport and record its scroll requests.
 // `top` is the scroll position the virtualizer reads at mount.
-const scrolls = vi.hoisted(() => ({ offsets: [] as number[], indexes: [] as [number, string | undefined][], top: 0 }));
+const scrolls = vi.hoisted(() => ({ offsets: [] as number[], indexes: [] as [number, string | undefined][], top: 0, cancels: 0 }));
 vi.mock("@tanstack/react-virtual", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-virtual")>();
   return {
@@ -36,6 +37,7 @@ vi.mock("@tanstack/react-virtual", async (importOriginal) => {
       });
       v.scrollToOffset = (offset: number) => scrolls.offsets.push(offset);
       v.scrollToIndex = (index: number, o?: { align?: string }) => scrolls.indexes.push([index, o?.align]);
+      v.cancelScroll = () => scrolls.cancels++;
       return v;
     },
   };
@@ -44,6 +46,7 @@ vi.mock("@tanstack/react-virtual", async (importOriginal) => {
 afterEach(() => {
   cleanup();
   scrolls.top = 0;
+  scrolls.cancels = 0;
   scrolls.offsets.length = 0;
   scrolls.indexes.length = 0;
 });
@@ -616,6 +619,40 @@ describe("DiffViewer", () => {
       del.focus();
       fireEvent.click(del);
       expect(scrolls.indexes).toEqual([[rowOf(PUSHED, "del", "line 670"), "auto"]]);
+    });
+
+    it("a reload of the same file stops a cursor scroll still settling; another file doesn't", () => {
+      const { reload } = mount(stripes(), 12_000, staging());
+      reload(stripes({ insertAfter: 9 }));
+      expect(scrolls.cancels).toBe(1);
+      reload(SMALL);
+      expect(scrolls.cancels).toBe(1);
+    });
+
+    it("Enter on a hunk button after a reload is the button's: the focus stays on it", () => {
+      const { getAllByRole, getAllByText, reload } = mount(stripes(), 12_000, staging());
+      cursorOn(getAllByRole("option"), "line 670 changed");
+      reload(stripes({ insertAfter: 9 }));
+      const button = getAllByText("Stage hunk")[0];
+      button.focus();
+      fireEvent.keyDown(button, { key: "Enter" });
+      expect(scrolls.indexes).toEqual([]);
+      expect(document.activeElement).toBe(button);
+    });
+
+    it("StrictMode's second mount run is no reload: the first ↓ scrolls once", () => {
+      useDiffStore.setState({ view: "unified" });
+      const actions = staging();
+      const { getByRole, getAllByRole } = render(
+        <StrictMode>
+          <DiffViewer path={SMALL.path} diff={SMALL} {...idle} actions={actions} />
+        </StrictMode>,
+      );
+      getAllByRole("option")[0].focus();
+      scrolls.indexes.length = 0;
+      fireEvent.keyDown(getByRole("region", { name: "Diff" }), { key: "ArrowDown" });
+      // SMALL's picks sit on rows 2, 3 and 4: only the cursor effect's scroll, to the second.
+      expect(scrolls.indexes).toEqual([[3, "auto"]]);
     });
 
     it("Enter on a line of the top hunk: the staged reload scrolls by the anchor only", () => {
