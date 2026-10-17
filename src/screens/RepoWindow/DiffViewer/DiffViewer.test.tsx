@@ -4,7 +4,8 @@ import type { FileDiff } from "../../../api/types";
 import { loadLang } from "../../../lib/highlight";
 import { useDiffStore } from "../../../store/diffStore";
 import { useSettingsStore } from "../../../store/settingsStore";
-import { bigDiff, fileDiff, hunk, line } from "./diffFixtures";
+import { bigDiff, fileDiff, hunk, line, stripes } from "./diffFixtures";
+import { flattenUnified } from "./diffRows";
 import { DiffViewer, type DiffActions } from "./DiffViewer";
 
 vi.mock("../../../api/ipc", () => ({
@@ -464,10 +465,11 @@ describe("DiffViewer", () => {
       getAllByRole("option")[0].focus();
       fireEvent.keyDown(region, { key: "ArrowUp" }); // the first pick: nowhere to go
       // A hunk appears above: the carry-over moves the cursor to row 13, under a header at 184 px.
+      // The reload's scroll is the anchor's alone (its hunk moved 184 px down), not a reveal to 184.
       rerender(<DiffViewer path={THREE.path} diff={fileDiff([small(1), small(20)], { path: "three.txt" })} {...idle} actions={actions} />);
       expect(getAllByRole("option").map((o) => o.getAttribute("tabindex"))).toEqual(["-1", "-1", "0", "-1"]);
-      expect(scrolls.offsets).toEqual([]);
-      expect(scrolls.indexes).toEqual([[13, "auto"]]);
+      expect(scrolls.offsets).toEqual([384]);
+      expect(scrolls.indexes).toEqual([]);
     });
   });
 
@@ -497,6 +499,140 @@ describe("DiffViewer", () => {
     expect(scrolls.offsets).toEqual([]);
     rerender(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} />);
     expect(scrolls.offsets).toEqual([0]);
+  });
+
+  describe("a reload of the same file keeps its top line on top", () => {
+    // The walk's file (`stripes`): 184 px hunks; at 12 000 the top row is context line 657, 16 px in,
+    // and `line 670 changed` sits at 12 248–12 268, in the 400 px view.
+    const WS = stripes({ wsOdd: true });
+    const mount = (diff: FileDiff, top: number, actions?: DiffActions) => {
+      scrolls.top = top;
+      const r = render(<DiffViewer path={diff.path} diff={diff} {...idle} actions={actions} />);
+      const region = r.getByRole("region", { name: "Diff" });
+      // jsdom lays nothing out: a 400 px view, a body tall enough for any offset, and a scrollTop that
+      // stays where the test put it (an `auto` scroll to a row in view leaves it there).
+      Object.defineProperties(region, {
+        clientHeight: { value: 400, configurable: true },
+        scrollHeight: { value: 100_000, configurable: true },
+        scrollTop: { get: () => scrolls.top, set: () => {}, configurable: true },
+      });
+      scrolls.offsets.length = 0; // the mount's own scroll to the top
+      const reload = (next: FileDiff) => r.rerender(<DiffViewer path={next.path} diff={next} {...idle} actions={actions} />);
+      return { ...r, region, reload };
+    };
+    const staging = (): DiffActions => ({ target: "unstaged", wholeFile: false, onStageHunk: vi.fn(), onStageLines: vi.fn() });
+    const option = (all: HTMLElement[], text: string) => all.find((o) => o.textContent!.endsWith(text))!;
+    /** Row index of a line of `diff` in the unified view. */
+    const rowOf = (diff: FileDiff, kind: string, text: string) => flattenUnified(diff).rows.findIndex((r) => r.kind === "line" && r.line.kind === kind && r.line.text === text);
+    /** The cursor onto `text` by a click, with the focus in the diff; its scroll is not the test's. */
+    const cursorOn = (all: HTMLElement[], text: string) => {
+      option(all, text).focus();
+      fireEvent.click(option(all, text));
+      scrolls.indexes.length = 0;
+    };
+
+    it("the whitespace toggle: the anchor's offset, and another file starts at the top", () => {
+      useDiffStore.setState({ view: "unified" });
+      const { reload } = mount(WS, 15_000);
+      reload(stripes({ wsOdd: true, ignoreWhitespace: true }));
+      expect(scrolls.offsets).toEqual([7_456]);
+      expect(scrolls.indexes).toEqual([]);
+      scrolls.offsets.length = 0;
+      reload(SMALL);
+      expect(scrolls.offsets).toEqual([0]);
+    });
+
+    it("an edit above, with the focus on the cursor: only the anchor scrolls, and the cursor keeps the focus", () => {
+      const { getAllByRole, reload } = mount(stripes(), 12_000, staging());
+      cursorOn(getAllByRole("option"), "line 670 changed");
+      reload(stripes({ insertAfter: 9 }));
+      expect(scrolls.offsets).toEqual([12_140]);
+      expect(scrolls.indexes).toEqual([]);
+      expect(document.activeElement).toBe(option(getAllByRole("option"), "line 670 changed"));
+    });
+
+    // 7 lines added inside the top row's own hunk: the anchor stays at 12 000 by line number, and the
+    // cursor's line moves 140 px down, past the view's bottom edge.
+    const PUSHED = stripes({ insertAfter: 65 });
+
+    it("a cursor pushed out by a reload: no scroll until ↓, which brings it in, then moves on", () => {
+      const { region, getAllByRole, reload } = mount(stripes(), 12_000, staging());
+      cursorOn(getAllByRole("option"), "line 670 changed");
+      reload(PUSHED);
+      expect(scrolls.offsets).toEqual([]);
+      expect(scrolls.indexes).toEqual([]);
+      fireEvent.keyDown(region, { key: "ArrowDown" });
+      expect(scrolls.indexes).toEqual([
+        [rowOf(PUSHED, "add", "line 670 changed"), "auto"],
+        [rowOf(PUSHED, "del", "line 680"), "auto"],
+      ]);
+    });
+
+    it("a key the diff ignores leaves the reload's hold; the next Space still brings the cursor in", () => {
+      const { region, getAllByRole, reload } = mount(stripes(), 12_000, staging());
+      cursorOn(getAllByRole("option"), "line 670 changed");
+      reload(PUSHED);
+      fireEvent.keyDown(region, { key: "Tab" });
+      fireEvent.keyDown(region, { key: "PageDown" });
+      expect(scrolls.indexes).toEqual([]);
+      fireEvent.keyDown(region, { key: " " });
+      expect(scrolls.indexes).toEqual([[rowOf(PUSHED, "add", "line 670 changed"), "auto"]]);
+    });
+
+    it("not the staging diff: ↓ after a reload scrolls nothing, split or read-only unified", () => {
+      for (const view of ["split", "unified"] as const) {
+        useDiffStore.setState({ view });
+        const { region, reload } = mount(stripes(), 12_000);
+        region.focus();
+        reload(PUSHED);
+        fireEvent.keyDown(region, { key: "ArrowDown" });
+        expect(scrolls.indexes).toEqual([]);
+        cleanup();
+      }
+    });
+
+    it("a first key that doesn't move the cursor: Space brings it in once, and toggles its line", () => {
+      const actions = staging();
+      const { region, getAllByRole, getByRole, queryByRole, reload } = mount(stripes(), 12_000, actions);
+      cursorOn(getAllByRole("option"), "line 670 changed"); // the click selects it, too
+      reload(PUSHED);
+      fireEvent.keyDown(region, { key: " " });
+      expect(scrolls.indexes).toEqual([[rowOf(PUSHED, "add", "line 670 changed"), "auto"]]);
+      expect(queryByRole("toolbar", { name: "Selected lines" })).toBeNull();
+      // Once in, Space is plain Space again.
+      fireEvent.keyDown(region, { key: " " });
+      expect(scrolls.indexes).toHaveLength(1);
+      fireEvent.click(getByRole("button", { name: "Stage 1 line" }));
+      // Hunk 66 is line 670's: its add is line 4, after 3 context lines and the del.
+      expect(actions.onStageLines).toHaveBeenCalledWith([[66, 4]]);
+    });
+
+    it("a pointer press ends the hold: the next click's cursor move scrolls as before", () => {
+      const { getAllByRole, reload } = mount(stripes(), 12_000, staging());
+      cursorOn(getAllByRole("option"), "line 670 changed");
+      reload(PUSHED);
+      const del = option(getAllByRole("option"), "line 670");
+      fireEvent.pointerDown(del);
+      del.focus();
+      fireEvent.click(del);
+      expect(scrolls.indexes).toEqual([[rowOf(PUSHED, "del", "line 670"), "auto"]]);
+    });
+
+    it("Enter on a line of the top hunk: the staged reload scrolls by the anchor only", () => {
+      const actions = staging();
+      const before = stripes();
+      const { region, getAllByRole, reload } = mount(before, 12_000, actions);
+      cursorOn(getAllByRole("option"), "line 660 changed");
+      fireEvent.keyDown(region, { key: "Enter" });
+      expect(actions.onStageLines).toHaveBeenCalledWith([[65, 4]]);
+      // The add staged alone: the index holds both lines, so the hunk keeps only the del. The top row,
+      // context line 657, is found again by its number; the cursor's pick is now line 670's del.
+      const h = before.hunks[65];
+      const left = hunk("@@ -657,7 +657,6 @@", [...h.lines.slice(0, 4), line("context", 661, 660, "line 660 changed"), line("context", 662, 661, "line 661"), line("context", 663, 662, "line 662")]);
+      reload({ ...before, hunks: before.hunks.map((x, i) => (i === 65 ? left : x)) });
+      expect(scrolls.offsets).toEqual([]);
+      expect(scrolls.indexes).toEqual([]);
+    });
   });
 
   it("staging one hunk keeps the selection in the hunks that survive the reload", () => {

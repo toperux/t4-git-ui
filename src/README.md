@@ -487,13 +487,15 @@ src/
                            strip itself wraps); `onDiscardHunk` /
                            `onDiscardLines` add "Discard hunk" / "Discard N lines" (+ `Delete` on a selection), wired for the
                            unstaged side only; a mode change shows as a `100644 → 100755` chip beside the stats. The body
-                           scrolls back to the top only when the file path changes;
+                           scrolls back to the top only when the file path changes; a reload of the same file keeps its top
+                           line (`scrollAnchor.ts`);
                            `onOpenExternal` adds an "Open in diff tool" IconButton beside the expand one — `open_diff_tool`
                            (git-core tools.rs writes the two sides to a per-user temp dir and spawns the configured tool —
                            split with no shell on Windows, `sh -c` with the variables in the environment on unix; an unstaged
                            diff's right side is the working file itself), greyed while settingsStore has no `tools.diff`,
                            and the same store makes "Resolve in editor" name the merge tool in its tooltip
                            diffRows.ts (pure: flattenUnified (rows carry hunk/index) / flattenSplit), lineSelection.ts (pure: clickLine, toPairs),
+                           scrollAnchor.ts (pure: carryOffset),
                            FileContent.tsx — the Files tab's right-hand side and a **sibling** of DiffViewer, not a mode of it:
                            none of the viewer's hunks, staging actions, line selection or cursor model mean anything with one
                            side. It shares the row CSS (`.body.content` = one gutter, no sign column), the exported `LineText`
