@@ -393,9 +393,10 @@ plan's).
        anchor goes by line number, and the cursor's hunk is pushed down 800 px.
      - The reload → scrollTop stays 12 000, top row context line 657, 16 px off. The cursor line now sits at
        13 048–13 068: wholly below the view while H ≤ 1 048, and at least partly below it while H < 1 068.
-     - Space, for any H < 1 068 → scrollTop 13 068 − H, with `line 670 changed` on the bottom edge and shown selected
-       (`aria-selected="true"`). `document.activeElement` is `line 670 changed`.
-     - Space again to unselect, then restore the file.
+     - Space, for any H < 1 068 → scrollTop 13 068 − H, with `line 670 changed` on the bottom edge and shown
+       unselected (`aria-selected="false"`). `document.activeElement` is `line 670 changed`. (Owner, 2026-10-18: a
+       click selects the line, so the first Space unselects it.)
+     - A second Space selects it again; then restore the file.
 5. **Stage the hunk at the top (D3):** at 11 960 (the header of line 660's hunk at the top), hover → Stage hunk → the
    unstaged diff stays at 11 960 with `@@ -667,7 +667,7 @@` at the top. Then `git -C <fixture>/bv reset -q a.txt` → the
    staged hunk comes back above → 12 144, the same `@@ -667…` header still at the top.
