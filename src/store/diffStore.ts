@@ -51,6 +51,13 @@ export interface DiffStore {
   blameOn: boolean;
   blameLoading: boolean;
   blameError: string | null;
+  /**
+   * Where a blame drill-down lands: `line` of `path` at commit `oid` in `repoId`, `y` px from the
+   * view's top. Set by `blameAt`; any view of that file there starts on it. Not cleared when used
+   * (the pane and a diff window can both show it), only by a load of another repo or commit, another
+   * file, or a tab switch.
+   */
+  revealLine: { repoId: RepoId; oid: string; path: string; line: number; y: number } | null;
 
   /**
    * Loads the file list of `target` (or clears everything for `null`) and selects its first file —
@@ -237,6 +244,7 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
     blameOn: false,
     blameLoading: false,
     blameError: null,
+    revealLine: null,
 
     async load(repoId, target, preselect) {
       const seq = ++filesSeq;
@@ -255,6 +263,9 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
       const treeKey = targetKey(treeTargetOf(target));
       if (preselect && pinned !== treeKey) treeSelection.set(treeKey, preselect);
       pinned = null;
+      // The drill-down's own load keeps its line; any other repo or commit drops it.
+      const reveal = get().revealLine;
+      const keep = !!reveal && reveal.repoId === repoId && treeKey === reveal.oid;
       set({
         repoId,
         target,
@@ -278,6 +289,7 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
         blame: null,
         blameLoading: false,
         blameError: null,
+        revealLine: keep ? reveal : null,
       });
       if (!repoId || !target) return;
       // Only the tab on screen fetches: a 47k-path tree is not worth loading for a commit whose
@@ -366,7 +378,7 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
     selectTreePath(path) {
       if (get().treeSelectedPath === path) return;
       treeSelection.set(targetKey(treeTargetOf(get().target)), path);
-      set({ treeSelectedPath: path });
+      set({ treeSelectedPath: path, revealLine: get().revealLine?.path === path ? get().revealLine : null });
       void loadContent();
     },
 
@@ -443,7 +455,8 @@ export const restore = (s: DiffSnapshot) => {
   contentSeq++;
   blameSeq++;
   const midLoad = s.filesLoading || s.diffLoading || s.treeLoading || s.contentLoading || s.blameLoading;
-  useDiffStore.setState(midLoad ? { ...s, target: null } : s);
+  // Not in the snapshot: the tab that left must not hand its drill-down line to this one.
+  useDiffStore.setState({ ...(midLoad ? { ...s, target: null } : s), revealLine: null });
 };
 
 /** Test seam: the module-level listing cache and per-target selection memory. */

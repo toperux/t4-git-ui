@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Blame, BlameHunk } from "../../../api/types";
-import { blameLabel, blameRows, blameTitle, TINT_STEPS } from "./blameRows";
+import { blameLabel, blameRows, blameTitle, originLine, TINT_STEPS } from "./blameRows";
 
 const DAY = 86_400;
 const NOW = 1_800_000_000;
@@ -56,6 +56,14 @@ describe("blameRows", () => {
     expect(new Set(steps).size).toBeGreaterThan(2);
     // One commit (or equal times): nothing is older than anything, so everything reads newest.
     expect(blameRows(blame(hunk({ start: 1 }), hunk({ start: 2 })), 2).map((r) => r?.step)).toEqual([TINT_STEPS, TINT_STEPS]);
+  });
+
+  it("finds a row's line in the hunk's own commit, where the hunk sits elsewhere", () => {
+    // Lines 10–14 now were lines 3–7 at the hunk's commit.
+    const h = hunk({ start: 10, lines: 5, origStart: 3 });
+    expect(originLine(h, 9)).toBe(3);
+    expect(originLine(h, 11)).toBe(5);
+    expect(originLine(h, 13)).toBe(7);
   });
 
   it("names the commit in the label and puts the rest in the hover", () => {

@@ -1,6 +1,6 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Copy, CornerUpLeft, File, FileText, GitCommitHorizontal, History, Maximize2, UserSearch } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from "react";
 import type { BlameHunk, FileContent as FileContentModel } from "../../../api/types";
 import { Banner } from "../../../components/ui/Banner/Banner";
 import { EmptyState } from "../../../components/ui/EmptyState/EmptyState";
@@ -10,9 +10,10 @@ import { PanelHeader } from "../../../components/ui/PanelHeader/PanelHeader";
 import { Progress } from "../../../components/ui/Progress/Progress";
 import { cx } from "../../../lib/cx";
 import { isLoaded, langForPath, loadLang, type Lang } from "../../../lib/highlight";
-import { useDiffStore } from "../../../store/diffStore";
+import { useDialogStore } from "../../../store/dialogStore";
+import { treeTargetOf, useDiffStore, type DiffStore } from "../../../store/diffStore";
 import { blameAt, copyText, showHistory } from "../actions";
-import { blameLabel, blameRows, blameTitle, type BlameRow } from "./blameRows";
+import { blameLabel, blameRows, blameTitle, originLine, type BlameRow } from "./blameRows";
 import { groupThousands, LineText } from "./DiffViewer";
 import s from "./DiffViewer.module.css";
 
@@ -29,10 +30,22 @@ export interface FileContentProps {
   onExpand?: (opener: HTMLElement) => void;
 }
 
-/** Where the hunk menu sits and which hunk it acts on — a snapshot: the rows scroll under it. */
+/** Where the hunk menu sits and which hunk and row it acts on — a snapshot: the rows scroll under it. */
 interface HunkMenuState {
   at: { x: number; y: number };
   hunk: BlameHunk;
+  row: number;
+}
+
+type Reveal = NonNullable<DiffStore["revealLine"]>;
+
+/**
+ * Where a drill-down from `row` lands: its line in `hunk`'s own commit, at the row's height in the
+ * view (kept inside it, for a cursor row scrolled out of sight).
+ */
+function landing(root: HTMLElement | null, hunk: BlameHunk, row: number) {
+  const y = root ? Math.max(0, Math.min(row * LINE_H - root.scrollTop, root.clientHeight - LINE_H)) : 0;
+  return { line: originLine(hunk, row), y };
 }
 
 /**
@@ -51,6 +64,12 @@ export function FileContent({ path, content, loading, error, onExpand }: FileCon
   const blameLoading = useDiffStore((st) => st.blameLoading);
   const blameError = useDiffStore((st) => st.blameError);
   const setBlameOn = useDiffStore((st) => st.setBlameOn);
+  // A drill-down's line, for this very file only: two tabs or two commits can share a path.
+  const reveal = useDiffStore((st) => {
+    const r = st.revealLine;
+    const tree = treeTargetOf(st.target);
+    return r && r.repoId === st.repoId && tree?.kind === "commit" && tree.oid === r.oid && r.path === path ? r : null;
+  });
   // Grammar for the file's extension, loaded on demand; rows render plain until it arrives, then
   // re-render once (as the diff does).
   const wanted = useMemo(() => langForPath(path), [path]);
@@ -88,7 +107,7 @@ export function FileContent({ path, content, loading, error, onExpand }: FileCon
   else if (error) body = <EmptyState title="Couldn't load the file" hint={error} />;
   else if (content?.binary) body = <EmptyState icon={<File size={24} aria-hidden />} title="Binary file" hint="Contents not shown" />;
   else if (lines && lines.length === 0) body = <EmptyState title="Empty file" />;
-  else if (lines) body = <ContentBody path={path} lines={lines} maxCols={maxCols} lang={lang} rows={rows} />;
+  else if (lines) body = <ContentBody path={path} lines={lines} maxCols={maxCols} lang={lang} rows={rows} reveal={reveal} />;
 
   return (
     <div className={s.viewer}>
@@ -117,23 +136,54 @@ export function FileContent({ path, content, loading, error, onExpand }: FileCon
   );
 }
 
-function ContentBody({ path, lines, maxCols, lang, rows }: { path: string; lines: string[]; maxCols: number; lang: Lang | null; rows: (BlameRow | undefined)[] | null }) {
+function ContentBody({
+  path,
+  lines,
+  maxCols,
+  lang,
+  rows,
+  reveal,
+}: {
+  path: string;
+  lines: string[];
+  maxCols: number;
+  lang: Lang | null;
+  rows: (BlameRow | undefined)[] | null;
+  /** A drill-down's line in this file: the view starts on it. */
+  reveal: Reveal | null;
+}) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  // A line past the end lands on the last one.
+  const revealRow = (r: Reveal) => Math.max(1, Math.min(r.line, lines.length)) - 1;
   // The list's one row cursor — no tab stop per hunk: rows are virtualized and a button per hunk
   // would drop out of the tab order as soon as it scrolled away. Only meaningful with blame on,
-  // which is the only thing a row can be acted on for.
-  const [cursor, setCursor] = useState(0);
+  // which is the only thing a row can be acted on for. A drill-down's line has it from the first
+  // render, so `[data-cursor]` is on that line as soon as the rows are.
+  const [cursor, setCursor] = useState(() => (reveal ? revealRow(reveal) : 0));
   const [menu, setMenu] = useState<HunkMenuState | null>(null);
+  // A drill-down remounted this view and the focused row went with it: the cursor row takes the
+  // focus back once it exists. Done once it has it, or at the user's first key or click here.
+  const reclaim = useRef(false);
   const virtualizer = useVirtualizer({
     count: lines.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => LINE_H,
     overscan: OVERSCAN,
   });
-  // Only another file starts over at the top; a reload of the same one keeps its position.
+  // Only another file starts over at the top; a reload of the same one keeps its position. A
+  // drill-down's line starts at the height it was clicked at.
   useEffect(() => {
-    virtualizer.scrollToOffset(0);
-    setCursor(0);
+    if (reveal) {
+      const row = revealRow(reveal);
+      // Kept inside this view too: a shorter one than the view clicked in would put the line below its edge.
+      const y = Math.max(0, Math.min(reveal.y, (scrollRef.current?.clientHeight ?? 0) - LINE_H));
+      virtualizer.scrollToOffset(Math.max(0, row * LINE_H - y));
+      setCursor(row);
+      reclaim.current = true;
+    } else {
+      virtualizer.scrollToOffset(0);
+      setCursor(0);
+    }
     setMenu(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path]);
@@ -142,10 +192,21 @@ function ContentBody({ path, lines, maxCols, lang, rows }: { path: string; lines
   // the list would yank the focus out from under whatever the user was actually using.
   useEffect(() => {
     const root = scrollRef.current;
-    if (!rows || !root || !root.contains(document.activeElement)) return;
-    virtualizer.scrollToIndex(cursor, { align: "auto" });
+    if (!rows || !root) return;
+    const focus = () => {
+      const row = root.querySelector<HTMLElement>("[data-cursor]");
+      row?.focus({ preventScroll: true });
+      if (row && document.activeElement === row) reclaim.current = false;
+    };
+    // The reclaim only focuses: a scroll here would read the virtualizer's offset from before the
+    // drill-down's `scrollToOffset` and pull the line to an edge. Never from behind a dialog.
+    const lost = !document.activeElement || document.activeElement === document.body;
+    const behindDialog = useDialogStore.getState().dialog !== null && !root.closest('[role="dialog"]');
+    if (!(reclaim.current && lost && !behindDialog)) {
+      if (!root.contains(document.activeElement)) return;
+      virtualizer.scrollToIndex(cursor, { align: "auto" });
+    }
     // The row is virtualized: after a scroll it may only mount on the next frame.
-    const focus = () => root.querySelector<HTMLElement>("[data-cursor]")?.focus({ preventScroll: true });
     focus();
     const id = requestAnimationFrame(focus);
     return () => cancelAnimationFrame(id);
@@ -154,15 +215,15 @@ function ContentBody({ path, lines, maxCols, lang, rows }: { path: string; lines
 
   /**
    * Clicking the gutter, or Enter on the cursor row: the hunk's commit, and the file as it was
-   * named there. Stable, or every row's `memo` misses on every scroll.
+   * named there, landing on `row`'s line. Stable, or every row's `memo` misses on every scroll.
    */
-  const select = useCallback((hunk: BlameHunk) => void blameAt(hunk.oid, hunk.origPath ?? path), [path]);
+  const select = useCallback((hunk: BlameHunk, row: number) => void blameAt(hunk.oid, hunk.origPath ?? path, landing(scrollRef.current, hunk, row)), [path]);
 
   function openMenu(row: number, at: { x: number; y: number }) {
     const hunk = rows?.[row]?.hunk;
     if (!hunk) return;
     setCursor(row);
-    setMenu({ at, hunk });
+    setMenu({ at, hunk, row });
   }
 
   function onContextMenu(e: MouseEvent<HTMLDivElement>) {
@@ -180,6 +241,7 @@ function ContentBody({ path, lines, maxCols, lang, rows }: { path: string; lines
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    reclaim.current = false;
     // No gutter, no cursor: ↑ / ↓ scroll the region as they always did.
     if (!rows) return;
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
@@ -191,7 +253,7 @@ function ContentBody({ path, lines, maxCols, lang, rows }: { path: string; lines
       const hunk = rows[cursor]?.hunk;
       if (!hunk) return;
       e.preventDefault();
-      select(hunk);
+      select(hunk, cursor);
       return;
     }
     if (e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey)) {
@@ -214,6 +276,9 @@ function ContentBody({ path, lines, maxCols, lang, rows }: { path: string; lines
       onKeyDown={onKeyDown}
       onContextMenu={onContextMenu}
       onClick={onClick}
+      onMouseDown={() => {
+        reclaim.current = false;
+      }}
       // Tabbing in hands the focus straight to the cursor row, so the first arrow key moves off a
       // row the user can see. Without blame there is no `[data-cursor]` and the region keeps it.
       // Focus arriving from inside is Shift+Tab on its way out — the region precedes its rows in
@@ -235,7 +300,7 @@ function ContentBody({ path, lines, maxCols, lang, rows }: { path: string; lines
           <ContentLine key={item.index} no={item.index + 1} text={lines[item.index]} top={item.start} lang={lang} blame={rows?.[item.index]} cursor={!!rows && item.index === cursor} onSelect={select} />
         ))}
       </div>
-      <BlameHunkMenu menu={menu} path={path} onClose={() => setMenu(null)} />
+      <BlameHunkMenu menu={menu} path={path} root={scrollRef} onClose={() => setMenu(null)} />
     </div>
   );
 }
@@ -255,7 +320,7 @@ const ContentLine = memo(function ContentLine({
   lang: Lang | null;
   blame: BlameRow | undefined;
   cursor: boolean;
-  onSelect: (hunk: BlameHunk) => void;
+  onSelect: (hunk: BlameHunk, row: number) => void;
 }) {
   return (
     <div
@@ -276,7 +341,7 @@ const ContentLine = memo(function ContentLine({
           role="img"
           aria-label={`Blame: ${blameLabel(blame.hunk)}`}
           title={blameTitle(blame.hunk)}
-          onClick={() => onSelect(blame.hunk)}
+          onClick={() => onSelect(blame.hunk, no - 1)}
         >
           {blame.first && <span className={s.blLabel}>{blameLabel(blame.hunk)}</span>}
         </span>
@@ -289,11 +354,16 @@ const ContentLine = memo(function ContentLine({
   );
 });
 
-/** The hunk's own actions: its commit in the grid, the commit before it, and the SHA. */
-function BlameHunkMenu({ menu, path, onClose }: { menu: HunkMenuState | null; path: string; onClose: () => void }) {
+/**
+ * The hunk's own actions: its commit in the grid, the commit before it, and the SHA. Both
+ * drill-downs land on the menu row's line in the hunk's own commit — in the parent, where the hunk's
+ * lines don't exist yet, only near where it went in.
+ */
+function BlameHunkMenu({ menu, path, root, onClose }: { menu: HunkMenuState | null; path: string; root: RefObject<HTMLDivElement | null>; onClose: () => void }) {
   if (!menu) return null;
   const hunk = menu.hunk;
   const previous = hunk.previous;
+  const at = () => landing(root.current, hunk, menu.row);
   /** Every item closes the menu first. */
   const run = (fn: () => void) => () => {
     onClose();
@@ -306,7 +376,7 @@ function BlameHunkMenu({ menu, path, onClose }: { menu: HunkMenuState | null; pa
         icon={<GitCommitHorizontal size={16} aria-hidden />}
         disabled={hunk.uncommitted}
         title={hunk.uncommitted ? notYet : undefined}
-        onClick={run(() => void blameAt(hunk.oid, hunk.origPath ?? path))}
+        onClick={run(() => void blameAt(hunk.oid, hunk.origPath ?? path, at()))}
       >
         Select in graph
       </MenuItem>
@@ -316,7 +386,7 @@ function BlameHunkMenu({ menu, path, onClose }: { menu: HunkMenuState | null; pa
         /* Porcelain's `previous` header: the commit *and* the path before a rename, so no parent
            list is needed. Absent where the file starts. */
         title={previous ? undefined : "This commit is where the file begins"}
-        onClick={run(() => previous && void blameAt(previous.oid, previous.path))}
+        onClick={run(() => previous && void blameAt(previous.oid, previous.path, at()))}
       >
         Blame parent
       </MenuItem>

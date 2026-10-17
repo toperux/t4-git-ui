@@ -107,7 +107,11 @@ src/
                            `treeSelection` for a commit that is not the target yet — what makes the drill-down land on the same
                            file, since revealing a commit reloads this store from the grid selection; on the current
                            target it applies at once, and pins through the next load only when the caller passes
-                           `reloads` (blameAt from Changes, another repo's store, or a compare still held after the reveal hits)
+                           `reloads` (blameAt from Changes, another repo's store, or a compare still held after the reveal hits).
+                           revealLine `{repoId, oid, path, line, y}`: where blameAt's drill-down lands, which FileContent
+                           applies to that repo + commit + file only; not cleared when used (the pane and a diff window
+                           can both show it) but by a `load` of another repo or commit, `load(null)`, `selectTreePath`
+                           to another file and `restore` (it isn't in the snapshot, so a tab switch must drop it)
     statusStore.ts         zustand: WorkdirStatus; refresh (seq-guarded) / scheduleRefresh (100 ms debounce); onChanged(`repo://changed`):
                            any kind → status; refs|rescan → syncRefs (refreshRefs → walkSeeds moved ? startLog : refs changed ?
                            refreshLabels : nothing) — coalesced into one in-flight run, never rejects;
@@ -346,7 +350,8 @@ src/
                            blameAt(oid, path) is every way into blame — `revealOid` first, which misses under a filter or a
                            `Head`-only spec and then only toasts "Not in the current view" (a commit the pane already shows,
                            a stash preview's or a compare's *to*, counts as a hit); then Files tab + `selectTreePathAt` + the
-                           gutter on;
+                           gutter on; `at` (blameAt(oid, path, at?), from a blame row) carries the clicked line and its
+                           height on screen into `diffStore.revealLine`;
                            showHistory(path) is every way into file history (§3) — `startLog` with `filter.path`, the caller
                            having resolved the file to its tracked name; openCommitPanel clears both filters, since either flattens
                            the walk and hides the pseudo-row that mounts the panel),
@@ -501,9 +506,14 @@ src/
                            list, ↑/↓ or a click on a blamed row (the gutter too) to move it, Enter or a gutter click →
                            `blameAt`, ContextMenu / Shift+F10 or right-click → the hunk menu (Select in graph,
                            Blame parent = porcelain's `previous` commit *and* path,
-                           History of this file = `showHistory` on the hunk's own `origPath` — the name its commit knew — and Copy SHA),
+                           History of this file = `showHistory` on the hunk's own `origPath` — the name its commit knew — and Copy SHA).
+                           Enter, a gutter click, Select in graph and Blame parent land on the clicked line in the commit
+                           they open: its number there is `originLine` from the hunk's `origStart` (porcelain's
+                           `<orig-line>`; Blame parent's is approximate — the hunk's lines don't exist in the parent yet),
+                           at the row's height on screen; the remounted view starts with the cursor there and takes the
+                           focus back from `<body>` (never from behind an open dialog),
                            blameRows.ts (pure: line → {hunk, first, step}; the tint is 5 steps on a **log** scale over this
-                           file's own hunk ages, since commit times cluster; blameLabel / blameTitle)
+                           file's own hunk ages, since commit times cluster; blameLabel / blameTitle; originLine)
       CommitPanel/         CommitPanel (Files 320 | Diff | Message 340, resizable; `useCommitSync` — called once from RepoWindow
                            while the panel or the commit dialog is up — feeds statusStore.status →
                            commitStore.syncWithStatus; the message header's "Open commit window" opens dialogs/CommitDialog:

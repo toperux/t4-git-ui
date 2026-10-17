@@ -39,6 +39,7 @@ beforeEach(() => {
     content: null,
     blame: null,
     blameOn: false,
+    revealLine: null,
   });
 });
 
@@ -326,6 +327,41 @@ describe("diffStore — Files tab", () => {
     await useDiffStore.getState().load("r", commit("c2"), "a.ts");
     await flush();
     expect(useDiffStore.getState().treeSelectedPath).toBe("a.ts");
+  });
+
+  it("a drill-down's line survives its own commit's load and its own file, and nothing else", async () => {
+    mocked.listTree.mockImplementation((_id: string, t: { oid: string }) => Promise.resolve(listing(`tree-${t.oid}`, "a.ts", "b.ts")));
+    useDiffStore.setState({ tab: "files" });
+    const line = { repoId: "r", oid: "c1", path: "a.ts", line: 5, y: 40 };
+    const seeded = () => useDiffStore.setState({ revealLine: line });
+    const revealLine = () => useDiffStore.getState().revealLine;
+
+    // The drill-down's own load, and its own file selected.
+    seeded();
+    await useDiffStore.getState().load("r", commit("c1"));
+    await flush();
+    expect(revealLine()).toEqual(line);
+    useDiffStore.getState().selectTreePath("a.ts");
+    expect(revealLine()).toEqual(line);
+    // Another file.
+    useDiffStore.getState().selectTreePath("b.ts");
+    expect(revealLine()).toBeNull();
+
+    // Another commit, the same oid in another repo (worktrees share oids), nothing at all.
+    seeded();
+    await useDiffStore.getState().load("r", commit("c2"));
+    expect(revealLine()).toBeNull();
+    seeded();
+    await useDiffStore.getState().load("other", commit("c1"));
+    expect(revealLine()).toBeNull();
+    seeded();
+    await useDiffStore.getState().load(null, null);
+    expect(revealLine()).toBeNull();
+
+    // A tab switch: the line isn't in the snapshot, and must not carry into the tab that comes forward.
+    seeded();
+    restore({ ...snapshot(), repoId: "b", target: commit("c1") });
+    expect(revealLine()).toBeNull();
   });
 
   it("drops a blame reply that arrives after the gutter was switched off", async () => {

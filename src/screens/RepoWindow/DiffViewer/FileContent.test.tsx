@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BlameHunk, FileContent as FileContentModel } from "../../../api/types";
+import { useDialogStore } from "../../../store/dialogStore";
 import { useDiffStore } from "../../../store/diffStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { useToastStore } from "../../../store/toastStore";
@@ -18,28 +19,36 @@ vi.mock("../../../api/ipc", () => ({
 vi.mock("@tauri-apps/plugin-dialog", () => ({ ask: vi.fn(), open: vi.fn(), save: vi.fn() }));
 vi.mock("@tauri-apps/plugin-clipboard-manager", () => ({ writeText: vi.fn(() => Promise.resolve()) }));
 
-// jsdom neither lays out nor scrolls: give the virtualizer a viewport so it renders rows.
+// jsdom neither lays out nor scrolls: give the virtualizer a viewport so it renders rows, and record
+// its scroll requests (which then scroll nothing: the rendered window stays at the top).
+const scrolls = vi.hoisted(() => ({ offsets: [] as number[], indexes: [] as number[] }));
 vi.mock("@tanstack/react-virtual", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-virtual")>();
   return {
     ...actual,
-    useVirtualizer: (opts: Parameters<typeof actual.useVirtualizer>[0]) =>
-      actual.useVirtualizer({
+    useVirtualizer: (opts: Parameters<typeof actual.useVirtualizer>[0]) => {
+      const v = actual.useVirtualizer({
         ...opts,
         initialRect: { width: 800, height: 400 },
         observeElementRect: (_instance, cb) => {
           cb({ width: 800, height: 400 });
           return () => {};
         },
-      }),
+      });
+      v.scrollToOffset = (offset: number) => scrolls.offsets.push(offset);
+      v.scrollToIndex = (index: number) => scrolls.indexes.push(index);
+      return v;
+    },
   };
 });
 
 afterEach(cleanup);
 // The blame state is shared across tests; every one of them states what it is about.
 beforeEach(() => {
-  useDiffStore.setState({ blame: null, blameOn: false, blameLoading: false, blameError: null, tab: "files", treeSelectedPath: null });
+  useDiffStore.setState({ blame: null, blameOn: false, blameLoading: false, blameError: null, tab: "files", treeSelectedPath: null, repoId: null, target: null, revealLine: null });
   useToastStore.setState({ toasts: [] });
+  scrolls.offsets.length = 0;
+  scrolls.indexes.length = 0;
 });
 
 const content = (over: Partial<FileContentModel> = {}): FileContentModel => ({
@@ -271,5 +280,161 @@ describe("FileContent blame gutter", () => {
     // A click has no cursor to move either.
     fireEvent.click(lines(container)[2].querySelector(".selectable")!);
     expect(container.querySelectorAll('[role="region"] [tabindex="0"]')).toHaveLength(0);
+  });
+});
+
+describe("FileContent blame drill-down", () => {
+  const A = "a".repeat(40);
+  const B = "b".repeat(40);
+  const C = "c".repeat(40);
+  const cells = (container: HTMLElement) => Array.from(container.querySelectorAll('[role="img"]'));
+  const cursorRow = (container: HTMLElement) => container.querySelector<HTMLElement>("[data-cursor]");
+  const revealLine = () => useDiffStore.getState().revealLine;
+  /** The region at a height jsdom doesn't give it (it lays nothing out). */
+  const sized = (container: HTMLElement, height: number) => {
+    const region = container.querySelector<HTMLElement>('[role="region"]')!;
+    Object.defineProperty(region, "clientHeight", { value: height, configurable: true });
+    return region;
+  };
+
+  describe("from a blamed row", () => {
+    beforeEach(() => {
+      useRepoStore.setState({ repo: { id: "r", name: "r", path: "/r", head: { oid: "a", branch: "main", detached: false } }, revealOid: vi.fn(() => Promise.resolve(true)) });
+      // Both hunks sit elsewhere in their own commits: lines 1–2 were 5–6, line 3 was 9.
+      useDiffStore.setState({
+        blameOn: true,
+        blame: {
+          path: "src/a.rs",
+          hunks: [hunk({ start: 1, lines: 2, origStart: 5 }), hunk({ start: 3, lines: 1, origStart: 9, oid: B, previous: { oid: C, path: "old.rs" } })],
+        },
+      });
+    });
+    afterEach(() => useRepoStore.setState({ repo: null }));
+
+    it("a gutter click carries the repo, the commit, its path and the row's line and height", async () => {
+      const { container } = render(<FileContent path="src/a.rs" content={content()} loading={false} error={null} />);
+      sized(container, 400);
+      fireEvent.click(cells(container)[1]);
+      await waitFor(() => expect(revealLine()).toEqual({ repoId: "r", oid: A, path: "src/a.rs", line: 6, y: 20 }));
+
+      // A miss carries nothing.
+      useDiffStore.setState({ revealLine: null });
+      vi.mocked(useRepoStore.getState().revealOid).mockResolvedValue(false);
+      fireEvent.click(cells(container)[2]);
+      await waitFor(() => expect(useToastStore.getState().toasts[0]?.title).toBe("Not in the current view — clear the filter"));
+      expect(revealLine()).toBeNull();
+    });
+
+    it("a row below the view's bottom lands at the bottom", async () => {
+      const { container } = render(<FileContent path="src/a.rs" content={content()} loading={false} error={null} />);
+      sized(container, 40); // two rows tall: row 3 (y 40) is below it
+      fireEvent.click(cells(container)[2]);
+      await waitFor(() => expect(revealLine()).toMatchObject({ line: 9, y: 20 }));
+    });
+
+    it("Enter, Select in graph and Blame parent carry their rows", async () => {
+      const { container, getByRole } = render(<FileContent path="src/a.rs" content={content()} loading={false} error={null} />);
+      const region = sized(container, 400);
+
+      fireEvent.click(lines(container)[2].querySelector(".selectable")!);
+      fireEvent.keyDown(region, { key: "Enter" });
+      await waitFor(() => expect(revealLine()).toEqual({ repoId: "r", oid: B, path: "src/a.rs", line: 9, y: 40 }));
+
+      fireEvent.contextMenu(cells(container)[0], { clientX: 4, clientY: 4 });
+      fireEvent.click(getByRole("menuitem", { name: "Select in graph" }));
+      await waitFor(() => expect(revealLine()).toEqual({ repoId: "r", oid: A, path: "src/a.rs", line: 5, y: 0 }));
+
+      // The parent has no such line yet: the hunk's own line, near where it went in.
+      fireEvent.contextMenu(cells(container)[2], { clientX: 4, clientY: 4 });
+      fireEvent.click(getByRole("menuitem", { name: "Blame parent" }));
+      await waitFor(() => expect(revealLine()).toEqual({ repoId: "r", oid: C, path: "old.rs", line: 9, y: 40 }));
+    });
+  });
+
+  describe("landing", () => {
+    const OID = "d".repeat(40);
+    const long = content({ text: Array.from({ length: 60 }, (_, i) => `line ${i + 1}`).join("\n") + "\n" });
+    const blame = { path: "src/a.rs", hunks: [hunk({ start: 1, lines: 60 })] };
+    const drilled = (over: { repoId?: string; oid?: string; line?: number } = {}) =>
+      useDiffStore.setState({
+        repoId: "r",
+        target: { kind: "commit", oid: OID },
+        blameOn: true,
+        revealLine: { repoId: over.repoId ?? "r", oid: over.oid ?? OID, path: "src/a.rs", line: over.line ?? 30, y: 100 },
+      });
+    // The receiving view's height, read at mount: set on the prototype, since the region doesn't exist yet.
+    let viewHeight = 400;
+    beforeEach(() => {
+      viewHeight = 400;
+      Object.defineProperty(HTMLElement.prototype, "clientHeight", { get: () => viewHeight, configurable: true });
+    });
+    afterEach(() => {
+      delete (HTMLElement.prototype as { clientHeight?: number }).clientHeight;
+      useDialogStore.setState({ dialog: null });
+    });
+
+    it("starts on the drilled line, at its height, with the focus on it", () => {
+      // The mount race: blame and content both ready, so the reveal and the cursor effect run in one
+      // commit. The focus went with the remount (`<body>`).
+      drilled();
+      useDiffStore.setState({ blame });
+      const { container } = render(<FileContent path="src/a.rs" content={long} loading={false} error={null} />);
+      expect(cursorRow(container)?.dataset.line).toBe("30");
+      // (30 − 1) × 20 − 100, and nothing after it: no scroll to the top, no `scrollToIndex`.
+      expect(scrolls.offsets).toEqual([480]);
+      expect(scrolls.indexes).toEqual([]);
+      expect(document.activeElement).toBe(cursorRow(container));
+    });
+
+    it("blame arriving after the content takes the focus then", () => {
+      drilled();
+      const { container } = render(<FileContent path="src/a.rs" content={long} loading={false} error={null} />);
+      expect(cursorRow(container)).toBeNull();
+      expect(document.activeElement).toBe(document.body);
+      act(() => useDiffStore.setState({ blame }));
+      expect(cursorRow(container)?.dataset.line).toBe("30");
+      expect(document.activeElement).toBe(cursorRow(container));
+      expect(scrolls.indexes).toEqual([]);
+    });
+
+    it("a view behind an open dialog leaves the focus where the dialog has it", () => {
+      drilled();
+      useDiffStore.setState({ blame });
+      useDialogStore.setState({ dialog: { kind: "commit" } });
+      const { container } = render(<FileContent path="src/a.rs" content={long} loading={false} error={null} />);
+      expect(cursorRow(container)?.dataset.line).toBe("30");
+      expect(document.activeElement).toBe(document.body);
+    });
+
+    it("a line past the end lands on the last one", () => {
+      // 40 lines: the mocked scroll moves nothing, and the last row must be in the rendered window.
+      drilled({ line: 999 });
+      useDiffStore.setState({ blame: { path: "src/a.rs", hunks: [hunk({ start: 1, lines: 40 })] } });
+      const short = content({ text: Array.from({ length: 40 }, (_, i) => `line ${i + 1}`).join("\n") + "\n" });
+      const { container } = render(<FileContent path="src/a.rs" content={short} loading={false} error={null} />);
+      expect(cursorRow(container)?.dataset.line).toBe("40");
+      expect(scrolls.offsets).toEqual([39 * 20 - 100]);
+    });
+
+    it("a height past this view's bottom lands on its last whole row", () => {
+      // Clicked at y 100 in a taller view; this one is 60 px: the line goes at 60 − 20.
+      viewHeight = 60;
+      drilled();
+      useDiffStore.setState({ blame });
+      render(<FileContent path="src/a.rs" content={long} loading={false} error={null} />);
+      expect(scrolls.offsets).toEqual([29 * 20 - 40]);
+    });
+
+    it("another commit's or another repo's line under the same path is not this view's", () => {
+      for (const over of [{ oid: "e".repeat(40) }, { repoId: "other" }]) {
+        cleanup();
+        scrolls.offsets.length = 0;
+        drilled(over);
+        useDiffStore.setState({ blame });
+        const { container } = render(<FileContent path="src/a.rs" content={long} loading={false} error={null} />);
+        expect(cursorRow(container)?.dataset.line).toBe("1");
+        expect(scrolls.offsets).toEqual([0]);
+      }
+    });
   });
 });

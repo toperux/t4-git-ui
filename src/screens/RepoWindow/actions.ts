@@ -191,8 +191,11 @@ export async function openInDiffTool(target: DiffTarget, path: string, oldPath: 
  * preview's (the walk never holds `refs/stash`) or a compare's *to*. The tree selection is seeded
  * after the reveal either way: `selectTreePathAt` applies it at once when the pane has already
  * loaded that commit, and pins it through the pane's `load` when that is still to come.
+ *
+ * `at`, from a blame row: the line to land on in `oid`'s file and its height on screen
+ * (`diffStore.revealLine`), so the drill-down shows the line that was clicked, not line 1.
  */
-export async function blameAt(oid: string, path: string) {
+export async function blameAt(oid: string, path: string, at?: { line: number; y: number }) {
   const held = useDiffStore.getState();
   const t = treeTargetOf(held.target);
   const repoId = useRepoStore.getState().repo?.id;
@@ -207,6 +210,8 @@ export async function blameAt(oid: string, path: string) {
     useToastStore.getState().push({ kind: "info", title: "Not in the current view — clear the filter" });
     return;
   }
+  // Before the seed: on the current commit `selectTreePath` keeps the line only for its own file.
+  useDiffStore.setState({ revealLine: at && repoId ? { repoId, oid, path, ...at } : null });
   // Whether the pane reloads after the seed: its reload carries the path filter's file, which would
   // overwrite it. It does when it mounts (from Changes) or its repo changes; a hit that ends a compare
   // reloads it too, but the reveal's own state change may have re-rendered it already — only a range

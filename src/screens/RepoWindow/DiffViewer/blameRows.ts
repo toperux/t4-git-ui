@@ -42,6 +42,14 @@ export function blameRows(blame: Blame, lines: number): (BlameRow | undefined)[]
   return out;
 }
 
+/**
+ * The content view's row `row` (0-based, inside `hunk`) as a line number of the file at the hunk's
+ * own commit: git keeps a hunk contiguous on both sides, so it is an offset from `origStart`.
+ */
+export function originLine(hunk: BlameHunk, row: number): number {
+  return hunk.origStart + row - (hunk.start - 1);
+}
+
 /** The gutter's label, and the row's accessible name: `<short> <author> <age>`. */
 export function blameLabel(hunk: BlameHunk, now?: number): string {
   return hunk.uncommitted ? "Uncommitted" : `${hunk.short} ${hunk.author} ${relativeDate(hunk.time, now)}`;
