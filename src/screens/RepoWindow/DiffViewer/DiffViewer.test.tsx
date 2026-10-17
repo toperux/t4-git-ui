@@ -17,7 +17,7 @@ vi.mock("../../../api/ipc", () => ({
 
 // jsdom neither lays out nor scrolls: give the virtualizer a viewport and record its scroll requests.
 // `top` is the scroll position the virtualizer reads at mount.
-const scrolls = vi.hoisted(() => ({ offsets: [] as number[], indexes: [] as [number, string | undefined][], top: 0, cancels: 0 }));
+const scrolls = vi.hoisted(() => ({ offsets: [] as number[], indexes: [] as [number, string | undefined][], top: 0, calls: [] as (number | "cancel")[] }));
 vi.mock("@tanstack/react-virtual", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-virtual")>();
   return {
@@ -35,9 +35,13 @@ vi.mock("@tanstack/react-virtual", async (importOriginal) => {
           return () => {};
         },
       });
-      v.scrollToOffset = (offset: number) => scrolls.offsets.push(offset);
+      // `calls` keeps the offsets and the cancels in one order.
+      v.scrollToOffset = (offset: number) => {
+        scrolls.offsets.push(offset);
+        scrolls.calls.push(offset);
+      };
       v.scrollToIndex = (index: number, o?: { align?: string }) => scrolls.indexes.push([index, o?.align]);
-      v.cancelScroll = () => scrolls.cancels++;
+      v.cancelScroll = () => scrolls.calls.push("cancel");
       return v;
     },
   };
@@ -46,7 +50,7 @@ vi.mock("@tanstack/react-virtual", async (importOriginal) => {
 afterEach(() => {
   cleanup();
   scrolls.top = 0;
-  scrolls.cancels = 0;
+  scrolls.calls.length = 0;
   scrolls.offsets.length = 0;
   scrolls.indexes.length = 0;
 });
@@ -623,10 +627,12 @@ describe("DiffViewer", () => {
 
     it("a reload of the same file stops a cursor scroll still settling; another file doesn't", () => {
       const { reload } = mount(stripes(), 12_000, staging());
+      scrolls.calls.length = 0; // the mount's own scroll to the top
       reload(stripes({ insertAfter: 9 }));
-      expect(scrolls.cancels).toBe(1);
+      // Cancelled first: after the anchor's scroll it would drop that scroll's own reconcile.
+      expect(scrolls.calls).toEqual(["cancel", 12_140]);
       reload(SMALL);
-      expect(scrolls.cancels).toBe(1);
+      expect(scrolls.calls).toEqual(["cancel", 12_140, 0]);
     });
 
     it("Enter on a hunk button after a reload: no first-key scroll, and the focus stays on the button", () => {
