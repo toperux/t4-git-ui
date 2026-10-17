@@ -490,6 +490,8 @@ export interface BlameParent {
 export interface BlameHunk {
   /** First line of the hunk in the blamed file, 1-based. */
   start: number;
+  /** First line of the hunk in the file as it was at `oid`, 1-based (porcelain's `<orig-line>`). */
+  origStart: number;
   lines: number;
   oid: string;
   short: string;

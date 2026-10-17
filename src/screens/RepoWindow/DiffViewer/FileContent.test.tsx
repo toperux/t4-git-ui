@@ -87,6 +87,7 @@ describe("FileContent", () => {
 
 const hunk = (over: Partial<BlameHunk> = {}): BlameHunk => ({
   start: 1,
+  origStart: 1,
   lines: 1,
   oid: "a".repeat(40),
   short: "aaaaaaa",

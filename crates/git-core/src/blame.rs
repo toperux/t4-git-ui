@@ -38,6 +38,10 @@ pub struct BlameParent {
 pub struct BlameHunk {
     /// First line of the hunk in the blamed file, 1-based.
     pub start: usize,
+    /// First line of the hunk in the file as it was at `oid`, 1-based
+    /// (porcelain's `<orig-line>`): the hunk is contiguous there too, so a
+    /// drill-down can land on the very line that was clicked.
+    pub orig_start: usize,
     pub lines: usize,
     pub oid: String,
     pub short: String,
@@ -140,6 +144,7 @@ struct Meta {
 struct Open {
     oid: String,
     start: usize,
+    orig_start: usize,
     lines: usize,
     filename: Option<String>,
     previous: Option<BlameParent>,
@@ -211,6 +216,7 @@ impl<'a> Parser<'a> {
         let uncommitted = open.oid.bytes().all(|b| b == b'0');
         self.hunks.push(BlameHunk {
             start: open.start,
+            orig_start: open.orig_start,
             lines: open.lines,
             oid: open.oid,
             short,
@@ -238,7 +244,7 @@ fn header(line: &str) -> Option<Open> {
     if oid.len() < 40 || !oid.bytes().all(|b| b.is_ascii_hexdigit()) {
         return None;
     }
-    let _orig_line: usize = f.next()?.parse().ok()?;
+    let orig_start: usize = f.next()?.parse().ok()?;
     let start: usize = f.next()?.parse().ok()?;
     let lines: usize = f.next()?.parse().ok()?;
     if f.next().is_some() {
@@ -247,6 +253,7 @@ fn header(line: &str) -> Option<Open> {
     Some(Open {
         oid: oid.to_string(),
         start,
+        orig_start,
         lines,
         filename: None,
         previous: None,
@@ -338,6 +345,13 @@ filename b.txt
                 path: "a.txt".to_string()
             }),
             "the Blame-parent target, commit and pre-rename path"
+        );
+
+        // `<orig-line>`: where the hunk sat in its own commit's file.
+        assert_eq!(
+            hunks.iter().map(|h| h.orig_start).collect::<Vec<_>>(),
+            vec![1, 1, 2, 5],
+            "A's lines 1-2 are lines 2-3 now; B's line 2 is line 4"
         );
 
         // A's hunk carries the old name, and A itself has no `previous`: it is the root.
@@ -454,6 +468,50 @@ filename b.txt
         let prev = out.hunks[1].previous.as_ref().expect("a parent to blame");
         assert_eq!(prev.path, "a.txt");
         assert_eq!(prev.oid, head.parent(0).expect("parent").id().to_string());
+    }
+
+    #[tokio::test]
+    async fn keeps_where_a_hunk_sat_in_its_own_commit_after_lines_went_in_above() {
+        if !have_git() {
+            return;
+        }
+        let t = TempRepo::new();
+        t.commit(&[("a.txt", "one\ntwo\nthree\nfour\n")], "first");
+        // Two lines inserted above the first commit's lines 3-4.
+        t.commit(
+            &[("a.txt", "one\ntwo\nnew 1\nnew 2\nthree\nfour\n")],
+            "insert",
+        );
+        let head = t
+            .repo
+            .head()
+            .expect("head")
+            .peel_to_commit()
+            .expect("commit");
+        let target = TreeTarget::Commit {
+            oid: head.id().to_string(),
+        };
+        let out = blame(
+            &GitCli::new("git"),
+            t.path(),
+            "op-5",
+            &target,
+            "a.txt",
+            false,
+            CancellationToken::new(),
+        )
+        .await
+        .expect("blame");
+        let last = out.hunks.last().expect("the first commit's lower hunk");
+        assert_eq!(last.summary, "first");
+        assert_eq!(
+            (last.start, last.orig_start, last.lines),
+            (5, 3, 2),
+            "lines 5-6 now were lines 3-4 in the first commit"
+        );
+        let inserted = &out.hunks[1];
+        assert_eq!(inserted.summary, "insert");
+        assert_eq!((inserted.start, inserted.orig_start), (3, 3));
     }
 
     #[tokio::test]

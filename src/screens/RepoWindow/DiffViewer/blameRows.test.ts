@@ -7,6 +7,7 @@ const NOW = 1_800_000_000;
 
 const hunk = (over: Partial<BlameHunk> = {}): BlameHunk => ({
   start: 1,
+  origStart: 1,
   lines: 1,
   oid: "a".repeat(40),
   short: "aaaaaaa",
