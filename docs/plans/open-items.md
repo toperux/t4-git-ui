@@ -880,6 +880,8 @@ its own plan on 2026-10-16 (`open-items-done.md` §AM).
   its signature verifier `minisign-verify` 0.2.5 → 0.3.0. The installed copy verifies the update it downloads, so the
   new verifier first runs updating *from* the release that carries it. Walk the in-app update on the next release
   (old verifier, new package) and the one after (new verifier). **Close:** both walk records in `docs/archive/walks/`.
+  - **Pre-check before v0.10.25's tag** (owner, 2026-10-17): verify v0.10.24's three `.sig` files against the pubkey
+    in `tauri.conf.json` with `minisign-verify` 0.3.0, in a throwaway test, not committed. A failure stops the tag.
 
 ## AN. Added 2026-10-17 — seen in the #32 walk, deferred
 
@@ -904,6 +906,26 @@ and none compared with 0.10.24. By reading the code, all predate #32. Deferred o
   because the hunk's buttons, invisible until hover, still take their width (`DiffViewer.module.css`, `.dl` and
   `.hunkActions`). Reasoned from the CSS. Fix: lay the buttons over the row's end on hover. **Reopen:** the cut text
   gets in the way.
+
+## AO. Added 2026-10-17 — sightings while planning the diff-viewer and per-tab view work, deferred
+
+Found by reading the code while drafting or reviewing `docs/plans/2026-10-17-diff-viewer-polish-plan.md`,
+`docs/plans/2026-10-17-diff-scroll-anchor-plan.md` and `docs/plans/2026-10-17-per-tab-view-plan.md`. None was
+reproduced. Deferred on the owner's word.
+
+- **A tab moved to another window may lose its commit draft, selection and filter.** A tear-off or drag hands over
+  only the repository path (`src/store/tabsStore.ts:177`, then `:139-140`), and the target window opens it fresh.
+  Reasoned, not walked. **Reopen:** a walk confirms it, or someone loses a draft that way.
+- **A failed tab open lands on the last tab, not the previous one.** The new tab is appended, and closing it picks
+  `rest[Math.min(i, rest.length - 1)]` (`tabsStore.ts:156`). With A, C open and A active, a failed open of B lands on
+  C. Reasoned. Unreachable today: with a summary, no step of the open path can fail (`repoStore.ts:331-369`), so
+  the cleanup at `tabsStore.ts:112-116` never runs (the per-tab view plan's pass 2). **Reopen:** a step in the open
+  path gains a way to fail.
+- **A whitespace default changed in another window flips this window's toggle without reloading its diff.**
+  `settingsStore.load` sets `diffStore.ignoreWhitespace` with a bare `setState` (`src/store/settingsStore.ts:119-122`),
+  so the open diff isn't refetched. Reasoned. **Reopen:** a toggle and its diff are seen disagreeing.
+- **Switching split ↔ unified view jumps the diff to the top.** Reasoned from the remount; not the measured problem
+  of the scroll-anchor plan, which leaves it out (its D2). **Reopen:** it gets in the way.
 
 ## Order
 
