@@ -22,7 +22,7 @@ Rust core (`git2` for reads and the index, the system `git` for everything that 
 - **Bisect** — mark a commit good or bad from its row, then drive the loop from the banner; the marks show as chips.
 - **Stashes** — click one to preview it in place of the commit panel (untracked files included), or manage them all in a browser.
 - **Signing** — a Settings section over the global `gpg.format` / `user.signingkey` / `commit.gpgsign` / `tag.gpgsign`, a per-commit override, and a `signed` chip on signed commits.
-- **Two views** — History (graph + details) and Changes (staging) take turns in the content area; Alt+1 / Alt+2 switch. Below 1000px the sidebar folds to a rail, below 800 the toolbar to icons and the panes to two columns; the window goes down to 700 × 500.
+- **Two views** — History (graph + details) and Changes (staging) take turns in the content area; Alt+1 / Alt+2 switch; each tab keeps its own. Below 1000px the sidebar folds to a rail, below 800 the toolbar to icons and the panes to two columns; the window goes down to 700 × 500.
 - **Command palette** — Ctrl+K: every action, view, branch and recent repository behind one search box.
 
 Shipped since v1: cherry-pick / revert from a commit row, interactive rebase, in-app updates, blame, file history, submodules, worktrees, bisect, tabs and windows.

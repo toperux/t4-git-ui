@@ -2,9 +2,17 @@
 
 _Written 2026-10-17. Status: draft for the owner's review; decisions D1–D6 answered by the owner 2026-10-17; review
 passes 1–9 taken, pass 10 found nothing, then two cross-plan fixes; pass 11's 2 nits taken; pass 12 found nothing; the
-polish plan's pass-10 finding applied; pass 13 found nothing, then one cross-plan nit; pass 14 found nothing: final.
-Owner rulings since pass 2: a PR before the merge, hashes after the squash, merge by fast-forward, re-walk after a
-rebase only on conflicts in this change's code or test files, the PR opens before the squash._
+polish plan's pass-10 finding applied; pass 13 found nothing, then one cross-plan nit; pass 14 found nothing: final;
+executing since 2026-10-17, Design 12 added in the change review's triage; pass 15's 5 taken; pass 16 found nothing; the
+Discard / Resolve guard added after it; pass 17 found nothing; the final triage's records added; pass 18's 1 taken; pass
+19 found nothing; one more accepted row and no PR (owner); pass 20 found nothing; BW walked 2026-10-17 (Windows, all
+pass, record committed), its sightings triaged (one fixed: the drop slot, BW 7 and 12 walked again of `c81833b5`, pass);
+pass 21's 6 taken; pass 22's and 23's 1 each taken; pass 24 found nothing; the re-walk's sightings ruled (R1, R2); pass
+25's 1 taken; pass 26 found nothing; records written (step 9); the taken-back toast fix (after the records) reviewed,
+its CI with step 10; pass 27's 3 taken; pass 28's 2 taken (a guard reverted, owner); pass 29 found nothing; squashed
+into `598dc5e` (feat) and a docs commit: the merge next. Owner rulings since pass 2: CI on the pushed branch by dispatch
+before the merge (no PR, 2026-10-17, replacing "a PR before the merge"), hashes after the squash, merge by fast-forward,
+re-walk after a rebase only on conflicts in this change's code or test files, the branch goes up before the squash._
 
 **Goal:** each tab keeps its own History / Changes view. Switching tabs shows the view that tab was left in; a view
 switch in one tab changes nothing in the others. The open-items row *The History / Changes view is one per window,
@@ -97,8 +105,8 @@ means "what the window shows", which is now the active tab's.
    tab, not the one that was active (A, C open, A active, a failed open of B → C), with its own snapshot, view
    included (`:157-158`). That path is unreachable today: with a summary in hand, nothing in `repoStore.openRepo`
    (`repoStore.ts:331-369`) rejects (`startLog` catches its own error, `:490-493`; `refreshRefs` is not awaited and
-   has its own catch, `:358-360`; `kvGet` catches everything, `kv.ts:40-47`). So no test for it here; the landing
-   tab is §AO's row (*Not in this plan*).
+   has its own catch, `:358-360`; `kvGet` catches everything, `kv.ts:40-47`). The landing tab is §AO's row (*Not
+   in this plan*). A test pins the view half anyway (owner, change-review triage, Design 12).
    With no tab (the start screen, `active` null) there is nothing to snapshot; the reset alone runs, which also
    fixes the start-screen case in *What the user sees now*.
 4. **Close.** Closing the active tab shows the tab that takes its place with its own snapshot (`:155-158`). Closing
@@ -139,6 +147,38 @@ means "what the window shows", which is now the active tab's.
       return.
 
     Walked as BW 10.
+12. **Added in the change review's triage (owner, 2026-10-17).**
+    - *The failed-open path gets a test* (`tabsStore.test.ts`): the window lands on a remaining tab, showing that
+      tab's own view. Written so it still holds once §AO's landing-tab row is fixed.
+    - *A tab dropped in mid-operation waits for it* (the §AH row *A tab dropped in from another window switches
+      repositories mid-op*, owner's (a) of three: wait / a new window / send it back). `onTabAdopt` and
+      `onTabSpawnFailed` can't be refused like the other switches, or the tab would be lost: a dropped tab's
+      repository holder has already moved to this window (`drop_tab`, `window.rs`), and a taken-back tab already
+      left this window (`detach` closed it once `spawnWindow` returned, `tabsStore.ts`) for one that never opened.
+      Both go through `openWhenIdle` (`actions.ts`): it opens at once when nothing has to wait; otherwise a toast
+      names the repository and the open waits, subscribed to the stores, queued in drop order. Tabs taken back
+      together are queued at once, so each that waits gets its own toast (owner, after the records review); one
+      that fails comes back as a rejection, toasted, and the rest still open. Opens through `openWhenIdle` go one
+      at a time, an idle drop's too: the window has one `repoStore` (owner).
+    - *The wait covers the whole commit and an open dialog* (change review pass 3, F1, owner's (b); plan review
+      pass 15, any dialog, owner): `busy` clears before a commit's status refresh and `syncRefs`, so a queued drop
+      would open in that gap, and Commit & Push would then open Push on the dropped repository. The wait lasts
+      until `commit()` returns (`inCommit`, a counter in `commitStore`) and while any dialog is open, and is
+      re-checked one task later, right before the open, so Commit & Push's Push can't slip in between.
+      `refusedWhileRunning` is unchanged: the flag and the dialog are only `openWhenIdle`'s.
+    - *Discard and Resolve check the repository after their confirm* (change review pass 4, F1, owner's (a)): their
+      confirm is a native `ask()`, which none of the waits see, so a tab dropped in while it is up comes forward at
+      once, and the confirmed click would act on the dropped repository's file. Both note the repository before the
+      `ask` and stop with a toast if another one came forward. Older than this branch; the other confirms were
+      already safe (`discardHunk` / `discardLines` check the diff, `restoreConflict` reads the repository first,
+      the stash ones hold `busy`).
+    - *A dropped tab goes straight into its slot* (the walk's S4, owner): adopt used to append the tab, then move it
+      to the caret's slot once the open resolved, so it showed at the end of the strip first (72 ms on the walk).
+      `openTab(path, at?)` now inserts a new tab at `at`, clamped; an open tab ignores it; other callers append as
+      before. A failed open at a slot now lands on the tab that held that slot (or the last), not always the last:
+      still not the active one, which §AO's row defers (its text updated in step 9).
+    - Walked as BW 12, Windows only like the rest of BW (owner: front-end only, reasoned): the fetch, a drop with
+      Settings open, and a drop during Commit & Push (owner, plan review pass 15).
 
 ## Decisions for the owner
 
@@ -255,7 +295,8 @@ Owner's answers 2026-10-17: D1 (a), D2 (a), D3 (a), D4 (a), D5 (a), D6 (a).
   row (otherwise the row unmounts and clears it, `WorkingTreeRow.tsx:33`). Per tab, either would change the wrong
   tab. Also: an adopted tab skips the busy guard (`onTabAdopt` calls `openTab` with no `refusedWhileRunning`, the
   §AH row *A tab dropped in from another window switches repositories mid-op*), so a tab can come forward
-  mid-commit by that path too; the repository-id guard covers it the same way.
+  mid-commit by that path too; the repository-id guard covers it the same way. (Since the change review's triage
+  a drop waits for the operation instead, Design 12.)
 - *Why now:* per window it was harmless (one view); per tab it is a wrong-tab write.
 - *Options:*
   - (a) **Drop it** when another tab is active (Design 9). The tab that committed stays in Changes on its "Working
@@ -287,6 +328,20 @@ Unit (vitest):
 - `RevisionGrid.test.tsx` (fake timers): a single click on the working-tree row, then another repository active
   before 250 ms → no view change; same repository → Changes, as today.
 
+Added in the change review's triage (Design 12):
+
+- `tabsStore.test.ts`: a failed open lands on a remaining tab with that tab's own view, appended or at a drop's
+  slot; `openTab` with `at` inserts there, clamped, and an open tab ignores it.
+- `App.test.tsx`: a drop or a spawn-failed take-back while an operation runs opens only once it ends, in drop order
+  and slot; not busy, at once; a queued open that fails, or throws outright, toasts and the next still opens; a drop
+  in a commit's tail opens once `commit()` returns; a drop with a dialog open opens once it closes; each tab taken
+  back while an operation runs gets its own toast; tabs taken back while nothing runs open one at a time, each
+  waiting for the one before.
+- `CommitPanel.test.tsx`: a tab dropped during Commit & Push (the real panel) opens only after the Push dialog it
+  opens has closed.
+- `commitStore.test.ts`: `inCommit` held to `commit()`'s return; Discard and Resolve with the repository switched
+  during their confirm → no IPC, a toast; without the switch → as before.
+
 No `RepoWindow.test.tsx` integration test: its mocks render `ChangesView` and `RevisionGrid` as `null` and stub
 `useShortcuts` (`:34, 40, 45`), so Ctrl+Tab and the mounted view can't be seen there. That `RepoWindow` follows
 `viewStore.view` is already tested (`:193-200`); the per-tab half is the `tabsStore` tests above.
@@ -300,12 +355,14 @@ git-ui-win) over CDP (`docs/smoke/smoke-cdp.md`), on a local `npm run tauri -- b
 `smoke-launch.ps1`. Set-up, with every build closed and in this order:
 - Copy the store folder (`%APPDATA%\dev.topher.t4gitui\`) aside first, before anything below writes to it; copy it
   back after the walk, with every build closed, then `cmp`.
-- `smoke-fixtures.ps1 -Force` (`C:\tmp\t4\{work,other}`). It leaves `work` with six changes
-  (`smoke-fixtures.ps1:275-305`), so set `work` to exactly two tracked edits: `git -C C:\tmp\t4\work stash -u`,
-  then append a line to `hunks.txt` and to `src\a.txt`.
-- `third`: `git init C:\tmp\t4\third`, then `git -C C:\tmp\t4\third commit --allow-empty -m init`.
+- `smoke-fixtures.ps1 -Root C:\tmp\t4bw` (`C:\tmp\t4bw\{work,other}`), a root of its own: `-Force` over
+  `C:\tmp\t4` would empty it, and it holds fixtures that need the network to rebuild (owner, after the walk).
+  Delete `C:\tmp\t4bw` after the walk. It leaves `work` with six changes (`smoke-fixtures.ps1:275-305`), so set
+  `work` to exactly two tracked edits: `git -C C:\tmp\t4bw\work stash -u`, then append a line to `hunks.txt` and to
+  `src\a.txt`.
+- `third`: `git init C:\tmp\t4bw\third`, then `git -C C:\tmp\t4bw\third commit --allow-empty -m init`.
 - `perf-small`, deep enough to scroll (row 10; `work` has about 20 commits):
-  `node docs/smoke/fixtures/perf-repo.mjs C:\tmp\t4\perf-small --commits 1000 --branches 5 --files 100`.
+  `node docs/smoke/fixtures/perf-repo.mjs C:\tmp\t4bw\perf-small --commits 1000 --branches 5 --files 100`.
 - First open, so `third` and `perf-small` are in Recents (rows 3 and 10): with the app closed, seed `layout.json`
   with one window, tabs `work`, `other`, `third`, `perf-small`, active `work`, written as `smoke-cdp.md:96-104`
   says (a file tool, the app's own spelling: backslashes, lowercase `c:\…`), and delete any `layout.restoring`.
@@ -343,18 +400,22 @@ each tab shows, read by `[role="grid"][aria-label="Commits"]` present (History) 
    `:96`, hence the order.)
 10. **Remount on Ctrl+Tab (accepted limits, Design 11):** open `perf-small` and `work` from Recents; `perf-small`
     in History, scrolled to about row 50 with a commit selected and the details split dragged up; `work` in
-    Changes. Ctrl+Tab, Ctrl+Tab → `perf-small`'s same rows and selection. Record, without pass or fail: where the
-    details split comes back, and `document.activeElement` after each switch.
+    Changes. Ctrl+Tab through the strip (it goes in strip order) back to `perf-small` → its same rows and selection.
+    Record, without pass or fail: where the details split comes back, and `document.activeElement` after each switch.
 11. **Rail across views (D4 (a)):** window at 1280 wide; `work` in History with Ctrl+Shift+` → rail; `other` in
-    Changes with no override. Ctrl+Tab → `other` shows the full sidebar (the width's choice); Ctrl+Tab → `work` on
-    the rail again.
+    Changes with no override. Ctrl+Tab to `other` → the full sidebar (the width's choice); Ctrl+Tab on, in strip
+    order, to `work` → the rail again.
+12. **A tab dropped in mid-operation (Design 12, added in triage):** as written in the smoke doc's BW 12: a fetch
+    from the fixture's `slow` remote in one window, a tab dragged onto it mid-fetch → it opens only once the fetch
+    ends, with the toast meanwhile. Then a drop with Settings open (opens when Settings closes), and a drop during
+    Commit & Push (Push opens for the committed repository; the dropped tab opens after Push closes).
 
 Linux and macOS: not walked under D2 (a) and D3 (a). No window, restore or Rust code changes, and the change is in
 stores that run the same on every webview (reasoned). Under D2 (b) or D3 (b): rows 7 and 8 also on Linux under Xvfb
 with openbox (`docs/smoke/smoke-linux.md`, the multi-window rows), plus row 8 with a seeded older-format
 `layout.json`; the Mac if the owner's session is free.
 
-Record: `docs/archive/walks/2026-10-XX-bw-walk.md`.
+Record: `docs/archive/walks/2026-10-17-bw-walk.md`.
 
 ## Steps
 
@@ -377,21 +438,47 @@ Execution starts only on the owner's go (CLAUDE.md step 4); a final plan is not 
    - `feat: each tab keeps its own History / Changes view` (steps 2–3);
    - `docs: smoke group BW, the view per tab` (group BW, the READMEs per Design 10).
 6. **Change review loop** (CLAUDE.md step 5); every skipped finding and proposed limit listed for the owner; triage.
-   A *Fix it* item here, before the PR and the walk: fix → review loop → back to triage, all local. (After the
+   A *Fix it* item here, before the push and the walk: fix → review loop → back to triage, all local. (After the
    walk, step 8's findings path applies.)
-7. **PR before the merge** (owner, 2026-10-17): push `per-tab-view` and open a PR to `main`, on the owner's go at
-   that moment. CI on three OS green. The PR opens with the unsquashed commits, before the squash: a deliberate
-   departure from CLAUDE.md step 7's order, to get CI on three OS before the walk.
-8. **Walk** group BW (above), on a build of the PR branch fetched on the VM; the fetch there, and the store backup
-   (the set-up's first bullet), on the owner's approval on the VM. App build closed before `tauri build` (the exe
-   lock). Record committed. A walk finding → fix → review loop (CLAUDE.md step 5) → triage; each push to the PR on
-   the owner's go at that moment; the rows the fix touches are walked again.
+7. **CI before the merge, without a PR** (owner, 2026-10-17, replacing the earlier "PR before the merge": the
+   ruleset doesn't bind the owner, so the PR's only job was CI): push `per-tab-view` on the owner's go at that
+   moment, then `gh workflow run CI --ref per-tab-view` (`ci.yml` runs on a push to `main`, a PR to `main` or a
+   dispatch, so a pushed branch alone gets none). Three OS green. The branch goes up with the unsquashed commits,
+   before the squash: a deliberate departure from CLAUDE.md step 7's order, to get CI on three OS before the walk.
+8. **Walk** group BW (above), on a build of the pushed branch fetched on the VM; the fetch there, and the store
+   backup (the set-up's first bullet), on the owner's approval on the VM. App build closed before `tauri build` (the
+   exe lock). Record committed. A walk finding → fix → review loop (CLAUDE.md step 5) → triage; each push of the
+   branch on the owner's go at that moment, with a CI dispatch after it; the rows the fix touches are walked again,
+   recorded in a re-walk section of the same walk record (the walked commit, those rows' results), BW's walk note
+   extended to name that commit, and the rows ticked again.
 9. **Records**, one docs commit, with no commit hash in it yet (step 10 writes them):
    - the §AH row → `open-items-done.md` §AH as *fixed*, closed with the walk record and a hash placeholder (the
      section is headed *accepted, closed*; the row's own text says fixed);
    - D2 (a)'s and D3 (a)'s reopen triggers as rows the owner places (§Q or a new dated section);
    - Design 11's accepted limits → a row in `open-items.md` §Q (*Accepted limits*), owner 2026-10-17, reopen trigger
      "someone wants the splits or the focus kept across a tab switch";
+   - the change review's triage (owner, 2026-10-17):
+     - a §Q row: a dropped tab still waiting is lost when its window closes, and missing after a restart if the
+       app quits first (it stays in Recents); reasoned, not seen; reopen trigger "someone loses a dropped tab";
+     - closed accepted rows in `open-items-done.md` (a new dated section): no waiting toast behind an open in progress
+       (the taken-back tabs' single toast was fixed instead, owner: each gets its own); an operation's tail after `busy`
+       clears (its refreshes are guarded by repository id); no waiting toast under a native confirm (the Discard /
+       Resolve guard covers the harm); a not-busy drop's synchronous throw escapes `openWhenIdle` (no caller can throw,
+       nothing queued); `commitStore.__resetForTests`'s counters can go below zero if a commit a test left running ever
+       finished (only read as `> 0`; test-only);
+   - the walk's sightings (owner, 2026-10-17; `docs/archive/walks/2026-10-17-bw-walk.md`, *Seen on the way*):
+     - deferred rows in `open-items.md` (a new dated section): a background tab's grid came forward one row down
+       once, not reproduced (reopen: seen again); after a commit the grid's selection stays on the previous HEAD
+       (reopen: the next grid work, or someone trips on it); the output dock is per window, not per tab (reopen:
+       someone wants it per tab);
+     - closed accepted rows in `open-items-done.md`: focus returns to the opener (the Fetch ▾) after Settings;
+       Ctrl+Q sent over CDP didn't quit once in the re-walk (it did in the first walk; no trigger, owner);
+     - BW's set-up says where a cross-window drop must land (the re-walk's two empty drops);
+     - the dropped tab's end-then-slot move was fixed (Design 12), BW 7 and 12 walked again;
+   - §AO's rows: their `tabsStore.ts` line numbers repointed to the merged code, and the failed-open row's text
+     updated (it now lands on the tab that held the slot, or the last, Design 12);
+   - the §AH row *A tab dropped in from another window switches repositories mid-op* → `open-items-done.md` §AH as
+     *fixed* (Design 12), closed with the walk record (BW 12) and a hash placeholder;
    - this plan to `docs/archive/plans/`, and every hit of `git grep` on its old path outside this plan repointed
      there (today `open-items.md` §AO's preamble).
 10. **Package** (owner, 2026-10-17: hashes after the squash, since a squash rewrites any hash written before it):
@@ -407,23 +494,24 @@ Execution starts only on the owner's go (CLAUDE.md step 4); a final plan is not 
       commit's own (the amend changes it). The walk record keeps the walked (pre-squash) hash as the fact it is,
       with the post-squash hash beside it ("same tree"), as `open-items-done.md` §N's map did;
     - check the final tree is the branch's plus those hash edits only (`git diff`), then move the branch;
-    - force-push to the PR on the owner's go at that moment; CI green again.
+    - force-push the branch on the owner's go at that moment, dispatch CI on it; green again.
 11. **Merge by fast-forward** (owner, 2026-10-17), on the owner's go at that moment: `git push origin
     per-tab-view:main` (a fast-forward only, no merge commit), then `git -C <repo> merge --ff-only origin/main` on
-    the local `main`. GitHub marks the PR merged; every hash survives; history stays linear. If `main` has moved
-    since the branch was cut (sibling plans may land first):
+    the local `main`. Every hash survives; history stays linear; the push to `main` runs CI once more. If `main`
+    has moved since the branch was cut (sibling plans may land first):
     - rebase the branch onto it; check `git range-diff <old-base>..<old-head> <new-base>..<new-head>` shows the
       change identical in code and test files, and doc hunks differing only by the hand resolution of a conflict;
     - redo step 10's hashes; the walk record then says "same change, rebased onto `<main hash>`, range-diff
       identical in code and test files" instead of "same tree", plus "docs resolved by hand: …" when there were any;
     - re-walk the affected rows only if the rebase had conflicts in code or test files this change touches (owner,
       2026-10-17): those `git diff --name-only <base>..<head>` lists under `src/**` (not `*.md`) or `src-tauri/**`;
-      at planning `viewStore.ts`, `tabsStore.ts`, `commitStore.ts`, `WorkingTreeRow.tsx` and their tests, plus any
-      file a walk fix added (e.g. `actions.ts`). A conflict in a doc (most likely `open-items.md`,
-      `open-items-done.md`, `src/README.md`, the smoke doc) is resolved by hand and checked in the range-diff, with
-      no re-walk;
-    - re-run the local gates (step 4), force-push to the PR on the owner's go, CI green, then fast-forward.
-12. **Optional:** delete `per-tab-view` on the owner's go, after a PR lookup shows no other open PR uses it.
+      at planning `viewStore.ts`, `tabsStore.ts`, `commitStore.ts`, `WorkingTreeRow.tsx`, and since the triage
+      `actions.ts`, `TabStrip.tsx`, `App.tsx`, with their tests, plus any file a later fix adds. A conflict in a
+      doc (most likely `open-items.md`, `open-items-done.md`, `src/README.md`, the smoke doc) is resolved by hand
+      and checked in the range-diff, with no re-walk;
+    - re-run the local gates (step 4), force-push the branch on the owner's go, dispatch CI, green, then
+      fast-forward.
+12. **Optional:** delete `per-tab-view` on the owner's go, after a PR lookup shows no open PR uses it.
 
 ## Not in this plan
 
@@ -438,7 +526,6 @@ Execution starts only on the owner's go (CLAUDE.md step 4); a final plan is not 
 - The sidebar width and the diff's unified / split setting: window-level, unchanged. The details and commit-panel
   splits are not window-level; they reset whenever their view remounts (Design 11, accepted).
 - Remembering a closed tab's view for when the repository is opened again.
-- §AH's *A tab dropped in from another window switches repositories mid-op*: unchanged by this plan.
 
 ## Review record
 
@@ -467,3 +554,43 @@ Execution starts only on the owner's go (CLAUDE.md step 4); a final plan is not 
 - **Pass 13** (2026-10-17): nothing found. The polish plan's pass-11 nit then applied here: the repoint skips this
   plan's own text (step 1's check names the path as it was then).
 - **Pass 14** (2026-10-17): nothing found.
+- **During execution** (2026-10-17): the change review's triage added Design 12 (the failed-open test; a dropped
+  tab waits for the operation, the whole commit and an open dialog; BW 12, Windows only), its tests, step 9's §AH
+  row and step 11's file list.
+- **Pass 15** (2026-10-17): 5 findings, all taken: both reasons a drop can't be refused; the wake-up re-check and
+  the toast (to the code); any dialog (owner); BW 12 walks the dialog and Commit & Push waits too (owner); a tab
+  still waiting at quit is missing after a restart, to the owner's triage list.
+- **Pass 16** (2026-10-17): nothing found.
+- **After pass 16** (2026-10-17): change review pass 4's F1 added to Design 12 (Discard and Resolve guard, owner).
+  Plan review pass 17 next.
+- **Pass 17** (2026-10-17): nothing found.
+- **After pass 17** (2026-10-17): the change review's final triage added to step 9's records (one §Q limit, four
+  closed accepted rows); its one fix, the Commit & Push test on the real panel, is code only. Pass 18 next.
+- **Pass 18** (2026-10-17): 1 finding, taken: the Tests section names the panel test's new home.
+- **Pass 19** (2026-10-17): nothing found. Then the owner accepted one more closed row (the test reset's counters
+  below zero), added to step 9's list; and dropped the PR for CI on the pushed branch by dispatch (steps 7, 8, 10,
+  11, 12). Pass 20 next.
+- **Pass 20** (2026-10-17): nothing found.
+- **Pass 21** (2026-10-17, after the walk): 6 findings, all taken: the record's date; the base hash in the walk
+  record; the walk's sightings triaged with the owner (S1–S3 deferred, S4 fixed in Design 12, S5 accepted) and put
+  in step 9; BW 9's and §AO's line numbers (BW 9 now, §AO in step 9); BW's fixtures under `-Root C:\tmp\t4bw`
+  (owner); the status line says the walk is done.
+- **Pass 22** (2026-10-17): 1 nit, taken (BW's `App.tsx` ref, in the smoke doc).
+- **Pass 23** (2026-10-17): 1 finding, taken: step 8 says where a re-walk is recorded.
+- **Pass 24** (2026-10-17): nothing found.
+- **After pass 24** (2026-10-17): BW 7 and 12 walked again of `c81833b5`, pass; the re-walk's sightings ruled by the
+  owner (R1, a BW set-up line on where a cross-window drop lands; R2, Ctrl+Q over CDP once, accepted, closed), in
+  step 9.
+- **Pass 25** (2026-10-17): 1 nit, taken: the status line and this record caught up.
+- **Pass 26** (2026-10-17): nothing found.
+- **After pass 26** (2026-10-17): step 9's records written (`open-items*.md` §Q, §AO, §AP, done §AH and §AP) and
+  the plan archived. The owner kept the D2 / D3 rows in §Q and had the taken-back tabs' single toast fixed rather
+  than accepted (each waiting tab gets its own; `openWhenIdle` also queues an open that runs at once).
+- **Pass 27** (2026-10-17): 3 findings, taken: the status line names the fix still to land; the Tests line names its
+  two cases; this record caught up.
+- **After pass 27** (2026-10-17, owner): the toast fix's CI comes with step 10's force-push; no re-walk for it (no
+  BW row reaches a take-back); idle drops stay one at a time (the done row says so). Pass 28 next.
+- **Pass 28** (2026-10-17): 2 findings. A try/catch added after pass 27 for a take-back whose open throws
+  synchronously guarded a case the async `openTab` can't produce (a rejection is already toasted and the rest open):
+  reverted on the owner's word (no handling for impossible cases; the done row "no caller can throw" holds). The
+  other, its status clause, fell away with it.

@@ -611,6 +611,26 @@ phases that accepted them; each origin keeps a pointer.
   the full `git-core` suite on macOS (run 38908721633). At its CI rate that still happens ~9 % of the time, and the
   cause wasn't looked into. Accepted 2026-10-17 (F4 of `docs/archive/plans/2026-10-16-flaky-cancel-test-plan.md`).
   **Reopen:** it fails again.
+- **The History / Changes view is not kept across a restart.** Every tab reopens in History, as before the per-tab
+  view; the view lives in the tab's session snapshot only, like its selection, scroll, filters and commit draft.
+  Persisting it would add a key to `layout.json` (the file whose parse error loses a whole session) and Rust gates.
+  Accepted by the owner, 2026-10-17 (D2 (a) of `docs/archive/plans/2026-10-17-per-tab-view-plan.md`). **Reopen:**
+  someone wants the views back after a restart.
+- **A tab moved to another window opens in History, not in the view it was in.** The tear-off, *Move to new window*
+  and drop-on-a-strip hand over the repository path alone, so the tab opens as a fresh one. Carrying the view would
+  take a Rust change (`drop_tab`, the `tab-adopt` event, `Layout`) and Linux walks. Accepted by the owner, 2026-10-17
+  (D3 (a) of `docs/archive/plans/2026-10-17-per-tab-view-plan.md`). **Reopen:** someone wants the view carried
+  across windows.
+- **A tab switch between History and Changes resets the splits and the focus.** Ctrl+Tab between a tab in History and
+  one in Changes unmounts one view's panes and mounts the other's, as Alt+1 / Alt+2 already do: the details split
+  returns at 60 % and the focus drops to `<body>` (both seen in BW 10), the commit panel's splits at their defaults
+  (reasoned). The grid's row and selection come back. Accepted by the owner, 2026-10-17 (Design 11 of
+  `docs/archive/plans/2026-10-17-per-tab-view-plan.md`). **Reopen:** someone wants the splits or the focus kept across
+  a tab switch.
+- **A dropped tab still waiting is lost when its window closes.** A tab dropped in from another window during an
+  operation waits for it (`openWhenIdle`, `src/screens/RepoWindow/actions.ts`); if that window closes first the tab
+  is gone, and if the app quits first it is missing after a restart (it stays in Recents). Reasoned, not seen.
+  Accepted by the owner, 2026-10-17 (the per-tab view's change review). **Reopen:** someone loses a dropped tab.
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review, deferred
 
@@ -795,11 +815,6 @@ Deferred in the triage of the activity indicator (plan `docs/plans/2026-10-09-ac
 reviews and the BS walk, `docs/archive/walks/2026-10-09-bs-walk.md`), each with a reopen trigger. All predate the
 branch, or are cosmetic.
 
-- **A tab dropped in from another window switches repositories mid-op.** `onTabAdopt` (`TabStrip.tsx:28-41`) and
-  `onTabSpawnFailed` (`App.tsx:175-187`) call `openTab` with no `refusedWhileRunning` check, unlike every other tab
-  switch or open (`tabsStore.ts:127`, `:137`, `actions.ts:275`), so a drop during a fetch puts another repository on
-  screen while the op runs. Reasoned from the code, not seen. A refused drop needs an outcome (back to its window?),
-  which is open. **Reopen:** a drop during an op goes wrong, or the next tab work.
 - **The "Changed" dot on a clean tab right after launch (S2).** On the Windows BS walk `perf-synth`'s tab showed the dot
   straight after launch with a clean status, before the walk touched that repository. Seen once; cause not looked into.
   **Reopen:** seen again on a repository nobody changed.
@@ -817,11 +832,6 @@ branch, or are cosmetic.
 - **A tab tear-off drag stuck on its first release (S7).** On the macOS BS walk the first synthetic release outside
   the window didn't land (the drag image stuck); a second completed it. Synthetic events (`cliclick`) only; the
   session guessed they were the cause. **Reopen:** a real-mouse tear-off sticks on macOS.
-- **The History / Changes view is one per window, not per tab.** Switching one tab to Changes opens the next tab in
-  Changes too (the Windows BS 4 walk). By design: `viewStore.ts:1-3` keeps the view per window, per session.
-  **Reopen:** someone wants each tab to keep its own view. **Reopened 2026-10-17:** seen again in the #32 walk
-  (`docs/archive/walks/2026-10-16-npm-group-32-walk.md`), and the owner wants each tab to keep its own view. Its own
-  plan, not started.
 
 ## AJ. Added 2026-10-09 — the runner exit paths
 
@@ -910,22 +920,37 @@ and none compared with 0.10.24. By reading the code, all predate #32. Deferred o
 ## AO. Added 2026-10-17 — sightings while planning the diff-viewer and per-tab view work, deferred
 
 Found by reading the code while drafting or reviewing `docs/plans/2026-10-17-diff-viewer-polish-plan.md`,
-`docs/plans/2026-10-17-diff-scroll-anchor-plan.md` and `docs/plans/2026-10-17-per-tab-view-plan.md`. None was
+`docs/plans/2026-10-17-diff-scroll-anchor-plan.md` and `docs/archive/plans/2026-10-17-per-tab-view-plan.md`. None was
 reproduced. Deferred on the owner's word.
 
 - **A tab moved to another window may lose its commit draft, selection and filter.** A tear-off or drag hands over
-  only the repository path (`src/store/tabsStore.ts:177`, then `:139-140`), and the target window opens it fresh.
+  only the repository path (`src/store/tabsStore.ts:188`, then `:150-151`), and the target window opens it fresh.
   Reasoned, not walked. **Reopen:** a walk confirms it, or someone loses a draft that way.
-- **A failed tab open lands on the last tab, not the previous one.** The new tab is appended, and closing it picks
-  `rest[Math.min(i, rest.length - 1)]` (`tabsStore.ts:156`). With A, C open and A active, a failed open of B lands on
-  C. Reasoned. Unreachable today: with a summary, no step of the open path can fail (`repoStore.ts:331-369`), so
-  the cleanup at `tabsStore.ts:112-116` never runs (the per-tab view plan's pass 2). **Reopen:** a step in the open
-  path gains a way to fail.
+- **A failed tab open lands on a tab other than the one that was active.** The new tab is inserted at its slot (the
+  end, unless a drop names one), and closing it picks `rest[Math.min(i, rest.length - 1)]` (`tabsStore.ts:167`): the
+  tab that held the failed tab's slot, or the last, not the one that was active (the per-tab view plan's Design 12).
+  With A, C open and A active, a failed open of B appended lands on C. Reasoned. Unreachable today: with a summary,
+  no step of the open path can fail (`repoStore.ts:331-369`), so the cleanup at `tabsStore.ts:124-126` never runs
+  (the per-tab view plan's pass 2). **Reopen:** a step in the open path gains a way to fail.
 - **A whitespace default changed in another window flips this window's toggle without reloading its diff.**
   `settingsStore.load` sets `diffStore.ignoreWhitespace` with a bare `setState` (`src/store/settingsStore.ts:119-122`),
   so the open diff isn't refetched. Reasoned. **Reopen:** a toggle and its diff are seen disagreeing.
 - **Switching split ↔ unified view jumps the diff to the top.** Reasoned from the remount; not the measured problem
   of the scroll-anchor plan, which leaves it out (its D2). **Reopen:** it gets in the way.
+
+## AP. Added 2026-10-17 — seen in the BW walk, deferred
+
+Seen on the way in `docs/archive/walks/2026-10-17-bw-walk.md` (Windows, the per-tab view's walk), and deferred on the
+owner's word in the triage, each with a reopen trigger.
+
+- **A background tab's grid came forward one row down once.** The first time `other`, opened in the background at
+  launch, came forward, its grid sat at scrollTop 26 with the selected HEAD row hidden above the top. Two fresh
+  launches did not reproduce it; not compared with 0.10.24. **Reopen:** seen again.
+- **After a commit the grid's selection stays on the previous HEAD.** The details show the old commit while the new
+  HEAD sits on top (BW 5 and 12). Likely older than the branch; not compared. **Reopen:** the next grid work, or
+  someone trips on it.
+- **The output dock is per window, not per tab.** `other` showed `work`'s `git commit -F …` line. **Reopen:** someone
+  wants it per tab.
 
 ## Order
 

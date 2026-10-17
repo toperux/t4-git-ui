@@ -1892,6 +1892,16 @@ squashed into five on 2026-10-09 (tree identical, rehearsed in a throwaway workt
 - The walks' builds: `41884df` has the squashed bar and overlay code as is (only the palette changed after it);
   `86e2032` is the palette fix before Tab; `9ebd391` is the shipped code (later commits changed tests and docs only).
 
+**Fixed 2026-10-17, by the per-tab view** (plan `docs/archive/plans/2026-10-17-per-tab-view-plan.md`, walk record
+`docs/archive/walks/2026-10-17-bw-walk.md`), moved here from `open-items.md` §AH:
+- **The History / Changes view is one per window, not per tab** (seen on the Windows BS 4 walk and again on the #32
+  walk, `docs/archive/walks/2026-10-16-npm-group-32-walk.md`; reopened 2026-10-17). Fixed: each tab keeps its own
+  view, in its session snapshot; a new tab starts on History. Walked as BW 1–12, all pass. Fixed in `598dc5e`.
+- **A tab dropped in from another window switches repositories mid-op** (`onTabAdopt` and `onTabSpawnFailed` called
+  `openTab` with no `refusedWhileRunning` check, so a drop during a fetch put another repository on screen while the
+  op ran). Fixed: the drop waits for the operation, the whole commit and any open dialog, with a toast meanwhile
+  (`openWhenIdle`, Design 12 of the plan). Walked as BW 12, and again after the drop-slot fix. Fixed in `598dc5e`.
+
 ## AI. Added 2026-10-09 — v0.10.23's update walk: closed
 
 Found walking the in-app update on Windows (`docs/archive/walks/2026-10-09-v0.10.23-update-walk.md`); closed by the
@@ -2040,3 +2050,26 @@ identical to `403a05a`'s; the docs commit adds this map):
     40 000.
   - **Verified** (run 38939939436): 60 runs on three OS, all passing, with the drain ≤ 0.21 s and at most 36 768 lines.
   - Plan: `docs/archive/plans/2026-10-16-flaky-cancel-test-plan.md`.
+
+## AP. Added 2026-10-17 — per-tab view: accepted, closed
+
+Accepted by the owner in the change review's triage and the walk's triage of the per-tab view (plan
+`docs/archive/plans/2026-10-17-per-tab-view-plan.md`, walk record `docs/archive/walks/2026-10-17-bw-walk.md`), with no
+reopen trigger. The ones with a trigger are in `open-items.md` §Q and §AP.
+
+- **No waiting toast behind an open in progress.** A dropped tab that only queues behind another tab's open still in
+  progress, with no operation running, waits without a toast (`openWhenIdle`); the wait is that open's round trip.
+  Two quick drops on an idle window open one after the other for the same reason, kept so: the window has one
+  `repoStore` (owner, 2026-10-17).
+  (Tabs taken back together from a window that never opened each get their own toast since the owner's fix.)
+- **An operation's tail after `busy` clears.** The refreshes that run after `busy` clears are guarded by repository
+  id, so they cannot act on the tab that came forward.
+- **No waiting toast under a native confirm.** A tab dropped in while Discard's or Resolve's native `ask()` is up
+  comes forward at once; the repository check after the confirm covers the harm.
+- **A not-busy drop's synchronous throw escapes `openWhenIdle`.** No caller can throw, and nothing is queued then.
+- **`commitStore.__resetForTests`' counters can go below zero** if a commit a test left running ever finished. They
+  are only read as `> 0`, and the reset is test-only.
+- **Focus returns to the opener after Settings.** After Settings closed (BW 12), focus went back to the *Fetch
+  options* ▾ with a visible ring.
+- **Ctrl+Q sent over CDP did not quit once in the re-walk.** It quit in the first walk; no trigger (owner,
+  2026-10-17).

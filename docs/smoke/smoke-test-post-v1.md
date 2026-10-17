@@ -3191,6 +3191,93 @@ restored); Linux under Xvfb with openbox (`docs/smoke/smoke-linux.md`).
       `b16246d` on Windows and Linux: as written; the `trio*` branches' `branch -vv` identical before and after.
       `docs/archive/walks/2026-10-15-bt-walk.md`.)*
 
+## BW. The History / Changes view per tab
+
+Plan: `docs/archive/plans/2026-10-17-per-tab-view-plan.md` (D1–D6, Design 11). Windows VM (session git-ui-win) over
+CDP (`docs/smoke/smoke-cdp.md`), on a local `npm run tauri -- build --no-bundle`, launched with `smoke-launch.ps1`.
+Linux and macOS: not walked (no window, restore or Rust code changes; the change is in stores that run the same on
+every webview, reasoned). Set-up, with every build closed and in this order:
+
+- Copy the store folder (`%APPDATA%\dev.topher.t4gitui\`) aside first, before anything below writes to it; copy it
+  back after the walk, with every build closed, then `cmp`.
+- `smoke-fixtures.ps1 -Root C:\tmp\t4bw` (`C:\tmp\t4bw\{work,other}`, with the `slow` remote), a root of its own:
+  `-Force` over `C:\tmp\t4` would empty it, and it holds fixtures that need the network to rebuild. Delete
+  `C:\tmp\t4bw` after the walk. It leaves `work` with six changes (`smoke-fixtures.ps1:275-305`), so set `work` to
+  exactly two tracked edits: `git -C C:\tmp\t4bw\work stash -u`, then append a line to `hunks.txt` and to
+  `src\a.txt`.
+- `third`: `git init C:\tmp\t4bw\third`, then `git -C C:\tmp\t4bw\third commit --allow-empty -m init`.
+- `perf-small`, deep enough to scroll (row 10; `work` has about 20 commits):
+  `node docs/smoke/fixtures/perf-repo.mjs C:\tmp\t4bw\perf-small --commits 1000 --branches 5 --files 100`.
+- First open, so `third` and `perf-small` are in Recents (rows 3 and 10): with the app closed, seed `layout.json`
+  with one window, tabs `work`, `other`, `third`, `perf-small`, active `work`, written as `smoke-cdp.md:96-104`
+  says (a file tool, the app's own spelling: backslashes, lowercase `c:\…`), and delete any `layout.restoring`.
+  Launch; every opened tab lands in Recents (`App.tsx:213`). Close `third`'s and `perf-small`'s tabs.
+- During rows 7 and 12, for cross-window drags: the drop hit-tests the topmost OS window at the drop point, so keep
+  the target window topmost there (no terminal over it) and drop at a point outside the source window's own rect.
+
+Every measurement carries `document.title`. Pass = the view each tab shows, read by
+`[role="grid"][aria-label="Commits"]` present (History) or the Changes bar's text present (Changes), and the switch's
+`aria-pressed`.
+
+*(Walked 2026-10-17 of `022fd549` on Windows: rows 1–12 as written, row 10 recorded (the details split back at its
+default, focus on `<body>` after each switch); fixtures under `-Root C:\tmp\t4bw`, as the set-up now says.
+`docs/archive/walks/2026-10-17-bw-walk.md`. Rows 7 and 12 walked again 2026-10-17 of `c81833b5`, after the drop-slot
+fix changed the path they walk: as written, every dropped tab appearing first at its caret slot.)*
+
+- [x] 1. **Each tab its own view:** `work` and `other` open. In `work` Alt+2 → Changes. Ctrl+Tab → `other` in
+      History. Ctrl+Tab → `work` in Changes. Ctrl+1 / Ctrl+2 and a strip click give the same.
+- [x] 2. **Each writer on the active tab only:** with `other` in History, in `work` (from History each time): the
+      toolbar switch's Changes; the palette's *Changes*; a working-tree row click; Enter on it. Then from Changes: the
+      bar's ×; Alt+1; the palette's *History*; a file row's *History*; a file row's *Blame*. After each, `work` shows
+      the view the action names and `other` still shows History when switched to.
+- [x] 3. **New tab (D1 (a)):** `work` in Changes, open `third` from the toolbar's Recents → `third` in History; back
+      to `work` → Changes. Open `work` again from Recents → its tab, still in Changes.
+- [x] 4. **Close:** `work` in Changes, `other` in History, `work` active; close `work`'s tab → `other` in History.
+      Reopen `work` → History.
+- [x] 5. **Auto-close (AY 1 with a second tab):** `other` in Changes (its tree clean: the empty state), `work` active
+      in Changes with two edits; stage both and commit → `work` back to History; Ctrl+Tab → `other` still in Changes.
+- [x] 6. **Rail (D4 (a)):** window at 1280 wide, `work` and `other` both in History; Ctrl+Shift+` in `work` → rail;
+      Ctrl+Tab → `other` on the rail too; Alt+2 there → the sidebar per the width (Changes has no override).
+- [x] 7. **Two windows (D3 (a)):** `work` in Changes, `other` in History, `third` in Changes, one window. Drag
+      `third` out of the strip → a new window with `third` in History; the first window's tabs keep their views. Drag
+      `third` back onto the first window's strip → adopted, in History; the other two keep theirs. *Move to new
+      window* on `work` (in Changes) → History in its new window. (Drag gestures as in `smoke-cdp.md` *A tab dragged
+      into another window*.)
+- [x] 8. **Restart (D2 (a)):** two windows with tabs in both views; quit; relaunch → every tab in History, the active
+      tabs and windows as left. `layout.json` has no key it didn't have before (only `tabs`, `active`, `rect`).
+- [x] 9. **The start screen (D1 (a)):** set-up from where row 8 leaves things: close the secondary window (its `×`);
+      in the main window close every tab but `work` (open `work` from Recents if it was in the closed window). Alt+2
+      in `work`, close its tab → the start screen. Open `other` from Recents → History. (Closing a secondary window's
+      last tab closes the window, `tabsStore.ts:163`, and a repository open elsewhere focuses that window instead,
+      `:103`, hence the order.)
+- [x] 10. **Remount on Ctrl+Tab (accepted limits, Design 11):** open `perf-small` and `work` from Recents;
+      `perf-small` in History, scrolled to about row 50 with a commit selected and the details split dragged up;
+      `work` in Changes. Ctrl+Tab through the strip (it goes in strip order) back to `perf-small` → its same rows and
+      selection. Record, without pass or fail: where the details split comes back, and `document.activeElement` after
+      each switch.
+- [x] 11. **Rail across views (D4 (a)):** window at 1280 wide; `work` in History with Ctrl+Shift+` → rail; `other`
+      in Changes with no override. Ctrl+Tab to `other` → the full sidebar (the width's choice); Ctrl+Tab on, in strip
+      order, to `work` → the rail again.
+- [x] 12. **A tab dropped mid-operation waits for it** (§AH): from where row 10 leaves window 1 (`other`,
+      `perf-small`, `work`), *Move to new window* on `work` → window 2 with `work` alone; window 1 keeps `other` and
+      `perf-small`; open `third` there from Recents. In window 2, `work` in Changes, Fetch via the **▾ beside Fetch**
+      from the fixture's `slow` remote (its upload-pack sleeps 60 s). While it runs, drag `third` from window 1's
+      strip onto window 2's. Pass: window 2 stays on `work` (title, view, the fetch still running) and an info toast
+      *Waiting to open* reads *third opens when the current operation or dialog closes*; window 1 loses `third`.
+      When the fetch ends (or **Cancel** ends it sooner: expand the dock with Ctrl+` first, as `smoke-test.md` §5's
+      `slow` fetch does), `third` opens in window 2 at the caret's slot, active, in History.
+      - **A dialog:** in window 2 open Settings (Ctrl+,), then drag `perf-small` from window 1 onto window 2's
+        strip. Pass: the same toast, Settings stays open and nothing opens; close Settings → `perf-small` opens in
+        window 2, active, in History.
+      - **Commit & Push:** slow the commit with group BB's hook, made longer (15 s, not BB's 6: the cross-window drag
+        is a scripted real pointer, group AS): `printf '#!/bin/sh\nsleep 15\n' >
+        C:/tmp/t4bw/work/.git/hooks/pre-commit` (Git Bash). In window 2 switch to `work`, append a line to
+        `hunks.txt`, stage it, write a summary, press **Commit & Push**, and inside the hook's 15 s drag `other`
+        (window 1's last tab: drag it by the toolbar's repository button, group AS) onto window 2's strip. Pass: the
+        same toast; the commit lands and Push opens for `work`; `other` doesn't open while Push is up; close Push
+        without pushing → `other` opens in window 2, active, in History. Delete the hook afterwards, and the walk
+        record says it did.
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the

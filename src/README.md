@@ -21,7 +21,11 @@ src/
                            gated on the listener; every window reads the last answer (`lastUpdateCheck()`) once
                            `onUpdateCheckedReady` resolves, so one that lands while it starts isn't missed, and an event
                            heard before that read's reply wins over it; `listenTabDrags` is
-                           mounted here, not in the strip, so a window with one tab or none can still be dropped on
+                           mounted here, not in the strip, so a window with one tab or none can still be dropped on;
+                           a tab dropped in, or taken back on `tab-spawn-failed`, waits (`openWhenIdle`, a toast each,
+                           opened one at a time in order) while an operation runs, for the whole of `commit()` (the
+                           tail after `busy`, then Commit & Push's Push) and while any dialog is open — never refused,
+                           which would lose it
   api/
     types.ts               TS mirror of the Rust IPC contract (serde camelCase) — edit only together with the Rust structs
     ipc.ts                 `call()` (the one `invoke` wrapper) + one typed function per command, including the start-screen
@@ -41,14 +45,15 @@ src/
                            repoStore.opening to the folder's name first, so the overlay covers the backend's wait too,
                            and clears it in a `finally` on every way out; then open_repo — the id is what a tab is
                            compared by, and `openElsewhere` means another window has it and was focused, so nothing
-                           happens here),
+                           happens here; a new tab goes on the end, or at `at` — a dropped tab's caret slot, clamped —
+                           and resets viewStore to History),
                            activate (snapshot the active slices, restore the target's, close the dialog, refreshAll),
                            closeTab (always `close_repo`; the last tab closes a secondary window and leaves the main
                            one on the start screen), markStale, detach (a no-op with one tab; spawn_window, then close
                            the tab — never the other way round), reorder, setCaret (the slot a tab dragged from another
                            window would land in). Snapshot = repoStore (minus gitVersion) +
-                           statusStore + commitStore + diffStore (minus the window-level view settings), each store owning
-                           its own `snapshot()` / `restore()` beside its `reset`
+                           statusStore + commitStore + diffStore (minus the window-level view settings) + viewStore
+                           (view only), each store owning its own `snapshot()` / `restore()` beside its `reset`
     repoStore.ts           zustand: repo, refs, log {generation,total,complete,error,flat} (a page response never lowers `total`
                            nor clears `complete` — a late page must not undo a newer `log://progress`), sparse rows[], selection (commit index +
                            wtSelected for the working-tree row), reveal,
@@ -123,20 +128,22 @@ src/
                            staging a second hunk leaves the entry at modified/modified and would look like nothing happened —
                            keeps the `diff` object identity when the hunks are equal, and refetches
                            the stats only when the entry list changed — one call in flight), stage/unstage/discard
-                           (native ask(); discard resolves `false` when declined *or* when another mutation held `busy`),
+                           (native ask(); discard resolves `false` when declined, when another mutation held `busy`,
+                           or when another repository came forward while the confirm was up — a toast says so),
                            stageHunk/stageLines (reverse for staged; every hunk / line action sends the context and rename hint the *shown*
                            diff was built with, and a diffStore `context` change reloads the panel diff first),
                            discardHunk/discardLines (native ask, then `discard_hunks` / `discard_lines` — `git apply -R` on
                            the working tree; dropped with a toast when the diff was replaced during the confirmation),
-                           resolveConflict(paths, side, label) (ask, then
-                           `resolve_conflict` = `checkout --ours|--theirs` + add; a path whose chosen side the other branch
-                           deleted is resolved as a removal instead), setAmend (get_head_message prefill), prefillPending
-                           (get_merge_message prefill when `refs.state` becomes `merge` / `cherryPick` / `revert`, taken back on
-                           abort; `{staged: true}` for a `--no-commit` pick, which leaves the state clean), useMessage, commit
+                           resolveConflict(paths, side, label) (ask, then — unless another repository came forward
+                           meanwhile, a toast — `resolve_conflict` = `checkout --ours|--theirs` + add; a path whose
+                           chosen side the other branch deleted is resolved as a removal instead), setAmend
+                           (get_head_message prefill), prefillPending (get_merge_message prefill when `refs.state`
+                           becomes `merge` / `cherryPick` / `revert`, taken back on abort; `{staged: true}` for a
+                           `--no-commit` pick, which leaves the state clean), useMessage, commit
                            (→ oid | null, clears the editor incl. after an amend, msgHistory, toast, status + refs refresh,
                            then leaves the Changes view when the commit took the last change — `nothingToCommit()` and a
                            count taken before the commit, so an amend on an already-clean tree empties nothing and stays;
-                           off by `autoCloseChanges`),
+                           off by `autoCloseChanges`; only while the same tab is still active),
                            reset on repo change
     recentsStore.ts        zustand: RecentRepo{path,name,lastOpened,pinned} persisted via lib/kv; load (migrates the M1
                            `localStorage.lastRepo`), touch (20 unpinned cap), remove, togglePin, lastOpen, lastCloneDir;
@@ -280,7 +287,7 @@ src/
     RepoWindow/            RepoWindow (layout: [TabStrip] / toolbar 40 + ActivityBar (a zero-height `Progress thin` over
                            its bottom edge while an op or the commit panel's work runs, after 150ms, aria-hidden) /
                            sidebar 260 or rail 36 | StateBanners + (History: grid ÷ DetailsPane | Changes: ChangesBar +
-                           CommitPanel) / dock / statusbar 24; viewStore picks the view,
+                           CommitPanel) / dock / statusbar 24; the active tab's view (viewStore) picks one,
                            layout.ts the tiers from the window width; hosts DialogHost, CommandPalette, useShortcuts),
                            layout.ts (pure `layoutFor(width)` + the `useLayout` / `useToolbarTier` hooks behind it: the
                            `RAIL_BELOW 1000` / `TIGHT_BELOW 1340` / `ICONS_BELOW 800` breakpoints turned into
