@@ -469,7 +469,8 @@ src/
       DiffViewer/          DiffViewer props {path, oldPath, stats, diff, loading, error, actions?} (header: path, stats, unified/split/
                            whitespace IconButtons; virtualized body, role=region, `.selectable` text, CR → ␍, no-newline marker,
                            binary/truncated states; per-line syntax highlighting via lib/highlight → `--syn-*`). `actions` = staging mode: forced unified, hunk-row "Discard | Stage/Unstage hunk"
-                           (hover), body = role=listbox of add/del `option` lines with a roving tabIndex (click/Shift/Ctrl, Space
+                           (laid over the header's end on hover / focus, taking none of its width),
+                           body = role=listbox of add/del `option` lines with a roving tabIndex (click/Shift/Ctrl, Space
                            toggles, Shift+↑/↓ extends inside the hunk, Enter stages) → sticky "N lines selected · Discard · Stage N
                            lines" bar. The cursor owns the DOM focus, not just the tab stop — `.pick:focus-visible` is the only
                            thing that draws it: ↑/↓ scroll it into view and focus it (`[data-cursor]`) — ↑ brings its hunk's
