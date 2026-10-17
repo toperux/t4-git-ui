@@ -498,8 +498,9 @@ src/
                            (`<short> <author> <age>`) on a hunk's first row, the age tint alone on the rest, `role="img"` +
                            `aria-label` so a continuation row still names its commit, and `title` = summary · date · pre-rename
                            path. No tab stop per hunk (virtualized rows would leave the tab order): one roving cursor for the
-                           list, ↑/↓ to move it, Enter or a gutter click → `blameAt`, ContextMenu / Shift+F10 or right-click →
-                           the hunk menu (Select in graph, Blame parent = porcelain's `previous` commit *and* path,
+                           list, ↑/↓ or a click on a blamed row (the gutter too) to move it, Enter or a gutter click →
+                           `blameAt`, ContextMenu / Shift+F10 or right-click → the hunk menu (Select in graph,
+                           Blame parent = porcelain's `previous` commit *and* path,
                            History of this file = `showHistory` on the hunk's own `origPath` — the name its commit knew — and Copy SHA),
                            blameRows.ts (pure: line → {hunk, first, step}; the tint is 5 steps on a **log** scale over this
                            file's own hunk ages, since commit times cluster; blameLabel / blameTitle)

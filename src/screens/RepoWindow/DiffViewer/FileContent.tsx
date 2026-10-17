@@ -172,6 +172,13 @@ function ContentBody({ path, lines, maxCols, lang, rows }: { path: string; lines
     openMenu(Number(line) - 1, { x: e.clientX, y: e.clientY });
   }
 
+  // The cursor follows the mouse, as in the diff: the gutter too, before its drill-down. A drag across
+  // lines clicks their common ancestor, so it keeps its text selection and leaves the cursor be.
+  function onClick(e: MouseEvent<HTMLDivElement>) {
+    const line = (e.target as HTMLElement).closest<HTMLElement>("[data-line]")?.dataset.line;
+    if (line !== undefined) setCursor(Number(line) - 1);
+  }
+
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     // No gutter, no cursor: ↑ / ↓ scroll the region as they always did.
     if (!rows) return;
@@ -206,6 +213,7 @@ function ContentBody({ path, lines, maxCols, lang, rows }: { path: string; lines
       tabIndex={0}
       onKeyDown={onKeyDown}
       onContextMenu={onContextMenu}
+      onClick={onClick}
       // Tabbing in hands the focus straight to the cursor row, so the first arrow key moves off a
       // row the user can see. Without blame there is no `[data-cursor]` and the region keeps it.
       // Focus arriving from inside is Shift+Tab on its way out — the region precedes its rows in

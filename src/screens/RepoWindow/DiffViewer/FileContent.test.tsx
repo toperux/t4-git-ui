@@ -101,6 +101,7 @@ const hunk = (over: Partial<BlameHunk> = {}): BlameHunk => ({
 
 describe("FileContent blame gutter", () => {
   const cells = (container: HTMLElement) => Array.from(container.querySelectorAll('[role="img"]'));
+  const selected = (container: HTMLElement) => Array.from(container.querySelectorAll('[role="option"]')).map((o) => o.getAttribute("aria-selected"));
   const blamed = () =>
     useDiffStore.setState({
       blameOn: true,
@@ -134,6 +135,8 @@ describe("FileContent blame gutter", () => {
 
     // The second row of the first hunk: a continuation row acts on the same commit.
     fireEvent.click(cells(container)[1]);
+    // The click reaches the row too: the cursor is on it before the drill-down has done anything.
+    expect(selected(container)).toEqual(["false", "true", "false"]);
     await waitFor(() => expect(revealOid).toHaveBeenCalledWith("a".repeat(40)));
     // The reveal moves the grid, and the details pane reloads the store from it: the file is seeded
     // against that commit once the reveal hits, so the drill-down lands on it rather than starting over.
@@ -222,6 +225,16 @@ describe("FileContent blame gutter", () => {
     expect(options.map((o) => o.getAttribute("aria-selected"))).toEqual(["true", "false", "false"]);
   });
 
+  it("a click on a row's text moves the cursor there, so the arrows carry on from the mouse", () => {
+    blamed();
+    const { container, getByRole } = render(<FileContent path="src/a.rs" content={content()} loading={false} error={null} />);
+    fireEvent.click(lines(container)[2].querySelector(".selectable")!);
+    expect(selected(container)).toEqual(["false", "false", "true"]);
+    expect(container.querySelector('[role="region"] [tabindex="0"]')).toBe(lines(container)[2]);
+    fireEvent.keyDown(getByRole("region", { name: "File content" }), { key: "ArrowUp" });
+    expect(selected(container)).toEqual(["false", "true", "false"]);
+  });
+
   it("hands the focus in to the cursor row, and lets Shift+Tab back out past the region", () => {
     blamed();
     const { container, getByRole } = render(<FileContent path="src/a.rs" content={content()} loading={false} error={null} />);
@@ -253,6 +266,9 @@ describe("FileContent blame gutter", () => {
     expect(cells(container)).toHaveLength(0);
     // Nothing to act on, so the rows are plain lines rather than a list.
     expect(queryByRole("listbox")).toBeNull();
+    expect(container.querySelectorAll('[role="region"] [tabindex="0"]')).toHaveLength(0);
+    // A click has no cursor to move either.
+    fireEvent.click(lines(container)[2].querySelector(".selectable")!);
     expect(container.querySelectorAll('[role="region"] [tabindex="0"]')).toHaveLength(0);
   });
 });
