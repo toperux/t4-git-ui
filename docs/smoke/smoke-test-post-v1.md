@@ -3191,6 +3191,118 @@ restored); Linux under Xvfb with openbox (`docs/smoke/smoke-linux.md`).
       `b16246d` on Windows and Linux: as written; the `trio*` branches' `branch -vv` identical before and after.
       `docs/archive/walks/2026-10-15-bt-walk.md`.)*
 
+## BU. The diff viewer: the hunk header on ↑, a click moves the blame cursor, the drill-down's line, full headers
+
+Plan: `docs/plans/2026-10-17-diff-viewer-polish-plan.md` (S1, S2, S2b, S6; D1–D7). Beside AL (Blame) and F / AD
+(staging) in subject, but on a fixture of its own. Windows VM (session git-ui-win) over CDP on a local
+`tauri build --no-bundle` of `diff-viewer-polish` (`docs/smoke/smoke-cdp.md`: other instances closed, store backed up
+and restored, `smoke-launch.ps1`, `cdp.mjs`). Linux and macOS: not walked (D5 (a)).
+
+Fixture, built in Git Bash on the VM, in a fresh repo `C:\tmp\t4\bu` (deleted after the walk, with row 13's clone
+`C:\tmp\t4\bu-clone`):
+
+- commit 1: `bu.txt`, 400 lines `line NNNN of the BU fixture, …`, padded to the length row 5 needs; `r.txt`, 100
+  lines `r line NNN`;
+- commit 2: 5 lines inserted after `bu.txt`'s line 10, lines 100–110 (now 105–115) edited, so blame has two commits
+  and commit 1's lines below 10 sit 5 lower; `r.txt` renamed to `r2.txt` with 5 lines inserted at its top;
+- unstaged: every 20th line of `bu.txt` edited, plus lines 300–340 replaced (one hunk taller than the pane).
+
+A console.error / warn and unhandledrejection hook installed before row 1; the app log read for WARN / ERROR after.
+
+- [ ] 1. **↑ shows the header (S1):** Changes › `bu.txt` → click the first change → ↓ ×40 → ↑ one press at a time to
+      the top. *Pass:* at every press the cursor row is focused and in view. At every press that lands on a hunk's
+      first change, that hunk's `@@` row is wholly inside the region (its rect top ≥ the region's). Back at the top,
+      scrollTop is 0. Record scrollTop per press.
+      *(Walked 2026-10-17 on a Windows VM build of `a0c64572` over CDP: pass. ↓×40 to 312−, ↑×41; every press focused
+      and in view, every first-change press had its `@@` row whole; scrollTop 0 at the top.
+      `docs/archive/walks/2026-10-17-bu-walk.md`.)*
+- [x] 2. **Another context (S1, D1 (B)):** Settings › diff context 8 → row 1 again → the same pass. Context back to 3.
+      *(Walked 2026-10-17 on a Windows VM build of `a0c64572` over CDP: pass. scrollTop 5201 ×13, then pairs 4992 …
+      384, 0, 0; header at 0, cursor at 204, then 184. Context back to 3.)*
+- [x] 3. **A hunk taller than the pane (S1):** wheel-scroll to the bottom of the 300–340 hunk and click its last added
+      line (a click doesn't reveal). Then ↑ one press at a time. *Pass:* the cursor stays pinned to the top edge while
+      header-to-cursor is taller than the region. On the first press where it fits, the header jumps to the top once,
+      with the cursor in view below it. Record scrollTop per press.
+      *(Walked 2026-10-17 on a Windows VM build of `a0c64572` over CDP: pass. Clicked 340+ at st 3800; the cursor
+      pinned at top 0 while st fell 20 a press to 3180; at 326− header-to-cursor 624 > region 619; the next press
+      (325−, 604) fit: st 2576 once, header at 0, cursor at 584.)*
+- [x] 4. **A click doesn't scroll (S1):** wheel-scroll so a hunk's `@@` row is just above the top edge, click a fully
+      visible change of that hunk → scrollTop unchanged. Double-click a word on a change row near the top → that word
+      is selected (`getSelection()`), on the clicked line.
+      *(Walked 2026-10-17 on a Windows VM build of `a0c64572` over CDP: pass. Header `@@-237` at top −30 (st 2054);
+      click on 240− (top 54): st unchanged, cursor there. Double-click on 240+'s "0235" selected "0235 " on that row.)*
+- [x] 5. **The header in full (S6):** at `--inner 1280x800`, first measure the Changes diff column's width and the
+      headers' text width. The fixture's line length is set so a header's text falls between (row width − ~170 px)
+      and the row width; rebuild with another padding if it doesn't. Read every `@@` row in view while nothing is
+      hovered: the header element's `scrollWidth` and `clientWidth`. *Pass:* `scrollWidth ≤ clientWidth` on the
+      branch, where the installed 0.10.24 (`-Installed`, the same reading) has `scrollWidth > clientWidth`; both
+      readings recorded. Hover a header → Stage hunk and Discard hunk show over its right end. Stage hunk → the hunk
+      moves to the staged list. There, hover → Unstage hunk → back. Tab from a change row to the buttons → they show
+      while focused.
+      *(Walked 2026-10-17 on a Windows VM build of `a0c64572` over CDP: pass. Diff column 345, header text 304 px.
+      Branch: four headers scrollWidth 319 / clientWidth 319; installed 0.10.24 on the same fixture: 304 / 151. Hover
+      showed the buttons (opacity 0 → 1, w 169); Stage hunk and Unstage hunk round-tripped; Tab and Shift+Tab showed
+      them. The `@@ -297,47` text (330 px) is wider than the row, so it is cut on the branch too: outside the row's
+      design range.)*
+- [x] 6. **A click moves the blame cursor (S2):** History › commit 2 › Files › `bu.txt` → Blame → click line 50's
+      text. *Pass:* line 50 has `aria-selected="true"` and `tabindex=0`; ↓ → line 51.
+      *(Walked 2026-10-17 on a Windows VM build of `a0c64572` over CDP: pass. Line 50: `aria-selected=true`,
+      `tabindex=0`, focused; ↓ → 51.)*
+- [x] 7. **Text selection kept (S2, D3 (a)):** drag across a word inside line 60 → the cursor on line 60, the
+      selection non-empty. Drag from line 70 to line 72 → the selection kept, the cursor still on 60; ↓ → line 61.
+      Right-click line 80 → the menu → Escape → the cursor on 80, as before.
+      *(Walked 2026-10-17 on a Windows VM build of `a0c64572` over CDP: pass. Drag in "0055" → cursor 60, selection
+      " 005". Drag 70→72 kept the selection, cursor still 60; ↓ → 61. Right-click 80 → Escape → cursor 80.)*
+- [x] 8. **Gutter click on the commit on screen (S2, D2 (a)):** on commit 2, click line 110's gutter (commit 2's own
+      hunk). *Pass:* the grid stays on commit 2, nothing reloads, the cursor is on line 110, scrollTop unchanged.
+      *(Walked 2026-10-17 on a Windows VM build of `a0c64572` over CDP: pass. No remount, st 2000 before and after,
+      cursor 110.)*
+- [x] 9. **The drill-down keeps the line (S2b, D6):** on commit 2, scroll so line 200 is mid-view; note its text and
+      its `y`. Click its gutter (commit 1's hunk). *Pass:* the grid selects commit 1; the Files tab shows `bu.txt`,
+      blame on. The line with the same text (line 195 in commit 1, git's original line) has the cursor and the focus
+      (`document.activeElement`), at the same `y` ±20 px. ↓ → the next line.
+      *(Walked 2026-10-17 on a Windows VM build of `a0c64572` over CDP: pass, pane h 251. Line 200 at y 115 → commit
+      1, `bu.txt`, blame on; cursor and focus on 195 at y 115 (Δ0), st 3765; ↓ → 196.)*
+- [x] 10. **Enter and *Select in graph* (S2b):** back on commit 2: the cursor on line 250 by keys → Enter → commit 1,
+      line 245, as row 9. Back again: right-click line 300 → *Select in graph* → line 295. Then right-click line 110
+      (commit 2's hunk, its own line 110) → *Blame parent* → commit 1. *Record* the line with the cursor and its
+      text, with no pass line to meet (D7 (b): expected near commit 1's line 110, an approximation). The cursor and
+      the focus are in the view.
+      *(Walked again 2026-10-17 of `6f1ca92b`, after the parser and clamp fixes: recorded. Enter → 245, Select in
+      graph → 295, both at the clicked y. Blame parent from line 110 (commit 2's second hunk) is now enabled →
+      commit 1 line 110, whose text is commit 1's line 105: D7 (b)'s approximation, 5 lines off. From line 13 →
+      line 13 at y 231 (the clamp).)*
+- [x] 11. **A rename (S2b):** commit 2 › `r2.txt` → Blame → line 50's gutter → commit 1's `r.txt`, line 45 with the
+      cursor.
+      *(Walked again 2026-10-17 of `6f1ca92b`: pass, `r.txt` line 45 at the clicked y. A renamed file's later
+      commit-1 hunk couldn't be checked: the fixture has only one commit-1 hunk in `r2.txt`.)*
+- [x] 12. **The diff window (S2b):** commit 2 › Files › `bu.txt` › Open diff window → Blame → line 200's gutter.
+      *Pass:* the window's view lands on line 195 with the focus inside the window, not in the pane behind.
+      *(Walked again 2026-10-17 of `6f1ca92b`: pass. The pane behind (251 px) now shows its cursor line at y 231 (=
+      h − 20) before and after the window closes.)*
+- [x] 13. **A tab switch doesn't carry the line (S2b):** the same repo can't have two tabs (`openTab` only switches to
+      the existing one, `tabsStore.ts:100-103`), so tab B opens a clone: `git clone C:/tmp/t4/bu C:/tmp/t4/bu-clone`
+      (forward slashes: Git Bash eats unquoted backslashes). Same oids and paths, another repo id. In B, commit 1 ›
+      Files › `bu.txt` at the top. In tab A, drill down as row 9 (to commit 1's `bu.txt`). Switch to B. *Pass:* B's
+      view stays at line 1, scrollTop 0, its cursor on line 1. This checks the `restore` clear: the switch clears
+      `revealLine` before any repo comparison could run, so the `repoId` check itself is covered by the unit tests
+      only.
+      *(Walked 2026-10-17 on a Windows VM build of `a0c64572` over CDP: pass. Clone opened as tab B by seeding
+      `layout.json` and relaunching (the native open dialog can't be driven). B: commit 1 `bu.txt`, blame on, cursor
+      1, st 0. A: line 200 (y 109) gutter → commit 1 line 195 at y 109. Switch to B: st 0, cursor on line 1.)*
+- [x] 14. **The Stashes dialog route (S2b, the plan's *For triage* T2):** stash an edit to `bu.txt` (`git stash`),
+      open the Stashes dialog → the stash → Files › `bu.txt` → Blame (on) → a commit-1 line's gutter. *Record:* the
+      dialog closes, History shows commit 1 with the cursor on the line; where the focus is (expected: the Stashes
+      opener, not the view). Then `git stash pop`, not `drop`: the stash holds the fixture's unstaged edits too,
+      which a re-walk of rows 1–5 needs.
+      *(Walked again 2026-10-17 of `6f1ca92b`: recorded. The cursor line lands on screen (pane 251 px, y 231); focus
+      on the "Manage stashes" opener (T2, accepted).)*
+- [x] 15. **Read-only diffs unchanged (S1, S6):** History › commit 2's diff of `bu.txt`, unified and split, and the
+      diff window → headers in full, no buttons; ↑ / ↓ scroll the region as before.
+      *(Walked 2026-10-17 on a Windows VM build of `a0c64572` over CDP: pass. Unified `@@-8,6` 684/684, split 684/684,
+      diff window `@@-97,17` 897/897 (scrollWidth/clientWidth). ↓×3 then ↑: scrollTop 0 → 120 → 80 in all three;
+      installed 0.10.24 the same.)*
+
 ## BW. The History / Changes view per tab
 
 Plan: `docs/archive/plans/2026-10-17-per-tab-view-plan.md` (D1–D6, Design 11). Windows VM (session git-ui-win) over
