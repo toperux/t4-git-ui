@@ -84,6 +84,13 @@ describe("carryOffset", () => {
     expect(carry(unified, end("a"), 90, end("a2"))).toBe(90);
   });
 
+  it("a no-newline marker after a deleted line stays on top by the old side", () => {
+    // Rows: header 0, `1` 24, `-2` 44, the marker 64, `+2` 84. At 70 the marker is on top, 6 px in.
+    const end = (add: string) =>
+      fileDiff([hunk("@@ -1,2 +1,2 @@", [line("context", 1, 1, "1"), line("del", 2, null, "a", true), line("add", null, 2, add)])]);
+    expect(carry(unified, end("b"), 70, end("b2"))).toBe(70);
+  });
+
   it("the ends: the top stays the top, and a line past the new end lands on the last row", () => {
     // Hunk 0 (line 10) is whitespace only: its header gives way to the first hunk left, at 0.
     expect(carry(unified, WS, 0, WS_HIDDEN)).toBe(0);

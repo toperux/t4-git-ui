@@ -487,8 +487,8 @@ src/
                            strip itself wraps); `onDiscardHunk` /
                            `onDiscardLines` add "Discard hunk" / "Discard N lines" (+ `Delete` on a selection), wired for the
                            unstaged side only; a mode change shows as a `100644 → 100755` chip beside the stats. The body
-                           scrolls back to the top only when the file path changes; a reload of the same file
-                           keeps its top line (`scrollAnchor.ts`);
+                           scrolls back to the top only when the file path changes; a reload of the same file keeps its
+                           top line (`scrollAnchor.ts`);
                            `onOpenExternal` adds an "Open in diff tool" IconButton beside the expand one — `open_diff_tool`
                            (git-core tools.rs writes the two sides to a per-user temp dir and spawns the configured tool —
                            split with no shell on Windows, `sh -c` with the variables in the environment on unix; an unstaged

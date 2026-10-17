@@ -629,7 +629,7 @@ describe("DiffViewer", () => {
       expect(scrolls.cancels).toBe(1);
     });
 
-    it("Enter on a hunk button after a reload is the button's: the focus stays on it", () => {
+    it("Enter on a hunk button after a reload: no first-key scroll, and the focus stays on the button", () => {
       const { getAllByRole, getAllByText, reload } = mount(stripes(), 12_000, staging());
       cursorOn(getAllByRole("option"), "line 670 changed");
       reload(stripes({ insertAfter: 9 }));
@@ -638,6 +638,39 @@ describe("DiffViewer", () => {
       fireEvent.keyDown(button, { key: "Enter" });
       expect(scrolls.indexes).toEqual([]);
       expect(document.activeElement).toBe(button);
+    });
+
+    it("↓ on a hunk button after a reload still brings the cursor in before it moves", () => {
+      const { getAllByRole, getAllByText, reload } = mount(stripes(), 12_000, staging());
+      cursorOn(getAllByRole("option"), "line 670 changed");
+      reload(PUSHED);
+      const button = getAllByText("Stage hunk")[0];
+      button.focus();
+      fireEvent.keyDown(button, { key: "ArrowDown" });
+      expect(scrolls.indexes).toEqual([
+        [rowOf(PUSHED, "add", "line 670 changed"), "auto"],
+        [rowOf(PUSHED, "del", "line 680"), "auto"],
+      ]);
+    });
+
+    it("the anchored offset is what the new rows render around, before any scroll event", () => {
+      useDiffStore.setState({ view: "unified" });
+      const { region, reload } = mount(WS, 15_000);
+      reload(stripes({ wsOdd: true, ignoreWhitespace: true }));
+      // At 7 456 the top row is line 820's; the old 15 000 would render the rows of line 1640's hunk.
+      expect(region.textContent).toContain("line 820 changed");
+    });
+
+    it("the first key after a reload refocuses a cursor line that only mounts with its scroll", async () => {
+      // The cursor is on the first pick (`line 10`, row 4), far above the view at 12 000: not mounted.
+      const { region, getAllByRole, reload } = mount(stripes(), 12_000, staging());
+      reload(PUSHED);
+      region.focus();
+      expect(document.activeElement).toBe(region);
+      scrolls.top = 0; // where the key's `scrollToIndex` takes the view
+      fireEvent.keyDown(region, { key: " " });
+      await act(() => new Promise<void>((done) => requestAnimationFrame(() => done())));
+      expect(document.activeElement).toBe(option(getAllByRole("option"), "line 10"));
     });
 
     it("StrictMode's second mount run is no reload: the first ↓ scrolls once", () => {

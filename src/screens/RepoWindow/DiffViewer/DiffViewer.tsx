@@ -518,9 +518,10 @@ function DiffBody({ path, diff, view, rows, maxCols, lang, actions, selected, cu
         upKey.current = e.key === "ArrowUp";
         // The first key after a reload acts on the cursor line, which the anchored view may not show:
         // bring it in first. `scrollOffset` takes the result at once, for the cursor effect's own
-        // scroll if the key moves the cursor. The line may only now mount: focus it again. Not from a
-        // hunk button, whose own Enter / Space would lose its click to the moved focus.
-        if (quiet.current && actions && cursorRow >= 0 && BODY_KEYS.has(e.key) && !(e.target as HTMLElement).closest("button")) {
+        // scroll if the key moves the cursor. The line may only now mount: focus it again. Not for
+        // Enter / Space on a hunk button: they are its click, which the moved focus would lose.
+        const press = (e.key === "Enter" || e.key === " ") && (e.target as HTMLElement).closest("button");
+        if (quiet.current && actions && cursorRow >= 0 && BODY_KEYS.has(e.key) && !press) {
           quiet.current = false;
           virtualizer.scrollToIndex(cursorRow, { align: "auto" });
           virtualizer.scrollOffset = e.currentTarget.scrollTop;
