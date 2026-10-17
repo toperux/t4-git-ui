@@ -15,6 +15,7 @@ import { restore as restoreDiff, snapshot as diffSnapshot, type DiffSnapshot } f
 import { restore as restoreRepo, snapshot as repoSnapshot, useRepoStore, type RepoSnapshot } from "./repoStore";
 import { restore as restoreStatus, snapshot as statusSnapshot, type StatusSnapshot } from "./statusStore";
 import { toastError } from "./toastStore";
+import { restore as restoreView, snapshot as viewSnapshot, useViewStore, type ViewSnapshot } from "./viewStore";
 
 export interface Tab {
   id: RepoId;
@@ -31,6 +32,7 @@ export interface Snapshot {
   status: StatusSnapshot;
   commit: CommitSnapshot;
   diff: DiffSnapshot;
+  view: ViewSnapshot;
 }
 
 export interface TabsStore {
@@ -43,9 +45,10 @@ export interface TabsStore {
   /**
    * Opens `path` in a new tab — or activates the tab that already has it, or focuses the other
    * window that does (`openElsewhere`, which resolves quietly). Rejects with the `AppError` of a
-   * real failure, so each entry point can say what it wants about it.
+   * real failure, so each entry point can say what it wants about it. A new tab goes on the end, or
+   * at `at` (a drop's slot, clamped); one already open stays where it is.
    */
-  openTab(path: string): Promise<void>;
+  openTab(path: string, at?: number): Promise<void>;
   activate(id: RepoId): void;
   /** Closes the tab and lets go of its repository; the last tab closes the window (or, in the main window, shows the start screen). */
   closeTab(id: RepoId): Promise<void>;
@@ -56,14 +59,18 @@ export interface TabsStore {
   setCaret(at: number | null): void;
 }
 
-const take = (): Snapshot => ({ repo: repoSnapshot(), status: statusSnapshot(), commit: commitSnapshot(), diff: diffSnapshot() });
+const take = (): Snapshot => ({ repo: repoSnapshot(), status: statusSnapshot(), commit: commitSnapshot(), diff: diffSnapshot(), view: viewSnapshot() });
 
-/** `repoStore` first: the other stores subscribe to it, and their subscribers reset them. */
+/**
+ * `repoStore` first: the other stores subscribe to it, and their subscribers reset them. The view
+ * subscribes to nothing.
+ */
 function put(s: Snapshot) {
   restoreRepo(s.repo);
   restoreStatus(s.status);
   restoreCommit(s.commit);
   restoreDiff(s.diff);
+  restoreView(s.view);
 }
 
 /** Shows the tab `snap` belongs to. The walk is restarted rather than resumed — it may be generations behind. */
@@ -80,7 +87,7 @@ export const useTabsStore = create<TabsStore>()((set, get) => ({
   saved: {},
   caret: null,
 
-  async openTab(path) {
+  async openTab(path, at) {
     // The *Opening…* overlay from the click, not from the backend's answer: `repoStore.openRepo`
     // sets it too, but only after the wait below, which showed nothing. Cleared on every way out.
     useRepoStore.setState({ opening: baseName(path) });
@@ -102,11 +109,15 @@ export const useTabsStore = create<TabsStore>()((set, get) => ({
         return;
       }
       useDialogStore.getState().close();
+      const next = tabs.slice();
+      next.splice(Math.min(Math.max(at ?? tabs.length, 0), tabs.length), 0, { id: summary.id, path: summary.path, name: summary.name, stale: false });
       set({
-        tabs: [...tabs, { id: summary.id, path: summary.path, name: summary.name, stale: false }],
+        tabs: next,
         active: summary.id,
         saved: active ? { ...get().saved, [active]: take() } : get().saved,
       });
+      // A new tab starts on History, whatever the tab left (or the start screen) showed.
+      useViewStore.getState().setView("history");
       try {
         await useRepoStore.getState().openRepo(summary.path, summary);
       } catch (e) {

@@ -85,6 +85,12 @@ export interface CommitStore {
   applying: boolean;
   /** `commit()` is the mutation in flight — what turns the Commit button into a spinner. */
   committing: boolean;
+  /**
+   * `commit()` runs, from its start to its return: past `busy`, through the status refresh and
+   * `syncRefs`. A tab dropped in from another window waits for it (`openWhenIdle`). Not part of a
+   * tab's state: it belongs to the call, so `reset` leaves it alone.
+   */
+  inCommit: boolean;
 
   select(list: ListId, sel: Selection): void;
   /** `FileList` registers its display order; a focused row missing from the new order hands the selection to its neighbour. */
@@ -144,6 +150,8 @@ let authorFor: string | null = null;
 let prefillSeq = 0;
 /** `run`s between their start and their refresh landing: the next can start while one still refreshes. */
 let applyingRuns = 0;
+/** `commit()` calls between their start and their return: a second can start in the first's tail. */
+let commitRuns = 0;
 
 const EMPTY_STATS = { unstaged: {}, staged: {} };
 const NO_ORDER = { unstaged: null, staged: null };
@@ -255,6 +263,16 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
     return false;
   }
 
+  /**
+   * The native box sets no `busy` and no dialog, so a tab dropped in from another window comes
+   * forward while it is up (`openWhenIdle`): the confirmed paths belong to the repository asked about.
+   */
+  function stillSameRepo(id: string | null, title: string): boolean {
+    if (repoId() === id) return true;
+    useToastStore.getState().push({ kind: "info", title, detail: "Another repository came forward while the confirmation was open" });
+    return false;
+  }
+
   /** Runs `op` inside the busy / applying bracket every mutation shares, and refreshes the status after it. */
   async function withApplying(op: () => Promise<void>, committing = false) {
     applyingRuns++;
@@ -330,6 +348,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
     busy: false,
     applying: false,
     committing: false,
+    inCommit: false,
 
     select(list, sel) {
       const s = get();
@@ -411,9 +430,10 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
           : untracked > 0
             ? `Discard changes in ${files}? Tracked files are restored from the index; ${untracked} untracked file${untracked === 1 ? " is" : "s are"} deleted.`
             : `Discard changes in ${files}? This cannot be undone.`;
+      const id = repoId();
       // No confirmation available (no Tauri dialog plugin) → treat it as declined; nothing is lost.
       const ok = await ask(message, { title: untracked === n ? "Delete files" : "Discard changes", kind: "warning", cancelLabel: "Cancel", okLabel: untracked === n ? "Delete" : "Discard" }).catch(() => false);
-      if (!ok) return false;
+      if (!ok || !stillSameRepo(id, "Discard cancelled")) return false;
       // `false` too when another mutation was already running: nothing was discarded.
       return await run("Discard failed", (id) => ipc.discardPaths(id, paths));
     },
@@ -421,9 +441,10 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
     async resolveConflict(paths, side, label) {
       const n = paths.length;
       const files = n === 1 ? paths[0] : `${n} files`;
+      const id = repoId();
       // No confirmation available → declined: the checkout overwrites the working file.
       const ok = await ask(`Replace ${files} with ${label}'s version? Your edits to ${n === 1 ? "it" : "them"} are lost.`, { title: "Resolve conflict", kind: "warning", cancelLabel: "Cancel", okLabel: "Replace" }).catch(() => false);
-      if (!ok) return;
+      if (!ok || !stillSameRepo(id, "Resolve cancelled")) return;
       await run("Resolve failed", (id) => ipc.resolveConflict(id, paths, side));
     },
 
@@ -508,34 +529,40 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       const id = repoId();
       const { summary, body, amend, signoff, sign, busy } = get();
       if (!id || busy || !summary.trim()) return null;
-      // "The commit took the last change" needs a before as well as an after: an amend on a tree
-      // that was already clean empties nothing, and that empty state is what one amends from.
-      const hadChanges = selectChangeCount(useStatusStore.getState()) > 0;
-      const message = joinMessage(summary, body);
-      let committed: string | null = null;
-      // Status first (clears the working-tree row when clean), then refs → HEAD moved → fresh walk.
-      const st = useStatusStore.getState();
-      await withApplying(async () => {
-        try {
-          const oid = await ipc.commit(id, message, amend, signoff, sign);
-          committed = oid;
-          pushHistory(id, message);
-          useToastStore.getState().push({ kind: "success", title: amend ? "Amended HEAD" : "Committed", detail: `${oid.slice(0, 7)} ${summary.trim()}` });
-          // The message is spent either way — an amend also drops the amend flag and its prefill memory.
-          set({ summary: "", body: "", amend: false, prefill: null });
-        } catch (e) {
-          toastError(toAppError(e), "Commit failed", () => void get().commit());
+      set({ inCommit: ++commitRuns > 0 });
+      try {
+        // "The commit took the last change" needs a before as well as an after: an amend on a tree
+        // that was already clean empties nothing, and that empty state is what one amends from.
+        const hadChanges = selectChangeCount(useStatusStore.getState()) > 0;
+        const message = joinMessage(summary, body);
+        let committed: string | null = null;
+        // Status first (clears the working-tree row when clean), then refs → HEAD moved → fresh walk.
+        const st = useStatusStore.getState();
+        await withApplying(async () => {
+          try {
+            const oid = await ipc.commit(id, message, amend, signoff, sign);
+            committed = oid;
+            pushHistory(id, message);
+            useToastStore.getState().push({ kind: "success", title: amend ? "Amended HEAD" : "Committed", detail: `${oid.slice(0, 7)} ${summary.trim()}` });
+            // The message is spent either way — an amend also drops the amend flag and its prefill memory.
+            set({ summary: "", body: "", amend: false, prefill: null });
+          } catch (e) {
+            toastError(toAppError(e), "Commit failed", () => void get().commit());
+          }
+        }, true);
+        await st.syncRefs();
+        // The Changes view closes rather than showing its "Working tree clean" empty state: the commit
+        // that took the last change is the moment there is nothing left for the pane to do. Only for a
+        // commit that landed, and only from the view being closed. Not once another tab came forward in
+        // the wait: the view and the status are that tab's now.
+        if (committed && hadChanges && repoId() === id && useSettingsStore.getState().autoCloseChanges) {
+          const view = useViewStore.getState();
+          if (view.view === "changes" && nothingToCommit()) view.setView("history");
         }
-      }, true);
-      await st.syncRefs();
-      // The Changes view closes rather than showing its "Working tree clean" empty state: the commit
-      // that took the last change is the moment there is nothing left for the pane to do. Only for a
-      // commit that landed, and only from the view being closed.
-      if (committed && hadChanges && useSettingsStore.getState().autoCloseChanges) {
-        const view = useViewStore.getState();
-        if (view.view === "changes" && nothingToCommit()) view.setView("history");
+        return committed;
+      } finally {
+        set({ inCommit: --commitRuns > 0 });
       }
-      return committed;
     },
 
     reset() {
@@ -636,3 +663,13 @@ useRepoStore.subscribe((st, prev) => {
 useDiffStore.subscribe((st, prev) => {
   if (st.context !== prev.context && useCommitStore.getState().diffPath) void useCommitStore.getState().reloadDiff();
 });
+
+/**
+ * Forgets the commits and mutations a test left running, so they don't hold `inCommit` or
+ * `applying` into the next one.
+ */
+export function __resetForTests() {
+  commitRuns = 0;
+  applyingRuns = 0;
+  useCommitStore.setState({ inCommit: false, applying: false });
+}

@@ -6,7 +6,7 @@ import type { RepoId } from "../../api/types";
 import { ContextMenu, MenuItem } from "../../components/ui/Menu/Menu";
 import { useTabsStore, type Tab } from "../../store/tabsStore";
 import { toastError } from "../../store/toastStore";
-import { copyText, pickAndOpenRepo } from "./actions";
+import { copyText, openWhenIdle, pickAndOpenRepo } from "./actions";
 import s from "./TabStrip.module.css";
 import { insertionIndex, useTabDrag, type DragUi } from "./useTabDrag";
 
@@ -29,16 +29,9 @@ export function listenTabDrags(): () => void {
       // Measured before the caret goes, the way it was placed while the tab hovered.
       const at = slotAt(x);
       const st = useTabsStore.getState();
-      const before = st.tabs.length;
       st.setCaret(null);
-      void st
-        .openTab(path)
-        .then(() => {
-          // `openTab` appends and activates; only a tab that is actually new has a slot to take.
-          const tabs = useTabsStore.getState().tabs;
-          if (tabs.length === before + 1) st.reorder(tabs.length - 1, Math.min(at, tabs.length - 1));
-        })
-        .catch((e: unknown) => toastError(toAppError(e), "Couldn't open repository"));
+      // Straight into its slot (clamped if tabs closed while it waited); a tab already open stays put.
+      void openWhenIdle(path, () => st.openTab(path, at)).catch((e: unknown) => toastError(toAppError(e), "Couldn't open repository"));
     }),
   ];
   return () => unlisten.forEach((fn) => fn());

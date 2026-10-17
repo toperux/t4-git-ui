@@ -10,6 +10,7 @@ import { keepsNativeMenu } from "./lib/nativeMenu";
 import { useWindowTitle } from "./lib/windowTitle";
 import { GitMissingScreen } from "./screens/GitMissingScreen/GitMissingScreen";
 import { RepoWindow } from "./screens/RepoWindow/RepoWindow";
+import { openWhenIdle } from "./screens/RepoWindow/actions";
 import { listenTabDrags } from "./screens/RepoWindow/TabStrip";
 import { StartScreen } from "./screens/StartScreen/StartScreen";
 import { useCmdHistoryStore } from "./store/cmdHistoryStore";
@@ -174,16 +175,11 @@ export default function App() {
       // take the tab back rather than lose it.
       onTabSpawnFailed((paths) => {
         useToastStore.getState().push({ kind: "error", title: "Couldn't open a new window", detail: paths.join(", ") });
-        // One at a time, like `restoreTabs`: they all land in this window's one `repoStore`.
-        void (async () => {
-          for (const path of paths) {
-            try {
-              await useTabsStore.getState().openTab(path);
-            } catch (e) {
-              toastError(toAppError(e), "Couldn't open repository");
-            }
-          }
-        })();
+        // All handed over at once, so each one that has to wait says so; `openWhenIdle` still opens
+        // them one at a time, in order, like `restoreTabs`: they all land in this window's one `repoStore`.
+        for (const path of paths) {
+          void openWhenIdle(path, () => useTabsStore.getState().openTab(path)).catch((e: unknown) => toastError(toAppError(e), "Couldn't open repository"));
+        }
       }),
       // A tab dragged in another window hovering this one, and dropped on it. Here rather than in the
       // strip, which is not rendered with one tab or none.

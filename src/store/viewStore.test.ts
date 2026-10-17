@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { useViewStore } from "./viewStore";
+import { restore, snapshot, useViewStore } from "./viewStore";
 
 beforeEach(() => useViewStore.getState().__resetForTests());
 
@@ -35,5 +35,15 @@ describe("viewStore", () => {
     st().toggleRail(false);
     st().setView("history");
     expect(st().railOverride).toEqual({ history: true, changes: true });
+  });
+
+  it("a tab's snapshot is its view alone: the rail override stays the window's", () => {
+    const st = () => useViewStore.getState();
+    st().setView("changes");
+    expect(snapshot()).toEqual({ view: "changes" });
+    st().toggleRail(false);
+    restore({ view: "history" });
+    expect(st().view).toBe("history");
+    expect(st().railOverride).toEqual({ history: null, changes: true });
   });
 });

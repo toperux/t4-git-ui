@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, waitFor, within } from "@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Hunk, RefsSnapshot, WorkdirStatus } from "../../../api/types";
 import { hunkPrint } from "../../../lib/hunkPrint";
-import { useCommitStore } from "../../../store/commitStore";
+import { __resetForTests as resetCommit, useCommitStore } from "../../../store/commitStore";
 import { useDiffStore } from "../../../store/diffStore";
 import { useRepoStore } from "../../../store/repoStore";
 import { useDialogStore } from "../../../store/dialogStore";
@@ -10,6 +10,7 @@ import { useSettingsStore } from "../../../store/settingsStore";
 import { useStatusStore } from "../../../store/statusStore";
 import { useToastStore } from "../../../store/toastStore";
 import { __resetForTests as resetTreeMode, useTreeModeStore } from "../../../store/treeModeStore";
+import { openWhenIdle } from "../actions";
 import { CommitDialog } from "../dialogs/CommitDialog";
 import { CommitPanel, useCommitSync } from "./CommitPanel";
 
@@ -111,6 +112,8 @@ beforeEach(() => {
   useStatusStore.setState({ status: STATUS, error: null });
   useDialogStore.setState({ dialog: null, returnFocus: null });
   useCommitStore.getState().reset();
+  // Earlier cases leave commits that never return (`getStatus` never answers by default).
+  resetCommit();
   useSettingsStore.setState({ tools: { diff: { name: "bc", path: "C:/BC/BComp.exe", cmd: "x" }, merge: null } });
 });
 afterEach(cleanup);
@@ -699,6 +702,30 @@ describe("CommitPanel", () => {
     expect(plain.getAttribute("aria-busy")).toBe("false");
     await act(async () => done("abcdef1234"));
     expect(text(push)).toBe("Commit & Push");
+  });
+
+  // A tab dropped in from another window mid-commit (`openWhenIdle`) must not open in the gap between
+  // `commit()` returning and Push opening: Push would then open against the dropped repository.
+  it("a tab dropped during Commit & Push opens only once the Push it opens has closed", async () => {
+    let done = (_oid: string) => {};
+    mocked.commit.mockReturnValueOnce(new Promise<string>((resolve) => (done = resolve)));
+    mocked.getStatus.mockResolvedValueOnce({ ...STATUS, entries: [], staged: 0, unstaged: 0, untracked: 0, conflicted: 0 });
+    useCommitStore.setState({ summary: "Fix lanes" });
+    const { getByRole } = renderPanel();
+    const push = getByRole("button", { name: "Commit & Push" });
+    fireEvent.click(push);
+    await waitFor(() => expect(text(push)).toBe("Committing…"));
+    const open = vi.fn(() => Promise.resolve());
+    void openWhenIdle("/dropped", open);
+
+    await act(async () => done("abcdef1234"));
+    await waitFor(() => expect(useDialogStore.getState().dialog).toEqual({ kind: "push" }));
+    expect(useRepoStore.getState().repo?.id).toBe("r");
+    await act(() => new Promise((r) => setTimeout(r, 0)));
+    expect(open).not.toHaveBeenCalled();
+
+    act(() => useDialogStore.getState().close());
+    await waitFor(() => expect(open).toHaveBeenCalledTimes(1));
   });
 
   it("the staged header and a row's own +/− say the same while a mutation runs", () => {

@@ -27,6 +27,7 @@ import { useCommitStore } from "./commitStore";
 import { useDialogStore } from "./dialogStore";
 import { __resetForTests as resetRepo, useRepoStore } from "./repoStore";
 import { draftRepos, type Snapshot, useTabsStore } from "./tabsStore";
+import { useViewStore } from "./viewStore";
 
 let label = "main";
 const mocked = ipc as unknown as Record<"openRepo" | "closeRepo" | "spawnWindow" | "startLog", ReturnType<typeof vi.fn>>;
@@ -38,6 +39,7 @@ beforeEach(() => {
   label = "main";
   resetRepo();
   useTabsStore.setState({ tabs: [], active: null, saved: {} });
+  useViewStore.getState().__resetForTests();
   // The backend answers with the canonical path, which is what a tab is keyed by.
   mocked.openRepo.mockImplementation((path: string) => Promise.resolve(summary(path)));
   mocked.closeRepo.mockResolvedValue(undefined);
@@ -53,6 +55,22 @@ describe("openTab", () => {
     await useTabsStore.getState().openTab("/a");
     expect(tabs()).toHaveLength(2);
     expect(useTabsStore.getState().active).toBe("/a");
+  });
+
+  it("puts a new tab at `at` (a drop's slot), clamped to the strip; an open tab stays where it is", async () => {
+    await useTabsStore.getState().openTab("/a");
+    await useTabsStore.getState().openTab("/b");
+    await useTabsStore.getState().openTab("/c", 1);
+    expect(tabs().map((t) => t.path)).toEqual(["/a", "/c", "/b"]);
+    expect(useTabsStore.getState().active).toBe("/c");
+
+    await useTabsStore.getState().openTab("/d", 99);
+    await useTabsStore.getState().openTab("/e", -3);
+    expect(tabs().map((t) => t.path)).toEqual(["/e", "/a", "/c", "/b", "/d"]);
+
+    await useTabsStore.getState().openTab("/b", 0);
+    expect(tabs().map((t) => t.path)).toEqual(["/e", "/a", "/c", "/b", "/d"]);
+    expect(useTabsStore.getState().active).toBe("/b");
   });
 
   it("asks the backend to open the repository once per tab open", async () => {
@@ -132,6 +150,105 @@ describe("activate", () => {
     expect(useTabsStore.getState().active).toBe("/a");
     expect(useRepoStore.getState().repo?.id).toBe("/a");
     expect(useCommitStore.getState().summary).toBe("half a message");
+  });
+});
+
+describe("the History / Changes view", () => {
+  const view = () => useViewStore.getState().view;
+  const toChanges = () => useViewStore.getState().setView("changes");
+
+  it("belongs to the tab: a new one starts on History, and a switch puts each tab's own back", async () => {
+    await useTabsStore.getState().openTab("/a");
+    toChanges();
+    await useTabsStore.getState().openTab("/b");
+    expect(view()).toBe("history");
+    useTabsStore.getState().activate("/a");
+    expect(view()).toBe("changes");
+    useTabsStore.getState().activate("/b");
+    expect(view()).toBe("history");
+  });
+
+  it("an open of a repository that already has a tab keeps that tab's view", async () => {
+    await useTabsStore.getState().openTab("/a");
+    toChanges();
+    await useTabsStore.getState().openTab("/b");
+    await useTabsStore.getState().openTab("/a");
+    expect(view()).toBe("changes");
+    // The active tab itself, too.
+    await useTabsStore.getState().openTab("/a");
+    expect(view()).toBe("changes");
+  });
+
+  it("closing the active tab shows the next one's own view; closing a background tab drops its snapshot", async () => {
+    await useTabsStore.getState().openTab("/a");
+    toChanges();
+    await useTabsStore.getState().openTab("/b");
+    expect(view()).toBe("history");
+    await useTabsStore.getState().closeTab("/b");
+    expect(useTabsStore.getState().active).toBe("/a");
+    expect(view()).toBe("changes");
+
+    await useTabsStore.getState().openTab("/c");
+    expect(useTabsStore.getState().saved["/a"]).toBeDefined();
+    await useTabsStore.getState().closeTab("/a");
+    expect(useTabsStore.getState().saved["/a"]).toBeUndefined();
+  });
+
+  it("the start screen: a repository opened after the last tab closed in Changes starts on History", async () => {
+    await useTabsStore.getState().openTab("/a");
+    toChanges();
+    await useTabsStore.getState().closeTab("/a");
+    await useTabsStore.getState().openTab("/b");
+    expect(view()).toBe("history");
+  });
+
+  it("a failed open rejects with its error and lands on a remaining tab, in that tab's own view", async () => {
+    await useTabsStore.getState().openTab("/a");
+    await useTabsStore.getState().openTab("/b");
+    toChanges();
+    const own: Record<string, string> = { "/a": "history", "/b": "changes" };
+    const openRepo = useRepoStore.getState().openRepo;
+    useRepoStore.setState({ openRepo: () => Promise.reject({ kind: "internal", message: "unreadable" }) });
+    try {
+      await expect(useTabsStore.getState().openTab("/c")).rejects.toMatchObject({ kind: "internal" });
+    } finally {
+      useRepoStore.setState({ openRepo });
+    }
+    expect(tabs().map((t) => t.path)).toEqual(["/a", "/b"]);
+    // Whichever tab it lands on (the last one today; the one that was active is §AO's row), the view is its own.
+    const { active } = useTabsStore.getState();
+    expect(active === "/a" || active === "/b").toBe(true);
+    expect(view()).toBe(own[active!]);
+  });
+
+  it("a failed open at a drop's slot lands on a remaining tab too, in that tab's own view", async () => {
+    await useTabsStore.getState().openTab("/a");
+    toChanges();
+    await useTabsStore.getState().openTab("/b");
+    // `/a` in Changes, unlike the History the open resets to, so landing there checks the restore.
+    const own: Record<string, string> = { "/a": "changes", "/b": "history" };
+    const openRepo = useRepoStore.getState().openRepo;
+    useRepoStore.setState({ openRepo: () => Promise.reject({ kind: "internal", message: "unreadable" }) });
+    try {
+      await expect(useTabsStore.getState().openTab("/c", 0)).rejects.toMatchObject({ kind: "internal" });
+    } finally {
+      useRepoStore.setState({ openRepo });
+    }
+    expect(tabs().map((t) => t.path)).toEqual(["/a", "/b"]);
+    // Today the tab that sat in the slot (`/a`); §AO's row would make it the one that was active.
+    const { active } = useTabsStore.getState();
+    expect(active === "/a" || active === "/b").toBe(true);
+    expect(view()).toBe(own[active!]);
+  });
+
+  it("the sidebar override stays the window's across a switch", async () => {
+    await useTabsStore.getState().openTab("/a");
+    await useTabsStore.getState().openTab("/b");
+    useViewStore.getState().toggleRail(false);
+    const before = useViewStore.getState().railOverride;
+    useTabsStore.getState().activate("/a");
+    expect(useViewStore.getState().railOverride).toEqual(before);
+    expect(useViewStore.getState().railOverride.history).toBe(true);
   });
 });
 

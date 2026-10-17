@@ -47,7 +47,12 @@ export const WorkingTreeRow = memo(function WorkingTreeRow({ id, top, rowH, lane
       onClick={(e) => {
         if (e.detail !== 1) return;
         clearTimeout(pending.current ?? undefined);
-        pending.current = setTimeout(openCommitPanel, DBLCLICK_MS);
+        // A tab switch inside the wait keeps the row mounted when the tab switched to shows one too:
+        // that tab's view is not this click's to change.
+        const repo = useRepoStore.getState().repo?.id;
+        pending.current = setTimeout(() => {
+          if (useRepoStore.getState().repo?.id === repo) openCommitPanel();
+        }, DBLCLICK_MS);
       }}
       /* The grid, not the row, is what holds focus — and Commit & Push hands this on to the Push dialog. */
       onDoubleClick={(e) => {

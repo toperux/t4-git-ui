@@ -507,6 +507,28 @@ describe("commitStore mutations", () => {
     expect(mocked.resolveConflict).toHaveBeenCalledTimes(2);
   });
 
+  // The native box sets no `busy` and no dialog, so a tab dropped in from another window comes
+  // forward while it is up: what was confirmed belongs to the repository it was asked about.
+  it("discard and resolve do nothing when another repository came forward during the confirmation", async () => {
+    const switchDuringAsk = () =>
+      ask.mockImplementationOnce(() => {
+        useRepoStore.setState({ repo: { ...REPO, id: "other", path: "other" } });
+        return Promise.resolve(true);
+      });
+    const infos = () => useToastStore.getState().toasts.filter((t) => t.kind === "info");
+
+    switchDuringAsk();
+    await expect(useCommitStore.getState().discard(["a.rs"])).resolves.toBe(false);
+    expect(mocked.discardPaths).not.toHaveBeenCalled();
+    expect(infos()).toMatchObject([{ title: "Discard cancelled", detail: "Another repository came forward while the confirmation was open" }]);
+
+    useRepoStore.setState({ repo: REPO });
+    switchDuringAsk();
+    await useCommitStore.getState().resolveConflict(["a.rs"], "ours", "main");
+    expect(mocked.resolveConflict).not.toHaveBeenCalled();
+    expect(infos().map((t) => t.title)).toEqual(["Discard cancelled", "Resolve cancelled"]);
+  });
+
   it("discard returns false when another mutation is already running", async () => {
     useCommitStore.setState({ busy: true });
     await expect(useCommitStore.getState().discard(["a.rs"])).resolves.toBe(false);
@@ -794,6 +816,26 @@ describe("commitStore.commit", () => {
     }
   });
 
+  it("`inCommit` holds from the start of `commit()` to its return, past `busy` and the status refresh — failed commit or not", async () => {
+    for (const fail of [false, true]) {
+      let settle!: () => void;
+      mocked.commit.mockReturnValueOnce(
+        new Promise<string>((res, rej) => (settle = () => (fail ? rej({ kind: "git", message: "boom" }) : res("abcdef1234")))),
+      );
+      let land!: (s: WorkdirStatus) => void;
+      mocked.getStatus.mockReturnValueOnce(new Promise<WorkdirStatus>((r) => (land = r)));
+      useCommitStore.setState({ summary: "Fix lanes" });
+      const done = useCommitStore.getState().commit();
+      expect(useCommitStore.getState().inCommit).toBe(true);
+      settle();
+      await flush();
+      expect(useCommitStore.getState()).toMatchObject({ busy: false, inCommit: true });
+      land(status([]));
+      await done;
+      expect(useCommitStore.getState().inCommit).toBe(false);
+    }
+  });
+
   it("a normal commit leaves amend off and records the message in history", async () => {
     mocked.commit.mockResolvedValue("1234567890");
     useCommitStore.setState({ summary: "Add lanes", body: "detail" });
@@ -907,6 +949,27 @@ describe("commitStore.commit closing the Changes view", () => {
     inChangesWith([entry("a.rs")]);
     useCommitStore.setState({ summary: "Fix it up" });
     await useCommitStore.getState().commit();
+    expect(useViewStore.getState().view).toBe("changes");
+  });
+
+  // `busy` clears before the refresh and `syncRefs`, so a tab switch can land in that gap: the view
+  // is then the other tab's, and so is the status `nothingToCommit` would read.
+  it("leaves the view alone when another tab came forward during the refresh", async () => {
+    mocked.commit.mockResolvedValue("abcdef1234");
+    inChangesWith([entry("a.rs")]);
+    useCommitStore.setState({ summary: "Done" });
+    const syncRefs = useStatusStore.getState().syncRefs;
+    useStatusStore.setState({
+      syncRefs: async () => {
+        await syncRefs();
+        useRepoStore.setState({ repo: { ...REPO, id: "other", path: "other" } });
+      },
+    });
+    try {
+      await useCommitStore.getState().commit();
+    } finally {
+      useStatusStore.setState({ syncRefs });
+    }
     expect(useViewStore.getState().view).toBe("changes");
   });
 

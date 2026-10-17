@@ -5,6 +5,7 @@ import * as ipc from "../../api/ipc";
 import { toAppError } from "../../api/ipc";
 import type { BisectTerm, Branch, DiffTarget, Remote, RemoteBranch } from "../../api/types";
 import { splitArgs } from "../../lib/argv";
+import { baseName } from "../../lib/paths";
 import { useCmdHistoryStore } from "../../store/cmdHistoryStore";
 import { useCommitStore } from "../../store/commitStore";
 import { useDialogStore } from "../../store/dialogStore";
@@ -270,9 +271,57 @@ export function openCommitPanel() {
  * mutations, which share its `busy`) never touches `opsStore`, so it is checked too.
  */
 export function refusedWhileRunning(before: string): boolean {
-  if (!selectRunning(useOpsStore.getState()) && !useCommitStore.getState().busy) return false;
+  if (!isRunning()) return false;
   useToastStore.getState().push({ kind: "info", title: "Operation in progress", detail: `Wait for it to finish before ${before}` });
   return true;
+}
+
+const isRunning = () => selectRunning(useOpsStore.getState()) || useCommitStore.getState().busy;
+
+/** Opens in flight or waiting, chained so they run one at a time, in the order they came. */
+let waiting: Promise<unknown> = Promise.resolve();
+let queued = 0;
+
+/**
+ * For a tab dropped in from another window, or taken back from one that never opened. Neither can be
+ * refused like `refusedWhileRunning`'s switches: a drop's repository holder has already moved here
+ * (`drop_tab`), and a taken-back tab already left this window (`detach` closed it once
+ * `spawnWindow` returned), so a refusal would lose it. So it waits: for an operation, the whole of
+ * `commit()` (its tail after `busy` — status refresh, `syncRefs` — ends in Commit & Push opening
+ * Push), and any open dialog, which `openTab` would close. `open` runs at once when none of that is
+ * so and nothing is queued; otherwise once it is, after every open queued before it — one that ran
+ * at once included, so several handed over together still open one at a time.
+ */
+export function openWhenIdle(path: string, open: () => Promise<void>): Promise<void> {
+  const busy = () => isRunning() || useCommitStore.getState().inCommit || !!useDialogStore.getState().dialog;
+  const now = !queued && !busy();
+  if (busy()) useToastStore.getState().push({ kind: "info", title: "Waiting to open", detail: `${baseName(path)} opens when the current operation or dialog closes` });
+  // At once: synchronous, as before, so a throw still reaches the caller and nothing is queued.
+  const first = now ? open() : null;
+  queued++;
+  const run = (first ?? waiting.then(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        // Checked a task later, and again in the task that opens: what a finished commit does next —
+        // Commit & Push closing the commit dialog, then opening Push — runs in the microtasks after
+        // `commit()` returns, and nothing can start between that last check and `open`.
+        const check = () => {
+          if (timer || busy()) return;
+          timer = setTimeout(() => {
+            timer = undefined;
+            if (busy()) return;
+            for (const u of unsubscribe) u();
+            // Still synchronous, but a throw rejects `run` rather than leave the queue stuck.
+            new Promise<void>((r) => r(open())).then(resolve, reject);
+          });
+        };
+        const unsubscribe = [useOpsStore.subscribe(check), useCommitStore.subscribe(check), useDialogStore.subscribe(check)];
+        check();
+      }),
+  )).finally(() => queued--);
+  waiting = run.catch(() => undefined);
+  return run;
 }
 
 /** Opens another repository in a tab of this window (toolbar repo menu, recents, a worktree row). */

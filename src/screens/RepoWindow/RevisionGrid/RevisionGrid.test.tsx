@@ -309,6 +309,29 @@ describe("RevisionGrid", () => {
     useStatusStore.setState({ status: null });
   });
 
+  it("a single click's Changes is dropped when another tab came forward inside the wait", () => {
+    withRefs();
+    useStatusStore.setState({
+      status: { entries: [{ path: "a", oldPath: null, index: null, workdir: "modified", conflicted: false, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1", indexStamp: null }], staged: 0, unstaged: 1, untracked: 0, conflicted: 0, state: "clean" },
+    });
+    useViewStore.getState().setView("history");
+    const { container } = render(<RevisionGrid />);
+    const wt = container.querySelectorAll(ROWS)[0];
+    expect(wt.textContent).toContain("Working tree");
+    vi.useFakeTimers();
+    try {
+      fireEvent.click(wt, { detail: 1 });
+      // The tab switched to shows History with a working-tree row too, so this row stays mounted.
+      act(() => useRepoStore.setState({ repo: { id: "r2", name: "r2", path: "r2", head: { oid: "oid0", branch: "main", detached: false } } }));
+      vi.runAllTimers();
+      expect(useViewStore.getState().view).toBe("history");
+      expect(wt.isConnected).toBe(true);
+    } finally {
+      vi.useRealTimers();
+      useStatusStore.setState({ status: null });
+    }
+  });
+
   it("offers the branches at a right-clicked row and opens the dialogs on them", () => {
     withRefs();
     useDialogStore.setState({ dialog: null, returnFocus: null });

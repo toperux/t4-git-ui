@@ -1,6 +1,7 @@
 // Which content view the repository window shows (spec §1) and the user's sidebar override (§2),
-// kept per view. Per window, per session: a new window starts on History with the width deciding
-// the sidebar in both views.
+// kept per view. The view is the active tab's: `tabsStore` snapshots it with the tab, and a new tab
+// starts on History. The override stays per window and per view, for the session: a new window
+// starts with the width deciding the sidebar in both views.
 import { create } from "zustand";
 
 export type View = "history" | "changes";
@@ -30,3 +31,12 @@ export const useViewStore = create<ViewStore>()((set, get) => ({
   },
   __resetForTests: () => set({ view: "history", railOverride: NO_OVERRIDE }),
 }));
+
+/** What a background tab keeps of this store: its view, not the window's sidebar override. */
+export type ViewSnapshot = Pick<ViewStore, "view">;
+
+export const snapshot = (): ViewSnapshot => ({ view: useViewStore.getState().view });
+
+export function restore(s: ViewSnapshot) {
+  useViewStore.setState({ view: s.view });
+}

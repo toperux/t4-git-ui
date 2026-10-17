@@ -35,6 +35,9 @@ vi.mock("./api/events", () => ({
 import * as events from "./api/events";
 import * as ipc from "./api/ipc";
 import App from "./App";
+import { useCommitStore } from "./store/commitStore";
+import { useDialogStore } from "./store/dialogStore";
+import { useOpsStore } from "./store/opsStore";
 import { useRecentsStore } from "./store/recentsStore";
 import { useTabsStore } from "./store/tabsStore";
 import { useToastStore } from "./store/toastStore";
@@ -44,11 +47,15 @@ const mocked = ipc as unknown as Record<
   "probeGit" | "takePending" | "takeLayout" | "spawnWindow" | "setLayout" | "lastUpdateCheck",
   ReturnType<typeof vi.fn>
 >;
-const openTab = vi.fn((_path: string) => Promise.resolve());
-/** Makes `openTab` add its tab, as the real one does once the repository opened. */
+const openTab = vi.fn((_path: string, _at?: number) => Promise.resolve());
+/** Makes `openTab` add its tab, as the real one does once the repository opened: at `at`, else on the end. */
 const openTabAdds = () =>
-  openTab.mockImplementation(async (p) =>
-    useTabsStore.setState((s) => ({ tabs: [...s.tabs, { id: p, path: p, name: p, stale: false }], active: p })),
+  openTab.mockImplementation(async (p, at) =>
+    useTabsStore.setState((s) => {
+      const tabs = s.tabs.slice();
+      tabs.splice(at ?? tabs.length, 0, { id: p, path: p, name: p, stale: false });
+      return { tabs, active: p };
+    }),
   );
 /** What the kv store holds for `lastOpen` — the pre-tabs way of reopening a repository. */
 let lastOpen: string | null = null;
@@ -64,6 +71,9 @@ beforeEach(() => {
   lastOpen = null;
   useRecentsStore.setState({ recents: [], lastOpen: null, lastCloneDir: null });
   useToastStore.setState({ toasts: [] });
+  useOpsStore.setState({ busy: null });
+  useCommitStore.setState({ busy: false, inCommit: false });
+  useDialogStore.getState().close();
 });
 
 /** The launch has several awaits in it; this lets them all settle. */
@@ -221,5 +231,120 @@ describe("App", () => {
     await findByText("Git not found");
     await settled();
     expect(mocked.setLayout).not.toHaveBeenCalled();
+  });
+});
+
+describe("a tab that lands in this window from another one", () => {
+  // Neither can be refused: a dropped tab's repository has already moved here, and a taken-back one
+  // already left this window. Each waits for the operation, the commit or the dialog instead.
+  const adopt = (path: string) => act(() => vi.mocked(events.onTabAdopt).mock.lastCall![0]({ path, x: 0 }));
+  const spawnFailed = (paths: string[]) => act(() => vi.mocked(events.onTabSpawnFailed).mock.lastCall![0](paths));
+  const paths = () => useTabsStore.getState().tabs.map((t) => t.path);
+  const infos = () => useToastStore.getState().toasts.filter((t) => t.kind === "info");
+
+  beforeEach(async () => {
+    openTabAdds();
+    render(<App />);
+    await settled();
+    // Two tabs, no strip in the DOM: a drop measures slot 0.
+    useTabsStore.setState({ tabs: [{ id: "/a", path: "/a", name: "a", stale: false }, { id: "/b", path: "/b", name: "b", stale: false }], active: "/a" });
+  });
+
+  it("dropped while nothing runs, opens at once in its slot, never on the end first", async () => {
+    const shown: string[][] = [];
+    const unsubscribe = useTabsStore.subscribe((st) => shown.push(st.tabs.map((t) => t.path)));
+    adopt("/c");
+    expect(openTab).toHaveBeenCalledWith("/c", 0);
+    await settled();
+    unsubscribe();
+    expect(paths()).toEqual(["/c", "/a", "/b"]);
+    expect(shown.filter((order) => order.includes("/c"))).toEqual([["/c", "/a", "/b"]]);
+    expect(infos()).toEqual([]);
+  });
+
+  it("dropped while an operation runs, waits for it, then opens in its slot; several in the order they came", async () => {
+    useOpsStore.setState({ busy: "Fetching origin…" });
+    adopt("/c");
+    adopt("/d");
+    await settled();
+    expect(openTab).not.toHaveBeenCalled();
+    expect(paths()).toEqual(["/a", "/b"]);
+    expect(infos().map((t) => t.detail)).toEqual(["c opens when the current operation or dialog closes", "d opens when the current operation or dialog closes"]);
+
+    act(() => useOpsStore.setState({ busy: null }));
+    await vi.waitFor(() => expect(paths()).toEqual(["/d", "/c", "/a", "/b"]));
+    expect(openTab.mock.calls).toEqual([["/c", 0], ["/d", 0]]);
+  });
+
+  it("taken back from a window that never opened, while a commit runs, waits for it too", async () => {
+    useCommitStore.setState({ busy: true });
+    spawnFailed(["/c", "/d"]);
+    await settled();
+    expect(openTab).not.toHaveBeenCalled();
+    expect(infos().map((t) => t.detail)).toEqual(["c opens when the current operation or dialog closes", "d opens when the current operation or dialog closes"]);
+
+    act(() => useCommitStore.setState({ busy: false }));
+    await vi.waitFor(() => expect(paths()).toEqual(["/a", "/b", "/c", "/d"]));
+    expect(openTab.mock.calls).toEqual([["/c"], ["/d"]]);
+  });
+
+  it("taken back while nothing runs, open one at a time: the next waits for the one before to finish", async () => {
+    let first!: () => void;
+    openTab.mockImplementationOnce(() => new Promise<void>((r) => (first = r)));
+    spawnFailed(["/c", "/d"]);
+    await settled();
+    expect(openTab.mock.calls).toEqual([["/c"]]);
+    expect(infos()).toEqual([]);
+
+    first();
+    await vi.waitFor(() => expect(openTab.mock.calls).toEqual([["/c"], ["/d"]]));
+  });
+
+  it("dropped in a commit's tail (after `busy`, before `commit()` returns), opens once it returns", async () => {
+    useCommitStore.setState({ inCommit: true });
+    adopt("/c");
+    await settled();
+    expect(openTab).not.toHaveBeenCalled();
+
+    act(() => useCommitStore.setState({ inCommit: false }));
+    await vi.waitFor(() => expect(paths()).toEqual(["/c", "/a", "/b"]));
+    expect(openTab.mock.calls).toEqual([["/c", 0]]);
+  });
+
+  // Commit & Push (the commit returns, then Push opens) is pinned on the real panel: CommitPanel.test.tsx.
+
+  it("dropped while a dialog is open, says so and opens once it closes", async () => {
+    useDialogStore.getState().open({ kind: "settings" });
+    adopt("/c");
+    await settled();
+    expect(openTab).not.toHaveBeenCalled();
+    expect(infos().map((t) => t.detail)).toEqual(["c opens when the current operation or dialog closes"]);
+
+    act(() => useDialogStore.getState().close());
+    await vi.waitFor(() => expect(paths()).toEqual(["/c", "/a", "/b"]));
+    expect(openTab.mock.calls).toEqual([["/c", 0]]);
+  });
+
+  it("a queued open that throws outright says so too, and doesn't stall the queue", async () => {
+    useOpsStore.setState({ busy: "Fetching origin…" });
+    openTab.mockImplementationOnce(() => {
+      throw { kind: "internal", message: "thrown" };
+    });
+    adopt("/c");
+    adopt("/d");
+    act(() => useOpsStore.setState({ busy: null }));
+    await vi.waitFor(() => expect(paths()).toEqual(["/d", "/a", "/b"]));
+    expect(useToastStore.getState().toasts.filter((t) => t.kind === "error").map((t) => t.title)).toEqual(["Couldn't open repository"]);
+  });
+
+  it("a queued open that fails says so, and the queue goes on to the next", async () => {
+    useOpsStore.setState({ busy: "Fetching origin…" });
+    openTab.mockRejectedValueOnce({ kind: "internal", message: "not a repository" });
+    adopt("/c");
+    adopt("/d");
+    act(() => useOpsStore.setState({ busy: null }));
+    await vi.waitFor(() => expect(paths()).toEqual(["/d", "/a", "/b"]));
+    expect(openTab.mock.calls).toEqual([["/c", 0], ["/d", 0]]);
+    expect(useToastStore.getState().toasts.filter((t) => t.kind === "error").map((t) => t.title)).toEqual(["Couldn't open repository"]);
   });
 });
