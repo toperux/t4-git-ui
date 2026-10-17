@@ -467,9 +467,10 @@ src/
                            (hover), body = role=listbox of add/del `option` lines with a roving tabIndex (click/Shift/Ctrl, Space
                            toggles, Shift+↑/↓ extends inside the hunk, Enter stages) → sticky "N lines selected · Discard · Stage N
                            lines" bar. The cursor owns the DOM focus, not just the tab stop — `.pick:focus-visible` is the only
-                           thing that draws it: ↑/↓ scroll it into view and focus it (`[data-cursor]`), a click adopts it, and
-                           focusing the region hands off to the cursor line (outside staging there is none, so the region keeps
-                           the focus for scrolling); wholeFile (untracked / conflicted) = no hunk/line actions; the
+                           thing that draws it: ↑/↓ scroll it into view and focus it (`[data-cursor]`) — ↑ brings its hunk's
+                           `@@` header into view too when header-to-cursor fits — a click adopts it, and focusing the region
+                           hands off to the cursor line (outside staging there is none, so the region keeps the focus for
+                           scrolling); wholeFile (untracked / conflicted) = no hunk/line actions; the
                            header `note` is for untracked / lossy files only — when `onKeepSide`, `onResolve` or
                            `onRestoreConflict` is given (a conflicted file), the note and those buttons move out of the
                            header into a `.conflictBar` conflict strip right after it instead: `onResolve` /

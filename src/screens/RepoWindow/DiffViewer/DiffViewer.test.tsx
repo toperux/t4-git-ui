@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { FileDiff } from "../../../api/types";
 import { loadLang } from "../../../lib/highlight";
 import { useDiffStore } from "../../../store/diffStore";
 import { useSettingsStore } from "../../../store/settingsStore";
@@ -13,7 +14,8 @@ vi.mock("../../../api/ipc", () => ({
 }));
 
 // jsdom neither lays out nor scrolls: give the virtualizer a viewport and record its scroll requests.
-const scrolls = vi.hoisted(() => ({ offsets: [] as number[] }));
+// `top` is the scroll position the virtualizer reads at mount.
+const scrolls = vi.hoisted(() => ({ offsets: [] as number[], indexes: [] as [number, string | undefined][], top: 0 }));
 vi.mock("@tanstack/react-virtual", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-virtual")>();
   return {
@@ -26,14 +28,24 @@ vi.mock("@tanstack/react-virtual", async (importOriginal) => {
           cb({ width: 800, height: 400 });
           return () => {};
         },
+        observeElementOffset: (_instance, cb) => {
+          cb(scrolls.top, false);
+          return () => {};
+        },
       });
       v.scrollToOffset = (offset: number) => scrolls.offsets.push(offset);
+      v.scrollToIndex = (index: number, o?: { align?: string }) => scrolls.indexes.push([index, o?.align]);
       return v;
     },
   };
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  scrolls.top = 0;
+  scrolls.offsets.length = 0;
+  scrolls.indexes.length = 0;
+});
 
 const SMALL = fileDiff(
   [
@@ -362,6 +374,101 @@ describe("DiffViewer", () => {
 
     expect(document.activeElement).toBe(options[1]);
     expect(options.map((o) => o.getAttribute("tabindex"))).toEqual(["-1", "0", "-1"]);
+  });
+
+  describe("↑ brings the cursor's hunk header into view", () => {
+    // Rows are exact: a hunk header 24 px, a line 20 px; the region is 400 px tall.
+    const ctx = (at: number) => [0, 1, 2].map((i) => line("context", at + i, at + i, `ctx ${at + i}`));
+    /** 3 context, a del, an add, 3 context: 184 px with its header. */
+    const small = (at: number) => hunk(`@@ -${at},7 +${at},7 @@`, [...ctx(at), line("del", at + 3, null, `old ${at}`), line("add", null, at + 3, `new ${at}`), ...ctx(at + 4)]);
+    // Picks 0–5 sit on rows 4, 5 | 13, 14 | 22, 23; the headers on rows 0, 9 and 18 (0, 184, 368 px).
+    const THREE = fileDiff([small(1), small(20), small(40)], { path: "three.txt" });
+
+    const mount = (diff: FileDiff, top: number) => {
+      scrolls.top = top;
+      const actions: DiffActions = { target: "unstaged", wholeFile: false, onStageHunk: vi.fn(), onStageLines: vi.fn() };
+      const r = render(<DiffViewer path={diff.path} diff={diff} {...idle} actions={actions} />);
+      const region = r.getByRole("region", { name: "Diff" });
+      Object.defineProperty(region, "clientHeight", { value: 400, configurable: true });
+      scrolls.offsets.length = 0; // the mount's own scroll to the top
+      return { ...r, region, actions };
+    };
+    /** The cursor onto pick `i` by a click, with the focus in the diff; its scroll is not the test's. */
+    const cursorOn = (options: HTMLElement[], i: number) => {
+      options[i].focus();
+      fireEvent.click(options[i]);
+      scrolls.offsets.length = 0;
+      scrolls.indexes.length = 0;
+    };
+
+    it("onto a hunk's first change: the view moves up to its header", () => {
+      // The walk's case: the view stopped at the first change, 84 px down, with the header off-screen.
+      const { region, getAllByRole } = mount(THREE, 84);
+      const options = getAllByRole("option");
+      cursorOn(options, 1);
+      fireEvent.keyDown(region, { key: "ArrowUp" });
+      expect(scrolls.offsets).toEqual([0]);
+      expect(scrolls.indexes).toEqual([]);
+      expect(document.activeElement).toBe(options[0]);
+    });
+
+    it("into the previous hunk: the view moves up to that hunk's header", () => {
+      const { region, getAllByRole } = mount(THREE, 400);
+      cursorOn(getAllByRole("option"), 4);
+      fireEvent.keyDown(region, { key: "ArrowUp" });
+      expect(scrolls.offsets).toEqual([184]);
+    });
+
+    it("a hunk taller than the view keeps the cursor at the edge", () => {
+      const adds = Array.from({ length: 25 }, (_, i) => line("add", null, i + 1, `new ${i + 1}`));
+      const tall = fileDiff([hunk("@@ -0,0 +1,25 @@", adds)], { path: "tall.txt" });
+      const { region, getAllByRole } = mount(tall, 200);
+      cursorOn(getAllByRole("option"), 24);
+      fireEvent.keyDown(region, { key: "ArrowUp" });
+      // Header to cursor is 24 + 24 × 20 = 504 px: it doesn't fit.
+      expect(scrolls.offsets).toEqual([]);
+      expect(scrolls.indexes).toEqual([[24, "auto"]]);
+    });
+
+    it("↓ never reveals", () => {
+      const { region, getAllByRole } = mount(THREE, 84);
+      cursorOn(getAllByRole("option"), 0);
+      fireEvent.keyDown(region, { key: "ArrowDown" });
+      expect(scrolls.offsets).toEqual([]);
+      expect(scrolls.indexes).toEqual([[5, "auto"]]);
+    });
+
+    it("a click never reveals", () => {
+      const { getAllByRole } = mount(THREE, 84);
+      const options = getAllByRole("option");
+      options[1].focus();
+      fireEvent.click(options[1]);
+      expect(scrolls.offsets).toEqual([]);
+      expect(scrolls.indexes).toEqual([[5, "auto"]]);
+    });
+
+    it("an ↑ that moved nothing doesn't reveal on the next click", () => {
+      const { region, getAllByRole } = mount(THREE, 84);
+      const options = getAllByRole("option");
+      options[0].focus();
+      fireEvent.keyDown(region, { key: "ArrowUp" }); // the first pick: nowhere to go
+      fireEvent.mouseDown(options[1]);
+      fireEvent.click(options[1]);
+      expect(scrolls.offsets).toEqual([]);
+      expect(scrolls.indexes).toEqual([[5, "auto"]]);
+    });
+
+    it("an ↑ that moved nothing doesn't reveal after a reload moves the cursor", () => {
+      const one = fileDiff([small(20)], { path: "three.txt" });
+      const { region, getAllByRole, rerender, actions } = mount(one, 200);
+      getAllByRole("option")[0].focus();
+      fireEvent.keyDown(region, { key: "ArrowUp" }); // the first pick: nowhere to go
+      // A hunk appears above: the carry-over moves the cursor to row 13, under a header at 184 px.
+      rerender(<DiffViewer path={THREE.path} diff={fileDiff([small(1), small(20)], { path: "three.txt" })} {...idle} actions={actions} />);
+      expect(getAllByRole("option").map((o) => o.getAttribute("tabindex"))).toEqual(["-1", "-1", "0", "-1"]);
+      expect(scrolls.offsets).toEqual([]);
+      expect(scrolls.indexes).toEqual([[13, "auto"]]);
+    });
   });
 
   it("clicking a line moves the cursor there, so the arrows carry on from the mouse", () => {

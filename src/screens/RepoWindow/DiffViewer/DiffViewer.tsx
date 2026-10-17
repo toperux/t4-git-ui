@@ -410,9 +410,13 @@ function DiffBody({ path, view, rows, maxCols, lang, actions, selected, cursorRo
     estimateSize: (i) => rowHeight(rows[i]),
     overscan: OVERSCAN,
   });
+  // The cursor last moved by ↑: the cursor effect then brings its hunk header into view too. A click
+  // or a reload never does, so the mousedown and a new row model clear it.
+  const upKey = useRef(false);
   // A new row model (reload / whitespace toggle) invalidates cached sizes …
   useEffect(() => {
     virtualizer.measure();
+    upKey.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows]);
   // … but only another file starts over at the top: a reload of the same one keeps its position.
@@ -435,9 +439,22 @@ function DiffBody({ path, view, rows, maxCols, lang, actions, selected, cursorRo
     return () => cancelAnimationFrame(id);
   };
   useEffect(() => {
+    const up = upKey.current;
+    upKey.current = false;
     const root = scrollRef.current;
     if (cursorRow < 0 || !root || !root.contains(document.activeElement)) return;
-    virtualizer.scrollToIndex(cursorRow, { align: "auto" });
+    // `auto` only aligns the cursor row itself, so moving up stops with the hunk's `@@` row and its
+    // context still above the view. On ↑, show from the header down to the cursor when that fits.
+    let top = -1;
+    if (up) {
+      virtualizer.getTotalSize(); // refreshes `measurementsCache` after a `measure()`
+      const m = virtualizer.measurementsCache;
+      let h = cursorRow;
+      while (h > 0 && rows[h].kind !== "hunk") h--;
+      if (m[h].start < (virtualizer.scrollOffset ?? 0) && m[cursorRow].end - m[h].start <= root.clientHeight) top = m[h].start;
+    }
+    if (top >= 0) virtualizer.scrollToOffset(top);
+    else virtualizer.scrollToIndex(cursorRow, { align: "auto" });
     return focusCursor(root);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cursorRow]);
@@ -459,7 +476,14 @@ function DiffBody({ path, view, rows, maxCols, lang, actions, selected, cursorRo
       role="region"
       aria-label="Diff"
       tabIndex={0}
-      onKeyDown={onKeyDown}
+      onKeyDown={(e) => {
+        upKey.current = e.key === "ArrowUp";
+        onKeyDown(e);
+      }}
+      // An ↑ that moved nothing (on the first pick) must not reveal on the next click.
+      onMouseDown={() => {
+        upKey.current = false;
+      }}
       // Tabbing into the diff hands the focus straight to the cursor line, so the first arrow key
       // moves off a line the user can see. Nothing to hand it to outside staging mode: no picks, no
       // `[data-cursor]`, and the region keeps the focus for scrolling. Focus arriving from inside is
