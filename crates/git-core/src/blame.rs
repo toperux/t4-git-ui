@@ -130,16 +130,22 @@ pub async fn blame(
 
 /// Author, time and summary of one commit: porcelain emits them **once** per
 /// commit in the stream, so later hunks of the same commit read them here.
+/// So are `previous` and `filename` (`filename` repeats only when the commit
+/// touches more than one path), which a later hunk takes when it has none.
+/// Limit: a commit reached under two paths hands its first path's `previous`
+/// to the second's hunks too; the app asks for no copy or move detection.
 #[derive(Debug, Default, Clone)]
 struct Meta {
     author: String,
     time: i64,
     summary: String,
+    filename: Option<String>,
+    previous: Option<BlameParent>,
 }
 
 /// The hunk whose header has been seen but whose metadata lines are still
-/// arriving. `filename` and `previous` are repeated for every hunk, which is
-/// what makes them per-hunk fields rather than per-commit ones.
+/// arriving. Its own `filename` and `previous`, when given, win over the
+/// commit's first ones.
 #[derive(Debug)]
 struct Open {
     oid: String,
@@ -186,12 +192,16 @@ impl<'a> Parser<'a> {
         let Some(open) = open.as_mut() else { return };
         let (key, value) = line.split_once(' ').unwrap_or((line, ""));
         match key {
-            "filename" => open.filename = Some(value.to_string()),
+            "filename" => {
+                open.filename = Some(value.to_string());
+                meta.entry(open.oid.clone()).or_default().filename = open.filename.clone();
+            }
             "previous" => {
                 open.previous = value.split_once(' ').map(|(oid, path)| BlameParent {
                     oid: oid.to_string(),
                     path: path.to_string(),
-                })
+                });
+                meta.entry(open.oid.clone()).or_default().previous = open.previous.clone();
             }
             "author" | "author-time" | "summary" => {
                 let m = meta.entry(open.oid.clone()).or_default();
@@ -223,9 +233,12 @@ impl<'a> Parser<'a> {
             author: meta.author,
             time: meta.time,
             summary: meta.summary,
-            orig_path: open.filename.filter(|f| f.as_str() != self.path),
+            orig_path: open
+                .filename
+                .or(meta.filename)
+                .filter(|f| f.as_str() != self.path),
             uncommitted,
-            previous: open.previous,
+            previous: open.previous.or(meta.previous),
         });
     }
 
@@ -313,8 +326,6 @@ filename a.txt
 {A} 2 3
 \ttwo
 {B} 2 4 1
-previous {A} a.txt
-filename b.txt
 \tbottom
 {ZERO} 5 5 1
 author Not Committed Yet
@@ -359,13 +370,45 @@ filename b.txt
         assert_eq!(hunks[1].author, "Al");
         assert_eq!(hunks[1].previous, None);
 
-        // B's second hunk repeats no metadata; the map fills it in.
+        // B's second hunk repeats no metadata, `previous` and `filename` neither
+        // (git prints them on a commit's first hunk only); the map fills it in.
         assert_eq!(hunks[2].oid, B);
         assert_eq!(hunks[2].author, "Bea");
         assert_eq!(hunks[2].summary, "rename and edit");
+        assert_eq!(hunks[2].previous, hunks[0].previous);
+        assert_eq!(hunks[2].orig_path, None);
 
         assert!(hunks[3].uncommitted, "the zero oid is an uncommitted line");
         assert!(hunks[..3].iter().all(|h| !h.uncommitted));
+    }
+
+    #[test]
+    fn a_later_hunk_of_a_renamed_file_keeps_the_old_name() {
+        // A wrote `a.txt`, B renamed it to `b.txt` and edited between A's lines:
+        // A's second hunk comes with no `filename` of its own.
+        let out = format!(
+            "\
+{A} 1 1 1
+author Al
+author-time 1700000100
+summary first
+filename a.txt
+\tone
+{B} 2 2 1
+author Bea
+author-time 1700000200
+summary rename and edit
+previous {A} a.txt
+filename b.txt
+\tedit
+{A} 3 3 1
+\tthree
+"
+        );
+        let hunks = parse("b.txt", &out);
+        assert_eq!(hunks.len(), 3);
+        assert_eq!(hunks[2].oid, A);
+        assert_eq!(hunks[2].orig_path.as_deref(), Some("a.txt"));
     }
 
     #[test]
@@ -512,6 +555,50 @@ filename b.txt
         let inserted = &out.hunks[1];
         assert_eq!(inserted.summary, "insert");
         assert_eq!((inserted.start, inserted.orig_start), (3, 3));
+    }
+
+    #[tokio::test]
+    async fn every_hunk_of_a_commit_has_its_parent() {
+        if !have_git() {
+            return;
+        }
+        let t = TempRepo::new();
+        t.commit(&[("a.txt", "a\nb\nc\nd\ne\n")], "first");
+        // Two edits apart: two hunks of one commit, `previous` printed on the first only.
+        t.commit(&[("a.txt", "a\nB\nc\nD\ne\n")], "edit");
+        let head = t
+            .repo
+            .head()
+            .expect("head")
+            .peel_to_commit()
+            .expect("commit");
+        let target = TreeTarget::Commit {
+            oid: head.id().to_string(),
+        };
+        let out = blame(
+            &GitCli::new("git"),
+            t.path(),
+            "op-6",
+            &target,
+            "a.txt",
+            false,
+            CancellationToken::new(),
+        )
+        .await
+        .expect("blame");
+        let edits: Vec<_> = out.hunks.iter().filter(|h| h.summary == "edit").collect();
+        assert_eq!(edits.len(), 2);
+        let parent = head.parent(0).expect("parent").id().to_string();
+        for h in edits {
+            assert_eq!(
+                h.previous
+                    .as_ref()
+                    .map(|p| (p.oid.as_str(), p.path.as_str())),
+                Some((parent.as_str(), "a.txt")),
+                "hunk at line {}",
+                h.start
+            );
+        }
     }
 
     #[tokio::test]
