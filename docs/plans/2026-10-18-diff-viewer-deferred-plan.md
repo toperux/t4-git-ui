@@ -1,7 +1,8 @@
 # Plan: the diff viewer's deferred rows — whitespace and context that agree, the view switch, the selection bar, Escape
 
 _Written 2026-10-18 against `main` `6d26651f`. Status: draft; scope ruled by the owner on 2026-10-18 (Plan A of two:
-this one, then the tabs and grid rows; N1 added to it); decisions D1–D4 open; plan review pass 1 next._
+this one, then the tabs and grid rows; N1 added to it); decisions D1–D4 taken with the owner on 2026-10-19, all (a);
+plan review pass 1 next._
 
 **Goal:** five small fixes to the diff viewer, from the rows deferred during the per-tab, polish and scroll anchor
 work (`docs/plans/open-items.md` §AO and §AR), plus one sibling found while planning (N1):
@@ -80,6 +81,8 @@ walk (AR1 in BV 4c, AR2 in the BV re-walk). The walk (group BX) is the first mea
    event through (D1).
 
 ## Decisions for the owner
+
+All four taken by the owner on 2026-10-19: (a).
 
 - **D1: Escape with nothing selected.** (a) Do nothing and let it through: whatever else listens for Escape still
   gets it. (b) Swallow it in the diff always. **Recommended: (a)**; the diff has nothing to cancel then.
