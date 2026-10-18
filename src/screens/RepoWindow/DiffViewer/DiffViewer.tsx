@@ -1,6 +1,6 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowDownUp, Columns2, ExternalLink, File, FileDiff, Maximize2, Rows2 } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import type { ConflictSide, ConflictSides, DiffLine, FileDiff as FileDiffModel } from "../../../api/types";
 import { Banner } from "../../../components/ui/Banner/Banner";
 import { Button } from "../../../components/ui/Button/Button";
@@ -13,7 +13,7 @@ import { sideLabel } from "../../../lib/conflictSides";
 import { cx } from "../../../lib/cx";
 import { highlightLine, isLoaded, langForPath, loadLang, type Lang, type SynClass } from "../../../lib/highlight";
 import { toolLabel } from "../../../lib/externalTools";
-import { mods } from "../../../lib/keys";
+import { ctrlOrCmd, mods } from "../../../lib/keys";
 import { useDiffStore, type DiffView } from "../../../store/diffStore";
 import { useSettingsStore } from "../../../store/settingsStore";
 import { Stats } from "../ChangedFileList/ChangedFileList";
@@ -21,6 +21,7 @@ import { flattenSplit, flattenUnified, rowHeight, type SplitRow, type UnifiedRow
 import s from "./DiffViewer.module.css";
 import { cut, type EmphRange } from "./intraLine";
 import { carryRef, carrySelection, clickLine, EMPTY_LINES, hunkMap, lineKey, toPairs, type LineRef, type LineSelection } from "./lineSelection";
+import { carryOffset } from "./scrollAnchor";
 
 const OVERSCAN = 30;
 /** Why the conflict strip's buttons are dead while a mutation runs, like the toolbar's. */
@@ -236,6 +237,7 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
       <DiffBody
         key={flat.view}
         path={path}
+        diff={diff!}
         view={flat.view}
         rows={flat.rows}
         maxCols={flat.maxCols}
@@ -390,6 +392,8 @@ type Rows = { view: "unified"; rows: UnifiedRow[] } | { view: "split"; rows: Spl
 interface DiffBodyProps {
   /** File the rows belong to: only a different file resets the scroll position. */
   path: string | null;
+  /** What `rows` were built from: a reload of the same file carries its top line across by it. */
+  diff: FileDiffModel;
   view: DiffView;
   rows: (UnifiedRow | SplitRow)[];
   maxCols: number;
@@ -402,7 +406,10 @@ interface DiffBodyProps {
   onKeyDown: (e: KeyboardEvent) => void;
 }
 
-function DiffBody({ path, view, rows, maxCols, lang, actions, selected, cursorRow, onLineClick, onKeyDown }: DiffBodyProps) {
+/** The keys `DiffViewer`'s handler acts on: the first of them after a reload brings the cursor in. */
+const BODY_KEYS = new Set(["ArrowUp", "ArrowDown", " ", "Enter", "Delete"]);
+
+function DiffBody({ path, diff, view, rows, maxCols, lang, actions, selected, cursorRow, onLineClick, onKeyDown }: DiffBodyProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -413,13 +420,41 @@ function DiffBody({ path, view, rows, maxCols, lang, actions, selected, cursorRo
   // The cursor last moved by ↑: the cursor effect then brings its hunk header into view too. A click
   // or a reload never does, so the mousedown and a new row model clear it.
   const upKey = useRef(false);
-  // A new row model (reload / whitespace toggle) invalidates cached sizes …
-  useEffect(() => {
-    virtualizer.measure();
+  // The rows the last commit drew, and what they were built from: what a reload anchors to.
+  const drawn = useRef<{ path: string | null; diff: FileDiffModel; rows: (UnifiedRow | SplitRow)[] } | null>(null);
+  // A reload of the same file owns its scroll: until the next key the cursor effect only refocuses,
+  // or a cursor the reload moved would scroll the view off the anchored line. A pointer press ends
+  // it too.
+  const quiet = useRef(false);
+  // A new row model (reload / whitespace toggle) invalidates cached sizes, and a reload of the same
+  // file puts the line that was at the top back there. A layout effect, so the new rows first paint
+  // already in place.
+  useLayoutEffect(() => {
+    const prev = drawn.current;
+    drawn.current = { path, diff, rows };
+    const el = scrollRef.current;
+    // Not the same rows again: StrictMode's second mount run is no reload.
+    const same = !!prev && prev.path === path && prev.rows !== rows;
+    if (same && el) {
+      // A cursor scroll still settling would aim its old row index at the new rows.
+      virtualizer.cancelScroll();
+      // Still the old position: the browser's clamp to a shorter body reaches it only with the next
+      // scroll event.
+      const old = virtualizer.scrollOffset ?? 0;
+      const next = carryOffset(prev.diff, prev.rows, old, diff, rows);
+      if (next !== old) {
+        virtualizer.scrollToOffset(next);
+        // `scrollToOffset` only writes the DOM: until the scroll event, every read (the render
+        // `measure()` triggers, a `scrollToIndex`) would get the old offset back.
+        virtualizer.scrollOffset = Math.min(next, el.scrollHeight - el.clientHeight);
+      }
+    }
+    quiet.current = same;
     upKey.current = false;
+    virtualizer.measure();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows]);
-  // … but only another file starts over at the top: a reload of the same one keeps its position.
+  // Only another file starts over at the top.
   useEffect(() => {
     virtualizer.scrollToOffset(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -443,18 +478,21 @@ function DiffBody({ path, view, rows, maxCols, lang, actions, selected, cursorRo
     upKey.current = false;
     const root = scrollRef.current;
     if (cursorRow < 0 || !root || !root.contains(document.activeElement)) return;
-    // `auto` only aligns the cursor row itself, so moving up stops with the hunk's `@@` row and its
-    // context still above the view. On ↑, show from the header down to the cursor when that fits.
-    let top = -1;
-    if (up) {
-      virtualizer.getTotalSize(); // refreshes `measurementsCache` after a `measure()`
-      const m = virtualizer.measurementsCache;
-      let h = cursorRow;
-      while (h > 0 && rows[h].kind !== "hunk") h--;
-      if (m[h].start < (virtualizer.scrollOffset ?? 0) && m[cursorRow].end - m[h].start <= root.clientHeight) top = m[h].start;
+    // After a reload the anchor holds the view: only refocus (`quiet`).
+    if (!quiet.current) {
+      // `auto` only aligns the cursor row itself, so moving up stops with the hunk's `@@` row and its
+      // context still above the view. On ↑, show from the header down to the cursor when that fits.
+      let top = -1;
+      if (up) {
+        virtualizer.getTotalSize(); // refreshes `measurementsCache` after a `measure()`
+        const m = virtualizer.measurementsCache;
+        let h = cursorRow;
+        while (h > 0 && rows[h].kind !== "hunk") h--;
+        if (m[h].start < (virtualizer.scrollOffset ?? 0) && m[cursorRow].end - m[h].start <= root.clientHeight) top = m[h].start;
+      }
+      if (top >= 0) virtualizer.scrollToOffset(top);
+      else virtualizer.scrollToIndex(cursorRow, { align: "auto" });
     }
-    if (top >= 0) virtualizer.scrollToOffset(top);
-    else virtualizer.scrollToIndex(cursorRow, { align: "auto" });
     return focusCursor(root);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cursorRow]);
@@ -478,11 +516,34 @@ function DiffBody({ path, view, rows, maxCols, lang, actions, selected, cursorRo
       tabIndex={0}
       onKeyDown={(e) => {
         upKey.current = e.key === "ArrowUp";
+        // Enter / Space on a hunk button are its click: they end the reload's hold, as a pointer press
+        // does, and skip the line keys. Space with any modifier; Enter too, unless it is the app's
+        // Ctrl / Cmd+Enter (`ctrlOrCmd`; AltGr, which Windows reports as Ctrl+Alt, isn't Ctrl) with
+        // lines selected, which stages them. ↑ / ↓ / Delete still act on the lines.
+        const ctrl = ctrlOrCmd(e) && !e.getModifierState("AltGraph");
+        const enter = e.key === "Enter" && !(ctrl && selected.size > 0);
+        if ((enter || e.key === " ") && (e.target as HTMLElement).closest("button")) {
+          quiet.current = false;
+          return;
+        }
+        // The first key after a reload acts on the cursor line, which the anchored view may not show:
+        // bring it in first. `scrollOffset` takes the result at once, for the cursor effect's own
+        // scroll if the key moves the cursor. The line may only now mount: focus it again.
+        if (quiet.current && actions && cursorRow >= 0 && BODY_KEYS.has(e.key)) {
+          quiet.current = false;
+          virtualizer.scrollToIndex(cursorRow, { align: "auto" });
+          virtualizer.scrollOffset = e.currentTarget.scrollTop;
+          focusCursor(e.currentTarget);
+        }
         onKeyDown(e);
       }}
       // An ↑ that moved nothing (on the first pick) must not reveal on the next click.
       onMouseDown={() => {
         upKey.current = false;
+      }}
+      // A click's edge nudge or a hunk button's cursor move is the user's own scroll again.
+      onPointerDown={() => {
+        quiet.current = false;
       }}
       // Tabbing into the diff hands the focus straight to the cursor line, so the first arrow key
       // moves off a line the user can see. Nothing to hand it to outside staging mode: no picks, no
