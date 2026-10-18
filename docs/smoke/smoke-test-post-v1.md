@@ -3303,6 +3303,91 @@ A console.error / warn and unhandledrejection hook installed before row 1; the a
       diff window `@@-97,17` 897/897 (scrollWidth/clientWidth). ↓×3 then ↑: scrollTop 0 → 120 → 80 in all three;
       installed 0.10.24 the same.)*
 
+## BV. A reloaded diff keeps the same line at the top
+
+Plan: `docs/plans/2026-10-17-diff-scroll-anchor-plan.md` (D1–D5). The same `DiffBody` as BU, on a fixture of its own.
+Windows VM (session git-ui-win) over CDP on a local `tauri build --no-bundle` of `diff-scroll-anchor`
+(`docs/smoke/smoke-cdp.md`: other instances closed, store backed up and restored, `smoke-launch.ps1`,
+`cdp.mjs --inner 1280x800`, readings through `--eval`). Linux and macOS: not walked (D5 (a)).
+
+Fixture: `docs/smoke/fixtures/bv-fixture.sh` in Git Bash on the VM (`T4_ROOT`, default `/c/tmp/t4`), a fresh repo
+`C:\tmp\t4\bv` (deleted after the walk):
+
+- `a.txt` and `w.txt`, 2000 lines `line N` each, committed;
+- a commit `ws` that changes every 10th line of `w.txt`: the odd tens get a trailing space, the even tens become
+  `line N changed` (a commit, because Ignore whitespace is off while staging);
+- every 10th line of `a.txt` changed to `line N changed`, left unstaged.
+
+Each step reads scrollTop; the top row (the row under the scroller's top edge, with its two line numbers or its header
+text); how many pixels of that row are scrolled off; and, through each reload, the 10 ms recorder from the #32 walk
+(`docs/archive/walks/2026-10-16-npm-group-32-walk.md`: blank, gap and overlapping rows). A console.error / warn and
+onerror hook installed before row 1; the app log read for WARN / ERROR after. Git appends a function-context suffix to
+each hunk header (`@@ -817,7 +817,7 @@ line 816`): the headers below are the `@@ … @@` part, and the walk matches that
+prefix. The numbers assume 184 px hunks (a 24 px header, 7 lines of 20 px); if the walk reads another hunk height (a
+font or zoom setting), it recomputes them from the measured one and says so.
+
+- [ ] 1. **Whitespace, unified:** History › `ws` › `w.txt`. At scrollTop 15 000, Ignore whitespace on → scrollTop
+      7 456, top row the deleted line 820, 12 px off. Off → 15 000, the same row.
+- [ ] 2. **A hidden line:** at 14 816 (top row: the deleted line 810), on → 7 360, top row the header
+      `@@ -817,7 +817,7 @@`. Off → 14 904, the same header.
+- [ ] 3. **Split view, and the dialog:** the same commit in Split view, at 13 380 (top row: line 820's pair, 12 px off;
+      split hunks are 164 px). Ignore whitespace on → 6 656, the same pair, 12 px off; off → 13 380. Then the same in
+      **Open diff window**: the dialog's view gives the same numbers, and after closing it the pane's view does too.
+- [ ] 4. **An edit above:** Changes › `a.txt` (unstaged). At 12 000 (top row: context line 657, 16 px off), insert 7
+      lines right after `line 100 changed` from a shell (+140 px; after line 101 would add a context row and merge two
+      hunks) → the reload → 12 140, top row old 657 / new 664, 16 px off. Restore the file → 12 000, 657 / 657.
+- [ ] 4b. **The same, with the focus held (F1):** after a click on `line 670 changed` (in view), so the cursor sits
+      there with the focus. Edit → 12 140; the recorder sees one scrollTop change. `document.activeElement` is still
+      that line, and it is in view. Then ↓ → the cursor moves to the next change, the deleted `line 680`, at
+      12 552–12 572 after the edit. With the diff region H px tall (read `clientHeight`): for H ≥ 432 it is in view and
+      scrollTop stays 12 140; otherwise scrollTop becomes 12 572 − H, the line on the bottom edge. Restore the file.
+- [ ] 4c. **The cursor pushed below the view, then Space (pass 3, F6):** at 12 000, click `line 670 changed`
+      (12 248–12 268) so the cursor sits there with the focus; the click selects it too. From a shell, insert 40 lines
+      right after `line 660 changed`: inside the top row's own hunk, so the anchor goes by line number, and the
+      cursor's hunk is pushed down 800 px. The reload → scrollTop stays 12 000, top row context line 657, 16 px off.
+      The cursor line now sits at 13 048–13 068: wholly below the view while H ≤ 1 048, and at least partly below it
+      while H < 1 068. Space, for any H < 1 068 → scrollTop 13 068 − H, with `line 670 changed` on the bottom edge,
+      shown unselected (`aria-selected="false"`); `document.activeElement` is `line 670 changed`. A second Space
+      selects it again; then restore the file.
+- [ ] 5. **Stage the hunk at the top (D3):** at 11 960 (the header of line 660's hunk at the top), hover → Stage hunk
+      → the unstaged diff stays at 11 960 with `@@ -667,7 +667,7 @@` at the top. Then
+      `git -C <fixture>/bv reset -q a.txt` → the staged hunk comes back above → 12 144, the same `@@ -667,7 +667,7 @@`
+      header still at the top.
+- [ ] 5b. **Enter on selected lines, with the focus held (F1, F2):** at 11 960, click `line 660` (the deleted line)
+      and press Enter → it is staged alone. The hunk's text changes, so the anchor goes by line number, to the same
+      hunk's header: the view stays at 11 960 with `@@ -657,6 +657,7 @@` at the top, and the recorder sees no scroll
+      from the cursor. Then `git -C <fixture>/bv reset -q a.txt` → back to `@@ -657,7 +657,7 @@`.
+- [ ] 5c. **Keys on a hunk button (triage T8):** at 11 960, click `line 660` (the deleted line), so it is selected.
+      Shift+Tab twice: the header's Discard hunk, then its Stage hunk (the header comes before its lines; plain Tab
+      goes on to the next hunk's buttons) → Stage hunk has the focus, the buttons shown. Space → `git diff --cached`
+      shows the whole `@@ -657,7 +657,7 @@` hunk (both lines), not a toggle of the line. Then
+      `git -C <fixture>/bv reset -q a.txt` (→ 12 144). Back at 11 960, again: click `line 660`, Shift+Tab twice,
+      Enter → the whole hunk staged, not `-line 660` alone. Reset.
+      Then a key press after a reload (pass 7, a), H the region's `clientHeight` with no selection bar (643 in the first
+      walk), read before the click: set scrollTop to 12 198 − H, so the header `@@ -667,7 +667,7 @@` (12 144–12 168) is
+      in view and its first change, the deleted `line 670` (12 228–12 248), wholly below the bottom edge. Click
+      `line 660 changed` (12 064–12 084), then Space to unselect it. From a shell, insert 7 lines right after
+      `line 100 changed` (as row 4) → the reload → scrollTop 12 338 − H, the focus still on `line 660 changed`. Tab →
+      that header's Stage hunk (now 12 284–12 308, in view). Enter → `git diff --cached` shows the `@@ -667,7 +667,7 @@`
+      hunk, and the recorder sees one scroll, to 12 388 − H: `line 670` on the bottom edge, focused. The stage's own
+      reload then moves nothing (the deleted `line 680` takes that row). Reset, restore the file.
+      Then Ctrl+Enter with nothing selected (pass 11), set up as (pass 7, a): scrollTop 12 198 − H, click
+      `line 660 changed`, Space to unselect it, insert the 7 lines after `line 100 changed` → the reload → 12 338 − H.
+      Tab → the `@@ -667,7 +667,7 @@` header's Stage hunk. Ctrl+Enter → scrollTop stays 12 338 − H (the recorder sees no
+      scroll), and `document.activeElement` is still that Stage hunk. `git diff --cached` shows the
+      `@@ -667,7 +667,7 @@` hunk staged, or nothing (the walk records which; `cdp.mjs` sends Ctrl+Enter with no
+      character, so a CDP walk shows nothing; that a real key gives no click on Windows is reasoned). If it is staged,
+      the button was clicked, and the scroll and focus play out as (pass 7, a)'s Enter instead. Reset, restore the file.
+      Then Ctrl+Enter (pass 7, b): at 11 960, click `line 660`, so it is selected; Shift+Tab twice to its Stage hunk;
+      Ctrl+Enter → `git diff --cached` shows `-line 660` alone, not the whole hunk (reasoned: on Windows the button gets
+      no click from Ctrl+Enter either way; the unit test covers the keydown's cancel). Reset.
+- [ ] 6. **Context lines:** Settings › Diff & merge › context 10, with `a.txt` at 12 000 → 14 460, top row context line
+      657, 16 px off. Back to 3 → 12 000.
+- [ ] 7. **What must not change:** another file → scrollTop 0; `touch a.txt` → nothing moves for 4 s; every recorder
+      sample through rows 1–6 (4b, 4c, 5b and 5c included): 0 blank, 0 gap, 0 overlap; the console hook catches nothing;
+      the app log shows 0 WARN and 0 ERROR.
+- *Observation, no box (D2 (a)):* Unified ↔ Split at 15 000 → scrollTop 0, recorded as it is.
+
 ## BW. The History / Changes view per tab
 
 Plan: `docs/archive/plans/2026-10-17-per-tab-view-plan.md` (D1–D6, Design 11). Windows VM (session git-ui-win) over

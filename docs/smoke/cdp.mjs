@@ -69,6 +69,7 @@ const KEYS = {
   Enter: { code: "Enter", key: "Enter", keyCode: 13, text: "\r" },
   Escape: { code: "Escape", key: "Escape", keyCode: 27 },
   Tab: { code: "Tab", key: "Tab", keyCode: 9 },
+  Space: { code: "Space", key: " ", keyCode: 32, text: " " },
   1: { code: "Digit1", key: "1", keyCode: 49 },
   2: { code: "Digit2", key: "2", keyCode: 50 },
   R: { code: "KeyR", key: "R", keyCode: 82 },
