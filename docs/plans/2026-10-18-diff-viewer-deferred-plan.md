@@ -1,8 +1,9 @@
 # Plan: the diff viewer's deferred rows — whitespace that follows another window, the view switch, the bar, Escape
 
-_Written 2026-10-18 against `main` `6d26651f`. Status: draft; scope ruled by the owner on 2026-10-18 (Plan A of two:
+_Written 2026-10-18 against `main` `6d26651f`. Status: final; scope ruled by the owner on 2026-10-18 (Plan A of two:
 this one, then the tabs and grid rows); D1, D2 and D4 taken with the owner on 2026-10-19, all (a); plan review pass 1's
-findings taken (N1 dropped as not a bug, kept as a pinning test; D3 gone with it); passes 2–6's taken: pass 7 next._
+findings taken (N1 dropped as not a bug, kept as a pinning test; D3 gone with it); passes 2–6's taken; pass 7 found
+nothing: final._
 
 **Goal:** four small fixes to the diff viewer, from the rows deferred during the per-tab, polish and scroll anchor work
 (`docs/plans/open-items.md` §AO and §AR):
@@ -187,10 +188,10 @@ is the real one, so the default may be on.
    diff reloads to 7 456, the same row. Off again → 15 000. Close Settings; read `bx`'s console hook.
 4. **AR1, the keyboard:** `bv`, Changes › `a.txt`, nothing selected; H = the region's `clientHeight` with no bar (643 in
    BV). At 12 000, click `line 670 changed` (12 248–12 268), Space to unselect it (as BV 4c); set scrollTop (`--eval`) =
-   12 268 − H (11 625 at H 643), so it sits on the bottom edge; Space → the bar shows, scrollTop = 12 268 − (H − 24)
-   (11 649), the line in view and focused. Then Space to unselect it, so nothing is selected; scrollTop set (`--eval`)
-   so the cursor line is out of view below but within about 20 rows (the overscan is 30, so it stays mounted);
-   `document.activeElement` still the line → Space → the bar shows, scrollTop unchanged.
+   12 268 − H (11 625 at H 643), so it sits on the bottom edge; Space → the bar shows, scrollTop = 11 649
+   (12 268 − (H − 24)), the line in view and focused. Then Space to unselect it, so nothing is selected; scrollTop set
+   (`--eval`) so the cursor line is out of view below but within about 20 rows (the overscan is 30, so it stays
+   mounted); `document.activeElement` still the line → Space → the bar shows, scrollTop unchanged.
 5. **AR1, the mouse (D2 (a)):** Space to unselect row 4's line, so nothing is selected; the cursor line (from row 4) on
    the bottom edge (`--eval`, as row 4); click it → selected, the bar shows, scrollTop = its bottom − (H − 24), the line
    in view. Then Space to unselect it, so nothing is selected; another changed line (not the cursor) on the bottom edge;
@@ -233,8 +234,8 @@ is the real one, so the default may be on.
 10. **Records**, one docs commit, hashes only after the squash:
     - the walk record and the BX ticks;
     - `open-items-done.md`: new §AO and §AR sections, in letter order around §AP (neither exists there yet), with AO3,
-      AO4 and N1's check under §AO, and both §AR rows and pass 2's accepted-closed `<body>` row under §AR; the triage's
-      own closed rows;
+      AO4, N1's check and pass 7's accepted-closed double fetch (R4) under §AO, and both §AR rows and pass 2's
+      accepted-closed `<body>` row under §AR; the triage's own closed rows;
     - `open-items.md`: the §AR section removed and §AR added to the "only there" list (`:10`); AO3 and AO4's rows
       (`:940-944`) removed; the sighting above as a new §AO row; §AO's intro (`:927-929`) naming this plan, and a
       pointer line to the done rows, as §AN's (`:922-923`); the triage's §Q rows (with triggers) and deferrals;
@@ -277,3 +278,7 @@ is the real one, so the default may be on.
   `stripes()`, with its numbers; #2 row 6 selects by keyboard (`cdp.mjs` can't Ctrl+click); #3 row 4 starts at 12 000 on
   `line 670 changed`; #4 `bx`'s console hook read in row 3; #5 the whitespace default set off in the setup. Remarks
   taken: row 5's `--eval`, `rm -rf` before the copy, both repos deleted after.
+- **Pass 7** (2026-10-19): nothing found: final. Its 4 remarks ruled by the owner: R1 rows 4–5's second halves keep no
+  numbers (the walk records them); R2 row 5's second click kept as a no-regression check; R3 the console hook's order
+  left unstated; R4 accepted, closed: one settings reload that sees both context and whitespace moved fetches the diff
+  twice, the first reply dropped by `diffSeq` (recorded under `open-items-done.md` §AO).
