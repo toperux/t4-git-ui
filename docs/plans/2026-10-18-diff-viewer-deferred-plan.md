@@ -2,7 +2,7 @@
 
 _Written 2026-10-18 against `main` `6d26651f`. Status: draft; scope ruled by the owner on 2026-10-18 (Plan A of two:
 this one, then the tabs and grid rows); D1, D2 and D4 taken with the owner on 2026-10-19, all (a); plan review pass 1's
-findings taken (N1 dropped as not a bug, kept as a pinning test; D3 gone with it): pass 2 next._
+findings taken (N1 dropped as not a bug, kept as a pinning test; D3 gone with it); pass 2's taken: pass 3 next._
 
 **Goal:** four small fixes to the diff viewer, from the rows deferred during the per-tab, polish and scroll anchor
 work (`docs/plans/open-items.md` §AO and §AR):
@@ -12,9 +12,8 @@ work (`docs/plans/open-items.md` §AO and §AR):
 - **AR1:** the "N lines selected" bar can cover the cursor line.
 - **AR2:** Escape doesn't clear a line selection in the staging diff.
 
-None of these was measured as a bug on purpose; AO3 and AO4 are reasoned from the code (AO4's jump was measured as
-BV's observation), AR1 and AR2 were each seen once in a walk (BV 4c, the BV re-walk). The walk (group BX) is the first
-measurement of AO3.
+AO3 is reasoned from the code; AO4's jump was measured as BV's observation; AR1 and AR2 were each seen once in a walk
+(BV 4c, the BV re-walk). The walk (group BX) is the first measurement of AO3.
 
 **N1, checked: not a bug.** Found while planning: a background tab might come back with a diff built with the old
 whitespace or context setting. Plan review pass 1 showed both diffs already reload on a tab switch with the window's
@@ -37,8 +36,8 @@ current settings (*What happens now*). Kept as a test that pins it (owner, 2026-
     `useCommitSync` (`CommitPanel.tsx:27-33`) sees a changed entry and calls `loadDiff` (`:394`), which reads the
     current context (`:207`).
 - **AO4.** `DiffViewer` keys `DiffBody` by the view (`DiffViewer.tsx:238`), so a switch remounts it and the new
-  scroller starts at 0. The scroll anchor plan left it out (its D2 (a)); BV's observation measured it: Unified → Split
-  at 15 000 → 0, and back → 0.
+  scroller starts at 0, vertically and horizontally. The scroll anchor plan left it out (its D2 (a)); BV's observation
+  measured it: Unified → Split at 15 000 → 0, and back → 0.
 - **AR1.** The selection bar is rendered below the diff body when lines are selected (`DiffViewer.tsx:347-363`), so
   the scroller gets 24 px shorter (643 → 619 in BV). A cursor line on the bottom edge ends up under the bar; nothing
   scrolls it back. Seen in BV 4c's second Space.
@@ -61,33 +60,41 @@ current settings (*What happens now*). Kept as a test that pins it (owner, 2026-
      in the layout effect, the path effect no longer re-runs, and `quiet` is wanted (outside staging the picks exist,
      so a cursor row does too).
    - `drawn` (`DiffViewer.tsx:424`) also records the view, and `DiffBody` passes `sameView = prev.view === view` to
-     `carryOffset`. When it is false, `carryOffset` skips the same-hunk step, whose row-index offset is only valid
-     within one view, and goes straight to the line-number step, which reads both row kinds (`nums`,
+     `carryOffset`, a new last parameter that defaults to `true` (the tests' `carry` helper passes five,
+     `scrollAnchor.test.ts:13`). When it is false, `carryOffset` skips the same-hunk step, whose row-index offset is
+     only valid within one view, and goes straight to the line-number step, which reads both row kinds (`nums`,
      `scrollAnchor.ts:20-24`).
    - In the line-number step, a split pair whose left line is a deleted line is looked up by its old number (owner,
      2026-10-19, pass 1 #11), so Split → Unified at line 820's pair lands on the deleted 820 and the round trip is
-     exact. A same-view split reload still finds the pair, by that number.
+     exact. A same-view split reload still finds the pair, by that number. The doc comment (`scrollAnchor.ts:26-32`)
+     says both.
+   - A view switch resets the horizontal scroll to 0, as the remount did (owner, 2026-10-19, pass 2): split's columns
+     are narrower, so a kept `scrollLeft` would show another part of the lines.
    - Staging is unified only (`DiffViewer.tsx:98`), so the view never switches with `actions`.
-3. **AR1: the bar keeps the cursor line in view.** In `DiffBody`, a layout effect on "the bar is shown"
-   (`!!actions && selected.size > 0`): when it turns on, the diff holds the focus and the cursor row's bottom (`end`)
-   is below the scroller's new bottom edge, it writes `el.scrollTop = end − el.clientHeight` and then
-   `virtualizer.scrollOffset = el.scrollTop`.
-   - `clientHeight` comes from the DOM: the bar renders in the same commit, and the virtualizer's own size comes from
-     a ResizeObserver, so it still holds the old height there.
-   - The direct write, not `scrollToOffset`: that clamps to the total size minus the stale height, so a cursor row in
-     the file's last 24 px would stay under the bar.
-   - Setting `scrollOffset`: `scrollToOffset` and a DOM write reach the virtualizer only with the scroll event. A click
-     that moves the cursor runs the passive cursor effect next (`:476-498`), whose `scrollToIndex` would otherwise
-     compute from the old offset and scroll back.
-   - Every time the bar appears with the focus in the diff, by the keyboard or the mouse (D2 (a)). The bar turning
-     off needs nothing: the scroller grows.
+3. **AR1: the bar keeps a covered cursor line in view.** In `DiffBody`, a layout effect on "the bar is shown"
+   (`!!actions && selected.size > 0`), declared after the `[rows]` one. When it turns on and the diff holds the focus,
+   it reads the cursor row's bottom (`end`, after `getTotalSize()`, as the ↑ code does at `:487-488`). Only a line the
+   bar covers moves (owner, 2026-10-19, pass 2 #2): its bottom was in the old view (`end ≤ scrollTop +
+   virtualizer.getSize()`, the size from before the bar) and is below the new bottom edge (`end > scrollTop +
+   el.clientHeight`). Then `scrollToOffset(end − el.clientHeight)` and `virtualizer.scrollOffset` = that offset, the
+   same pattern as the `[rows]` effect (`:446-449`).
+   - `el.clientHeight` comes from the DOM: the bar renders in the same commit. The virtualizer's own size comes from a
+     ResizeObserver, so `getSize()` still holds the old height there.
+   - Setting `scrollOffset`: `scrollToOffset` only writes the DOM. A click that moves the cursor runs the passive
+     cursor effect next (`:476-498`), whose `scrollToIndex` then computes from the new offset and leaves it (pass 2
+     checked virtual-core 3.19.2: `scrollToIndex(auto)` returns the current offset, the ResizeObserver never
+     scrolls, and the scroll event returns early).
+   - Every time the bar appears with the focus in the diff, by the keyboard or the mouse (D2 (a)). A cursor line out
+     of view below stays where it is. The bar turning off needs nothing: the scroller grows.
 4. **AR2: Escape clears the selection.** In `onBodyKeyDown`, Escape with lines selected clears them (`EMPTY_LINES`),
    keeps the cursor and the focus, and stops the event. With nothing selected it does nothing and lets it through
    (D1 (a)).
    - Stopping it matters for the dialogs: the commit dialog's or the stash browser's form would close on the same
      Escape. With lines selected, the first Escape clears them and the second closes the dialog (owner, 2026-10-19,
-     pass 1 #6). Document listeners (`Menu.tsx:101-102`) don't fire either: React 19 delegates to the root, below
-     `document`.
+     pass 1 #6). Bubble-phase document and window listeners don't fire either (`Menu.tsx:101-102`, `useTabDrag.tsx:129`):
+     React 19 delegates to the root, below them. Capture-phase ones still do (`kbdFocus.ts:23-25`, wanted).
+   - A tab drag cancels on Escape at the window (`useTabDrag.tsx:129`). Starting a drag likely moves the focus off the
+     diff; BX row 6b checks it (owner, 2026-10-19, pass 2).
 
 ## Decisions for the owner
 
@@ -105,23 +112,30 @@ D1, D2 and D4 taken by the owner on 2026-10-19: (a). D3 (N1's reload cost) went 
 **Pass 1's rulings** (owner, 2026-10-19): N1 dropped, kept as a pinning test; the sighting below deferred to
 `open-items.md` §AO; the two-step Escape in a dialog; the split pair by its old number.
 
+**Pass 2's rulings** (owner, 2026-10-19): AR1 moves only a line the bar covers; a view switch resets the horizontal
+scroll; a BX row for Escape during a tab drag; accepted, closed: after a reload in a dialog with the cursor line
+virtualized away, the focus is on `<body>`, so Escape closes the dialog with lines still selected (on `main` today; the
+result is today's behaviour).
+
 ## Tests
 
 1. **AO3** (`settingsStore.test.ts`): the mock gains `getBlame`; `repoId`, `target`, `selectedPath` and
-   `treeSelectedPath` set (the `beforeEach` nulls them); `load()` first, since `lastSeen` has no reset. The preference
-   moves (stored value changed, `load()` again) → `diffStore.ignoreWhitespace` follows and `getFileDiff` is called
-   again with the new value; with blame on, `getBlame` too. The session-only test still passes.
-2. **N1, pinned:** `diffStore.load` with the window's whitespace on and context 10 → `getFileDiff` with both;
-   `commitStore.restore` of a snapshot whose `diffContext` is 3, the window at 10, then `syncWithStatus` with the same
-   status → one `getFileDiff` with context 10.
+   `treeSelectedPath` set, and the `beforeEach` (`:32`) also resets `treeSelectedPath` and `blameOn`; `load()` first,
+   since `lastSeen` has no reset. The preference moves (stored value changed, `load()` again) →
+   `diffStore.ignoreWhitespace` follows and `getFileDiff` is called again with the new value; with blame on,
+   `getBlame` too. The session-only test still passes.
+2. **N1, pinned** (`diffStore.test.ts`, `commitStore.test.ts`): `diffStore.load` with the window's whitespace on and
+   context 10 → `getFileDiff` with both. The window set to context 10 first, then `commitStore.restore` of a snapshot
+   whose `diffContext` is 3, then `syncWithStatus` with the same status → one `getFileDiff`, with context 10.
 3. **AO4** (`scrollAnchor.test.ts`): the `stripes()` fixture, unified at 15 000 (deleted 820, 12 px) → split 13 380;
    split at 13 380 → unified 15 000; a header at the top lands on the same header; the ends; a same-view split reload
-   still lands on the pair. (`DiffViewer.test.tsx`): a view switch keeps the body mounted and scrolls to the carried
-   offset, not 0.
-4. **AR1** (`DiffViewer.test.tsx`): `clientHeight` stubbed (643, then 619 once the bar renders), the cursor row ending
-   at the bottom edge, Space → `scrollTop` = end − 619 and `virtualizer.scrollOffset` the same; the cursor row in view
-   → nothing; the focus outside the diff → nothing; the cursor row in the file's last 24 px → still in view. The mock
-   records `scrollToIndex` without computing, so the click path's undo (Design 3) is walked, not unit-tested.
+   still lands on the pair. (`DiffViewer.test.tsx`): a view switch keeps the body mounted, scrolls to the carried
+   offset, not 0, and sets `scrollLeft` to 0.
+4. **AR1** (`DiffViewer.test.tsx`): the mock exposes the virtualizer and records `scrollToOffset`; `clientHeight`
+   stubbed (643, then 619 once the bar renders) and `getSize()` 643. The cursor row ending at the bottom edge, Space
+   → `scrollToOffset(end − 619)` and `scrollOffset` the same; the cursor row in view above the bar → nothing; the
+   cursor row wholly below the view → nothing; the focus outside the diff → nothing. The mock records `scrollToIndex`
+   without computing, so the click path (Design 3) is walked, not unit-tested.
 5. **AR2** (`DiffViewer.test.tsx`): lines selected, Escape → none selected, the bar gone, the cursor and the focus
    unchanged, and neither a parent `onKeyDown` nor a `document` keydown listener fires; nothing selected → no state
    change, and both fire.
@@ -131,24 +145,29 @@ D1, D2 and D4 taken by the owner on 2026-10-19: (a). D3 (N1's reload cost) went 
 **Setup:** the Windows VM (session git-ui-win), a local `tauri build --no-bundle` of the branch, launched with
 `smoke-launch.ps1`, driven with `docs/smoke/cdp.mjs --inner 1280x800`, as BV. Fixture: `bv-fixture.sh`
 (`T4_ROOT=/c/tmp/t4`), then `cp -r /c/tmp/t4/bv /c/tmp/t4/bx`, so the two repos, their tabs and their windows have
-different names (`cdp.mjs` picks a window by its title). Recorder, console hook and log as BV. Numbers assume BV's
-184 px hunks (164 in split).
+different names; `cdp.mjs` picks a window by its title (`CDP_TITLE="- bv"` / `"- bx"`, `smoke-cdp.md:129`). Recorder,
+console hook and log as BV. Numbers assume BV's 184 px hunks (164 in split).
 
 **Rows:**
 
 1. **AO4, Unified → Split:** `bv`, History › `ws` › `w.txt` at 15 000 (deleted 820, 12 px) → Split → 13 380, line
-   820's pair, 12 px off.
+   820's pair, 12 px off; `scrollLeft` 0.
 2. **AO4, Split → Unified:** at 13 380 → Unified → 15 000, the deleted line 820, 12 px off.
-3. **AO3, another window:** open `bx` as a second tab and tear it off into a window of its own. In `bv`'s window,
-   `ws` › `w.txt` at 15 000, whitespace off. In `bx`'s window, Settings › Ignore whitespace on → `bv`'s toggle shows on
-   and its diff reloads to 7 456, the same row. Off again → 15 000.
+3. **AO3, another window:** Settings › Diff & merge › "Ignore whitespace by default" off before the row. Open `bx` as
+   a second tab and tear it off into a window of its own (Ctrl+Shift+N). In `bv`'s window (`CDP_TITLE="- bv"`), `ws` ›
+   `w.txt` at 15 000, whitespace off. In `bx`'s window (`CDP_TITLE="- bx"`), Settings › Diff & merge › "Ignore
+   whitespace by default" on → `bv`'s toggle shows on and its diff reloads to 7 456, the same row. Off again → 15 000.
 4. **AR1, the keyboard:** `bv`, Changes › `a.txt`, nothing selected. Click a changed line mid-view, Space to unselect
    it (as BV 4c); set scrollTop = its bottom − 643, so it sits on the bottom edge; Space → the bar shows, scrollTop =
-   its bottom − 619, the line in view and focused.
+   its bottom − 619, the line in view and focused. Then, nothing selected, the cursor line scrolled out of view below
+   with the wheel → Space → the bar shows, scrollTop unchanged.
 5. **AR1, the mouse (D2 (a)):** nothing selected, a changed line on the bottom edge; click it → selected, the bar
    shows, the same scroll, the line in view.
-6. **AR2, the Changes view:** select 3 lines (click, Shift+↓ ×2) → Escape → the bar gone, `aria-selected` false on all,
-   the focus on the cursor line. Escape again → nothing changes.
+6. **AR2, the Changes view:** select 3 lines (click a line, Shift+↓, Ctrl+click a line of the next hunk: every
+   `a.txt` hunk has two changed lines, and Shift+↓ stops at the hunk's edge) → Escape → the bar gone, `aria-selected`
+   false on all, the focus on the cursor line. Escape again → nothing changes.
+   - 6b. **A tab drag:** with `bx` back as a tab, lines selected, start dragging a tab, Escape → the drag cancels.
+     Record where the focus was.
 7. **AR2, a dialog:** the commit dialog on `bv` with `a.txt`'s diff; select a line → Escape → selection cleared, the
    dialog still open; Escape → the dialog closes.
 8. **What must not change:** BV rows 1–6 again in short (whitespace, context, an edit, a stage keep the top line);
@@ -159,27 +178,30 @@ different names (`cdp.mjs` picks a window by its title). Recorder, console hook 
 - **A History tab comes back on its commit's first file, at the top.** The tab switch reload (N1) loads
   `rowPath ?? files[0]`, so the file the tab was on, and its scroll, are lost; the commit is kept. Reasoned
   (`DetailsPane.tsx:49-52`). Deferred to `open-items.md` §AO, a Plan B candidate (owner, 2026-10-19); the row lands
-  with this plan's records.
+  with this plan's records. **Reopen:** Plan B, or someone loses their place in a commit's files on a tab switch.
 
 ## Steps
 
 0. **The owner's go.** A final plan is not a go.
 1. **Branch** `diff-viewer-deferred` from `main`.
-2. **AO3** (`settingsStore.ts`) with Test 1; N1's pinning Test 2.
-3. **AO4, AR1, AR2** (`scrollAnchor.ts`, `DiffViewer.tsx`) with Tests 3–5. `src/README.md`: Escape in the key list
-   (`:474`), the view switch in the scroll sentence (`:489-491`).
+2. **AO3** (`settingsStore.ts`) with Test 1; N1's pinning Test 2 (`diffStore.test.ts`, `commitStore.test.ts`).
+3. **AO4, AR1, AR2** (`scrollAnchor.ts` and its doc comment, `DiffViewer.tsx`) with Tests 3–5. `src/README.md`:
+   Escape in the key list (`:474`), the view switch in the scroll sentence (`:489-491`).
 4. **Gates**, from `F:/src/_ pet projects/t4-git-ui` with the uppercase `F:/`: `npm test -- --run` and
    `npm run build`.
 5. **Group BX** in `docs/smoke/smoke-test-post-v1.md` (rows above).
 6. **The change review loop** (CLAUDE.md step 5). A finding that needs a decision goes to the owner at once.
-7. **Push the branch and run CI**, on the owner's go at that moment: `gh workflow run CI --repo toperux/t4-git-ui
-   --ref diff-viewer-deferred` (no PR, as the last three plans).
+7. **Push the branch and run CI**, on the owner's go at that moment:
+   `gh workflow run CI --repo toperux/t4-git-ui --ref diff-viewer-deferred` (no PR, as the last three plans).
 8. **The walk** on the Windows VM, which fetches the branch (the fetch needs the owner's go on the VM).
 9. **Triage** (CLAUDE.md step 6), one item at a time, starting with D4's "Linux not walked".
-10. **Records**, one docs commit, hashes only after the squash: the walk record; BX ticks; AO3 and AO4 moved to
-    `open-items-done.md` §AO and both §AR rows to §AR (new sections there, under the same letters), with N1's check
-    under §AO; §AR added to the "only there" list (`open-items.md:10`); the sighting above as a new §AO row; this plan
-    archived.
+10. **Records**, one docs commit, hashes only after the squash:
+    - the walk record and the BX ticks;
+    - `open-items-done.md`: new §AO and §AR sections, in letter order (neither exists there yet), with AO3, AO4, N1's
+      check and pass 2's accepted-closed row under §AO, and both §AR rows under §AR; the triage's own closed rows;
+    - `open-items.md`: the §AR section removed and §AR added to the "only there" list (`:10`); the sighting above as a
+      new §AO row; §AO's intro (`:927-929`) naming this plan; the triage's §Q rows (with triggers) and deferrals;
+    - this plan archived.
 11. **Package** (CLAUDE.md step 7): squash rehearsed in a throwaway worktree, tree checked; a fix commit, the BX docs
     commit, the records commit. Force-push the branch on the owner's go, CI again.
 12. **Merge** on the owner's go: fast-forward `main` locally; the push of `main` is its own go.
@@ -197,3 +219,9 @@ different names (`cdp.mjs` picks a window by its title). Recorder, console hook 
   pinning test (owner); #3's sighting deferred (owner); #4–#5 AR1's scroll undone by the cursor effect and clamped at
   the end → Design 3; #6 the dialog's Escape → two-step (owner); #7 row 4 reordered; #8 `bx` copy; #9 moot; #10
   `drawn` records the view; #11 the pair by its old number (owner); #12–#13 Tests 1 and 5; #14 step 10; #15 step 3.
+- **Pass 2** (2026-10-19): 8 findings and 9 remarks. #1 `scrollToOffset` clamps to the DOM's height, not the stale one
+  → Design 3 uses it, Test 4's end-of-file case dropped; #2 AR1 only for a covered line (owner); #3 row 6's three
+  lines; #4 Test 1's `beforeEach`; #5 the sighting's trigger and step 10; #6 rewrapped; #7 row 3's wording; #8
+  `sameView`'s default and the doc comment. Remarks: Test 2's order, Test 4's mock, `end` after `getTotalSize()`,
+  the goal's wording, step 2's files taken; `scrollLeft` reset, the tab drag row, and the `<body>` case ruled
+  (owner).
