@@ -2,7 +2,7 @@
 
 _Written 2026-10-18 against `main` `6d26651f`. Status: draft; scope ruled by the owner on 2026-10-18 (Plan A of two:
 this one, then the tabs and grid rows); D1, D2 and D4 taken with the owner on 2026-10-19, all (a); plan review pass 1's
-findings taken (N1 dropped as not a bug, kept as a pinning test; D3 gone with it); passes 2–5's taken: pass 6 next._
+findings taken (N1 dropped as not a bug, kept as a pinning test; D3 gone with it); passes 2–6's taken: pass 7 next._
 
 **Goal:** four small fixes to the diff viewer, from the rows deferred during the per-tab, polish and scroll anchor work
 (`docs/plans/open-items.md` §AO and §AR):
@@ -145,9 +145,13 @@ horizontal reset isn't walked (the fixture's lines never scroll sideways), Test 
    whose `diffContext` is 3, then `syncWithStatus` with the same status → one `getFileDiff`, with context 10.
 3. **AO4** (`scrollAnchor.test.ts`): the `stripes()` fixture, unified at 15 000 (deleted 820, 12 px) → split 13 380;
    split at 13 380 → unified 15 000; a header at the top lands on the same header; the ends; a same-view split reload
-   that rewrites the anchor's own hunk (lines inserted into hunk 81 above line 820, so `hunkMap` misses it and the new
-   numbers move; inserted after 820, `main` would pass too) still lands on the pair. (`DiffViewer.test.tsx`): a view
-   switch keeps the body mounted, scrolls to the carried offset, not 0, and sets `scrollLeft` to 0.
+   that rewrites the anchor's own hunk still lands on the pair: 7 added lines spliced into the `WS` fixture's hunk 81 in
+   the test, after context 818 (the later new numbers bumped), so `hunkMap` misses it and a context line keeps them
+   apart from 820's pair; split at 13 380 → 13 520, the (820, `line 820 changed`) pair (`main` lands on the second
+   inserted line, new 820, at 13 380). Not directly above the deleted 820: `walkPairs` would pair it with an inserted
+   line whose new number is 820, and `main` would pass too. `stripes()` can't do this (`insertAfter` only adds after a
+   change's added line). (`DiffViewer.test.tsx`): a view switch keeps the body mounted, scrolls to the carried offset,
+   not 0, and sets `scrollLeft` to 0.
 4. **AR1** (`DiffViewer.test.tsx`): the mock exposes the virtualizer and records `scrollToOffset`; its `scrollRect`
    height settable per test (643 here; 400 today, `:28-31`); `clientHeight` stubbed (643, then 619 once the bar renders)
    and `scrollTop` stubbed (as `:584`). The cursor row ending at the bottom edge, Space → `scrollToOffset(end − 619)`
@@ -162,36 +166,39 @@ horizontal reset isn't walked (the fixture's lines never scroll sideways), Test 
 
 **Setup:** the Windows VM (session git-ui-win), a local `tauri build --no-bundle` of the branch, launched with
 `smoke-launch.ps1`, driven with `docs/smoke/cdp.mjs --inner 1280x800`, as BV. Fixture: `bv-fixture.sh`
-(`T4_ROOT=/c/tmp/t4`), then `cp -r /c/tmp/t4/bv /c/tmp/t4/bx`, so the two repos, their tabs and their windows have
-different names; `cdp.mjs` picks a window by its title (`CDP_TITLE="- bv"` / `"- bx"`, `smoke-cdp.md:129`). Recorder,
-console hook and log as BV; the console hook is installed in `bx`'s window too once it exists (row 3). Numbers assume
-BV's 184 px hunks (164 in split). The store folder is backed up before launch and restored after (`smoke-cdp.md:84-89`):
-BX writes `layout.json` and adds `bx` to the recents. `bx` is a fresh copy, not in the recents: `layout.json` is seeded
-with both tabs in one window (`smoke-cdp.md:96-104`), `bv` active.
+(`T4_ROOT=/c/tmp/t4`), then `rm -rf /c/tmp/t4/bx && cp -r /c/tmp/t4/bv /c/tmp/t4/bx` (both deleted after the walk), so
+the two repos, their tabs and their windows have different names; `cdp.mjs` picks a window by its title
+(`CDP_TITLE="- bv"` / `"- bx"`, `smoke-cdp.md:129`). Recorder, console hook and log as BV; the console hook is installed
+in `bx`'s window too once it exists, and read at the end of row 3 (its window closes in 6b). Numbers assume BV's 184 px
+hunks (164 in split). The store folder is backed up before launch and restored after (`smoke-cdp.md:84-89`): BX writes
+`layout.json` and adds `bx` to the recents. `bx` is a fresh copy, not in the recents: `layout.json` is seeded with both
+tabs in one window (`smoke-cdp.md:96-104`), `bv` active. Before row 1: Settings › Diff & merge › "Ignore whitespace by
+default" off, then close Settings (an open dialog blocks the window's shortcuts, `useShortcuts.ts:39`); the store folder
+is the real one, so the default may be on.
 
 **Rows:**
 
 1. **AO4, Unified → Split:** `bv`, History › `ws` › `w.txt` at 15 000 (deleted 820, 12 px) → Split → 13 380, line 820's
    pair, 12 px off.
 2. **AO4, Split → Unified:** at 13 380 → Unified → 15 000, the deleted line 820, 12 px off.
-3. **AO3, another window:** Settings › Diff & merge › "Ignore whitespace by default" off before the row, then close
-   Settings (an open dialog blocks the window's shortcuts, `useShortcuts.ts:39`). Make `bx` the active tab and tear it
-   off into a window of its own (Ctrl+Shift+N). In `bv`'s window (`CDP_TITLE="- bv"`), `ws` › `w.txt` at 15 000,
-   whitespace off. In `bx`'s window (`CDP_TITLE="- bx"`), Settings › Diff & merge › "Ignore whitespace by default" on →
-   `bv`'s toggle shows on and its diff reloads to 7 456, the same row. Off again → 15 000. Close Settings.
+3. **AO3, another window:** the default is off (setup). Make `bx` the active tab and tear it off into a window of its
+   own (Ctrl+Shift+N). In `bv`'s window (`CDP_TITLE="- bv"`), `ws` › `w.txt` at 15 000, whitespace off. In `bx`'s window
+   (`CDP_TITLE="- bx"`), Settings › Diff & merge › "Ignore whitespace by default" on → `bv`'s toggle shows on and its
+   diff reloads to 7 456, the same row. Off again → 15 000. Close Settings; read `bx`'s console hook.
 4. **AR1, the keyboard:** `bv`, Changes › `a.txt`, nothing selected; H = the region's `clientHeight` with no bar (643 in
-   BV). Click a changed line mid-view, Space to unselect it (as BV 4c); set scrollTop (`--eval`) = its bottom − H, so it
-   sits on the bottom edge; Space → the bar shows, scrollTop = its bottom − (H − 24), the line in view and focused. Then
-   Space to unselect it, so nothing is selected; scrollTop set (`--eval`) so the cursor line is out of view below but
-   within about 20 rows (the overscan is 30, so it stays mounted); `document.activeElement` still the line → Space → the
-   bar shows, scrollTop unchanged.
+   BV). At 12 000, click `line 670 changed` (12 248–12 268), Space to unselect it (as BV 4c); set scrollTop (`--eval`) =
+   12 268 − H (11 625 at H 643), so it sits on the bottom edge; Space → the bar shows, scrollTop = 12 268 − (H − 24) (11
+   649), the line in view and focused. Then Space to unselect it, so nothing is selected; scrollTop set (`--eval`) so
+   the cursor line is out of view below but within about 20 rows (the overscan is 30, so it stays mounted);
+   `document.activeElement` still the line → Space → the bar shows, scrollTop unchanged.
 5. **AR1, the mouse (D2 (a)):** Space to unselect row 4's line, so nothing is selected; the cursor line (from row 4) on
-   the bottom edge; click it → selected, the bar shows, scrollTop = its bottom − (H − 24), the line in view. Then Space
-   to unselect it, so nothing is selected; another changed line (not the cursor) on the bottom edge; click it → the
-   same.
-6. **AR2, the Changes view:** select 3 lines (click a line, Shift+↓, Ctrl+click a line of the next hunk: every `a.txt`
-   hunk has two changed lines, and Shift+↓ stops at the hunk's edge) → Escape → the bar gone, `aria-selected` false on
-   all, the focus on the cursor line. Escape again → nothing changes.
+   the bottom edge (`--eval`, as row 4); click it → selected, the bar shows, scrollTop = its bottom − (H − 24), the line
+   in view. Then Space to unselect it, so nothing is selected; another changed line (not the cursor) on the bottom edge;
+   click it → the same.
+6. **AR2, the Changes view:** select 3 lines by keyboard (click a deleted line, Shift+↓, then plain ↓ into the next hunk
+   and Space: every `a.txt` hunk has two changed lines, Shift+↓ stops at the hunk's edge, and `cdp.mjs` can't
+   Ctrl+click) → Escape → the bar gone, `aria-selected` false on all, the focus on the cursor line. Escape again →
+   nothing changes.
    - 6b. **A tab drag:** close `bx`'s window (Ctrl+W) and reopen `bx` from Repository › recents as a tab in `bv`'s
      window, then make `bv` active. Lines selected in `bv`'s `a.txt`; a one-off script in a single CDP session presses
      on the `bx` tab, moves down off the strip (the drag detaches), sends Escape, and releases there, not over a tab
@@ -266,3 +273,7 @@ with both tabs in one window (`smoke-cdp.md:96-104`), `bv` active.
 - **Pass 5** (2026-10-19): 2 findings and 5 remarks. #1 an open Settings dialog blocks Ctrl+Shift+N and Ctrl+W → row 3
   closes it; #2 rows 4–5 say how nothing gets selected. Remarks taken: `useShortcuts.ts:150`, Test 3's insert above 820,
   the store backup, the console hook in `bx`'s window, the AO3 measurement's wording.
+- **Pass 6** (2026-10-19): 5 findings and 3 remarks. #1 Test 3's same-view case: spliced after context 818, not via
+  `stripes()`, with its numbers; #2 row 6 selects by keyboard (`cdp.mjs` can't Ctrl+click); #3 row 4 starts at 12 000 on
+  `line 670 changed`; #4 `bx`'s console hook read in row 3; #5 the whitespace default set off in the setup. Remarks
+  taken: row 5's `--eval`, `rm -rf` before the copy, both repos deleted after.
