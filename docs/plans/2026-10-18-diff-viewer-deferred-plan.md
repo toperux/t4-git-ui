@@ -2,7 +2,7 @@
 
 _Written 2026-10-18 against `main` `6d26651f`. Status: draft; scope ruled by the owner on 2026-10-18 (Plan A of two:
 this one, then the tabs and grid rows); D1, D2 and D4 taken with the owner on 2026-10-19, all (a); plan review pass 1's
-findings taken (N1 dropped as not a bug, kept as a pinning test; D3 gone with it); passes 2 and 3's taken: pass 4 next._
+findings taken (N1 dropped as not a bug, kept as a pinning test; D3 gone with it); passes 2–4's taken: pass 5 next._
 
 **Goal:** four small fixes to the diff viewer, from the rows deferred during the per-tab, polish and scroll anchor work
 (`docs/plans/open-items.md` §AO and §AR):
@@ -77,12 +77,14 @@ current settings (*What happens now*). Kept as a test that pins it (owner, 2026-
    (`!!actions && selected.size > 0`), declared after the `[rows]` one. When it turns on and the diff holds the focus,
    it reads the cursor row's bottom (`end`, after `getTotalSize()`, as the ↑ code does at `:487-488`). Only a line the
    bar covers moves (owner, 2026-10-19, pass 2 #2): its bottom was in the old view
-   (`end ≤ el.scrollTop + virtualizer.scrollRect.height`, the height from before the bar) and is below the new bottom
-   edge (`end > el.scrollTop + el.clientHeight`). Then `scrollToOffset(end − el.clientHeight)` and
-   `virtualizer.scrollOffset` = that offset, the same pattern as the `[rows]` effect (`:446-449`).
-   - `el.clientHeight` comes from the DOM: the bar renders in the same commit. The virtualizer's public `scrollRect` is
-     written only by its ResizeObserver, so it still holds the old height there (`getSize()` is private; pass 3).
-     `el.scrollTop` is the DOM's, the same source as `clientHeight`.
+   (`end ≤ el.scrollTop + (virtualizer.scrollRect?.height ?? 0)`, the border-box height from before the bar; `null`
+   moves nothing) and is below the new bottom edge (`end > el.scrollTop + el.clientHeight`). Then
+   `scrollToOffset(end − el.clientHeight)` and `virtualizer.scrollOffset` = that offset, the same pattern as the
+   `[rows]` effect (`:446-449`).
+   - `el.clientHeight` comes from the DOM: the bar renders in the same commit. The virtualizer's public `scrollRect`
+     (typed `Rect | null`) is written by its ResizeObserver, after a seed and a first read on attach, so it still holds
+     the old height there (`getSize()` is private; passes 3–4). `el.scrollTop` is the DOM's, the same source as
+     `clientHeight`.
    - Setting `scrollOffset`: `scrollToOffset` only writes the DOM. A click that moves the cursor runs the passive cursor
      effect next (`:476-498`), whose `scrollToIndex` then computes from the new offset and leaves it (pass 2 checked
      virtual-core 3.19.2: `scrollToIndex(auto)` returns the current offset, the ResizeObserver never scrolls, and the
@@ -100,7 +102,8 @@ current settings (*What happens now*). Kept as a test that pins it (owner, 2026-
      Escape. With lines selected, the first Escape clears them and the second closes the dialog (owner, 2026-10-19, pass
      1 #6). Bubble-phase document and window listeners don't fire either (`Menu.tsx:115`, `SearchPopover.tsx:38`,
      `SidebarRail.tsx:29`, `useTabDrag.tsx:131`): React 19 delegates to the root, below them. Capture-phase ones still
-     do (`kbdFocus.ts:23-25`, wanted).
+     run: `kbdFocus.ts:23-25` (wanted), `Dialog.tsx:105` (it only ends a refocus watch) and `Dialog.tsx:142` (only when
+     the target is `<body>`, the accepted case).
    - A tab drag cancels on Escape at the window (`useTabDrag.tsx:127-133`). The press focuses the tab
      (`TabStrip.tsx:62-72`), so the drag likely cancels and the lines stay selected; BX row 6b checks it (owner,
      2026-10-19, pass 2).
@@ -161,15 +164,16 @@ horizontal reset isn't walked (the fixture's lines never scroll sideways), Test 
 `smoke-launch.ps1`, driven with `docs/smoke/cdp.mjs --inner 1280x800`, as BV. Fixture: `bv-fixture.sh`
 (`T4_ROOT=/c/tmp/t4`), then `cp -r /c/tmp/t4/bv /c/tmp/t4/bx`, so the two repos, their tabs and their windows have
 different names; `cdp.mjs` picks a window by its title (`CDP_TITLE="- bv"` / `"- bx"`, `smoke-cdp.md:129`). Recorder,
-console hook and log as BV. Numbers assume BV's 184 px hunks (164 in split).
+console hook and log as BV. Numbers assume BV's 184 px hunks (164 in split). `bx` is a fresh copy, not in the recents:
+`layout.json` is seeded with both tabs in one window (`smoke-cdp.md:96-104`), `bv` active.
 
 **Rows:**
 
 1. **AO4, Unified → Split:** `bv`, History › `ws` › `w.txt` at 15 000 (deleted 820, 12 px) → Split → 13 380, line 820's
    pair, 12 px off.
 2. **AO4, Split → Unified:** at 13 380 → Unified → 15 000, the deleted line 820, 12 px off.
-3. **AO3, another window:** Settings › Diff & merge › "Ignore whitespace by default" off before the row. Open `bx` as a
-   second tab and tear it off into a window of its own (Ctrl+Shift+N). In `bv`'s window (`CDP_TITLE="- bv"`), `ws` ›
+3. **AO3, another window:** Settings › Diff & merge › "Ignore whitespace by default" off before the row. Make `bx` the
+   active tab and tear it off into a window of its own (Ctrl+Shift+N). In `bv`'s window (`CDP_TITLE="- bv"`), `ws` ›
    `w.txt` at 15 000, whitespace off. In `bx`'s window (`CDP_TITLE="- bx"`), Settings › Diff & merge › "Ignore
    whitespace by default" on → `bv`'s toggle shows on and its diff reloads to 7 456, the same row. Off again → 15 000.
 4. **AR1, the keyboard:** `bv`, Changes › `a.txt`, nothing selected; H = the region's `clientHeight` with no bar (643 in
@@ -178,16 +182,17 @@ console hook and log as BV. Numbers assume BV's 184 px hunks (164 in split).
    Then, nothing selected, scrollTop set (`--eval`) so the cursor line is out of view below but within about 20 rows
    (the overscan is 30, so it stays mounted); `document.activeElement` still the line → Space → the bar shows, scrollTop
    unchanged.
-5. **AR1, the mouse (D2 (a)):** nothing selected, the cursor line (from row 4) on the bottom edge; click it → selected,
-   the bar shows, the same scroll, the line in view. Also click another line on the bottom edge and record what is seen
-   (pass 3: `main` would likely recover after a frame).
+5. **AR1, the mouse (D2 (a)):** Space to unselect row 4's line, so nothing is selected; the cursor line (from row 4) on
+   the bottom edge; click it → selected, the bar shows, scrollTop = its bottom − (H − 24), the line in view. Then
+   nothing selected, another changed line (not the cursor) on the bottom edge; click it → the same.
 6. **AR2, the Changes view:** select 3 lines (click a line, Shift+↓, Ctrl+click a line of the next hunk: every `a.txt`
    hunk has two changed lines, and Shift+↓ stops at the hunk's edge) → Escape → the bar gone, `aria-selected` false on
    all, the focus on the cursor line. Escape again → nothing changes.
-   - 6b. **A tab drag:** close `bx`'s window and open `bx` again as a tab in `bv`'s window. Lines selected in `bv`'s
-     `a.txt`; a one-off script in a single CDP session presses on the `bx` tab, moves, sends Escape, then releases
-     (`cdp.mjs` releases within each step; the pattern of `smoke-cdp.md:115-118`) → the drag cancels and the lines stay
-     selected (reasoned: the press focuses the tab). Record where the focus was.
+   - 6b. **A tab drag:** close `bx`'s window (Ctrl+W) and reopen `bx` from Repository › recents as a tab in `bv`'s
+     window, then make `bv` active. Lines selected in `bv`'s `a.txt`; a one-off script in a single CDP session presses
+     on the `bx` tab, moves down off the strip (the drag detaches), sends Escape, and releases there, not over a tab
+     (`cdp.mjs` releases within each step; the pattern of `smoke-cdp.md:115-118`) → the drag cancels, `bv` is still the
+     active tab, and the lines stay selected (reasoned: the press focuses the tab). Record where the focus was.
 7. **AR2, a dialog:** the commit dialog on `bv` with `a.txt`'s diff; select a line → Escape → selection cleared, the
    dialog still open; Escape → the dialog closes.
 8. **What must not change:** BV rows 1–6 again in short (whitespace, context, an edit, a stage keep the top line);
@@ -219,9 +224,9 @@ console hook and log as BV. Numbers assume BV's 184 px hunks (164 in split).
     - `open-items-done.md`: new §AO and §AR sections, in letter order around §AP (neither exists there yet), with AO3,
       AO4 and N1's check under §AO, and both §AR rows and pass 2's accepted-closed `<body>` row under §AR; the triage's
       own closed rows;
-    - `open-items.md`: the §AR section removed and §AR added to the "only there" list (`:10`); the sighting above as a
-      new §AO row; §AO's intro (`:927-929`) naming this plan, and a pointer line to the done rows, as §AN's
-      (`:921-923`); the triage's §Q rows (with triggers) and deferrals;
+    - `open-items.md`: the §AR section removed and §AR added to the "only there" list (`:10`); AO3 and AO4's rows
+      (`:940-944`) removed; the sighting above as a new §AO row; §AO's intro (`:927-929`) naming this plan, and a
+      pointer line to the done rows, as §AN's (`:922-923`); the triage's §Q rows (with triggers) and deferrals;
     - this plan archived.
 11. **Package** (CLAUDE.md step 7): squash rehearsed in a throwaway worktree, tree checked; a fix commit, the BX docs
     commit, the records commit. Force-push the branch on the owner's go, CI again.
@@ -250,3 +255,7 @@ console hook and log as BV. Numbers assume BV's 184 px hunks (164 in split).
   #4 where the `scrollLeft` reset goes; #5 row 1's check can't fail → dropped, Test 3 (owner); #6 row 6b's method; #7
   row 4 within the overscan, `--eval`, H; #8 Test 3's same-view case rewrites the hunk; #9 the `<body>` row under §AR
   (owner). Remarks: Design 4's listeners and step 10's pointer line taken.
+- **Pass 4** (2026-10-19): 4 findings and 4 remarks. #1 `scrollRect` is `Rect | null` under `strict` → `?.height ?? 0`;
+  #2 row 6b's release over a tab would switch tabs → release off the strip, `bv` still active; #3 row 5's second click's
+  result stated; #4 step 10 removes AO3 and AO4's rows, §AN's pointer at `:922-923`. Remarks taken: the border-box
+  height, Dialog's capture listeners, `layout.json` seeded with `bx`, row 5's unselecting Space.
