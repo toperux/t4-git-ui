@@ -2,7 +2,7 @@
 
 _Written 2026-10-18 against `main` `6d26651f`. Status: draft; scope ruled by the owner on 2026-10-18 (Plan A of two:
 this one, then the tabs and grid rows); D1, D2 and D4 taken with the owner on 2026-10-19, all (a); plan review pass 1's
-findings taken (N1 dropped as not a bug, kept as a pinning test; D3 gone with it); passes 2–4's taken: pass 5 next._
+findings taken (N1 dropped as not a bug, kept as a pinning test; D3 gone with it); passes 2–5's taken: pass 6 next._
 
 **Goal:** four small fixes to the diff viewer, from the rows deferred during the per-tab, polish and scroll anchor work
 (`docs/plans/open-items.md` §AO and §AR):
@@ -13,7 +13,7 @@ findings taken (N1 dropped as not a bug, kept as a pinning test; D3 gone with it
 - **AR2:** Escape doesn't clear a line selection in the staging diff.
 
 AO3 is reasoned from the code; AO4's jump was measured as BV's observation; AR1 and AR2 were each seen once in a walk
-(BV 4c, the BV re-walk). The walk (group BX) is the first measurement of AO3.
+(BV 4c, the BV re-walk). The walk (group BX) is the first measurement of AO3's fix; the bug on `main` stays reasoned.
 
 **N1, checked: not a bug.** Found while planning: a background tab might come back with a diff built with the old
 whitespace or context setting. Plan review pass 1 showed both diffs already reload on a tab switch with the window's
@@ -101,9 +101,9 @@ current settings (*What happens now*). Kept as a test that pins it (owner, 2026-
    - Stopping it matters for the dialogs: the commit dialog's or the stash browser's form would close on the same
      Escape. With lines selected, the first Escape clears them and the second closes the dialog (owner, 2026-10-19, pass
      1 #6). Bubble-phase document and window listeners don't fire either (`Menu.tsx:115`, `SearchPopover.tsx:38`,
-     `SidebarRail.tsx:29`, `useTabDrag.tsx:131`): React 19 delegates to the root, below them. Capture-phase ones still
-     run: `kbdFocus.ts:23-25` (wanted), `Dialog.tsx:105` (it only ends a refocus watch) and `Dialog.tsx:142` (only when
-     the target is `<body>`, the accepted case).
+     `SidebarRail.tsx:29`, `useTabDrag.tsx:131`; `useShortcuts.ts:150` has no Escape branch): React 19 delegates to the
+     root, below them. Capture-phase ones still run: `kbdFocus.ts:23-25` (wanted), `Dialog.tsx:105` (it only ends a
+     refocus watch) and `Dialog.tsx:142` (only when the target is `<body>`, the accepted case).
    - A tab drag cancels on Escape at the window (`useTabDrag.tsx:127-133`). The press focuses the tab
      (`TabStrip.tsx:62-72`), so the drag likely cancels and the lines stay selected; BX row 6b checks it (owner,
      2026-10-19, pass 2).
@@ -145,9 +145,9 @@ horizontal reset isn't walked (the fixture's lines never scroll sideways), Test 
    whose `diffContext` is 3, then `syncWithStatus` with the same status → one `getFileDiff`, with context 10.
 3. **AO4** (`scrollAnchor.test.ts`): the `stripes()` fixture, unified at 15 000 (deleted 820, 12 px) → split 13 380;
    split at 13 380 → unified 15 000; a header at the top lands on the same header; the ends; a same-view split reload
-   that rewrites the anchor's own hunk (lines inserted into hunk 81, so `hunkMap` misses it) still lands on the pair.
-   (`DiffViewer.test.tsx`): a view switch keeps the body mounted, scrolls to the carried offset, not 0, and sets
-   `scrollLeft` to 0.
+   that rewrites the anchor's own hunk (lines inserted into hunk 81 above line 820, so `hunkMap` misses it and the new
+   numbers move; inserted after 820, `main` would pass too) still lands on the pair. (`DiffViewer.test.tsx`): a view
+   switch keeps the body mounted, scrolls to the carried offset, not 0, and sets `scrollLeft` to 0.
 4. **AR1** (`DiffViewer.test.tsx`): the mock exposes the virtualizer and records `scrollToOffset`; its `scrollRect`
    height settable per test (643 here; 400 today, `:28-31`); `clientHeight` stubbed (643, then 619 once the bar renders)
    and `scrollTop` stubbed (as `:584`). The cursor row ending at the bottom edge, Space → `scrollToOffset(end − 619)`
@@ -164,27 +164,31 @@ horizontal reset isn't walked (the fixture's lines never scroll sideways), Test 
 `smoke-launch.ps1`, driven with `docs/smoke/cdp.mjs --inner 1280x800`, as BV. Fixture: `bv-fixture.sh`
 (`T4_ROOT=/c/tmp/t4`), then `cp -r /c/tmp/t4/bv /c/tmp/t4/bx`, so the two repos, their tabs and their windows have
 different names; `cdp.mjs` picks a window by its title (`CDP_TITLE="- bv"` / `"- bx"`, `smoke-cdp.md:129`). Recorder,
-console hook and log as BV. Numbers assume BV's 184 px hunks (164 in split). `bx` is a fresh copy, not in the recents:
-`layout.json` is seeded with both tabs in one window (`smoke-cdp.md:96-104`), `bv` active.
+console hook and log as BV; the console hook is installed in `bx`'s window too once it exists (row 3). Numbers assume
+BV's 184 px hunks (164 in split). The store folder is backed up before launch and restored after (`smoke-cdp.md:84-89`):
+BX writes `layout.json` and adds `bx` to the recents. `bx` is a fresh copy, not in the recents: `layout.json` is seeded
+with both tabs in one window (`smoke-cdp.md:96-104`), `bv` active.
 
 **Rows:**
 
 1. **AO4, Unified → Split:** `bv`, History › `ws` › `w.txt` at 15 000 (deleted 820, 12 px) → Split → 13 380, line 820's
    pair, 12 px off.
 2. **AO4, Split → Unified:** at 13 380 → Unified → 15 000, the deleted line 820, 12 px off.
-3. **AO3, another window:** Settings › Diff & merge › "Ignore whitespace by default" off before the row. Make `bx` the
-   active tab and tear it off into a window of its own (Ctrl+Shift+N). In `bv`'s window (`CDP_TITLE="- bv"`), `ws` ›
-   `w.txt` at 15 000, whitespace off. In `bx`'s window (`CDP_TITLE="- bx"`), Settings › Diff & merge › "Ignore
-   whitespace by default" on → `bv`'s toggle shows on and its diff reloads to 7 456, the same row. Off again → 15 000.
+3. **AO3, another window:** Settings › Diff & merge › "Ignore whitespace by default" off before the row, then close
+   Settings (an open dialog blocks the window's shortcuts, `useShortcuts.ts:39`). Make `bx` the active tab and tear it
+   off into a window of its own (Ctrl+Shift+N). In `bv`'s window (`CDP_TITLE="- bv"`), `ws` › `w.txt` at 15 000,
+   whitespace off. In `bx`'s window (`CDP_TITLE="- bx"`), Settings › Diff & merge › "Ignore whitespace by default" on →
+   `bv`'s toggle shows on and its diff reloads to 7 456, the same row. Off again → 15 000. Close Settings.
 4. **AR1, the keyboard:** `bv`, Changes › `a.txt`, nothing selected; H = the region's `clientHeight` with no bar (643 in
    BV). Click a changed line mid-view, Space to unselect it (as BV 4c); set scrollTop (`--eval`) = its bottom − H, so it
-   sits on the bottom edge; Space → the bar shows, scrollTop = its bottom − (H − 24), the line in view and focused.
-   Then, nothing selected, scrollTop set (`--eval`) so the cursor line is out of view below but within about 20 rows
-   (the overscan is 30, so it stays mounted); `document.activeElement` still the line → Space → the bar shows, scrollTop
-   unchanged.
+   sits on the bottom edge; Space → the bar shows, scrollTop = its bottom − (H − 24), the line in view and focused. Then
+   Space to unselect it, so nothing is selected; scrollTop set (`--eval`) so the cursor line is out of view below but
+   within about 20 rows (the overscan is 30, so it stays mounted); `document.activeElement` still the line → Space → the
+   bar shows, scrollTop unchanged.
 5. **AR1, the mouse (D2 (a)):** Space to unselect row 4's line, so nothing is selected; the cursor line (from row 4) on
-   the bottom edge; click it → selected, the bar shows, scrollTop = its bottom − (H − 24), the line in view. Then
-   nothing selected, another changed line (not the cursor) on the bottom edge; click it → the same.
+   the bottom edge; click it → selected, the bar shows, scrollTop = its bottom − (H − 24), the line in view. Then Space
+   to unselect it, so nothing is selected; another changed line (not the cursor) on the bottom edge; click it → the
+   same.
 6. **AR2, the Changes view:** select 3 lines (click a line, Shift+↓, Ctrl+click a line of the next hunk: every `a.txt`
    hunk has two changed lines, and Shift+↓ stops at the hunk's edge) → Escape → the bar gone, `aria-selected` false on
    all, the focus on the cursor line. Escape again → nothing changes.
@@ -259,3 +263,6 @@ console hook and log as BV. Numbers assume BV's 184 px hunks (164 in split). `bx
   #2 row 6b's release over a tab would switch tabs → release off the strip, `bv` still active; #3 row 5's second click's
   result stated; #4 step 10 removes AO3 and AO4's rows, §AN's pointer at `:922-923`. Remarks taken: the border-box
   height, Dialog's capture listeners, `layout.json` seeded with `bx`, row 5's unselecting Space.
+- **Pass 5** (2026-10-19): 2 findings and 5 remarks. #1 an open Settings dialog blocks Ctrl+Shift+N and Ctrl+W → row 3
+  closes it; #2 rows 4–5 say how nothing gets selected. Remarks taken: `useShortcuts.ts:150`, Test 3's insert above 820,
+  the store backup, the console hook in `bx`'s window, the AO3 measurement's wording.
