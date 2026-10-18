@@ -187,9 +187,9 @@ is the real one, so the default may be on.
    diff reloads to 7 456, the same row. Off again → 15 000. Close Settings; read `bx`'s console hook.
 4. **AR1, the keyboard:** `bv`, Changes › `a.txt`, nothing selected; H = the region's `clientHeight` with no bar (643 in
    BV). At 12 000, click `line 670 changed` (12 248–12 268), Space to unselect it (as BV 4c); set scrollTop (`--eval`) =
-   12 268 − H (11 625 at H 643), so it sits on the bottom edge; Space → the bar shows, scrollTop = 12 268 − (H − 24) (11
-   649), the line in view and focused. Then Space to unselect it, so nothing is selected; scrollTop set (`--eval`) so
-   the cursor line is out of view below but within about 20 rows (the overscan is 30, so it stays mounted);
+   12 268 − H (11 625 at H 643), so it sits on the bottom edge; Space → the bar shows, scrollTop = 12 268 − (H − 24)
+   (11 649), the line in view and focused. Then Space to unselect it, so nothing is selected; scrollTop set (`--eval`)
+   so the cursor line is out of view below but within about 20 rows (the overscan is 30, so it stays mounted);
    `document.activeElement` still the line → Space → the bar shows, scrollTop unchanged.
 5. **AR1, the mouse (D2 (a)):** Space to unselect row 4's line, so nothing is selected; the cursor line (from row 4) on
    the bottom edge (`--eval`, as row 4); click it → selected, the bar shows, scrollTop = its bottom − (H − 24), the line
