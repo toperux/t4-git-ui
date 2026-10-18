@@ -2053,9 +2053,10 @@ identical to `403a05a`'s; the docs commit adds this map):
 
 ## AN. Added 2026-10-17 — the #32 walk's diff viewer rows: fixed, closed
 
-Moved from `open-items.md` §AN (bullets 1, 2 and 4; bullet 3, the scroll position across a reload, stays there). Plan:
-`docs/archive/plans/2026-10-17-diff-viewer-polish-plan.md`. Walk record: `docs/archive/walks/2026-10-17-bu-walk.md`
-(smoke group BU; walked on the pre-squash `a0c64572`, rows 10, 11, 12 and 14 walked again on `6f1ca92b`).
+Moved from `open-items.md` §AN (bullets 1, 2 and 4; bullet 3, the scroll position across a reload, followed on
+2026-10-18, below). Plan: `docs/archive/plans/2026-10-17-diff-viewer-polish-plan.md`. Walk record:
+`docs/archive/walks/2026-10-17-bu-walk.md` (smoke group BU; walked on the pre-squash `a0c64572`, rows 10, 11, 12 and 14
+walked again on `6f1ca92b`).
 
 - **The diff cursor at the top edge hid the hunk header.** Moving up the staging diff showed the changed line with its
   `@@` header scrolled off. **Fixed** (`f2d5089`, S1): ↑ brings the cursor's hunk header into view when it fits.
@@ -2083,6 +2084,54 @@ Moved from `open-items.md` §AN (bullets 1, 2 and 4; bullet 3, the scroll positi
     reload with the focus on `<body>` could then pull the focus in. Reasoned, not seen.
   - **A commit reached under two paths hands its first path's `previous` to the second's hunks** (review F1 of the
     parser fix, `944bf0d`). The app passes no copy or move detection; a code comment names the limit.
+
+Bullet 3 followed on 2026-10-18. Plan: `docs/archive/plans/2026-10-17-diff-scroll-anchor-plan.md`. Walk records:
+`docs/archive/walks/2026-10-18-bv-walk.md` (smoke group BV, walked on the pre-squash `c87ecc2c`) and
+`docs/archive/walks/2026-10-18-bv-rewalk.md` (row 5 again and row 5c, on the pre-squash `38d55fab`).
+
+- **The diff kept its scroll position in pixels across a reload.** The whitespace toggle on a long diff landed about 820
+  lines off, and an edit above the view shifted the content. **Fixed** (`e38c24b7`): a reload of the same file keeps the
+  line at the top on top (`scrollAnchor.ts`), by its hunk or else by its line number. Walked, BV 1–7.
+- **Fixed in the branch's review and walks**, folded into the same fix commit unless named:
+  - review pass 2: F1–F3, F5 and F6;
+  - pass 4: P4-1, P4-3, P4-4, P4-7 and P4-8;
+  - pass 5: N1;
+  - **T8:** Space and Enter on a focused hunk button press it. On `main` before, the line keys took them;
+  - **S4:** `cdp.mjs --key Space` (in the BV docs commit);
+  - pass 7: P7-a, a key press on a hunk button ends the reload's hold; P7-b, Ctrl / Cmd+Enter on a hunk button
+    stages the selected lines;
+  - pass 8: Nit 7, AltGr isn't Ctrl;
+  - pass 9: Nit 7, `ctrlOrCmd`, so Super / Win+Enter isn't Ctrl;
+  - pass 10: L1, Ctrl / Cmd+Enter goes to the line keys only with lines selected; N1, a Mac Cmd+Enter test;
+  - the rest: wording and test fixes.
+- **Accepted, closed, no reopen trigger** (owner, 2026-10-18):
+  - **S1's carry-over test now expects the anchor's scroll** (T3). Superseded by D1 / F1; the archived polish plan
+    is left as it is.
+  - **The S1 tests' mount leaves `scrollOffset` at −400** (T4). Never read.
+  - **A mid-hunk no-newline marker that changes shifts the anchor by one row** (T6).
+  - **With the diff window open, `hunkMap` runs 4× per reload** (T7). Walk row 3 saw no cost.
+  - **A stale top within about one frame of a cursor scroll** (P4-2).
+  - **An old-side anchor in a line-1 hunk that starts with adds lands on the line, not the header** (P4-5).
+  - **The redundant `cursorRow >= 0` guard is kept** (P4-6).
+  - **The first key's focus retry isn't cancelled on unmount** (N2).
+  - **The wheel doesn't end the reload's hold** (N4).
+  - **Space's keydown on a hunk button ends the hold even without a click** (pass 8, Info 1).
+  - **The button guard's comment leaves out the busy case,** which can't be reached (pass 11, #4).
+  - **One blank 10 ms sample on a file switch** (S2, the BV walk's sighting 2). A path change, not a reload.
+  - **After Stage hunk, the "ring" on `line 670 changed` was 4c's selection outline** (S3). Settled in jsdom (`main`
+    and the branch alike) and in the re-walk: the cursor and the focus are both on the deleted `line 670`. Not a bug.
+- **Moved out** (owner, 2026-10-18): T1, T2, AltGr and the plan's L1, accepted with a reopen trigger → `open-items.md`
+  §Q; S1 (the selection bar) and Escape, deferred → `open-items.md` §AR.
+- **Rulings** (owner, 2026-10-18):
+  - **Shift / Alt+Enter and Shift+Space on a hunk button are the button's** (L3, pass 8). P7-b reads as "Enter
+    without Ctrl / Cmd".
+  - **Whether a hunk button clicks on Ctrl+Enter depends on the platform,** and is reasoned. A CDP walk can't show
+    it: `cdp.mjs` sends no character with Ctrl.
+- **Plan drift** (the plan is archived as it is):
+  - Design 5's `quiet` also ends on Space / Enter on a hunk button, and the first-key path skips a button's own
+    Enter / Space (T8, P7-a, P7-b, L1).
+  - *Overlap*'s "a staged hunk drops the focus to `<body>`" was out of date before this branch: since the
+    hunk-button cursor move (`DiffViewer.tsx:197-200` on `main`), the click moves the focus to the hunk's first line.
 
 ## AP. Added 2026-10-17 — per-tab view: accepted, closed
 

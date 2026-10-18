@@ -636,6 +636,22 @@ phases that accepted them; each origin keeps a pointer.
   walk was Windows only. Accepted by the owner, 2026-10-17 (T1, D5 (a) of
   `docs/archive/plans/2026-10-17-diff-viewer-polish-plan.md`). **Reopen:** a Linux report about the staging diff or
   the file content view.
+- **Linux is not walked for the scroll anchor.** WebKitGTK's scroll timing and clamp on a reload are unmeasured; the BV
+  walk was Windows only. Accepted by the owner, 2026-10-18 (T1, D5 (a) of
+  `docs/archive/plans/2026-10-17-diff-scroll-anchor-plan.md`). **Reopen:** a Linux report of the diff jumping or
+  blanking on a reload, or the next Linux walk of the diff viewer.
+- **A same-row-count reload near the end of a file can land short.** The anchor's clamp reads the body's old height,
+  before `measure()` (`DiffBody`'s layout effect), so a reload that keeps the row count but changes the heights can stop
+  short of the anchored offset near the end. Reasoned, not seen. Accepted by the owner, 2026-10-18 (T2, the scroll
+  anchor's change review). **Reopen:** a reload seen landing short near the end of a file.
+- **AltGr on a hunk button is reasoned only.** The button guard reads AltGr through `getModifierState("AltGraph")`,
+  tested in jsdom; CDP can't send AltGr, so no walk checked it. Accepted by the owner, 2026-10-18 (the scroll
+  anchor's change review). **Reopen:** a user with an AltGr layout reports a hunk-button key misbehaving.
+- **Two identical hunks can send the anchor to the wrong one.** `hunkMap` pairs hunks with exactly the same lines
+  (context included) in order, so the top line can land on the twin; the cursor carry has the same limit. Reasoned, not
+  seen. Accepted by the owner, 2026-10-18 (L1 of `docs/archive/plans/2026-10-17-diff-scroll-anchor-plan.md`).
+  **Reopen:** the top line or the cursor seen landing on an identical twin hunk; then accept a match only when one
+  side's start line is unchanged.
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review, deferred
 
@@ -903,20 +919,14 @@ its own plan on 2026-10-16 (`open-items-done.md` §AM).
 Seen on the way in `docs/archive/walks/2026-10-16-npm-group-32-walk.md` (Windows, a build of #32 merged into `main`),
 and none compared with 0.10.24. By reading the code, all predate #32. Deferred on the owner's word in the triage.
 
-- **The diff keeps its scroll position in pixels across a reload.** On a long diff scrolled to ~line 820, the
-  ignore-whitespace toggle roughly halves the height and the view lands at ~line 1640. An edit above the view shifts
-  the content (top line 657 → 650). Fix: remember the top visible file line before the reload and scroll back to it
-  after; the whitespace toggle maps lines between two diffs, so it needs its own plan. **Reopen:** the jump gets in
-  the way, or someone reports it.
-
-The other three rows (the hunk header at the top edge, the content view's click, the cut hunk headers) were fixed and
-moved to `open-items-done.md` §AN.
+All four rows were fixed and moved to `open-items-done.md` §AN: the hunk header at the top edge, the content view's
+click and the cut hunk headers on 2026-10-17, the scroll position across a reload on 2026-10-18.
 
 ## AO. Added 2026-10-17 — sightings while planning the diff-viewer and per-tab view work, deferred
 
 Found by reading the code while drafting or reviewing `docs/archive/plans/2026-10-17-diff-viewer-polish-plan.md`,
-`docs/plans/2026-10-17-diff-scroll-anchor-plan.md` and `docs/archive/plans/2026-10-17-per-tab-view-plan.md`. None was
-reproduced. Deferred on the owner's word.
+`docs/archive/plans/2026-10-17-diff-scroll-anchor-plan.md` and `docs/archive/plans/2026-10-17-per-tab-view-plan.md`.
+None was reproduced. Deferred on the owner's word.
 
 - **A tab moved to another window may lose its commit draft, selection and filter.** A tear-off or drag hands over
   only the repository path (`src/store/tabsStore.ts:188`, then `:150-151`), and the target window opens it fresh.
@@ -955,6 +965,18 @@ owner's word in the triage. The walk's other sightings were fixed or are in `ope
 - **The focus moved once from the staging diff's cursor row to the "Staged files" listbox.** Right after the first
   click in BU row 1, between two CDP runs. No cause found; not seen again. **Reopen:** seen again, by hand or in a
   walk.
+
+## AR. Added 2026-10-18 — seen in the scroll anchor work, deferred
+
+Seen in `docs/archive/walks/2026-10-18-bv-walk.md` and `docs/archive/walks/2026-10-18-bv-rewalk.md` (Windows, the
+scroll anchor's walks), and deferred on the owner's word in the triage, each with a reopen trigger.
+
+- **The selection bar can cover the cursor line.** With nothing selected and the cursor on the bottom edge, Space
+  selects the line, the "N lines selected" bar appears, the diff gets 24 px shorter (643 → 619) and covers the line.
+  Nothing scrolls it back. Seen in BV 4c; on `main` too (reasoned). **Reopen:** the bar covering the line gets in
+  the way.
+- **Escape doesn't clear a line selection in the staging diff.** Seen in the BV re-walk; on `main` too (reasoned: the
+  diff has no Escape handler). **Reopen:** a user expects Escape to clear it.
 
 ## Order
 

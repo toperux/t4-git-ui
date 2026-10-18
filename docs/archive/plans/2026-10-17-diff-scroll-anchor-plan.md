@@ -1,8 +1,9 @@
 # Plan: the diff keeps its top line across a reload, 2026-10-17
 
 _Written 2026-10-17 against `main` `266fc96`. Status: decisions D1–D5 taken with the owner on 2026-10-17, all (a);
-review passes 1–9 taken; pass 10 found nothing; the polish plan's pass-10 finding applied; pass 11's 2 taken; pass
-12 found nothing: final._
+review passes 1–9 taken; pass 10 found nothing; the polish plan's pass-10 finding applied; pass 11's 2 taken; pass 12
+found nothing: final; executed 2026-10-18 (BV walked on Windows, row 5 again and row 5c after the review's fixes; the
+review's findings and the triage ruled by the owner); squashed into `e38c24b7` (fix) and two docs commits; archived._
 
 **Goal:** when a diff reloads and the file stays the same, the line at the top of the view stays at the top. Today
 the view keeps its pixel offset, and the rows above it change height. `open-items.md` §AN, the row *The diff keeps
@@ -30,13 +31,13 @@ The measured heights match the row model exactly (computed, not measured):
 
 ## Root cause
 
-- `DiffBody` (`DiffViewer.tsx:405-422`) reacts to new rows only with `virtualizer.measure()` (`:414-417`). It scrolls
-  only when the path changes, and then to 0 (`:419-422`). scrollTop is DOM state: it stays in pixels while every row
+- `DiffBody` (`DiffViewer.tsx:405-426`) reacts to new rows only with `virtualizer.measure()` (`:417-421`). It scrolls
+  only when the path changes, and then to 0 (`:423-426`). scrollTop is DOM state: it stays in pixels while every row
   above it can change.
 - The body stays mounted through a reload, so nothing else resets it:
-  - `diffStore.loadDiff` keeps the old `diff` on screen until the new one lands (`diffStore.ts:148-167`);
-  - `commitStore.loadDiff` does too, for a reload of the same file in the same list (`commitStore.ts:192-196`), and
-    keeps the old object when the hunks are equal (`:203-208`), so a reload that finds nothing new never reaches the
+  - `diffStore.loadDiff` keeps the old `diff` on screen until the new one lands (`diffStore.ts:155-174`);
+  - `commitStore.loadDiff` does too, for a reload of the same file in the same list (`commitStore.ts:200-204`), and
+    keeps the old object when the hunks are equal (`:211-216`), so a reload that finds nothing new never reaches the
     body.
 - Rows have fixed heights: `HUNK_ROW_H` 24 and `LINE_ROW_H` 20 (`diffRows.ts:5-6, 30`; CSS `.dl` 20 px at
   `DiffViewer.module.css:140`, `.hunk` 24 px at `:228`). A row's offset is a sum over the rows above it, so the fix
@@ -57,23 +58,23 @@ Every diff goes through `DiffViewer` → `DiffBody`, so a fix in `DiffBody` cove
 
 **Reloads of the same file, body mounted.** These are what the fix covers:
 
-1. **Ignore whitespace**, in the details pane and the dialog (`diffStore.toggleWhitespace`, `diffStore.ts:311-316`),
+1. **Ignore whitespace**, in the details pane and the dialog (`diffStore.toggleWhitespace`, `diffStore.ts:323-328`),
    also from Settings (`settingsStore.ts:132-138`). Not offered while staging (`DiffViewer.tsx:299-307`). Measured.
    The top line stays on top. A line `-w` hides gives way to the first shown line after it.
-2. **Context lines**, Settings › Diff & merge: `diffStore.setContext` (`diffStore.ts:318-322`) reloads the pane, and
-   the subscription at `commitStore.ts:636-637` reloads the panel. Not measured. Both files are unchanged, and more
+2. **Context lines**, Settings › Diff & merge: `diffStore.setContext` (`diffStore.ts:330-334`) reloads the pane, and
+   the subscription at `commitStore.ts:663-664` reloads the panel. Not measured. Both files are unchanged, and more
    context only adds lines, so the top line exists before and after and stays on top.
-3. **The working file changes on disk** (the watcher → status refresh → `syncWithStatus`, `commitStore.ts:356-377`).
-   This reloads only when the shown file's own status entry changed (`:372-375`). Measured (the edit above). The same
+3. **The working file changes on disk** (the watcher → status refresh → `syncWithStatus`, `commitStore.ts:375-396`).
+   This reloads only when the shown file's own status entry changed (`:391-394`). Measured (the edit above). The same
    line stays on top, though its new-side number moved.
 4. **Stage, unstage or discard a hunk or lines** (`withApplying` → status refresh → `loadDiff`,
-   `commitStore.ts:259-281`). Not measured. See D3.
+   `commitStore.ts:277-299`). Not measured. See D3.
 5. **git from outside**: `add`, `commit` or `reset` in a terminal reach the panel through the watcher, as in 3.
 
 **Not reloads of the same rows.** These keep today's behaviour:
 
-- **Another file:** the body scrolls to 0 (`DiffViewer.tsx:419-422`); measured in the #32 walk's row 4. **The same
-  path in the other list** (unstaged ↔ staged): `commitStore` clears the diff first (`commitStore.ts:195-196`), the
+- **Another file:** the body scrolls to 0 (`DiffViewer.tsx:423-426`); measured in the #32 walk's row 4. **The same
+  path in the other list** (unstaged ↔ staged): `commitStore` clears the diff first (`commitStore.ts:203-204`), the
   body unmounts and comes back at the top.
 - **Split ↔ unified:** `DiffBody` is keyed on the view (`DiffViewer.tsx:237`), so it remounts at the top. Reasoned,
   not measured. See D2.
@@ -116,7 +117,7 @@ Every diff goes through `DiffViewer` → `DiffBody`, so a fix in `DiffBody` cove
      twice the total line text of both diffs, plus one pass over the rows.
 4. **`DiffBody`:**
    - It takes `diff` as a prop, and a ref keeps `{ path, diff, rows }` from its last commit.
-   - The `[rows]` effect (`:414-417`) becomes one `useLayoutEffect`, in this order:
+   - The `[rows]` effect (`:417-421`) becomes one `useLayoutEffect`, in this order:
      1. Read `old = virtualizer.scrollOffset`. It still holds the old position: the browser's clamp to a shorter body
         only reaches the virtualizer through the next scroll event (virtual-core `index.js:495`).
      2. When the path is the same and `carryOffset(...)` differs from `old`: call `scrollToOffset(next)`, then set
@@ -128,12 +129,12 @@ Every diff goes through `DiffViewer` → `DiffBody`, so a fix in `DiffBody` cove
         writes it (`:1148`).
      3. On any same-path reload, set the `quiet` ref (Design 5). When the path changed, clear it.
      4. Call `measure()`. Its re-render then draws the rows around the anchored offset.
-   - It is a layout effect so that the first paint of the new rows is already at the anchor. The comment at `:418`
+   - It is a layout effect so that the first paint of the new rows is already at the anchor. The comment at `:422`
      is rewritten.
    - Reasoned, not measured: the re-render already reads the new offset, so no frame should show blank, whenever the
      scroll event arrives. The walk's recorder checks this.
    - `scrollOffset` is a public field (virtual-core 3.19.2 `index.d.ts:114`).
-5. **The cursor** (owner, 2026-10-17, review passes 1–3). On a reload the cursor effect (`:437-443`) doesn't
+5. **The cursor** (owner, 2026-10-17, review passes 1–3). On a reload the cursor effect (`:441-460`) doesn't
    scroll; it only refocuses. The anchor owns the reload's scroll, and the next key press brings the cursor into view.
    - **The mechanism is a `quiet` ref.**
      - It is set by step 3 above, on any same-path reload.
@@ -146,16 +147,16 @@ Every diff goes through `DiffViewer` → `DiffBody`, so a fix in `DiffBody` cove
      all of these hold:
      - `quiet` is set;
      - the diff is in staging mode (`actions`, which `DiffViewer` passes only with `lineActions`) and
-       `cursorRow >= 0`, the effect's own guard (`:439`). Without it, split view's empty picks give `cursorRow` −1,
+       `cursorRow >= 0`, the effect's own guard (`:445`). Without it, split view's empty picks give `cursorRow` −1,
        which `scrollToIndex` clamps to row 0 (virtual-core `index.js:1130`) and so jumps to the top; and the
        read-only unified diff would jump to a cursor it doesn't draw (`:147-155`);
      - the key is one `onBodyKeyDown` acts on: ↑, ↓, Space, Enter or Delete.
 
      Then the wrapper clears `quiet`, calls `scrollToIndex(cursorRow, { align: "auto" })` to bring the cursor in, and
      sets `virtualizer.scrollOffset = scrollRef.current.scrollTop`, so that the cursor effect and S1's reveal read the
-     true offset. It then calls `focusCursor(root)` (`:431-436`, which retries a frame later), because the cursor line
+     true offset. It then calls `focusCursor(root)` (`:435-440`, which retries a frame later), because the cursor line
      may not have been mounted when the reload refocused: it can sit outside the 30-row overscan. Rows are keyed by
-     index (`:501`), so until then the focus stays on whatever row fills the old slot. Then it passes the key to
+     index (`:525`), so until then the focus stays on whatever row fills the old slot. Then it passes the key to
      `DiffViewer`'s handler as usual.
      - Every other key leaves `quiet` set: Tab and Shift+Tab, a lone Shift or Ctrl, PageUp, PageDown, Home and End.
      - This covers the keys that don't move the cursor: Space, Enter, Delete, ↑ on the first pick, ↓ on the last, and
@@ -167,7 +168,7 @@ Every diff goes through `DiffViewer` → `DiffBody`, so a fix in `DiffBody` cove
      picks (`:155`). Then `setCursor` corrects it one render later (`:118-123`), in a commit with no new rows. A skip
      limited to the first commit would still scroll on the second.
    - The selection carry (`:109-130`) doesn't change.
-6. **Also unchanged:** the path reset, the focus repair (`:446-452`), the virtualizer options and the stores.
+6. **Also unchanged:** the path reset, the focus repair (`:463-469`), the virtualizer options and the stores.
 
 **Known limits**, flagged:
 
@@ -189,8 +190,8 @@ Every diff goes through `DiffViewer` → `DiffBody`, so a fix in `DiffBody` cove
 **D1. Anchor on the top row, or on the cursor?**
 
 - *What it is:* a cursor row exists wherever `picks` does. That is the staging diff, and the read-only unified diff
-  too (`DiffViewer.tsx:147-150`). Only staging moves it by key and draws it (`:163`, `:592-601`), but the cursor
-  effect (`:437-443`) scrolls on any change of `cursorRow` while the diff holds the focus, and a reload's change
+  too (`DiffViewer.tsx:147-150`). Only staging moves it by key and draws it (`:163`, `:616-625`), but the cursor
+  effect (`:441-460`) scrolls on any change of `cursorRow` while the diff holds the focus, and a reload's change
   counts. After a reload, the view can keep the top row at the top, or keep the cursor's line where it sat.
 - *Why now:* it decides what the anchor is, and the rest of the design follows from it.
 - *Options:*
@@ -257,13 +258,13 @@ Every diff goes through `DiffViewer` → `DiffBody`, so a fix in `DiffBody` cove
 
 **D4. Is file content and blame in scope?**
 
-- *What it is:* `FileContent.tsx:133-139` also keeps a reload of the same file in pixels.
+- *What it is:* `FileContent.tsx:173-189` also keeps a reload of the same file in pixels.
 - *Why now:* it follows the same pattern, and the §AN row could be read as covering it.
 - *Known, reasoned from the code, not walked:* it never reloads different lines for the same path.
-  - Its targets are commits, compares and stashes (`DetailsPane.tsx:36-46`, `treeTargetOf` at `diffStore.ts:105-111`),
+  - Its targets are commits, compares and stashes (`DetailsPane.tsx:36-46`, `treeTargetOf` at `diffStore.ts:112-118`),
     and their content never changes.
-  - Every row is 20 px (`FileContent.tsx:20, 130`).
-  - The whitespace toggle only re-blames the gutter (`diffStore.ts:315`), which changes no height.
+  - Every row is 20 px (`FileContent.tsx:21, 170`).
+  - The whitespace toggle only re-blames the gutter (`diffStore.ts:327`), which changes no height.
 
   So nothing can shift.
 - *Options:* (a) out of scope, with no row; (b) apply the same anchor, which no case would ever use.
@@ -296,7 +297,7 @@ Every diff goes through `DiffViewer` → `DiffBody`, so a fix in `DiffBody` cove
 
 The numbers below come from the 24 / 20 px rows.
 
-1. **An unchanged diff** keeps any offset. With an equal result there's no scroll call, so `DiffViewer.test.tsx:383-393`
+1. **An unchanged diff** keeps any offset. With an equal result there's no scroll call, so `DiffViewer.test.tsx:490-500`
    stays green.
 2. **Whitespace on, at 15 000** (top row: the deleted line 820, 12 px in) → 7 456: hunk 81 goes to hunk 40 by the
    same-hunk step. Off, at 7 456 → 15 000.
@@ -317,7 +318,7 @@ The numbers below come from the 24 / 20 px rows.
 
 **Component, `DiffViewer.test.tsx`.**
 
-- **The mock:** method recorders, today's `scrollToOffset` stub (`:30`) plus the polish plan's `scrollToIndex`
+- **The mock:** method recorders, today's `scrollToOffset` stub (`:36`) plus the polish plan's `scrollToIndex`
   recorder, with the old position seeded through its `observeElementOffset` stub (*Overlap* below).
   - Not `scrollToFn`: jsdom has no layout, so `getMaxScrollOffset` is 0 and every DOM write clamps to 0
     (`index.js:1048-1051, 1081-1082`). Mounting, clicks and the reconcile add writes of their own (`:551, :1096,
@@ -393,9 +394,10 @@ plan's).
        anchor goes by line number, and the cursor's hunk is pushed down 800 px.
      - The reload → scrollTop stays 12 000, top row context line 657, 16 px off. The cursor line now sits at
        13 048–13 068: wholly below the view while H ≤ 1 048, and at least partly below it while H < 1 068.
-     - Space, for any H < 1 068 → scrollTop 13 068 − H, with `line 670 changed` on the bottom edge and shown selected
-       (`aria-selected="true"`). `document.activeElement` is `line 670 changed`.
-     - Space again to unselect, then restore the file.
+     - Space, for any H < 1 068 → scrollTop 13 068 − H, with `line 670 changed` on the bottom edge and shown
+       unselected (`aria-selected="false"`). `document.activeElement` is `line 670 changed`. (Owner, 2026-10-18: a
+       click selects the line, so the first Space unselects it.)
+     - A second Space selects it again; then restore the file.
 5. **Stage the hunk at the top (D3):** at 11 960 (the header of line 660's hunk at the top), hover → Stage hunk → the
    unstaged diff stays at 11 960 with `@@ -667,7 +667,7 @@` at the top. Then `git -C <fixture>/bv reset -q a.txt` → the
    staged hunk comes back above → 12 144, the same `@@ -667…` header still at the top.
@@ -429,15 +431,15 @@ recomputes them from the measured height and says so.
      into the squash, and step 12's `git merge --ff-only origin/main` works.
    - **Re-cite first:** every line number this plan quotes, against that `main`, not only `DiffViewer.tsx` and
      `DiffViewer.test.tsx`. The polish plan's S2b also edits `diffStore.ts` (it adds `revealLine`) and
-     `FileContent.tsx` (its `[path]` effect). This plan quotes `diffStore.ts:105-111, 148-167, 311-322, 315` and
-     `FileContent.tsx:20, 130, 133-139`.
+     `FileContent.tsx` (its `[path]` effect). This plan quotes `diffStore.ts:112-118, 155-174, 323-334, 327` and
+     `FileContent.tsx:21, 170, 173-189`.
    - The polish plan is archived by then: repoint its path in *Overlap* to
      `docs/archive/plans/2026-10-17-diff-viewer-polish-plan.md`.
    - The re-cite is a docs commit to this plan file. At the squash it folds, by kind, into the records commit
      (step 11).
 2. **`scrollAnchor.ts`**, `scrollAnchor.test.ts` and the `stripes()` builder in `diffFixtures.ts` (Tests 1–9).
-3. **`DiffViewer.tsx`** per Design 4, and the component test. In `src/README.md`, `:476` "scrolls back to the top only
-   when the file path changes" gains "; a reload of the same file keeps its top line (`scrollAnchor.ts`)", and `:482`'s
+3. **`DiffViewer.tsx`** per Design 4, and the component test. In `src/README.md`, `:490` "scrolls back to the top only
+   when the file path changes" gains "; a reload of the same file keeps its top line (`scrollAnchor.ts`)", and `:496`'s
    list of pure modules gains `scrollAnchor.ts`.
 4. **Gates**, from `F:/src/_ pet projects/t4-git-ui` with the uppercase `F:/`: `npm test -- --run` and `npm run build`
    (which runs `tsc` itself, `package.json:8`), the two CI runs. There's no Rust change, so no `cargo test`. Commit
@@ -520,18 +522,18 @@ recomputes them from the measured height and says so.
 
 ## Overlap with the polish plan
 
-`docs/plans/2026-10-17-diff-viewer-polish-plan.md` (smoke group BU) also changes `DiffBody`'s scroll code.
+`docs/archive/plans/2026-10-17-diff-viewer-polish-plan.md` (smoke group BU) also changes `DiffBody`'s scroll code.
 
 - **What both touch:**
   - `DiffViewer.tsx`, `DiffBody`.
-    - **S1** branches the cursor effect (`:437-443`) on a "moved by ↑" ref, which the region's `onKeyDown` sets and its
-      `onMouseDown` clears (polish plan `:117-130`). After an ↑, `scrollToOffset(header start)` brings the cursor's
+    - **S1** branches the cursor effect (`:441-460`) on a "moved by ↑" ref, which the region's `onKeyDown` sets and its
+      `onMouseDown` clears (polish plan `:121-135`). After an ↑, `scrollToOffset(header start)` brings the cursor's
       hunk header to the top whenever the header is above the view and header-to-cursor fits, even with the cursor
-      still in view (`:154-155`). Every other move keeps `scrollToIndex(…, "auto")`.
-    - **This plan** rewrites the `[rows]` effect (`:414-417`) into the anchor's layout effect, and adds `quiet` to the
+      still in view (`:159-160`). Every other move keeps `scrollToIndex(…, "auto")`.
+    - **This plan** rewrites the `[rows]` effect (`:417-421`) into the anchor's layout effect, and adds `quiet` to the
       same `onKeyDown` wrapper.
     - These are different effects in the same function, so they won't conflict textually, but the line numbers shift.
-  - `DiffViewer.test.tsx`'s virtualizer mock (`:15-34`). S1 adds an `observeElementOffset` stub that reports a
+  - `DiffViewer.test.tsx`'s virtualizer mock (`:16-41`). S1 adds an `observeElementOffset` stub that reports a
     hoisted `scrolls.top`, and records `scrollToIndex`. This plan's component test should seed the old offset through
     that stub rather than through `initialOffset`.
   - Both read `virtualizer.scrollOffset`.
@@ -556,7 +558,7 @@ recomputes them from the measured height and says so.
   *Known and not*). S1 reads the same field. Two things close it: the `scrollOffset` assignment (Design 4, step 2)
   and the `quiet` skip. The checks are in *Tests* (the component tests with the focus held) and in BV rows 4b, 4c and
   5b.
-- A staged hunk drops the focus to `<body>` (`:424-428`), so after the button the cursor effect doesn't scroll anyway.
+- A staged hunk drops the focus to `<body>` (`:428-432`), so after the button the cursor effect doesn't scroll anyway.
 - **Proposed order: polish first, then this plan rebased onto it.** The polish plan is smaller and changes the
   cursor effect that this plan only has to reason about. Rebasing then means:
   - moving the `[rows]` effect;
@@ -572,7 +574,7 @@ recomputes them from the measured height and says so.
 ## Not in this plan
 
 - **§AN's other rows:** the cursor at the top edge hiding the hunk header (the same scroll code,
-  `DiffViewer.tsx:440`), a click in file content not moving the blame cursor, and the cut hunk headers. They are the
+  `DiffViewer.tsx:446-457`), a click in file content not moving the blame cursor, and the cut hunk headers. They are the
   polish plan's (*Overlap* above).
 - **Split ↔ unified,** under D2 (a): `open-items.md` §AO.
 - **A tab switch:** the diff's scroll after `tabsStore` restores a snapshot. That remounts the view; it doesn't reload

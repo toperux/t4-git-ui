@@ -675,9 +675,9 @@ A console.error / warn and unhandledrejection hook installed before row 1; the a
 
 ## Overlap with the scroll-anchor plan
 
-`docs/plans/2026-10-17-diff-scroll-anchor-plan.md` (§AN bullet 3, the diff's top line kept across a reload, smoke
-group BV) also changes `DiffBody`'s scroll code. **This plan is proposed to land first;** the anchor plan then rebases
-onto it.
+`docs/archive/plans/2026-10-17-diff-scroll-anchor-plan.md` (§AN bullet 3, the diff's top line kept across a reload,
+smoke group BV) also changes `DiffBody`'s scroll code. **This plan is proposed to land first;** the anchor plan then
+rebases onto it.
 
 - **Code both touch,** in `DiffViewer.tsx` `DiffBody`:
   - **The region's `onKeyDown`.** This plan sets the ↑ ref there; the anchor plan clears its `quiet` ref there (its
