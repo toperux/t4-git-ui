@@ -7,10 +7,10 @@ scheduled in `2026-09-26-close-out-plan.md`; §Q's accepted limits wait on their
 also in a close-out phase, the `status.rs` row, closed in Phase 3 on 2026-10-03)._
 
 _Done, fixed, walked and closed rows live in `open-items-done.md` (split 2026-09-24), under the same section letters — a
-letter with nothing open left (§A, §D, §F, §G, §H, §I, §J, §K, §L, §M, §N, §O, §P, §T, §U, §W, §AD, §AG) is only there.
-When a row here is done, move it there. Accepted limits with a reopen trigger are open, in §Q (since 2026-09-28); those
-with none are closed, in the done file; of §V's deferred rows, only the CRLF test flake and the GIO-modules row remain
-after the 2026-10-06 fix batch._
+letter with nothing open left (§A, §D, §F, §G, §H, §I, §J, §K, §L, §M, §N, §O, §P, §T, §U, §W, §AB, §AC, §AD, §AG, §AI,
+§AR) is only there. When a row here is done, move it there. Accepted limits with a reopen trigger are open, in §Q (since
+2026-09-28); those with none are closed, in the done file; of §V's deferred rows, only the CRLF test flake and the
+GIO-modules row remain after the 2026-10-06 fix batch._
 
 ## B. Verification and release
 - **Unticked smoke lines — recounted 2026-10-06: one**, BP 4 in `smoke-test-post-v1.md` (the fix batch's tooltip
@@ -652,6 +652,14 @@ phases that accepted them; each origin keeps a pointer.
   seen. Accepted by the owner, 2026-10-18 (L1 of `docs/archive/plans/2026-10-17-diff-scroll-anchor-plan.md`).
   **Reopen:** the top line or the cursor seen landing on an identical twin hunk; then accept a match only when one
   side's start line is unchanged.
+- **Linux and macOS are not walked for the diff viewer's deferred rows.** The view switch's kept top line, the bar
+  that moves a covered cursor line, Escape clearing a line selection and the whitespace default that follows another
+  window were walked on Windows only (BX). Reasoned, not seen: the app styles its scrollbars
+  (`src/theme/base.css:32-35`), which WebKit likely draws taking room, as on Windows; with overlay scrollbars the bar's
+  scrollbar term would be 0 and a transient overlay could cover a line's last pixels. Accepted by the owner, 2026-10-19
+  (D4 (a) and the triage of `docs/archive/plans/2026-10-18-diff-viewer-deferred-plan.md`).
+  **Reopen:** a Linux or macOS report about the view switch, the bar, Escape or the whitespace default, or the next
+  Linux or macOS walk of the diff viewer.
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review, deferred
 
@@ -926,57 +934,60 @@ click and the cut hunk headers on 2026-10-17, the scroll position across a reloa
 
 Found by reading the code while drafting or reviewing `docs/archive/plans/2026-10-17-diff-viewer-polish-plan.md`,
 `docs/archive/plans/2026-10-17-diff-scroll-anchor-plan.md` and `docs/archive/plans/2026-10-17-per-tab-view-plan.md`.
-None was reproduced. Deferred on the owner's word.
+None of those was reproduced. Deferred on the owner's word. Later rows came from planning, walking and reviewing
+`docs/archive/plans/2026-10-18-diff-viewer-deferred-plan.md` (Plan A), each deferred on the owner's word too. Plan B is
+the tabs and grid work after Plan A (owner, 2026-10-18): AP2 and AO1; AO5–AO7 were added since as candidates.
 
-- **A tab moved to another window may lose its commit draft, selection and filter.** A tear-off or drag hands over
+The whitespace default that didn't reload the diff (AO3) and the view switch's jump to the top (AO4) were fixed and
+walked in that plan, and moved to `open-items-done.md` §AO on 2026-10-20.
+
+- **AO1. A tab moved to another window may lose its commit draft, selection and filter.** A tear-off or drag hands over
   only the repository path (`src/store/tabsStore.ts:188`, then `:150-151`), and the target window opens it fresh.
   Reasoned, not walked. **Reopen:** a walk confirms it, or someone loses a draft that way.
-- **A failed tab open lands on a tab other than the one that was active.** The new tab is inserted at its slot (the
+- **AO2. A failed tab open lands on a tab other than the one that was active.** The new tab is inserted at its slot (the
   end, unless a drop names one), and closing it picks `rest[Math.min(i, rest.length - 1)]` (`tabsStore.ts:167`): the
   tab that held the failed tab's slot, or the last, not the one that was active (the per-tab view plan's Design 12).
   With A, C open and A active, a failed open of B appended lands on C. Reasoned. Unreachable today: with a summary,
   no step of the open path can fail (`repoStore.ts:331-369`), so the cleanup at `tabsStore.ts:124-126` never runs
   (the per-tab view plan's pass 2). **Reopen:** a step in the open path gains a way to fail.
-- **A whitespace default changed in another window flips this window's toggle without reloading its diff.**
-  `settingsStore.load` sets `diffStore.ignoreWhitespace` with a bare `setState` (`src/store/settingsStore.ts:119-122`),
-  so the open diff isn't refetched. Reasoned. **Reopen:** a toggle and its diff are seen disagreeing.
-- **Switching split ↔ unified view jumps the diff to the top.** Reasoned from the remount; not the measured problem
-  of the scroll-anchor plan, which leaves it out (its D2). **Reopen:** it gets in the way.
+- **AO5. A History tab comes back on its commit's first file, at the top.** The tab switch reload loads
+  `rowPath ?? files[0]` (`DetailsPane.tsx:49-52`), so the file the tab was on, and its scroll, are lost; the commit is
+  kept. Reasoned, while planning Plan A. A Plan B candidate (owner, 2026-10-19). **Reopen:** Plan B, or someone loses
+  their place in a commit's files on a tab switch.
+- **AO6. A tab switch brings the Changes diff back at the top.** Back on a tab, the staging diff shows the same file
+  at scrollTop 0: the diff is rebuilt and nothing keeps its scroll (the History list's is kept: `smoke-test-post-v1.md`
+  AW 1, `:1770`). Seen once in BX 6b (`docs/archive/walks/2026-10-19-bx-walk.md`); not compared with `main`, likely
+  older. A Plan B candidate, beside AO5 (owner, 2026-10-20). **Reopen:** Plan B, or someone loses their place in a diff
+  on a tab switch.
+- **AO7. A keyboard move to a line below the bottom edge leaves it partly behind a horizontal scrollbar.** The
+  virtualizer's own cursor scroll (`scrollToIndex`) sizes the view from its `scrollRect`, the border box, which
+  includes the 10 px scrollbar (`src/theme/base.css:32-35`), so the line's bottom 10 px stay under it. On `main` too.
+  Reasoned (Plan A's change review pass 3), not walked. A Plan B candidate (owner, 2026-10-19): a size watch that
+  reports the visible height would fix every virtualizer scroll. **Reopen:** Plan B, or a report of a line behind the
+  scrollbar.
 
 ## AP. Added 2026-10-17 — seen in the BW walk, deferred
 
 Seen on the way in `docs/archive/walks/2026-10-17-bw-walk.md` (Windows, the per-tab view's walk), and deferred on the
 owner's word in the triage, each with a reopen trigger.
 
-- **A background tab's grid came forward one row down once.** The first time `other`, opened in the background at
+- **AP1. A background tab's grid came forward one row down once.** The first time `other`, opened in the background at
   launch, came forward, its grid sat at scrollTop 26 with the selected HEAD row hidden above the top. Two fresh
   launches did not reproduce it; not compared with 0.10.24. **Reopen:** seen again.
-- **After a commit the grid's selection stays on the previous HEAD.** The details show the old commit while the new
+- **AP2. After a commit the grid's selection stays on the previous HEAD.** The details show the old commit while the new
   HEAD sits on top (BW 5 and 12). Likely older than the branch; not compared. **Reopen:** the next grid work, or
   someone trips on it.
-- **The output dock is per window, not per tab.** `other` showed `work`'s `git commit -F …` line. **Reopen:** someone
-  wants it per tab.
+- **AP3. The output dock is per window, not per tab.** `other` showed `work`'s `git commit -F …` line. **Reopen:**
+  someone wants it per tab.
 
 ## AQ. Added 2026-10-17 — the BU walk's sightings, deferred
 
 Seen in `docs/archive/walks/2026-10-17-bu-walk.md` (Windows, the diff viewer polish's walk), and deferred on the
 owner's word in the triage. The walk's other sightings were fixed or are in `open-items-done.md` §AN.
 
-- **The focus moved once from the staging diff's cursor row to the "Staged files" listbox.** Right after the first
+- **AQ1. The focus moved once from the staging diff's cursor row to the "Staged files" listbox.** Right after the first
   click in BU row 1, between two CDP runs. No cause found; not seen again. **Reopen:** seen again, by hand or in a
   walk.
-
-## AR. Added 2026-10-18 — seen in the scroll anchor work, deferred
-
-Seen in `docs/archive/walks/2026-10-18-bv-walk.md` and `docs/archive/walks/2026-10-18-bv-rewalk.md` (Windows, the
-scroll anchor's walks), and deferred on the owner's word in the triage, each with a reopen trigger.
-
-- **The selection bar can cover the cursor line.** With nothing selected and the cursor on the bottom edge, Space
-  selects the line, the "N lines selected" bar appears, the diff gets 24 px shorter (643 → 619) and covers the line.
-  Nothing scrolls it back. Seen in BV 4c; on `main` too (reasoned). **Reopen:** the bar covering the line gets in
-  the way.
-- **Escape doesn't clear a line selection in the staging diff.** Seen in the BV re-walk; on `main` too (reasoned: the
-  diff has no Escape handler). **Reopen:** a user expects Escape to clear it.
 
 ## Order
 

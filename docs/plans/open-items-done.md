@@ -2121,7 +2121,7 @@ Bullet 3 followed on 2026-10-18. Plan: `docs/archive/plans/2026-10-17-diff-scrol
   - **After Stage hunk, the "ring" on `line 670 changed` was 4c's selection outline** (S3). Settled in jsdom (`main`
     and the branch alike) and in the re-walk: the cursor and the focus are both on the deleted `line 670`. Not a bug.
 - **Moved out** (owner, 2026-10-18): T1, T2, AltGr and the plan's L1, accepted with a reopen trigger → `open-items.md`
-  §Q; S1 (the selection bar) and Escape, deferred → `open-items.md` §AR.
+  §Q; S1 (the selection bar) and Escape, deferred → `open-items.md` §AR (fixed 2026-10-20, §AR below).
 - **Rulings** (owner, 2026-10-18):
   - **Shift / Alt+Enter and Shift+Space on a hunk button are the button's** (L3, pass 8). P7-b reads as "Enter
     without Ctrl / Cmd".
@@ -2132,6 +2132,31 @@ Bullet 3 followed on 2026-10-18. Plan: `docs/archive/plans/2026-10-17-diff-scrol
     Enter / Space (T8, P7-a, P7-b, L1).
   - *Overlap*'s "a staged hunk drops the focus to `<body>`" was out of date before this branch: since the
     hunk-button cursor move (`DiffViewer.tsx:197-200` on `main`), the click moves the focus to the hunk's first line.
+
+## AO. Added 2026-10-20 — the diff viewer's deferred rows: fixed and accepted, closed
+
+Moved from `open-items.md` §AO (AO3 and AO4; the other rows there stay open). Plan:
+`docs/archive/plans/2026-10-18-diff-viewer-deferred-plan.md` (Plan A). Walk records:
+`docs/archive/walks/2026-10-19-bx-walk.md` (smoke group BX, walked on the pre-squash `13d6b50f`) and
+`docs/archive/walks/2026-10-20-bx-rewalk.md` (rows 4b and 5 on `eb447e70`).
+
+- **A whitespace default changed in another window flipped this window's toggle without reloading its diff** (AO3).
+  **Fixed** (`5669822f`): `settingsStore.load` calls `toggleWhitespace()` when the preference moved,
+  as the same-window setter does, so the diff and blame reload. Walked, BX 3.
+- **Switching split ↔ unified view jumped the diff to the top** (AO4). **Fixed** (`5669822f`):
+  `DiffBody` is no longer keyed by the view, and `carryOffset` goes by line numbers across views, a split pair with a
+  deleted left line by its old number. The horizontal scroll resets to 0. Walked, BX 1–2.
+- **N1, a background tab's diff built with old settings: checked, not a bug.** Both diffs reload on a tab switch with
+  the window's settings (plan review pass 1). Pinned by tests in `diffStore.test.ts` and `commitStore.test.ts`
+  (owner, 2026-10-19).
+- **One settings reload that sees both context and whitespace moved fetches the diff twice** (R4, plan review pass 7).
+  The first reply is dropped by `diffSeq`. Accepted, closed (owner, 2026-10-19).
+- **A split reload whose top deleted line left the diff lands one row lower than before Plan A** (change review pass 1,
+  o6). The pair is anchored by its old-side line; when that line is gone, "gone → the first line after it" applies,
+  where the new-side line would still have been there. Reasoned. Accepted, closed (owner, 2026-10-20).
+- **A view switch with a hunk header cut at the top lands the header flush** (change review pass 2, o1). A header goes
+  by its first line's number and lands on the header itself, which drops the offset within it: up to 23 px.
+  Reasoned. Accepted, closed (owner, 2026-10-20).
 
 ## AP. Added 2026-10-17 — per-tab view: accepted, closed
 
@@ -2157,3 +2182,29 @@ reopen trigger. The ones with a trigger are in `open-items.md` §Q and §AP.
   2026-10-17).
   - **Correction** (BU walk, sighting 5): it was a driver mistake, not an app issue. `cdp.mjs` takes `Ctrl+q`;
     `Control+q` sent a bare "q".
+
+## AR. Added 2026-10-20 — the scroll anchor work's deferred rows: fixed and accepted, closed
+
+Moved from `open-items.md` §AR, which is now only here. Plan:
+`docs/archive/plans/2026-10-18-diff-viewer-deferred-plan.md` (Plan A). Walk records:
+`docs/archive/walks/2026-10-19-bx-walk.md` and `docs/archive/walks/2026-10-20-bx-rewalk.md`.
+
+- **The selection bar could cover the cursor line** (AR1, seen in BV 4c). **Fixed** (`5669822f`):
+  when the bar appears with the focus in the diff, a cursor line it covers (any part in view before, its bottom now
+  below the new edge) moves up above it, by the keyboard or the mouse; one already out of view below stays. A
+  horizontal scrollbar comes off the old height. The bar effect also hands the virtualizer the new height, so its own
+  cursor scroll aims past the bar (the walk's two-frame flash, W1). Walked, BX 4, 4b and 5; 4b and 5 again after W1's
+  fix.
+- **Escape didn't clear a line selection in the staging diff** (AR2, seen in the BV re-walk). **Fixed** (`5669822f`):
+  Escape with lines selected clears them and stops there, so in the commit dialog the first Escape clears and the
+  second closes; with nothing selected it passes through. Walked, BX 6, 6b and 7.
+- **After a reload in a dialog with the cursor line virtualized away, Escape closes the dialog with lines still
+  selected.** The focus is on `<body>` then, so the diff never sees the key. On `main` too; the result is today's
+  behaviour. Accepted, closed (owner, 2026-10-19, plan review passes 2–3).
+- **Escape clears the selection while a git action runs.** Enter and Delete do nothing while it runs; Escape still
+  clears, as a click still selects. An action in flight already took its lines. Accepted, closed (owner, 2026-10-20;
+  change review pass 1, o1).
+- **At fractional display scaling the bar's check can be 1 px off.** `offsetHeight` and `clientHeight` are rounded, so a
+  line with 1 px showing may stay under the bar; the height handed to the virtualizer can differ from its
+  ResizeObserver's by 1 px for a frame. Reasoned. Accepted, closed (owner, 2026-10-20; change review pass 4, o3, and
+  the fix batch's review).

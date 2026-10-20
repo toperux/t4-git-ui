@@ -2,8 +2,9 @@
 
 _Written 2026-10-18 against `main` `6d26651f`. Status: final; scope ruled by the owner on 2026-10-18 (Plan A of two:
 this one, then the tabs and grid rows); D1, D2 and D4 taken with the owner on 2026-10-19, all (a); plan review pass 1's
-findings taken (N1 dropped as not a bug, kept as a pinning test; D3 gone with it); passes 2–6's taken; pass 7 found
-nothing: final._
+findings taken (N1 dropped as not a bug, kept as a pinning test; D3 gone with it); passes 2–6's taken; passes 7 and 8
+found nothing: final. Executed 2026-10-19 on `diff-viewer-deferred`; walked (BX) and triaged 2026-10-19 and 2026-10-20;
+archived 2026-10-20. Design 3, Test 4, row 4b and *Not in this plan* amended at the records step, each marked._
 
 **Goal:** four small fixes to the diff viewer, from the rows deferred during the per-tab, polish and scroll anchor work
 (`docs/plans/open-items.md` §AO and §AR):
@@ -76,12 +77,21 @@ current settings (*What happens now*). Kept as a test that pins it (owner, 2026-
    - Staging is unified only (`DiffViewer.tsx:98`), so the view never switches with `actions`.
 3. **AR1: the bar keeps a covered cursor line in view.** In `DiffBody`, a layout effect on "the bar is shown"
    (`!!actions && selected.size > 0`), declared after the `[rows]` one. When it turns on and the diff holds the focus,
-   it reads the cursor row's bottom (`end`, after `getTotalSize()`, as the ↑ code does at `:487-488`). Only a line the
-   bar covers moves (owner, 2026-10-19, pass 2 #2): its bottom was in the old view
-   (`end ≤ el.scrollTop + (virtualizer.scrollRect?.height ?? 0)`, the border-box height from before the bar; `null`
-   moves nothing) and is below the new bottom edge (`end > el.scrollTop + el.clientHeight`). Then
+   it reads the cursor row's top and bottom (`start`, `end`, after `getTotalSize()`, as the ↑ code does at
+   `:487-488`). Only a line the bar covers moves (owner, 2026-10-19, pass 2 #2): some part of it was in the old view
+   (`start < el.scrollTop + before`, where `before` is `virtualizer.scrollRect?.height ?? 0`, the border-box height
+   from before the bar, less `el.offsetHeight − el.clientHeight`, a horizontal scrollbar and the borders) and its
+   bottom is below the new bottom edge (`end > el.scrollTop + el.clientHeight`). Then
    `scrollToOffset(end − el.clientHeight)` and `virtualizer.scrollOffset` = that offset, the same pattern as the
    `[rows]` effect (`:446-449`).
+   - *Amended at the records step* (owner, 2026-10-19, change review pass 3 #2). The plan first moved only a line whose
+     bottom was in the old view, against the whole border box. The change review found that a partly visible line
+     stayed under the bar (pass 2, fixed with the `start <` check) and that a line behind a horizontal scrollbar counted
+     as in view (pass 3, fixed with the scrollbar term). The walk found the next bullet's flash (W1).
+   - Once `before` is read, the effect hands the virtualizer the new box on every show and hide (`scrollRect =
+     { width: el.offsetWidth, height: el.offsetHeight }`, skipped for a box 0 tall, as jsdom's): until its
+     ResizeObserver reports, the cursor effect's own `scrollToIndex` aims at the old height. Without it, Shift+↓ onto a
+     line just below the edge left it under the bar for two frames (BX 4b, W1, owner, 2026-10-20).
    - `el.clientHeight` comes from the DOM: the bar renders in the same commit. The virtualizer's public `scrollRect`
      (typed `Rect | null`) is written by its ResizeObserver, after a seed and a first read on attach, so it still holds
      the old height there (`getSize()` is private; passes 3–4). `el.scrollTop` is the DOM's, the same source as
@@ -91,7 +101,7 @@ current settings (*What happens now*). Kept as a test that pins it (owner, 2026-
      virtual-core 3.19.2: `scrollToIndex(auto)` returns the current offset, the ResizeObserver never scrolls, and the
      scroll event returns early).
    - Every time the bar appears with the focus in the diff, by the keyboard or the mouse (D2 (a)). A cursor line out of
-     view below stays where it is. The bar turning off needs nothing: the scroller grows.
+     view below stays where it is. The bar turning off scrolls nothing: the scroller grows.
    - On `main`, a click on a line that isn't the cursor likely fixes itself: the cursor effect's pending
      `scrollToIndex(auto)` recomputes from the size each frame, so once the ResizeObserver reports 619 it scrolls the
      line into view, after about a frame under the bar. A click on the cursor line itself moves nothing and stays
@@ -159,6 +169,11 @@ horizontal reset isn't walked (the fixture's lines never scroll sideways), Test 
    and `scrollOffset` the same; the cursor row in view above the bar → nothing; the cursor row wholly below the view →
    nothing; the focus outside the diff → nothing. The mock records `scrollToIndex` without computing, so the click path
    (Design 3) is walked, not unit-tested.
+   - *Amended at the records step:* a `covered(top, scrollbar)` helper stubs `offsetHeight` (643, then 619) and
+     `clientHeight` (less the scrollbar). Added: a line partly in view (10 px) moves; a line just below the edge stays;
+     a line behind a 10 px scrollbar stays, and one 5 px further behind (fails only without the scrollbar term); the
+     bar hands the virtualizer the new height (619). The two shared mounts stub `offsetHeight` 400, since jsdom's 0
+     made `before` wrong for the older ↑ test.
 5. **AR2** (`DiffViewer.test.tsx`): lines selected, Escape → none selected, the bar gone, the cursor and the focus
    unchanged, and neither a parent `onKeyDown` nor a `document` keydown listener fires; nothing selected → no state
    change, and both fire.
@@ -192,6 +207,11 @@ is the real one, so the default may be on.
    (12 268 − (H − 24)), the line in view and focused. Then Space to unselect it, so nothing is selected; scrollTop set
    (`--eval`) so the cursor line is out of view below but within about 20 rows (the overscan is 30, so it stays
    mounted); `document.activeElement` still the line → Space → the bar shows, scrollTop unchanged.
+   - 4b. **AR1, Shift+↓ from the bottom edge** (added at the change review's pass 1, an observation, and rewritten at
+     pass 2; *recorded here at the records step*, the smoke doc had it): the deleted `line 670` on the bottom edge
+     (11 605 at H 643), ↑ onto it, Shift+↓ → the added `line 670 changed` alone selected, the bar shows; a
+     requestAnimationFrame sampler records whether the line sits under the bar in any frame, and where scrollTop ends
+     (11 649). Ticked on the end state; a flash triaged (it was: W1, fixed, walked again).
 5. **AR1, the mouse (D2 (a)):** Space to unselect row 4's line, so nothing is selected; the cursor line (from row 4) on
    the bottom edge (`--eval`, as row 4); click it → selected, the bar shows, scrollTop = its bottom − (H − 24), the line
    in view. Then Space to unselect it, so nothing is selected; another changed line (not the cursor) on the bottom edge;
@@ -247,7 +267,9 @@ is the real one, so the default may be on.
 ## Not in this plan
 
 - **Plan B** (owner, 2026-10-18): AP2 (the grid's selection after a commit) and AO1 (a moved tab's draft, selection and
-  filter); the sighting above is a candidate.
+  filter); the sighting above is a candidate (now `open-items.md` AO5). *Added at the records step:* the triage's
+  AO6 (a tab switch brings the Changes diff back at the top) and AO7 (↓ leaves a line behind a horizontal scrollbar)
+  are candidates too.
 - **Left open with their triggers:** AO2 (a failed tab open, unreachable), AP1 and AQ1 (seen once, not reproduced), AP3
   (a per-tab output dock, a feature).
 
@@ -282,3 +304,43 @@ is the real one, so the default may be on.
   numbers (the walk records them); R2 row 5's second click kept as a no-regression check; R3 the console hook's order
   left unstated; R4 accepted, closed: one settings reload that sees both context and whitespace moved fetches the diff
   twice, the first reply dropped by `diffSeq` (recorded under `open-items-done.md` §AO).
+- **Pass 8** (2026-10-19): nothing found. Its 2 remarks left (owner): the status line says "final" twice; row 4's
+  11 649 carries its formula, not "at H 643". *Recorded here at the records step.*
+
+## Change review record
+
+- **Pass 1** (2026-10-19): 2 findings. #1 Shift+↓ onto a line just below the edge might flash under the bar → walk
+  check first, BX 4b (owner); #2 the commit bodies → at the squash (owner). Remarks o1–o6 to the triage.
+- **Pass 2** (2026-10-19): 3 findings. #1–#2 row 4b expected the wrong selection → rewritten: ↑ then Shift+↓ (owner);
+  #3 a partly visible cursor line stayed under the bar → fixed, the `start <` check (owner). Remarks o1–o3 to the
+  triage; the rAF sampler for 4b taken.
+- **Pass 3** (2026-10-19): 2 findings. #1 a horizontal scrollbar made a hidden line count as in view → fixed, with an
+  edge test (owner); #2 the plan behind the code → amended at the records step (owner; Design 3, Test 4, row 4b). A
+  remark, older than the branch: ↓ leaves a line behind the scrollbar (to the triage).
+- **Pass 4** (2026-10-19): nothing found: the loop closed. Remarks o1–o4 to the triage.
+- **The triage's fix batch** (2026-10-20): W1's height handed to the virtualizer, guarded for a box 0 tall (owner), and
+  the test and comment fixes below. Its review pass found nothing; its 4 remarks ruled (owner): the new test renamed
+  to what it checks, a comment left, the 1 px fractional-layout case folded into o3's closed row, the summary at the
+  squash.
+
+## Triage record
+
+With the owner, one item at a time, 2026-10-19 and 2026-10-20, after the walk
+(`docs/archive/walks/2026-10-19-bx-walk.md`).
+
+- **D4, Linux and macOS not walked** → accepted, `open-items.md` §Q, with change review pass 4's o4 (overlay
+  scrollbars) folded in.
+- **W1, 4b's two-frame flash under the bar** → fixed: the bar effect hands the virtualizer the new height. Rows 4b and
+  5 walked again (`docs/archive/walks/2026-10-20-bx-rewalk.md`): no frame under the bar.
+- **Pass 3's remark, ↓ leaves a line behind a horizontal scrollbar** (older than the branch) → deferred, §AO (AO7), a
+  Plan B candidate.
+- **W2, a tab switch brings the Changes diff back at the top** → deferred, §AO (AO6), beside the History sibling (AO5).
+- **W3, the context field applies on Enter or blur** → by design; a note in the walk record, no row.
+- **Pass 1's o1, Escape clears while a git action runs** → accepted, closed (`open-items-done.md` §AR).
+- **Pass 1's o2, o4, o5; pass 2's o2; pass 4's o2** → fixed: the test's cleanup in `finally`, `scrolls.virtualizer`
+  reset, two comments naming the view switch, the loading flags reset, a case 5 px further behind the scrollbar.
+- **Pass 1's o3, the view-switch test leaves the view on split** → no row: every test sets its own.
+- **Pass 1's o6, a split reload lands one row lower** and **pass 2's o1, a cut header lands flush** → accepted, closed
+  (§AO).
+- **Pass 2's o3 and pass 4's o1** → covered by pass 3 #2 (this amendment) and pass 1 #2 (the squash).
+- **Pass 4's o3, fractional scaling 1 px** → accepted, closed (§AR).

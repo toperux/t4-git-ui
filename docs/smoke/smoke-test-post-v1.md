@@ -3514,10 +3514,10 @@ fix changed the path they walk: as written, every dropped tab appearing first at
 
 ## BX. The view switch keeps the top line, whitespace follows another window, the bar, Escape
 
-Plan: `docs/plans/2026-10-18-diff-viewer-deferred-plan.md` (D1, D2, D4). The same `DiffBody` as BV, on a fixture of its
-own. Windows VM (session git-ui-win) over CDP on a local `tauri build --no-bundle` of `diff-viewer-deferred`
-(`docs/smoke/smoke-cdp.md`: `smoke-launch.ps1`, `cdp.mjs --inner 1280x800`, readings through `--eval`). Linux and
-macOS: not walked (D4 (a)).
+Plan: `docs/archive/plans/2026-10-18-diff-viewer-deferred-plan.md` (D1, D2, D4). The same `DiffBody` as BV, on a fixture
+of its own. Windows VM (session git-ui-win) over CDP on a local `tauri build --no-bundle` of `diff-viewer-deferred`
+(`docs/smoke/smoke-cdp.md`: `smoke-launch.ps1`, `cdp.mjs --inner 1280x800`, readings through `--eval`). Linux and macOS:
+not walked (D4 (a)).
 
 Fixture: `docs/smoke/fixtures/bv-fixture.sh` in Git Bash on the VM (`T4_ROOT=/c/tmp/t4`), then
 `rm -rf /c/tmp/t4/bx && cp -r /c/tmp/t4/bv /c/tmp/t4/bx` (both `bv` and `bx` deleted after the walk), so the two
@@ -3535,21 +3535,30 @@ The store folder is backed up before launch and restored after (`smoke-cdp.md:84
 close Settings (an open dialog blocks the window's shortcuts, `useShortcuts.ts:39`); the store folder is the real one,
 so the default may be on.
 
-- [ ] 1. **AO4, Unified → Split:** `bv`, History › `ws` › `w.txt` at 15 000 (deleted 820, 12 px) → Split → 13 380,
+- [x] 1. **AO4, Unified → Split:** `bv`, History › `ws` › `w.txt` at 15 000 (deleted 820, 12 px) → Split → 13 380,
       line 820's pair, 12 px off.
-- [ ] 2. **AO4, Split → Unified:** at 13 380 → Unified → 15 000, the deleted line 820, 12 px off.
-- [ ] 3. **AO3, another window:** the default is off (setup). Make `bx` the active tab and tear it off into a window of
+      *(Walked 2026-10-19 on a Windows release build of `13d6b50f` over CDP: pass, pane H 238. 15 000 (deleted 820,
+      12 px off) → Split → 13 380, the 820 pair, 12 px off.)*
+- [x] 2. **AO4, Split → Unified:** at 13 380 → Unified → 15 000, the deleted line 820, 12 px off.
+      *(Walked 2026-10-19 on a Windows release build of `13d6b50f` over CDP: pass. 13 380 → Unified → 15 000, the
+      deleted 820, 12 px off.)*
+- [x] 3. **AO3, another window:** the default is off (setup). Make `bx` the active tab and tear it off into a window of
       its own (Ctrl+Shift+N). In `bv`'s window (`CDP_TITLE="- bv"`), `ws` › `w.txt` at 15 000, whitespace off. In
       `bx`'s window (`CDP_TITLE="- bx"`), Settings › Diff & merge › "Ignore whitespace by default" on → `bv`'s toggle
       shows on and its diff reloads to 7 456, the same row. Off again → 15 000. Close Settings; read `bx`'s console
       hook.
-- [ ] 4. **AR1, the keyboard:** `bv`, Changes › `a.txt`, nothing selected; H = the region's `clientHeight` with no bar
+      *(Walked 2026-10-19 on a Windows release build of `13d6b50f` over CDP: pass. Set on in `bx`'s window → `bv`'s
+      toggle on, its diff reloaded to 7 456, the same row; off → 15 000, the same row. `bx`'s console hook empty.)*
+- [x] 4. **AR1, the keyboard:** `bv`, Changes › `a.txt`, nothing selected; H = the region's `clientHeight` with no bar
       (643 in BV). At 12 000, click `line 670 changed` (12 248–12 268), Space to unselect it (as BV 4c); set scrollTop
       (`--eval`) = 12 268 − H (11 625 at H 643), so it sits on the bottom edge; Space → the bar shows, scrollTop =
       11 649 (12 268 − (H − 24)), the line in view and focused. Then Space to unselect it, so nothing is selected;
       scrollTop set (`--eval`) so the cursor line is out of view below but within about 20 rows (the overscan is 30, so
       it stays mounted); `document.activeElement` still the line → Space → the bar shows, scrollTop unchanged.
-- [ ] 4b. **AR1, Shift+↓ from the bottom edge (an observation; change review pass 1):** Space to unselect row 4's line
+      *(Walked 2026-10-19 on a Windows release build of `13d6b50f` over CDP: pass, H 643. 11 625 → Space → 11 649, the
+      line in view and focused. 11 405 (the line about 10 rows below the view) → Space → 11 405 kept, the line
+      selected.)*
+- [x] 4b. **AR1, Shift+↓ from the bottom edge (an observation; change review pass 1):** Space to unselect row 4's line
       (the selection's anchor stays on it), so nothing is selected; scrollTop (`--eval`) = 12 248 − H (11 605 at H 643),
       so the deleted `line 670` (12 228–12 248) sits on the bottom edge; ↑ onto it (the cursor moves, nothing scrolls);
       Shift+↓ → the added `line 670 changed` alone selected (the range runs from the anchor to itself), the bar shows,
@@ -3557,23 +3566,43 @@ so the default may be on.
       single frame), record whether the line sits under the bar in any frame, and where scrollTop ends (reasoned: under
       it for about a frame, then 11 649, its bottom − (H − 24)). The box is ticked when the end state has the line in
       view; a flash is triaged.
-- [ ] 5. **AR1, the mouse (D2 (a)):** Space to unselect row 4's line, so nothing is selected; the cursor line (from row
+      *(Walked 2026-10-19 on a Windows release build of `13d6b50f` over CDP: the end state passes, 11 649 with `line 670
+      changed` alone selected; the line sat under the bar for two frames first (11 625 at 10 ms, H 619): W1, fixed after
+      the walk.)*
+      *(Walked 2026-10-20 on a Windows release build of `eb447e70` over CDP: pass, twice: 11 605 → 11 649 in one frame,
+      no frame under the bar.)*
+- [x] 5. **AR1, the mouse (D2 (a)):** Space to unselect row 4's line, so nothing is selected; the cursor line (from row
       4) on the bottom edge (`--eval`, as row 4); click it → selected, the bar shows, scrollTop = its bottom − (H − 24),
       the line in view. Then Space to unselect it, so nothing is selected; another changed line (not the cursor) on the
       bottom edge; click it → the same.
-- [ ] 6. **AR2, the Changes view:** select 3 lines by keyboard (click a deleted line, Shift+↓, then plain ↓ into the
+      *(Walked 2026-10-19 on a Windows release build of `13d6b50f` over CDP: pass, no frame under the bar. 11 625 →
+      click → 11 649; the deleted `line 680` on the edge at 11 789 → click → 11 813.)*
+      *(Walked 2026-10-20 on a Windows release build of `eb447e70` over CDP: pass, no frame under the bar: 11 625 →
+      11 649, 11 789 → 11 813.)*
+- [x] 6. **AR2, the Changes view:** select 3 lines by keyboard (click a deleted line, Shift+↓, then plain ↓ into the
       next hunk and Space: every `a.txt` hunk has two changed lines, Shift+↓ stops at the hunk's edge, and `cdp.mjs`
       can't Ctrl+click) → Escape → the bar gone, `aria-selected` false on all, the focus on the cursor line. Escape
       again → nothing changes.
-- [ ] 6b. **A tab drag:** close `bx`'s window (Ctrl+W) and reopen `bx` from Repository › recents as a tab in `bv`'s
+      *(Walked 2026-10-19 on a Windows release build of `13d6b50f` over CDP: pass. `line 680`, Shift+↓, then ↓ and Space
+      on the deleted `line 690`: 3 selected. Escape → none selected, the bar gone, H 643, the focus on the cursor line;
+      Escape again → no change.)*
+- [x] 6b. **A tab drag:** close `bx`'s window (Ctrl+W) and reopen `bx` from Repository › recents as a tab in `bv`'s
       window, then make `bv` active. Lines selected in `bv`'s `a.txt`; a one-off script in a single CDP session presses
       on the `bx` tab, moves down off the strip (the drag detaches), sends Escape, and releases there, not over a tab
       (`cdp.mjs` releases within each step; the pattern of `smoke-cdp.md:115-118`) → the drag cancels, `bv` is still the
       active tab, and the lines stay selected (reasoned: the press focuses the tab). Record where the focus was.
-- [ ] 7. **AR2, a dialog:** the commit dialog on `bv` with `a.txt`'s diff; select a line → Escape → selection cleared,
+      *(Walked 2026-10-19 on a Windows release build of `13d6b50f` over CDP: pass. The focus on the `bx` tab once
+      pressed, then `<body>` off the strip, after Escape and after the release; `bv` still active, the 2 lines still
+      selected, no new window.)*
+- [x] 7. **AR2, a dialog:** the commit dialog on `bv` with `a.txt`'s diff; select a line → Escape → selection cleared,
       the dialog still open; Escape → the dialog closes.
-- [ ] 8. **What must not change:** BV rows 1–6 again in short (whitespace, context, an edit, a stage keep the top
+      *(Walked 2026-10-19 on a Windows release build of `13d6b50f` over CDP: pass. Escape → the dialog's selected line
+      cleared, the dialog open, the focus on the line; Escape → the dialog closed, the main view's selection kept.)*
+- [x] 8. **What must not change:** BV rows 1–6 again in short (whitespace, context, an edit, a stage keep the top
       line); recorder 0 blank / gap / overlap through rows 1–7; console hook empty; app log 0 WARN / 0 ERROR.
+      *(Walked 2026-10-19 on a Windows release build of `13d6b50f` over CDP: pass. Context 12 000 → 14 460 → 12 000; the
+      edit 12 140 → 12 000; the stage keeps 11 960, the reset 12 144. The recorder ran through rows 1–4 and 8 (4b–7 used
+      frame samplers instead): 0 blank / gap / overlap; console hook empty; app log 0 WARN / 0 ERROR.)*
 
 ## Reporting
 
