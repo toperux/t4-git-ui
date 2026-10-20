@@ -4,14 +4,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@tauri-apps/plugin-store", () => ({ load: vi.fn(() => Promise.reject(new Error("not in tauri"))) }));
 vi.mock("../api/ipc", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api/ipc")>();
-  return { ...actual, setGitPath: vi.fn(), getFileDiff: vi.fn(() => new Promise(() => {})), getChangedFiles: vi.fn(() => new Promise(() => {})) };
+  return { ...actual, setGitPath: vi.fn(), getFileDiff: vi.fn(() => new Promise(() => {})), getChangedFiles: vi.fn(() => new Promise(() => {})), getBlame: vi.fn(() => new Promise(() => {})) };
 });
 
 import * as ipc from "../api/ipc";
 import { useDiffStore } from "./diffStore";
 import { clampContext, clampFoldersMax, DEFAULT_CONTEXT, DEFAULT_FOLDERS_MAX, useSettingsStore } from "./settingsStore";
 
-const mocked = ipc as unknown as Record<"setGitPath", ReturnType<typeof vi.fn>>;
+const mocked = ipc as unknown as Record<"setGitPath" | "getFileDiff" | "getBlame", ReturnType<typeof vi.fn>>;
 const flush = () => new Promise((res) => setTimeout(res, 0));
 const stored = (key: string) => JSON.parse(localStorage.getItem(`kv:${key}`) ?? "null") as unknown;
 
@@ -29,7 +29,7 @@ beforeEach(() => {
     sidebarFolders: "expanded",
     sidebarFoldersMax: DEFAULT_FOLDERS_MAX,
   });
-  useDiffStore.setState({ repoId: null, target: null, selectedPath: null, context: DEFAULT_CONTEXT, ignoreWhitespace: false });
+  useDiffStore.setState({ repoId: null, target: null, selectedPath: null, treeSelectedPath: null, context: DEFAULT_CONTEXT, ignoreWhitespace: false, blameOn: false, diffLoading: false, blameLoading: false });
 });
 
 describe("clampContext", () => {
@@ -71,6 +71,18 @@ describe("settingsStore.load", () => {
     useDiffStore.setState({ ignoreWhitespace: false });
     await useSettingsStore.getState().load();
     expect(useDiffStore.getState().ignoreWhitespace).toBe(false);
+  });
+
+  it("reloads the open diff and its blame when another window moves the whitespace preference", async () => {
+    await useSettingsStore.getState().load();
+    const target = { kind: "commit", oid: "c1" } as const;
+    useDiffStore.setState({ repoId: "r", target, selectedPath: "a.ts", treeSelectedPath: "a.ts", blameOn: true });
+    // Another window ticked it: `settings://changed` reloads this one.
+    localStorage.setItem("kv:ignoreWhitespace", "true");
+    await useSettingsStore.getState().load();
+    expect(useDiffStore.getState().ignoreWhitespace).toBe(true);
+    expect(mocked.getFileDiff).toHaveBeenLastCalledWith("r", target, "a.ts", { context: DEFAULT_CONTEXT, ignoreWhitespace: true });
+    expect(mocked.getBlame).toHaveBeenLastCalledWith("r", target, "a.ts", true);
   });
 
   it("falls back to 3 context lines and PATH when nothing is stored", async () => {

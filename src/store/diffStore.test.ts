@@ -32,6 +32,7 @@ beforeEach(() => {
     selectedPath: null,
     diff: null,
     ignoreWhitespace: false,
+    context: 3,
     tab: "changes",
     tree: null,
     treeFilter: "",
@@ -61,6 +62,17 @@ describe("diffStore", () => {
     // Back to A: nothing is in flight for it any more, so its target is cleared for the next loader.
     restore(tabA);
     expect(useDiffStore.getState().target).toBeNull();
+  });
+
+  it("a tab that comes back loads its diff with the window's settings, not the ones it was left with", async () => {
+    // The details pane reloads on a tab switch; whitespace and context are the window's and stay out of
+    // the snapshot, so whatever another tab set them to is what this load reads.
+    mocked.getChangedFiles.mockResolvedValue([file("a.ts")]);
+    mocked.getFileDiff.mockImplementation((_id: string, _t: unknown, path: string) => Promise.resolve(diffFor(path)));
+    useDiffStore.setState({ ignoreWhitespace: true, context: 10 });
+    await useDiffStore.getState().load("r", commit("c"));
+    await flush();
+    expect(mocked.getFileDiff).toHaveBeenLastCalledWith("r", commit("c"), "a.ts", { context: 10, ignoreWhitespace: true });
   });
 
   it("selects the first file of a commit and loads its diff; a new commit resets the selection", async () => {

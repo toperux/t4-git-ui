@@ -36,7 +36,7 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({ ask }));
 
 import * as ipc from "../api/ipc";
 import { hunkPrint } from "../lib/hunkPrint";
-import { hasDraft, useCommitStore } from "./commitStore";
+import { hasDraft, restore, snapshot, useCommitStore } from "./commitStore";
 import { useDiffStore } from "./diffStore";
 import { __resetForTests as resetRepo, useRepoStore } from "./repoStore";
 import { useSettingsStore } from "./settingsStore";
@@ -247,6 +247,20 @@ describe("commitStore.syncWithStatus", () => {
     useCommitStore.getState().syncWithStatus(staged);
     await flush();
     expect(useCommitStore.getState()).toMatchObject({ list: "staged", anchor: "a.rs", selected: ["a.rs"] });
+  });
+
+  it("a tab that comes back reloads its diff with the window's context, not the one it was left with", async () => {
+    await sync([entry("a.rs")]);
+    const left = snapshot();
+    expect(left.diffContext).toBe(3);
+    // Another tab moved the window's context while this one was in the background.
+    useDiffStore.getState().setContext(10);
+    await flush();
+    mocked.getFileDiff.mockClear();
+    restore(left);
+    await sync([entry("a.rs")]);
+    expect(mocked.getFileDiff).toHaveBeenCalledTimes(1);
+    expect(mocked.getFileDiff).toHaveBeenLastCalledWith(REPO.id, { kind: "unstaged" }, "a.rs", { context: 10 }, undefined);
   });
 
   it("an empty status clears the selection and the diff", async () => {

@@ -111,14 +111,17 @@ export const useSettingsStore = create<SettingsStore>()((set) => ({
       sidebarFoldersMax: clampFoldersMax(foldersMax ?? DEFAULT_FOLDERS_MAX),
       tools: tools ?? { diff: null, merge: null },
     });
-    // Nothing is loaded yet at startup, so seeding the diff store needs no reload.
+    // Both reload the open diff when they move it: at startup that costs nothing, since a diff store
+    // with no target only clears and blame is off.
     useDiffStore.getState().setContext(diffContext);
     // `settings://changed` reloads this in every window after any kv write, and the open diff may
     // have been toggled for this session alone — that toggle survives a reload that changed nothing.
-    // A preference that really moved (in this window or another) is what reaches the diff.
+    // A preference that really moved (in this window or another) is what reaches the diff, and its
+    // diff and blame are refetched with it, as `setIgnoreWhitespace` does.
     if (lastSeen !== ignoreWhitespace) {
       lastSeen = ignoreWhitespace;
-      useDiffStore.setState({ ignoreWhitespace });
+      const diff = useDiffStore.getState();
+      if (diff.ignoreWhitespace !== ignoreWhitespace) diff.toggleWhitespace();
     }
   },
 

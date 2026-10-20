@@ -471,7 +471,8 @@ src/
                            binary/truncated states; per-line syntax highlighting via lib/highlight → `--syn-*`). `actions` = staging mode: forced unified, hunk-row "Discard | Stage/Unstage hunk"
                            (laid over the header's end on hover / focus, taking none of its width),
                            body = role=listbox of add/del `option` lines with a roving tabIndex (click/Shift/Ctrl, Space
-                           toggles, Shift+↑/↓ extends inside the hunk, Enter stages) → sticky "N lines selected · Discard · Stage N
+                           toggles, Shift+↑/↓ extends inside the hunk, Enter stages, Escape clears a selection and stops
+                           there, so a dialog closes on the next one) → sticky "N lines selected · Discard · Stage N
                            lines" bar. The cursor owns the DOM focus, not just the tab stop — `.pick:focus-visible` is the only
                            thing that draws it: ↑/↓ scroll it into view and focus it (`[data-cursor]`) — ↑ brings its hunk's
                            `@@` header into view too when header-to-cursor fits — a click adopts it, and focusing the region
@@ -487,8 +488,9 @@ src/
                            strip itself wraps); `onDiscardHunk` /
                            `onDiscardLines` add "Discard hunk" / "Discard N lines" (+ `Delete` on a selection), wired for the
                            unstaged side only; a mode change shows as a `100644 → 100755` chip beside the stats. The body
-                           scrolls back to the top only when the file path changes; a reload of the same file keeps its
-                           top line (`scrollAnchor.ts`);
+                           scrolls back to the top only when the file path changes; a reload of the same file, or a
+                           unified ↔ split switch (which also resets the horizontal scroll), keeps its top line
+                           (`scrollAnchor.ts`);
                            `onOpenExternal` adds an "Open in diff tool" IconButton beside the expand one — `open_diff_tool`
                            (git-core tools.rs writes the two sides to a per-user temp dir and spawns the configured tool —
                            split with no shell on Windows, `sh -c` with the variables in the environment on unix; an unstaged

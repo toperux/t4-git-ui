@@ -77,6 +77,38 @@ describe("carryOffset", () => {
     expect(carry(split, stripes(), 65 * 164 + 24 + 16, stripes({ insertAfter: 9 }))).toBe(65 * 164 + 24 + 16 + 140);
   });
 
+  it("a view switch keeps the top line by its number, the deleted 820 and its pair both ways", () => {
+    /** `top` in `from`'s view of WS carried into `to`'s: the same diff, the other row model. */
+    const swap = (from: typeof unified | typeof split, top: number, to: typeof unified | typeof split) => carryOffset(WS, from(WS), top, WS, to(WS), false);
+    // At 15 000 the deleted line 820, 12 px in; in split its pair (820, `line 820 changed`) at 13 368.
+    expect(swap(unified, 15_000, split)).toBe(13_380);
+    expect(swap(split, 13_380, unified)).toBe(15_000);
+    // Context 821, 5 px in: row 6 of its hunk in unified, row 5 in split (the del/add is one pair).
+    // The same-hunk step would keep the row index and land on 822.
+    expect(swap(unified, 15_033, split)).toBe(13_393);
+    // Hunk 81's header on top lands on the same header.
+    expect(swap(unified, 81 * 184, split)).toBe(81 * 164);
+    expect(swap(split, 81 * 164, unified)).toBe(81 * 184);
+    // The ends: the top stays the top; the last row (the added 2000) lands on its pair, and the pair
+    // back on the deleted 2000, the row above it.
+    expect(swap(unified, 0, split)).toBe(0);
+    expect(swap(split, 0, unified)).toBe(0);
+    expect(swap(unified, height(unified(WS)) - 20, split)).toBe(height(split(WS)) - 20);
+    expect(swap(split, height(split(WS)) - 20, unified)).toBe(height(unified(WS)) - 40);
+  });
+
+  it("a split reload that rewrites the anchor's own hunk still lands on its pair", () => {
+    // 7 lines added after context 818 in hunk 81 (the later new numbers bumped): `hunkMap` misses the
+    // hunk, and context 819 keeps them apart from 820's pair. By the new side, 820 would be the second
+    // inserted line; by the old one it is the pair, 7 rows further down.
+    const h = WS.hunks[81];
+    const added = Array.from({ length: 7 }, (_, e) => line("add", null, 819 + e, `inserted ${e + 1}`));
+    const bump = (l: (typeof h.lines)[number]) => (l.newNo === null ? l : { ...l, newNo: l.newNo + 7 });
+    const rewritten = { ...h, lines: [...h.lines.slice(0, 2), ...added, ...h.lines.slice(2).map(bump)] };
+    const edited = { ...WS, hunks: WS.hunks.map((x, i) => (i < 81 ? x : i === 81 ? rewritten : { ...x, lines: x.lines.map(bump) })) };
+    expect(carry(split, WS, 13_380, edited)).toBe(13_520);
+  });
+
   it("a no-newline marker on top stays on top when its hunk is rewritten", () => {
     // Rows: header 0, `1` 24, `-2` 44, `+2` 64, the marker 84. At 90 the marker is on top, 6 px in.
     const end = (old: string) =>

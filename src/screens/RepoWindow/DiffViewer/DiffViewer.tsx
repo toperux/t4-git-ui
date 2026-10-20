@@ -158,7 +158,10 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
   const pickAt = useRef(new Map<string, number>());
   pickAt.current = useMemo(() => new Map(picks.map((p, i) => [lineKey(p.ref.hunk, p.ref.line), i])), [picks]);
 
-  /** Space toggles, Shift+↑/↓ extends inside the hunk, Enter stages, Delete discards, plain ↑/↓ moves the cursor. */
+  /**
+   * Space toggles, Shift+↑/↓ extends inside the hunk, Enter stages, Delete discards, Escape clears the
+   * selection, plain ↑/↓ moves the cursor.
+   */
   const onBodyKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (!lineActions || !diff || picks.length === 0) return;
@@ -190,6 +193,14 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
       if (e.key === "Delete" && sel.keys.size > 0 && !lineActions.busy && lineActions.onDiscardLines) {
         e.preventDefault();
         lineActions.onDiscardLines(toPairs(sel));
+        return;
+      }
+      // The commit dialog and the stash browser close on Escape too: with lines selected, this one is
+      // the selection's, and the next closes the dialog. With none it is left to whoever else wants it.
+      if (e.key === "Escape" && sel.keys.size > 0) {
+        e.preventDefault();
+        e.stopPropagation();
+        setSel(EMPTY_LINES);
       }
     },
     [lineActions, diff, picks, cursor, sel],
@@ -235,7 +246,6 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
   else if (flat)
     body = (
       <DiffBody
-        key={flat.view}
         path={path}
         diff={diff!}
         view={flat.view}
@@ -392,7 +402,10 @@ type Rows = { view: "unified"; rows: UnifiedRow[] } | { view: "split"; rows: Spl
 interface DiffBodyProps {
   /** File the rows belong to: only a different file resets the scroll position. */
   path: string | null;
-  /** What `rows` were built from: a reload of the same file carries its top line across by it. */
+  /**
+   * What `rows` were built from: a reload of the same file or a view switch carries its top line
+   * across by it.
+   */
   diff: FileDiffModel;
   view: DiffView;
   rows: (UnifiedRow | SplitRow)[];
@@ -420,28 +433,31 @@ function DiffBody({ path, diff, view, rows, maxCols, lang, actions, selected, cu
   // The cursor last moved by ↑: the cursor effect then brings its hunk header into view too. A click
   // or a reload never does, so the mousedown and a new row model clear it.
   const upKey = useRef(false);
-  // The rows the last commit drew, and what they were built from: what a reload anchors to.
-  const drawn = useRef<{ path: string | null; diff: FileDiffModel; rows: (UnifiedRow | SplitRow)[] } | null>(null);
+  // The rows the last commit drew, and what they were built from: what a reload anchors to. A view
+  // switch is a new row model of the same file too, so it keeps its top line the same way.
+  const drawn = useRef<{ path: string | null; diff: FileDiffModel; view: DiffView; rows: (UnifiedRow | SplitRow)[] } | null>(null);
   // A reload of the same file owns its scroll: until the next key the cursor effect only refocuses,
   // or a cursor the reload moved would scroll the view off the anchored line. A pointer press ends
   // it too.
   const quiet = useRef(false);
-  // A new row model (reload / whitespace toggle) invalidates cached sizes, and a reload of the same
-  // file puts the line that was at the top back there. A layout effect, so the new rows first paint
-  // already in place.
+  // A new row model (reload / whitespace toggle / view switch) invalidates cached sizes, and a new
+  // model of the same file puts the line that was at the top back there. A layout effect, so the
+  // new rows first paint already in place.
   useLayoutEffect(() => {
     const prev = drawn.current;
-    drawn.current = { path, diff, rows };
+    drawn.current = { path, diff, view, rows };
     const el = scrollRef.current;
     // Not the same rows again: StrictMode's second mount run is no reload.
     const same = !!prev && prev.path === path && prev.rows !== rows;
     if (same && el) {
       // A cursor scroll still settling would aim its old row index at the new rows.
       virtualizer.cancelScroll();
+      // Split's columns are narrower: a kept horizontal offset would show another part of the lines.
+      if (prev.view !== view) el.scrollLeft = 0;
       // Still the old position: the browser's clamp to a shorter body reaches it only with the next
       // scroll event.
       const old = virtualizer.scrollOffset ?? 0;
-      const next = carryOffset(prev.diff, prev.rows, old, diff, rows);
+      const next = carryOffset(prev.diff, prev.rows, old, diff, rows, prev.view === view);
       if (next !== old) {
         virtualizer.scrollToOffset(next);
         // `scrollToOffset` only writes the DOM: until the scroll event, every read (the render
@@ -454,6 +470,32 @@ function DiffBody({ path, diff, view, rows, maxCols, lang, actions, selected, cu
     virtualizer.measure();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows]);
+  // The selection bar renders under the body in the same commit and takes its height off the view:
+  // a cursor line on the bottom edge would sit under it, and nothing else scrolls it back. Only a
+  // line the bar covers moves, one with any part in view before — one already out of view below
+  // stays where it is. `scrollRect` is the height from before the bar (the virtualizer's
+  // ResizeObserver hasn't reported yet), the DOM's `clientHeight` the one after. `scrollRect` is the
+  // border box: a horizontal scrollbar (and the borders) come off it, as they do off `clientHeight`.
+  // Once read, `scrollRect` takes the new box, on every show and hide: until the ResizeObserver
+  // reports, the cursor effect's `scrollToIndex` would aim at the old height. Not a box that isn't
+  // laid out (jsdom's 0): that would empty the body.
+  const bar = !!actions && selected.size > 0;
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const before = (virtualizer.scrollRect?.height ?? 0) - (el.offsetHeight - el.clientHeight);
+    if (el.offsetHeight) virtualizer.scrollRect = { width: el.offsetWidth, height: el.offsetHeight };
+    if (!bar || cursorRow < 0 || !el.contains(document.activeElement)) return;
+    virtualizer.getTotalSize(); // refreshes `measurementsCache` after a `measure()`
+    const { start, end } = virtualizer.measurementsCache[cursorRow];
+    const wasInView = start < el.scrollTop + before;
+    if (!wasInView || end <= el.scrollTop + el.clientHeight) return;
+    const next = end - el.clientHeight;
+    virtualizer.scrollToOffset(next);
+    // As the anchor's scroll: the cursor effect a click runs next computes from this offset.
+    virtualizer.scrollOffset = next;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bar]);
   // Only another file starts over at the top.
   useEffect(() => {
     virtualizer.scrollToOffset(0);

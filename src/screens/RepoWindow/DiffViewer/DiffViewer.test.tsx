@@ -16,8 +16,16 @@ vi.mock("../../../api/ipc", () => ({
 }));
 
 // jsdom neither lays out nor scrolls: give the virtualizer a viewport and record its scroll requests.
-// `top` is the scroll position the virtualizer reads at mount.
-const scrolls = vi.hoisted(() => ({ offsets: [] as number[], indexes: [] as [number, string | undefined][], top: 0, calls: [] as (number | "cancel")[] }));
+// `top` is the scroll position the virtualizer reads at mount, `height` the viewport it is told of;
+// `virtualizer` is the last one made, for what a test reads back off it.
+const scrolls = vi.hoisted(() => ({
+  offsets: [] as number[],
+  indexes: [] as [number, string | undefined][],
+  top: 0,
+  height: 400,
+  calls: [] as (number | "cancel")[],
+  virtualizer: null as { scrollOffset: number | null; scrollRect: { width: number; height: number } | null } | null,
+}));
 vi.mock("@tanstack/react-virtual", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-virtual")>();
   return {
@@ -25,9 +33,9 @@ vi.mock("@tanstack/react-virtual", async (importOriginal) => {
     useVirtualizer: (opts: Parameters<typeof actual.useVirtualizer>[0]) => {
       const v = actual.useVirtualizer({
         ...opts,
-        initialRect: { width: 800, height: 400 },
+        initialRect: { width: 800, height: scrolls.height },
         observeElementRect: (_instance, cb) => {
-          cb({ width: 800, height: 400 });
+          cb({ width: 800, height: scrolls.height });
           return () => {};
         },
         observeElementOffset: (_instance, cb) => {
@@ -42,6 +50,7 @@ vi.mock("@tanstack/react-virtual", async (importOriginal) => {
       };
       v.scrollToIndex = (index: number, o?: { align?: string }) => scrolls.indexes.push([index, o?.align]);
       v.cancelScroll = () => scrolls.calls.push("cancel");
+      scrolls.virtualizer = v;
       return v;
     },
   };
@@ -50,9 +59,11 @@ vi.mock("@tanstack/react-virtual", async (importOriginal) => {
 afterEach(() => {
   cleanup();
   scrolls.top = 0;
+  scrolls.height = 400;
   scrolls.calls.length = 0;
   scrolls.offsets.length = 0;
   scrolls.indexes.length = 0;
+  scrolls.virtualizer = null;
 });
 
 const SMALL = fileDiff(
@@ -457,7 +468,7 @@ describe("DiffViewer", () => {
       const actions: DiffActions = { target: "unstaged", wholeFile: false, onStageHunk: vi.fn(), onStageLines: vi.fn() };
       const r = render(<DiffViewer path={diff.path} diff={diff} {...idle} actions={actions} />);
       const region = r.getByRole("region", { name: "Diff" });
-      Object.defineProperty(region, "clientHeight", { value: 400, configurable: true });
+      Object.defineProperties(region, { clientHeight: { value: 400, configurable: true }, offsetHeight: { value: 400, configurable: true } });
       scrolls.offsets.length = 0; // the mount's own scroll to the top
       return { ...r, region, actions };
     };
@@ -556,6 +567,40 @@ describe("DiffViewer", () => {
     expect(queryByRole("toolbar", { name: "Selected lines" })).toBeNull();
   });
 
+  it("Escape clears the selection and goes no further; with nothing selected it is left to the rest", () => {
+    useDiffStore.setState({ view: "unified" });
+    const actions: DiffActions = { target: "unstaged", wholeFile: false, onStageHunk: vi.fn(), onStageLines: vi.fn() };
+    // The commit dialog's form, and a `document` listener (a menu, the search popover), would close too.
+    const parent = vi.fn();
+    const onDoc = vi.fn();
+    document.addEventListener("keydown", onDoc);
+    try {
+      const { getAllByRole, queryByRole } = render(
+        <div onKeyDown={parent}>
+          <DiffViewer path={SMALL.path} diff={SMALL} {...idle} actions={actions} />
+        </div>,
+      );
+      const options = getAllByRole("option");
+      options[1].focus();
+      fireEvent.click(options[1]);
+      fireEvent.keyDown(options[1], { key: "Escape" });
+      expect(queryByRole("toolbar", { name: "Selected lines" })).toBeNull();
+      expect(options.map((o) => o.getAttribute("aria-selected"))).toEqual(["false", "false", "false"]);
+      expect(options.map((o) => o.getAttribute("tabindex"))).toEqual(["-1", "0", "-1"]);
+      expect(document.activeElement).toBe(options[1]);
+      expect(parent).not.toHaveBeenCalled();
+      expect(onDoc).not.toHaveBeenCalled();
+
+      fireEvent.keyDown(options[1], { key: "Escape" });
+      expect(options.map((o) => o.getAttribute("tabindex"))).toEqual(["-1", "0", "-1"]);
+      expect(document.activeElement).toBe(options[1]);
+      expect(parent).toHaveBeenCalledTimes(1);
+      expect(onDoc).toHaveBeenCalledTimes(1);
+    } finally {
+      document.removeEventListener("keydown", onDoc);
+    }
+  });
+
   it("scrolls back to the top only when the file changes, not when its diff is reloaded", () => {
     useDiffStore.setState({ view: "unified" });
     const big = bigDiff(5_000);
@@ -580,6 +625,7 @@ describe("DiffViewer", () => {
       // stays where the test put it (an `auto` scroll to a row in view leaves it there).
       Object.defineProperties(region, {
         clientHeight: { value: 400, configurable: true },
+        offsetHeight: { value: 400, configurable: true },
         scrollHeight: { value: 100_000, configurable: true },
         scrollTop: { get: () => scrolls.top, set: () => {}, configurable: true },
       });
@@ -794,6 +840,97 @@ describe("DiffViewer", () => {
       reload({ ...before, hunks: before.hunks.map((x, i) => (i === 65 ? left : x)) });
       expect(scrolls.offsets).toEqual([]);
       expect(scrolls.indexes).toEqual([]);
+    });
+
+    it("a view switch keeps the body and its top line, and starts the lines at their left edge", () => {
+      useDiffStore.setState({ view: "unified" });
+      const { region, getByRole } = mount(WS, 15_000);
+      let left = 120;
+      Object.defineProperty(region, "scrollLeft", { get: () => left, set: (v: number) => (left = v), configurable: true });
+      fireEvent.click(getByRole("button", { name: "Split view" }));
+      // The deleted line 820, 12 px in, is its pair in split, 12 px in: not the top of the file.
+      expect(getByRole("region", { name: "Diff" })).toBe(region);
+      expect(scrolls.offsets).toEqual([13_380]);
+      expect(left).toBe(0);
+    });
+
+    describe("the selection bar keeps a cursor line it covers in view", () => {
+      // The walk's view: 643 px, 619 once the 24 px bar is under it. `line 670 changed` ends at 12 268.
+      // `scrollbar`: a horizontal one that high, inside the 643 px box and off `clientHeight`.
+      const covered = (top: number, scrollbar = 0) => {
+        scrolls.height = 643;
+        const r = mount(stripes(), 12_000, staging());
+        const box = () => (r.queryByRole("toolbar", { name: "Selected lines" }) ? 619 : 643);
+        Object.defineProperty(r.region, "offsetHeight", { get: box, configurable: true });
+        Object.defineProperty(r.region, "clientHeight", { get: () => box() - scrollbar, configurable: true });
+        cursorOn(r.getAllByRole("option"), "line 670 changed"); // the click selects it, too
+        fireEvent.keyDown(r.region, { key: " " }); // unselect it: the cursor stays, nothing selected
+        scrolls.top = top;
+        scrolls.offsets.length = 0;
+        return r;
+      };
+
+      it("a cursor line on the bottom edge moves up above the bar", () => {
+        const { region } = covered(12_268 - 643);
+        fireEvent.keyDown(region, { key: " " });
+        expect(scrolls.offsets).toEqual([12_268 - 619]);
+        expect(scrolls.virtualizer?.scrollOffset).toBe(12_268 - 619);
+      });
+
+      it("a cursor line only partly in view at the bottom edge moves up above the bar too", () => {
+        const { region } = covered(12_268 - 643 - 10); // its top 10 px showing
+        fireEvent.keyDown(region, { key: " " });
+        expect(scrolls.offsets).toEqual([12_268 - 619]);
+      });
+
+      it("a cursor line just below the bottom edge stays where it is", () => {
+        const { region } = covered(12_248 - 643); // its top on the edge, none of it in view
+        fireEvent.keyDown(region, { key: " " });
+        expect(scrolls.offsets).toEqual([]);
+      });
+
+      it("the bar hands the virtualizer the new height", () => {
+        const { region } = covered(12_248 - 643);
+        fireEvent.keyDown(region, { key: " " });
+        expect(scrolls.virtualizer?.scrollRect?.height).toBe(619);
+      });
+
+      it("a cursor line hidden behind a horizontal scrollbar stays where it is", () => {
+        const { region } = covered(12_268 - 643 - 10, 10); // its top 10 px inside the box, behind the scrollbar
+        fireEvent.keyDown(region, { key: " " });
+        expect(scrolls.offsets).toEqual([]);
+      });
+
+      it("a cursor line further behind a horizontal scrollbar stays where it is too", () => {
+        const { region } = covered(12_268 - 643 - 15, 10); // its top 5 px inside the box, behind the scrollbar
+        fireEvent.keyDown(region, { key: " " });
+        expect(scrolls.offsets).toEqual([]);
+      });
+
+      it("a cursor line the bar doesn't cover stays where it is", () => {
+        const { region } = covered(12_000);
+        fireEvent.keyDown(region, { key: " " });
+        expect(scrolls.offsets).toEqual([]);
+      });
+
+      it("a cursor line already out of view below stays where it is", () => {
+        const { region } = covered(12_268 - 643 - 100);
+        fireEvent.keyDown(region, { key: " " });
+        expect(scrolls.offsets).toEqual([]);
+      });
+
+      it("with the focus outside the diff nothing moves", () => {
+        const { region } = covered(12_268 - 643);
+        const outside = document.createElement("button");
+        document.body.appendChild(outside);
+        try {
+          outside.focus();
+          fireEvent.keyDown(region, { key: " " });
+          expect(scrolls.offsets).toEqual([]);
+        } finally {
+          outside.remove();
+        }
+      });
     });
   });
 

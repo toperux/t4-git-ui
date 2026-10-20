@@ -1,4 +1,5 @@
-// Pure: where a reloaded diff's view lands, so that the line at the top stays at the top.
+// Pure: where a reloaded or switched (unified ↔ split) diff's view lands, so that the line at the
+// top stays at the top.
 import type { FileDiff } from "../../../api/types";
 import { rowHeight, type SplitRow, type UnifiedRow } from "./diffRows";
 import { hunkMap } from "./lineSelection";
@@ -29,8 +30,12 @@ function nums(row: Row): { old: number | null; new: number | null } | null {
  * its row inside it. A rewritten hunk is searched by line number instead (the old side for a deleted
  * line, the new side otherwise); a line that is hidden or gone gives way to the first one after it,
  * and a hunk's first line to its header, so the hunk lands whole. Past the last row: the last row.
+ * A split pair whose left line is deleted counts as that deleted line: by its old number, it is
+ * found again as the same pair in a split reload, and as the deleted line in the unified view.
+ * `sameView` false (a split ↔ unified switch): row offsets inside a hunk differ between the views,
+ * so only the line number is searched.
  */
-export function carryOffset(prevDiff: FileDiff, prevRows: Row[], top: number, nextDiff: FileDiff, nextRows: Row[]): number {
+export function carryOffset(prevDiff: FileDiff, prevRows: Row[], top: number, nextDiff: FileDiff, nextRows: Row[], sameView = true): number {
   if (prevRows.length === 0 || nextRows.length === 0) return top;
   const was = starts(prevRows);
   // The top row, and its hunk: one header per hunk in both views, so headers count hunks.
@@ -47,7 +52,7 @@ export function carryOffset(prevDiff: FileDiff, prevRows: Row[], top: number, ne
   const within = top - was[a];
   const now = starts(nextRows);
 
-  const j = hunkMap(prevDiff, nextDiff).get(hunk);
+  const j = sameView ? hunkMap(prevDiff, nextDiff).get(hunk) : undefined;
   if (j !== undefined) {
     let k = -1;
     for (let h = -1; h < j; ) if (nextRows[++k].kind === "hunk") h++;
@@ -60,8 +65,9 @@ export function carryOffset(prevDiff: FileDiff, prevRows: Row[], top: number, ne
   // A header takes its first line's numbers, a no-newline marker the line before it.
   const header = prevRows[a].kind === "hunk";
   const marker = prevRows[a].kind === "nonl";
-  const n = nums(prevRows[header ? a + 1 : marker ? a - 1 : a])!;
-  const side = n.new === null ? "old" : "new";
+  const row = prevRows[header ? a + 1 : marker ? a - 1 : a];
+  const n = nums(row)!;
+  const side = n.new === null || (row.kind === "pair" && row.left?.kind === "del") ? "old" : "new";
   const want = n[side]!;
   for (let k = 0; k < nextRows.length; k++) {
     const m = nums(nextRows[k])?.[side];
