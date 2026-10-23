@@ -93,10 +93,14 @@ describe("repoStore walk restarts", () => {
 
   it("asks the backend for a selected commit that is beyond the first page, and waits for an unfinished walk", async () => {
     mocked.startLog.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
-    mocked.getLogPage.mockImplementation((_id: string, gen: number, offset: number) =>
-      // Generation 2 carries 1000 new commits on top, so nothing from generation 1 is on its first page.
-      Promise.resolve(gen === 1 ? page(1, offset, 5, 5) : page(2, offset + 1000, Math.min(PAGE_SIZE, 1200 - offset), 1200, false)),
-    );
+    mocked.getLogPage.mockImplementation((_id: string, gen: number, offset: number) => {
+      if (gen === 1) return Promise.resolve(page(1, offset, 5, 5));
+      // Generation 2 carries new commits on top, so nothing from generation 1 is on its first page;
+      // `oid2` is at 700, on the page `reselect` fetches for the backend's answer.
+      const p = page(2, offset + 1000, Math.min(PAGE_SIZE, 1200 - offset), 1200, false);
+      if (offset === PAGE_SIZE) p.rows[200] = row(2);
+      return Promise.resolve(p);
+    });
     mocked.findLogRow.mockResolvedValueOnce(null).mockResolvedValueOnce(700);
     await useRepoStore.getState().startLog({ kind: "all" }, {});
     await flush();
@@ -141,7 +145,8 @@ describe("repoStore walk restarts", () => {
     mocked.getLogPage
       .mockResolvedValueOnce(page(1, 0, 12, 12))
       .mockResolvedValueOnce(page(2, 0, 0, 0, false))
-      .mockResolvedValue(page(2, 0, 12, 12));
+      // `onProgress`'s page-0 refetch stays in flight: landing, it would select the commit itself.
+      .mockImplementation(() => new Promise<LogPage>(() => {}));
     let first!: (index: number | null) => void;
     let second!: (index: number | null) => void;
     mocked.findLogRow
@@ -439,6 +444,255 @@ describe("repoStore walk restarts", () => {
     await flush();
     // … and the first page is the only thing left to carry the failure.
     expect(useRepoStore.getState().log.error).toBe("revwalk failed");
+  });
+});
+
+describe("repoStore reselect in the page, and reselectTo", () => {
+  /** Every selected row's oid the store goes through from here on (`undefined`: a row not loaded). */
+  function watchSelected() {
+    const seen = new Set<string | undefined>();
+    const stop = useRepoStore.subscribe((s) => {
+      if (s.selectedIndex !== null && !s.wtSelected) seen.add(s.rows[s.selectedIndex]?.row.commit.oid);
+    });
+    return { seen, stop };
+  }
+
+  it("a restart's page that holds the selected commit at a new index selects it in the same write", async () => {
+    mocked.startLog.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
+    // Walk 2 has two commits on top (a commit or pull in a terminal while the tab was away).
+    mocked.getLogPage.mockImplementation((_id: string, gen: number, offset: number) =>
+      Promise.resolve(gen === 1 ? page(1, offset, 5, 5) : { ...page(2, 0, 7, 7), rows: [row(98), row(99), ...page(2, 0, 5, 5).rows] }),
+    );
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    useRepoStore.getState().select(3);
+    const { seen, stop } = watchSelected();
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    stop();
+    expect(useRepoStore.getState().selectedIndex).toBe(5);
+    // No state in between had the old index naming `oid1`.
+    expect([...seen]).toEqual(["oid3"]);
+    expect(mocked.findLogRow).not.toHaveBeenCalled();
+  });
+
+  it("a page match keeps a compare open, though the walk is cut short after it", async () => {
+    mocked.startLog.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
+    // Walk 2 (a text filter) is 3 rows, the compared pair among them.
+    mocked.getLogPage.mockImplementation((_id: string, gen: number, offset: number) =>
+      Promise.resolve(gen === 1 ? page(1, offset, 20, 20) : { ...page(2, 0, 3, 3), rows: [row(15), row(16), row(0)] }),
+    );
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    useRepoStore.getState().select(15);
+    useRepoStore.getState().compareWith(16);
+    await useRepoStore.getState().startLog({ kind: "all" }, { text: "pair" });
+    await flush();
+    expect(useRepoStore.getState()).toMatchObject({ selectedIndex: 0, compare: { from: { oid: "oid15" }, to: { oid: "oid16" } } });
+  });
+
+  /** Walk 1 is 1000 rows, both pages loaded, `oid2` selected; walk 2's first page comes back empty. */
+  async function emptyFirstPage(secondPage: () => Promise<LogPage>) {
+    mocked.startLog.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
+    mocked.getLogPage.mockImplementation((_id: string, gen: number, offset: number) =>
+      gen === 1 ? Promise.resolve(page(1, offset, PAGE_SIZE, 1000)) : offset === 0 ? Promise.resolve(page(2, 0, 0, 1000, false)) : secondPage(),
+    );
+    mocked.findLogRow.mockResolvedValue(700);
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    useRepoStore.getState().ensureRows(0, 1000);
+    await flush();
+    useRepoStore.getState().select(2);
+  }
+
+  it("a backend index for a page not loaded waits for that page, and the page selects it", async () => {
+    let land!: (p: LogPage) => void;
+    await emptyFirstPage(() => new Promise<LogPage>((r) => (land = r)));
+    const { seen, stop } = watchSelected();
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    // The answer beat the page: row 700 is still walk 1's `oid700`, so the old index stays.
+    expect(mocked.findLogRow).toHaveBeenCalledWith(REPO.id, 2, "oid2");
+    expect(useRepoStore.getState().selectedIndex).toBe(2);
+    expect(mocked.getLogPage).toHaveBeenLastCalledWith(REPO.id, 2, PAGE_SIZE, PAGE_SIZE);
+
+    const p = page(2, PAGE_SIZE, PAGE_SIZE, 1000);
+    p.rows[200] = row(2);
+    land(p);
+    await flush();
+    stop();
+    expect(useRepoStore.getState().selectedIndex).toBe(700);
+    expect([...seen]).toEqual(["oid2"]);
+  });
+
+  it("a failed fetch of that page leaves the old index and the waiting selection, which a click clears", async () => {
+    await emptyFirstPage(() => Promise.reject({ kind: "internal", message: "walk task panicked" }));
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    expect(useRepoStore.getState().selectedIndex).toBe(2);
+    expect(useToastStore.getState().toasts).toMatchObject([{ title: "Couldn't load history" }]);
+
+    // Still waiting: the walk's completion asks again …
+    useRepoStore.getState().onProgress({ repoId: REPO.id, generation: 2, total: 1000, complete: true, error: null });
+    await flush();
+    expect(mocked.findLogRow).toHaveBeenCalledTimes(2);
+    // … until a click.
+    useRepoStore.getState().select(4);
+    useRepoStore.getState().onProgress({ repoId: REPO.id, generation: 2, total: 1000, complete: true, error: null });
+    await flush();
+    expect(mocked.findLogRow).toHaveBeenCalledTimes(2);
+    expect(useRepoStore.getState().selectedIndex).toBe(4);
+  });
+
+  /** Walk 1: rows 0–4, still running (its page is not loaded), row 0 selected. */
+  async function walking() {
+    mocked.startLog.mockResolvedValueOnce(1);
+    mocked.getLogPage.mockResolvedValueOnce(page(1, 0, 5, 5, false));
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+  }
+
+  it("selects a row of the current walk at once when its page is loaded, without scrolling", async () => {
+    mocked.startLog.mockResolvedValueOnce(1);
+    mocked.getLogPage.mockResolvedValueOnce(page(1, 0, 5, 5));
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    useRepoStore.getState().reselectTo("oid3");
+    await flush();
+    expect(useRepoStore.getState()).toMatchObject({ selectedIndex: 3, reveal: null });
+    expect(mocked.findLogRow).not.toHaveBeenCalled();
+  });
+
+  it("waits for an unfinished walk to reach the commit", async () => {
+    await walking();
+    mocked.findLogRow.mockResolvedValueOnce(null).mockResolvedValueOnce(8);
+    mocked.getLogPage.mockResolvedValue(page(1, 0, 10, 10));
+    useRepoStore.getState().reselectTo("oid8");
+    await flush();
+    expect(useRepoStore.getState().selectedIndex).toBe(0);
+    useRepoStore.getState().onProgress({ repoId: REPO.id, generation: 1, total: 10, complete: true, error: null });
+    await flush();
+    expect(useRepoStore.getState().selectedIndex).toBe(8);
+  });
+
+  it("falls back to the first row for a commit the walk doesn't have", async () => {
+    mocked.startLog.mockResolvedValueOnce(1);
+    mocked.getLogPage.mockResolvedValueOnce(page(1, 0, 5, 5));
+    mocked.findLogRow.mockResolvedValue(null);
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    useRepoStore.getState().select(3);
+    useRepoStore.getState().reselectTo("gone");
+    await flush();
+    expect(useRepoStore.getState().selectedIndex).toBe(0);
+  });
+
+  it("beats a restart's reselect of the old selection that answers later", async () => {
+    mocked.startLog.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
+    mocked.getLogPage
+      .mockResolvedValueOnce(page(1, 0, 5, 5))
+      .mockResolvedValueOnce(page(2, 0, 0, 5, false))
+      .mockResolvedValue(page(2, 0, 5, 5));
+    let old!: (index: number | null) => void;
+    mocked.findLogRow.mockImplementation((_id: string, _gen: number, oid: string) => (oid === "oid3" ? new Promise((r) => (old = r)) : Promise.resolve(1)));
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    useRepoStore.getState().select(3);
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    useRepoStore.getState().reselectTo("oid1");
+    await flush();
+    expect(useRepoStore.getState().selectedIndex).toBe(1);
+    old(3);
+    await flush();
+    expect(useRepoStore.getState().selectedIndex).toBe(1);
+  });
+
+  it("called while a walk is being started, resolves against that walk", async () => {
+    mocked.startLog.mockResolvedValueOnce(1);
+    mocked.getLogPage.mockImplementation((_id: string, gen: number, offset: number) =>
+      Promise.resolve(gen === 1 ? page(1, offset, 5, 5) : { ...page(2, 0, 6, 6), rows: [row(99), ...page(2, 0, 5, 5).rows] }),
+    );
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    let start!: (generation: number) => void;
+    mocked.startLog.mockImplementationOnce(() => new Promise<number>((r) => (start = r)));
+    const started = useRepoStore.getState().startLog({ kind: "all" }, {});
+    useRepoStore.getState().reselectTo("oid3");
+    start(2);
+    await started;
+    await flush();
+    expect(useRepoStore.getState().selectedIndex).toBe(4);
+  });
+
+  it("keeps its commit through two walk restarts, rather than the selection it is moving off", async () => {
+    await walking();
+    mocked.findLogRow.mockImplementation(() => new Promise(() => {}));
+    useRepoStore.getState().reselectTo("oid4");
+    // Walk 2's page never lands; walk 3 has two commits on top.
+    mocked.startLog.mockResolvedValueOnce(2).mockResolvedValueOnce(3);
+    mocked.getLogPage.mockImplementation((_id: string, gen: number) =>
+      gen === 2 ? new Promise(() => {}) : Promise.resolve({ ...page(3, 0, 10, 10), rows: [row(90), row(91), ...page(3, 0, 8, 8).rows] }),
+    );
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    await useRepoStore.getState().startLog({ kind: "all" }, {});
+    await flush();
+    expect(useRepoStore.getState().selectedIndex).toBe(6);
+    expect(useRepoStore.getState().rows[6]?.row.commit.oid).toBe("oid4");
+  });
+
+  it("a user's selection made while it waits wins at its answer: a click, the working-tree row, a compare, revealOid", async () => {
+    const picks: [() => unknown, (s: ReturnType<typeof useRepoStore.getState>) => unknown][] = [
+      [() => useRepoStore.getState().select(1), (s) => s.selectedIndex === 1],
+      [() => useRepoStore.getState().select(0), (s) => s.selectedIndex === 0], // the row already selected
+      [() => useRepoStore.getState().selectWorkingTree(), (s) => s.wtSelected && s.selectedIndex === 0],
+      [() => useRepoStore.getState().compareWith(2), (s) => s.selectedIndex === 0 && s.compare?.to.oid === "oid2"],
+      [() => useRepoStore.getState().revealOid("oid2"), (s) => s.selectedIndex === 2],
+    ];
+    for (const [pick, holds] of picks) {
+      __resetForTests();
+      useRepoStore.setState({ repo: REPO });
+      mocked.startLog.mockResolvedValueOnce(1);
+      mocked.getLogPage.mockResolvedValueOnce(page(1, 0, 5, 5));
+      let answer!: (index: number | null) => void;
+      mocked.findLogRow.mockImplementationOnce(() => new Promise((r) => (answer = r)));
+      await useRepoStore.getState().startLog({ kind: "all" }, {});
+      await flush();
+      useRepoStore.getState().reselectTo("oid9"); // not among the loaded rows: asked of the backend
+      await pick();
+      answer(3);
+      await flush();
+      expect(holds(useRepoStore.getState())).toBe(true);
+    }
+  });
+
+  it("a user's selection made while it waits is what the next walk restart carries: a click, the working-tree row, a compare, revealOid", async () => {
+    const oid = (s: ReturnType<typeof useRepoStore.getState>) => s.rows[s.selectedIndex!]?.row.commit.oid;
+    const picks: [() => unknown, (s: ReturnType<typeof useRepoStore.getState>) => unknown][] = [
+      [() => useRepoStore.getState().select(1), (s) => oid(s) === "oid1"],
+      [() => useRepoStore.getState().selectWorkingTree(), (s) => s.wtSelected && oid(s) !== "oid9"],
+      [() => useRepoStore.getState().compareWith(2), (s) => oid(s) === "oid0" && s.compare?.to.oid === "oid2"],
+      [() => useRepoStore.getState().revealOid("oid2"), (s) => oid(s) === "oid2"],
+    ];
+    for (const [pick, holds] of picks) {
+      __resetForTests();
+      useRepoStore.setState({ repo: REPO });
+      // A finished walk: `revealOid` finds its commit among the loaded rows.
+      mocked.startLog.mockResolvedValueOnce(1);
+      mocked.getLogPage.mockResolvedValueOnce(page(1, 0, 5, 5));
+      await useRepoStore.getState().startLog({ kind: "all" }, {});
+      await flush();
+      mocked.findLogRow.mockImplementation(() => new Promise(() => {}));
+      useRepoStore.getState().reselectTo("oid9");
+      await pick();
+      mocked.startLog.mockResolvedValueOnce(2);
+      // `oid9` on the restart's page: a waiting selection the pick failed to drop would land on it.
+      mocked.getLogPage.mockResolvedValue({ ...page(2, 0, 7, 7), rows: [row(90), row(9), ...page(2, 0, 5, 5).rows] });
+      await useRepoStore.getState().startLog({ kind: "all" }, {});
+      await flush();
+      expect(holds(useRepoStore.getState())).toBe(true);
+    }
   });
 });
 

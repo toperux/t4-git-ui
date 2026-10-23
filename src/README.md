@@ -54,8 +54,8 @@ src/
                            window would land in). Snapshot = repoStore (minus gitVersion) +
                            statusStore + commitStore + diffStore (minus the window-level view settings) + viewStore
                            (view only), each store owning its own `snapshot()` / `restore()` beside its `reset`
-    repoStore.ts           zustand: repo, refs, log {generation,total,complete,error,flat} (a page response never lowers `total`
-                           nor clears `complete` — a late page must not undo a newer `log://progress`), sparse rows[], selection (commit index +
+    repoStore.ts           zustand: repo, refs, log {generation,total,complete,error,flat} (a page response never clears `complete`,
+                           and lowers `total` only when complete — a late page must not undo a newer `log://progress`), sparse rows[], selection (commit index +
                            wtSelected for the working-tree row), reveal,
                            remoteTags {<remote>: {tags: RemoteTag[], at}} = each remote's tags when it last answered (git keeps no
                            local record of them), `at` = when it answered (the folder row and the badge's tooltip date it),
@@ -70,6 +70,13 @@ src/
                            "Couldn't check <remote> for tags" and keeps that remote's entry, `announce` toasts the counts), refreshLabels (re-fetch the pages
                            around the last `ensureRows` viewport, drop the rest so they reload lazily), startLog,
                            ensureRows (500-row pages, dedupe, stale drop), select, selectWorkingTree, revealOid,
+                           reselectTo(oid) (the app's own move of the selection, no scroll: `reselect` waits for the walk to
+                           reach it, and a walk restart keeps waiting for it instead of re-reading the old selection). A walk
+                           restart selects its carried commit again in the same write as the page that holds it, so no render
+                           has the old index naming another commit; a backend index for a page not loaded fetches that page
+                           and lets it select. select / compareWith / selectWorkingTree / revealOid drop any waiting
+                           selection, and bump `pickCount()` when they change the selection (not selectWorkingTree(false)),
+
                            noteTopRow (the grid's first visible row, `-1` = the working-tree row: module state, nothing renders
                            from it; a remounting grid skips its first report, which carries the range from before the scroll it
                            asked for in the same commit). The scroll position is the grid's own DOM state, so that row is what puts a viewport back —
@@ -145,6 +152,9 @@ src/
                            becomes `merge` / `cherryPick` / `revert`, taken back on abort; `{staged: true}` for a
                            `--no-commit` pick, which leaves the state clean), useMessage, commit
                            (→ oid | null, clears the editor incl. after an amend, msgHistory, toast, status + refs refresh,
+                           then `reselectTo` the new commit when the working-tree row (now gone: the tree is clean),
+                           nothing or HEAD was selected — not another commit or a compare, not under a text / path filter,
+                           not after a pick in the wait (`pickCount()`), only in the same tab;
                            then leaves the Changes view when the commit took the last change — `nothingToCommit()` and a
                            count taken before the commit, so an amend on an already-clean tree empties nothing and stays;
                            off by `autoCloseChanges`; only while the same tab is still active),

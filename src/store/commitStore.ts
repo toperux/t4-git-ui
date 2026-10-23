@@ -12,7 +12,7 @@ import { joinMessage, pushHistory, splitMessage } from "../lib/msgHistory";
 import { EMPTY_SELECTION, pruneSelection, type Selection } from "../lib/multiSelect";
 import { pick } from "../lib/pick";
 import { useDiffStore } from "./diffStore";
-import { useRepoStore } from "./repoStore";
+import { pickCount, useRepoStore } from "./repoStore";
 import { useSettingsStore } from "./settingsStore";
 import { nothingToCommit, selectChangeCount, useStatusStore } from "./statusStore";
 import { toastError, useToastStore } from "./toastStore";
@@ -534,6 +534,12 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
         // "The commit took the last change" needs a before as well as an after: an amend on a tree
         // that was already clean empties nothing, and that empty state is what one amends from.
         const hadChanges = selectChangeCount(useStatusStore.getState()) > 0;
+        // The new commit takes the selection from the working-tree row, from nothing, or from the
+        // HEAD it replaces — not from another commit or a compare, nor from a pick made in the wait.
+        const rs = useRepoStore.getState();
+        const head = rs.refs?.head.oid ?? rs.repo?.head.oid;
+        const toHead = rs.wtSelected || rs.selectedIndex === null || (!rs.compare && !!head && rs.rows[rs.selectedIndex]?.row.commit.oid === head);
+        const picks = pickCount();
         const message = joinMessage(summary, body);
         let committed: string | null = null;
         // Status first (clears the working-tree row when clean), then refs → HEAD moved → fresh walk.
@@ -551,6 +557,10 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
           }
         }, true);
         await st.syncRefs();
+        // Not with changes left (the working-tree row stays), nor under a filter the new HEAD may not
+        // match (`reselect` would fall back to the first row).
+        const after = useRepoStore.getState();
+        if (committed && toHead && repoId() === id && !after.wtSelected && !after.log.flat && pickCount() === picks) after.reselectTo(committed);
         // The Changes view closes rather than showing its "Working tree clean" empty state: the commit
         // that took the last change is the moment there is nothing left for the pane to do. Only for a
         // commit that landed, and only from the view being closed. Not once another tab came forward in

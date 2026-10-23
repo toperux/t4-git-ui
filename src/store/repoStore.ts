@@ -83,6 +83,11 @@ export interface RepoStore {
   /** Ctrl+click on a row: the second commit of a compare, or off again; a plain select when there is nothing to compare with. */
   compareWith(index: number): void;
   selectWorkingTree(on?: boolean): void;
+  /**
+   * Moves the selection to `oid` once the current walk has it (as a restart's `reselect` does, no
+   * scroll); a walk restart before then keeps waiting for `oid`, a user's selection drops it.
+   */
+  reselectTo(oid: string): void;
   /** Shows `stash` in the details pane (`null` = back to the selected row). */
   previewStash(stash: Stash | null): void;
   /**
@@ -107,9 +112,27 @@ let viewport = { start: 0, end: PAGE_SIZE };
 let labelGen = 0;
 /**
  * The commit selected when `startLog` restarted the walk, to be selected again once the new walk
- * has it (`reselect`). While set, the first page does not default the selection to row 0.
+ * has it (`reselect`). While set, the first page does not default the selection to row 0. `app`:
+ * the app's own (`reselectTo`), which a restart keeps rather than recomputing from the old selection.
  */
-let pendingSelect: { oid: string; generation: number | null } | null = null;
+let pendingSelect: { oid: string; generation: number | null; app?: true } | null = null;
+/**
+ * Bumped by every user selection that changes what is selected; `commit()` compares it across its
+ * wait, so a pick made meanwhile keeps the new HEAD from taking the selection. Nothing renders from it.
+ */
+let picks = 0;
+
+export const pickCount = () => picks;
+
+/**
+ * A user's selecting write: it drops any waiting selection, so a reselect answering later can't undo
+ * it, and counts as a pick when it changes the selection (`counts` false: not the user's).
+ */
+function userSelect(s: RepoStore, next: Partial<RepoStore>, counts = true): Partial<RepoStore> {
+  pendingSelect = null;
+  if (counts && (["selectedIndex", "wtSelected", "compare", "preview"] as const).some((k) => k in next && next[k] !== s[k])) picks++;
+  return next;
+}
 /**
  * First row the grid has in view (`-1` = the working-tree pseudo-row), as the grid last reported it.
  * The scroll position itself is DOM state on a component that outlives both a tab switch and a walk
@@ -187,9 +210,15 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
       set({ selectedIndex: s.rows[0] ? 0 : null, compare: null });
       return;
     }
+    const p = Math.floor(index / PAGE_SIZE);
+    // The backend's answer, for a page not loaded yet: the rows there are still the old walk's, so the
+    // index would name another commit until it lands. That page selects it (`fetchPage`).
+    if (!loaded.has(p)) {
+      void fetchPage(p);
+      return;
+    }
     pendingSelect = null;
     set({ selectedIndex: index });
-    void fetchPage(Math.floor(index / PAGE_SIZE));
   }
 
   /**
@@ -251,6 +280,15 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
         // "reveal" an index the grid no longer has — no toast, and the selection vanishes.
         let selectedIndex = s.selectedIndex;
         let compare = s.compare;
+        // The commit a restart is putting back, on this page: selected in the same write as the rows,
+        // so no render has the old index naming another commit — and before the truncation, so a
+        // compare whose anchor survived keeps its pair.
+        const pending = pendingSelect;
+        const found = pending && pending.generation === gen ? page.rows.findIndex((r) => r.row.commit.oid === pending.oid) : -1;
+        if (found >= 0) {
+          pendingSelect = null;
+          selectedIndex = offset + found;
+        }
         if (page.complete && rows.length > page.total) {
           rows.length = page.total;
           // The selection can be one of the rows that went: kept, it names nothing the grid has, and
@@ -460,7 +498,9 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
       // new walk's pages replace them (a blank grid every few seconds is worse than a stale one),
       // and the selected commit is selected again once the new walk has it — see `reselect`.
       const selectedOid = prev.wtSelected || prev.selectedIndex === null ? null : (prev.rows[prev.selectedIndex]?.row.commit.oid ?? null);
-      pendingSelect = selectedOid ? { oid: selectedOid, generation: null } : null;
+      // The app's own waiting selection is kept for the new walk: recomputed, a restart before its row
+      // is found would put the selection back on the row it was moving off.
+      pendingSelect = pendingSelect?.app ? { ...pendingSelect, generation: null } : selectedOid ? { oid: selectedOid, generation: null } : null;
       // The viewport keeps the commits it is on (`reanchor`) — but only off the top: at the top new
       // commits belong in view, rather than the scroll following the old ones down past them.
       const anchorOid = topRow > 0 ? (prev.rows[topRow]?.row.commit.oid ?? null) : null;
@@ -505,21 +545,27 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
 
     // The anchor is always one of the compared commits, so every write that moves it drops the pair.
     // Picking a row is also the way back out of a stash preview.
-    select: (selectedIndex) => set({ selectedIndex, wtSelected: false, compare: null, preview: null }),
+    select: (selectedIndex) => set((s) => userSelect(s, { selectedIndex, wtSelected: false, compare: null, preview: null })),
 
     compareWith: (index) =>
       set((s) => {
         const ai = s.wtSelected ? null : s.selectedIndex;
         const other = s.rows[index]?.row.commit;
         const anchor = ai === null ? undefined : s.rows[ai]?.row.commit;
-        if (!other || !anchor || ai === null) return { selectedIndex: index, wtSelected: false, compare: null, preview: null };
-        if (other.oid === anchor.oid || s.compare?.from.oid === other.oid || s.compare?.to.oid === other.oid) return { compare: null, preview: null };
+        if (!other || !anchor || ai === null) return userSelect(s, { selectedIndex: index, wtSelected: false, compare: null, preview: null });
+        if (other.oid === anchor.oid || s.compare?.from.oid === other.oid || s.compare?.to.oid === other.oid) return userSelect(s, { compare: null, preview: null });
         // A third commit replaces the pair. The selected commit is the base: the diff is what the
         // Ctrl+clicked one changed relative to it, whichever of the two is older.
-        return { compare: { from: anchor, to: other }, preview: null };
+        return userSelect(s, { compare: { from: anchor, to: other }, preview: null });
       }),
 
-    selectWorkingTree: (on = true) => set({ wtSelected: on, compare: null, preview: null }),
+    // Off is the app's (a clean tree has no row): no pick.
+    selectWorkingTree: (on = true) => set((s) => userSelect(s, { wtSelected: on, compare: null, preview: null }, on)),
+
+    reselectTo(oid) {
+      pendingSelect = { oid, generation: get().log.generation, app: true };
+      void reselect();
+    },
 
     // Exclusive with a compare pair, which would otherwise come back when the preview clears.
     previewStash: (preview) => set(preview ? { preview, compare: null } : { preview }),
@@ -539,7 +585,7 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
         if (after.repo?.id !== repo.id) return false;
         if (after.log.generation !== log.generation) continue;
         // Revealing a commit moves the selection off the working-tree row (and out of the commit panel).
-        set((st) => ({ selectedIndex: index, wtSelected: false, compare: null, preview: null, reveal: { index, seq: (st.reveal?.seq ?? 0) + 1 } }));
+        set((st) => userSelect(st, { selectedIndex: index, wtSelected: false, compare: null, preview: null, reveal: { index, seq: (st.reveal?.seq ?? 0) + 1 } }));
         return true;
       }
       return false;

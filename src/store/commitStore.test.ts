@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { FileDiff, RefsSnapshot, RepoSummary, StatusEntry, WorkdirStatus } from "../api/types";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { FileDiff, LogRow, RefsSnapshot, RepoSummary, StatusEntry, WorkdirStatus } from "../api/types";
 
 /** `commit()` refreshes status + refs afterwards; both resolve so the promise settles. */
 const REFS = vi.hoisted<RefsSnapshot>(() => ({ head: { oid: "h", branch: "main", detached: false }, state: "clean", local: [], remotes: [], tags: [], stashes: [] }));
@@ -16,6 +16,7 @@ vi.mock("../api/ipc", async (importOriginal) => {
     refreshLabels: vi.fn(() => Promise.resolve(1)),
     startLog: vi.fn(() => Promise.resolve(1)),
     getLogPage: vi.fn(() => new Promise(() => {})),
+    findLogRow: vi.fn(),
     commit: vi.fn(),
     getHeadMessage: vi.fn(),
     getMergeMessage: vi.fn(() => Promise.resolve(null)),
@@ -49,6 +50,8 @@ type MockName =
   | "getChangedFiles"
   | "getStatus"
   | "getRefs"
+  | "getLogPage"
+  | "findLogRow"
   | "commit"
   | "getHeadMessage"
   | "getMergeMessage"
@@ -994,6 +997,149 @@ describe("commitStore.commit closing the Changes view", () => {
     await useCommitStore.getState().discard(["a.rs"]);
     expect(mocked.discardPaths).toHaveBeenCalledWith(REPO.id, ["a.rs"]);
     expect(useViewStore.getState().view).toBe("changes");
+  });
+});
+
+describe("commitStore.commit moving the selection to the new HEAD", () => {
+  const logRow = (oid: string): LogRow => ({
+    row: { commit: { oid, short: oid, summary: oid, authorName: "", authorEmail: "", authorTime: 0, committerTime: 0, parents: [], isMerge: false }, lane: 0, color: 0, lines: [], maxLane: 0 },
+    labels: [],
+  });
+  const reselectTo = vi.fn();
+  let real: ReturnType<typeof useRepoStore.getState>["reselectTo"];
+
+  beforeEach(() => {
+    real = useRepoStore.getState().reselectTo;
+    // HEAD ("h", as REFS says) on row 0 and selected, an older commit below it.
+    useRepoStore.setState({ reselectTo, rows: [logRow("h"), logRow("old")], selectedIndex: 0 });
+    mocked.commit.mockResolvedValue("new");
+    useCommitStore.setState({ summary: "Done" });
+  });
+  afterEach(() => useRepoStore.setState({ reselectTo: real }));
+
+  it("a commit from the working-tree row that empties the tree selects the new HEAD", async () => {
+    useStatusStore.setState({ status: status([entry("a.rs")]), error: null });
+    useRepoStore.setState({ wtSelected: true });
+    await useCommitStore.getState().commit();
+    expect(useRepoStore.getState().wtSelected).toBe(false);
+    expect(reselectTo).toHaveBeenCalledWith("new");
+  });
+
+  it("one with changes left keeps the working-tree row", async () => {
+    mocked.getStatus.mockResolvedValue(status([entry("b.rs")]));
+    useStatusStore.setState({ status: status([entry("a.rs"), entry("b.rs")]), error: null });
+    useRepoStore.setState({ wtSelected: true });
+    await useCommitStore.getState().commit();
+    expect(useRepoStore.getState().wtSelected).toBe(true);
+    expect(reselectTo).not.toHaveBeenCalled();
+  });
+
+  it("moves from the old HEAD or from nothing, and leaves another commit selected", async () => {
+    for (const [selectedIndex, moves] of [
+      [0, true],
+      [null, true],
+      [1, false],
+    ] as const) {
+      reselectTo.mockClear();
+      useRepoStore.setState({ selectedIndex });
+      useCommitStore.setState({ summary: "Done" });
+      await useCommitStore.getState().commit();
+      expect(reselectTo.mock.calls).toEqual(moves ? [["new"]] : []);
+    }
+  });
+
+  it("an amend with HEAD selected moves", async () => {
+    useCommitStore.setState({ amend: true });
+    await useCommitStore.getState().commit();
+    expect(reselectTo).toHaveBeenCalledWith("new");
+  });
+
+  it("a failed commit moves nothing", async () => {
+    mocked.commit.mockRejectedValue({ kind: "git", message: "boom" });
+    await useCommitStore.getState().commit();
+    expect(reselectTo).not.toHaveBeenCalled();
+  });
+
+  it("moves nothing when another tab came forward during the wait", async () => {
+    const syncRefs = useStatusStore.getState().syncRefs;
+    useStatusStore.setState({
+      syncRefs: async () => {
+        await syncRefs();
+        useRepoStore.setState({ repo: { ...REPO, id: "other", path: "other" } });
+      },
+    });
+    try {
+      await useCommitStore.getState().commit();
+    } finally {
+      useStatusStore.setState({ syncRefs });
+    }
+    expect(reselectTo).not.toHaveBeenCalled();
+  });
+
+  // The new HEAD may not match, and `reselect` would fall back to the first row.
+  it("moves nothing under a text or path filter", async () => {
+    for (const filter of [{ text: "lanes" }, { path: "a.rs" }]) {
+      useRepoStore.setState({ filter, log: { ...useRepoStore.getState().log, flat: true } });
+      useCommitStore.setState({ summary: "Done" });
+      await useCommitStore.getState().commit();
+    }
+    expect(reselectTo).not.toHaveBeenCalled();
+  });
+
+  it("a compare anchored on HEAD keeps the compare and its selection", async () => {
+    const [h, old] = useRepoStore.getState().rows.map((r) => r!.row.commit);
+    useRepoStore.setState({ compare: { from: h, to: old } });
+    await useCommitStore.getState().commit();
+    expect(reselectTo).not.toHaveBeenCalled();
+    expect(useRepoStore.getState()).toMatchObject({ selectedIndex: 0, compare: { from: { oid: "h" }, to: { oid: "old" } } });
+  });
+
+  it("a selection made during the wait stays: a click, a compare, revealOid, the working-tree row", async () => {
+    const picks: (() => unknown)[] = [
+      () => useRepoStore.getState().select(1),
+      () => useRepoStore.getState().compareWith(1),
+      () => useRepoStore.getState().revealOid("old"),
+      () => useRepoStore.getState().selectWorkingTree(),
+    ];
+    for (const pick of picks) {
+      useRepoStore.setState({ rows: [logRow("h"), logRow("old")], selectedIndex: 0, wtSelected: false, compare: null });
+      // revealOid asks the backend (no page is loaded here) and fetches the row's page.
+      mocked.findLogRow.mockResolvedValueOnce(1);
+      mocked.getLogPage.mockResolvedValueOnce({ rows: [logRow("h"), logRow("old")], total: 2, complete: true, generation: 1, error: null });
+      mocked.commit.mockImplementationOnce(async () => {
+        await pick();
+        return "new";
+      });
+      useCommitStore.setState({ summary: "Done" });
+      await useCommitStore.getState().commit();
+      mocked.findLogRow.mockReset();
+      mocked.getLogPage.mockReset().mockImplementation(() => new Promise(() => {}));
+    }
+    expect(reselectTo).not.toHaveBeenCalled();
+  });
+
+  it("the tree turning clean, a revealOid miss and a click on the working-tree row already selected are no pick", async () => {
+    useStatusStore.setState({ status: status([entry("a.rs")]), error: null });
+    useRepoStore.setState({ wtSelected: true });
+    mocked.findLogRow.mockResolvedValueOnce(null);
+    mocked.commit.mockImplementationOnce(async () => {
+      expect(await useRepoStore.getState().revealOid("gone")).toBe(false);
+      useRepoStore.getState().selectWorkingTree();
+      return "new";
+    });
+    await useCommitStore.getState().commit();
+    expect(reselectTo).toHaveBeenCalledWith("new");
+  });
+
+  it("a click on the selected row that closes a stash preview is a pick", async () => {
+    useRepoStore.setState({ preview: { index: 0, oid: "s", message: "wip", baseOid: "h", time: 0, hasUntracked: false } });
+    mocked.commit.mockImplementationOnce(async () => {
+      useRepoStore.getState().select(0);
+      return "new";
+    });
+    await useCommitStore.getState().commit();
+    expect(useRepoStore.getState().preview).toBeNull();
+    expect(reselectTo).not.toHaveBeenCalled();
   });
 });
 
