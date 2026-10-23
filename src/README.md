@@ -237,6 +237,10 @@ src/
                            no-newline flag: what a hunk / line action names the hunks it touched with. git-core's
                            `patch::hunk_print` is the twin — it prints the diff it rebuilds and refuses the action when the
                            two differ; one vector pinned in both test suites keeps them in step)
+                           observeVisibleRect.ts (the diff body's and the content view's `observeElementRect`: the
+                           scroller's clientWidth / clientHeight, re-read by a ResizeObserver on its content box, so a
+                           line `scrollToIndex` brings in from below stops above a horizontal scrollbar; virtual-core's
+                           default reports the border box. Reads once without a ResizeObserver, as jsdom has none)
                            dialogCapability.test.ts (no module of its own: it reads src-tauri/capabilities/default.json and
                            demands a permission for every `@tauri-apps/plugin-dialog` export `src` imports, mapping
                            ask / confirm / message all to the `message` command they invoke. A missing one fails only at

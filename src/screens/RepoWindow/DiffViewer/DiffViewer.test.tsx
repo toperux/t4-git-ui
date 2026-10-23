@@ -3,6 +3,7 @@ import { StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { FileDiff } from "../../../api/types";
 import { loadLang } from "../../../lib/highlight";
+import { observeVisibleRect } from "../../../lib/observeVisibleRect";
 import { useDiffStore } from "../../../store/diffStore";
 import { useSettingsStore } from "../../../store/settingsStore";
 import { bigDiff, fileDiff, hunk, line, stripes } from "./diffFixtures";
@@ -25,12 +26,15 @@ const scrolls = vi.hoisted(() => ({
   height: 400,
   calls: [] as (number | "cancel")[],
   virtualizer: null as { scrollOffset: number | null; scrollRect: { width: number; height: number } | null } | null,
+  // The size watch the component asked for, before the mock overrides it.
+  watch: null as unknown,
 }));
 vi.mock("@tanstack/react-virtual", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-virtual")>();
   return {
     ...actual,
     useVirtualizer: (opts: Parameters<typeof actual.useVirtualizer>[0]) => {
+      scrolls.watch = opts.observeElementRect;
       const v = actual.useVirtualizer({
         ...opts,
         initialRect: { width: 800, height: scrolls.height },
@@ -64,6 +68,7 @@ afterEach(() => {
   scrolls.offsets.length = 0;
   scrolls.indexes.length = 0;
   scrolls.virtualizer = null;
+  scrolls.watch = null;
 });
 
 const SMALL = fileDiff(
@@ -166,6 +171,11 @@ describe("DiffViewer", () => {
     expect(body.children.length).toBeLessThan(120); // 400px / 20px + 2×30 overscan
     expect(parseInt(body.style.height, 10)).toBeGreaterThan(30_000 * 20);
     expect(getByText("Diff truncated at 20 000 lines")).toBeTruthy();
+  });
+
+  it("the body's size watch reports the visible box, so a line ↓ brings in clears a horizontal scrollbar", () => {
+    render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} />);
+    expect(scrolls.watch).toBe(observeVisibleRect);
   });
 
   it("empty and binary states", () => {
@@ -856,9 +866,10 @@ describe("DiffViewer", () => {
 
     describe("the selection bar keeps a cursor line it covers in view", () => {
       // The walk's view: 643 px, 619 once the 24 px bar is under it. `line 670 changed` ends at 12 268.
-      // `scrollbar`: a horizontal one that high, inside the 643 px box and off `clientHeight`.
+      // `scrollbar`: a horizontal one that high, inside the 643 px box and off `clientHeight`, which is
+      // what the virtualizer is told of.
       const covered = (top: number, scrollbar = 0) => {
-        scrolls.height = 643;
+        scrolls.height = 643 - scrollbar;
         const r = mount(stripes(), 12_000, staging());
         const box = () => (r.queryByRole("toolbar", { name: "Selected lines" }) ? 619 : 643);
         Object.defineProperty(r.region, "offsetHeight", { get: box, configurable: true });

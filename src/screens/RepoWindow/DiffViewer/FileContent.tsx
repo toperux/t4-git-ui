@@ -10,6 +10,7 @@ import { PanelHeader } from "../../../components/ui/PanelHeader/PanelHeader";
 import { Progress } from "../../../components/ui/Progress/Progress";
 import { cx } from "../../../lib/cx";
 import { isLoaded, langForPath, loadLang, type Lang } from "../../../lib/highlight";
+import { observeVisibleRect } from "../../../lib/observeVisibleRect";
 import { useDialogStore } from "../../../store/dialogStore";
 import { treeTargetOf, useDiffStore, type DiffStore } from "../../../store/diffStore";
 import { blameAt, copyText, showHistory } from "../actions";
@@ -169,6 +170,7 @@ function ContentBody({
     getScrollElement: () => scrollRef.current,
     estimateSize: () => LINE_H,
     overscan: OVERSCAN,
+    observeElementRect: observeVisibleRect,
   });
   // Only another file starts over at the top; a reload of the same one keeps its position. A
   // drill-down's line starts at the height it was clicked at.

@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BlameHunk, FileContent as FileContentModel } from "../../../api/types";
+import { observeVisibleRect } from "../../../lib/observeVisibleRect";
 import { useDialogStore } from "../../../store/dialogStore";
 import { useDiffStore } from "../../../store/diffStore";
 import { useRepoStore } from "../../../store/repoStore";
@@ -20,13 +21,15 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({ ask: vi.fn(), open: vi.fn(), save:
 vi.mock("@tauri-apps/plugin-clipboard-manager", () => ({ writeText: vi.fn(() => Promise.resolve()) }));
 
 // jsdom neither lays out nor scrolls: give the virtualizer a viewport so it renders rows, and record
-// its scroll requests (which then scroll nothing: the rendered window stays at the top).
-const scrolls = vi.hoisted(() => ({ offsets: [] as number[], indexes: [] as number[] }));
+// its scroll requests (which then scroll nothing: the rendered window stays at the top). `watch` is
+// the size watch the component asked for, before the mock overrides it.
+const scrolls = vi.hoisted(() => ({ offsets: [] as number[], indexes: [] as number[], watch: null as unknown }));
 vi.mock("@tanstack/react-virtual", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-virtual")>();
   return {
     ...actual,
     useVirtualizer: (opts: Parameters<typeof actual.useVirtualizer>[0]) => {
+      scrolls.watch = opts.observeElementRect;
       const v = actual.useVirtualizer({
         ...opts,
         initialRect: { width: 800, height: 400 },
@@ -49,6 +52,7 @@ beforeEach(() => {
   useToastStore.setState({ toasts: [] });
   scrolls.offsets.length = 0;
   scrolls.indexes.length = 0;
+  scrolls.watch = null;
 });
 
 const content = (over: Partial<FileContentModel> = {}): FileContentModel => ({
@@ -72,6 +76,11 @@ describe("FileContent", () => {
     expect(lines(container).map((r) => r.textContent)).toEqual(["1fn main() {␍", "2    let a = 1;", "3}"]);
     // Two cells per row: the number and the text. The diff's old / new / sign triple means nothing here.
     expect(lines(container).map((r) => r.childElementCount)).toEqual([2, 2, 2]);
+  });
+
+  it("the body's size watch reports the visible box, so a line ↓ brings in clears a horizontal scrollbar", () => {
+    render(<FileContent path="src/a.rs" content={content()} loading={false} error={null} />);
+    expect(scrolls.watch).toBe(observeVisibleRect);
   });
 
   it("shows nothing for a binary file and banners a truncated one", () => {

@@ -14,6 +14,7 @@ import { cx } from "../../../lib/cx";
 import { highlightLine, isLoaded, langForPath, loadLang, type Lang, type SynClass } from "../../../lib/highlight";
 import { toolLabel } from "../../../lib/externalTools";
 import { ctrlOrCmd, mods } from "../../../lib/keys";
+import { observeVisibleRect } from "../../../lib/observeVisibleRect";
 import { useDiffStore, type DiffView } from "../../../store/diffStore";
 import { useSettingsStore } from "../../../store/settingsStore";
 import { Stats } from "../ChangedFileList/ChangedFileList";
@@ -429,6 +430,7 @@ function DiffBody({ path, diff, view, rows, maxCols, lang, actions, selected, cu
     getScrollElement: () => scrollRef.current,
     estimateSize: (i) => rowHeight(rows[i]),
     overscan: OVERSCAN,
+    observeElementRect: observeVisibleRect,
   });
   // The cursor last moved by ↑: the cursor effect then brings its hunk header into view too. A click
   // or a reload never does, so the mousedown and a new row model clear it.
@@ -475,16 +477,16 @@ function DiffBody({ path, diff, view, rows, maxCols, lang, actions, selected, cu
   // line the bar covers moves, one with any part in view before — one already out of view below
   // stays where it is. `scrollRect` is the height from before the bar (the virtualizer's
   // ResizeObserver hasn't reported yet), the DOM's `clientHeight` the one after. `scrollRect` is the
-  // border box: a horizontal scrollbar (and the borders) come off it, as they do off `clientHeight`.
-  // Once read, `scrollRect` takes the new box, on every show and hide: until the ResizeObserver
-  // reports, the cursor effect's `scrollToIndex` would aim at the old height. Not a box that isn't
-  // laid out (jsdom's 0): that would empty the body.
+  // client box (`observeVisibleRect`), the same box as `clientHeight`. Once read, `scrollRect` takes
+  // the new box, on every show and hide: until the ResizeObserver reports, the cursor effect's
+  // `scrollToIndex` would aim at the old height. Not a box that isn't laid out (jsdom's 0): that
+  // would empty the body.
   const bar = !!actions && selected.size > 0;
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const before = (virtualizer.scrollRect?.height ?? 0) - (el.offsetHeight - el.clientHeight);
-    if (el.offsetHeight) virtualizer.scrollRect = { width: el.offsetWidth, height: el.offsetHeight };
+    const before = virtualizer.scrollRect?.height ?? 0;
+    if (el.offsetHeight) virtualizer.scrollRect = { width: el.clientWidth, height: el.clientHeight };
     if (!bar || cursorRow < 0 || !el.contains(document.activeElement)) return;
     virtualizer.getTotalSize(); // refreshes `measurementsCache` after a `measure()`
     const { start, end } = virtualizer.measurementsCache[cursorRow];
