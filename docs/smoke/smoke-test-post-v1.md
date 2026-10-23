@@ -3604,6 +3604,48 @@ so the default may be on.
       edit 12 140 → 12 000; the stage keeps 11 960, the reset 12 144. The recorder ran through rows 1–4 and 8 (4b–7 used
       frame samplers instead): 0 blank / gap / overlap; console hook empty; app log 0 WARN / 0 ERROR.)*
 
+## BY. The new HEAD after a commit, a moved tab's state, a tab's diff and scroll, the line above the scrollbar
+
+Plan: `docs/plans/2026-10-21-tabs-grid-deferred-plan.md` (AP2, AO1, AO5, AO6, AO7). Windows VM over CDP on a local
+`tauri build --no-bundle` of `tabs-grid-deferred` (`docs/smoke/smoke-cdp.md`: `smoke-launch.ps1`, `cdp.mjs --inner
+1280x800`, readings through `--eval`), all rows. Linux VM (`docs/smoke/smoke-linux.md`, under openbox): rows 3 and 4's
+*Move to new window* and tear-off (D5 (a)). macOS: not walked.
+
+Fixtures: `docs/smoke/fixtures/bv-fixture.sh` in Git Bash on the VM (`T4_ROOT=/c/tmp/t4`) for rows 1–2 and 5–7, plus,
+for the window moves, a repository with more than 500 commits: AW's `c:/tmp/t4/big-repo-clone` (10 956 commits) on
+Windows, any repository that size on Linux. The moved tab is that one, so a selected commit and a top row below the
+first screen survive a text filter. Rows 1–2 commit into `bv`; the walk deletes it after.
+
+The store folder is backed up before launch and restored after (`smoke-cdp.md:84-89`). Readings: `document.title` with
+every one, the grid's top row (`--eval` on its scroller), the selected row's oid against `git rev-parse HEAD`, and the
+app log read for WARN / ERROR after.
+
+- [ ] 1. **AP2, the commit panel:** `openCommitPanel` (the working-tree row selected), commit everything → History shows
+      the new HEAD selected, with its details.
+- [ ] 2. **AP2, what stays:** a partial commit keeps the working-tree row. With the old HEAD selected in History, a
+      commit from the commit dialog moves the selection to the new HEAD. With an older commit selected, it stays.
+- [ ] 3. **AO1, *Move to new window*:** on the big repository, a draft, a text filter, a selected commit below the first
+      screen and the Changes view → the new window has all four, and back in History its grid at the same top row.
+      Again from a background tab, and with the working-tree row selected and no filter (the two can't coexist). Again
+      from the History view: the new window opens in History at the same top row (the unit test pins the count's raise;
+      the walk can't tell it from timing). Keep the top row well inside the first 1000 rows, a screen or more short of
+      row 1000: past that is an accepted gap (`open-items.md` §Q), so a lost row there is not a fail.
+- [ ] 4. **AO1, the other ways:** the same by a drag onto another window's strip (Windows only), by a tear-off, and by
+      a one-tab window's toolbar drag onto another window.
+- [ ] 5. **AO5, History:** a History tab on its third file, scrolled down; Ctrl+Tab away and back → the same file, the
+      same top line. Again with a commit made in that repository from a terminal while the tab is in the background.
+- [ ] 6. **AO6, Changes:** the same for the Changes diff, between a tab on a staged file and one on an unstaged file,
+      both ways.
+- [ ] 7. **AO7, the line above the scrollbar,** where ↓ moves a cursor: the Changes view's staging diff (History's
+      diff scrolls natively) and the file content view with blame on.
+      - A staging diff wider than the pane (a horizontal scrollbar from the start): ↓ to a line below the edge stops
+        with the line flush above the scrollbar; the bar shown and hidden keeps it so.
+      - The scrollbar coming after the mount with no resize: an unstaged file's staging diff that fits, then a long
+        line appended to the file, so the watcher's reload keeps the body mounted and the scrollbar appears; the same
+        ↓. This is the content-box callback the jsdom tests can't show.
+      - The same after narrowing the split until a fitting diff doesn't fit.
+      - The file content view (Files tab, blame on, a wide file): the same ↓.
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the
