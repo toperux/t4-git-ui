@@ -5,14 +5,15 @@ src/
   main.tsx                 mounts App; imports fonts.css → tokens.css → base.css; LucideProvider (16px, stroke 1.75)
   App.tsx                  probe_git → GitMissingScreen | no repo → StartScreen | repo → RepoWindow; loads recents and restores
                            this window's tabs inside one try/catch (a failure lands on the start screen, never on the spinner):
-                           `take_pending` (the tabs this window was created with) → else, in `main`, `take_layout` (the windows
-                           of the last exit — the first entry's tabs here, `spawn_window` for each of the others) → else the
-                           old `lastOpen`, which is the migration for a first launch without a `layout.json`. `take_layout`
-                           also arms the crash-loop breaker (a `layout.restoring` marker next to `layout.json`) and reports
-                           `{ crashed, kept }`: a previous restore that never finished sets the session's file aside to
-                           `layout.crashed.json`, opens nothing (not even `lastOpen`), clears `lastOpen`, and pushes an
-                           error toast (naming the set-aside file when `kept`); a failing `lastOpen` open still clears itself
-                           so the fallback doesn't loop;
+                           `take_pending` (the tabs this window was created with, and a moved tab's `carry` for `openTab`) →
+                           else, in `main`, `take_layout` (the windows of the last exit — the first entry's tabs here,
+                           `spawn_window` with no carry for each of the others) → else the old `lastOpen`, which is the
+                           migration for a first launch without a `layout.json`. `take_layout` also arms the crash-loop
+                           breaker (a `layout.restoring` marker next to `layout.json`) and reports `{ crashed, kept }`: a
+                           previous restore that never finished sets the session's file aside to `layout.crashed.json`,
+                           opens nothing (not even `lastOpen`), clears `lastOpen`, and pushes an error toast (naming the
+                           set-aside file when `kept`); a failing `lastOpen` open still clears itself so the fallback
+                           doesn't loop;
                            mirrors `tabsStore` into recents (touch per open, `lastOpen` = the active tab) and reports
                            `set_layout(layout, restored?)` on every tab change except while restoring, then once with
                            `restored: true` — the one-shot report that clears this window's share of the breaker's mark; an
@@ -22,10 +23,10 @@ src/
                            `onUpdateCheckedReady` resolves, so one that lands while it starts isn't missed, and an event
                            heard before that read's reply wins over it; `listenTabDrags` is
                            mounted here, not in the strip, so a window with one tab or none can still be dropped on;
-                           a tab dropped in, or taken back on `tab-spawn-failed`, waits (`openWhenIdle`, a toast each,
-                           opened one at a time in order) while an operation runs, for the whole of `commit()` (the
-                           tail after `busy`, then Commit & Push's Push) and while any dialog is open — never refused,
-                           which would lose it
+                           a tab dropped in (`tab-adopt`), or taken back on `tab-spawn-failed`, each with its carry for
+                           `openTab`, waits (`openWhenIdle`, a toast each, opened one at a time in order) while an operation
+                           runs, for the whole of `commit()` (the tail after `busy`, then Commit & Push's Push) and while
+                           any dialog is open — never refused, which would lose it
   api/
     types.ts               TS mirror of the Rust IPC contract (serde camelCase) — edit only together with the Rust structs
     ipc.ts                 `call()` (the one `invoke` wrapper) + one typed function per command, including the start-screen
@@ -35,28 +36,37 @@ src/
                            (`log://progress`, `repo://changed`, `op://event`, `settings://changed` — broadcast by
                            emitSettingsChanged after a preference is written, so every window re-reads it) and
                            onTabSpawnFailed (`tab-spawn-failed` — the window some moved tabs were promised never opened, so
-                           all of them come back here); onOpEventReady / onUpdateProgressReady / onUpdateCheckedReady (cb) →
-                           Promise<unlisten> for callers that must be listening before they invoke (`op://event`,
-                           `update://progress` — the update download's percent, `null` until the total size is known,
-                           `update://checked` — every successful check's answer, to every window; a new window's own
-                           `lastUpdateCheck()` waits for this listener to attach first, so a fast answer can't land unheard)
+                           all of them come back here, with a moved tab's carry); onOpEventReady / onUpdateProgressReady /
+                           onUpdateCheckedReady (cb) → Promise<unlisten> for callers that must be listening before they
+                           invoke (`op://event`, `update://progress` — the update download's percent, `null` until the
+                           total size is known, `update://checked` — every successful check's answer, to every window; a
+                           new window's own `lastUpdateCheck()` waits for this listener to attach first, so a fast answer
+                           can't land unheard)
   store/
     tabsStore.ts           zustand: tabs [{id, path, name, stale}], active, saved {<RepoId>: Snapshot}; openTab (sets
                            repoStore.opening to the folder's name first, so the overlay covers the backend's wait too,
                            and clears it in a `finally` on every way out; then open_repo — the id is what a tab is
                            compared by, and `openElsewhere` means another window has it and was focused, so nothing
                            happens here; a new tab goes on the end, or at `at` — a dropped tab's caret slot, clamped —
-                           and resets viewStore to History),
+                           and resets viewStore to History; `carry`, a tab moved from another window, is put back once
+                           repoStore.openRepo resolves, only if that tab is still the active one, in one synchronous run:
+                           the draft, `startLog(spec, filter)` unawaited, then selectWorkingTree / reselectTo(oid), the
+                           view, and restoreTopRow; dropped for a tab already open),
                            activate (snapshot the active slices, restore the target's, close the dialog, refreshAll),
                            closeTab (always `close_repo`; the last tab closes a secondary window and leaves the main
-                           one on the start screen), markStale, detach (a no-op with one tab; spawn_window, then close
-                           the tab — never the other way round), reorder, setCaret (the slot a tab dragged from another
-                           window would land in). Snapshot = repoStore (minus gitVersion) +
-                           statusStore + commitStore (with `diffList`, so a switch keeps the shown diff object) + diffStore
-                           (minus the window-level view settings) + viewStore (view only), each store owning its own
-                           `snapshot()` / `restore()` beside its `reset`, + scroll (where the History / Changes diff was:
-                           `take()` moves DiffViewer/diffScroll.ts's note in, `put()` seeds it back; a new tab, after its
-                           `take()`, and the last tab's close forget both)
+                           one on the start screen), markStale, detach (a no-op with one tab; spawn_window with the tab's
+                           carry, then close the tab — never the other way round), reorder, setCaret (the slot a tab
+                           dragged from another window would land in). TabCarry (`tabCarry(id)`, from the live stores for
+                           the active tab, from `saved[id]` for a background one; what detach and the drags send beside
+                           the path, opaque to Rust and never in `layout.json`) = the commit draft (summary, body, amend,
+                           signoff, sign, prefill), spec, filter, the selection (the working-tree row or a commit's oid —
+                           a compare or a stash preview carries its selected commit), the view, the grid's top row
+                           (`lastTopRow()`, or the snapshot's `reveal.index`) and the walk's total. Snapshot = repoStore
+                           (minus gitVersion) + statusStore + commitStore (with `diffList`, so a switch keeps the shown
+                           diff object) + diffStore (minus the window-level view settings) + viewStore (view only), each
+                           store owning its own `snapshot()` / `restore()` beside its `reset`, + scroll (where the
+                           History / Changes diff was: `take()` moves DiffViewer/diffScroll.ts's note in, `put()` seeds
+                           it back; a new tab, after its `take()`, and the last tab's close forget both)
     repoStore.ts           zustand: repo, refs, log {generation,total,complete,error,flat} (a page response never clears `complete`,
                            and lowers `total` only when complete — a late page must not undo a newer `log://progress`), sparse rows[], selection (commit index +
                            wtSelected for the working-tree row), reveal,
@@ -79,7 +89,9 @@ src/
                            has the old index naming another commit; a backend index for a page not loaded fetches that page
                            and lets it select. select / compareWith / selectWorkingTree / revealOid drop any waiting
                            selection, and bump `pickCount()` when they change the selection (not selectWorkingTree(false)),
-
+                           restoreTopRow(index, total) (a moved tab's top row, as `restore` puts a switched-back one: `topRow`
+                           and a `start` reveal, with `log.total` raised to the carried total, never lowered, so the reveal
+                           isn't clamped to a walk that has barely started),
                            noteTopRow (the grid's first visible row, `-1` = the working-tree row: module state, nothing renders
                            from it; a remounting grid skips its first report, which carries the range from before the scroll it
                            asked for in the same commit). The scroll position is the grid's own DOM state, so that row is what puts a viewport back —
@@ -362,9 +374,9 @@ src/
                            dot, ×, middle-click closes, + opens a repository, row menu Move to new window · Copy path · Close;
                            pointer capture drags a tab (`useTabDrag`) — inside the strip it reorders, outside it a ghost follows
                            the cursor and Rust says which window is under it: `drag_over` draws that window's caret, `drop_tab`
-                           hands the tab over or tears it off into a new one; the same hook makes the toolbar's repository
-                           button a handle for the active tab, with no reorder phase, so the single tab of a window whose strip
-                           is hidden can still be dragged out),
+                           hands the tab over or tears it off into a new one, with its carry (`tabCarry`); the same hook makes
+                           the toolbar's repository button a handle for the active tab, with no reorder phase, so the single
+                           tab of a window whose strip is hidden can still be dragged out),
                            actions.ts (fetchDefault / checkout* / stash* / copyText / blameAt / refreshAll / switchRepo / pickAndOpenRepo /
                            closeTab / detachTab / quitApp / runGit, plus the banner aborts merge/rebase/cherryPick/revertAbort and
                            bisectMark(term, oid?) / bisectReset (a mark with no bisect running starts one first — decided in

@@ -88,6 +88,12 @@ export interface RepoStore {
    * scroll); a walk restart before then keeps waiting for `oid`, a user's selection drops it.
    */
   reselectTo(oid: string): void;
+  /**
+   * Puts the grid back on row `index`, as `restore` does for a tab switch (`topRow` and a `start`
+   * reveal), for a tab moved from another window; `total` (its walk's there) raises `log.total`, never
+   * lowers it, so the reveal isn't clamped to a walk that has barely started.
+   */
+  restoreTopRow(index: number, total: number): void;
   /** Shows `stash` in the details pane (`null` = back to the selected row). */
   previewStash(stash: Stash | null): void;
   /**
@@ -567,6 +573,11 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
       void reselect();
     },
 
+    restoreTopRow(index, total) {
+      topRow = index;
+      set((s) => ({ log: { ...s.log, total: Math.max(s.log.total, total) }, reveal: { index, seq: (s.reveal?.seq ?? 0) + 1, align: "start" } }));
+    },
+
     // Exclusive with a compare pair, which would otherwise come back when the preview clears.
     previewStash: (preview) => set(preview ? { preview, compare: null } : { preview }),
 
@@ -665,7 +676,7 @@ export function __resetForTests() {
 export const useMerging = () => useRepoStore((st) => st.refs?.state === "merge");
 
 /** Oid of the selected commit row, or `null` while its page is still loading (or the working tree is selected). */
-export const selectSelectedOid = (s: RepoStore) =>
+export const selectSelectedOid = (s: Pick<RepoStore, "wtSelected" | "selectedIndex" | "rows">) =>
   s.wtSelected || s.selectedIndex === null ? null : (s.rows[s.selectedIndex]?.row.commit.oid ?? null);
 
 /** The two commits being compared, or `null` when a single commit (or the working tree) is selected. */

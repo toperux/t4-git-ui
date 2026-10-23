@@ -1,5 +1,6 @@
 import { emit, listen, type EventTarget, type UnlistenFn } from "@tauri-apps/api/event";
 import { windowLabel } from "../lib/appWindow";
+import type { TabCarry } from "../store/tabsStore";
 import type { LogProgress, OpEvent, RepoChanged, UpdateInfo } from "./types";
 
 /**
@@ -48,9 +49,10 @@ const subscribeHere = <T,>(name: string, cb: (payload: T) => void) => subscribe<
 /**
  * A window `spawn_window` promised could not be built (`tab-spawn-failed`), emitted to the window
  * the tabs came from — which has already let them go, so it takes them back. Every tab the window
- * was to open, not just its active one.
+ * was to open, not just its active one, and a moved tab's `carry` (`null` for none).
  */
-export const onTabSpawnFailed = (cb: (paths: string[]) => void) => subscribeHere<{ paths: string[] }>("tab-spawn-failed", (p) => cb(p.paths));
+export const onTabSpawnFailed = (cb: (paths: string[], carry: TabCarry | null) => void) =>
+  subscribeHere<{ paths: string[]; carry: TabCarry | null }>("tab-spawn-failed", (p) => cb(p.paths, p.carry));
 
 /**
  * A tab dragged in another window is over this one (`tab-drag-over`): `x` is where it would land, in
@@ -61,8 +63,8 @@ export const onTabDragOver = (cb: (x: number) => void) => subscribeHere<{ x: num
 /** The drag left this window, or ended (`tab-drag-out`): the drop caret goes. */
 export const onTabDragOut = (cb: () => void) => subscribeHere<null>("tab-drag-out", () => cb());
 
-/** A tab was dropped on this window (`tab-adopt`); the backend has already moved the repository's holder here. */
-export const onTabAdopt = (cb: (p: { path: string; x: number }) => void) => subscribeHere<{ path: string; x: number }>("tab-adopt", cb);
+/** A tab was dropped on this window (`tab-adopt`), with its state; the backend has already moved the repository's holder here. */
+export const onTabAdopt = (cb: (p: { path: string; x: number; carry: TabCarry }) => void) => subscribeHere<{ path: string; x: number; carry: TabCarry }>("tab-adopt", cb);
 
 /**
  * Streamed output of a CLI op (`op://event`), addressed to the window that owns the op: untargeted,

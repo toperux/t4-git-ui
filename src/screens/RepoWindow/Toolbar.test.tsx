@@ -287,6 +287,7 @@ describe("Toolbar repository handle", () => {
 
   it("drags the active tab out, and the only tab is handed over rather than torn off", async () => {
     mocked.dropTab.mockResolvedValue("adopted");
+    useViewStore.getState().setView("changes");
     const { getByRole, getByText } = render(<Toolbar />);
     const btn = getByRole("button", { name: "r" });
     await drag(btn);
@@ -295,7 +296,8 @@ describe("Toolbar repository handle", () => {
     expect(mocked.dragOver).toHaveBeenCalledWith(150, 250);
 
     await drop(btn);
-    expect(mocked.dropTab).toHaveBeenCalledWith(150, 250, "/repos/r", false);
+    // With the active tab's carry, from the live stores.
+    expect(mocked.dropTab).toHaveBeenCalledWith(150, 250, "/repos/r", false, expect.objectContaining({ view: "changes" }));
     expect(closeTab).toHaveBeenCalledWith("/r");
     // The click that follows the drag is not a click: the menu stays shut.
     fireEvent.click(btn);
@@ -308,7 +310,7 @@ describe("Toolbar repository handle", () => {
     const btn = getByRole("button", { name: "r" });
     await drag(btn);
     await drop(btn);
-    expect(mocked.dropTab).toHaveBeenCalledWith(150, 250, "/repos/r", true);
+    expect(mocked.dropTab).toHaveBeenCalledWith(150, 250, "/repos/r", true, expect.objectContaining({ view: "history" }));
     // `none`: nowhere to go, so the tab stays here.
     expect(closeTab).not.toHaveBeenCalled();
   });

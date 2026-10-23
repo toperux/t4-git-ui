@@ -17,7 +17,8 @@ use crate::AppState;
 
 /// What one window has open: repository paths in tab order, and the active one.
 /// The same shape travels three ways — parked for a window being created
-/// (`pending`), reported by a live one (`set_layout`), and written to disk.
+/// (`pending`, inside a [`Pending`]), reported by a live one (`set_layout`), and
+/// written to disk.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Layout {
     pub tabs: Vec<String>,
@@ -27,6 +28,19 @@ pub struct Layout {
     /// `None`: an older app reads a newer file as before.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rect: Option<Rect>,
+}
+
+/// What a window being created is handed ([`take_pending`]): its [`Layout`], and
+/// for a tab moved from another window (detach, a tear-off) that tab's state —
+/// the frontend's `TabCarry`, opaque here. Beside the layout, never inside it:
+/// `Layout` is what `layout.json` holds, and a draft must not reach the disk.
+/// Flattened, so a reply without a carry is the bare `Layout`.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct Pending {
+    #[serde(flatten)]
+    pub layout: Layout,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub carry: Option<serde_json::Value>,
 }
 
 /// A secondary window's restored (not maximized) frame: its outer top-left in the units a
@@ -143,6 +157,16 @@ pub fn focus_window(app: &AppHandle, label: &str) {
 /// `reference` is the window a second launch cascades from ([`cascade_from`]):
 /// `placement` is in its scale, and the new window takes its size rather than
 /// `main`'s, shrunk where it would not fit at the offset ([`place`]).
+/// `carry` is a moved tab's state ([`Pending`]), `None` for a restore or a
+/// second launch.
+///
+/// A hand-over (a `carry`: detach, a tear-off) moves the source's claim on the
+/// tab's repository to the new label at once, as [`drop_tab`]'s adopt does: the
+/// new window's `open_repo` must not find it still held by the source, which
+/// would answer "open elsewhere" and open nothing. Restores and second launches
+/// never move one: `layout.json` can list one repository in two windows (a
+/// closed window's entry kept for its grace), and a move could take `main`'s
+/// live claim.
 ///
 /// The build runs on a worker thread on purpose: `build()` waits on the event
 /// loop to construct the webview, and this command already runs *on* that loop,
@@ -155,16 +179,31 @@ pub fn spawn(
     payload: Layout,
     placement: Option<(f64, f64)>,
     reference: Option<String>,
+    carry: Option<serde_json::Value>,
 ) -> String {
     // In a block: `state` borrows `app`, and the thread below takes a clone of it.
-    let label = {
+    let (label, claim) = {
         let state = app.state::<AppState>();
         let label = state.next_window_label();
-        state.pending().insert(label.clone(), payload.clone());
+        // The id as `drop_tab` gets it; `Some` only when the claim did move, for the give-back.
+        let claim = match (&source, &carry) {
+            (Some(from), Some(_)) => {
+                let (id, _) = RepoId::from_workdir(Path::new(&payload.active));
+                state.move_claim(from, &label, &id).then_some(id)
+            }
+            _ => None,
+        };
+        state.pending().insert(
+            label.clone(),
+            Pending {
+                layout: payload.clone(),
+                carry: carry.clone(),
+            },
+        );
         let mut layouts = state.layouts();
         spawned(&mut layouts, &label, payload.clone());
         persist(&mut layouts, &layout_file(app), Instant::now());
-        label
+        (label, claim)
     };
 
     let rect = payload.rect;
@@ -245,13 +284,33 @@ pub fn spawn(
                     persist(&mut layouts, &path, Instant::now());
                     settle(&mut layouts, &path, &target);
                 }
+                // The claim a hand-over moved goes back first, so the source's reopen finds it
+                // its own. A source closed meanwhile has released everything already: a claim
+                // given back to it would block the repository for the rest of the session, so
+                // it is dropped instead, and the handle with it when nobody holds it.
+                if let Some(id) = &claim {
+                    match source
+                        .as_deref()
+                        .filter(|s| app.get_webview_window(s).is_some())
+                    {
+                        Some(from) => {
+                            state.move_claim(&target, from, id);
+                        }
+                        None => {
+                            if state.unhold(&target, id) {
+                                super::repo::drop_repo(&state, id);
+                            }
+                        }
+                    }
+                }
                 // Give the tabs back to the window that let them go, or they are
-                // lost — every one of them, not just the active one.
+                // lost — every one of them, not just the active one — with a moved
+                // tab's carry.
                 if let Some(source) = &source {
                     let _ = app.emit_to(
                         source,
                         "tab-spawn-failed",
-                        serde_json::json!({ "paths": payload.tabs }),
+                        serde_json::json!({ "paths": payload.tabs, "carry": carry }),
                     );
                 }
             }
@@ -441,6 +500,7 @@ pub fn spawn_window(
     window: Window,
     payload: Layout,
     placement: Option<(f64, f64)>,
+    carry: Option<serde_json::Value>,
 ) -> String {
     spawn(
         &app,
@@ -448,13 +508,15 @@ pub fn spawn_window(
         payload,
         placement,
         None,
+        carry,
     )
 }
 
-/// Hands this window whatever it was created to open. Consumed on first call;
-/// `None` in the main window, which reads [`take_layout`] instead.
+/// Hands this window whatever it was created to open, and a moved tab's carry.
+/// Consumed on first call; `None` in the main window, which reads
+/// [`take_layout`] instead.
 #[tauri::command]
-pub fn take_pending(state: State<'_, AppState>, window: Window) -> Option<Layout> {
+pub fn take_pending(state: State<'_, AppState>, window: Window) -> Option<Pending> {
     state.pending().remove(window.label())
 }
 
@@ -983,8 +1045,10 @@ pub fn drag_cancel(app: AppHandle, state: State<'_, AppState>) {
 /// Releases a tab dragged to a physical screen point: over another window it is
 /// `adopted` there, over anything else it is `spawned` into a window of its own
 /// — unless `tear_off` is false, when there is nowhere for it to go (`none`) and
-/// the source keeps it. The caller drops its own tab on the first two.
+/// the source keeps it. The caller drops its own tab on the first two. `carry`
+/// (the tab's state, [`Pending`]) goes with it either way.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn drop_tab(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -993,6 +1057,7 @@ pub fn drop_tab(
     y: f64,
     path: String,
     tear_off: bool,
+    carry: serde_json::Value,
 ) -> &'static str {
     clear_drag(&app, &state);
     let source = window.label().to_string();
@@ -1008,7 +1073,7 @@ pub fn drop_tab(
             let _ = app.emit_to(
                 &label,
                 "tab-adopt",
-                serde_json::json!({ "path": path, "x": lx }),
+                serde_json::json!({ "path": path, "x": lx, "carry": carry }),
             );
             focus_window(&app, &label);
             "adopted"
@@ -1029,6 +1094,7 @@ pub fn drop_tab(
                 window,
                 payload,
                 Some((x - 140.0 * scale, y - 24.0 * scale)),
+                Some(carry),
             );
             "spawned"
         }
@@ -1759,6 +1825,38 @@ mod tests {
             serde_json::from_str::<Layout>(&text).unwrap(),
             layout(&["c:/a"])
         );
+    }
+
+    /// A moved tab's carry sits beside the layout's own fields, not inside
+    /// them; without one the reply is the bare `Layout` the frontend reads.
+    #[test]
+    fn a_pending_window_is_its_layout_plus_the_carry() {
+        let bare = Pending {
+            layout: layout(&["c:/a"]),
+            carry: None,
+        };
+        let text = serde_json::to_string(&bare).unwrap();
+        assert_eq!(text, serde_json::to_string(&layout(&["c:/a"])).unwrap());
+        assert_eq!(serde_json::from_str::<Pending>(&text).unwrap(), bare);
+
+        let carried = Pending {
+            layout: Layout {
+                rect: Some(rect(10, 20, false)),
+                ..layout(&["c:/a"])
+            },
+            carry: Some(serde_json::json!({ "view": "changes" })),
+        };
+        let value = serde_json::to_value(&carried).unwrap();
+        assert_eq!(
+            value,
+            serde_json::json!({
+                "tabs": ["c:/a"],
+                "active": "c:/a",
+                "rect": { "x": 10, "y": 20, "width": 1000.0, "height": 700.0, "maximized": false },
+                "carry": { "view": "changes" },
+            })
+        );
+        assert_eq!(serde_json::from_value::<Pending>(value).unwrap(), carried);
     }
 
     /// The getters are physical: the position stays so on Windows and goes

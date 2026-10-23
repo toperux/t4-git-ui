@@ -25,13 +25,13 @@ export function listenTabDrags(): () => void {
   const unlisten = [
     onTabDragOver((x) => useTabsStore.getState().setCaret(slotAt(x))),
     onTabDragOut(() => useTabsStore.getState().setCaret(null)),
-    onTabAdopt(({ path, x }) => {
+    onTabAdopt(({ path, x, carry }) => {
       // Measured before the caret goes, the way it was placed while the tab hovered.
       const at = slotAt(x);
       const st = useTabsStore.getState();
       st.setCaret(null);
       // Straight into its slot (clamped if tabs closed while it waited); a tab already open stays put.
-      void openWhenIdle(path, () => st.openTab(path, at)).catch((e: unknown) => toastError(toAppError(e), "Couldn't open repository"));
+      void openWhenIdle(path, () => st.openTab(path, at, carry)).catch((e: unknown) => toastError(toAppError(e), "Couldn't open repository"));
     }),
   ];
   return () => unlisten.forEach((fn) => fn());

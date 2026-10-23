@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useCommitStore } from "../../store/commitStore";
 import { useTabsStore, type Tab } from "../../store/tabsStore";
 import { TabStrip } from "./TabStrip";
 
@@ -105,6 +106,7 @@ describe("TabStrip", () => {
 
   it("a tab dropped on another window is closed here, one dropped nowhere stays", async () => {
     mocked.dropTab.mockResolvedValue("adopted");
+    useCommitStore.setState({ summary: "wip" });
     const { getAllByRole, getByRole } = render(<TabStrip />);
     const strip = getByRole("tablist");
     await grab(getAllByRole("tab"), 0);
@@ -112,7 +114,8 @@ describe("TabStrip", () => {
     await act(async () => {
       fireEvent.pointerUp(strip, { pointerId: 1, clientX: 50, clientY: 200 });
     });
-    expect(mocked.dropTab).toHaveBeenCalledWith(150, 250, "/repos/a", true);
+    // With the tab's carry: the active one's, from the live editor.
+    expect(mocked.dropTab).toHaveBeenCalledWith(150, 250, "/repos/a", true, expect.objectContaining({ draft: expect.objectContaining({ summary: "wip" }) }));
     expect(closeTab).toHaveBeenCalledWith("/a");
 
     closeTab.mockClear();

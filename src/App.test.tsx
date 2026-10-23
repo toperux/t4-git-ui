@@ -39,7 +39,7 @@ import { useCommitStore } from "./store/commitStore";
 import { useDialogStore } from "./store/dialogStore";
 import { useOpsStore } from "./store/opsStore";
 import { useRecentsStore } from "./store/recentsStore";
-import { useTabsStore } from "./store/tabsStore";
+import { type TabCarry, useTabsStore } from "./store/tabsStore";
 import { useToastStore } from "./store/toastStore";
 import { useUpdateStore } from "./store/updateStore";
 
@@ -47,7 +47,17 @@ const mocked = ipc as unknown as Record<
   "probeGit" | "takePending" | "takeLayout" | "spawnWindow" | "setLayout" | "lastUpdateCheck",
   ReturnType<typeof vi.fn>
 >;
-const openTab = vi.fn((_path: string, _at?: number) => Promise.resolve());
+const openTab = vi.fn((_path: string, _at?: number, _carry?: TabCarry | null) => Promise.resolve());
+/** A moved tab's state, as another window sent it. */
+const carry: TabCarry = {
+  draft: { summary: "wip", body: "", amend: false, signoff: false, sign: null, prefill: null },
+  spec: { kind: "all" },
+  filter: { text: "fix" },
+  selection: { oid: "c2" },
+  view: "changes",
+  topRow: 40,
+  total: 900,
+};
 /** Makes `openTab` add its tab, as the real one does once the repository opened: at `at`, else on the end. */
 const openTabAdds = () =>
   openTab.mockImplementation(async (p, at) =>
@@ -91,8 +101,9 @@ describe("App", () => {
     });
     render(<App />);
     await settled();
-    expect(openTab.mock.calls).toEqual([["/a"], ["/b"]]);
-    expect(mocked.spawnWindow).toHaveBeenCalledWith({ tabs: ["/c"], active: "/c" });
+    expect(openTab.mock.calls).toEqual([["/a", undefined, null], ["/b", undefined, null]]);
+    // A restore hands nothing over: no carry, so the backend moves no repository claim.
+    expect(mocked.spawnWindow).toHaveBeenCalledWith({ tabs: ["/c"], active: "/c" }, null, null);
   });
 
   it("keeps restoring the rest when one repository will not open", async () => {
@@ -100,16 +111,23 @@ describe("App", () => {
     openTab.mockRejectedValueOnce({ kind: "internal", message: "not a repository" });
     render(<App />);
     await settled();
-    expect(openTab.mock.calls).toEqual([["/gone"], ["/b"]]);
+    expect(openTab.mock.calls).toEqual([["/gone", undefined, null], ["/b", undefined, null]]);
   });
 
   it("a window created with tabs opens those, and asks for no layout", async () => {
     mocked.takePending.mockResolvedValue({ tabs: ["/d"], active: "/d" });
     render(<App />);
     await settled();
-    expect(openTab.mock.calls).toEqual([["/d"]]);
+    expect(openTab.mock.calls).toEqual([["/d", undefined, null]]);
     expect(mocked.takeLayout).not.toHaveBeenCalled();
     expect(mocked.spawnWindow).not.toHaveBeenCalled();
+  });
+
+  it("a window created for a moved tab opens it with its carry", async () => {
+    mocked.takePending.mockResolvedValue({ tabs: ["/d"], active: "/d", carry });
+    render(<App />);
+    await settled();
+    expect(openTab.mock.calls).toEqual([["/d", undefined, carry]]);
   });
 
   it("with no layout yet (the first launch after the upgrade) falls back to the last repository", async () => {
@@ -237,8 +255,9 @@ describe("App", () => {
 describe("a tab that lands in this window from another one", () => {
   // Neither can be refused: a dropped tab's repository has already moved here, and a taken-back one
   // already left this window. Each waits for the operation, the commit or the dialog instead.
-  const adopt = (path: string) => act(() => vi.mocked(events.onTabAdopt).mock.lastCall![0]({ path, x: 0 }));
-  const spawnFailed = (paths: string[]) => act(() => vi.mocked(events.onTabSpawnFailed).mock.lastCall![0](paths));
+  const adopt = (path: string) => act(() => vi.mocked(events.onTabAdopt).mock.lastCall![0]({ path, x: 0, carry }));
+  // A restore's multi-tab window carries nothing; a hand-over's one tab does.
+  const spawnFailed = (paths: string[], moved: TabCarry | null = null) => act(() => vi.mocked(events.onTabSpawnFailed).mock.lastCall![0](paths, moved));
   const paths = () => useTabsStore.getState().tabs.map((t) => t.path);
   const infos = () => useToastStore.getState().toasts.filter((t) => t.kind === "info");
 
@@ -254,7 +273,7 @@ describe("a tab that lands in this window from another one", () => {
     const shown: string[][] = [];
     const unsubscribe = useTabsStore.subscribe((st) => shown.push(st.tabs.map((t) => t.path)));
     adopt("/c");
-    expect(openTab).toHaveBeenCalledWith("/c", 0);
+    expect(openTab).toHaveBeenCalledWith("/c", 0, carry);
     await settled();
     unsubscribe();
     expect(paths()).toEqual(["/c", "/a", "/b"]);
@@ -273,7 +292,7 @@ describe("a tab that lands in this window from another one", () => {
 
     act(() => useOpsStore.setState({ busy: null }));
     await vi.waitFor(() => expect(paths()).toEqual(["/d", "/c", "/a", "/b"]));
-    expect(openTab.mock.calls).toEqual([["/c", 0], ["/d", 0]]);
+    expect(openTab.mock.calls).toEqual([["/c", 0, carry], ["/d", 0, carry]]);
   });
 
   it("taken back from a window that never opened, while a commit runs, waits for it too", async () => {
@@ -285,7 +304,13 @@ describe("a tab that lands in this window from another one", () => {
 
     act(() => useCommitStore.setState({ busy: false }));
     await vi.waitFor(() => expect(paths()).toEqual(["/a", "/b", "/c", "/d"]));
-    expect(openTab.mock.calls).toEqual([["/c"], ["/d"]]);
+    expect(openTab.mock.calls).toEqual([["/c", undefined, null], ["/d", undefined, null]]);
+  });
+
+  it("taken back from a hand-over's window that never opened, brings its carry", async () => {
+    spawnFailed(["/c"], carry);
+    await vi.waitFor(() => expect(paths()).toEqual(["/a", "/b", "/c"]));
+    expect(openTab.mock.calls).toEqual([["/c", undefined, carry]]);
   });
 
   it("taken back while nothing runs, open one at a time: the next waits for the one before to finish", async () => {
@@ -293,11 +318,11 @@ describe("a tab that lands in this window from another one", () => {
     openTab.mockImplementationOnce(() => new Promise<void>((r) => (first = r)));
     spawnFailed(["/c", "/d"]);
     await settled();
-    expect(openTab.mock.calls).toEqual([["/c"]]);
+    expect(openTab.mock.calls).toEqual([["/c", undefined, null]]);
     expect(infos()).toEqual([]);
 
     first();
-    await vi.waitFor(() => expect(openTab.mock.calls).toEqual([["/c"], ["/d"]]));
+    await vi.waitFor(() => expect(openTab.mock.calls).toEqual([["/c", undefined, null], ["/d", undefined, null]]));
   });
 
   it("dropped in a commit's tail (after `busy`, before `commit()` returns), opens once it returns", async () => {
@@ -308,7 +333,7 @@ describe("a tab that lands in this window from another one", () => {
 
     act(() => useCommitStore.setState({ inCommit: false }));
     await vi.waitFor(() => expect(paths()).toEqual(["/c", "/a", "/b"]));
-    expect(openTab.mock.calls).toEqual([["/c", 0]]);
+    expect(openTab.mock.calls).toEqual([["/c", 0, carry]]);
   });
 
   // Commit & Push (the commit returns, then Push opens) is pinned on the real panel: CommitPanel.test.tsx.
@@ -322,7 +347,7 @@ describe("a tab that lands in this window from another one", () => {
 
     act(() => useDialogStore.getState().close());
     await vi.waitFor(() => expect(paths()).toEqual(["/c", "/a", "/b"]));
-    expect(openTab.mock.calls).toEqual([["/c", 0]]);
+    expect(openTab.mock.calls).toEqual([["/c", 0, carry]]);
   });
 
   it("a queued open that throws outright says so too, and doesn't stall the queue", async () => {
@@ -344,7 +369,7 @@ describe("a tab that lands in this window from another one", () => {
     adopt("/d");
     act(() => useOpsStore.setState({ busy: null }));
     await vi.waitFor(() => expect(paths()).toEqual(["/d", "/a", "/b"]));
-    expect(openTab.mock.calls).toEqual([["/c", 0], ["/d", 0]]);
+    expect(openTab.mock.calls).toEqual([["/c", 0, carry], ["/d", 0, carry]]);
     expect(useToastStore.getState().toasts.filter((t) => t.kind === "error").map((t) => t.title)).toEqual(["Couldn't open repository"]);
   });
 });

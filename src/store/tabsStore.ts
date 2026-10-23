@@ -5,18 +5,19 @@
 import { create } from "zustand";
 import * as ipc from "../api/ipc";
 import { toAppError } from "../api/ipc";
-import type { RepoId } from "../api/types";
+import type { LogFilter, RepoId, RevSpec } from "../api/types";
 import { closeThisWindow, isMainWindow } from "../lib/appWindow";
 import { baseName } from "../lib/paths";
+import { pick } from "../lib/pick";
 import { refreshAll, refusedWhileRunning } from "../screens/RepoWindow/actions";
 import { forgetScroll, seedScroll, takeNote, type DiffScroll } from "../screens/RepoWindow/DiffViewer/diffScroll";
 import { hasDraft, restore as restoreCommit, snapshot as commitSnapshot, type CommitSnapshot, useCommitStore } from "./commitStore";
 import { useDialogStore } from "./dialogStore";
 import { restore as restoreDiff, snapshot as diffSnapshot, type DiffSnapshot } from "./diffStore";
-import { restore as restoreRepo, snapshot as repoSnapshot, useRepoStore, type RepoSnapshot } from "./repoStore";
+import { lastTopRow, restore as restoreRepo, selectSelectedOid, snapshot as repoSnapshot, useRepoStore, type RepoSnapshot } from "./repoStore";
 import { restore as restoreStatus, snapshot as statusSnapshot, type StatusSnapshot } from "./statusStore";
 import { toastError } from "./toastStore";
-import { restore as restoreView, snapshot as viewSnapshot, useViewStore, type ViewSnapshot } from "./viewStore";
+import { restore as restoreView, snapshot as viewSnapshot, useViewStore, type View, type ViewSnapshot } from "./viewStore";
 
 export interface Tab {
   id: RepoId;
@@ -38,6 +39,36 @@ export interface Snapshot {
   scroll: DiffScroll | null;
 }
 
+const DRAFT_KEYS = ["summary", "body", "amend", "signoff", "sign", "prefill"] as const;
+
+/**
+ * What a tab moved to another window takes with it, beside its path (detach, and a drag onto another
+ * window or into a window of its own): opaque to Rust, and never in `layout.json`.
+ */
+export interface TabCarry {
+  /** The commit editor. */
+  draft: Pick<CommitSnapshot, (typeof DRAFT_KEYS)[number]>;
+  spec: RevSpec;
+  filter: LogFilter;
+  /** The working-tree row, or the selected commit — a compare's or a stash preview's own; `null` for nothing. */
+  selection: "workingTree" | { oid: string } | null;
+  view: View;
+  /** The grid's first visible row, and the walk's total that lets the grid scroll there before the pages land. */
+  topRow: number;
+  total: number;
+}
+
+/** A background tab with no snapshot carries nothing. */
+const NO_CARRY: TabCarry = {
+  draft: { summary: "", body: "", amend: false, signoff: false, sign: null, prefill: null },
+  spec: { kind: "all" },
+  filter: {},
+  selection: null,
+  view: "history",
+  topRow: 0,
+  total: 0,
+};
+
 export interface TabsStore {
   tabs: Tab[];
   active: RepoId | null;
@@ -49,14 +80,16 @@ export interface TabsStore {
    * Opens `path` in a new tab — or activates the tab that already has it, or focuses the other
    * window that does (`openElsewhere`, which resolves quietly). Rejects with the `AppError` of a
    * real failure, so each entry point can say what it wants about it. A new tab goes on the end, or
-   * at `at` (a drop's slot, clamped); one already open stays where it is.
+   * at `at` (a drop's slot, clamped); one already open stays where it is. `carry`: a tab moved from
+   * another window, its state put back once the repository opened (`applyCarry`); dropped for a tab
+   * already open, or when another tab is active by then.
    */
-  openTab(path: string, at?: number): Promise<void>;
+  openTab(path: string, at?: number, carry?: TabCarry | null): Promise<void>;
   activate(id: RepoId): void;
   /** Closes the tab and lets go of its repository; the last tab closes the window (or, in the main window, shows the start screen). */
   closeTab(id: RepoId): Promise<void>;
   markStale(id: RepoId): void;
-  /** Moves the tab to a window of its own. */
+  /** Moves the tab to a window of its own, with its state (`tabCarry`). */
   detach(id: RepoId): Promise<void>;
   reorder(from: number, to: number): void;
   setCaret(at: number | null): void;
@@ -92,13 +125,28 @@ function show(snap: Snapshot | undefined) {
   refreshAll();
 }
 
+/**
+ * Puts a moved tab's state back, after `openRepo`'s resets. In one synchronous run: an `await`
+ * between the steps would let a tab switch land the rest on the other tab. The walk is started, not
+ * awaited, so `reselectTo` waits for that walk; the top row comes after its start, as `restore` does.
+ */
+function applyCarry(c: TabCarry) {
+  useCommitStore.setState(c.draft);
+  const repo = useRepoStore.getState();
+  void repo.startLog(c.spec, c.filter);
+  if (c.selection === "workingTree") repo.selectWorkingTree();
+  else if (c.selection) repo.reselectTo(c.selection.oid);
+  useViewStore.getState().setView(c.view);
+  repo.restoreTopRow(c.topRow, c.total);
+}
+
 export const useTabsStore = create<TabsStore>()((set, get) => ({
   tabs: [],
   active: null,
   saved: {},
   caret: null,
 
-  async openTab(path, at) {
+  async openTab(path, at, carry) {
     // The *Opening…* overlay from the click, not from the backend's answer: `repoStore.openRepo`
     // sets it too, but only after the wait below, which showed nothing. Cleared on every way out.
     useRepoStore.setState({ opening: baseName(path) });
@@ -138,6 +186,9 @@ export const useTabsStore = create<TabsStore>()((set, get) => ({
         await get().closeTab(summary.id);
         throw e;
       }
+      // Only while it is still the tab shown: a switch or a close during the open (Ctrl+Tab, Ctrl+W,
+      // a second open) would put its draft in another repository's editor.
+      if (carry && get().active === summary.id) applyCarry(carry);
     } finally {
       useRepoStore.setState({ opening: null });
     }
@@ -199,7 +250,7 @@ export const useTabsStore = create<TabsStore>()((set, get) => ({
     if (!tab || get().tabs.length < 2) return;
     if (refusedWhileRunning("moving the tab to a new window")) return;
     try {
-      await ipc.spawnWindow({ tabs: [tab.path], active: tab.path });
+      await ipc.spawnWindow({ tabs: [tab.path], active: tab.path }, null, tabCarry(id));
     } catch (e) {
       toastError(toAppError(e), "Couldn't open a new window");
       return;
@@ -219,6 +270,26 @@ export const useTabsStore = create<TabsStore>()((set, get) => ({
     if (at !== get().caret) set({ caret: at });
   },
 }));
+
+/** What `id` takes to another window: from the live stores when it is the active tab, else from its snapshot. */
+export function tabCarry(id: RepoId): TabCarry {
+  const { active, saved } = useTabsStore.getState();
+  const live = id === active;
+  const snap = saved[id];
+  if (!live && !snap) return NO_CARRY;
+  const repo = live ? useRepoStore.getState() : snap.repo;
+  const oid = selectSelectedOid(repo);
+  return {
+    draft: pick(live ? useCommitStore.getState() : snap.commit, DRAFT_KEYS),
+    spec: repo.spec,
+    filter: repo.filter,
+    selection: repo.wtSelected ? "workingTree" : oid ? { oid } : null,
+    view: live ? useViewStore.getState().view : snap.view.view,
+    // A snapshot keeps its top row as the reveal a switch back would answer.
+    topRow: live ? lastTopRow() : (snap.repo.reveal?.index ?? 0),
+    total: repo.log.total,
+  };
+}
 
 /** The active tab, for the strip and the title. */
 export const selectActiveTab = (s: TabsStore) => s.tabs.find((t) => t.id === s.active) ?? null;

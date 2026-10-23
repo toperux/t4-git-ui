@@ -41,6 +41,8 @@ import type {
   WindowOrigin,
   WorkdirStatus,
 } from "./types";
+// Type only: the carry is opaque to Rust, and its shape is the tab store's.
+import type { TabCarry } from "../store/tabsStore";
 
 export function isAppError(e: unknown): e is AppError {
   return (
@@ -97,13 +99,15 @@ export const closeRepo = (id: RepoId) => call<void>("close_repo", { id });
 
 /**
  * Opens another T4 Git UI window showing `payload`'s tabs, at `placement` (a physical screen point for
- * its top-left) or wherever the OS puts it. Resolves with the new window's label.
+ * its top-left) or wherever the OS puts it. Resolves with the new window's label. `carry`: the state of
+ * a tab moved there (detach), `null` for a restore — required, since it is also how the backend tells
+ * a hand-over, whose repository claim it moves to the new window, from a restore.
  */
-export const spawnWindow = (payload: Layout, placement: [number, number] | null = null) =>
-  call<string>("spawn_window", { payload, placement });
+export const spawnWindow = (payload: Layout, placement: [number, number] | null, carry: TabCarry | null) =>
+  call<string>("spawn_window", { payload, placement, carry });
 
-/** What this window was created to open; `null` in the main window, which reads `takeLayout`. */
-export const takePending = () => call<Layout | null>("take_pending");
+/** What this window was created to open, with a moved tab's `carry`; `null` in the main window, which reads `takeLayout`. */
+export const takePending = () => call<(Layout & { carry?: TabCarry }) | null>("take_pending");
 
 /**
  * Reports this window's tabs, for `layout.json` — called on every tab change, and once after a restore
@@ -139,9 +143,10 @@ export const dragCancel = () => call<void>("drag_cancel");
 /**
  * Releases a dragged tab at a physical screen point: `adopted` by the window under it, `spawned`
  * into one of its own (`tearOff`), or `none` — nowhere to go, so the tab stays where it was. The
- * caller closes its own tab on the first two.
+ * caller closes its own tab on the first two. `carry`, the tab's state, goes with it either way.
  */
-export const dropTab = (x: number, y: number, path: string, tearOff: boolean) => call<"adopted" | "spawned" | "none">("drop_tab", { x, y, path, tearOff });
+export const dropTab = (x: number, y: number, path: string, tearOff: boolean, carry: TabCarry) =>
+  call<"adopted" | "spawned" | "none">("drop_tab", { x, y, path, tearOff, carry });
 
 export const getRefs = (id: RepoId) => call<RefsSnapshot>("get_refs", { id });
 

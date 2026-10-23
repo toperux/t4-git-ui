@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { dragCancel, dragOver, dropTab, toAppError, windowOrigin } from "../../api/ipc";
 import type { RepoId, WindowOrigin } from "../../api/types";
-import { useTabsStore, type Tab } from "../../store/tabsStore";
+import { tabCarry, useTabsStore, type Tab } from "../../store/tabsStore";
 import { toastError } from "../../store/toastStore";
 import { refusedWhileRunning } from "./actions";
 import s from "./TabStrip.module.css";
@@ -233,7 +233,8 @@ export function useTabDrag({ surface, reorder = false, onClick }: TabDragOptions
     try {
       // The last tab already has a window to itself: tearing it off would swap this window for a new
       // one and leave an empty shell behind. Adoption by another window still works.
-      const outcome = await (d.ipc = d.ipc.then(() => dropTab(x, y, tab.path, tabsNow.length > 1)));
+      const carry = tabCarry(tab.id);
+      const outcome = await (d.ipc = d.ipc.then(() => dropTab(x, y, tab.path, tabsNow.length > 1, carry)));
       // Only once the tab has somewhere to be: a spawn that fails must not lose the repository, and
       // `closeTab` closes a secondary window whose last tab this was.
       if (outcome !== "none") await useTabsStore.getState().closeTab(tab.id);

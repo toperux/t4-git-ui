@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { FileDiff, RepoSummary } from "../api/types";
+import type { FileDiff, LogRow, RepoSummary } from "../api/types";
 
 vi.mock("../api/ipc", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api/ipc")>();
@@ -26,14 +26,17 @@ import * as ipc from "../api/ipc";
 import { forgetScroll, noteScroll, seedScroll, takeNote, takeSeed, type DiffScroll } from "../screens/RepoWindow/DiffViewer/diffScroll";
 import { useCommitStore } from "./commitStore";
 import { useDialogStore } from "./dialogStore";
-import { __resetForTests as resetRepo, useRepoStore } from "./repoStore";
-import { draftRepos, type Snapshot, useTabsStore } from "./tabsStore";
+import { __resetForTests as resetRepo, lastTopRow, noteTopRow, useRepoStore } from "./repoStore";
+import { draftRepos, type Snapshot, type TabCarry, useTabsStore } from "./tabsStore";
 import { useViewStore } from "./viewStore";
 
 let label = "main";
-const mocked = ipc as unknown as Record<"openRepo" | "closeRepo" | "spawnWindow" | "startLog", ReturnType<typeof vi.fn>>;
+const mocked = ipc as unknown as Record<"openRepo" | "closeRepo" | "spawnWindow" | "startLog" | "getLogPage", ReturnType<typeof vi.fn>>;
 const summary = (path: string): RepoSummary => ({ id: path, name: path.slice(1), path, head: { oid: "a", branch: "main", detached: false } });
 const tabs = () => useTabsStore.getState().tabs;
+const row = (oid: string) => ({ row: { commit: { oid } } }) as unknown as LogRow;
+/** Lets the walk's unawaited page requests land. */
+const settle = () => new Promise((r) => setTimeout(r, 0));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -45,6 +48,8 @@ beforeEach(() => {
   mocked.openRepo.mockImplementation((path: string) => Promise.resolve(summary(path)));
   mocked.closeRepo.mockResolvedValue(undefined);
   mocked.spawnWindow.mockResolvedValue("w1");
+  mocked.startLog.mockImplementation(() => Promise.resolve(1));
+  mocked.getLogPage.mockImplementation(() => Promise.resolve({ rows: [], total: 0, complete: true, generation: 1, error: null }));
 });
 
 describe("openTab", () => {
@@ -84,6 +89,128 @@ describe("openTab", () => {
     mocked.openRepo.mockRejectedValueOnce({ kind: "openElsewhere", message: "a is open in another window" });
     await expect(useTabsStore.getState().openTab("/a")).resolves.toBeUndefined();
     expect(tabs()).toEqual([]);
+  });
+});
+
+describe("openTab with a tab moved from another window", () => {
+  const carry = (over: Partial<TabCarry> = {}): TabCarry => ({
+    draft: { summary: "moved", body: "along", amend: true, signoff: true, sign: false, prefill: null },
+    spec: { kind: "head" },
+    filter: { text: "fix" },
+    selection: { oid: "c2" },
+    view: "changes",
+    topRow: 42,
+    total: 1200,
+    ...over,
+  });
+  const pages = (oids: string[], over: object = {}) =>
+    mocked.getLogPage.mockImplementation(() => Promise.resolve({ rows: oids.map(row), total: oids.length, complete: true, generation: 1, error: null, ...over }));
+  /** The calls that started a walk with the carry's spec. */
+  const carriedWalks = () => mocked.startLog.mock.calls.filter((c) => (c[1] as { kind: string }).kind === "head");
+
+  it("puts back its draft, walk, selection, view and top row once the repository opened", async () => {
+    let gen = 0;
+    mocked.startLog.mockImplementation(() => Promise.resolve(++gen));
+    pages(["c0", "c1", "c2"]);
+    await useTabsStore.getState().openTab("/a", undefined, carry());
+
+    expect(useCommitStore.getState()).toMatchObject(carry().draft);
+    expect(mocked.startLog).toHaveBeenLastCalledWith("/a", { kind: "head" }, { text: "fix" });
+    expect(useViewStore.getState().view).toBe("changes");
+    expect(lastTopRow()).toBe(42);
+    expect(useRepoStore.getState().reveal).toMatchObject({ index: 42, align: "start" });
+    // The selection waits for the carried walk, past `openRepo`'s own first row.
+    await vi.waitFor(() => expect(useRepoStore.getState().selectedIndex).toBe(2));
+    expect(useRepoStore.getState().wtSelected).toBe(false);
+  });
+
+  it("puts back the working-tree row", async () => {
+    await useTabsStore.getState().openTab("/a", undefined, carry({ filter: {}, selection: "workingTree" }));
+    expect(useRepoStore.getState().wtSelected).toBe(true);
+  });
+
+  it("raises the walk's total to the carried one, so the grid can scroll to the row; never lowers a larger one", async () => {
+    // The carried walk's start never answers: the totals are what the carry left.
+    mocked.startLog.mockImplementationOnce(() => Promise.resolve(1)).mockImplementationOnce(() => new Promise(() => {}));
+    await useTabsStore.getState().openTab("/a", undefined, carry());
+    expect(useRepoStore.getState().log.total).toBe(1200);
+
+    mocked.startLog.mockImplementationOnce(() => Promise.resolve(1)).mockImplementationOnce(() => new Promise(() => {}));
+    pages([], { total: 5000, complete: false });
+    await useTabsStore.getState().openTab("/b", undefined, carry());
+    expect(useRepoStore.getState().log.total).toBe(5000);
+  });
+
+  it("is dropped for a tab already open", async () => {
+    await useTabsStore.getState().openTab("/a");
+    await useTabsStore.getState().openTab("/b");
+    await useTabsStore.getState().openTab("/a", undefined, carry());
+    expect(useTabsStore.getState().active).toBe("/a");
+    expect(useCommitStore.getState().summary).toBe("");
+    expect(useViewStore.getState().view).toBe("history");
+    expect(carriedWalks()).toEqual([]);
+  });
+
+  describe("is dropped when another tab is active by the time the repository opened", () => {
+    /** `/a`, with a draft, a selected commit, its view and its grid's top row of its own; then `/b` opening with a carry, its walk held. */
+    async function moveInWhileOnA() {
+      pages(["c0", "c1"]);
+      await useTabsStore.getState().openTab("/a");
+      await settle();
+      useRepoStore.getState().select(1);
+      useCommitStore.setState({ summary: "a's own" });
+      noteTopRow(5);
+      let started!: (generation: number) => void;
+      mocked.startLog.mockImplementationOnce(() => new Promise<number>((r) => (started = r)));
+      const done = useTabsStore.getState().openTab("/b", undefined, carry());
+      await vi.waitFor(() => expect(started).toBeDefined());
+      return { done, started: () => started(2) };
+    }
+    async function expectAAlone() {
+      await settle();
+      const r = useRepoStore.getState();
+      expect(useTabsStore.getState().active).toBe("/a");
+      expect(r.repo?.id).toBe("/a");
+      expect([r.selectedIndex, r.wtSelected, r.spec, r.filter]).toEqual([1, false, { kind: "all" }, {}]);
+      expect(useCommitStore.getState().summary).toBe("a's own");
+      expect(useViewStore.getState().view).toBe("history");
+      expect(lastTopRow()).toBe(5);
+      expect(carriedWalks()).toEqual([]);
+    }
+
+    it("by a switch", async () => {
+      const { done, started } = await moveInWhileOnA();
+      useTabsStore.getState().activate("/a");
+      started();
+      await done;
+      await expectAAlone();
+    });
+
+    it("by a close", async () => {
+      const { done, started } = await moveInWhileOnA();
+      await useTabsStore.getState().closeTab("/b");
+      started();
+      await done;
+      await expectAAlone();
+    });
+  });
+
+  it("a switch during the carried walk's start leaves the other tab's selection and view alone", async () => {
+    pages(["c0", "c1", "c2"]);
+    await useTabsStore.getState().openTab("/a");
+    await settle();
+    useRepoStore.getState().select(1);
+    let started!: (generation: number) => void;
+    mocked.startLog.mockImplementationOnce(() => Promise.resolve(2)).mockImplementationOnce(() => new Promise<number>((r) => (started = r)));
+    await useTabsStore.getState().openTab("/b", undefined, carry());
+    expect(useViewStore.getState().view).toBe("changes");
+
+    useTabsStore.getState().activate("/a");
+    started(3);
+    await settle();
+    const r = useRepoStore.getState();
+    expect([r.repo?.id, r.selectedIndex, r.wtSelected]).toEqual(["/a", 1, false]);
+    expect(useViewStore.getState().view).toBe("history");
   });
 });
 
@@ -341,9 +468,53 @@ describe("detach", () => {
     await useTabsStore.getState().openTab("/b");
 
     await useTabsStore.getState().detach("/b");
-    expect(mocked.spawnWindow).toHaveBeenCalledWith({ tabs: ["/b"], active: "/b" });
+    expect(mocked.spawnWindow).toHaveBeenCalledWith({ tabs: ["/b"], active: "/b" }, null, expect.anything());
     expect(tabs().map((t) => t.path)).toEqual(["/a"]);
     expect(mocked.closeRepo).toHaveBeenCalledWith("/b");
+  });
+
+  /** Gives the active tab something of each kind to carry. */
+  async function dress(n: number) {
+    await settle();
+    useCommitStore.setState({ summary: `wip ${n}`, body: "more", amend: true, signoff: true, sign: false, prefill: null });
+    useRepoStore.setState({ spec: { kind: "head" }, filter: { text: "fix" }, rows: [row("c0"), row(`c${n}`)], selectedIndex: 1, wtSelected: false, log: { ...useRepoStore.getState().log, total: 1000 + n } });
+    useViewStore.getState().setView("changes");
+    noteTopRow(40 + n);
+  }
+  const dressed = (n: number): TabCarry => ({
+    draft: { summary: `wip ${n}`, body: "more", amend: true, signoff: true, sign: false, prefill: null },
+    spec: { kind: "head" },
+    filter: { text: "fix" },
+    selection: { oid: `c${n}` },
+    view: "changes",
+    topRow: 40 + n,
+    total: 1000 + n,
+  });
+
+  it("carries the active tab's state from the live stores, its grid's top row and its walk's total", async () => {
+    await useTabsStore.getState().openTab("/a");
+    await useTabsStore.getState().openTab("/b");
+    await dress(2);
+    await useTabsStore.getState().detach("/b");
+    expect(mocked.spawnWindow).toHaveBeenCalledWith({ tabs: ["/b"], active: "/b" }, null, dressed(2));
+  });
+
+  it("carries a background tab's from its snapshot: the top row its reveal keeps", async () => {
+    await useTabsStore.getState().openTab("/a");
+    await dress(1);
+    await useTabsStore.getState().openTab("/b");
+    noteTopRow(7);
+    await useTabsStore.getState().detach("/a");
+    expect(mocked.spawnWindow).toHaveBeenCalledWith({ tabs: ["/a"], active: "/a" }, null, dressed(1));
+  });
+
+  it("carries the working-tree row, not the commit under it", async () => {
+    await useTabsStore.getState().openTab("/a");
+    await useTabsStore.getState().openTab("/b");
+    await dress(2);
+    useRepoStore.setState({ filter: {}, wtSelected: true });
+    await useTabsStore.getState().detach("/b");
+    expect(mocked.spawnWindow).toHaveBeenCalledWith({ tabs: ["/b"], active: "/b" }, null, { ...dressed(2), filter: {}, selection: "workingTree" });
   });
 
   it("keeps the tab when the window could not be opened", async () => {

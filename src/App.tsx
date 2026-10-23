@@ -72,11 +72,13 @@ async function restoreTabs() {
       return;
     }
     // The first entry is this window's; every other one gets a window of its own.
-    for (const other of layout.slice(1)) void spawnWindow(other).catch(() => undefined);
+    for (const other of layout.slice(1)) void spawnWindow(other, null, null).catch(() => undefined);
+    // A tab moved here brings its state (the window's one path); a restore brings none.
+    const carry = pending?.carry ?? null;
     // Per path: one repository that no longer opens must not cost every tab after it.
     for (const path of layout[0].tabs) {
       try {
-        await tabs.openTab(path);
+        await tabs.openTab(path, undefined, carry);
       } catch (e) {
         toastError(toAppError(e), "Couldn't open repository");
       }
@@ -172,13 +174,13 @@ export default function App() {
       // Another window wrote a preference: re-read it, or this one keeps a stale theme / diff default.
       onSettingsChanged(() => void useSettingsStore.getState().load()),
       // The window a tab was moved to never opened (the build fails after `spawn_window` returns):
-      // take the tab back rather than lose it.
-      onTabSpawnFailed((paths) => {
+      // take the tab back rather than lose it, with its state (a hand-over's one path).
+      onTabSpawnFailed((paths, carry) => {
         useToastStore.getState().push({ kind: "error", title: "Couldn't open a new window", detail: paths.join(", ") });
         // All handed over at once, so each one that has to wait says so; `openWhenIdle` still opens
         // them one at a time, in order, like `restoreTabs`: they all land in this window's one `repoStore`.
         for (const path of paths) {
-          void openWhenIdle(path, () => useTabsStore.getState().openTab(path)).catch((e: unknown) => toastError(toAppError(e), "Couldn't open repository"));
+          void openWhenIdle(path, () => useTabsStore.getState().openTab(path, undefined, carry)).catch((e: unknown) => toastError(toAppError(e), "Couldn't open repository"));
         }
       }),
       // A tab dragged in another window hovering this one, and dropped on it. Here rather than in the

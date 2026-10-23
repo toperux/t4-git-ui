@@ -8,7 +8,7 @@ use git_core::{RepoHandle, RepoId};
 use tokio_util::sync::CancellationToken;
 
 use crate::commands::update::{UpdateCheck, UpdateInfo};
-use crate::commands::window::{Layout, Layouts};
+use crate::commands::window::{Layouts, Pending};
 use crate::AppError;
 
 pub struct AppState {
@@ -23,8 +23,9 @@ pub struct AppState {
     /// Which window has which repository open. A handle (and its watcher) lives
     /// as long as any window holds its id — see [`AppState::unhold`].
     holders: Mutex<HashMap<String, HashSet<RepoId>>>,
-    /// What a window being created should open, until its webview asks.
-    pending: Mutex<HashMap<String, Layout>>,
+    /// What a window being created should open (and a moved tab's carry),
+    /// until its webview asks.
+    pending: Mutex<HashMap<String, Pending>>,
     /// What each window last reported having open, plus the ones closed a
     /// moment ago (window.rs `restorable`).
     layouts: Mutex<Layouts>,
@@ -121,6 +122,22 @@ impl AppState {
         !holders.values().any(|ids| ids.contains(id))
     }
 
+    /// Moves `from`'s claim on `id` to `to` — a tab handed to a window being
+    /// created, which the source's `close_repo` must not leave unheld, nor the
+    /// new window's `open_repo` find held elsewhere. False, and nothing moves,
+    /// when `from` has no such claim.
+    pub fn move_claim(&self, from: &str, to: &str, id: &RepoId) -> bool {
+        let mut holders = lock(&self.holders);
+        if !holders.get_mut(from).is_some_and(|ids| ids.remove(id)) {
+            return false;
+        }
+        holders
+            .entry(to.to_string())
+            .or_default()
+            .insert(id.clone());
+        true
+    }
+
     /// Drops every claim `label` had (its window is gone); the ids no window
     /// holds any more.
     pub fn release_all(&self, label: &str) -> Vec<RepoId> {
@@ -131,7 +148,7 @@ impl AppState {
             .collect()
     }
 
-    pub fn pending(&self) -> MutexGuard<'_, HashMap<String, Layout>> {
+    pub fn pending(&self) -> MutexGuard<'_, HashMap<String, Pending>> {
         lock(&self.pending)
     }
 
@@ -334,6 +351,31 @@ mod tests {
 
         assert_eq!(state.release_all("w1"), vec![b], "a destroyed window's ids");
         assert!(state.release_all("w1").is_empty());
+    }
+
+    /// A hand-over's claim: moved only from a window that has it, and moved
+    /// back the same way when the new window never opens.
+    #[test]
+    fn a_claim_moves_only_from_a_window_that_has_it() {
+        let state = AppState::default();
+        let a: RepoId = serde_json::from_str("\"c:/a\"").expect("repo id");
+        state.hold("main", &a);
+
+        assert!(!state.move_claim("w9", "w1", &a), "w9 never held it");
+        assert_eq!(state.holder_of(&a, "w1").as_deref(), Some("main"));
+
+        assert!(state.move_claim("main", "w1", &a));
+        assert_eq!(state.holder_of(&a, "main").as_deref(), Some("w1"));
+        assert_eq!(state.holder_of(&a, "w1"), None, "main let it go");
+        assert!(
+            !state.move_claim("main", "w1", &a),
+            "main has nothing left to move"
+        );
+
+        // The give-back.
+        assert!(state.move_claim("w1", "main", &a));
+        assert_eq!(state.holder_of(&a, "w1").as_deref(), Some("main"));
+        assert_eq!(state.holder_of(&a, "main"), None);
     }
 
     #[test]
