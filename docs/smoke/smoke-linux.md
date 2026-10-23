@@ -80,6 +80,9 @@ npm run tauri build -- --debug --no-bundle --config '{"identifier":"dev.topher.t
   exits.
 - **`--no-bundle`** needs no signing keys.
 - **Rebuild after every `src/` edit:** assets are embedded at build time.
+- **`npm ci` first whenever `package-lock.json` changed since the last install** (a pull or a branch switch): an older
+  `node_modules` can fail `tsc` on a dependency's newer API (BY's walk, 2026-10-22: `cancelScroll` missing on
+  `@tanstack/react-virtual` 3.14.13, installed before #32's 3.14.17).
 - **The result** is `target/debug/t4-git-ui`.
 
 ## 2. Launch

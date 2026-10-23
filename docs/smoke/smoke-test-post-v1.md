@@ -3606,10 +3606,11 @@ so the default may be on.
 
 ## BY. The new HEAD after a commit, a moved tab's state, a tab's diff and scroll, the line above the scrollbar
 
-Plan: `docs/plans/2026-10-21-tabs-grid-deferred-plan.md` (AP2, AO1, AO5, AO6, AO7). Windows VM over CDP on a local
-`tauri build --no-bundle` of `tabs-grid-deferred` (`docs/smoke/smoke-cdp.md`: `smoke-launch.ps1`, `cdp.mjs --inner
-1280x800`, readings through `--eval`), all rows. Linux VM (`docs/smoke/smoke-linux.md`, under openbox): rows 3 and 4's
-*Move to new window* and tear-off (D5 (a)). macOS: not walked.
+Plan: `docs/archive/plans/2026-10-21-tabs-grid-deferred-plan.md` (AP2, AO1, AO5, AO6, AO7); walk record
+`docs/archive/walks/2026-10-22-by-walk.md`. Windows VM over CDP on a local `tauri build --no-bundle` of
+`tabs-grid-deferred` (`docs/smoke/smoke-cdp.md`: `smoke-launch.ps1`, `cdp.mjs --inner 1280x800`, readings through
+`--eval`), all rows. Linux VM (`docs/smoke/smoke-linux.md`, under openbox): rows 3 and 4's *Move to new window* and
+tear-off (D5 (a)). macOS: not walked.
 
 Fixtures: `docs/smoke/fixtures/bv-fixture.sh` in Git Bash on the VM (`T4_ROOT=/c/tmp/t4`) for rows 1–2 and 5–7, plus,
 for the window moves, a repository with more than 500 commits: AW's `c:/tmp/t4/big-repo-clone` (10 956 commits) on
@@ -3620,23 +3621,48 @@ The store folder is backed up before launch and restored after (`smoke-cdp.md:84
 every one, the grid's top row (`--eval` on its scroller), the selected row's oid against `git rev-parse HEAD`, and the
 app log read for WARN / ERROR after.
 
-- [ ] 1. **AP2, the commit panel:** `openCommitPanel` (the working-tree row selected), commit everything → History shows
+- [x] 1. **AP2, the commit panel:** `openCommitPanel` (the working-tree row selected), commit everything → History shows
       the new HEAD selected, with its details.
-- [ ] 2. **AP2, what stays:** a partial commit keeps the working-tree row. With the old HEAD selected in History, a
+      *(Walked 2026-10-22 on a Windows release build of `548925d1` over CDP: pass. The tree clean, back in History on
+      its own, the new HEAD selected at row 0 with its details, `git log` HEAD the same.)*
+- [x] 2. **AP2, what stays:** a partial commit keeps the working-tree row. With the old HEAD selected in History, a
       commit from the commit dialog moves the selection to the new HEAD. With an older commit selected, it stays.
-- [ ] 3. **AO1, *Move to new window*:** on the big repository, a draft, a text filter, a selected commit below the first
+      *(Walked 2026-10-22 on a Windows release build of `548925d1` over CDP: pass, all three.)*
+- [x] 3. **AO1, *Move to new window*:** on the big repository, a draft, a text filter, a selected commit below the first
       screen and the Changes view → the new window has all four, and back in History its grid at the same top row.
       Again from a background tab, and with the working-tree row selected and no filter (the two can't coexist). Again
       from the History view: the new window opens in History at the same top row (the unit test pins the count's raise;
       the walk can't tell it from timing). Keep the top row well inside the first 1000 rows, a screen or more short of
       row 1000: past that is an accepted gap (`open-items.md` §Q), so a lost row there is not a fail.
-- [ ] 4. **AO1, the other ways:** the same by a drag onto another window's strip (Windows only), by a tear-off, and by
-      a one-tab window's toolbar drag onto another window.
-- [ ] 5. **AO5, History:** a History tab on its third file, scrolled down; Ctrl+Tab away and back → the same file, the
+      *(Walked 2026-10-22 on a Windows release build of `548925d1` over CDP: pass, all four, on a 1500-commit stand-in
+      for the big clone (gone from the VM), top rows 150–300. And on a Linux debug build of `548925d1` under openbox:
+      pass, all four, on a 538-commit clone, top rows 80–120.)*
+- [x] 4. **AO1, the other ways:** the same by a drag onto another window's strip, by a tear-off, and by a one-tab
+      window's toolbar drag onto another window. The two drops onto a window are Windows only (`window_at` finds no
+      window elsewhere, `src-tauri/src/commands/window.rs`), so Linux walks the tear-off alone.
+      *(Walked 2026-10-22 on a Windows release build of `548925d1` over CDP: pass, all three ways; the torn-off window
+      moved into the work area. And on a Linux debug build of `548925d1`: the tear-off passes; the toolbar drop moved
+      nothing, as expected off Windows.)*
+- [x] 5. **AO5, History:** a History tab on its third file, scrolled down; Ctrl+Tab away and back → the same file, the
       same top line. Again with a commit made in that repository from a terminal while the tab is in the background.
-- [ ] 6. **AO6, Changes:** the same for the Changes diff, between a tab on a staged file and one on an unstaged file,
+      *(Walked 2026-10-22 on Windows release builds of `548925d1` and `49482200` over CDP: pass both times, 4 010 kept,
+      the recorder 0 → 4 010 directly.)*
+- [x] 5b. **AO5, a path filter:** History filtered to the commit's third file, another file clicked and scrolled down;
+      Ctrl+Tab away and back → still that file at the same top line, not the filtered one.
+      *(Walked 2026-10-22 on a Windows release build of `49482200` over CDP: pass, 3 010 kept.)*
+- [x] 5c. **AO5 / AO6, another file at the top:** a diff scrolled down, another file clicked and left at the top;
+      Ctrl+Tab to a tab with a same-named file scrolled down, and back → the file at the top, not that tab's offset.
+      *(Walked 2026-10-22 on a Windows release build of `49482200` over CDP: pass, 0 kept against the other tab's
+      8 010.)*
+- [x] 5d. **AO5, a switch during the reload:** under the path filter, a click on another commit and Ctrl+Tab away
+      before its file list lands; back → the filtered file selected, not the first.
+      *(Walked 2026-10-22 on a Windows release build of `49482200` over CDP: pass, three runs with Ctrl+Tab 53–82 ms
+      after the click, each away before the list landed.)*
+- [x] 6. **AO6, Changes:** the same for the Changes diff, between a tab on a staged file and one on an unstaged file,
       both ways.
-- [ ] 7. **AO7, the line above the scrollbar,** where ↓ moves a cursor: the Changes view's staging diff (History's
+      *(Walked 2026-10-22 on Windows release builds of `548925d1` and `49482200` over CDP: pass both times, 8 010 and
+      6 010 kept both ways.)*
+- [x] 7. **AO7, the line above the scrollbar,** where ↓ moves a cursor: the Changes view's staging diff (History's
       diff scrolls natively) and the file content view with blame on.
       - A staging diff wider than the pane (a horizontal scrollbar from the start): ↓ to a line below the edge stops
         with the line flush above the scrollbar; the bar shown and hidden keeps it so.
@@ -3645,6 +3671,9 @@ app log read for WARN / ERROR after.
         ↓. This is the content-box callback the jsdom tests can't show.
       - The same after narrowing the split until a fitting diff doesn't fit.
       - The file content view (Files tab, blame on, a wide file): the same ↓.
+
+      *(Walked 2026-10-22 on a Windows release build of `548925d1` over CDP: pass, all four, each ↓ one scroll with
+      the line flush above the scrollbar.)*
 
 ## Reporting
 

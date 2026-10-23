@@ -8,9 +8,9 @@ also in a close-out phase, the `status.rs` row, closed in Phase 3 on 2026-10-03)
 
 _Done, fixed, walked and closed rows live in `open-items-done.md` (split 2026-09-24), under the same section letters — a
 letter with nothing open left (§A, §D, §F, §G, §H, §I, §J, §K, §L, §M, §N, §O, §P, §T, §U, §W, §AB, §AC, §AD, §AG, §AI,
-§AR) is only there. When a row here is done, move it there. Accepted limits with a reopen trigger are open, in §Q (since
-2026-09-28); those with none are closed, in the done file; of §V's deferred rows, only the CRLF test flake and the
-GIO-modules row remain after the 2026-10-06 fix batch._
+§AR, §AS) is only there. When a row here is done, move it there. Accepted limits with a reopen trigger are open, in §Q
+(since 2026-09-28); those with none are closed, in the done file; of §V's deferred rows, only the CRLF test flake and
+the GIO-modules row remain after the 2026-10-06 fix batch._
 
 ## B. Verification and release
 - **Unticked smoke lines — recounted 2026-10-06: one**, BP 4 in `smoke-test-post-v1.md` (the fix batch's tooltip
@@ -616,11 +616,6 @@ phases that accepted them; each origin keeps a pointer.
   Persisting it would add a key to `layout.json` (the file whose parse error loses a whole session) and Rust gates.
   Accepted by the owner, 2026-10-17 (D2 (a) of `docs/archive/plans/2026-10-17-per-tab-view-plan.md`). **Reopen:**
   someone wants the views back after a restart.
-- **A tab moved to another window opens in History, not in the view it was in.** The tear-off, *Move to new window*
-  and drop-on-a-strip hand over the repository path alone, so the tab opens as a fresh one. Carrying the view would
-  take a Rust change (`drop_tab`, the `tab-adopt` event, `Layout`) and Linux walks. Accepted by the owner, 2026-10-17
-  (D3 (a) of `docs/archive/plans/2026-10-17-per-tab-view-plan.md`). **Reopen:** someone wants the view carried
-  across windows.
 - **A tab switch between History and Changes resets the splits and the focus.** Ctrl+Tab between a tab in History and
   one in Changes unmounts one view's panes and mounts the other's, as Alt+1 / Alt+2 already do: the details split
   returns at 60 % and the focus drops to `<body>` (both seen in BW 10), the commit panel's splits at their defaults
@@ -660,6 +655,44 @@ phases that accepted them; each origin keeps a pointer.
   (D4 (a) and the triage of `docs/archive/plans/2026-10-18-diff-viewer-deferred-plan.md`).
   **Reopen:** a Linux or macOS report about the view switch, the bar, Escape or the whitespace default, or the next
   Linux or macOS walk of the diff viewer.
+- **A tab moved to another window can still be lost, or lose what it carries, in a few narrow cases.** The hand-over
+  carries the tab's draft, filter, selection, view and grid top row
+  (`docs/archive/plans/2026-10-21-tabs-grid-deferred-plan.md`, Design 2), but:
+  - a target that fails to open the moved repository keeps its claim on it until the window closes (P2-3);
+  - a source window closing in the gap while a failed build gives its claim back leaves the repository answering
+    "open elsewhere" for the rest of the session (P3-7);
+  - an operation started in the source during the hand-over can leave two windows owning the repository (P3-8);
+  - a carry that lands after another tab came forward in the target (a drop onto a window still restoring, a keyboard
+    switch during the open) is dropped, and the tab opens fresh (P15-1);
+  - a tab moved before its selected commit's page has loaded opens on row 0, and one moved within a round trip of a
+    commit carries the old HEAD (change review, R1-BO2);
+  - a walk restart in the target before the carried walk's first page lands lines the grid up on the default walk's
+    rows, so a tab with a non-default spec or filter can drift off its carried row (change review, R1-BO8);
+  - a failed build whose `tab-spawn-failed` reaches the source before the source's close of the tab finishes brings
+    the tab forward and then closes it, losing the carry; older than the carry (change review, R3-O4).
+
+  Reasoned, not seen. Accepted by the owner, 2026-10-21 and 2026-10-22 (D3 (a), P2-3, P3-7, P3-8, P15-1 of the plan;
+  the change review's triage). **Reopen:** a moved tab or its draft is lost, or a repository won't open (opening it
+  does nothing, or brings forward a window that doesn't show it), or a moved tab stays open in both windows, or an
+  operation's output lands in another window's dock.
+- **A tab switch before the app's waiting selection is reached drops it.** `restore` clears the selection a moved tab
+  or a commit is waiting to land on (`src/store/repoStore.ts`, `restore`), until the commit's page lands: a moved tab
+  comes back on row 0 when there is a second tab to switch to (every way in: a drop onto another window, onto a window
+  still restoring, the spawn-failed reopen, a keyboard open during the wait); after a commit, the tab comes back on the
+  old HEAD. Reasoned, not measured. Accepted by the owner, 2026-10-21 (P5-5 (a), P6-2 (a), P17-2 (a) of
+  `docs/archive/plans/2026-10-21-tabs-grid-deferred-plan.md`). **Reopen:** someone loses a carried selection, or sees
+  the old HEAD after a commit, that way.
+- **A grid top row near or past row 1000 can be lost on a move or a tab switch.** Every walk progress sets the row
+  count to the rows walked so far, in steps of 1000, so a carried or restored top row within a screen of row 1000, or
+  past it, with the walk still running, is clamped and nothing puts it back. A tab switch has the same gap. Reasoned,
+  not measured. Accepted by the owner, 2026-10-22 (P29-1 (a) of
+  `docs/archive/plans/2026-10-21-tabs-grid-deferred-plan.md`). **Reopen:** a moved or switched-back tab opens away
+  from its row near or past row 1000 (rows, not commits: under a filter they differ).
+- **The History grid may hide a row behind a horizontal scrollbar.** The visible-box size watch (AO7) went into the
+  diff and the file content view only; the grid might scroll sideways in some layouts, and then a row brought in by
+  the keyboard could stop behind its scrollbar. Never seen. Accepted by the owner, 2026-10-22 (F14 and D4 (a) of
+  `docs/archive/plans/2026-10-21-tabs-grid-deferred-plan.md`, the change review's triage). **Reopen:** the grid is seen
+  scrolling sideways, or a row is seen behind its scrollbar.
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review, deferred
 
@@ -935,48 +968,30 @@ click and the cut hunk headers on 2026-10-17, the scroll position across a reloa
 Found by reading the code while drafting or reviewing `docs/archive/plans/2026-10-17-diff-viewer-polish-plan.md`,
 `docs/archive/plans/2026-10-17-diff-scroll-anchor-plan.md` and `docs/archive/plans/2026-10-17-per-tab-view-plan.md`.
 None of those was reproduced. Deferred on the owner's word. Later rows came from planning, walking and reviewing
-`docs/archive/plans/2026-10-18-diff-viewer-deferred-plan.md` (Plan A), each deferred on the owner's word too. Plan B is
-the tabs and grid work after Plan A (owner, 2026-10-18): AP2 and AO1; AO5–AO7 were added since as candidates.
+`docs/archive/plans/2026-10-18-diff-viewer-deferred-plan.md` (Plan A), each deferred on the owner's word too. Plan B
+(`docs/archive/plans/2026-10-21-tabs-grid-deferred-plan.md`) took AP2 and AO1 (owner, 2026-10-18), and AO5–AO7, added
+since as candidates.
 
 The whitespace default that didn't reload the diff (AO3) and the view switch's jump to the top (AO4) were fixed and
-walked in that plan, and moved to `open-items-done.md` §AO on 2026-10-20.
+walked in that plan, and moved to `open-items-done.md` §AO on 2026-10-20. AO1 and AO5–AO7 were fixed and walked in
+Plan B, and moved to `open-items-done.md` §AS on 2026-10-22.
 
-- **AO1. A tab moved to another window may lose its commit draft, selection and filter.** A tear-off or drag hands over
-  only the repository path (`src/store/tabsStore.ts:188`, then `:150-151`), and the target window opens it fresh.
-  Reasoned, not walked. **Reopen:** a walk confirms it, or someone loses a draft that way.
 - **AO2. A failed tab open lands on a tab other than the one that was active.** The new tab is inserted at its slot (the
   end, unless a drop names one), and closing it picks `rest[Math.min(i, rest.length - 1)]` (`tabsStore.ts:167`): the
   tab that held the failed tab's slot, or the last, not the one that was active (the per-tab view plan's Design 12).
   With A, C open and A active, a failed open of B appended lands on C. Reasoned. Unreachable today: with a summary,
   no step of the open path can fail (`repoStore.ts:331-369`), so the cleanup at `tabsStore.ts:124-126` never runs
   (the per-tab view plan's pass 2). **Reopen:** a step in the open path gains a way to fail.
-- **AO5. A History tab comes back on its commit's first file, at the top.** The tab switch reload loads
-  `rowPath ?? files[0]` (`DetailsPane.tsx:49-52`), so the file the tab was on, and its scroll, are lost; the commit is
-  kept. Reasoned, while planning Plan A. A Plan B candidate (owner, 2026-10-19). **Reopen:** Plan B, or someone loses
-  their place in a commit's files on a tab switch.
-- **AO6. A tab switch brings the Changes diff back at the top.** Back on a tab, the staging diff shows the same file
-  at scrollTop 0: the diff is rebuilt and nothing keeps its scroll (the History list's is kept: `smoke-test-post-v1.md`
-  AW 1, `:1770`). Seen once in BX 6b (`docs/archive/walks/2026-10-19-bx-walk.md`); not compared with `main`, likely
-  older. A Plan B candidate, beside AO5 (owner, 2026-10-20). **Reopen:** Plan B, or someone loses their place in a diff
-  on a tab switch.
-- **AO7. A keyboard move to a line below the bottom edge leaves it partly behind a horizontal scrollbar.** The
-  virtualizer's own cursor scroll (`scrollToIndex`) sizes the view from its `scrollRect`, the border box, which
-  includes the 10 px scrollbar (`src/theme/base.css:32-35`), so the line's bottom 10 px stay under it. On `main` too.
-  Reasoned (Plan A's change review pass 3), not walked. A Plan B candidate (owner, 2026-10-19): a size watch that
-  reports the visible height would fix every virtualizer scroll. **Reopen:** Plan B, or a report of a line behind the
-  scrollbar.
 
 ## AP. Added 2026-10-17 — seen in the BW walk, deferred
 
 Seen on the way in `docs/archive/walks/2026-10-17-bw-walk.md` (Windows, the per-tab view's walk), and deferred on the
-owner's word in the triage, each with a reopen trigger.
+owner's word in the triage, each with a reopen trigger. AP2 was fixed and walked in Plan B, and moved to
+`open-items-done.md` §AS on 2026-10-22.
 
 - **AP1. A background tab's grid came forward one row down once.** The first time `other`, opened in the background at
   launch, came forward, its grid sat at scrollTop 26 with the selected HEAD row hidden above the top. Two fresh
   launches did not reproduce it; not compared with 0.10.24. **Reopen:** seen again.
-- **AP2. After a commit the grid's selection stays on the previous HEAD.** The details show the old commit while the new
-  HEAD sits on top (BW 5 and 12). Likely older than the branch; not compared. **Reopen:** the next grid work, or
-  someone trips on it.
 - **AP3. The output dock is per window, not per tab.** `other` showed `work`'s `git commit -F …` line. **Reopen:**
   someone wants it per tab.
 

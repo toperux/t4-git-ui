@@ -1069,6 +1069,11 @@ stays.
   moved it with no further change, and after the update it came back at the moved rect — the update path wrote the
   moved rect into `layout.json` before the restart. **PASS.** *From
   `docs/archive/plans/2026-10-04-tauri-2.12-plan.md`, D6.*
+- **A tab moved to another window opens in History, not in the view it was in.** The tear-off, *Move to new window*
+  and drop-on-a-strip handed over the repository path alone, so the tab opened as a fresh one. Accepted by the owner,
+  2026-10-17 (D3 (a) of `docs/archive/plans/2026-10-17-per-tab-view-plan.md`). **Closed 2026-10-22** (Plan B, D2 (b)
+  of `docs/archive/plans/2026-10-21-tabs-grid-deferred-plan.md`): the hand-over now carries the view with the draft,
+  filter, selection and top row (AO1, §AS below). Walked, BY 3–4.
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review: the rows since closed
 
@@ -2208,3 +2213,42 @@ Moved from `open-items.md` §AR, which is now only here. Plan:
   line with 1 px showing may stay under the bar; the height handed to the virtualizer can differ from its
   ResizeObserver's by 1 px for a frame. Reasoned. Accepted, closed (owner, 2026-10-20; change review pass 4, o3, and
   the fix batch's review).
+
+## AS. Added 2026-10-22 — the tabs and grid deferred rows (Plan B): fixed and accepted, closed
+
+Moved from `open-items.md` §AO (AO1, AO5, AO6, AO7) and §AP (AP2). Plan:
+`docs/archive/plans/2026-10-21-tabs-grid-deferred-plan.md` (Plan B). Walk record:
+`docs/archive/walks/2026-10-22-by-walk.md` (smoke group BY: Windows on `548925d1`, rows 5–6 again, with 5b–5d, on
+`49482200`; Linux rows 3–4 on `548925d1`; both pre-squash). The limits with a reopen trigger are in `open-items.md` §Q.
+
+- **After a commit the grid's selection stayed on the previous HEAD** (AP2). **Fixed:** a commit made with the
+  working-tree row (when the commit took every change), nothing, or HEAD selected moves the selection to the new HEAD
+  once the restarted walk has it; a pick made during the commit, another commit or a compare selected, or a text or
+  path filter, keeps it where it is.
+  Walked, BY 1–2.
+- **A tab moved to another window lost its commit draft, selection and filter** (AO1). **Fixed:** the tear-off,
+  *Move to new window* and the drops carry the draft, spec and filter, the selection, the view and the grid's top row
+  to the target, which applies them only while the moved tab is still the active one; the hand-over moves the source's
+  claim on the repository. Walked, BY 3–4 (Windows; Linux for *Move to new window* and the tear-off).
+- **A History tab came back on its commit's first file, at the top** (AO5), and **a tab switch brought the Changes diff
+  back at the top** (AO6). **Fixed:** a same-target reload keeps the file list, the file and the diff on screen, and
+  each diff's scroll is noted per tab and put back on the switch. Under a path filter, a tab that moved off the row's
+  file stays on it, and a file clicked during the reload wins (the change review's R3-1 and R4-1, beyond the plan).
+  Walked, BY 5–6 and 5b–5d.
+- **A keyboard move to a line below the bottom edge left it partly behind a horizontal scrollbar** (AO7). **Fixed:**
+  the staging diff and the file content view size their virtualizer from the visible box. Walked, BY 7.
+- **The old HEAD shows selected for about a refs round trip after a commit** (F10 (a)), plus a page round trip when
+  the restart's first page comes back empty. Reasoned. Accepted, closed (owner, 2026-10-21).
+- **`revealOid` of the commit already selected loses to the new-HEAD move** (P7-1 (b)): a sidebar branch, *Go to
+  branch* or a blame drill-down onto it changes nothing a pick counts. Reasoned. Accepted, closed (owner, 2026-10-21).
+- **A restored History diff shows for one round trip with the tab's old whitespace and context settings** (F1 (a)),
+  before the reload brings the window's. Reasoned. Accepted, closed (owner, 2026-10-21).
+- **A walk restart can show another commit at the old index** until the commit's own page lands, when the old row's
+  page lands first without it (P22-1). Reasoned. Accepted, closed (owner, 2026-10-21).
+- **A failed page fetch leaves the selection on the old index** until the next click or restart (P24-1 (b)). Reasoned.
+  Accepted, closed (owner, 2026-10-22).
+- **A reselect can join a page fetch sent before the walk reached the commit** (P25-O1 (a)); with the walk complete
+  and the grid scrolled away, the selection waits for the next click or restart. Reasoned. Accepted, closed (owner,
+  2026-10-22).
+- **A moved tab's carried top row can be off by a few rows** when a ref moved between the source and the target
+  (P27-1 (b)). Reasoned. Accepted, closed (owner, 2026-10-22).

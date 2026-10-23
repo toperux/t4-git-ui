@@ -1,7 +1,7 @@
 # Plan: the tabs and grid deferred rows — a tab's state across windows and switches, the new HEAD, the scrollbar
 
-_Written 2026-10-21 against `main` `51c773a6`. Status: final, plan review loop done (pass 34 found nothing); waiting for
-the owner's go. Scope ruled by the owner on 2026-10-21: all five rows (Plan B of two, after
+_Written 2026-10-21 against `main` `51c773a6`. Status: executed 2026-10-22 (see *Execution record*); the plan review
+loop ended at pass 34. Scope ruled by the owner on 2026-10-21: all five rows (Plan B of two, after
 `docs/archive/plans/2026-10-18-diff-viewer-deferred-plan.md`). D1–D5 taken with the owner on 2026-10-21: D1 (a), D2 (b),
 D3 (a), D4 (a), D5 (a). Plan review pass 1's findings taken, its four decisions (F1, F9, F10, the detach race) and F14
 with the owner, all (a). Pass 2's taken, its three decisions (P2-1, P2-3, P2-15) with the owner, all (a). Pass 3's
@@ -809,3 +809,24 @@ ones found.
 - **Pass 34 (2026-10-22):** no findings; its "fine as is" items taken under the owner's rule, both no change
   (`restoreTabs` passing a pending window's carry to `openTab` is implied by Design 2, Step 5 and its `App.test.tsx`
   test; "past row 1000" covers rows past 2000). The review loop ends here.
+
+## Execution record
+
+Executed on the owner's go, 2026-10-22, on `tabs-grid-deferred`: Steps 2–5 as one commit each, gates green
+(1260 tests at the end, `tsc` and `vite build`, `cargo fmt` / `clippy` / `test`). Walk BY in
+`docs/archive/walks/2026-10-22-by-walk.md`. Change review: six passes, the last with no findings.
+
+Where the code departs from the plan, each found by the change review:
+
+- **Design 3: the file a same-target reload lands on.** The plan read the held file before the wait and took
+  `preselect ?? the held file`. Now the file is read when the reply lands, so a file clicked in the kept list during
+  the reload wins, over a `preselect` too (R3-1, under the owner's rule). And `diffStore` keeps the
+  `preselect` the last applied load had, in the tab's snapshot: a reload asking for the same one keeps the file the
+  user moved to, so a History tab under a path filter comes back on that file, not on the row's (R4-1 (a), the owner,
+  2026-10-22); it is recorded when the reply applies it, so a tab put away mid-load still gets its `preselect` (R5-1,
+  R5-2).
+- **Design 4: when a body notes its scroll.** Also when a body that stays mounted gets another file with no seed, at
+  0: the `[path]` effect's scroll to 0 fires no scroll event at the top, so the note kept the old file (R1-1).
+
+The triage (owner, 2026-10-22) put the change review's two AO1 limits (R1-BO2, R1-BO8), F14 and the older
+`tab-spawn-failed` race (R3-O4) in `open-items.md` §Q with the plan's records.
