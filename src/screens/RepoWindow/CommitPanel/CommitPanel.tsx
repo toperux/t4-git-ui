@@ -12,6 +12,7 @@ import { useRepoStore } from "../../../store/repoStore";
 import { useStatusStore } from "../../../store/statusStore";
 import { toastError, useToastStore } from "../../../store/toastStore";
 import { openInDiffTool } from "../actions";
+import type { DiffPane } from "../DiffViewer/diffScroll";
 import { DiffViewer, type DiffActions } from "../DiffViewer/DiffViewer";
 import { useLayout } from "../layout";
 import w from "../RepoWindow.module.css";
@@ -59,7 +60,7 @@ export function CommitPanel() {
         </Panel>
         <Separator className={w.splitH} aria-label="Resize file lists" />
         <Panel minSize={200} className={w.panel}>
-          <DiffColumn />
+          <DiffColumn remember="changes" />
         </Panel>
       </Group>
     );
@@ -70,7 +71,7 @@ export function CommitPanel() {
       </Panel>
       <Separator className={w.splitH} aria-label="Resize file lists" />
       <Panel minSize={200} className={w.panel}>
-        <DiffColumn />
+        <DiffColumn remember="changes" />
       </Panel>
       <Separator className={w.splitH} aria-label="Resize commit message" />
       <Panel defaultSize={340} minSize={260} maxSize={560} groupResizeBehavior="preserve-pixel-size" className={w.panel}>
@@ -80,8 +81,8 @@ export function CommitPanel() {
   );
 }
 
-/** `DiffViewer` in actions mode for the focused working-tree file. */
-export function DiffColumn() {
+/** `DiffViewer` in actions mode for the focused working-tree file. `remember`: the panel's own, not a dialog's (`DiffViewer`). */
+export function DiffColumn({ remember }: { remember?: DiffPane }) {
   const diff = useCommitStore((st) => st.diff);
   const path = useCommitStore((st) => st.diffPath);
   const list = useCommitStore((st) => st.diffList);
@@ -173,6 +174,7 @@ export function DiffColumn() {
       error={error}
       actions={actions}
       onOpenExternal={external}
+      remember={remember}
     />
   );
 }

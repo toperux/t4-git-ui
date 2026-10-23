@@ -24,6 +24,7 @@ import { ChangesView } from "./ChangesView";
 import { CommandPalette } from "./CommandPalette/CommandPalette";
 import { useCommitSync } from "./CommitPanel/CommitPanel";
 import { DetailsPane } from "./DetailsPane";
+import { seedScroll } from "./DiffViewer/diffScroll";
 import { groupThousands } from "./DiffViewer/DiffViewer";
 import { DialogHost } from "./dialogs/DialogHost";
 import { useLayout } from "./layout";
@@ -116,6 +117,11 @@ export function RepoWindow() {
   // rail, or a view switch that hides the sidebar, unmounts it.
   const sidebarW = useRef(260);
   useShortcuts();
+  // A diff seed no body took in the switch's commit is dropped once it is over (a Changes tab with no
+  // file selected mounts none), so it can't land on a later click. Passive: every body that mounts
+  // or stays in that commit has had its layout effects, and so its chance at the seed, by now.
+  const active = useTabsStore((st) => st.active);
+  useEffect(() => seedScroll(null), [active]);
 
   return (
     <div className={s.window}>

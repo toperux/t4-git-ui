@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { RepoSummary } from "../api/types";
+import type { FileDiff, RepoSummary } from "../api/types";
 
 vi.mock("../api/ipc", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api/ipc")>();
@@ -23,6 +23,7 @@ const closeWindow = vi.fn();
 vi.mock("../lib/appWindow", () => ({ isMainWindow: () => label === "main", closeThisWindow: () => closeWindow() }));
 
 import * as ipc from "../api/ipc";
+import { forgetScroll, noteScroll, seedScroll, takeNote, takeSeed, type DiffScroll } from "../screens/RepoWindow/DiffViewer/diffScroll";
 import { useCommitStore } from "./commitStore";
 import { useDialogStore } from "./dialogStore";
 import { __resetForTests as resetRepo, useRepoStore } from "./repoStore";
@@ -249,6 +250,46 @@ describe("the History / Changes view", () => {
     useTabsStore.getState().activate("/a");
     expect(useViewStore.getState().railOverride).toEqual(before);
     expect(useViewStore.getState().railOverride.history).toBe(true);
+  });
+});
+
+describe("the diff's scroll", () => {
+  const at = (repoId: string, top: number): DiffScroll => ({ pane: "history", repoId, path: "a.ts", diff: {} as FileDiff, rows: [], view: "unified", top });
+  beforeEach(forgetScroll);
+
+  it("a switch moves the note into the tab left's snapshot and seeds the tab that comes back", async () => {
+    await useTabsStore.getState().openTab("/a");
+    await useTabsStore.getState().openTab("/b");
+    noteScroll(at("/b", 120));
+    useTabsStore.getState().activate("/a");
+    expect(useTabsStore.getState().saved["/b"].scroll).toEqual(at("/b", 120));
+    // Moved, not copied: /a's body mounts and notes its own place, and leaving /a saves that.
+    noteScroll(at("/a", 0));
+    useTabsStore.getState().activate("/b");
+    expect(useTabsStore.getState().saved["/a"].scroll).toEqual(at("/a", 0));
+    expect(takeSeed("history", "/b", "a.ts")).toEqual(at("/b", 120));
+
+    // A tab whose body noted nothing (it stayed mounted through the switch) saves nothing, not the
+    // tab before it's.
+    useTabsStore.getState().activate("/a");
+    expect(useTabsStore.getState().saved["/b"].scroll).toBeNull();
+  });
+
+  it("a new tab takes the note first, then forgets both; the last tab's close forgets both", async () => {
+    await useTabsStore.getState().openTab("/a");
+    noteScroll(at("/a", 40));
+    seedScroll(at("/x", 10)); // one a switch left untaken
+    await useTabsStore.getState().openTab("/b");
+    expect(useTabsStore.getState().saved["/a"].scroll).toEqual(at("/a", 40));
+    expect(takeSeed("history", "/x", "a.ts")).toBeNull();
+    expect(takeNote()).toBeNull();
+
+    await useTabsStore.getState().closeTab("/a");
+    noteScroll(at("/b", 40));
+    seedScroll(at("/b", 10));
+    await useTabsStore.getState().closeTab("/b");
+    expect(takeNote()).toBeNull();
+    expect(takeSeed("history", "/b", "a.ts")).toBeNull();
   });
 });
 

@@ -75,6 +75,173 @@ describe("diffStore", () => {
     expect(mocked.getFileDiff).toHaveBeenLastCalledWith("r", commit("c"), "a.ts", { context: 10, ignoreWhitespace: true });
   });
 
+  describe("a reload of the target already held", () => {
+    beforeEach(() => {
+      mocked.getChangedFiles.mockResolvedValue([file("a.ts"), file("b.ts")]);
+      mocked.getFileDiff.mockImplementation((_id: string, _t: unknown, path: string) => Promise.resolve(diffFor(path)));
+    });
+    /** Tab A on its second file, then another tab, then A again: the snapshot's target is not the pane's object. */
+    const leftOnB = async () => {
+      await useDiffStore.getState().load("r", commit("c"));
+      await flush();
+      useDiffStore.getState().selectPath("b.ts");
+      await flush();
+      const tabA = snapshot();
+      restore({ ...tabA, repoId: "other", target: commit("o"), files: [], selectedPath: null, diff: null });
+      restore(tabA);
+      return tabA;
+    };
+
+    it("a tab that comes back stays on its file, on screen through the reload, with the window's settings", async () => {
+      const tabA = await leftOnB();
+      useDiffStore.setState({ ignoreWhitespace: true, context: 10 });
+      let answer: (files: FileChange[]) => void = () => {};
+      mocked.getChangedFiles.mockImplementationOnce(() => new Promise<FileChange[]>((r) => (answer = r)));
+      void useDiffStore.getState().load("r", { kind: "commit", oid: "c" });
+      expect(useDiffStore.getState()).toMatchObject({ files: tabA.files, selectedPath: "b.ts", diff: tabA.diff, filesLoading: true });
+      answer([file("a.ts"), file("b.ts")]);
+      await flush();
+      expect(useDiffStore.getState().selectedPath).toBe("b.ts");
+      expect(mocked.getFileDiff).toHaveBeenLastCalledWith("r", commit("c"), "b.ts", { context: 10, ignoreWhitespace: true });
+    });
+
+    it("keeps the diff object when the reloaded one is identical, and takes a different one", async () => {
+      const tabA = await leftOnB();
+      await useDiffStore.getState().load("r", commit("c"));
+      await flush();
+      expect(useDiffStore.getState().diff).toBe(tabA.diff);
+
+      const changed = { ...diffFor("b.ts"), hunks: [{ header: "@@ -1 +1 @@", oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, lines: [] }] };
+      mocked.getFileDiff.mockResolvedValueOnce(changed);
+      await useDiffStore.getState().load("r", commit("c"));
+      await flush();
+      expect(useDiffStore.getState().diff).toEqual(changed);
+      expect(useDiffStore.getState().diff).not.toBe(tabA.diff);
+    });
+
+    it("a file clicked in the kept list during the reload wins over the held one", async () => {
+      await leftOnB();
+      let answer: (files: FileChange[]) => void = () => {};
+      mocked.getChangedFiles.mockImplementationOnce(() => new Promise<FileChange[]>((r) => (answer = r)));
+      void useDiffStore.getState().load("r", commit("c"));
+      useDiffStore.getState().selectPath("a.ts");
+      await flush();
+      mocked.getFileDiff.mockClear();
+      answer([file("a.ts"), file("b.ts")]);
+      await flush();
+      expect(useDiffStore.getState().selectedPath).toBe("a.ts");
+      expect(useDiffStore.getState().diff?.path).toBe("a.ts");
+      expect(mocked.getFileDiff).not.toHaveBeenCalledWith("r", commit("c"), "b.ts", expect.anything());
+    });
+
+    it("a file clicked during the reload wins over a preselect too", async () => {
+      await leftOnB();
+      let answer: (files: FileChange[]) => void = () => {};
+      mocked.getChangedFiles.mockImplementationOnce(() => new Promise<FileChange[]>((r) => (answer = r)));
+      void useDiffStore.getState().load("r", commit("c"), "b.ts");
+      useDiffStore.getState().selectPath("a.ts");
+      await flush();
+      answer([file("a.ts"), file("b.ts")]);
+      await flush();
+      expect(useDiffStore.getState().selectedPath).toBe("a.ts");
+    });
+
+    it("under a path filter, a tab that comes back stays on the file it moved to; a new filter file still wins", async () => {
+      await useDiffStore.getState().load("r", commit("c"), "a.ts");
+      await flush();
+      useDiffStore.getState().selectPath("b.ts");
+      await flush();
+      const tabA = snapshot();
+      restore({ ...tabA, repoId: "other", target: commit("o"), files: [], selectedPath: null, preselect: null, diff: null });
+      restore(tabA);
+      await useDiffStore.getState().load("r", commit("c"), "a.ts");
+      await flush();
+      expect(useDiffStore.getState().selectedPath).toBe("b.ts");
+      useDiffStore.getState().selectPath("b.ts");
+      await useDiffStore.getState().load("r", commit("c"), "a.ts");
+      await flush();
+      expect(useDiffStore.getState().selectedPath).toBe("b.ts");
+      // The same commit under another filter: its file is what the user asked for.
+      useDiffStore.getState().selectPath("a.ts");
+      await useDiffStore.getState().load("r", commit("c"), "b.ts");
+      await flush();
+      expect(useDiffStore.getState().selectedPath).toBe("b.ts");
+      await useDiffStore.getState().load("r", commit("c"), null);
+      await flush();
+      expect(useDiffStore.getState().selectedPath).toBe("b.ts");
+    });
+
+    it("a held file the reload no longer lists falls back to the first", async () => {
+      await leftOnB();
+      mocked.getChangedFiles.mockResolvedValueOnce([file("a.ts"), file("c.ts")]);
+      await useDiffStore.getState().load("r", commit("c"));
+      await flush();
+      expect(useDiffStore.getState().selectedPath).toBe("a.ts");
+    });
+
+    it("a new target still blanks, and starts on `preselect` or the first file", async () => {
+      await leftOnB();
+      let answer: (files: FileChange[]) => void = () => {};
+      mocked.getChangedFiles.mockImplementationOnce(() => new Promise<FileChange[]>((r) => (answer = r)));
+      void useDiffStore.getState().load("r", commit("d"));
+      expect(useDiffStore.getState()).toMatchObject({ files: [], selectedPath: null, diff: null });
+      answer([file("a.ts"), file("b.ts")]);
+      await flush();
+      expect(useDiffStore.getState().selectedPath).toBe("a.ts");
+
+      // The same commit in another repository is another target too.
+      await useDiffStore.getState().load("other", commit("d"), "b.ts");
+      await flush();
+      expect(useDiffStore.getState().selectedPath).toBe("b.ts");
+    });
+
+    it("a tab left mid-reload comes back on its file, its target null until the load", async () => {
+      await leftOnB();
+      // Left again while its own reload was still on the wire.
+      let answer: (files: FileChange[]) => void = () => {};
+      mocked.getChangedFiles.mockImplementationOnce(() => new Promise<FileChange[]>((r) => (answer = r)));
+      void useDiffStore.getState().load("r", commit("c"));
+      const midLoad = snapshot();
+      restore({ ...midLoad, repoId: "other", target: commit("o"), files: [], filesLoading: false, selectedPath: null, diff: null });
+      restore(midLoad);
+      // The stash browser's guard reads it: nothing is loaded for this tab.
+      expect(useDiffStore.getState().target).toBeNull();
+      answer([file("stale.ts")]);
+
+      void useDiffStore.getState().load("r", commit("c"));
+      expect(useDiffStore.getState()).toMatchObject({ selectedPath: "b.ts", diff: midLoad.diff });
+      await flush();
+      expect(useDiffStore.getState().selectedPath).toBe("b.ts");
+    });
+
+    // A tab put away before the reply that would apply its `preselect` still lands on it.
+    const awayMidLoad = async (from: string | null, preselect: string) => {
+      let answer: (files: FileChange[]) => void = () => {};
+      mocked.getChangedFiles.mockImplementationOnce(() => new Promise<FileChange[]>((r) => (answer = r)));
+      void useDiffStore.getState().load("r", commit("c"), preselect);
+      const midLoad = snapshot();
+      expect(midLoad.selectedPath).toBe(from);
+      restore({ ...midLoad, repoId: "other", target: commit("o"), files: [], filesLoading: false, selectedPath: null, preselect: null, diff: null });
+      restore(midLoad);
+      answer([file("stale.ts")]);
+      await useDiffStore.getState().load("r", commit("c"), preselect);
+      await flush();
+    };
+
+    it("a new commit under a path filter, left mid-load, comes back on the row's file", async () => {
+      await awayMidLoad(null, "b.ts");
+      expect(useDiffStore.getState().selectedPath).toBe("b.ts");
+    });
+
+    it("a path filter set on the same commit, left mid-load, still moves to its file", async () => {
+      await useDiffStore.getState().load("r", commit("c"));
+      await flush();
+      expect(useDiffStore.getState().selectedPath).toBe("a.ts");
+      await awayMidLoad("a.ts", "b.ts");
+      expect(useDiffStore.getState().selectedPath).toBe("b.ts");
+    });
+  });
+
   it("selects the first file of a commit and loads its diff; a new commit resets the selection", async () => {
     mocked.getChangedFiles.mockImplementation((_id: string, target: { oid: string }) => Promise.resolve([file(`${target.oid}/a.ts`), file(`${target.oid}/b.ts`)]));
     mocked.getFileDiff.mockImplementation((_id: string, _t: unknown, path: string) => Promise.resolve(diffFor(path)));

@@ -629,6 +629,9 @@ const SNAPSHOT_KEYS = [
   "authorError",
   "diff",
   "diffPath",
+  // The list the shown diff came from: without it the next `loadDiff` compares against the tab
+  // left's list, and a staged file's diff blanks after a switch from an unstaged one.
+  "diffList",
   "diffContext",
   "diffLoading",
   "diffError",

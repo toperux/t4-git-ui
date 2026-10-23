@@ -1,12 +1,16 @@
 import { act, cleanup, fireEvent, render, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { RefsSnapshot } from "../../api/types";
+import type { FileDiff, RefsSnapshot } from "../../api/types";
 import { useCommitStore } from "../../store/commitStore";
 import { useDialogStore } from "../../store/dialogStore";
 import { useOpsStore } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
 import { useStatusStore } from "../../store/statusStore";
+import { useTabsStore } from "../../store/tabsStore";
 import { useViewStore } from "../../store/viewStore";
+import { fileDiff, hunk, line } from "./DiffViewer/diffFixtures";
+import { forgetScroll, seedScroll, takeNote, takeSeed, type DiffScroll } from "./DiffViewer/diffScroll";
+import { DiffViewer } from "./DiffViewer/DiffViewer";
 import { RepoStatusBar, RepoWindow, StateBanners } from "./RepoWindow";
 
 vi.mock("../../api/ipc", async (importOriginal) => {
@@ -177,6 +181,39 @@ describe("RepoWindow activity bar", () => {
   it("names the op when both are busy", () => {
     useCommitStore.setState({ busy: true, committing: true });
     expect(bar(render(<RepoWindow />).queryByTestId, "Fetching…")).toBeTruthy();
+  });
+});
+
+describe("RepoWindow and a tab switch's diff seed", () => {
+  afterEach(() => {
+    useTabsStore.setState({ active: null });
+    useViewStore.getState().__resetForTests();
+    forgetScroll();
+  });
+
+  it("drops a seed no body took in the switch's commit, so a file clicked later starts at the top", () => {
+    const seed: DiffScroll = { pane: "changes", repoId: "r", path: "a.rs", diff: {} as FileDiff, rows: [], view: "unified", top: 500 };
+    // A Changes tab with no file selected: no body mounts to take it.
+    useViewStore.setState({ view: "changes" });
+    useTabsStore.setState({ active: "q" });
+    render(<RepoWindow />);
+    // Only a switch drops it: a seed set with no switch is still there.
+    act(() => seedScroll(seed));
+    expect(takeSeed("changes", "r", "a.rs")).toBe(seed);
+
+    act(() => {
+      useTabsStore.setState({ active: "r" });
+      seedScroll(seed);
+    });
+    // The file clicked later: a kept seed would open it at 500. jsdom has no layout, so give the body
+    // room to scroll there.
+    const tall = vi.spyOn(Element.prototype, "scrollHeight", "get").mockReturnValue(100_000);
+    try {
+      render(<DiffViewer path="a.rs" diff={fileDiff([hunk("@@ -1 +1 @@", [line("del", 1, null, "a"), line("add", null, 1, "b")])], { path: "a.rs" })} loading={false} error={null} remember="changes" />);
+    } finally {
+      tall.mockRestore();
+    }
+    expect(takeNote()).toMatchObject({ path: "a.rs", top: 0 });
   });
 });
 

@@ -16,9 +16,11 @@ import { toolLabel } from "../../../lib/externalTools";
 import { ctrlOrCmd, mods } from "../../../lib/keys";
 import { observeVisibleRect } from "../../../lib/observeVisibleRect";
 import { useDiffStore, type DiffView } from "../../../store/diffStore";
+import { useRepoStore } from "../../../store/repoStore";
 import { useSettingsStore } from "../../../store/settingsStore";
 import { Stats } from "../ChangedFileList/ChangedFileList";
 import { flattenSplit, flattenUnified, rowHeight, type SplitRow, type UnifiedRow } from "./diffRows";
+import { noteScroll, takeSeed, type DiffPane } from "./diffScroll";
 import s from "./DiffViewer.module.css";
 import { cut, type EmphRange } from "./intraLine";
 import { carryRef, carrySelection, clickLine, EMPTY_LINES, hunkMap, lineKey, toPairs, type LineRef, type LineSelection } from "./lineSelection";
@@ -83,11 +85,17 @@ export interface DiffViewerProps {
    * prop is given, disabled without a file or a tool configured in Settings.
    */
   onOpenExternal?: () => void;
+  /**
+   * The window's History or Changes diff: its scroll is noted for a tab switch, and a tab coming
+   * back is seeded with it (`diffScroll`). Not on a dialog's: one open during a switch would note
+   * over the pane, since the snapshot is taken before the switch closes it.
+   */
+  remember?: DiffPane;
 }
 
 type Mods = { ctrl?: boolean; shift?: boolean };
 
-export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: listStats, diff, loading, error, actions, onExpand, onOpenExternal }: DiffViewerProps) {
+export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: listStats, diff, loading, error, actions, onExpand, onOpenExternal, remember }: DiffViewerProps) {
   const storeView = useDiffStore((st) => st.view);
   // Settings writes both back into the store, so a change here shows without a reload.
   const diffTool = useSettingsStore((st) => st.tools.diff);
@@ -258,6 +266,7 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
         cursorRow={cursorRow}
         onLineClick={onLineClick}
         onKeyDown={onBodyKeyDown}
+        remember={remember}
       />
     );
 
@@ -418,13 +427,16 @@ interface DiffBodyProps {
   cursorRow: number;
   onLineClick: (ref: LineRef, mods: Mods) => void;
   onKeyDown: (e: KeyboardEvent) => void;
+  remember?: DiffPane;
 }
 
 /** The keys `DiffViewer`'s handler acts on: the first of them after a reload brings the cursor in. */
 const BODY_KEYS = new Set(["ArrowUp", "ArrowDown", " ", "Enter", "Delete"]);
 
-function DiffBody({ path, diff, view, rows, maxCols, lang, actions, selected, cursorRow, onLineClick, onKeyDown }: DiffBodyProps) {
+function DiffBody({ path, diff, view, rows, maxCols, lang, actions, selected, cursorRow, onLineClick, onKeyDown, remember }: DiffBodyProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  // What the note is keyed by, beside the pane and the path: the repository these rows belong to.
+  const repoId = useRepoStore((st) => st.repo?.id ?? null);
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
@@ -442,6 +454,9 @@ function DiffBody({ path, diff, view, rows, maxCols, lang, actions, selected, cu
   // or a cursor the reload moved would scroll the view off the anchored line. A pointer press ends
   // it too.
   const quiet = useRef(false);
+  // The file a seed put back: the `[path]` effect leaves its scroll alone (StrictMode's second run
+  // too) until another file comes.
+  const seeded = useRef<string | null>(null);
   // A new row model (reload / whitespace toggle / view switch) invalidates cached sizes, and a new
   // model of the same file puts the line that was at the top back there. A layout effect, so the
   // new rows first paint already in place.
@@ -449,25 +464,35 @@ function DiffBody({ path, diff, view, rows, maxCols, lang, actions, selected, cu
     const prev = drawn.current;
     drawn.current = { path, diff, view, rows };
     const el = scrollRef.current;
+    // A tab coming back: the first body of its pane, repository and file goes back to where the tab
+    // was left, by its top line (a diff that changed meanwhile keeps it), in place of the carry
+    // below. Any other remembering body spends the seed.
+    const seed = remember ? takeSeed(remember, repoId, path) : null;
     // Not the same rows again: StrictMode's second mount run is no reload.
-    const same = !!prev && prev.path === path && prev.rows !== rows;
-    if (same && el) {
+    const same = !seed && !!prev && prev.path === path && prev.rows !== rows;
+    if ((seed || same) && el) {
       // A cursor scroll still settling would aim its old row index at the new rows.
       virtualizer.cancelScroll();
       // Split's columns are narrower: a kept horizontal offset would show another part of the lines.
-      if (prev.view !== view) el.scrollLeft = 0;
+      if (same && prev.view !== view) el.scrollLeft = 0;
       // Still the old position: the browser's clamp to a shorter body reaches it only with the next
       // scroll event.
       const old = virtualizer.scrollOffset ?? 0;
-      const next = carryOffset(prev.diff, prev.rows, old, diff, rows, prev.view === view);
+      const next = seed ? carryOffset(seed.diff, seed.rows, seed.top, diff, rows, seed.view === view) : carryOffset(prev!.diff, prev!.rows, old, diff, rows, prev!.view === view);
       if (next !== old) {
         virtualizer.scrollToOffset(next);
         // `scrollToOffset` only writes the DOM: until the scroll event, every read (the render
         // `measure()` triggers, a `scrollToIndex`) would get the old offset back.
         virtualizer.scrollOffset = Math.min(next, el.scrollHeight - el.clientHeight);
       }
+      if (seed) seeded.current = path;
     }
-    quiet.current = same;
+    // The note a tab switch saves, from the mount on: a tab that never scrolls keeps its own place.
+    // Another file starts at the top (the `[path]` effect): a body already there fires no scroll
+    // event to note it.
+    const other = !seed && !!prev && prev.path !== path;
+    if (remember && (!prev || seed || other)) noteScroll({ pane: remember, repoId, path, diff, view, rows, top: other ? 0 : (virtualizer.scrollOffset ?? 0) });
+    quiet.current = same || !!seed;
     upKey.current = false;
     virtualizer.measure();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -498,8 +523,10 @@ function DiffBody({ path, diff, view, rows, maxCols, lang, actions, selected, cu
     virtualizer.scrollOffset = next;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bar]);
-  // Only another file starts over at the top.
+  // Only another file starts over at the top, and not the one a seed just put back.
   useEffect(() => {
+    if (seeded.current === path) return;
+    seeded.current = null;
     virtualizer.scrollToOffset(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path]);
@@ -558,6 +585,8 @@ function DiffBody({ path, diff, view, rows, maxCols, lang, actions, selected, cu
       role="region"
       aria-label="Diff"
       tabIndex={0}
+      // What a tab switch saves: the rows on screen and where they are scrolled to.
+      onScroll={remember ? (e) => noteScroll({ pane: remember, repoId, ...drawn.current!, top: e.currentTarget.scrollTop }) : undefined}
       onKeyDown={(e) => {
         upKey.current = e.key === "ArrowUp";
         // Enter / Space on a hunk button are its click: they end the reload's hold, as a pointer press

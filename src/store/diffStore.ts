@@ -5,6 +5,7 @@ import { create } from "zustand";
 import * as ipc from "../api/ipc";
 import { toAppError } from "../api/ipc";
 import type { Blame, DiffTarget, FileChange, FileContent, FileDiff, RepoId, TreeEntry, TreeTarget } from "../api/types";
+import { eqDeep } from "../lib/eqDeep";
 import { pick } from "../lib/pick";
 import { useRepoStore } from "./repoStore";
 
@@ -20,6 +21,8 @@ export interface DiffStore {
   filesLoading: boolean;
   filesError: string | null;
   selectedPath: string | null;
+  /** The `preselect` the last applied `load` had: a reload asking for the same one keeps the file the user moved to. */
+  preselect: string | null;
   diff: FileDiff | null;
   diffLoading: boolean;
   diffError: string | null;
@@ -61,7 +64,8 @@ export interface DiffStore {
 
   /**
    * Loads the file list of `target` (or clears everything for `null`) and selects its first file —
-   * or `preselect`, the file a history row names, on both tabs.
+   * or `preselect`, the file a history row names, on both tabs. A reload of the target already held
+   * keeps what is on screen and stays on its file, unless it brings a new `preselect`.
    */
   load(repoId: RepoId | null, target: DiffTarget | null, preselect?: string | null): Promise<void>;
   selectPath(path: string): void;
@@ -137,6 +141,8 @@ const MAX_TREES = 20;
 const treeSelection = new Map<string, string>();
 /** Target `selectTreePathAt` just seeded, for the one `load` that follows it: its `preselect` loses. */
 let pinned: string | null = null;
+/** Target `restore` cleared from a tab put away mid-load: that tab's next `load` of it is still the same target. */
+let cleared: DiffTarget | null = null;
 
 /** Caches `entries` for `key`, sharing the array of an equal tree and evicting the oldest listing. */
 function remember(key: string, oid: string | null, entries: TreeEntry[], skipped: number): TreeEntry[] {
@@ -166,7 +172,12 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
         ignoreWhitespace,
       });
       if (seq !== diffSeq) return; // stale
-      set({ diff, diffLoading: false });
+      // Identical content → keep the old object, as the commit panel does: `DiffViewer` keys its
+      // scroll off it. A held diff is this target's: a load of another one blanks it, and a tab
+      // switch or another load makes this reply stale.
+      const prev = get().diff;
+      const unchanged = prev && prev.path === diff.path && eqDeep(prev.hunks, diff.hunks);
+      set({ diff: unchanged ? prev : diff, diffLoading: false });
     } catch (e) {
       if (seq !== diffSeq) return;
       set({ diff: null, diffLoading: false, diffError: toAppError(e).message });
@@ -221,6 +232,7 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
     filesLoading: false,
     filesError: null,
     selectedPath: null,
+    preselect: null,
     diff: null,
     diffLoading: false,
     diffError: null,
@@ -266,14 +278,22 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
       // The drill-down's own load keeps its line; any other repo or commit drops it.
       const reveal = get().revealLine;
       const keep = !!reveal && reveal.repoId === repoId && treeKey === reveal.oid;
+      // The target already held (a tab coming back, StrictMode's second call, a path filter cleared
+      // on the same commit): its file list, file and diff stay on screen through the reload, and the
+      // file is kept. By value: a restore holds the snapshot's object, the pane builds a fresh one.
+      const held = get();
+      const same = !!repoId && !!target && held.repoId === repoId && eqDeep(held.target ?? cleared, target);
+      cleared = null;
+      // The pane asks for its row's file on every load of the target; only a new one (a path filter
+      // set or changed) moves the selection off the file the user was on. Recorded when a reply
+      // applies it: a tab put away mid-load still owes its `preselect`.
+      const again = same && (preselect ?? null) === held.preselect;
       set({
         repoId,
         target,
-        files: [],
+        ...(!same && { files: [], selectedPath: null, diff: null, preselect: null }),
         filesLoading: !!(repoId && target),
         filesError: null,
-        selectedPath: null,
-        diff: null,
         diffLoading: false,
         diffError: null,
         tree: null,
@@ -292,6 +312,7 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
         revealLine: keep ? reveal : null,
       });
       if (!repoId || !target) return;
+      const heldPath = get().selectedPath;
       // Only the tab on screen fetches: a 47k-path tree is not worth loading for a commit whose
       // changed files are all the user looked at.
       if (get().tab === "files") void get().loadTree();
@@ -299,9 +320,14 @@ export const useDiffStore = create<DiffStore>()((set, get) => {
         const files = await ipc.getChangedFiles(repoId, target);
         if (seq !== filesSeq) return; // stale
         // `preselect` is in the list by construction, but rename detection here can name it
-        // differently from the one `--follow` reported: the first file is the fallback.
-        const wanted = preselect && files.some((f) => f.path === preselect) ? preselect : null;
-        set({ files, filesLoading: false, selectedPath: wanted ?? files[0]?.path ?? null });
+        // differently from the one `--follow` reported: the first file is the fallback. So is a held
+        // file the reload no longer lists. A file clicked in the kept list meanwhile wins, over
+        // `preselect` too (another target blanked the selection, so there it is `null`), and so does
+        // the held file against the `preselect` it was already moved off.
+        const now = get().selectedPath;
+        const want = now !== heldPath || again ? now : (preselect ?? now);
+        const wanted = want && files.some((f) => f.path === want) ? want : null;
+        set({ files, filesLoading: false, selectedPath: wanted ?? files[0]?.path ?? null, preselect: preselect ?? null });
         void loadDiff();
       } catch (e) {
         if (seq !== filesSeq) return;
@@ -421,6 +447,7 @@ const SNAPSHOT_KEYS = [
   "filesLoading",
   "filesError",
   "selectedPath",
+  "preselect",
   "diff",
   "diffLoading",
   "diffError",
@@ -446,7 +473,7 @@ export const snapshot = (): DiffSnapshot => pick(useDiffStore.getState(), SNAPSH
 /**
  * A reply still in flight when tabs switch belongs to the tab that asked: drop it. A tab put away
  * mid-load has nothing in flight any more, so its target is cleared and the next loader (the details
- * pane, the stash browser) loads it again.
+ * pane, the stash browser) loads it again — `load` still counts it as the target held (`cleared`).
  */
 export const restore = (s: DiffSnapshot) => {
   filesSeq++;
@@ -455,6 +482,7 @@ export const restore = (s: DiffSnapshot) => {
   contentSeq++;
   blameSeq++;
   const midLoad = s.filesLoading || s.diffLoading || s.treeLoading || s.contentLoading || s.blameLoading;
+  cleared = midLoad ? s.target : null;
   // Not in the snapshot: the tab that left must not hand its drill-down line to this one.
   useDiffStore.setState({ ...(midLoad ? { ...s, target: null } : s), revealLine: null });
 };
@@ -464,6 +492,7 @@ export function __resetTreeCacheForTests() {
   treeCache.clear();
   treeSelection.clear();
   pinned = null;
+  cleared = null;
 }
 
 // Closing the last tab swaps the window to the start screen in the same render, so the details pane

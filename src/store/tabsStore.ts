@@ -9,6 +9,7 @@ import type { RepoId } from "../api/types";
 import { closeThisWindow, isMainWindow } from "../lib/appWindow";
 import { baseName } from "../lib/paths";
 import { refreshAll, refusedWhileRunning } from "../screens/RepoWindow/actions";
+import { forgetScroll, seedScroll, takeNote, type DiffScroll } from "../screens/RepoWindow/DiffViewer/diffScroll";
 import { hasDraft, restore as restoreCommit, snapshot as commitSnapshot, type CommitSnapshot, useCommitStore } from "./commitStore";
 import { useDialogStore } from "./dialogStore";
 import { restore as restoreDiff, snapshot as diffSnapshot, type DiffSnapshot } from "./diffStore";
@@ -33,6 +34,8 @@ export interface Snapshot {
   commit: CommitSnapshot;
   diff: DiffSnapshot;
   view: ViewSnapshot;
+  /** Where its History or Changes diff was scrolled (`diffScroll`), `null` when nothing noted it. */
+  scroll: DiffScroll | null;
 }
 
 export interface TabsStore {
@@ -59,7 +62,14 @@ export interface TabsStore {
   setCaret(at: number | null): void;
 }
 
-const take = (): Snapshot => ({ repo: repoSnapshot(), status: statusSnapshot(), commit: commitSnapshot(), diff: diffSnapshot(), view: viewSnapshot() });
+const take = (): Snapshot => ({
+  repo: repoSnapshot(),
+  status: statusSnapshot(),
+  commit: commitSnapshot(),
+  diff: diffSnapshot(),
+  view: viewSnapshot(),
+  scroll: takeNote(),
+});
 
 /**
  * `repoStore` first: the other stores subscribe to it, and their subscribers reset them. The view
@@ -71,6 +81,7 @@ function put(s: Snapshot) {
   restoreCommit(s.commit);
   restoreDiff(s.diff);
   restoreView(s.view);
+  seedScroll(s.scroll);
 }
 
 /** Shows the tab `snap` belongs to. The walk is restarted rather than resumed — it may be generations behind. */
@@ -116,6 +127,8 @@ export const useTabsStore = create<TabsStore>()((set, get) => ({
         active: summary.id,
         saved: active ? { ...get().saved, [active]: take() } : get().saved,
       });
+      // After `take()`, which needs the note: what the slots still hold belongs to another tab.
+      forgetScroll();
       // A new tab starts on History, whatever the tab left (or the start screen) showed.
       useViewStore.getState().setView("history");
       try {
@@ -154,6 +167,7 @@ export const useTabsStore = create<TabsStore>()((set, get) => ({
       set({ tabs: rest, saved });
     } else if (rest.length === 0) {
       set({ tabs: [], active: null, saved });
+      forgetScroll();
       // Clears every store and calls `close_repo` itself.
       await useRepoStore
         .getState()

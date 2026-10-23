@@ -266,6 +266,25 @@ describe("commitStore.syncWithStatus", () => {
     expect(mocked.getFileDiff).toHaveBeenLastCalledWith(REPO.id, { kind: "unstaged" }, "a.rs", { context: 10 }, undefined);
   });
 
+  it("a tab's diff object survives a switch from a tab on the other list, both ways", async () => {
+    // One file in both lists: tab U shows its unstaged diff, tab S its staged one.
+    const both = { ...entry("a.rs"), index: "modified" as const };
+    await sync([both]);
+    const tabU = snapshot();
+    useCommitStore.getState().select("staged", { selected: ["a.rs"], anchor: "a.rs" });
+    await flush();
+    const tabS = snapshot();
+    expect(tabS.diff).not.toBe(tabU.diff);
+
+    // The status refresh a switch brings reloads the diff; identical hunks keep the object.
+    restore(tabU);
+    await sync([both]);
+    expect(useCommitStore.getState().diff).toBe(tabU.diff);
+    restore(tabS);
+    await sync([both]);
+    expect(useCommitStore.getState().diff).toBe(tabS.diff);
+  });
+
   it("an empty status clears the selection and the diff", async () => {
     await sync([entry("a.rs")]);
     await sync([]);

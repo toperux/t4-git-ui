@@ -52,8 +52,11 @@ src/
                            one on the start screen), markStale, detach (a no-op with one tab; spawn_window, then close
                            the tab — never the other way round), reorder, setCaret (the slot a tab dragged from another
                            window would land in). Snapshot = repoStore (minus gitVersion) +
-                           statusStore + commitStore + diffStore (minus the window-level view settings) + viewStore
-                           (view only), each store owning its own `snapshot()` / `restore()` beside its `reset`
+                           statusStore + commitStore (with `diffList`, so a switch keeps the shown diff object) + diffStore
+                           (minus the window-level view settings) + viewStore (view only), each store owning its own
+                           `snapshot()` / `restore()` beside its `reset`, + scroll (where the History / Changes diff was:
+                           `take()` moves DiffViewer/diffScroll.ts's note in, `put()` seeds it back; a new tab, after its
+                           `take()`, and the last tab's close forget both)
     repoStore.ts           zustand: repo, refs, log {generation,total,complete,error,flat} (a page response never clears `complete`,
                            and lowers `total` only when complete — a late page must not undo a newer `log://progress`), sparse rows[], selection (commit index +
                            wtSelected for the working-tree row), reveal,
@@ -94,9 +97,17 @@ src/
     diffStore.ts           zustand: selected commit → files (get_changed_files), selectedPath (default first, or `load`'s
                            `preselect` — the history row's own file, seeded into `treeSelection` too so the Files tab follows;
                            a path the changed list names differently falls back to the first file), diff (get_file_diff with `context` — 3 unless Settings says otherwise;
-                           setContext reloads),
+                           setContext reloads; an identical reload keeps the old object, as commitStore's does),
+                           a `load` of the target already held (same repo, target compared by value: a tab coming back,
+                           StrictMode's second call, a path filter cleared on the same commit) keeps files / selectedPath /
+                           diff on screen through the reload and lands on `preselect ?? the held file` when the new list has it
+                           (a file clicked in the kept list meanwhile wins, over `preselect` too; a `preselect` the
+                           last applied load already had keeps the file the user moved to — `preselect`, recorded
+                           when a reply applies it, is in the snapshot),
                            stale responses dropped via seq counters (`restore`, a tab switch, bumps all five, and a
-                           snapshot taken mid-load comes back with no target so the next loader reloads it); view unified|split (localStorage.diffView), ignoreWhitespace,
+                           snapshot taken mid-load comes back with no target so the next loader reloads it — a module
+                           variable keeps the cleared target, so that load still counts as the held one, until the next
+                           `load` or `restore`); view unified|split (localStorage.diffView), ignoreWhitespace,
                            fileListMode flat|tree (localStorage.fileListMode).
                            Files tab (§1): tab changes|files, tree (list_tree = every file of the target revision — the *to* commit of
                            a compare, the index for any working-tree target, via `treeTargetOf`), treeFilter, treeSelectedPath +
@@ -480,7 +491,7 @@ src/
                            node named `a/b/c`, keyed by its deepest path, rendered `a / b / c`); tree rows draw a guide line
                            under each ancestor's chevron (`.rows .treeRow` background-image, so hover / selected rules use
                            `background-color`)
-      DiffViewer/          DiffViewer props {path, oldPath, stats, diff, loading, error, actions?} (header: path, stats, unified/split/
+      DiffViewer/          DiffViewer props {path, oldPath, stats, diff, loading, error, actions?, remember?} (header: path, stats, unified/split/
                            whitespace IconButtons; virtualized body, role=region, `.selectable` text, CR → ␍, no-newline marker,
                            binary/truncated states; per-line syntax highlighting via lib/highlight → `--syn-*`). `actions` = staging mode: forced unified, hunk-row "Discard | Stage/Unstage hunk"
                            (laid over the header's end on hover / focus, taking none of its width),
@@ -504,14 +515,19 @@ src/
                            unstaged side only; a mode change shows as a `100644 → 100755` chip beside the stats. The body
                            scrolls back to the top only when the file path changes; a reload of the same file, or a
                            unified ↔ split switch (which also resets the horizontal scroll), keeps its top line
-                           (`scrollAnchor.ts`);
+                           (`scrollAnchor.ts`); `remember` ("history" | "changes", set only by the details pane's
+                           CommitDiff and the Changes view's DiffColumn, never a dialog's) notes the body's place on mount,
+                           on each scroll, on a seed and on another file at the top (`diffScroll.ts`), and the first body of a tab switch's seed's pane,
+                           repository and file opens on the seed's top line (`carryOffset`) with no scroll to the top;
+                           RepoWindow drops a seed no body took once the switch's commit is over;
                            `onOpenExternal` adds an "Open in diff tool" IconButton beside the expand one — `open_diff_tool`
                            (git-core tools.rs writes the two sides to a per-user temp dir and spawns the configured tool —
                            split with no shell on Windows, `sh -c` with the variables in the environment on unix; an unstaged
                            diff's right side is the working file itself), greyed while settingsStore has no `tools.diff`,
                            and the same store makes "Resolve in editor" name the merge tool in its tooltip
                            diffRows.ts (pure: flattenUnified (rows carry hunk/index) / flattenSplit), lineSelection.ts (pure: clickLine, toPairs),
-                           scrollAnchor.ts (pure: carryOffset),
+                           scrollAnchor.ts (pure: carryOffset), diffScroll.ts (a tab switch's scroll memory for the two main
+                           diffs: one note slot, one seed slot; takeSeed spends the seed on any remembering body),
                            FileContent.tsx — the Files tab's right-hand side and a **sibling** of DiffViewer, not a mode of it:
                            none of the viewer's hunks, staging actions, line selection or cursor model mean anything with one
                            side. It shares the row CSS (`.body.content` = one gutter, no sign column), the exported `LineText`

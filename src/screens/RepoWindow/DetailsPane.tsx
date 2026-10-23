@@ -15,6 +15,7 @@ import { selectCompare, selectSelectedOid, useRepoStore } from "../../store/repo
 import { copyText, openInDiffTool, stashApply, stashDrop, stashPop } from "./actions";
 import { ChangedFileList } from "./ChangedFileList/ChangedFileList";
 import s from "./DetailsPane.module.css";
+import type { DiffPane } from "./DiffViewer/diffScroll";
 import { DiffViewer } from "./DiffViewer/DiffViewer";
 import { FileContent } from "./DiffViewer/FileContent";
 import { useLayout } from "./layout";
@@ -54,7 +55,7 @@ export function DetailsPane() {
   const tier = useLayout().details;
   const [expanded, setExpanded] = useState(false);
   const details = preview ? <StashDetails stash={preview} /> : compare ? <CompareDetails compare={compare} /> : <CommitDetails />;
-  const diff = <CommitDiff onExpand={target ? (opener) => open({ kind: "diff" }, { returnFocusTo: opener }) : undefined} />;
+  const diff = <CommitDiff remember="history" onExpand={target ? (opener) => open({ kind: "diff" }, { returnFocusTo: opener }) : undefined} />;
 
   if (tier === "3col")
     return (
@@ -128,8 +129,11 @@ function DetailsHeaderCollapsed({ expanded, onToggle }: { expanded: boolean; onT
   );
 }
 
-/** `DiffViewer` bound to `diffStore` — or `FileContent` while the Files tab is up (the selected commit's file either way). */
-export function CommitDiff({ onExpand }: { onExpand?: (opener: HTMLElement) => void }) {
+/**
+ * `DiffViewer` bound to `diffStore` — or `FileContent` while the Files tab is up (the selected commit's
+ * file either way). `remember`: the details pane's own, not a dialog's (`DiffViewer`).
+ */
+export function CommitDiff({ onExpand, remember }: { onExpand?: (opener: HTMLElement) => void; remember?: DiffPane }) {
   const path = useDiffStore((st) => st.selectedPath);
   const file = useDiffStore((st) => st.files.find((f) => f.path === st.selectedPath));
   const diff = useDiffStore((st) => st.diff);
@@ -151,6 +155,7 @@ export function CommitDiff({ onExpand }: { onExpand?: (opener: HTMLElement) => v
       loading={loading}
       error={error}
       onExpand={onExpand}
+      remember={remember}
       onOpenExternal={target && path ? () => void openInDiffTool(target, path, file?.oldPath ?? null) : undefined}
     />
   );

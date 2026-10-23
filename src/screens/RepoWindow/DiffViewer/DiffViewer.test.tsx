@@ -1,13 +1,15 @@
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { StrictMode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FileDiff } from "../../../api/types";
 import { loadLang } from "../../../lib/highlight";
 import { observeVisibleRect } from "../../../lib/observeVisibleRect";
 import { useDiffStore } from "../../../store/diffStore";
+import { useRepoStore } from "../../../store/repoStore";
 import { useSettingsStore } from "../../../store/settingsStore";
 import { bigDiff, fileDiff, hunk, line, stripes } from "./diffFixtures";
 import { flattenUnified } from "./diffRows";
+import { forgetScroll, seedScroll, takeNote, takeSeed, type DiffScroll } from "./diffScroll";
 import { DiffViewer, type DiffActions } from "./DiffViewer";
 
 vi.mock("../../../api/ipc", () => ({
@@ -942,6 +944,120 @@ describe("DiffViewer", () => {
           outside.remove();
         }
       });
+    });
+  });
+
+  describe("a tab switch puts the window's diff back where it was scrolled", () => {
+    const WS = stripes({ wsOdd: true });
+    // 15 000 into WS is 7 456 into its whitespace-ignored reload (the toggle's own test above).
+    const IGNORED = stripes({ wsOdd: true, ignoreWhitespace: true });
+    const seedOf = (diff: FileDiff, top: number, over: Partial<DiffScroll> = {}): DiffScroll => ({
+      pane: "history",
+      repoId: "r",
+      path: diff.path,
+      diff,
+      rows: flattenUnified(diff).rows,
+      view: "unified",
+      top,
+      ...over,
+    });
+    beforeEach(() => {
+      useDiffStore.setState({ view: "unified" });
+      useRepoStore.setState({ repo: { id: "r", name: "r", path: "/r", head: { oid: "a", branch: "main", detached: false } } });
+      forgetScroll();
+    });
+    afterEach(() => {
+      useRepoStore.setState({ repo: null });
+      forgetScroll();
+    });
+
+    it("a seeded body opens on the seed's top line, and no scroll to the top follows", () => {
+      seedScroll(seedOf(WS, 15_000));
+      render(<DiffViewer path={IGNORED.path} diff={IGNORED} {...idle} remember="history" />);
+      expect(scrolls.offsets).toEqual([7_456]);
+      expect(takeNote()).toMatchObject({ pane: "history", repoId: "r", path: IGNORED.path, diff: IGNORED });
+    });
+
+    it("StrictMode's second run of the file's effect doesn't scroll a seeded body to the top", () => {
+      seedScroll(seedOf(WS, 15_000));
+      render(
+        <StrictMode>
+          <DiffViewer path={IGNORED.path} diff={IGNORED} {...idle} remember="history" />
+        </StrictMode>,
+      );
+      expect(scrolls.offsets).toEqual([7_456]);
+    });
+
+    it("a seed for another pane, repository or file is spent, and the body starts at the top", () => {
+      for (const over of [{ pane: "changes" as const }, { repoId: "other" }, { path: "other.rs" }]) {
+        const seed = seedOf(WS, 15_000, over);
+        seedScroll(seed);
+        render(<DiffViewer path={WS.path} diff={WS} {...idle} remember="history" />);
+        expect(scrolls.offsets).toEqual([0]);
+        expect(takeSeed(seed.pane, seed.repoId, seed.path)).toBeNull();
+        cleanup();
+        scrolls.offsets.length = 0;
+      }
+    });
+
+    it("a body without `remember` (a dialog's) neither takes the seed nor notes", () => {
+      const seed = seedOf(WS, 15_000);
+      seedScroll(seed);
+      const { getByRole } = render(<DiffViewer path={WS.path} diff={WS} {...idle} />);
+      fireEvent.scroll(getByRole("region", { name: "Diff" }));
+      expect(scrolls.offsets).toEqual([0]);
+      expect(takeNote()).toBeNull();
+      expect(takeSeed("history", "r", WS.path)).toBe(seed);
+    });
+
+    it("notes its place on mount and on each scroll", () => {
+      scrolls.top = 300;
+      const { getByRole } = render(<DiffViewer path={WS.path} diff={WS} {...idle} remember="changes" />);
+      expect(takeNote()).toMatchObject({ pane: "changes", repoId: "r", path: WS.path, diff: WS, view: "unified", top: 300 });
+      const region = getByRole("region", { name: "Diff" });
+      Object.defineProperty(region, "scrollTop", { value: 4_000, configurable: true });
+      fireEvent.scroll(region);
+      expect(takeNote()).toMatchObject({ pane: "changes", path: WS.path, top: 4_000 });
+    });
+
+    it("a body that stays mounted through the switch takes the seed, not the other tab's offset", () => {
+      // The other tab's diff of the same file, scrolled to 15 000; the tab coming back was at 2 000.
+      scrolls.top = 15_000;
+      const { getByRole, rerender } = render(<DiffViewer path={WS.path} diff={WS} {...idle} remember="history" />);
+      Object.defineProperties(getByRole("region", { name: "Diff" }), {
+        clientHeight: { value: 400, configurable: true },
+        scrollHeight: { value: 100_000, configurable: true },
+      });
+      scrolls.offsets.length = 0;
+      const back = { ...WS };
+      seedScroll(seedOf(back, 2_000));
+      rerender(<DiffViewer path={back.path} diff={back} {...idle} remember="history" />);
+      expect(scrolls.offsets).toEqual([2_000]);
+    });
+
+    it("a body that stays mounted notes another file at the top, which no scroll event does", () => {
+      const { rerender } = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} remember="history" />);
+      rerender(<DiffViewer path={WS.path} diff={WS} {...idle} remember="history" />);
+      expect(takeNote()).toMatchObject({ path: WS.path, diff: WS, top: 0 });
+    });
+
+    it("a tab left on another file at the top doesn't come back at the other tab's offset of that file", () => {
+      // Tab A: SMALL at the top, then WS, still at the top. The switch saves A's note.
+      const { getByRole, rerender } = render(<DiffViewer path={SMALL.path} diff={SMALL} {...idle} remember="history" />);
+      Object.defineProperties(getByRole("region", { name: "Diff" }), {
+        clientHeight: { value: 400, configurable: true },
+        scrollHeight: { value: 100_000, configurable: true },
+      });
+      rerender(<DiffViewer path={WS.path} diff={WS} {...idle} remember="history" />);
+      const a = takeNote();
+      // Tab B: its own diff of WS, at 3 000.
+      seedScroll(seedOf(WS, 3_000));
+      rerender(<DiffViewer path={WS.path} diff={{ ...WS }} {...idle} remember="history" />);
+      scrolls.offsets.length = 0;
+      // Back to A: its WS at the top.
+      seedScroll(a);
+      rerender(<DiffViewer path={WS.path} diff={{ ...WS }} {...idle} remember="history" />);
+      expect(scrolls.offsets).toEqual([0]);
     });
   });
 
