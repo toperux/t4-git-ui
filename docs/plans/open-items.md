@@ -8,8 +8,8 @@ also in a close-out phase, the `status.rs` row, closed in Phase 3 on 2026-10-03)
 
 _Done, fixed, walked and closed rows live in `open-items-done.md` (split 2026-09-24), under the same section letters — a
 letter with nothing open left (§A, §D, §F, §G, §H, §I, §J, §K, §L, §M, §N, §O, §P, §T, §U, §W, §AB, §AC, §AD, §AG, §AI,
-§AR, §AS) is only there. When a row here is done, move it there. Accepted limits with a reopen trigger are open, in §Q
-(since 2026-09-28); those with none are closed, in the done file; of §V's deferred rows, only the CRLF test flake and
+§AR, §AS, §AU) is only there. When a row here is done, move it there. Accepted limits with a reopen trigger are open, in
+§Q (since 2026-09-28); those with none are closed, in the done file; of §V's deferred rows, only the CRLF test flake and
 the GIO-modules row remain after the 2026-10-06 fix batch._
 
 ## B. Verification and release
@@ -987,12 +987,8 @@ The whitespace default that didn't reload the diff (AO3) and the view switch's j
 walked in that plan, and moved to `open-items-done.md` §AO on 2026-10-20. AO1 and AO5–AO7 were fixed and walked in
 Plan B, and moved to `open-items-done.md` §AS on 2026-10-22.
 
-- **AO2. A failed tab open lands on a tab other than the one that was active.** The new tab is inserted at its slot (the
-  end, unless a drop names one), and closing it picks `rest[Math.min(i, rest.length - 1)]` (`tabsStore.ts:167`): the
-  tab that held the failed tab's slot, or the last, not the one that was active (the per-tab view plan's Design 12).
-  With A, C open and A active, a failed open of B appended lands on C. Reasoned. Unreachable today: with a summary,
-  no step of the open path can fail (`repoStore.ts:331-369`), so the cleanup at `tabsStore.ts:124-126` never runs
-  (the per-tab view plan's pass 2). **Reopen:** a step in the open path gains a way to fail.
+AO2 was fixed and walked in Plan C (`docs/archive/plans/2026-10-30-tabs-dock-deferred-plan.md`), and moved to
+`open-items-done.md` §AU on 2026-10-30.
 
 ## AP. Added 2026-10-17 — seen in the BW walk, deferred
 
@@ -1000,20 +996,15 @@ Seen on the way in `docs/archive/walks/2026-10-17-bw-walk.md` (Windows, the per-
 owner's word in the triage, each with a reopen trigger. AP2 was fixed and walked in Plan B, and moved to
 `open-items-done.md` §AS on 2026-10-22.
 
-- **AP1. A background tab's grid came forward one row down once.** The first time `other`, opened in the background at
-  launch, came forward, its grid sat at scrollTop 26 with the selected HEAD row hidden above the top. Two fresh
-  launches did not reproduce it; not compared with 0.10.24. **Reopen:** seen again.
-- **AP3. The output dock is per window, not per tab.** `other` showed `work`'s `git commit -F …` line. **Reopen:**
-  someone wants it per tab.
+AP1 (closed, not seen in 10 launches) and AP3 (done as a feature, the dock per tab) were taken in Plan C and moved to
+`open-items-done.md` §AU on 2026-10-30.
 
 ## AQ. Added 2026-10-17 — the BU walk's sightings, deferred
 
 Seen in `docs/archive/walks/2026-10-17-bu-walk.md` (Windows, the diff viewer polish's walk), and deferred on the
 owner's word in the triage. The walk's other sightings were fixed or are in `open-items-done.md` §AN.
 
-- **AQ1. The focus moved once from the staging diff's cursor row to the "Staged files" listbox.** Right after the first
-  click in BU row 1, between two CDP runs. No cause found; not seen again. **Reopen:** seen again, by hand or in a
-  walk.
+AQ1 was closed in Plan C (not seen in 10 launches) and moved to `open-items-done.md` §AU on 2026-10-30.
 
 ## AT. Added 2026-10-30 — Dependabot #33–#35
 
@@ -1035,6 +1026,17 @@ Seen on the way in `docs/archive/walks/2026-10-30-deps-35-34-walk.md` and deferr
   is 800×600, and there the START cards' text wraps over 2–3 lines ("Open repository…") and the Clone card's
   Ctrl+Shift+O chip pokes out on the right. Cosmetic; seen once, on Linux. **Reopen:** the next start-screen or window
   sizing work.
+
+Added 2026-10-30 — from `docs/archive/plans/2026-10-30-tabs-dock-deferred-plan.md` (Plan C's P1-2, deferred in its
+triage):
+
+- **A corrupt `remoteTags:<id>` value rejects a repository open.** `repoStore.openRepo`'s cached-badges read
+  (`repoStore.ts:409`, `if (cached && !("remote" in cached) …)`) throws a `TypeError` when `recents.json` holds a
+  truthy primitive under the key (`1`, `"x"`, `true`), after `set({ repo })`; the open rejects and the tab closes.
+  Walked as BZ 1's failure (`Cannot use 'in' operator to search for 'remote' in 1`). Not reachable without editing the
+  file by hand: only `refreshRemoteTags` writes the key, with an object. Deferred 2026-10-30 under the owner's
+  2026-10-21 rule.
+  **Reopen:** the next `repoStore` or `lib/kv` work, or a corrupt store value seen in the wild.
 
 ## Order
 

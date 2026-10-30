@@ -2278,3 +2278,40 @@ Moved from `open-items.md` §AO (AO1, AO5, AO6, AO7) and §AP (AP2). Plan:
       every check matched, and the installed exe's hash equals the released setup's.
   - Neither known flaky test failed on any run.
   - Plan: `docs/archive/plans/2026-10-23-deps-35-34-plan.md`.
+
+## AU. Added 2026-10-30 — the remaining tab rows (Plan C): fixed, closed and accepted
+
+Moved from `open-items.md` §AO (AO2), §AP (AP1, AP3) and §AQ (AQ1). Plan:
+`docs/archive/plans/2026-10-30-tabs-dock-deferred-plan.md` (Plan C). Walk record:
+`docs/archive/walks/2026-10-30-bz-walk.md` (smoke group BZ: Windows on `612fc826`, the pre-squash tip; row 1 also on
+the installed 0.10.24). Squashed into `17436b0a` (fix), `76f57a70` (feat) and `a818d2bd` (the BZ group). CI on the
+branch: run 41032359500, green on three OS.
+
+- **A failed tab open landed on a tab other than the one that was active** (AO2). **Fixed:** `fix: a failed open goes
+  back to the tab that was active`. `closeTab` takes an optional `returnTo`, and `openTab`'s cleanup passes the tab
+  that was active before the open; if the user switched tabs during the open, that tab stays; if the tab that was
+  active closed, `closeTab`'s own pick stands. Tests in `tabsStore.test.ts`: a failed open appended and one at a drop's
+  slot (both fail without the fix), plus the start screen, a switch during the open, and the remembered tab closed
+  during the open. Walked, BZ 1. The row's
+  claim that the path was unreachable was wrong: a corrupt `remoteTags:<id>` value in `recents.json` (a primitive, `1`)
+  makes `repoStore.openRepo`'s `"remote" in cached` throw a TypeError, which rejects the open. Walked through that
+  seed on the installed 0.10.24 (`work | third*`, the old pick) and on the fixed build (`work* | third`, Changes).
+- **The output dock was per window, not per tab** (AP3). **Done as a feature** (Q2 (a), owner, 2026-10-30): `feat: the
+  output dock shows the active tab's commands`. Each `OpRecord` carries its event's `repoId` (`null` for a clone); the
+  dock shows the open repository's records plus the repo-less ones, and its collapsed bar names the tab's last
+  command. The `open` flag and the caps stay per window. Tests in `opsStore.test.ts` and `OutputDock.test.tsx`
+  (including an equal-count remount for `key={repoId ?? ""}`). Walked, BZ 2–3.
+- **A background tab's grid came forward one row down once** (AP1). **Closed, not seen** in 10 launches of the BW
+  walk's setup (title "T4 Git UI - other", scrollTop 0 and the selected HEAD at top 0, on arrival and 1.5 s later).
+  Owner (a), 2026-10-30; no trigger.
+- **The focus moved once from the staging diff's cursor row to the "Staged files" listbox** (AQ1). **Closed, not seen**
+  in 10 launches of the BU walk's setup (the focus on the cursor row `20−` in both runs, 3 s apart). Owner (a),
+  2026-10-30; no trigger.
+- **`key={repoId ?? ""}` where the plan said `key={repoId}`** on the dock's output body. Harmless: the dock never
+  renders without a repository. Accepted, closed under the owner's 2026-10-21 rule, 2026-10-30 (change review).
+- **`src/README.md`'s `tabsStore.ts` table cell keeps a ragged line, and some TypeScript lines in the touched files
+  pass 120 columns** (no width rule for code; the files already had many). Accepted, closed under the owner's
+  2026-10-21 rule, 2026-10-30.
+- **`src/README.md`'s `runOp` paragraph had a literal line break where `\r` was meant** (pre-existing). Fixed with the
+  feat commit's README edits: it now reads "a `\r` progress segment".
+- The deferred row for the `"remote" in cached` TypeError is in `open-items.md` §AT.

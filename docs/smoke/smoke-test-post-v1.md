@@ -3677,12 +3677,12 @@ app log read for WARN / ERROR after.
 
 ## BZ. A failed open's landing, the output dock per tab
 
-Plan: `docs/plans/2026-10-30-tabs-dock-deferred-plan.md` (AO2, AP3). A failed open now lands on the tab that was
-active before it, not on the tab that took the failed tab's slot (AO2). The output dock now lists the open
-repository's records plus the repo-less ones (the clone), so each tab shows its own commands (AP3). Windows VM over
-CDP on a local `tauri build --no-bundle` of `tabs-dock-deferred` (`docs/smoke/smoke-cdp.md`: `smoke-launch.ps1`,
-`cdp.mjs --inner 1280x800`, readings through `--eval`); row 1 also on the installed 0.10.24
-(`smoke-launch.ps1 -Installed`). Linux and macOS: not walked.
+Plan: `docs/archive/plans/2026-10-30-tabs-dock-deferred-plan.md` (AO2, AP3); walk record
+`docs/archive/walks/2026-10-30-bz-walk.md`. A failed open now lands on the tab that was active before it, not on the tab
+that took the failed tab's slot (AO2). The output dock now lists the open repository's records plus the repo-less ones
+(the clone), so each tab shows its own commands (AP3). Windows VM over CDP on a local `tauri build --no-bundle` of
+`tabs-dock-deferred` (`docs/smoke/smoke-cdp.md`: `smoke-launch.ps1`, `cdp.mjs --inner 1280x800`, readings through
+`--eval`); row 1 also on the installed 0.10.24 (`smoke-launch.ps1 -Installed`). Linux and macOS: not walked.
 
 Fixtures: one set under `C:\tmp\t4bw` (`smoke-fixtures.ps1 -Root C:\tmp\t4bw`, no `-Force`; the root must not exist
 yet). It gives `work` the `slow` and `nowhere` remotes and makes `other` a clone of `bare.git`. `third` and `bz-b`:
@@ -3693,7 +3693,7 @@ The store folder (`%APPDATA%\dev.topher.t4gitui`) is backed up before the first 
 end. `layout.json` is re-seeded and `layout.restoring` deleted before every launch (the app rewrites the layout on
 each tab change). Every reading carries `document.title`.
 
-- [ ] 1. **AO2, a failed open lands on the tab that was active:** the failure comes from a seeded
+- [x] 1. **AO2, a failed open lands on the tab that was active:** the failure comes from a seeded
       `"remoteTags:c:\\tmp\\t4bw\\bz-b": 1` in `recents.json` (the id's spelling: lowercase drive letter, backslashes;
       a wrong spelling fails silently, so a seeded key that does not fail the open is itself a finding).
       - Setup: `layout.json` seeded with `bz-b` alone, launch, Ctrl+W its tab, quit, so Recents has it. With the app
@@ -3706,7 +3706,11 @@ each tab change). Every reading carries `document.title`.
         same detail; the strip `work | third`, `work` active, in Changes.
       - Then quit and delete the seeded key from `recents.json` with a file tool (not a restore: a restored file gets
         the seed written back on the next save) before any other row.
-- [ ] 2. **AP3, the dock follows the tab; a clone shows in every tab:** `layout.json` seeded with `work` (Recents gets
+
+      *(Walked 2026-10-30 on a Windows release build of `612fc826` over CDP, and on the installed 0.10.24: pass. Both
+      builds: the toast with `Cannot use 'in' operator to search for 'remote' in 1`. Installed: `work | third*`. Fixed
+      build: `work* | third`, Changes pressed.)*
+- [x] 2. **AP3, the dock follows the tab; a clone shows in every tab:** `layout.json` seeded with `work` (Recents gets
       it), launch, Ctrl+W on every tab for the start screen.
       - Clone from the start screen's Clone dialog (Clone… or Ctrl+Shift+O): `C:\tmp\t4bw\bare.git` into
         `c:\tmp\t4bw\bz-clone`. It opens as tab 1; its dock's bar reads `$ git clone …`.
@@ -3716,13 +3720,21 @@ each tab change). Every reading carries `document.title`.
         command; Ctrl+Tab both ways keeps it so.
       - The expanded dock scrolls to its bottom after each switch (a smoke check only: the two lists differ in row
         count; the equal-count case is covered by its unit test).
-- [ ] 3. **AP3, Cancel still reaches the running op; a cancel does not open the dock, a failure does:** continuing
+
+      *(Walked 2026-10-30 on a Windows release build of `612fc826` over CDP: pass. Each dock listed the clone line and
+      its own command only; the collapsed bar followed the tab over 4 switches; the expanded dock sat at its bottom
+      after every switch, 157/157 and 67/67.)*
+- [x] 3. **AP3, Cancel still reaches the running op; a cancel does not open the dock, a failure does:** continuing
       row 2's window (`bz-clone | work`; after a relaunch, seed `layout.json` with both, in that order), in `work`, the
       dock collapsed.
       - Right-click the sidebar's `slow` remote › Fetch slow (not typed into the dock prompt, which opens the dock
         itself). Cancel on the collapsed bar → the op exits non-zero and the bar stays collapsed.
       - The dock collapsed again, right-click `nowhere` › Fetch nowhere → the fetch fails at once and the dock opens
         on it; the failure is listed in `work`'s dock and not in `bz-clone`'s.
+
+      *(Walked 2026-10-30 on a Windows release build of `612fc826` over CDP: pass. Cancel: exit 1 after 10.6 s, the
+      dock stayed collapsed. Fetch nowhere: exit 128 at once, the dock opened; listed in `work`'s dock, not in
+      `bz-clone`'s.)*
 
 ## Reporting
 

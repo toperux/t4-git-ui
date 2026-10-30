@@ -1,13 +1,10 @@
 # Plan: the remaining tab rows — a failed open's landing, the dock per tab, two sightings (Plan C)
 
-_Written 2026-10-30 against `main` `f01431d3`. Status: plan review loop; pass 1's 16 taken, P1-2 (a) with the owner;
-pass 2's 11 taken (P2-6, a smoke group, under the owner's 2026-10-21 rule); pass 3's 13 taken (P3-13, the landing on the
-installed release, under the same rule); pass 4's 7 taken (the walk section, P1-2, D2, Design 2, Step 8); pass 5's 7
-taken; pass 6's 3 nits taken; pass 7's 2 taken (an equal-count remount test); pass 8's 1 nit taken; pass 9 found nothing
-— final, awaiting the owner's go. Scope set by the owner on 2026-10-17 ("once the per-tab, polish and scroll-anchor
-plans all merge, plan §AO/§AP/§AQ") and 2026-10-23 ("let's do plan C"): the rows of `open-items.md` §AO, §AP and §AQ
-that Plan A and Plan B did not take — AO2, AP1, AP3 and AQ1. Q1 (a) and Q2 (a) with the owner on 2026-10-30; D1 and D2
-taken under the owner's 2026-10-21
+_Written 2026-10-30 against `main` `f01431d3`. Status: the plan review loop ended at pass 9; executed 2026-10-30; walked
+(BZ, `docs/archive/walks/2026-10-30-bz-walk.md`); change review loop 5 passes; triage with the owner; records written.
+Scope set by the owner on 2026-10-17 ("once the per-tab, polish and scroll-anchor plans all merge, plan §AO/§AP/§AQ")
+and 2026-10-23 ("let's do plan C"): the rows of `open-items.md` §AO, §AP and §AQ that Plan A and Plan B did not take —
+AO2, AP1, AP3 and AQ1. Q1 (a) and Q2 (a) with the owner on 2026-10-30; D1 and D2 taken under the owner's 2026-10-21
 rule._
 
 **Goal.** Close the four rows left in `open-items.md` §AO–§AQ: one reasoned bug on a path that one corrupt stored value
@@ -207,16 +204,16 @@ change).
   with a file tool (not a restore: see P1-2) before any other row.
 - **BZ 2 — the dock follows the tab; a clone shows in every tab (AP3).** Launch with `layout.json` seeded with `work`
   (Recents gets it, `App.tsx:210`), then Ctrl+W on every tab for the start screen (a `[]` layout alone is not a clean
-  start, `lastOpen` can reopen one, `smoke-cdp.md:102-104`). Clone from the start screen
-  (Clone… or Ctrl+Shift+O, `StartScreen.tsx:140,300`; URL, parent folder and folder name are plain text inputs,
-  `CloneDialog.tsx:140-179`, so typed over CDP; only the folder button opens a native picker; the `op://event`
-  listener runs on the start screen too, `App.tsx:173`): `C:\tmp\t4bw\bare.git` into `c:\tmp\t4bw\bz-clone`. It opens
-  as tab 1; its dock's bar reads `$ git clone …`. Recents › `work` as tab 2: its bar reads `$ git clone …` too (the
-  repo-less record). In `work`'s dock prompt run `git status`; in `bz-clone`'s run `git log -1`. Each tab's dock lists
-  the clone line and its own command only; the collapsed bar names the tab's own last command; Ctrl+Tab both ways
-  keeps it so; the expanded dock scrolls to its bottom after each switch (a smoke check only: the two lists differ in
-  row count, so the `rowCount` effect runs either way; the equal-count case the `key={repoId}` remount is for is
-  covered by its unit test, not walked).
+  start, `lastOpen` can reopen one, `smoke-cdp.md:102-104`). Clone from the start screen (Clone… or Ctrl+Shift+O,
+  `StartScreen.tsx:140,300`; URL, parent folder and folder name are plain text inputs, `CloneDialog.tsx:140-179`, so
+  typed over CDP; only the folder button opens a native picker; the `op://event` listener runs on the start screen too,
+  `App.tsx:173`): `C:\tmp\t4bw\bare.git` into `c:\tmp\t4bw\bz-clone`. It opens as tab 1; its dock's bar reads
+  `$ git clone …`. Recents › `work` as tab 2: its bar reads `$ git clone …` too (the repo-less record). In `work`'s dock
+  prompt type `status` (the prompt supplies `git`); in `bz-clone`'s, `log -1`. Each tab's dock lists the clone line and
+  its own command only; the collapsed bar names the tab's own last command; Ctrl+Tab both ways keeps it so; the expanded
+  dock scrolls to its bottom after each switch (a smoke check only: the two lists differ in row count, so the `rowCount`
+  effect runs either way; the equal-count case the `key={repoId}` remount is for is covered by its unit test, not
+  walked).
 - **BZ 3 — Cancel still reaches the running op, a cancel does not open the dock, a failure does.** In `work`, the dock
   collapsed, right-click the sidebar's `slow` remote › Fetch slow (the remote row's context menu, `Sidebar.tsx:450` →
   `:716-722`, `fetchRemote`; its upload-pack sleeps a minute — not typed into the dock prompt, which opens the dock
