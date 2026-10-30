@@ -28,6 +28,8 @@ export interface OpLine {
 
 export interface OpRecord {
   opId: string;
+  /** The repository the op ran against, from its `op://event`; `null` for a clone. The dock shows the open one's. */
+  repoId: RepoId | null;
   cmd: string;
   lines: OpLine[];
   code: number | null;
@@ -69,8 +71,6 @@ function capTotal(ops: OpRecord[]): OpRecord[] {
   });
 }
 
-export const selectLastOp = (s: OpsStore) => s.ops[s.ops.length - 1] ?? null;
-
 /** An operation started through `runOp` is still running. */
 export const selectRunning = (s: OpsStore) => s.busy !== null;
 
@@ -79,10 +79,10 @@ export const useOpsStore = create<OpsStore>()((set, get) => ({
   open: false,
   busy: null,
 
-  onEvent({ opId, event }) {
+  onEvent({ repoId, opId, event }) {
     const ops = get().ops;
     if (event.kind === "started") {
-      const rec: OpRecord = { opId, cmd: event.cmd, lines: [], code: null, elapsedMs: null, running: true, startedAt: Date.now(), truncated: false };
+      const rec: OpRecord = { opId, repoId, cmd: event.cmd, lines: [], code: null, elapsedMs: null, running: true, startedAt: Date.now(), truncated: false };
       set({ ops: [...ops, rec].slice(-MAX_OPS) });
       return;
     }

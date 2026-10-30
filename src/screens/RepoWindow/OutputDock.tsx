@@ -8,7 +8,7 @@ import { Spinner } from "../../components/ui/Spinner/Spinner";
 import { interactiveFlag, splitArgs } from "../../lib/argv";
 import { cx } from "../../lib/cx";
 import { useCmdHistoryStore } from "../../store/cmdHistoryStore";
-import { selectLastOp, selectRunning, useOpsStore, type OpRecord } from "../../store/opsStore";
+import { selectRunning, useOpsStore, type OpRecord } from "../../store/opsStore";
 import { useRepoStore } from "../../store/repoStore";
 import { runGit } from "./actions";
 import s from "./OutputDock.module.css";
@@ -18,7 +18,11 @@ const secs = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
 /** Collapsed 28px bar with the last command + status; expanded 200px panel with the streamed lines (screens.mjs dock()). */
 export function OutputDock() {
   const ops = useOpsStore((st) => st.ops);
-  const last = useOpsStore(selectLastOp);
+  const repoId = useRepoStore((st) => st.repo?.id);
+  // The open repository's ops, plus the repo-less ones (a clone). Filtered here, not in a selector:
+  // zustand v5 loops on a selector that returns a fresh array.
+  const shown = ops.filter((o) => o.repoId === null || o.repoId === repoId);
+  const last = shown[shown.length - 1] ?? null;
   const open = useOpsStore((st) => st.open);
   const setOpen = useOpsStore((st) => st.setOpen);
   const cancel = useOpsStore((st) => st.cancel);
@@ -45,7 +49,9 @@ export function OutputDock() {
   return (
     <div className={s.panel}>
       {header}
-      <OutputBody ops={ops} />
+      {/* Keyed by the repository: a tab switch remounts it, so it scrolls to the bottom even when
+          both tabs' lists have the same row count. */}
+      <OutputBody key={repoId ?? ""} ops={shown} />
       <DockPrompt />
     </div>
   );

@@ -29,11 +29,25 @@ beforeEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
   useOpsStore.setState({ ops: [], open: false, busy: null });
+  // The dock shows the open repository's ops: the cases below feed `repoId: "r"`.
+  showRepo("r");
 });
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
+
+function showRepo(id: string) {
+  useRepoStore.setState({ repo: { id, name: id, path: `/${id}`, head: { oid: "a", branch: "main", detached: false } } });
+}
+
+/** A finished op against `repoId`, printing `lines`. */
+function ran(repoId: string | null, opId: string, cmd: string, lines: string[]) {
+  const st = useOpsStore.getState();
+  st.onEvent({ repoId, opId, event: { kind: "started", opId, cmd } });
+  st.onEvent({ repoId, opId, event: { kind: "stdout", lines } });
+  st.onEvent({ repoId, opId, event: { kind: "exit", code: 0, elapsedMs: 10 } });
+}
 
 /** The dock only makes sense inside a Group; that's also where its resizing lives. */
 const renderDock = (open: boolean) =>
@@ -95,6 +109,48 @@ describe("OutputDock", () => {
       useOpsStore.getState().onEvent({ repoId: "r", opId: "1", event: { kind: "exit", code: 1, elapsedMs: 10 } });
     });
     expect(log.scrollTop).toBe(500);
+  });
+
+  it("shows the open repository's ops and the repo-less ones; the collapsed bar names the tab's last command", () => {
+    act(() => {
+      ran(null, "1", "git clone x", ["cloned"]);
+      ran("r", "2", "git status", ["on main"]);
+      ran("other", "3", "git commit -F msg", ["other's commit"]);
+    });
+    const { getByRole, getByText, rerender } = renderDock(false);
+    expect(getByText("$ git status")).toBeTruthy();
+
+    act(() => useOpsStore.getState().setOpen(true));
+    rerender(
+      <Group orientation="vertical">
+        <DockPanel open gesture={{ current: false }} gestureEnd={{ current: () => {} }} group={{ current: null }} />
+      </Group>,
+    );
+    const log = getByRole("log", { name: "Command output" }).textContent;
+    expect(log).toContain("cloned");
+    expect(log).toContain("on main");
+    expect(log).not.toContain("other's commit");
+  });
+
+  it("scrolls to the bottom on a tab switch, even when both tabs' lists have the same row count", () => {
+    act(() => {
+      ran("r1", "1", "git status", ["r1's"]);
+      ran("r2", "2", "git status", ["r2's"]);
+      useOpsStore.getState().setOpen(true);
+    });
+    showRepo("r1");
+    // On the prototype, not the node: the switch remounts the log as a new node.
+    Object.defineProperty(HTMLElement.prototype, "scrollHeight", { value: 500, configurable: true });
+    try {
+      const { getByRole } = renderDock(true);
+      getByRole("log", { name: "Command output" }).scrollTop = 0;
+      act(() => showRepo("r2"));
+      const log = getByRole("log", { name: "Command output" });
+      expect(log.textContent).toContain("r2's");
+      expect(log.scrollTop).toBe(500);
+    } finally {
+      delete (HTMLElement.prototype as { scrollHeight?: number }).scrollHeight;
+    }
   });
 
   it("a running op offers Cancel", () => {

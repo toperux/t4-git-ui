@@ -64,6 +64,13 @@ describe("opsStore", () => {
     expect(useOpsStore.getState().ops).toHaveLength(1);
   });
 
+  it("a record carries its event's repository, `null` for a clone", () => {
+    const st = useOpsStore.getState();
+    st.onEvent({ repoId: "r", opId: "1", event: { kind: "started", opId: "1", cmd: "git fetch" } });
+    st.onEvent({ repoId: null, opId: "2", event: { kind: "started", opId: "2", cmd: "git clone x" } });
+    expect(useOpsStore.getState().ops.map((o) => o.repoId)).toEqual(["r", null]);
+  });
+
   it("applies a batch of lines as one state update", () => {
     const st = useOpsStore.getState();
     st.onEvent({ repoId: "r", opId: "1", event: { kind: "started", opId: "1", cmd: "git log -p" } });

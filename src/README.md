@@ -191,9 +191,10 @@ src/
                            pure helpers sortRecents / capRecents / filterRecents
     cmdHistoryStore.ts     zustand: lines typed into "Run git command…" / the dock prompt, newest first, global across
                            repositories (lib/kv `cmdHistory`, 50 entries); pushCmd (dedupe → front, cap)
-    opsStore.ts            zustand: OpRecord[] from `op://event` (started/stdout/stderr/progress-redraw/exit), max 50 ops × 5000 lines,
-                           25,000 lines in all, cancel(opId), dock open (a non-zero exit opens it, unless that op was
-                           cancelled), `busy` (statusbar text of the running op) + selectRunning;
+    opsStore.ts            zustand: OpRecord[] (each with its event's `repoId`, `null` for a clone) from `op://event`
+                           (started/stdout/stderr/progress-redraw/exit), max 50 ops × 5000 lines, 25,000 lines in all,
+                           cancel(opId), dock open (a non-zero exit opens it, unless that op was cancelled), `busy`
+                           (statusbar text of the running op) + selectRunning;
                            runOp(busy, fn, {success, onRefused}) — the single entry point for every branch/remote/stash op
     settingsStore.ts       zustand: diffContext / ignoreWhitespace / gitPath (+ gitVersion, gitError) / autoUpdateCheck (ask GitHub
                            at launch; nothing stored means on, so only opting out is persisted) / autoCloseChanges (same rule:
@@ -467,7 +468,9 @@ src/
                            an annotated tag pointing at the selected commit adds its own message block under the
                            commit message — `refs.tags[].message` is `null` on a lightweight tag, which is all that
                            tells the two apart once the tag is peeled),
-                           OutputDock (collapsed 28px: `$ cmd` + Check/X icon, exit · elapsed / spinner + Cancel; expanded
+                           OutputDock (the open repository's records plus the repo-less ones, a clone's; the log keyed
+                           by the repository, so a tab switch remounts it at the bottom; collapsed 28px: the last shown
+                           record's `$ cmd` + Check/X icon, exit · elapsed / spinner + Cancel; expanded
                            `.output` log + a `$ git` prompt line (CommandInput, list opens upward, stays enabled while an op
                            runs — Enter waits — Enter → actions `runGit`) inside `RepoWindow`'s resizable `DockPanel`, 160–320px, opens
                            at 200 every launch)
@@ -664,9 +667,9 @@ rejected) and what to do, through `authFailedText`, `rejected` / `other` show gi
 itself as a force delete, `cancelled` is an info toast, everything else goes through `toastError`. Afterwards it refreshes
 the status and calls `statusStore.syncRefs()`, which relabels the walk or restarts it when its seeds moved (the backend's own
 `repo://changed` arrives too; the seq guards make it a no-op). While an op runs, `opsStore.busy` holds the statusbar text
-and disables the toolbar; the streamed output lands in the shared `OutputDock` (elapsed timer + Cancel → `cancel_op`;
-a `
-` progress segment replaces the previous progress line rather than appending). A non-zero exit expands the dock:
+and disables the toolbar; the streamed output lands in `OutputDock`, which shows the open repository's records plus the
+repo-less ones (elapsed timer + Cancel → `cancel_op`; a `\r` progress segment replaces the previous progress line
+rather than appending). A non-zero exit expands the dock:
 the toast carries only the first stderr line, so the reason is on screen instead of behind a click. An op the user
 cancelled is exempt — its kill exits non-zero too, and whoever pressed Cancel already knows why.
 
