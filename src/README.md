@@ -51,12 +51,16 @@ src/
                            and resets viewStore to History; `carry`, a tab moved from another window, is put back once
                            repoStore.openRepo resolves, only if that tab is still the active one, in one synchronous run:
                            the draft, `startLog(spec, filter)` unawaited, then selectWorkingTree / reselectTo(oid), the
-                           view, and restoreTopRow; dropped for a tab already open),
+                           view, and restoreTopRow; dropped for a tab already open; a failed repoStore.openRepo closes
+                           the new tab and goes back to the tab that was active, if still open, unless another tab
+                           was picked meanwhile),
                            activate (snapshot the active slices, restore the target's, close the dialog, refreshAll),
-                           closeTab (always `close_repo`; the last tab closes a secondary window and leaves the main
-                           one on the start screen), markStale, detach (a no-op with one tab; spawn_window with the tab's
-                           carry, then close the tab — never the other way round), reorder, setCaret (the slot a tab
-                           dragged from another window would land in). TabCarry (`tabCarry(id)`, from the live stores for
+                           closeTab(id, returnTo?) (always `close_repo`; closing the active tab shows `returnTo` if
+                           still open, else the tab that took its slot, or the last one when it was the last; the last
+                           tab closes a secondary window and leaves the main one on the start screen), markStale,
+                           detach (a no-op with one tab; spawn_window with the tab's carry, then close the tab — never
+                           the other way round), reorder, setCaret (the slot a tab dragged from another window would
+                           land in). TabCarry (`tabCarry(id)`, from the live stores for
                            the active tab, from `saved[id]` for a background one; what detach and the drags send beside
                            the path, opaque to Rust and never in `layout.json`) = the commit draft (summary, body, amend,
                            signoff, sign, prefill), spec, filter, the selection (the working-tree row or a commit's oid —

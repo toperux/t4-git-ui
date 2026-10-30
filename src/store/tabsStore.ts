@@ -86,8 +86,11 @@ export interface TabsStore {
    */
   openTab(path: string, at?: number, carry?: TabCarry | null): Promise<void>;
   activate(id: RepoId): void;
-  /** Closes the tab and lets go of its repository; the last tab closes the window (or, in the main window, shows the start screen). */
-  closeTab(id: RepoId): Promise<void>;
+  /**
+   * Closes the tab and lets go of its repository; the last tab closes the window (or, in the main window, shows the start screen).
+   * `returnTo`: the tab to show instead, when the closed one is active and `returnTo` is still open (a failed open's tab before it).
+   */
+  closeTab(id: RepoId, returnTo?: RepoId): Promise<void>;
   markStale(id: RepoId): void;
   /** Moves the tab to a window of its own, with its state (`tabCarry`). */
   detach(id: RepoId): Promise<void>;
@@ -182,8 +185,8 @@ export const useTabsStore = create<TabsStore>()((set, get) => ({
       try {
         await useRepoStore.getState().openRepo(summary.path, summary);
       } catch (e) {
-        // The tab is only worth keeping if something loaded into it.
-        await get().closeTab(summary.id);
+        // The tab is only worth keeping if something loaded into it. Back to the tab that was active.
+        await get().closeTab(summary.id, active ?? undefined);
         throw e;
       }
       // Only while it is still the tab shown: a switch or a close during the open (Ctrl+Tab, Ctrl+W,
@@ -205,7 +208,7 @@ export const useTabsStore = create<TabsStore>()((set, get) => ({
     show(next[id]);
   },
 
-  async closeTab(id) {
+  async closeTab(id, returnTo) {
     const { tabs, active } = get();
     const i = tabs.findIndex((t) => t.id === id);
     if (i < 0) return;
@@ -228,8 +231,9 @@ export const useTabsStore = create<TabsStore>()((set, get) => ({
       if (!isMainWindow()) closeThisWindow();
       return;
     } else {
-      // The tab that took its place, or the last one when it was the last.
-      const next = rest[Math.min(i, rest.length - 1)];
+      // The tab to return to, if it is still open; else the tab that took its place, or the last one
+      // when it was the last.
+      const next = rest.find((t) => t.id === returnTo) ?? rest[Math.min(i, rest.length - 1)];
       set({ tabs: rest, active: next.id, saved });
       show(saved[next.id]);
     }

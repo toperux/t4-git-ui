@@ -330,43 +330,91 @@ describe("the History / Changes view", () => {
     expect(view()).toBe("history");
   });
 
-  it("a failed open rejects with its error and lands on a remaining tab, in that tab's own view", async () => {
-    await useTabsStore.getState().openTab("/a");
-    await useTabsStore.getState().openTab("/b");
-    toChanges();
-    const own: Record<string, string> = { "/a": "history", "/b": "changes" };
-    const openRepo = useRepoStore.getState().openRepo;
-    useRepoStore.setState({ openRepo: () => Promise.reject({ kind: "internal", message: "unreadable" }) });
-    try {
-      await expect(useTabsStore.getState().openTab("/c")).rejects.toMatchObject({ kind: "internal" });
-    } finally {
-      useRepoStore.setState({ openRepo });
+  describe("a failed open", () => {
+    const unreadable = { kind: "internal", message: "unreadable" };
+    /** Runs `body` with `repoStore.openRepo` replaced by `fake`: the backend answered, and the load after it is `fake`. */
+    async function withOpenRepo(fake: () => Promise<void>, body: () => Promise<void>) {
+      const openRepo = useRepoStore.getState().openRepo;
+      useRepoStore.setState({ openRepo: fake });
+      try {
+        await body();
+      } finally {
+        useRepoStore.setState({ openRepo });
+      }
     }
-    expect(tabs().map((t) => t.path)).toEqual(["/a", "/b"]);
-    // Whichever tab it lands on (the last one today; the one that was active is §AO's row), the view is its own.
-    const { active } = useTabsStore.getState();
-    expect(active === "/a" || active === "/b").toBe(true);
-    expect(view()).toBe(own[active!]);
-  });
+    const failing = () => Promise.reject(unreadable);
+    /** `/a` and `/b`, `/a` active and in Changes (unlike the History an open resets to, so landing there checks the restore); `/b` left in History. */
+    async function aActiveInChanges() {
+      await useTabsStore.getState().openTab("/a");
+      await useTabsStore.getState().openTab("/b");
+      useTabsStore.getState().activate("/a");
+      toChanges();
+    }
+    /** A load held until the test fails it, for what the user does in the meantime. */
+    function heldLoad() {
+      const load = {} as { fail: () => void };
+      const fake = () => new Promise<void>((_, reject) => (load.fail = () => reject(unreadable)));
+      return { load, fake };
+    }
 
-  it("a failed open at a drop's slot lands on a remaining tab too, in that tab's own view", async () => {
-    await useTabsStore.getState().openTab("/a");
-    toChanges();
-    await useTabsStore.getState().openTab("/b");
-    // `/a` in Changes, unlike the History the open resets to, so landing there checks the restore.
-    const own: Record<string, string> = { "/a": "changes", "/b": "history" };
-    const openRepo = useRepoStore.getState().openRepo;
-    useRepoStore.setState({ openRepo: () => Promise.reject({ kind: "internal", message: "unreadable" }) });
-    try {
-      await expect(useTabsStore.getState().openTab("/c", 0)).rejects.toMatchObject({ kind: "internal" });
-    } finally {
-      useRepoStore.setState({ openRepo });
-    }
-    expect(tabs().map((t) => t.path)).toEqual(["/a", "/b"]);
-    // Today the tab that sat in the slot (`/a`); §AO's row would make it the one that was active.
-    const { active } = useTabsStore.getState();
-    expect(active === "/a" || active === "/b").toBe(true);
-    expect(view()).toBe(own[active!]);
+    it("rejects with its error and goes back to the tab that was active, in its own view", async () => {
+      await aActiveInChanges();
+      await withOpenRepo(failing, () => expect(useTabsStore.getState().openTab("/c")).rejects.toMatchObject({ kind: "internal" }));
+      expect(tabs().map((t) => t.path)).toEqual(["/a", "/b"]);
+      // Not `/b`, the tab that took `/c`'s place.
+      expect(useTabsStore.getState().active).toBe("/a");
+      expect(useRepoStore.getState().repo?.id).toBe("/a");
+      expect(view()).toBe("changes");
+    });
+
+    it("at a drop's slot goes back to the tab that was active too", async () => {
+      await aActiveInChanges();
+      // Slot 1: at slot 0, `/a` would take `/c`'s place and be the landing either way.
+      await withOpenRepo(failing, () => expect(useTabsStore.getState().openTab("/c", 1)).rejects.toMatchObject({ kind: "internal" }));
+      expect(tabs().map((t) => t.path)).toEqual(["/a", "/b"]);
+      expect(useTabsStore.getState().active).toBe("/a");
+      expect(view()).toBe("changes");
+    });
+
+    it("from the start screen goes back to it", async () => {
+      await withOpenRepo(failing, () => expect(useTabsStore.getState().openTab("/c")).rejects.toMatchObject({ kind: "internal" }));
+      expect(tabs()).toEqual([]);
+      expect(useTabsStore.getState().active).toBeNull();
+      expect(closeWindow).not.toHaveBeenCalled();
+    });
+
+    it("leaves the tab the user switched to during the open", async () => {
+      await aActiveInChanges();
+      const { load, fake } = heldLoad();
+      await withOpenRepo(fake, async () => {
+        const done = useTabsStore.getState().openTab("/c");
+        await vi.waitFor(() => expect(load.fail).toBeDefined());
+        useTabsStore.getState().activate("/b");
+        load.fail();
+        await expect(done).rejects.toMatchObject({ kind: "internal" });
+      });
+      expect(tabs().map((t) => t.path)).toEqual(["/a", "/b"]);
+      expect(useTabsStore.getState().active).toBe("/b");
+      expect(view()).toBe("history");
+    });
+
+    it("lands where `closeTab` picks when the tab that was active closed during the open", async () => {
+      // Three tabs, so the slot's pick (`/d`, the last) is told from the first (`/b`).
+      await aActiveInChanges();
+      await useTabsStore.getState().openTab("/d");
+      useTabsStore.getState().activate("/a");
+      const { load, fake } = heldLoad();
+      await withOpenRepo(fake, async () => {
+        const done = useTabsStore.getState().openTab("/c");
+        await vi.waitFor(() => expect(load.fail).toBeDefined());
+        await useTabsStore.getState().closeTab("/a");
+        load.fail();
+        await expect(done).rejects.toMatchObject({ kind: "internal" });
+      });
+      expect(tabs().map((t) => t.path)).toEqual(["/b", "/d"]);
+      expect(useTabsStore.getState().active).toBe("/d");
+      expect(view()).toBe("history");
+    });
   });
 
   it("the sidebar override stays the window's across a switch", async () => {
