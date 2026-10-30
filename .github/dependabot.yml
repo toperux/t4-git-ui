@@ -31,6 +31,12 @@ updates:
       cargo:
         patterns:
           - "*"
+    ignore:
+      # notify 8.2.1 scans every watched path per deleted directory on Linux
+      # (docs/archive/plans/2026-10-30-deps-36-37-38-plan.md, D10); held at
+      # 8.2.0 until a release skips the scan.
+      - dependency-name: notify
+        versions: ["= 8.2.1"]
 
   # Same for the frontend and its package-lock.json — for patch and minor bumps.
   # A major (TypeScript, Vite, Vitest) can break the build on its own, and in

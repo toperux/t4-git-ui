@@ -16,7 +16,10 @@ parking_lot = "0.13"
 tempfile = { version = "3", optional = true }
 tokio = { version = "1", features = ["process", "io-util", "sync", "macros", "rt", "time"] }
 tokio-util = "0.7"
-notify = "8"
+# Held at 8.2.0: 8.2.1 scans every watched path per deleted directory on
+# Linux (docs/archive/plans/2026-10-30-deps-36-37-38-plan.md, D10). Lifting
+# the hold means this pin, .github/dependabot.yml's ignore entry and the lock.
+notify = "=8.2.0"
 notify-debouncer-full = "0.7"
 
 [dev-dependencies]
