@@ -265,12 +265,16 @@ phases that accepted them; each origin keeps a pointer.
 - **What the Release build still fetches unpinned.** `toolchain: stable` (whatever rustup resolves that day); the apt
   packages, unpinned and with no version floor (`squashfs-tools`' floor, triage U5, went with the AppImage repack at
   tauri-cli 2.12.1), `python3-cryptography` an import check; and two downloads the Windows bundler makes during *Bundle
-  and sign* with the keys in env, `nsis-3.11.zip` and `nsis_tauri_utils.dll` v0.5.3 (both from `tauri-apps` GitHub
-  releases; the DLL is then signed with our certificate as an NSIS plugin; seen in dry run 36674994686's log). The
+  and sign* with the keys in env, `nsis-3.13.zip` and `nsis_tauri_utils.dll` v0.5.3 (both from `tauri-apps` GitHub
+  releases; the DLL is then signed with our certificate as an NSIS plugin; `nsis-3.11.zip` seen in dry run
+  36674994686's log, `nsis-3.13.zip` in 41004735897's). The
   bundler checks both against a SHA-1 (read in tauri-bundler 2.9.4, `nsis/mod.rs`; 2.10.1, which tauri-cli 2.12.1 locks,
   has the same URLs, `nsis_tauri_utils` v0.5.3; 2.10.2, which tauri-cli 2.12.2 locks, has `nsis/mod.rs` byte-identical,
   and dry run 38902302809's Windows leg made the same two downloads). The `Downloading` check on the bundle log runs on
   Linux only, so a third Windows download would not be caught. Accepted 2026-10-01 (close-out Phase 1b, triage T3).
+  **2026-10-30:** the toolset is `nsis-3.13.zip` since bundler 2.10.3 (tauri-cli 2.12.3, #34); the bundler still
+  checks its SHA-1. Dry run 41004735897's Windows leg made exactly those two downloads. Re-accepted 2026-10-23 by the
+  owner (D9 (a) of `docs/archive/plans/2026-10-23-deps-35-34-plan.md`), same reopen trigger.
   **Reopen:** a bundler change moves either fetch or adds a Windows download, or a toolchain release breaks the build.
   *From Phase 1b's change review (`docs/archive/plans/2026-09-30-phase-1b-plan.md`, "Not in this phase").*
 - **On Linux and macOS a tool open holds the repository's git2 lock ~300 ms.** Detecting an early-failing custom
@@ -831,11 +835,14 @@ fixes"), with its reopen trigger.
   2 m 54 s, because rust-cache restored nothing. A tag reads caches only from its own ref or `main`, and an unused
   cache is evicted after 7 days. Options: an `actions/cache` keyed on ssign's pinned rev, upstream's prebuilt ssign
   zip pinned by hash, or the prebuilt `@tauri-apps/cli` that `npm ci` already installs. The last two trust a binary
-  built upstream; whether the npm CLI carries bundler 2.10.2, which the AppImage pins are read from, wasn't checked.
+  built upstream; whether the npm CLI carries bundler 2.10.3, which the AppImage pins are read from, wasn't checked.
   Deferred 2026-10-05. **Reopen:** the next change to the release workflow, or a release run's build time becoming a
   problem. **2026-10-16:** #32's CLI pin bump fired the trigger, and the owner kept it deferred (D5 of
   `docs/archive/plans/2026-10-15-npm-group-32-plan.md`). Re-measured on dry run 38902302809 (tauri-cli 2.12.2):
-  10 m 19 s on Windows, 7 m 22 s on macOS, 5 m 59 s on Linux, ssign 3 m 01 s.
+  10 m 19 s on Windows, 7 m 22 s on macOS, 5 m 59 s on Linux, ssign 3 m 01 s. **2026-10-30:** the pin to 2.12.3
+  (#34) fired the trigger again, and the owner kept it deferred (D7 of
+  `docs/archive/plans/2026-10-23-deps-35-34-plan.md`). Re-measured on dry run 41004735897 (tauri-cli 2.12.3):
+  10 m 37 s on Windows, 6 m 58 s on macOS, 3 m 50 s on Linux, ssign 2 m 56 s.
 
 ## AE. Added 2026-10-06 — the fix batch
 
@@ -954,6 +961,10 @@ its own plan on 2026-10-16 (`open-items-done.md` §AM).
   (old verifier, new package) and the one after (new verifier). **Close:** both walk records in `docs/archive/walks/`.
   - **Pre-check before v0.10.25's tag** (owner, 2026-10-17): verify v0.10.24's three `.sig` files against the pubkey
     in `tauri.conf.json` with `minisign-verify` 0.3.0, in a throwaway test, not committed. A failure stops the tag.
+  - **2026-10-30 (D8 of `docs/archive/plans/2026-10-23-deps-35-34-plan.md`):** #35 moves `tauri-plugin-updater` to
+    2.14.0. It first runs inside an installed app on the update from v0.10.25 to the release after, i.e. the second of
+    the two walks. That walk gains #35's updater changes: on Windows, and on the Linux AppImage the cross-mount and
+    payload checks.
 
 ## AN. Added 2026-10-17 — seen in the #32 walk, deferred
 
@@ -1003,6 +1014,27 @@ owner's word in the triage. The walk's other sightings were fixed or are in `ope
 - **AQ1. The focus moved once from the staging diff's cursor row to the "Staged files" listbox.** Right after the first
   click in BU row 1, between two CDP runs. No cause found; not seen again. **Reopen:** seen again, by hand or in a
   walk.
+
+## AT. Added 2026-10-30 — Dependabot #33–#35
+
+From `docs/archive/plans/2026-10-23-deps-35-34-plan.md`; the closed rows are in `open-items-done.md` §AT.
+
+- **`observeVisibleRect` in DiffViewer may be redundant with virtual-core 3.19.6**, which measures the client box by
+  default (`src/lib/observeVisibleRect.ts`; D6 (a)). Read from source, not run. Deferred 2026-10-23 by the owner. Not
+  taken: dropping it in the #34 change, which needs its own tests and BY 7's rows again. **Reopen:** the next
+  virtualizer work, or a walk showing virtual-core's default does the same.
+
+Seen on the way in `docs/archive/walks/2026-10-30-deps-35-34-walk.md` and deferred in the triage (2026-10-30):
+
+- **A diff cursor scrolled out of the mounted range loses the keyboard.** With the cursor on a line, scroll the diff far
+  enough that its row unmounts (past the overscan): the focus falls to `body`, and ↓ then scrolls the pane 40 px
+  instead of bringing the cursor back into view. Measured on the installed 0.10.24 and on the #34 build alike (row j's
+  far case), so it predates virtual-core 3.19.6. The near case, the cursor a few rows outside the view and still
+  mounted, works. **Reopen:** the next diff-viewer cursor or focus work.
+- **The start screen's cards wrap at 800×600.** The window a second launch opens (Linux, the single-instance hand-off)
+  is 800×600, and there the START cards' text wraps over 2–3 lines ("Open repository…") and the Clone card's
+  Ctrl+Shift+O chip pokes out on the right. Cosmetic; seen once, on Linux. **Reopen:** the next start-screen or window
+  sizing work.
 
 ## Order
 

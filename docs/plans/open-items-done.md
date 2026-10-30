@@ -2252,3 +2252,29 @@ Moved from `open-items.md` §AO (AO1, AO5, AO6, AO7) and §AP (AP2). Plan:
   2026-10-22).
 - **A moved tab's carried top row can be off by a few rows** when a ref moved between the source and the target
   (P27-1 (b)). Reasoned. Accepted, closed (owner, 2026-10-22).
+
+## AT. Added 2026-10-30 — Dependabot #33–#35, closed
+
+- **#33 (the `dtolnay/rust-toolchain` pin) merged** as `9abed801`, 2026-10-23.
+- **#35 (the cargo group) and #34 (the npm group, with the CLI pin) merged together.** They had to go in as a pair:
+  #34 moves `@tauri-apps/plugin-clipboard-manager` to 2.5.0 and #35 the crate to 2.5.0, and `tauri build` refuses an
+  npm package and its crate that differ in major or minor (the plugin version check). Either alone leaves `main`
+  unable to build. #34 also bumped `@tauri-apps/cli` to 2.12.3, so the `checks.yml` guard failed while `release.yml`
+  still installed `tauri-cli` 2.12.2; the pin commit (`f5a75fb1`, on #34's branch) moved it to 2.12.3.
+  - **One walked tree:** `deps-35-34` at `cccdd4c9` = `main` `9abed801` + #35's head `ec5dc48b` + #34's head with the
+    pin. Squash-merged back to back with `--admin` and `--match-head-commit` on 2026-10-30: #35 as `24e537c4`, #34 as
+    `267de797`. `git diff deps-35-34 origin/main` was empty, so the merged tree is the walked tree.
+  - Checks:
+    - local gates on `deps-35-34` (2026-10-24), including `tauri build --no-bundle` and no `VCRUNTIME140.dll`;
+    - CI on the walk tree, run 39995758675, green on three OS; #34's own CI green after the pin push;
+    - `main`'s CI for `267de797`, run 40004058190, green on three OS (the run for `24e537c4` alone was cancelled by
+      the CI concurrency rule);
+    - a Windows walk, rows a–o all passed, and a Linux check of the second launch and *Reveal in folder*
+      (`docs/archive/walks/2026-10-30-deps-35-34-walk.md`);
+    - dry-run Release 41004735897, all green: tauri-cli 2.12.3 installed on all three legs, the four AppImage pins
+      `OK`, the Windows leg's two downloads `nsis-3.13.zip` and `nsis_tauri_utils.dll`, `verify` OK ×3 with
+      `version:0.10.24`, the draft made and removed with no tag left;
+    - the Windows reinstall: the dry run's setup over the installed 0.10.24, then the released 0.10.24 put back;
+      every check matched, and the installed exe's hash equals the released setup's.
+  - Neither known flaky test failed on any run.
+  - Plan: `docs/archive/plans/2026-10-23-deps-35-34-plan.md`.
