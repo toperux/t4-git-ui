@@ -156,8 +156,7 @@ impl RepoHandle {
 
 /// Every handle's `scan_lock`, by git directory. `Weak`: an entry no handle
 /// and no guard holds any more is dropped on the next lookup.
-static SCAN_LOCKS: Mutex<Vec<(String, Weak<tokio::sync::Mutex<()>>)>> =
-    parking_lot::const_mutex(Vec::new());
+static SCAN_LOCKS: Mutex<Vec<(String, Weak<tokio::sync::Mutex<()>>)>> = Mutex::new(Vec::new());
 
 /// The `scan_lock` of `git_dir`, shared with every other open handle on it — and
 /// with a repair a closed one left running. Keyed as [`RepoId`] keys a workdir:
