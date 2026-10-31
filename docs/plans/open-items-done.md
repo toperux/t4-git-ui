@@ -2387,4 +2387,6 @@ branch: run 41032359500, green on three OS.
   1 s in, ran twice and passed (the dialog back to idle with no toast, no git process left, no partial directory; the
   dock lists the clones as cancelled). Row 1's addendum in `docs/archive/walks/2026-10-31-triage-fixes-walk.md`; CI run
   41183797920, green on three OS.
+- **v0.10.25's in-app update walk: done.** 0.10.24 → 0.10.25 on the Windows VM, all three of smoke group AC's rows
+  pass; the restart took 4.3 s to the new process (`docs/archive/walks/2026-10-31-v0.10.25-update-walk.md`).
 - Plan commit: `8ade2bf4`.
