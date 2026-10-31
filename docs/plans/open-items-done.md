@@ -2352,7 +2352,8 @@ branch: run 41032359500, green on three OS.
   `fix: the output dock shows a cancelled op as cancelled, not an exit code`. The record keeps the cancelled flag at
   exit, and the dock line reads "cancelled · <secs>" instead of "exit -1". Found in the walk record's Linux row 1,
   Cancel (dock "✗ exit -1 · 3.3s" beside the toast "Cancelled"). Not walked after the fix: unit tests and `main`'s CI
-  run 41165550935. The cancel race is in `open-items.md` §Q.
+  run 41165550935. Walked 2026-10-31: pass (`docs/archive/walks/2026-10-31-triage-fixes-walk.md`, row 1). The cancel
+  race is in `open-items.md` §Q.
 - **An error toast did not say which repository it came from, and its actions ran on whichever tab was active.**
   **Fixed:** `445a898f`, `fix: an error toast names its repository and its actions stay on it`. The toast always names
   its repository; Retry and Pull act on that repository. Retry is refused (the toast stays) when another tab is active
@@ -2360,13 +2361,30 @@ branch: run 41032359500, green on three OS.
   closes. runOp's error toasts always name the repository; four background error toasts that stay until dismissed
   (refresh references in `actions.ts` and `statusStore.ts`, the remote-tags check in `repoStore.ts`,
   stage/unstage/discard in `commitStore.ts`) are named too. Found in the walk record's "On the way (Windows)". Not
-  walked after the fix: unit tests and `main`'s CI run 41165550935. The full-stack eviction is in `open-items.md` §Q,
-  the unnamed sites in §AV.
+  walked after the fix: unit tests and `main`'s CI run 41165550935. Walked 2026-10-31: pass
+  (`docs/archive/walks/2026-10-31-triage-fixes-walk.md`, row 2). The full-stack eviction is in `open-items.md` §Q, the
+  unnamed sites in §AV.
 - **The diff header cut the file name at the narrowest width.** **Fixed:** `748b00c7`,
   `fix: the diff header keeps the file name readable at its narrowest width`. Under a 260 px panel the stats, the
   separator and the mode chip are hidden, and the name has a hover title. Found in the walk record's Windows row a and
-  "On the way (Windows)". Not walked after the fix: unit tests and `main`'s CI run 41165550935. Accepted floor, recorded
-  only: the name reads from about 220 px; with a mode change it is cut between 260 and about 365 px (exec-bit changes
-  only). The container query is unverified on Ubuntu 22.04's WebKitGTK (2.40 is the floor; 24.04 and later measured at
-  2.52); without support the header falls back to the old one.
+  "On the way (Windows)". Not walked after the fix: unit tests and `main`'s CI run 41165550935. Walked 2026-10-31: pass
+  (`docs/archive/walks/2026-10-31-triage-fixes-walk.md`, row 3). Accepted floor, recorded only: the name reads from
+  about 220 px; with a mode change it is cut between 260 and about 365 px (exec-bit changes only). The container query
+  is unverified on Ubuntu 22.04's WebKitGTK (2.40 is the floor; 24.04 and later measured at 2.52); without support the
+  header falls back to the old one.
+- **A Retry pressed during a fetch lost its toast.** **Fixed:** `6ddeb0d2`,
+  `fix: a Retry while an operation runs keeps its toast instead of failing`. The user saw the "Index is locked" toast
+  replaced by "Stage failed / another operation is running" with no Retry. Retry now refuses with "Operation in
+  progress" / `Wait for “<git command>” to finish` and keeps the toast. Found in the triage-fixes walk's row 2b busy
+  case, walked as row A (`docs/archive/walks/2026-10-31-triage-fixes-walk.md`). CI run 41183797920, green on three OS.
+- **A first click during a fetch showed an error toast.** **Fixed:** `8d66df27`,
+  `fix: a change started during a fetch says to wait instead of failing`. Stage, Unstage, Discard, Resolve and Commit
+  refuse with the same info toast before calling the backend. A backend busy refusal that slips through shows "Another
+  git operation is running" as an info toast, as the shared op runner does. Found in the Retry fix's change review
+  (2026-10-31). Walked as row B (`docs/archive/walks/2026-10-31-triage-fixes-walk.md`). CI run 41183797920, green on
+  three OS.
+- **The cancelled clone had no walked coverage.** Closed: a `file://` clone of a 100 000-commit fixture, cancelled about
+  1 s in, ran twice and passed (the dialog back to idle with no toast, no git process left, no partial directory; the
+  dock lists the clones as cancelled). Row 1's addendum in `docs/archive/walks/2026-10-31-triage-fixes-walk.md`; CI run
+  41183797920, green on three OS.
 - Plan commit: `8ade2bf4`.

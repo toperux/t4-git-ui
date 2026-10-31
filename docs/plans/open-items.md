@@ -713,6 +713,19 @@ phases that accepted them; each origin keeps a pointer.
 - **At a full stack of 8 error toasts, a refused Retry or Pull evicts the oldest error.** The refusal's info toast
   takes a slot and the oldest error goes, possibly the refused one itself. Reasoned, not seen. Accepted by the owner,
   2026-10-31 (the toast naming's change review). **Reopen:** a report of a lost error toast at a full stack.
+- **A Retry can still be lost during a short mutation.** Branch, tag and remote operations through libgit2 and the
+  non-streamed rebase-todo run hold the repository lock without an ops record, so a Retry pressed during one still
+  reaches the backend's refusal and loses its Retry. The windows are milliseconds (the rebase-todo run is longer with
+  autostash). Reasoned from the Rust code, not seen. Accepted by the owner, 2026-10-31. **Reopen:** a lost Retry during
+  a branch, tag, remote or rebase-todo operation. *From the walk-triage fixes, 2026-10-31.*
+- **A Retry after a tab moves to another window can see no running op.** The op's record stays in the old window, so a
+  Retry in the new window finds nothing running and reaches the backend's refusal. Reasoned, not seen. Accepted by the
+  owner, 2026-10-31. **Reopen:** a lost Retry after a tab move. *From the walk-triage fixes, 2026-10-31.*
+- **An op record whose exit event never arrives keeps refusing changes in its repository.** If the exit event's emit
+  fails (the backend only logs it), the record stays and every Retry and first click in that repository is refused with
+  "Wait for … to finish" until the window reloads or 50 later ops push the record out. The dock shows the op running
+  forever, so the user can see why. Reasoned, not seen. Accepted by the owner, 2026-10-31. **Reopen:** a repository that
+  refuses every change with "Wait for … to finish" after an op ended. *From the walk-triage fixes, 2026-10-31.*
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review, deferred
 
@@ -957,6 +970,9 @@ seventh's findings open), and in the triage of the commit-message rules commits.
   take `> `, but a later line that already starts with `>` is refused as a block start (`BLOCK`, `reflow.mjs:16`):
   "4: starts a block (>)" on the parked plan's status block. So it can wrap a one-line quote, not rewrap a wrapped one.
   **Reopen:** the next time a multi-line quote needs rewrapping.
+- **Old lines over 120 code points remain.** About 285 lines in `src/README.md` and about a dozen in
+  `docs/plans/open-items-done.md` (lines 68–852), left by earlier edits. Counted 2026-10-31. **Reopen:** the next edit
+  of either file: reflow the paragraph being touched.
 
 ## AL. Added 2026-10-15 — checkout-remote-first-group, deferred
 
