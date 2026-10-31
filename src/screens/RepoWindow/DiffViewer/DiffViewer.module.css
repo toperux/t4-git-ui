@@ -24,6 +24,27 @@
 .stats {
   font-size: var(--text-xs);
 }
+/* History's header holds about 246 px of fixed items: 16 padding, the 14 px icon, 8 gaps of 6, the
+   separator (1 + 12 margin), five 24 px buttons and ~35 px of stats. At the 200 px panel minimum
+   that left the name nothing. Below 260 px (where it would get under two mono characters) the stats
+   and the separator (~60 px with their gaps) go; the view toggles stay. The mode-change chip
+   ("100644 → 100755", ~105 px with its gap) adds to the fixed width only when a mode changed,
+   and goes with them. Inline-size containment is safe here: the header is a stretched item of
+   the column-flex `.viewer`, so its width never comes from its content. The query measures the
+   content box, inside the header's 16 px of padding, so under 244 px there is under a 260 px
+   panel; the range form catches a fractional width (display scaling, a splitter drag) that
+   `max-width: 243px` misses. */
+.header {
+  container-type: inline-size;
+}
+@container (width < 244px) {
+  /* Two classes: the Stats component's own `.meta { display: inline-flex }` must not win on order. */
+  .header .stats,
+  .header .mode,
+  .header > [role="separator"] {
+    display: none;
+  }
+}
 /* Exec-bit chip next to the stats: mono so the octal digits line up. */
 .mode {
   font-family: var(--font-mono);

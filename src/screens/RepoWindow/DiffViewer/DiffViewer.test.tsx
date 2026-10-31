@@ -11,6 +11,7 @@ import { bigDiff, fileDiff, hunk, line, stripes } from "./diffFixtures";
 import { flattenUnified } from "./diffRows";
 import { forgetScroll, seedScroll, takeNote, takeSeed, type DiffScroll } from "./diffScroll";
 import { DiffViewer, type DiffActions } from "./DiffViewer";
+import s from "./DiffViewer.module.css";
 
 vi.mock("../../../api/ipc", () => ({
   getChangedFiles: vi.fn(() => new Promise(() => {})),
@@ -186,6 +187,23 @@ describe("DiffViewer", () => {
     cleanup();
     const b = render(<DiffViewer path="img.png" diff={fileDiff([], { path: "img.png", binary: true })} {...idle} />);
     expect(b.getByText("Binary file")).toBeTruthy();
+  });
+
+  it("the header's name carries its full text in a title, and the header is the container that sheds the stats", () => {
+    const { container, getByTitle } = render(
+      <DiffViewer path={SMALL.path} diff={{ ...SMALL, oldPath: "src/old.rs", oldMode: "100644", newMode: "100755" }} {...idle} />,
+    );
+    // A rename: the title is the whole "old → new" the ellipsis cuts.
+    const name = getByTitle(`src/old.rs → ${SMALL.path}`);
+    expect(name.textContent).toBe(`src/old.rs → ${SMALL.path}`);
+    // jsdom evaluates no container queries: this checks only the wiring the CSS relies on — the
+    // header carries `.header` (the container), and the stats, the mode chip and the separator are
+    // its children.
+    const header = container.querySelector(`.${s.header}`)!;
+    expect(header.contains(name)).toBe(true);
+    expect(header.querySelector(':scope > [role="separator"]')).toBeTruthy();
+    expect(header.querySelector(`:scope > .${s.stats}`)).toBeTruthy();
+    expect(header.querySelector(`:scope > .${s.mode}`)?.textContent).toBe("100644 → 100755");
   });
 
   it("a mode change gets a chip in the header; an unchanged mode gets none", () => {

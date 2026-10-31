@@ -282,12 +282,21 @@ export function DiffViewer({ path: selectedPath, oldPath: listOldPath, stats: li
   // no room for them beside the path (about 780 px against 345 at 1280).
   const conflict = !!(onKeepSide || actions?.onResolve || actions?.onRestoreConflict);
   const note = actions?.note && <span className={s.note}>{actions.note}</span>;
+  // The header ellipsizes the name: the title gives back what it cuts.
+  const shownPath = path && (oldPath ? `${oldPath} → ${path}` : path);
 
   return (
     <div className={s.viewer}>
       <PanelHeader
+        className={s.header}
         icon={<File size={14} aria-hidden />}
-        title={path && <span className={s.path}>{oldPath ? `${oldPath} → ${path}` : path}</span>}
+        title={
+          shownPath && (
+            <span className={s.path} title={shownPath}>
+              {shownPath}
+            </span>
+          )
+        }
       >
         {!conflict && note}
         {modeChip && (
