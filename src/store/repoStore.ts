@@ -457,7 +457,8 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
           } catch (e) {
             // Offline, auth, remote gone: that remote's cached answer stays, but say so — silently
             // keeping a stale one looks like badges that disagree with git for no reason.
-            toastError(toAppError(e), `Couldn't check ${remote} for tags`);
+            // Named: the answer can land after a tab switch, and the toast stays until dismissed.
+            toastError(toAppError(e), `${repo.name}: Couldn't check ${remote} for tags`);
             return;
           }
           if (get().repo?.id !== repo.id) return;

@@ -465,7 +465,7 @@ describe("commitStore mutations", () => {
     ask.mockResolvedValue(true);
     mocked.discardLines.mockRejectedValueOnce({ kind: "git", message: "boom" });
     await useCommitStore.getState().discardLines([[0, 1]]);
-    expect(useToastStore.getState().toasts[0]).toMatchObject({ kind: "error", title: "Discard failed", detail: "boom" });
+    expect(useToastStore.getState().toasts[0]).toMatchObject({ kind: "error", title: "r: Discard failed", detail: "boom" });
   });
 
   it("stages one hunk after another and reloads the diff every time", async () => {
@@ -574,16 +574,50 @@ describe("commitStore mutations", () => {
   it("a failed mutation toasts; a locked index offers a Retry that runs it again", async () => {
     mocked.stagePaths.mockRejectedValueOnce({ kind: "git", message: "boom" });
     await useCommitStore.getState().stage(["a.rs"]);
-    expect(useToastStore.getState().toasts[0]).toMatchObject({ kind: "error", title: "Stage failed", detail: "boom" });
+    expect(useToastStore.getState().toasts[0]).toMatchObject({ kind: "error", title: "r: Stage failed", detail: "boom" });
 
     useToastStore.setState({ toasts: [] });
     mocked.unstagePaths.mockRejectedValueOnce({ kind: "indexLocked", message: "index.lock" });
     await useCommitStore.getState().unstage(["a.rs"]);
     const t = useToastStore.getState().toasts[0];
-    expect(t).toMatchObject({ kind: "error", title: "Unstage failed", detail: "Index is locked — another git process is running" });
+    expect(t).toMatchObject({ kind: "error", title: "r: Unstage failed", detail: "Index is locked — another git process is running" });
     t.action!.onClick();
     await flush();
     expect(mocked.unstagePaths).toHaveBeenCalledTimes(2);
+  });
+
+  it("a Retry pressed while another repository is in front runs nothing there", async () => {
+    mocked.discardPaths.mockRejectedValueOnce({ kind: "indexLocked", message: "index.lock" });
+    await useCommitStore.getState().discard(["a.rs"]);
+    const retry = useToastStore.getState().toasts[0].action!.onClick;
+    // The same relative path in another repository, unconfirmed: exactly what must not run.
+    useRepoStore.setState({ repo: { ...REPO, id: "w", name: "work" } });
+    // `false`: the toast keeps the error up beside the info that explains.
+    expect(retry()).toBe(false);
+    await flush();
+    expect(mocked.discardPaths).toHaveBeenCalledTimes(1);
+    expect(useToastStore.getState().toasts).toMatchObject([
+      { kind: "error", title: "r: Discard failed" },
+      { kind: "info", title: "Retry cancelled", detail: "r is no longer the open tab" },
+    ]);
+  });
+
+  it("a Retry pressed while another change runs is refused and keeps its error toast", async () => {
+    mocked.stagePaths.mockRejectedValueOnce({ kind: "indexLocked", message: "index.lock" });
+    await useCommitStore.getState().stage(["a.rs"]);
+    const retry = useToastStore.getState().toasts[0].action!.onClick;
+    useCommitStore.setState({ busy: true });
+    try {
+      expect(retry()).toBe(false);
+      await flush();
+      expect(mocked.stagePaths).toHaveBeenCalledTimes(1);
+      expect(useToastStore.getState().toasts).toMatchObject([
+        { kind: "error", title: "r: Stage failed" },
+        { kind: "info", title: "Operation in progress", detail: "Another change is being applied" },
+      ]);
+    } finally {
+      useCommitStore.setState({ busy: false });
+    }
   });
 
   it("a failed mutation remembers what had the focus when it started, for Retry / Dismiss", async () => {
@@ -828,7 +862,55 @@ describe("commitStore.commit", () => {
     useCommitStore.setState({ summary: "Fix lanes", body: "" });
     await expect(useCommitStore.getState().commit()).resolves.toBeNull();
     expect(useCommitStore.getState().summary).toBe("Fix lanes");
-    expect(useToastStore.getState().toasts).toMatchObject([{ kind: "error", title: "Commit failed" }]);
+    expect(useToastStore.getState().toasts).toMatchObject([{ kind: "error", title: "r: Commit failed" }]);
+  });
+
+  it("a locked index's Retry commits again only while the same repository is in front", async () => {
+    mocked.commit.mockRejectedValue({ kind: "indexLocked", message: "index.lock" });
+    useCommitStore.setState({ summary: "Fix lanes", body: "" });
+    await useCommitStore.getState().commit();
+    const retry = useToastStore.getState().toasts[0].action!.onClick;
+    // Another tab in front: its draft is not what the toast was about.
+    useRepoStore.setState({ repo: { ...REPO, id: "w", name: "work" } });
+    // That tab's own draft, which an unguarded Retry would commit (the switch above emptied the editor).
+    useCommitStore.setState({ summary: "Work draft" });
+    // `false`: the toast keeps the error up beside the info that explains.
+    expect(retry()).toBe(false);
+    await flush();
+    expect(mocked.commit).toHaveBeenCalledTimes(1);
+    expect(useToastStore.getState().toasts).toMatchObject([
+      { kind: "error", title: "r: Commit failed" },
+      { kind: "info", title: "Retry cancelled", detail: "r is no longer the open tab" },
+    ]);
+    // Back on the tab, whose snapshot gives the draft back (a bare repo change here resets it).
+    useRepoStore.setState({ repo: REPO });
+    useCommitStore.setState({ summary: "Fix lanes" });
+    // Another change running: `commit` would return quietly, so the Retry refuses and says why.
+    useCommitStore.setState({ busy: true });
+    expect(retry()).toBe(false);
+    useCommitStore.setState({ busy: false });
+    await flush();
+    expect(mocked.commit).toHaveBeenCalledTimes(1);
+    expect(useToastStore.getState().toasts.slice(-1)[0]).toMatchObject({ kind: "info", title: "Operation in progress" });
+    expect(useToastStore.getState().toasts[0]).toMatchObject({ kind: "error", title: "r: Commit failed" });
+    expect(retry()).toBeUndefined();
+    await flush();
+    expect(mocked.commit).toHaveBeenCalledTimes(2);
+  });
+
+  it("a Retry on a commit whose message was cleared since is refused and keeps its error toast", async () => {
+    mocked.commit.mockRejectedValue({ kind: "indexLocked", message: "index.lock" });
+    useCommitStore.setState({ summary: "Fix lanes", body: "" });
+    await useCommitStore.getState().commit();
+    const retry = useToastStore.getState().toasts[0].action!.onClick;
+    useCommitStore.setState({ summary: "  " });
+    expect(retry()).toBe(false);
+    await flush();
+    expect(mocked.commit).toHaveBeenCalledTimes(1);
+    expect(useToastStore.getState().toasts).toMatchObject([
+      { kind: "error", title: "r: Commit failed" },
+      { kind: "info", title: "Retry cancelled", detail: "The summary is empty" },
+    ]);
   });
 
   it("`committing` ends with the commit, `applying` with the status refresh after it — failed commit or not", async () => {

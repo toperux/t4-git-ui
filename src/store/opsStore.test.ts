@@ -242,9 +242,22 @@ describe("runOp", () => {
   it("nonFastForward on a push → toast with a Pull action that opens the Pull dialog", async () => {
     await runOp("Pushing…", () => Promise.resolve({ ...ok, code: 1, failure: { kind: "nonFastForward" } }));
     const t = toasts()[0];
-    expect(t).toMatchObject({ kind: "error", title: "Rejected: remote has new commits — Pull first", action: { label: "Pull" } });
+    expect(t).toMatchObject({ kind: "error", title: "r: Rejected: remote has new commits — Pull first", action: { label: "Pull" } });
     t.action!.onClick();
     expect(useDialogStore.getState().dialog).toEqual({ kind: "pull" });
+  });
+
+  it("the rejection's Pull opens no dialog while another repository is in front", async () => {
+    await runOp("Pushing…", () => Promise.resolve({ ...ok, code: 1, failure: { kind: "nonFastForward" } }));
+    const pull = toasts()[0].action!.onClick;
+    useRepoStore.setState({ repo: { ...REPO, id: "w", name: "work" } });
+    // `false`: the toast keeps the rejection up beside the info that explains.
+    expect(pull()).toBe(false);
+    expect(useDialogStore.getState().dialog).toBeNull();
+    expect(toasts()).toMatchObject([
+      { kind: "error", title: "r: Rejected: remote has new commits — Pull first" },
+      { kind: "info", title: "Pull cancelled", detail: "r is no longer the open tab" },
+    ]);
   });
 
   it("a successful pull or push of the same repository retires the rejection toast; a fetch does not", async () => {
@@ -252,11 +265,11 @@ describe("runOp", () => {
     const titles = () => toasts().map((t) => t.title);
     await runOp("Pushing…", rejected, { about: { remote: "origin", branch: "main" } });
     await runOp("Fetching…", () => Promise.resolve(ok), { success: "Fetched" });
-    expect(titles()).toContain("Rejected: remote has new commits — Pull first");
+    expect(titles()).toContain("r: Rejected: remote has new commits — Pull first");
     // Another tab's repository answering its own push says nothing about this one.
     useRepoStore.setState({ repo: { ...REPO, id: "other" } });
     await runOp("Pushing…", () => Promise.resolve(ok), { about: { remote: "origin", branch: "main" }, success: "Pushed other" });
-    expect(titles()).toContain("Rejected: remote has new commits — Pull first");
+    expect(titles()).toContain("r: Rejected: remote has new commits — Pull first");
     useRepoStore.setState({ repo: REPO });
     await runOp("Pulling…", () => Promise.resolve(ok), { about: { remote: "origin", branch: "main" }, success: "Pulled" });
     expect(titles()).toEqual(["Fetched", "Pushed other", "Pulled"]);
@@ -265,7 +278,7 @@ describe("runOp", () => {
   // `main` is still behind after `feature` went through: its rejection still stands.
   it("a successful push of another branch leaves the rejection toast alone", async () => {
     const rejected = () => Promise.resolve({ ...ok, code: 1, failure: { kind: "nonFastForward" } } as OpResult);
-    const rejectionToasts = () => toasts().filter((t) => t.title === "Rejected: remote has new commits — Pull first");
+    const rejectionToasts = () => toasts().filter((t) => t.title === "r: Rejected: remote has new commits — Pull first");
     await runOp("Pushing…", rejected, { about: { remote: "origin", branch: "main" } });
     await runOp("Pushing…", () => Promise.resolve(ok), { about: { remote: "origin", branch: "feature" }, success: "Pushed feature" });
     expect(rejectionToasts()).toHaveLength(1);
@@ -276,7 +289,7 @@ describe("runOp", () => {
   // `mirror` still has the commits `main` lacks after a pull from `origin`: its rejection still stands.
   it("a successful pull from another remote leaves the rejection toast alone", async () => {
     const rejected = () => Promise.resolve({ ...ok, code: 1, failure: { kind: "nonFastForward" } } as OpResult);
-    const rejectionToasts = () => toasts().filter((t) => t.title === "Rejected: remote has new commits — Pull first");
+    const rejectionToasts = () => toasts().filter((t) => t.title === "r: Rejected: remote has new commits — Pull first");
     await runOp("Pushing…", rejected, { about: { remote: "mirror", branch: "main" } });
     await runOp("Pulling…", () => Promise.resolve(ok), { about: { remote: "origin", branch: "main" }, success: "Pulled origin" });
     expect(rejectionToasts()).toHaveLength(1);
@@ -286,7 +299,7 @@ describe("runOp", () => {
 
   it("a second rejection replaces the first toast instead of orphaning it", async () => {
     const rejected = () => Promise.resolve({ ...ok, code: 1, failure: { kind: "nonFastForward" } } as OpResult);
-    const rejectionToasts = () => toasts().filter((t) => t.title === "Rejected: remote has new commits — Pull first");
+    const rejectionToasts = () => toasts().filter((t) => t.title === "r: Rejected: remote has new commits — Pull first");
     await runOp("Pushing…", rejected, { about: { remote: "origin", branch: "main" } });
     expect(rejectionToasts()).toHaveLength(1);
 
@@ -306,7 +319,7 @@ describe("runOp", () => {
 
   it("diverged → no Pull action, whatever the label", async () => {
     await runOp("git pull --ff-only", () => Promise.resolve({ ...ok, code: 1, failure: { kind: "diverged" } }));
-    expect(toasts()).toMatchObject([{ kind: "error", title: "Cannot fast-forward — the branches have diverged" }]);
+    expect(toasts()).toMatchObject([{ kind: "error", title: "r: Cannot fast-forward — the branches have diverged" }]);
     expect(toasts()[0].action).toBeUndefined();
   });
 
@@ -314,8 +327,8 @@ describe("runOp", () => {
     await runOp("Pushing…", () => Promise.resolve({ ...ok, code: 128, failure: { kind: "authFailed", cause: "rejected" } }));
     await runOp("Merging…", () => Promise.resolve({ ...ok, code: 128, failure: { kind: "other", message: "fatal: refusing to merge unrelated histories" } }));
     expect(toasts()).toMatchObject([
-      { kind: "error", title: "Authentication failed — credentials were rejected", detail: "Update the stored credentials" },
-      { kind: "error", title: "Operation failed", detail: "fatal: refusing to merge unrelated histories" },
+      { kind: "error", title: "r: Authentication failed — credentials were rejected", detail: "Update the stored credentials" },
+      { kind: "error", title: "r: Operation failed", detail: "fatal: refusing to merge unrelated histories" },
     ]);
   });
 
@@ -325,17 +338,35 @@ describe("runOp", () => {
     expect(toasts().map(({ kind, title, detail }) => ({ kind, title, detail }))).toEqual([
       {
         kind: "error",
-        title: "Host key changed — possible attack or server rebuild",
+        title: "r: Host key changed — possible attack or server rebuild",
         detail: "Verify the new key with the server's admin before updating known_hosts",
       },
-      { kind: "error", title: "Host key not trusted", detail: "Connect once from a terminal (e.g. ssh -T git@<host>) and follow what ssh says" },
-      { kind: "error", title: "SSH key not accepted", detail: "Load your key into the agent (ssh-add), or add its public key to your account on the server" },
+      { kind: "error", title: "r: Host key not trusted", detail: "Connect once from a terminal (e.g. ssh -T git@<host>) and follow what ssh says" },
+      { kind: "error", title: "r: SSH key not accepted", detail: "Load your key into the agent (ssh-add), or add its public key to your account on the server" },
       {
         kind: "error",
-        title: "Credentials needed",
+        title: "r: Credentials needed",
         detail: "Sign in once from a terminal (e.g. git fetch) so your credential helper stores them, or use Git Credential Manager",
       },
-      { kind: "error", title: "Authentication failed — credentials were rejected", detail: "Update the stored credentials" },
+      { kind: "error", title: "r: Authentication failed — credentials were rejected", detail: "Update the stored credentials" },
+    ]);
+  });
+
+  it("an error toast names the repository the op ran against, even after a tab switch", async () => {
+    let resolve!: (r: OpResult) => void;
+    const p = runOp("Fetching…", () => new Promise<OpResult>((r) => (resolve = r)));
+    // The user moved to another tab while the fetch ran.
+    useRepoStore.setState({ repo: { ...REPO, id: "w", name: "work" } });
+    resolve({ ...ok, code: 128, failure: { kind: "other", message: "fatal: unable to access" } });
+    await p;
+    useRepoStore.setState({ repo: REPO });
+    await runOp("Renaming branch…", () => Promise.reject({ kind: "git", message: "boom" }));
+    // A stop is an info toast that expires on its own: it stays as it was.
+    await runOp("Merging…", () => Promise.resolve({ ...ok, code: 1, conflicts: ["a"], failure: { kind: "conflicts", paths: ["a"] } }));
+    expect(toasts().map(({ kind, title, detail }) => ({ kind, title, detail }))).toEqual([
+      { kind: "error", title: "r: Operation failed", detail: "fatal: unable to access" },
+      { kind: "error", title: "r: Renaming branch failed", detail: "boom" },
+      { kind: "info", title: "1 conflict — resolve in the commit panel", detail: undefined },
     ]);
   });
 
@@ -350,9 +381,9 @@ describe("runOp", () => {
     await runOp("git pull --ff-only", () => Promise.resolve({ ...ok, code: 1, failure: { kind: "diverged" } }), { quietFailure: true });
     expect(toasts().map((t) => t.title)).toEqual([
       "1 conflict — resolve in the commit panel",
-      "SSH key not accepted",
-      "Rejected: remote has new commits — Pull first",
-      "Cannot fast-forward — the branches have diverged",
+      "r: SSH key not accepted",
+      "r: Rejected: remote has new commits — Pull first",
+      "r: Cannot fast-forward — the branches have diverged",
     ]);
     expect(useRepoStore.getState().wtSelected).toBe(true);
   });
@@ -364,7 +395,7 @@ describe("runOp", () => {
     expect(out).toMatchObject({ ok: false, error: { kind: "refused" } });
     expect(toasts()).toHaveLength(0);
     await runOp("Renaming branch…", () => Promise.reject({ kind: "git", message: "boom" }));
-    expect(toasts()).toMatchObject([{ kind: "error", title: "Renaming branch failed", detail: "boom" }]);
+    expect(toasts()).toMatchObject([{ kind: "error", title: "r: Renaming branch failed", detail: "boom" }]);
     expect(useOpsStore.getState().busy).toBeNull();
     await settle();
   });

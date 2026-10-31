@@ -11,7 +11,8 @@ export const MAX_TOASTS = 8;
 
 export interface ToastAction {
   label: string;
-  onClick: () => void;
+  /** Runs before the toast closes; `false` means it did nothing, and the toast stays. */
+  onClick: () => void | boolean;
 }
 
 export interface Toast {
@@ -90,8 +91,8 @@ export const useToastStore = create<ToastStore>()((set, get) => ({
   },
 
   dismiss(id) {
-    // Dismiss and the toast's action both come through here (`ToastStack`), so the focus goes back
-    // once, after the toast is gone — a Retry that runs first would toast over its own origin.
+    // Dismiss and an action that went ahead both come through here (`ToastStack`), so the focus goes
+    // back once, after the toast is gone. The action runs just before: it may refuse and keep the toast.
     const origin = get().toasts.find((t) => t.id === id)?.origin;
     clearTimeout(timers.get(id));
     timers.delete(id);
@@ -110,7 +111,7 @@ export function cliDetail(message: string): string {
  * Shows `err` as an error toast; `retry` adds a Retry action for `indexLocked`, `origin` the control
  * the focus goes back to once the toast is dismissed (captured when the action started, not here).
  */
-export function toastError(err: AppError, title: string, retry?: () => void, origin?: HTMLElement | null) {
+export function toastError(err: AppError, title: string, retry?: ToastAction["onClick"], origin?: HTMLElement | null) {
   const push = useToastStore.getState().push;
   if (err.kind === "indexLocked") {
     push({

@@ -266,10 +266,24 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
   /**
    * The native box sets no `busy` and no dialog, so a tab dropped in from another window comes
    * forward while it is up (`openWhenIdle`): the confirmed paths belong to the repository asked about.
+   * An error toast's Retry asks the same: the toast outlives a tab switch.
    */
-  function stillSameRepo(id: string | null, title: string): boolean {
+  function stillSameRepo(id: string | null, title: string, detail = "Another repository came forward while the confirmation was open"): boolean {
     if (repoId() === id) return true;
-    useToastStore.getState().push({ kind: "info", title, detail: "Another repository came forward while the confirmation was open" });
+    useToastStore.getState().push({ kind: "info", title, detail });
+    return false;
+  }
+
+  const refusedBusy = () => useToastStore.getState().push({ kind: "info", title: "Operation in progress", detail: "Another change is being applied" });
+
+  /**
+   * A Retry pressed while another tab is in front would run against that tab's repository, and one
+   * pressed while another change runs would do nothing: refused either way, the error toast stays.
+   */
+  function retryHere(id: string, name: string | undefined): boolean {
+    if (!stillSameRepo(id, "Retry cancelled", `${name} is no longer the open tab`)) return false;
+    if (!get().busy) return true;
+    refusedBusy();
     return false;
   }
 
@@ -311,15 +325,18 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
     const id = repoId();
     if (!id) return false;
     if (get().busy) {
-      // A Retry action has already dismissed its own toast: without this the error just vanishes.
-      useToastStore.getState().push({ kind: "info", title: "Operation in progress", detail: "Another change is being applied" });
+      // A mutation started while another runs: say why nothing happened. (A Retry is refused before
+      // it gets here, in `retryHere`, so its error toast stays.)
+      refusedBusy();
       return false;
     }
+    // Named: the toast stays until dismissed, and the failure can land after a tab switch.
+    const name = useRepoStore.getState().repo?.name;
     await withApplying(async () => {
       try {
         await op(id);
       } catch (e) {
-        toastError(toAppError(e), title, () => void run(title, op, from), from);
+        toastError(toAppError(e), `${name}: ${title}`, () => (retryHere(id, name) ? void run(title, op, from) : false), from);
       }
     });
     return true;
@@ -527,6 +544,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
 
     async commit() {
       const id = repoId();
+      const name = useRepoStore.getState().repo?.name;
       const { summary, body, amend, signoff, sign, busy } = get();
       if (!id || busy || !summary.trim()) return null;
       set({ inCommit: ++commitRuns > 0 });
@@ -553,7 +571,15 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
             // The message is spent either way — an amend also drops the amend flag and its prefill memory.
             set({ summary: "", body: "", amend: false, prefill: null });
           } catch (e) {
-            toastError(toAppError(e), "Commit failed", () => void get().commit());
+            toastError(toAppError(e), `${name}: Commit failed`, () => {
+              if (!retryHere(id, name)) return false;
+              // `commit` returns quietly on an empty message: say why instead, and keep the error up.
+              if (!get().summary.trim()) {
+                useToastStore.getState().push({ kind: "info", title: "Retry cancelled", detail: "The summary is empty" });
+                return false;
+              }
+              void get().commit();
+            });
           }
         }, true);
         await st.syncRefs();

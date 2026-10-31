@@ -21,14 +21,24 @@ describe("Toast", () => {
     }
   });
 
-  it("the action replaces the toast: it closes first, then runs", () => {
-    // The order matters: a Retry that runs first would toast its own failure, then be dismissed.
+  it("the action replaces the toast: it runs, then the toast closes", () => {
+    // It runs first so that it can refuse (below) and keep the toast.
     const calls: string[] = [];
-    const onClick = vi.fn(() => calls.push("click"));
+    const onClick = vi.fn(() => void calls.push("click"));
     const onClose = vi.fn(() => calls.push("close"));
     const { getByRole } = render(<Toast toast={toast({ detail: "Index is locked", action: { label: "Retry", onClick } })} onClose={onClose} />);
     fireEvent.click(getByRole("button", { name: "Retry" }));
-    expect(calls).toEqual(["close", "click"]);
+    expect(calls).toEqual(["click", "close"]);
+  });
+
+  it("an action that refuses (returns false) keeps the toast", () => {
+    // A Retry for a repository no longer in front: the error still stands.
+    const onClose = vi.fn();
+    const onClick = vi.fn(() => false);
+    const { getByRole } = render(<Toast toast={toast({ action: { label: "Retry", onClick } })} onClose={onClose} />);
+    fireEvent.click(getByRole("button", { name: "Retry" }));
+    expect(onClick).toHaveBeenCalledOnce();
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it("a click anywhere on the toast closes it", () => {
@@ -108,6 +118,16 @@ describe("ToastStack focus", () => {
     fireEvent.click(getByRole("button", { name: "Retry" }));
     expect(onClick).toHaveBeenCalledOnce();
     expect(document.activeElement).toBe(stage);
+  });
+
+  it("a refused Retry leaves the toast in the stack and the focus where it was", () => {
+    const { getByRole, stage } = stackWithButton();
+    push({ kind: "error", title: "Stage failed", action: { label: "Retry", onClick: () => false }, origin: stage });
+    const retry = getByRole("button", { name: "Retry" });
+    retry.focus();
+    fireEvent.click(retry);
+    expect(useToastStore.getState().toasts.map((t) => t.title)).toEqual(["Stage failed"]);
+    expect(document.activeElement).toBe(retry);
   });
 
   it("Dismiss does the same", () => {

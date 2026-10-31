@@ -3,11 +3,11 @@
 import { create } from "zustand";
 import * as ipc from "../api/ipc";
 import { toAppError } from "../api/ipc";
-import type { AppError, AuthCause, OpEvent, OpFailure, OpResult, RepoId } from "../api/types";
+import type { AppError, AuthCause, OpEvent, OpFailure, OpResult, RepoId, RepoSummary } from "../api/types";
 import { useDialogStore } from "./dialogStore";
 import { useRepoStore } from "./repoStore";
 import { useStatusStore } from "./statusStore";
-import { toastError, useToastStore } from "./toastStore";
+import { toastError, useToastStore, type ToastAction } from "./toastStore";
 
 export const MAX_OPS = 50;
 export const MAX_LINES = 5000;
@@ -187,7 +187,7 @@ export function authFailedText(cause: AuthCause): { title: string; detail: strin
 }
 
 /** Toast title + optional detail / action for a classified streaming failure. */
-export function failureToast(f: OpFailure): { title: string; detail?: string; action?: { label: string; onClick: () => void } } {
+export function failureToast(f: OpFailure, repo: RepoSummary): { title: string; detail?: string; action?: ToastAction } {
   switch (f.kind) {
     case "conflicts": {
       const n = f.paths.length;
@@ -196,7 +196,16 @@ export function failureToast(f: OpFailure): { title: string; detail?: string; ac
     case "nonFastForward":
       return {
         title: "Rejected: remote has new commits — Pull first",
-        action: { label: "Pull", onClick: () => useDialogStore.getState().open({ kind: "pull" }) },
+        // The toast outlives a tab switch: the dialog would pull into whichever tab is in front.
+        action: {
+          label: "Pull",
+          onClick: () => {
+            if (useRepoStore.getState().repo?.id === repo.id) return void useDialogStore.getState().open({ kind: "pull" });
+            useToastStore.getState().push({ kind: "info", title: "Pull cancelled", detail: `${repo.name} is no longer the open tab` });
+            // Refused: the rejection stays up for when that tab is in front again.
+            return false;
+          },
+        },
       };
     case "diverged":
       // An `--ff-only` pull has already fetched: telling it to pull again is wrong.
@@ -235,6 +244,9 @@ export async function runOp(busy: string, fn: (id: RepoId) => Promise<OpResult |
     return { ok: false, error: { kind: "busy", message: "another operation is running" }, failure: null };
   }
   useOpsStore.setState({ busy });
+  // An error toast stays until dismissed and the stack is the window's, not the tab's: it names the
+  // repository, or after a tab switch it reads as the one now on screen.
+  const named = (title: string) => `${repo.name}: ${title}`;
   let outcome: OpOutcome;
   try {
     const result = await fn(repo.id);
@@ -244,7 +256,8 @@ export async function runOp(busy: string, fn: (id: RepoId) => Promise<OpResult |
       const stopped = failure.kind === "conflicts" || failure.kind === "paused";
       const loud = stopped || failure.kind === "authFailed" || failure.kind === "nonFastForward" || failure.kind === "diverged";
       if (!opts.quietFailure || loud) {
-        const toast = push({ kind: stopped ? "info" : "error", ...failureToast(failure) });
+        const text = failureToast(failure, repo);
+        const toast = push(stopped ? { kind: "info", ...text } : { kind: "error", ...text, title: named(text.title) });
         if (failure.kind === "nonFastForward") {
           // A second rejection while the first is still up must not orphan it: one toast per pair.
           const key = rejectionKey(repo.id, opts.about);
@@ -270,7 +283,7 @@ export async function runOp(busy: string, fn: (id: RepoId) => Promise<OpResult |
     if (error.kind === "refused" && opts.onRefused) opts.onRefused(error.message);
     else if (error.kind === "busy") push({ kind: "info", title: "Operation in progress", detail: "Another git operation is running" });
     else if (error.kind === "cancelled") push({ kind: "info", title: "Cancelled" });
-    else toastError(error, `${busy.replace(/…$/, "")} failed`);
+    else toastError(error, named(`${busy.replace(/…$/, "")} failed`));
     outcome = { ok: false, error, failure: null };
   } finally {
     useOpsStore.setState({ busy: null });

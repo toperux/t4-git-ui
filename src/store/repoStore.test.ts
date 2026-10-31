@@ -802,7 +802,7 @@ describe("repoStore remote tags", () => {
     );
     await useRepoStore.getState().refreshRemoteTags();
     expect(useRepoStore.getState().remoteTags).toMatchObject({ origin: { tags: tags("v1") }, vendor: { tags: tags("old"), at: 1 } });
-    expect(useToastStore.getState().toasts).toMatchObject([{ kind: "error", title: "Couldn't check vendor for tags" }]);
+    expect(useToastStore.getState().toasts).toMatchObject([{ kind: "error", title: "repo: Couldn't check vendor for tags" }]);
   });
 
   it("toasts every count when the user asked for the check", async () => {

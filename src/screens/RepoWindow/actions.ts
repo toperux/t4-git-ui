@@ -379,7 +379,8 @@ export function refreshAll() {
   void st.refreshRefs().catch((e: unknown) => {
     const err = toAppError(e);
     // `notOpen` after a close just means the repo is gone.
-    if (err.kind !== "notOpen") toastError(err, "Couldn't refresh references");
+    // Named: the toast stays until dismissed, and the failure can land after a tab switch.
+    if (err.kind !== "notOpen") toastError(err, `${st.repo?.name}: Couldn't refresh references`);
   });
   void useStatusStore.getState().refresh();
   void st.startLog(st.spec, st.filter);

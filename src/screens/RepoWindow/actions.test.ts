@@ -9,7 +9,7 @@ import { useRepoStore } from "../../store/repoStore";
 import { useToastStore } from "../../store/toastStore";
 import { useTabsStore } from "../../store/tabsStore";
 import { useViewStore } from "../../store/viewStore";
-import { blameAt, busyLabel, checkoutAndResetBranch, checkoutTag, closeTab, fastForwardTo, pickAndOpenRepo, runGit, showHistory, stashDrop, switchRepo } from "./actions";
+import { blameAt, busyLabel, checkoutAndResetBranch, checkoutTag, closeTab, fastForwardTo, pickAndOpenRepo, refreshAll, runGit, showHistory, stashDrop, switchRepo } from "./actions";
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(() => Promise.resolve("/elsewhere")), ask: vi.fn(() => Promise.resolve(true)) }));
 vi.mock("@tauri-apps/plugin-clipboard-manager", () => ({ writeText: vi.fn() }));
@@ -102,7 +102,7 @@ describe("runGit", () => {
   it("a refused command (the backend's terminal check) is still an error toast naming the command", async () => {
     mocked.runGit.mockRejectedValue({ kind: "refused", message: "-p needs a terminal; interactive mode is not supported here" });
     await runGit("add -p");
-    expect(toasts()).toMatchObject([{ kind: "error", title: "git add -p failed", detail: "-p needs a terminal; interactive mode is not supported here" }]);
+    expect(toasts()).toMatchObject([{ kind: "error", title: "r: git add -p failed", detail: "-p needs a terminal; interactive mode is not supported here" }]);
   });
 
   it("does nothing with an empty or unbalanced line", () => {
@@ -111,6 +111,25 @@ describe("runGit", () => {
     expect(mocked.runGit).not.toHaveBeenCalled();
     expect(useOpsStore.getState().open).toBe(false);
     expect(useCmdHistoryStore.getState().history).toEqual([]);
+  });
+});
+
+describe("refreshAll", () => {
+  it("a refs failure names the repository it ran against, not the one in front after a tab switch", async () => {
+    let reject!: (e: unknown) => void;
+    (ipc.getRefs as ReturnType<typeof vi.fn>).mockImplementationOnce(() => new Promise((_, r) => (reject = r)));
+    // The walk is not what is under test; restored after so no later case inherits the stub.
+    const { startLog } = useRepoStore.getState();
+    useRepoStore.setState({ startLog: vi.fn(() => Promise.resolve()) });
+    try {
+      refreshAll();
+      useRepoStore.setState({ repo: { id: "w", name: "work", path: "/w", head: { oid: "b", branch: "main", detached: false } } });
+      reject({ kind: "git", message: "boom" });
+      await new Promise((r) => setTimeout(r, 0));
+      expect(toasts()).toMatchObject([{ kind: "error", title: "r: Couldn't refresh references", detail: "boom" }]);
+    } finally {
+      useRepoStore.setState({ startLog });
+    }
   });
 });
 

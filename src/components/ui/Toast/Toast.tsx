@@ -50,12 +50,12 @@ export function Toast({ toast, onClose }: { toast: ToastModel; onClose: () => vo
         {toast.detail && <div className={cx(s.detail, "selectable")}>{toast.detail}</div>}
         {toast.action && (
           <div className={s.actions}>
-            {/* The action replaces the toast: retrying keeps the stale error on screen otherwise. */}
+            {/* The action replaces the toast: retrying keeps the stale error on screen otherwise. One
+                that refuses (`false`: it did nothing) keeps it, and the focus stays where it is. */}
             <Button
               size="sm"
               onClick={() => {
-                onClose();
-                toast.action?.onClick();
+                if (toast.action?.onClick() !== false) onClose();
               }}
             >
               {toast.action.label}

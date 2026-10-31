@@ -84,7 +84,7 @@ src/
                            every remote in `refs.remotes` by default; run by `runOp({remote})` with the remote the op talked to
                            (`true` = all) after fetch/push/pull/delete-on-remote when it answered — not after `authFailed` / `other` — and by the tag row's Refresh remote tags with announce;
                            each answer merges into the current state and prunes remotes that are gone, a failure toasts
-                           "Couldn't check <remote> for tags" and keeps that remote's entry, `announce` toasts the counts), refreshLabels (re-fetch the pages
+                           "<repo>: Couldn't check <remote> for tags" and keeps that remote's entry, `announce` toasts the counts), refreshLabels (re-fetch the pages
                            around the last `ensureRows` viewport, drop the rest so they reload lazily), startLog,
                            ensureRows (500-row pages, dedupe, stale drop), select, selectWorkingTree, revealOid,
                            reselectTo(oid) (the app's own move of the selection, no scroll: `reselect` waits for the walk to
@@ -656,22 +656,24 @@ no other command returns that kind, so `toastError` never shows the bare cause; 
 
 ## Operations (M4)
 
-Every branch / remote / stash operation goes through `opsStore.runOp(busy, fn, opts)`. It refuses with an info toast while
-another op is in flight (the backend enforces the same with `AppError::busy`), awaits the command, and classifies the
-outcome: a streamed op resolves with `OpResult` whose `failure` is a *result*, not a rejection — `conflicts` toasts
-"N conflicts — resolve in the commit panel" and selects the working-tree row, `nonFastForward` (a rejected push) offers a Pull action while `diverged` (an `--ff-only` pull that already fetched) just says so,
-`authFailed` names its `cause` (a changed or untrusted host key, an ssh key not accepted, credentials needed or
-rejected) and what to do, through `authFailedText`, `rejected` / `other` show git's message (a failing post-checkout hook:
-*Checked out, but the post-checkout hook failed: <its last line>*). Rejections are `AppError`s:
-`refused` (a safety check, e.g. an unmerged branch) is handed to `onRefused` so the Delete-branch dialog can re-offer
-itself as a force delete, `cancelled` is an info toast, everything else goes through `toastError`. Afterwards it refreshes
-the status and calls `statusStore.syncRefs()`, which relabels the walk or restarts it when its seeds moved (the backend's own
-`repo://changed` arrives too; the seq guards make it a no-op). While an op runs, `opsStore.busy` holds the statusbar text
-and disables the toolbar; the streamed output lands in `OutputDock`, which shows the open repository's records plus the
-repo-less ones (elapsed timer + Cancel → `cancel_op`; a `\r` progress segment replaces the previous progress line
-rather than appending). A non-zero exit expands the dock:
-the toast carries only the first stderr line, so the reason is on screen instead of behind a click. An op the user
-cancelled is exempt — its kill exits non-zero too, and whoever pressed Cancel already knows why.
+Every branch / remote / stash operation goes through `opsStore.runOp(busy, fn, opts)`. It refuses with an info toast
+while another op is in flight (the backend enforces the same with `AppError::busy`), awaits the command, and classifies
+the outcome: a streamed op resolves with `OpResult` whose `failure` is a *result*, not a rejection — `conflicts` toasts
+"N conflicts — resolve in the commit panel" and selects the working-tree row, `nonFastForward` (a rejected push) offers
+a Pull action (only while that repository is the open tab; otherwise the toast stays) while `diverged` (an `--ff-only`
+pull that already fetched) just says so, `authFailed` names its `cause` (a changed or untrusted host key, an ssh key not
+accepted, credentials needed or rejected) and what to do, through `authFailedText`, `rejected` / `other` show git's
+message (a failing post-checkout hook: *Checked out, but the post-checkout hook failed: <its last line>*). Rejections
+are `AppError`s: `refused` (a safety check, e.g. an unmerged branch) is handed to `onRefused` so the Delete-branch
+dialog can re-offer itself as a force delete, `cancelled` is an info toast, everything else goes through `toastError`.
+An error toast's title always starts with the repository's name, since error toasts outlive a tab switch. Afterwards it
+refreshes the status and calls `statusStore.syncRefs()`, which relabels the walk or restarts it when its seeds moved
+(the backend's own `repo://changed` arrives too; the seq guards make it a no-op). While an op runs, `opsStore.busy`
+holds the statusbar text and disables the toolbar; the streamed output lands in `OutputDock`, which shows the open
+repository's records plus the repo-less ones (elapsed timer + Cancel → `cancel_op`; a `\r` progress segment replaces the
+previous progress line rather than appending). A non-zero exit expands the dock: the toast carries only the first stderr
+line, so the reason is on screen instead of behind a click. An op the user cancelled is exempt — its kill exits non-zero
+too, and whoever pressed Cancel already knows why.
 
 Dialogs are one at a time (`dialogStore` → `DialogHost`) and every option-bearing action gets one, with a
 "Runs `git …`" preview built by `dialogs/gitArgs.ts` (a mirror of `crates/git-core/src/cli/ops.rs`, so the preview and

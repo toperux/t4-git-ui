@@ -543,7 +543,7 @@ describe("CreateTagDialog", () => {
     await waitFor(() =>
       expect(useToastStore.getState().toasts).toMatchObject([
         { kind: "success", title: "Created tag v1" },
-        { kind: "error", title: "Pushing tag v1 failed", detail: "remote rejected" },
+        { kind: "error", title: "r: Pushing tag v1 failed", detail: "remote rejected" },
       ]),
     );
   });

@@ -220,6 +220,9 @@ export const useStatusStore = create<StatusStore>()((_set, get) => ({
       return refsRun;
     }
     refsRun = (async () => {
+      // Named in the toast: it stays until dismissed, and the failure can land after a tab switch.
+      // Read per pass: each `syncRefsOnce` runs against the repository open at that moment.
+      let name: string | undefined;
       try {
         do {
           refsDirty = false;
@@ -227,12 +230,13 @@ export const useStatusStore = create<StatusStore>()((_set, get) => ({
           // Callers in this tick see the same repository state: let them join this run.
           await Promise.resolve();
           refsStarted = true;
+          name = useRepoStore.getState().repo?.name;
           await syncRefsOnce();
         } while (refsDirty);
       } catch (e) {
         const err = toAppError(e);
         // `notOpen` after `closeRepo` just means the repo is gone — nothing to report.
-        if (err.kind !== "notOpen" && useRepoStore.getState().repo) toastError(err, "Couldn't refresh references");
+        if (err.kind !== "notOpen" && useRepoStore.getState().repo) toastError(err, `${name}: Couldn't refresh references`);
       } finally {
         refsRun = null;
         refsStarted = false;
