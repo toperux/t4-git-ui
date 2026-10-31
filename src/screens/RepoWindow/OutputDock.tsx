@@ -1,4 +1,4 @@
-import { Check, ChevronDown, ChevronUp, Terminal, X } from "lucide-react";
+import { Ban, Check, ChevronDown, ChevronUp, Terminal, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "../../components/ui/Button/Button";
 import { IconButton } from "../../components/ui/IconButton/IconButton";
@@ -128,11 +128,21 @@ function OpStatus({ op }: { op: OpRecord }) {
       </>
     );
   }
-  return <span className={cx(s.xs, op.code === 0 ? s.ok : s.err)}>{exitLine(op)}</span>;
+  return <span className={cx(s.xs, exitTone(op))}>{exitLine(op)}</span>;
 }
 
-/** Style guide §2: an icon, never a dingbat. The exit code keeps colour from being the sole carrier. */
+/** A cancel is neither a success nor a failure: muted, like the running timer. */
+const exitTone = (op: OpRecord) => (op.code === 0 ? s.ok : op.cancelled ? s.muted : s.err);
+
+/** Style guide §2: an icon, never a dingbat. The exit code (or "cancelled") keeps colour from being the sole carrier. */
 function exitLine(op: OpRecord) {
+  // The kill's code means nothing to the user: -1 on Linux, 1 on Windows.
+  if (op.cancelled)
+    return (
+      <>
+        <Ban size={12} aria-hidden /> cancelled · {secs(op.elapsedMs ?? 0)}
+      </>
+    );
   const ok = op.code === 0;
   return (
     <>
@@ -160,7 +170,7 @@ function OutputBody({ ops }: { ops: OpRecord[] }) {
               {l.text}
             </div>
           ))}
-          {!op.running && <div className={cx(s.exit, op.code === 0 ? s.ok : s.err)}>{exitLine(op)}</div>}
+          {!op.running && <div className={cx(s.exit, exitTone(op))}>{exitLine(op)}</div>}
         </div>
       ))}
     </div>

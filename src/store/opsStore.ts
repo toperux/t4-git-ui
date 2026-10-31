@@ -38,6 +38,8 @@ export interface OpRecord {
   startedAt: number;
   /** Older output was dropped: `lines` starts with the marker and holds only the last `MAX_LINES`. */
   truncated: boolean;
+  /** The user cancelled it and it exited non-zero: the dock says "cancelled", not the kill's exit code. */
+  cancelled: boolean;
 }
 
 export interface OpsStore {
@@ -53,7 +55,10 @@ export interface OpsStore {
   setOpen(open: boolean): void;
 }
 
-/** Ops the user cancelled: their non-zero exit is expected, so it must not open the dock. */
+/**
+ * Ops the user cancelled: their non-zero exit is expected, so it must not open the dock, and the dock
+ * says "cancelled" instead of its code.
+ */
 const cancelled = new Set<string>();
 
 /** Test-only: the set is private, and nothing else can show that an id was forgotten. */
@@ -82,7 +87,7 @@ export const useOpsStore = create<OpsStore>()((set, get) => ({
   onEvent({ repoId, opId, event }) {
     const ops = get().ops;
     if (event.kind === "started") {
-      const rec: OpRecord = { opId, repoId, cmd: event.cmd, lines: [], code: null, elapsedMs: null, running: true, startedAt: Date.now(), truncated: false };
+      const rec: OpRecord = { opId, repoId, cmd: event.cmd, lines: [], code: null, elapsedMs: null, running: true, startedAt: Date.now(), truncated: false, cancelled: false };
       set({ ops: [...ops, rec].slice(-MAX_OPS) });
       return;
     }
@@ -95,9 +100,10 @@ export const useOpsStore = create<OpsStore>()((set, get) => ({
     // whoever pressed Cancel knows what happened.
     let reveal = false;
     if (event.kind === "exit") {
-      next = { ...op, running: false, code: event.code, elapsedMs: event.elapsedMs };
       // Forgotten whatever the code: behind an `&&` a zero exit would leave the id in the set forever.
       const wasCancelled = cancelled.delete(opId);
+      // A zero exit raced the kill home: the command did its work, so its line says so.
+      next = { ...op, running: false, code: event.code, elapsedMs: event.elapsedMs, cancelled: wasCancelled && event.code !== 0 };
       reveal = event.code !== 0 && !wasCancelled;
     } else {
       const lines = op.lines.slice();

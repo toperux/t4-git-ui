@@ -151,6 +151,27 @@ describe("opsStore", () => {
     expect(useOpsStore.getState().open).toBe(false);
   });
 
+  it("marks an op the user cancelled, so the dock says so instead of the kill's exit code", async () => {
+    mocked.cancelOp.mockResolvedValue(true);
+    const st = useOpsStore.getState();
+    st.onEvent({ repoId: "r", opId: "1", event: { kind: "started", opId: "1", cmd: "git fetch" } });
+    expect(useOpsStore.getState().ops[0].cancelled).toBe(false);
+    await useOpsStore.getState().cancel("1");
+    st.onEvent({ repoId: "r", opId: "1", event: { kind: "exit", code: -1, elapsedMs: 3300 } });
+    expect(useOpsStore.getState().ops[0]).toMatchObject({ code: -1, cancelled: true });
+
+    // A failure nobody cancelled is not one.
+    st.onEvent({ repoId: "r", opId: "2", event: { kind: "started", opId: "2", cmd: "git fetch" } });
+    st.onEvent({ repoId: "r", opId: "2", event: { kind: "exit", code: 1, elapsedMs: 12 } });
+    expect(useOpsStore.getState().ops[1]).toMatchObject({ code: 1, cancelled: false });
+
+    // Nor a zero exit that raced the kill home: the command did its work.
+    st.onEvent({ repoId: "r", opId: "3", event: { kind: "started", opId: "3", cmd: "git fetch" } });
+    await useOpsStore.getState().cancel("3");
+    st.onEvent({ repoId: "r", opId: "3", event: { kind: "exit", code: 0, elapsedMs: 12 } });
+    expect(useOpsStore.getState().ops[2]).toMatchObject({ code: 0, cancelled: false });
+  });
+
   it("keeps at most MAX_OPS records", () => {
     const st = useOpsStore.getState();
     for (let i = 0; i < MAX_OPS + 5; i++) st.onEvent({ repoId: "r", opId: `${i}`, event: { kind: "started", opId: `${i}`, cmd: `c${i}` } });

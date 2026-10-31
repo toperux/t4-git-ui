@@ -38,6 +38,7 @@ vi.mock("../../api/events", () => ({
 
 import { open } from "@tauri-apps/plugin-dialog";
 import * as ipc from "../../api/ipc";
+import { __cancelledForTests, useOpsStore } from "../../store/opsStore";
 import { sortRecents, useRecentsStore } from "../../store/recentsStore";
 import { useRepoStore } from "../../store/repoStore";
 import { StartScreen } from "./StartScreen";
@@ -228,8 +229,12 @@ describe("StartScreen", () => {
     });
     expect(getByText((t) => t.replace(/\s+/g, " ") === "Receiving objects: 58% (7/12)")).toBeTruthy();
 
+    // App routes every op event to the ops store too; the cancel has to be remembered there, or the
+    // dock reads the clone's kill as a failure.
+    act(() => useOpsStore.getState().onEvent({ repoId: null, opId: "op1", event: { kind: "started", opId: "op1", cmd: "git clone" } }));
     fireEvent.click(getByRole("button", { name: "Cancel" }));
     expect(ipc.cancelOp).toHaveBeenCalledWith("op1");
+    expect(__cancelledForTests().has("op1")).toBe(true);
   });
 
   it("a failed clone shows a login failure's cause and fix, or git's own line", async () => {

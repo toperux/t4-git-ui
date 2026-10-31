@@ -170,9 +170,10 @@ One file per row, except the few marked otherwise (a screen-level piece, or some
   lightweight tag has none, which is the only thing that distinguishes the two once the tag is peeled to its commit.
 - **Output dock**: bottom, 160–320px; header = PanelHeader with command, elapsed, `sm` Spinner, Cancel, collapse; body
   mono on `--bg-field`; `$ cmd` in `--fg`, output muted, stderr muted **italic**, exit line `--success`/`--danger-text`
-  behind a 12px `Check` / `X` (no `✓`/`✗`). With no operation yet it reads "No output yet". There is **no progress bar
-  in the dock**. Under the log — outside it, so it is neither selectable nor part of the scroll — sits the `$ git`
-  prompt row: `--bg-app`, 1px top border, pad `4 8`, holding a full-width `CommandInput`. Body is `.selectable`.
+  behind a 12px `Check` / `X` (no `✓`/`✗`), or `--fg-muted` behind a 12px `Ban` reading "cancelled · Ns" for an op the
+  user cancelled. With no operation yet it reads "No output yet". There is **no progress bar in the dock**. Under the
+  log — outside it, so it is neither selectable nor part of the scroll — sits the `$ git` prompt row: `--bg-app`, 1px
+  top border, pad `4 8`, holding a full-width `CommandInput`. Body is `.selectable`.
 - **Files tab · Blame**: the changed-file panel's second tab lists the whole tree at HEAD rather than the changes, so it
   gets a filter row under the header — a `--section-h` band on `--bg-app` with a bottom border holding one
   `--control-h-sm` Input; past the row cap a `warning` Banner under the list says how many more matched. A file opened

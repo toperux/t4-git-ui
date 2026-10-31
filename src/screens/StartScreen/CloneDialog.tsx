@@ -3,7 +3,7 @@ import { FolderOpen } from "lucide-react";
 import { useState } from "react";
 import { cloneRepo } from "../../api/ipc";
 import { onOpEventReady } from "../../api/events";
-import { cancelOp, toAppError } from "../../api/ipc";
+import { toAppError } from "../../api/ipc";
 import type { AppError, AuthCause, RepoSummary } from "../../api/types";
 import { Banner } from "../../components/ui/Banner/Banner";
 import { Button } from "../../components/ui/Button/Button";
@@ -14,7 +14,7 @@ import { Input } from "../../components/ui/Input/Input";
 import { Progress } from "../../components/ui/Progress/Progress";
 import { Spinner } from "../../components/ui/Spinner/Spinner";
 import { isAbsolutePath, joinPath, repoNameFromUrl } from "../../lib/paths";
-import { authFailedText } from "../../store/opsStore";
+import { authFailedText, useOpsStore } from "../../store/opsStore";
 import { cliDetail } from "../../store/toastStore";
 import s from "./CloneDialog.module.css";
 
@@ -108,7 +108,8 @@ export function CloneDialog({ defaultParent, onClose, onCloned }: CloneDialogPro
   /** Cancel means "abort the clone" while it runs and "close" otherwise. */
   function cancel() {
     if (phase.kind === "running") {
-      if (phase.opId) void cancelOp(phase.opId).catch(() => {});
+      // Through the store, so the dock reads the clone's kill as "cancelled" rather than a failure.
+      if (phase.opId) void useOpsStore.getState().cancel(phase.opId);
     } else onClose();
   }
 

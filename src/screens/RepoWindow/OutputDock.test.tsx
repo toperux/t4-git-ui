@@ -92,6 +92,28 @@ describe("OutputDock", () => {
     expect(getByRole("log", { name: "Command output" }).textContent).toContain("Receiving objects: 100%");
   });
 
+  it("a cancelled op reads as cancelled, muted, not as its exit code", async () => {
+    act(() => {
+      useOpsStore.getState().onEvent({ repoId: "r", opId: "1", event: { kind: "started", opId: "1", cmd: "git fetch origin" } });
+    });
+    await act(() => useOpsStore.getState().cancel("1"));
+    act(() => {
+      useOpsStore.getState().onEvent({ repoId: "r", opId: "1", event: { kind: "exit", code: -1, elapsedMs: 3300 } });
+      useOpsStore.getState().setOpen(true);
+    });
+    const { getByRole, getAllByText, queryByText } = renderDock(true);
+    // The header's summary and the log's exit line both.
+    const lines = getAllByText(/cancelled · 3\.3s/);
+    expect(lines).toHaveLength(2);
+    for (const line of lines) {
+      expect(line.querySelector("svg")).toBeTruthy();
+      expect(line.className).toMatch(/muted/);
+      expect(line.className).not.toMatch(/err/);
+    }
+    expect(queryByText(/exit -1/)).toBeNull();
+    expect(getByRole("log", { name: "Command output" }).textContent).toContain("cancelled");
+  });
+
   it("scrolls to the bottom when an op exits, so its last line is not cut off", () => {
     act(() => {
       const st = useOpsStore.getState();
