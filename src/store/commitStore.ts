@@ -16,7 +16,7 @@ import { useOpsStore } from "./opsStore";
 import { pickCount, useRepoStore } from "./repoStore";
 import { useSettingsStore } from "./settingsStore";
 import { nothingToCommit, selectChangeCount, useStatusStore } from "./statusStore";
-import { toastError, useToastStore } from "./toastStore";
+import { toastError, useToastStore, type ToastAction } from "./toastStore";
 import { useViewStore } from "./viewStore";
 
 export type ListId = "unstaged" | "staged";
@@ -277,18 +277,33 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
 
   const refusedBusy = (detail = "Another change is being applied") => useToastStore.getState().push({ kind: "info", title: "Operation in progress", detail });
 
+  /** A repo op (a Fetch, say) runs in `id`: the backend would refuse the change, so say so and `true`. */
+  function refusedOpRunning(id: string): boolean {
+    const op = useOpsStore.getState().ops.find((o) => o.repoId === id && o.running);
+    if (op) refusedBusy(`Wait for “${op.cmd}” to finish`);
+    return !!op;
+  }
+
+  /**
+   * The backend's own busy refusal, while it holds the op lock with no running op on record (a race, or the work
+   * before git starts): an info, as `runOp` shows it.
+   */
+  function failed(e: unknown, title: string, retry: ToastAction["onClick"], from?: HTMLElement | null) {
+    const err = toAppError(e);
+    if (err.kind === "busy") refusedBusy("Another git operation is running");
+    else toastError(err, title, retry, from);
+  }
+
   /**
    * A Retry pressed while another tab is in front would run against that tab's repository, and one
    * pressed while another change runs would do nothing: refused either way, the error toast stays.
-   * So is one pressed while a repo op (a Fetch, say) runs here: the backend would refuse it, and that
-   * refusal's own error toast has no Retry.
+   * So is one pressed while a repo op runs here: the backend would refuse it, and that refusal's own
+   * toast has no Retry.
    */
   function retryHere(id: string, name: string | undefined): boolean {
     if (!stillSameRepo(id, "Retry cancelled", `${name} is no longer the open tab`)) return false;
-    const op = useOpsStore.getState().ops.find((o) => o.repoId === id && o.running);
     if (get().busy) refusedBusy();
-    else if (op) refusedBusy(`Wait for “${op.cmd}” to finish`);
-    else return true;
+    else if (!refusedOpRunning(id)) return true;
     return false;
   }
 
@@ -319,7 +334,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
 
   /**
    * Runs one mutation (errors → toast with Retry), then refreshes the status.
-   * `false` when it never ran because no repo is open or another mutation holds `busy`.
+   * `false` when it never ran because no repo is open, another mutation holds `busy` or a repo op runs in it.
    *
    * The focus is read here, on entry: by the time the op fails, `busy` has disabled the control that
    * was clicked and dropped the focus to `<body>`. `origin` is how a Retry carries the same control
@@ -335,13 +350,14 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       refusedBusy();
       return false;
     }
+    if (refusedOpRunning(id)) return false;
     // Named: the toast stays until dismissed, and the failure can land after a tab switch.
     const name = useRepoStore.getState().repo?.name;
     await withApplying(async () => {
       try {
         await op(id);
       } catch (e) {
-        toastError(toAppError(e), `${name}: ${title}`, () => (retryHere(id, name) ? void run(title, op, from) : false), from);
+        failed(e, `${name}: ${title}`, () => (retryHere(id, name) ? void run(title, op, from) : false), from);
       }
     });
     return true;
@@ -551,7 +567,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
       const id = repoId();
       const name = useRepoStore.getState().repo?.name;
       const { summary, body, amend, signoff, sign, busy } = get();
-      if (!id || busy || !summary.trim()) return null;
+      if (!id || busy || !summary.trim() || refusedOpRunning(id)) return null;
       set({ inCommit: ++commitRuns > 0 });
       try {
         // "The commit took the last change" needs a before as well as an after: an amend on a tree
@@ -576,7 +592,7 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
             // The message is spent either way — an amend also drops the amend flag and its prefill memory.
             set({ summary: "", body: "", amend: false, prefill: null });
           } catch (e) {
-            toastError(toAppError(e), `${name}: Commit failed`, () => {
+            failed(e, `${name}: Commit failed`, () => {
               if (!retryHere(id, name)) return false;
               // `commit` returns quietly on an empty message: say why instead, and keep the error up.
               if (!get().summary.trim()) {

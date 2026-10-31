@@ -695,6 +695,23 @@ describe("commitStore mutations", () => {
     expect(mocked.stagePaths).not.toHaveBeenCalled();
     expect(useToastStore.getState().toasts).toMatchObject([{ kind: "info", title: "Operation in progress" }]);
   });
+
+  it("a mutation started while a repo op runs in that repository says to wait, and calls nothing", async () => {
+    useOpsStore.getState().onEvent({ repoId: "s", opId: "o2", event: { kind: "started", opId: "o2", cmd: "git fetch" } });
+    await useCommitStore.getState().stage(["a.rs"]);
+    expect(mocked.stagePaths).toHaveBeenCalledTimes(1);
+
+    useOpsStore.getState().onEvent({ repoId: "r", opId: "o1", event: { kind: "started", opId: "o1", cmd: "git fetch" } });
+    await useCommitStore.getState().stage(["a.rs"]);
+    expect(mocked.stagePaths).toHaveBeenCalledTimes(1);
+    expect(useToastStore.getState().toasts).toEqual([expect.objectContaining({ kind: "info", title: "Operation in progress", detail: "Wait for “git fetch” to finish" })]);
+  });
+
+  it("the backend's busy refusal, from an op that started in the race, is an info too", async () => {
+    mocked.stagePaths.mockRejectedValueOnce({ kind: "busy", message: "another operation is running" });
+    await useCommitStore.getState().stage(["a.rs"]);
+    expect(useToastStore.getState().toasts).toEqual([expect.objectContaining({ kind: "info", title: "Operation in progress", detail: "Another git operation is running" })]);
+  });
 });
 
 describe("commitStore.loadAuthor", () => {
@@ -1006,6 +1023,20 @@ describe("commitStore.commit", () => {
     useCommitStore.setState({ summary: "ok", busy: true });
     await expect(useCommitStore.getState().commit()).resolves.toBeNull();
     expect(mocked.commit).not.toHaveBeenCalled();
+  });
+
+  it("refuses while a repo op runs in that repository, and says to wait; another repository's op does not", async () => {
+    useCommitStore.setState({ summary: "ok", body: "" });
+    useOpsStore.getState().onEvent({ repoId: "r", opId: "o1", event: { kind: "started", opId: "o1", cmd: "git fetch" } });
+    await expect(useCommitStore.getState().commit()).resolves.toBeNull();
+    expect(mocked.commit).not.toHaveBeenCalled();
+    expect(useToastStore.getState().toasts).toEqual([expect.objectContaining({ kind: "info", title: "Operation in progress", detail: "Wait for “git fetch” to finish" })]);
+    expect(useCommitStore.getState().summary).toBe("ok");
+
+    useOpsStore.setState({ ops: [] });
+    useOpsStore.getState().onEvent({ repoId: "s", opId: "o2", event: { kind: "started", opId: "o2", cmd: "git fetch" } });
+    mocked.commit.mockResolvedValueOnce("abcdef1234");
+    await expect(useCommitStore.getState().commit()).resolves.toBe("abcdef1234");
   });
 });
 
