@@ -2315,3 +2315,58 @@ branch: run 41032359500, green on three OS.
 - **`src/README.md`'s `runOp` paragraph had a literal line break where `\r` was meant** (pre-existing). Fixed with the
   feat commit's README edits: it now reads "a `\r` progress segment".
 - The deferred row for the `"remote" in cached` TypeError is in `open-items.md` §AT.
+
+## AV. Added 2026-10-31 — Dependabot #36–#38, closed
+
+- **#36 (the `Swatinem/rust-cache` bump to 2.9.3), #37 (the npm group, with the CLI pin) and #38 (the cargo group, with
+  a fix and a hold) merged together,** 2026-10-31 (2026-10-30 UTC), squash, in that order: #36 as `161f79cf`, #37 as
+  `4e9bc10a`, #38 as `575ab723`. #37 moves `@tauri-apps/cli` to 2.12.4, so the pin commit (`5faae9a1`, on #37's branch)
+  moved `release.yml`'s `tauri-cli` to 2.12.4. #38 got a fix commit for `parking_lot` 0.13 (`b49f6d52`) and the `notify`
+  hold (`7b738876`, D10; the open row is in `open-items.md` §AV).
+  - **One walked tree:** `deps-36-38` at `3a37b3c6`. Merged with `--admin` and `--match-head-commit`; `origin/main`
+    equalled the walk tree, and the remote branch was deleted after a PR lookup showed it backed none.
+  - Checks:
+    - local gates on `deps-36-38` (2026-10-30), including `tauri build --no-bundle` and no `VCRUNTIME140.dll`;
+    - CI on the walk tree, dispatch run 41096222085; #37's own PR run 41093601671 and #38's 41093589317;
+    - `main`'s CI after the merges, run 41116920474, success (runs 41116760656 and 41116883146 were cancelled by the
+      CI concurrency rule);
+    - a Windows walk and a Linux check (`docs/archive/walks/2026-10-31-deps-36-38-walk.md`);
+    - `main`'s CI after the fix commits, run 41165550935, success;
+    - dry-run Release 41168581743, six jobs green (version, three builds, verify, publish), `checks` skipped by
+      design (the legs ran 04:28:30Z–04:50:59Z), the draft made and removed with no `dry-run-41168581743` tag left.
+  - Neither known flaky test (`ignored_dir_and_lock_files_are_silent`, `cancel_ends_an_op_with_a_full_queue`) failed
+    on any run.
+  - **The `dependabot.yml` change parsed:** it triggered four dynamic Dependabot runs at once on `575ab723` (cargo, npm
+    and github_actions green; a zip security update failed because its fix, 9.0.5, cannot be reached), and the npm run
+    opened #40. #39 came from a rustls security update run after #36's merge `161f79cf` (created 19:38:30Z, seven
+    seconds before #38 merged). Those runs are the evidence the config parsed; the Insights › Dependency graph ›
+    Dependabot page was not read.
+  - **The two owner-accepted coverage gaps closed with it:** D5 (a), no Windows reinstall walk, and D8 (a), no macOS
+    walk (owner, 2026-10-30).
+  - Plan: `docs/archive/plans/2026-10-30-deps-36-37-38-plan.md`.
+- **#39 (`rustls` 0.23.46) merged** as `e29d64ab`, 2026-10-31, on the owner's ruling, after #38. Its lock also
+  re-links `tempfile` 3.27.0's `getrandom` 0.4.3 to 0.3.4 (valid: `tempfile` accepts both, and both stay in the lock);
+  left as is. It closed the `rustls` Dependabot alerts 4–7. `main`'s CI after it, run 41120985017 (`e29d64ab`), was
+  green.
+- **The output dock showed a cancelled op as an exit code.** **Fixed:** `503d6b62`,
+  `fix: the output dock shows a cancelled op as cancelled, not an exit code`. The record keeps the cancelled flag at
+  exit, and the dock line reads "cancelled · <secs>" instead of "exit -1". Found in the walk record's Linux row 1,
+  Cancel (dock "✗ exit -1 · 3.3s" beside the toast "Cancelled"). Not walked after the fix: unit tests and `main`'s CI
+  run 41165550935. The cancel race is in `open-items.md` §Q.
+- **An error toast did not say which repository it came from, and its actions ran on whichever tab was active.**
+  **Fixed:** `445a898f`, `fix: an error toast names its repository and its actions stay on it`. The toast always names
+  its repository; Retry and Pull act on that repository. Retry is refused (the toast stays) when another tab is active
+  or the repository is busy; Pull is refused only when another tab is active. The toast runs the action before it
+  closes. runOp's error toasts always name the repository; four background error toasts that stay until dismissed
+  (refresh references in `actions.ts` and `statusStore.ts`, the remote-tags check in `repoStore.ts`,
+  stage/unstage/discard in `commitStore.ts`) are named too. Found in the walk record's "On the way (Windows)". Not
+  walked after the fix: unit tests and `main`'s CI run 41165550935. The full-stack eviction is in `open-items.md` §Q,
+  the unnamed sites in §AV.
+- **The diff header cut the file name at the narrowest width.** **Fixed:** `748b00c7`,
+  `fix: the diff header keeps the file name readable at its narrowest width`. Under a 260 px panel the stats, the
+  separator and the mode chip are hidden, and the name has a hover title. Found in the walk record's Windows row a and
+  "On the way (Windows)". Not walked after the fix: unit tests and `main`'s CI run 41165550935. Accepted floor, recorded
+  only: the name reads from about 220 px; with a mode change it is cut between 260 and about 365 px (exec-bit changes
+  only). The container query is unverified on Ubuntu 22.04's WebKitGTK (2.40 is the floor; 24.04 and later measured at
+  2.52); without support the header falls back to the old one.
+- Plan commit: `8ade2bf4`.

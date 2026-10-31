@@ -274,7 +274,10 @@ phases that accepted them; each origin keeps a pointer.
   Linux only, so a third Windows download would not be caught. Accepted 2026-10-01 (close-out Phase 1b, triage T3).
   **2026-10-30:** the toolset is `nsis-3.13.zip` since bundler 2.10.3 (tauri-cli 2.12.3, #34); the bundler still
   checks its SHA-1. Dry run 41004735897's Windows leg made exactly those two downloads. Re-accepted 2026-10-23 by the
-  owner (D9 (a) of `docs/archive/plans/2026-10-23-deps-35-34-plan.md`), same reopen trigger.
+  owner (D9 (a) of `docs/archive/plans/2026-10-23-deps-35-34-plan.md`), same reopen trigger. **2026-10-31:** bundler
+  2.10.4 (tauri-cli 2.12.4, #37) changes no file under `nsis/` but the template and language files, so the trigger
+  does not fire (D7 of `docs/archive/plans/2026-10-30-deps-36-37-38-plan.md`); dry run 41168581743's Windows leg
+  made exactly the same two downloads, `nsis-3.13.zip` and `nsis_tauri_utils.dll` v0.5.3. No re-acceptance.
   **Reopen:** a bundler change moves either fetch or adds a Windows download, or a toolchain release breaks the build.
   *From Phase 1b's change review (`docs/archive/plans/2026-09-30-phase-1b-plan.md`, "Not in this phase").*
 - **On Linux and macOS a tool open holds the repository's git2 lock ~300 ms.** Detecting an early-failing custom
@@ -697,6 +700,19 @@ phases that accepted them; each origin keeps a pointer.
   the keyboard could stop behind its scrollbar. Never seen. Accepted by the owner, 2026-10-22 (F14 and D4 (a) of
   `docs/archive/plans/2026-10-21-tabs-grid-deferred-plan.md`, the change review's triage). **Reopen:** the grid is seen
   scrolling sideways, or a row is seen behind its scrollbar.
+- **`open` 5.4.5's fast-failure branch is not reached on the Linux VM.** *Open* with the system handler reports
+  "Couldn't open the file" when every launcher in the fall-through exits non-zero within 250 ms (a working fallback
+  opens the file); on the VM `xdg-open` exits 0 in 0.22 s, so only the success branch ran. Measured on the VM (the walk
+  record's Linux row 2, `docs/archive/walks/2026-10-31-deps-36-38-walk.md`); the other branch needs a launcher that
+  fails that fast. Accepted by the owner, 2026-10-31. **Reopen:** a Linux report of a silent *Open*, or a VM with no
+  handler for the file type. *From the Dependabot #36–#38 walk.*
+- **A near-simultaneous cancel can leave the dock and the toast disagreeing.** If an op fails on its own in the
+  milliseconds before the kill lands, the dock says "cancelled" and the toast says "Operation failed". Reasoned from
+  the code, not seen. The root fix would carry the backend's cancelled flag on the exit event. Accepted by the owner,
+  2026-10-31 (the dock label's change review). **Reopen:** a report of the two disagreeing.
+- **At a full stack of 8 error toasts, a refused Retry or Pull evicts the oldest error.** The refusal's info toast
+  takes a slot and the oldest error goes, possibly the refused one itself. Reasoned, not seen. Accepted by the owner,
+  2026-10-31 (the toast naming's change review). **Reopen:** a report of a lost error toast at a full stack.
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review, deferred
 
@@ -835,14 +851,18 @@ fixes"), with its reopen trigger.
   2 m 54 s, because rust-cache restored nothing. A tag reads caches only from its own ref or `main`, and an unused
   cache is evicted after 7 days. Options: an `actions/cache` keyed on ssign's pinned rev, upstream's prebuilt ssign
   zip pinned by hash, or the prebuilt `@tauri-apps/cli` that `npm ci` already installs. The last two trust a binary
-  built upstream; whether the npm CLI carries bundler 2.10.3, which the AppImage pins are read from, wasn't checked.
+  built upstream; whether the npm CLI carries bundler 2.10.4 (cargo's tauri-cli 2.12.4 builds with it), which the
+  AppImage pins are read from, wasn't checked.
   Deferred 2026-10-05. **Reopen:** the next change to the release workflow, or a release run's build time becoming a
   problem. **2026-10-16:** #32's CLI pin bump fired the trigger, and the owner kept it deferred (D5 of
   `docs/archive/plans/2026-10-15-npm-group-32-plan.md`). Re-measured on dry run 38902302809 (tauri-cli 2.12.2):
   10 m 19 s on Windows, 7 m 22 s on macOS, 5 m 59 s on Linux, ssign 3 m 01 s. **2026-10-30:** the pin to 2.12.3
   (#34) fired the trigger again, and the owner kept it deferred (D7 of
   `docs/archive/plans/2026-10-23-deps-35-34-plan.md`). Re-measured on dry run 41004735897 (tauri-cli 2.12.3):
-  10 m 37 s on Windows, 6 m 58 s on macOS, 3 m 50 s on Linux, ssign 2 m 56 s.
+  10 m 37 s on Windows, 6 m 58 s on macOS, 3 m 50 s on Linux, ssign 2 m 56 s. **2026-10-31:** the pin to 2.12.4
+  (#37) and #36 fired the trigger again, and the owner kept it deferred (D6 of
+  `docs/archive/plans/2026-10-30-deps-36-37-38-plan.md`). Re-measured on dry run 41168581743 (tauri-cli 2.12.4):
+  8 m 11 s on Windows, 7 m 29 s on macOS, 6 m 02 s on Linux, ssign 2 m 11 s.
 
 ## AE. Added 2026-10-06 — the fix batch
 
@@ -1013,7 +1033,10 @@ From `docs/archive/plans/2026-10-23-deps-35-34-plan.md`; the closed rows are in 
 - **`observeVisibleRect` in DiffViewer may be redundant with virtual-core 3.19.6**, which measures the client box by
   default (`src/lib/observeVisibleRect.ts`; D6 (a)). Read from source, not run. Deferred 2026-10-23 by the owner. Not
   taken: dropping it in the #34 change, which needs its own tests and BY 7's rows again. **Reopen:** the next
-  virtualizer work, or a walk showing virtual-core's default does the same.
+  virtualizer work, or a walk showing virtual-core's default does the same. **2026-10-31:** #37 moved virtual-core to
+  3.19.7, which does not touch the rect code, and a dependency bump is not virtualizer work, so the trigger does not
+  fire (D7 of `docs/archive/plans/2026-10-30-deps-36-37-38-plan.md`; the walk's rows b and c saw 0 blank rows).
+  No change to the row.
 
 Seen on the way in `docs/archive/walks/2026-10-30-deps-35-34-walk.md` and deferred in the triage (2026-10-30):
 
@@ -1037,6 +1060,35 @@ triage):
   file by hand: only `refreshRemoteTags` writes the key, with an object. Deferred 2026-10-30 under the owner's
   2026-10-21 rule.
   **Reopen:** the next `repoStore` or `lib/kv` work, or a corrupt store value seen in the wild.
+
+## AV. Added 2026-10-31 — Dependabot #36–#38
+
+From `docs/archive/plans/2026-10-30-deps-36-37-38-plan.md` and `docs/archive/walks/2026-10-31-deps-36-38-walk.md`; the
+closed rows are in `open-items-done.md` §AV.
+
+- **`notify` is held at 8.2.0** (D10, the owner, 2026-10-30). 8.2.1 changes the inotify removal path so that a scan runs
+  for a descriptor that is already dropped, and on macOS it swaps the FSEvents backend; a Linux measurement of the
+  removal scan was built up in the plan's review and not settled, so the crate stays at 8.2.0. Held in three places: the
+  manifest pin `notify = "=8.2.0"` in `crates/git-core/Cargo.toml`, the `notify` entry under `ignore` in
+  `.github/dependabot.yml`, and `Cargo.lock`. Reasoned from the 8.2.1 source, not measured; no macOS run. On 2026-10-30
+  crates.io had 8.2.1 as the newest stable and 9.0.0-rc.7 as the newest pre-release. **Reopen:** a `notify` release that
+  skips the removal scan for an already-dropped descriptor, or `notify` 9.0 stable, or a Dependabot PR moving `notify`
+  past 8.2.0 (read its `inotify.rs` removal path before merging; if the scan is still there, add that version to the
+  ignore entry); then measure before taking it. Lifting the hold edits the manifest pin, the `ignore` entry and the lock
+  together.
+- **Dependabot alerts for `zip` 8 (critical), 9 (high) and 10 (medium) stay open.** `zip` 4.6.1 comes only from
+  `tauri-plugin-updater` 2.14.0, and the fix needs `zip` ≥ 9.0.5, so nothing here can move it; Dependabot opened no PR.
+  Read from the alerts page and `Cargo.lock`, 2026-10-31. **Reopen:** a `tauri-plugin-updater` release moving `zip` to
+  ≥ 9.0.5, or a Dependabot PR for it.
+- **Some error toasts still do not name their repository, and the Files tab header has no hover title.** The toast fix
+  (`445a898f`) names the repository in runOp's error toasts and in four background ones; still unnamed are "Couldn't
+  load branches" (`repoStore.ts`), the restore-conflict and merge-editor failures (`CommitPanel.tsx`), and the Files tab
+  header (`FileContent.tsx`) has no hover title for a cut name. Read from the code in the change review; not seen going
+  wrong. Deferred 2026-10-31 under the owner's 2026-10-21 rule. **Reopen:** a background error toast read against the
+  wrong tab, or the Files tab name cut in a walk.
+- **Dependabot #40 is open and not merged:** the npm group, `@tanstack/react-virtual` 3.14.23 and `lucide-react`
+  1.62.0. Opened after #38's merge and read on 2026-10-31; it needs its own walk pass. **Reopen:** the next Dependabot
+  pass; a virtualizer bump re-runs the walk rows b and c of 2026-10-31.
 
 ## Order
 
