@@ -39,6 +39,7 @@ import * as ipc from "../api/ipc";
 import { hunkPrint } from "../lib/hunkPrint";
 import { hasDraft, restore, snapshot, useCommitStore } from "./commitStore";
 import { useDiffStore } from "./diffStore";
+import { useOpsStore } from "./opsStore";
 import { __resetForTests as resetRepo, useRepoStore } from "./repoStore";
 import { useSettingsStore } from "./settingsStore";
 import { __resetForTests as resetStatus, useStatusStore } from "./statusStore";
@@ -100,6 +101,7 @@ beforeEach(() => {
   resetStatus();
   useRepoStore.setState({ repo: REPO, refs: REFS, log: { generation: 1, total: 0, complete: true, error: null, flat: false } });
   useToastStore.setState({ toasts: [] });
+  useOpsStore.setState({ ops: [] });
   useCommitStore.getState().reset();
   useDiffStore.setState({ context: 3 });
   useViewStore.getState().__resetForTests();
@@ -618,6 +620,32 @@ describe("commitStore mutations", () => {
     } finally {
       useCommitStore.setState({ busy: false });
     }
+  });
+
+  it("a Retry pressed while a repo op runs in that repository is refused and keeps its error toast", async () => {
+    mocked.stagePaths.mockRejectedValueOnce({ kind: "indexLocked", message: "index.lock" });
+    await useCommitStore.getState().stage(["a.rs"]);
+    const retry = useToastStore.getState().toasts[0].action!.onClick;
+    // A Fetch: the commit store's own `busy` stays false, the backend would refuse the stage.
+    useOpsStore.getState().onEvent({ repoId: "r", opId: "o1", event: { kind: "started", opId: "o1", cmd: "git fetch" } });
+    expect(retry()).toBe(false);
+    await flush();
+    expect(mocked.stagePaths).toHaveBeenCalledTimes(1);
+    expect(useToastStore.getState().toasts).toMatchObject([
+      { kind: "error", title: "r: Stage failed" },
+      { kind: "info", title: "Operation in progress", detail: "Wait for “git fetch” to finish" },
+    ]);
+
+    useOpsStore.getState().onEvent({ repoId: "r", opId: "o1", event: { kind: "exit", code: 0, elapsedMs: 1 } });
+    retry();
+    await flush();
+    expect(mocked.stagePaths).toHaveBeenCalledTimes(2);
+
+    // Another repository's op does not hold this one's Retry.
+    useOpsStore.getState().onEvent({ repoId: "s", opId: "o2", event: { kind: "started", opId: "o2", cmd: "git fetch" } });
+    retry();
+    await flush();
+    expect(mocked.stagePaths).toHaveBeenCalledTimes(3);
   });
 
   it("a failed mutation remembers what had the focus when it started, for Retry / Dismiss", async () => {

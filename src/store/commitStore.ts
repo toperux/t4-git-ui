@@ -12,6 +12,7 @@ import { joinMessage, pushHistory, splitMessage } from "../lib/msgHistory";
 import { EMPTY_SELECTION, pruneSelection, type Selection } from "../lib/multiSelect";
 import { pick } from "../lib/pick";
 import { useDiffStore } from "./diffStore";
+import { useOpsStore } from "./opsStore";
 import { pickCount, useRepoStore } from "./repoStore";
 import { useSettingsStore } from "./settingsStore";
 import { nothingToCommit, selectChangeCount, useStatusStore } from "./statusStore";
@@ -274,16 +275,20 @@ export const useCommitStore = create<CommitStore>()((set, get) => {
     return false;
   }
 
-  const refusedBusy = () => useToastStore.getState().push({ kind: "info", title: "Operation in progress", detail: "Another change is being applied" });
+  const refusedBusy = (detail = "Another change is being applied") => useToastStore.getState().push({ kind: "info", title: "Operation in progress", detail });
 
   /**
    * A Retry pressed while another tab is in front would run against that tab's repository, and one
    * pressed while another change runs would do nothing: refused either way, the error toast stays.
+   * So is one pressed while a repo op (a Fetch, say) runs here: the backend would refuse it, and that
+   * refusal's own error toast has no Retry.
    */
   function retryHere(id: string, name: string | undefined): boolean {
     if (!stillSameRepo(id, "Retry cancelled", `${name} is no longer the open tab`)) return false;
-    if (!get().busy) return true;
-    refusedBusy();
+    const op = useOpsStore.getState().ops.find((o) => o.repoId === id && o.running);
+    if (get().busy) refusedBusy();
+    else if (op) refusedBusy(`Wait for “${op.cmd}” to finish`);
+    else return true;
     return false;
   }
 
