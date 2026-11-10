@@ -6,6 +6,7 @@ import { toAppError } from "../../../api/ipc";
 import { ContextMenu, MenuItem, MenuSeparator } from "../../../components/ui/Menu/Menu";
 import { baseName } from "../../../lib/paths";
 import { treeTargetOf, useDiffStore } from "../../../store/diffStore";
+import { useRepoStore } from "../../../store/repoStore";
 import { toastError, useToastStore } from "../../../store/toastStore";
 import { blameAt, copyText, showHistory } from "../actions";
 
@@ -46,13 +47,15 @@ export function FileRowMenu({ menu, onClose }: { menu: RowMenuState | null; onCl
 
   const open = (reveal: boolean) => {
     if (!repoId) return;
+    const name = useRepoStore.getState().repo?.name;
     void ipc
       .openPath(repoId, path, reveal, reveal ? undefined : commit)
-      .catch((e: unknown) => toastError(toAppError(e), reveal ? "Couldn't reveal the file" : "Couldn't open the file"));
+      .catch((e: unknown) => toastError(toAppError(e), `${name}: ${reveal ? "Couldn't reveal the file" : "Couldn't open the file"}`));
   };
 
   const saveAs = async () => {
     if (!repoId || !tree) return;
+    const name = useRepoStore.getState().repo?.name;
     try {
       // A bare name starts the dialog in the process's working folder on GTK, which inside an
       // AppImage is the read-only mount: start in Downloads, else home (no `user-dirs.dirs` on Linux).
@@ -65,7 +68,7 @@ export function FileRowMenu({ menu, onClose }: { menu: RowMenuState | null; onCl
       await ipc.saveFileAs(repoId, tree, path, dest);
       useToastStore.getState().push({ kind: "success", title: `Saved ${baseName(path)}`, detail: dest });
     } catch (e) {
-      toastError(toAppError(e), "Couldn't save the file");
+      toastError(toAppError(e), `${name}: Couldn't save the file`);
     }
   };
 

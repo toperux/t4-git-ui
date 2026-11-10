@@ -79,7 +79,7 @@ src/
                            `{}` until one does; persisted through lib/kv as `remoteTags:<repo.id>` and read back on open
                            (an entry from the old single-remote shape is ignored, not migrated)
                            actions: openRepo (open_repo → startLog awaited — the spinner waits for the grid — then refreshRefs
-                           unawaited, its own "Couldn't load branches" toast; the sidebar says `Loading branches…` until refs land),
+                           unawaited, its own "<repo>: Couldn't load branches" toast; the sidebar says `Loading branches…` until refs land),
                            closeRepo, refreshRefs, refreshRemoteTags({remotes?, announce?}) (`remote_tags` per remote in parallel,
                            every remote in `refs.remotes` by default; run by `runOp({remote})` with the remote the op talked to
                            (`true` = all) after fetch/push/pull/delete-on-remote when it answered — not after `authFailed` / `other` — and by the tag row's Refresh remote tags with announce;

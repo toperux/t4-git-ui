@@ -40,6 +40,7 @@ vi.mock("../../../api/ipc", async (importOriginal) => {
     discardPaths: vi.fn(() => Promise.resolve()),
     openPath: vi.fn(() => Promise.resolve()),
     openDiffTool: vi.fn(() => Promise.resolve("BComp")),
+    openMergeEditor: vi.fn(() => Promise.resolve("VS Code")),
     listTree: vi.fn(() => new Promise(() => {})),
     readFile: vi.fn(() => new Promise(() => {})),
     getBlame: vi.fn(() => new Promise(() => {})),
@@ -85,6 +86,8 @@ const mocked = ipc as unknown as Record<
   | "discardHunks"
   | "discardPaths"
   | "openPath"
+  | "openDiffTool"
+  | "openMergeEditor"
   | "commit",
   ReturnType<typeof vi.fn>
 >;
@@ -383,6 +386,17 @@ describe("CommitPanel", () => {
     await waitFor(() => expect(ipc.openDiffTool).toHaveBeenLastCalledWith("r", { kind: "staged" }, "both.rs", null));
   });
 
+  it("a diff tool that fails to start toasts under the repository's name", async () => {
+    mocked.openDiffTool.mockRejectedValueOnce({ kind: "io", message: "no such tool" });
+    // A name the id isn't, so a title built from the id fails. `beforeEach` puts the fixture back.
+    useRepoStore.setState({ repo: { ...useRepoStore.getState().repo!, name: "proj" } });
+    const { getByRole } = renderPanel();
+    fireEvent.click(getByRole("listbox", { name: "Unstaged files" }).querySelector('[role="option"]')!);
+    await act(async () => {});
+    fireEvent.click(getByRole("button", { name: "Open in diff tool" }));
+    await waitFor(() => expect(useToastStore.getState().toasts).toContainEqual(expect.objectContaining({ kind: "error", title: "proj: Couldn't open the diff tool" })));
+  });
+
   it("a staged rename edited on disk names its old path in the staged list only", async () => {
     // `RM`: the index no longer holds the old name, so the unstaged side is the new name against the disk.
     const rm = { path: "moved.rs", oldPath: "old.rs", index: "renamed", workdir: "modified", conflicted: false, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1", indexStamp: null } as const;
@@ -462,6 +476,28 @@ describe("CommitPanel", () => {
     const second = renderPanel();
     await act(async () => {});
     expect(second.queryByRole("button", { name: "Restore conflict" })).toBeNull();
+  });
+
+  it("a failed conflict restore toasts under the repository's name", async () => {
+    useStatusStore.setState({ status: { ...STATUS, state: "merge" } });
+    markersDiff();
+    useRepoStore.setState({ refs: { ...REFS, state: "merge" } });
+    mocked.recreateConflict.mockRejectedValueOnce({ kind: "git", message: "no merge stages" });
+    useRepoStore.setState({ repo: { ...useRepoStore.getState().repo!, name: "proj" } });
+    const { getByRole } = renderPanel();
+    await act(async () => {});
+    fireEvent.click(getByRole("button", { name: "Restore conflict" }));
+    await waitFor(() => expect(useToastStore.getState().toasts).toContainEqual(expect.objectContaining({ kind: "error", title: "proj: Couldn't restore the conflict" })));
+  });
+
+  it("a merge editor that fails to start toasts under the repository's name", async () => {
+    mocked.openMergeEditor.mockRejectedValueOnce({ kind: "io", message: "code not found" });
+    useRepoStore.setState({ repo: { ...useRepoStore.getState().repo!, name: "proj" } });
+    const { getByRole } = renderPanel();
+    fireEvent.click(Array.from(getByRole("listbox", { name: "Unstaged files" }).querySelectorAll('[role="option"]'))[2]);
+    await act(async () => {});
+    fireEvent.click(getByRole("button", { name: "Resolve in editor" }));
+    await waitFor(() => expect(useToastStore.getState().toasts).toContainEqual(expect.objectContaining({ kind: "error", title: "proj: Couldn't open the merge editor" })));
   });
 
   it("hunk Discard is offered for the unstaged diff only, and asks before rewriting the file", async () => {
@@ -1121,6 +1157,15 @@ describe("CommitPanel file context menu", () => {
     fireEvent.contextMenu(rows(second.container, "Unstaged")[0]);
     expect(second.getByRole("menuitem", { name: "Open" }).hasAttribute("disabled")).toBe(true);
     expect(second.getByRole("menuitem", { name: "Reveal in folder" }).hasAttribute("disabled")).toBe(true);
+  });
+
+  it("a failed Reveal in folder toasts under the repository's name", async () => {
+    mocked.openPath.mockRejectedValueOnce({ kind: "io", message: "no file manager" });
+    useRepoStore.setState({ repo: { ...useRepoStore.getState().repo!, name: "proj" } });
+    const { getByRole, container } = renderPanel();
+    fireEvent.contextMenu(rows(container, "Unstaged")[0]);
+    fireEvent.click(getByRole("menuitem", { name: "Reveal in folder" }));
+    await waitFor(() => expect(useToastStore.getState().toasts).toContainEqual(expect.objectContaining({ kind: "error", title: "proj: Couldn't reveal the file" })));
   });
 });
 

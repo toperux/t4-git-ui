@@ -342,7 +342,7 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
           await s.startLog(s.spec, s.filter);
         } else {
           // Anything else (a panicked blocking task, IO) would loop forever if we re-walked: report once.
-          toastError(err, "Couldn't load history");
+          toastError(err, `${repo.name}: Couldn't load history`);
         }
       } finally {
         pages.delete(p);
@@ -399,9 +399,15 @@ export const useRepoStore = create<RepoStore>()((set, get) => {
         // The spinner waits for the grid only: on a large repository the refs snapshot can lag
         // it, and the sidebar tolerates `refs === null` (it says so).
         await get().startLog({ kind: "all" }, {});
+        // Named after the repository active at the call: a tab switch during the wait above is
+        // possible, and `refreshRefs` loads that one. `notOpen` means its tab closed meanwhile.
+        const name = get().repo?.name;
         void get()
           .refreshRefs()
-          .catch((e) => toastError(toAppError(e), "Couldn't load branches"));
+          .catch((e) => {
+            const err = toAppError(e);
+            if (err.kind !== "notOpen") toastError(err, `${name}: Couldn't load branches`);
+          });
         // Badges from open onward, without a network round trip. A remote op that finished
         // meanwhile has the fresher answer, so it wins.
         // An entry from the single-remote cache (it names its `remote`) is ignored, not migrated.

@@ -6,6 +6,7 @@ import * as ipc from "../../../api/ipc";
 import type { FileChange, TreeEntry } from "../../../api/types";
 import { useDiffStore } from "../../../store/diffStore";
 import { useRepoStore } from "../../../store/repoStore";
+import { useToastStore } from "../../../store/toastStore";
 import { ChangedFileList } from "./ChangedFileList";
 import { buildFileTree } from "./fileTree";
 
@@ -285,6 +286,28 @@ describe("ChangedFileList", () => {
     fireEvent.contextMenu(getByRole("option", { name: /src\/main\.rs/ }), { clientX: 10, clientY: 20 });
     fireEvent.click(getByRole("menuitem", { name: "Save as…" }));
     await waitFor(() => expect(save).toHaveBeenLastCalledWith({ defaultPath: "C:/Users/me/main.rs", title: "Save main.rs" }));
+  });
+
+  it("a failed Open from the row menu toasts under the repository's name", async () => {
+    vi.mocked(ipc.openPath).mockRejectedValueOnce("no app for .rs");
+    useRepoStore.setState({ repo: { id: "r", name: "t4", path: "C:/t4", head: { oid: "c", branch: "main", detached: false } } });
+    useDiffStore.setState({ repoId: "r", target: { kind: "commit", oid: "c" }, files: [], filesLoading: false, filesError: null, fileListMode: "flat", tab: "files", tree: TREE });
+    const { getByRole } = render(<ChangedFileList />);
+    fireEvent.contextMenu(getByRole("option", { name: /src\/main\.rs/ }), { clientX: 10, clientY: 20 });
+    fireEvent.click(getByRole("menuitem", { name: "Open" }));
+    await waitFor(() => expect(useToastStore.getState().toasts).toContainEqual(expect.objectContaining({ kind: "error", title: "t4: Couldn't open the file" })));
+    useRepoStore.setState({ repo: null });
+  });
+
+  it("a failed Save as toasts under the repository's name", async () => {
+    vi.mocked(ipc.saveFileAs).mockRejectedValueOnce("disk full");
+    useRepoStore.setState({ repo: { id: "r", name: "t4", path: "C:/t4", head: { oid: "c", branch: "main", detached: false } } });
+    useDiffStore.setState({ repoId: "r", target: { kind: "commit", oid: "c" }, files: [], filesLoading: false, filesError: null, fileListMode: "flat", tab: "files", tree: TREE });
+    const { getByRole } = render(<ChangedFileList />);
+    fireEvent.contextMenu(getByRole("option", { name: /src\/main\.rs/ }), { clientX: 10, clientY: 20 });
+    fireEvent.click(getByRole("menuitem", { name: "Save as…" }));
+    await waitFor(() => expect(useToastStore.getState().toasts).toContainEqual(expect.objectContaining({ kind: "error", title: "t4: Couldn't save the file" })));
+    useRepoStore.setState({ repo: null });
   });
 
   it("Blame switches the gutter on for the row's file at this commit, from either tab", async () => {

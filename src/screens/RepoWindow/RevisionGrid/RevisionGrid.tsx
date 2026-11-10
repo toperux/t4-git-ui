@@ -366,7 +366,7 @@ function CommitContextMenu({ menu, onClose }: { menu: { at: { x: number; y: numb
       if (ahead === 0) void checkoutAndResetBranch(branch, target, localOid, oid);
       else openDialog({ kind: "checkoutReset", branch, remote, short: shortName, target, oid, localOid, ahead, behind });
     } catch (e) {
-      if (useRepoStore.getState().repo?.id === repo.id) toastError(toAppError(e), `Couldn't compare ${branch} with ${remote}`);
+      if (useRepoStore.getState().repo?.id === repo.id) toastError(toAppError(e), `${repo.name}: Couldn't compare ${branch} with ${remote}`);
     }
   };
   // A lone tracker named otherwise than the remote is named too, the CLI's `-B feat`: a behind-only one

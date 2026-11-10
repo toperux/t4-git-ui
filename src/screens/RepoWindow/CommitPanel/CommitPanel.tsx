@@ -200,7 +200,7 @@ async function restoreConflict(path: string) {
     await ipc.recreateConflict(repo.id, [path]);
     await useStatusStore.getState().refresh();
   } catch (e) {
-    toastError(toAppError(e), "Couldn't restore the conflict");
+    toastError(toAppError(e), `${repo.name}: Couldn't restore the conflict`);
   }
 }
 
@@ -216,6 +216,6 @@ async function resolveInEditor(path: string) {
     const editor = await ipc.openMergeEditor(repo.id, path);
     useToastStore.getState().push({ kind: "info", title: `Opened ${path} in ${editor}` });
   } catch (e) {
-    toastError(toAppError(e), "Couldn't open the merge editor");
+    toastError(toAppError(e), `${repo.name}: Couldn't open the merge editor`);
   }
 }

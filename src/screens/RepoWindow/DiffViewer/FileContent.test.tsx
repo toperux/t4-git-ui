@@ -101,6 +101,11 @@ describe("FileContent", () => {
     expect(container.textContent).toContain("Couldn't load the file");
     expect(container.textContent).toContain("no such file");
   });
+
+  it("the header's path carries the whole path as its title, for when the ellipsis cuts it", () => {
+    const { getByText } = render(<FileContent path="src/screens/deep/a.rs" content={content()} loading={false} error={null} />);
+    expect(getByText("src/screens/deep/a.rs").getAttribute("title")).toBe("src/screens/deep/a.rs");
+  });
 });
 
 const hunk = (over: Partial<BlameHunk> = {}): BlameHunk => ({

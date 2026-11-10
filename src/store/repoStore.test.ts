@@ -530,7 +530,7 @@ describe("repoStore reselect in the page, and reselectTo", () => {
     await useRepoStore.getState().startLog({ kind: "all" }, {});
     await flush();
     expect(useRepoStore.getState().selectedIndex).toBe(2);
-    expect(useToastStore.getState().toasts).toMatchObject([{ title: "Couldn't load history" }]);
+    expect(useToastStore.getState().toasts).toMatchObject([{ title: "repo: Couldn't load history" }]);
 
     // Still waiting: the walk's completion asks again …
     useRepoStore.getState().onProgress({ repoId: REPO.id, generation: 2, total: 1000, complete: true, error: null });
@@ -739,7 +739,38 @@ describe("repoStore openRepo", () => {
     await flush();
     expect(useRepoStore.getState().repo?.id).toBe(REPO.id);
     expect(useRepoStore.getState().refs).toBeNull();
-    expect(useToastStore.getState().toasts[0]).toMatchObject({ kind: "error", title: "Couldn't load branches" });
+    expect(useToastStore.getState().toasts[0]).toMatchObject({ kind: "error", title: "repo: Couldn't load branches" });
+  });
+
+  it("names a refs failure after the repository active when the load starts, not the one opened", async () => {
+    // A tab switch while the walk starts: `refreshRefs` then loads the repository it brought forward.
+    const other: RepoSummary = { ...REPO, id: "c:\\other", path: "c:\\other", name: "other" };
+    let started!: (generation: number) => void;
+    mocked.openRepo.mockResolvedValue(REPO);
+    mocked.startLog.mockReturnValueOnce(new Promise((r) => (started = r)));
+    mocked.getRefs.mockRejectedValue({ kind: "git", message: "bad refs" });
+
+    const opening = useRepoStore.getState().openRepo(REPO.path);
+    await flush();
+    expect(mocked.startLog).toHaveBeenCalledWith(REPO.id, { kind: "all" }, {});
+    useRepoStore.setState({ repo: other });
+    started(1);
+    await opening;
+    await flush();
+    expect(mocked.getRefs).toHaveBeenCalledWith(other.id);
+    expect(useToastStore.getState().toasts).toMatchObject([{ kind: "error", title: "other: Couldn't load branches" }]);
+  });
+
+  it("shows no toast when the refs load fails because the tab closed meanwhile", async () => {
+    mocked.openRepo.mockResolvedValue(REPO);
+    mocked.startLog.mockResolvedValue(1);
+    mocked.getLogPage.mockResolvedValue(page(1, 0, 0, 0));
+    mocked.getRefs.mockRejectedValue({ kind: "notOpen", message: "repository not open" });
+
+    await useRepoStore.getState().openRepo(REPO.path);
+    await flush();
+    expect(mocked.getRefs).toHaveBeenCalled();
+    expect(useToastStore.getState().toasts).toEqual([]);
   });
 
   it("refreshRefs sets the refs whatever the linked snapshot does, and takes it when it arrives", async () => {
@@ -1015,7 +1046,7 @@ describe("repoStore paging", () => {
     expect(mocked.startLog).toHaveBeenCalledTimes(1);
     expect(mocked.getLogPage).toHaveBeenCalledTimes(1);
     expect(useToastStore.getState().toasts).toHaveLength(1);
-    expect(useToastStore.getState().toasts[0]).toMatchObject({ kind: "error", title: "Couldn't load history" });
+    expect(useToastStore.getState().toasts[0]).toMatchObject({ kind: "error", title: "repo: Couldn't load history" });
   });
 
   it("never moves the walk backwards when a late page undercuts a progress event", async () => {

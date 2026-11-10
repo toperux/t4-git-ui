@@ -112,7 +112,7 @@ export function FileContent({ path, content, loading, error, onExpand }: FileCon
 
   return (
     <div className={s.viewer}>
-      <PanelHeader icon={<File size={14} aria-hidden />} title={path && <span className={s.path}>{path}</span>}>
+      <PanelHeader icon={<File size={14} aria-hidden />} title={path && <span className={s.path} title={path}>{path}</span>}>
         {content && !content.binary && <span className={s.note}>{`${content.truncated ? "first " : ""}${groupThousands(lines?.length ?? 0)} lines`}</span>}
         {/* Off is always reachable: a file blame cannot see whole must not strand the toggle on. */}
         <IconButton label="Blame" on={blameOn} disabled={!whole && !blameOn} title={whole || blameOn ? undefined : "Blame needs the whole file"} onClick={() => setBlameOn(!blameOn)}>

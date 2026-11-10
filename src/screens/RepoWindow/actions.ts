@@ -176,7 +176,7 @@ export async function openInDiffTool(target: DiffTarget, path: string, oldPath: 
     const tool = await ipc.openDiffTool(repo.id, target, path, oldPath);
     useToastStore.getState().push({ kind: "info", title: `Opened ${path} in ${tool}` });
   } catch (e) {
-    toastError(toAppError(e), "Couldn't open the diff tool");
+    toastError(toAppError(e), `${repo.name}: Couldn't open the diff tool`);
   }
 }
 

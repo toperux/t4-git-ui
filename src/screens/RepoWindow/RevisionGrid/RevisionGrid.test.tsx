@@ -571,6 +571,7 @@ describe("RevisionGrid", () => {
 
   it("a failed ahead/behind check toasts the error and neither moves nor asks", async () => {
     withRefs();
+    useRepoStore.setState({ repo: { ...useRepoStore.getState().repo!, name: "proj" } });
     useDialogStore.setState({ dialog: null, returnFocus: null });
     useToastStore.setState({ toasts: [] });
     vi.mocked(checkoutAndResetBranch).mockClear();
@@ -578,7 +579,7 @@ describe("RevisionGrid", () => {
     fireEvent.contextMenu(container.querySelectorAll(ROWS)[1]);
     vi.mocked(ipc.aheadBehind).mockRejectedValueOnce("walk failed");
     fireEvent.click(getByRole("menuitem", { name: "Checkout origin/renamed as stale" }));
-    await waitFor(() => expect(useToastStore.getState().toasts).toEqual([expect.objectContaining({ kind: "error", title: "Couldn't compare stale with origin/renamed", detail: "walk failed" })]));
+    await waitFor(() => expect(useToastStore.getState().toasts).toEqual([expect.objectContaining({ kind: "error", title: "proj: Couldn't compare stale with origin/renamed", detail: "walk failed" })]));
     expect(checkoutAndResetBranch).not.toHaveBeenCalled();
     expect(useDialogStore.getState().dialog).toBeNull();
   });

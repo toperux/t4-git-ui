@@ -78,7 +78,8 @@ export function FileContextMenu({ list, paths, entries, menu, onClose, act, disc
 
   const open = (reveal: boolean) => {
     if (!repoId) return;
-    void ipc.openPath(repoId, paths[0], reveal).catch((e: unknown) => toastError(toAppError(e), reveal ? "Couldn't reveal the file" : "Couldn't open the file"));
+    const name = useRepoStore.getState().repo?.name;
+    void ipc.openPath(repoId, paths[0], reveal).catch((e: unknown) => toastError(toAppError(e), `${name}: ${reveal ? "Couldn't reveal the file" : "Couldn't open the file"}`));
   };
 
   return (
