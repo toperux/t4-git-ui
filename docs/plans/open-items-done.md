@@ -2407,6 +2407,37 @@ branch: run 41032359500, green on three OS.
 - **v0.10.25's in-app update walk: done.** 0.10.24 → 0.10.25 on the Windows VM, all three of smoke group AC's rows
   pass; the restart took 4.3 s to the new process (`docs/archive/walks/2026-10-31-v0.10.25-update-walk.md`).
 - Plan commit: `8ade2bf4`.
+- **Some error toasts still do not name their repository, and the Files tab header has no hover title.** The toast fix
+  (`445a898f`) names the repository in runOp's error toasts and in four background ones; still unnamed are "Couldn't
+  load branches" (`repoStore.ts`), the restore-conflict and merge-editor failures (`CommitPanel.tsx`), and the Files tab
+  header (`FileContent.tsx`) has no hover title for a cut name. Read from the code in the change review; not seen going
+  wrong. Deferred 2026-10-31 under the owner's 2026-10-21 rule. **Reopen:** a background error toast read against the
+  wrong tab, or the Files tab name cut in a walk. *From `open-items.md` §AV.*
+  - **Fixed 2026-11-11:** `c08374bf`, `fix: clearer repository error toasts; Files tab path shows on hover`
+    (`docs/archive/plans/2026-11-11-toast-names-plan.md`). The plan's review found nine unnamed error toasts about a
+    repository, not three, and the owner ruled all nine (T1): load branches, load history, restore the conflict, the
+    merge editor, the diff tool, open or reveal a file (two menus), save a file, compare with a branch. "Couldn't load
+    branches" takes its name when the load starts, so a tab switch during the open cannot misname it.
+  - **Also in it, on the owner's ruling (T2):** a tab closed while its branches load no longer shows "Couldn't load
+    branches"; the first load now skips the "not open" error as Refresh does. Read from the code, never seen.
+  - The Files tab header's path has a hover title, as the diff header has.
+  - Checks: unit tests only (tsc, vitest 84 files and 1291 tests, the build), each new test seen failing first; a
+    change review of two passes. No walk: a string prefix, one condition and an attribute.
+  - Left as they are, taken under the owner's 2026-10-21 rule and listed to the owner:
+    - "Couldn't close the repository" stays unnamed: it shows only when a window's last tab closes, so there is no
+      other tab to read it against.
+    - The two file menus name the repository that is active at the click, not one looked up by the menu's id; in
+      every path read the two are the same.
+    - `FileRowMenu`'s Reveal has no test of its own: it shares its line with the tested Open, and the commit panel's
+      Reveal is tested.
+    - The new toast tests in two files match by content, since those files do not clear the toast stack between
+      tests; each title is unique to one test, so none can pass on a leftover.
+    - Two new tests in `ChangedFileList.test.tsx` set a repository and clear it at their end; a test that fails midway
+      skips the clearing. Setting it also makes the status store try a read the file does not mock; the store catches
+      it. The same read fires in `repoStore.test.ts`'s new tab-switch test, as in an older test there.
+    - An older test in `CommitPanel.test.tsx` rejects with an error kind the app does not define; it works, and it is
+      not this change's.
+- Plan commit for the toast names: `7d84c500` (with the `notify` 8.2.2 plan).
 
 ## AW. Added 2026-11-11 — Dependabot #41 and #42, closed
 

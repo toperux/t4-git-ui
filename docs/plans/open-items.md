@@ -1125,12 +1125,8 @@ closed rows are in `open-items-done.md` §AV, and the two closed by #41 and #42 
   together.
 - **Dependabot alerts 8, 9 and 10 for `zip`:** closed 2026-11-11 by #42 (`zip` 9.3.0), moved to `open-items-done.md`
   §AW.
-- **Some error toasts still do not name their repository, and the Files tab header has no hover title.** The toast fix
-  (`445a898f`) names the repository in runOp's error toasts and in four background ones; still unnamed are "Couldn't
-  load branches" (`repoStore.ts`), the restore-conflict and merge-editor failures (`CommitPanel.tsx`), and the Files tab
-  header (`FileContent.tsx`) has no hover title for a cut name. Read from the code in the change review; not seen going
-  wrong. Deferred 2026-10-31 under the owner's 2026-10-21 rule. **Reopen:** a background error toast read against the
-  wrong tab, or the Files tab name cut in a walk.
+- **The unnamed error toasts and the Files tab header's hover title:** fixed 2026-11-11 (`c08374bf`), moved to
+  `open-items-done.md` §AV.
 - **Dependabot #40:** superseded by #41 (Dependabot closed it 2026-11-05), which merged 2026-11-11; moved to
   `open-items-done.md` §AW.
 
@@ -1152,6 +1148,16 @@ closed rows are in `open-items-done.md` §AW, and the accepted limit (a start in
   `smoke-cdp.md:5-6` still lists pickers as hand-walked). Deferred 2026-11-11 under the owner's 2026-10-21 rule.
   **Reopen:** the next walk that needs the recorder, a touch fling or a Windows picker: bring them into `docs/smoke/`
   then.
+- **Dependabot #43, #44 and #45 are open and not merged.** They opened on 2026-11-11 (2026-11-10 UTC), minutes after
+  the push that added `notify` 8.2.2 to the `ignore` entry (`d79d458e`): a change to `dependabot.yml` starts its runs
+  at once. The cargo run proposed nothing. Read from their titles and descriptions only, not their diffs or sources:
+  - #43: `softprops/action-gh-release` 3.0.3 → 3.0.4, `release.yml` only.
+  - #44, the npm group, 6 updates: `@tanstack/react-virtual` 3.14.26, `lucide-react` 1.70.0, `react-resizable-panels`
+    4.19.1, `zustand` 5.1.0, `vite` 8.3.6, `vitest` 5.1.0. `react-resizable-panels` moves, so §Q's BH 10 row asks for
+    its re-walk again; a virtualizer bump re-runs rows b and c of `docs/archive/walks/2026-11-11-deps-41-42-walk.md`.
+  - #45: `jsdom` 30.1.3 → 31.0.0, a major, the tests' environment only.
+  **Reopen:** the next Dependabot pass, on the owner's word; each is read before it merges (`.claude/skills/release`,
+  step 1).
 
 ## Order
 

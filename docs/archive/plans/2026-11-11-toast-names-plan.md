@@ -1,6 +1,6 @@
 # Error toasts that do not name their repository, and the Files tab header's hover title
 
-Status: T1 and T2 ruled 2026-11-11; final after review pass 4. Nothing here is executed without the owner's go. It works
+Status: done 2026-11-11, commit `c08374bf`. T1 and T2 ruled 2026-11-11; final after review pass 4. It worked
 on `docs/plans/open-items.md` §AV's row "Some error toasts still do not name their repository, and the Files tab header
 has no hover title" (the owner, 2026-11-10: after the #41 and #42 plan).
 
@@ -154,3 +154,5 @@ has no hover title" (the owner, 2026-11-10: after the #41 and #42 plan).
   "a string prefix and an attribute"); and the commit summary did not cover the third topic, so it now reads "clearer
   repository error toasts".
 - **Pass 4 (2026-11-11):** no findings. The plan is final; steps await the owner's go.
+- **Executed 2026-11-11** on the owner's go: commit `c08374bf`. The change review ended at pass 2: pass 1 found two test
+  weaknesses (a repository whose name equals its id; no test for the name read at the call), both fixed.
