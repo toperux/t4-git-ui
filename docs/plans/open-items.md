@@ -39,7 +39,7 @@ the GIO-modules row remain after the 2026-10-06 fix batch._
 - **The updater writes nothing to the app log.** A check, a download and an install left no line in the app log on
   Windows in the v0.10.16 gate (2026-10-03), which followed them only through the UI, process ids and file times (the
   Linux walk checked its log for `ERROR`/`WARN` only). Reasoned from the code: check, download and install errors reach
-  only the UI (`AppError`, `commands/update.rs`), and only a failed relaunch is logged (`lib.rs:320`), so an update that
+  only the UI (`AppError`, `commands/update.rs`), and only a failed relaunch is logged (`lib.rs:357`), so an update that
   fails on a user's machine before the relaunch leaves no trace of its stage. Nothing failed. **Reopen:** an update
   failure reported, or met in a walk, whose stage the log can't tell.
 - **GitHub moves `ubuntu-latest` to Ubuntu 26 from 2026-10-19.** `release.yml`'s `version`, `verify` and `publish`
@@ -143,16 +143,9 @@ phases that accepted them; each origin keeps a pointer.
   case is rare; and the fix — always `refs/heads/…` — makes every push preview longer, the line the user reads
   before confirming. Closed 2026-09-20, will not fix (the 2026-09-20 review, F4 / decision D5). **Do not
   re-offer** unless the trigger fires. **Reopen:** the refusal is reported as confusing. *From the done file §I.*
-- **F7 / Linux residual risk (the 2026-09-20 review): a malformed `DBUS_SESSION_BUS_ADDRESS` panics at startup.**
-  `tauri-plugin-single-instance` 2.4.5 `platform_impl/linux.rs:56` unwraps
-  `zbus::blocking::connection::Builder::session()`. With no session bus at all the address still resolves (zbus
-  falls back to `$XDG_RUNTIME_DIR/bus`, then `/run/user/<euid>/bus`), the connect fails, and the app starts as
-  before — one process per launch, no guard. Only a `DBUS_SESSION_BUS_ADDRESS` that is set but unparseable (empty,
-  no `transport:`) panics at startup. All three launched under WSLg 2026-09-21 on a build of `7cc503b`: with the
-  session bus a second launch hands over (one process, two windows); with the variable unset and an empty
-  `XDG_RUNTIME_DIR` both launches start, two processes; with `DBUS_SESSION_BUS_ADDRESS=garbage` or set empty the app
-  panics at `linux.rs:57`. Accepted by the user 2026-09-21. **Reopen:** a user reports a startup crash on Linux,
-  or the plugin stops unwrapping. *From the done file §I.*
+- **F7 / Linux residual risk (the 2026-09-20 review), a malformed `DBUS_SESSION_BUS_ADDRESS` panicking at startup:**
+  fixed upstream (`tauri-plugin-single-instance` stopped unwrapping at 2.5.4), closed 2026-11-11 and moved to
+  `open-items-done.md` §Q.
 - **The `Menu.tsx` ceiling: a submenu panel takes the parent's width.** A submenu panel is `.menu`-wide, so the
   parent's width stands in for its width; the `ponytail:` comment in `Menu.tsx` still names it. Closed 2026-09-26,
   will not fix (close-out Phase 0). **Reopen:** a submenu's labels clip. *From the done file §I.*
@@ -224,7 +217,11 @@ phases that accepted them; each origin keeps a pointer.
 - **The sidebar-width test mocks `react-resizable-panels`.** jsdom can't lay out panels, so `RepoWindow.test.tsx`
   stubs the library; that a real drag reports `onResize` in pixels was checked by smoke group BH 10 and the
   library's types only. Accepted 2026-09-29. **Reopen:** a `react-resizable-panels` upgrade — re-walk BH 10. *From
-  close-out Phase 2a's change review.*
+  close-out Phase 2a's change review.* **2026-11-11:** the trigger fired with #41 (4.15.0 → 4.16.1), and BH 10 was
+  re-walked on the Windows VM: pass (row a of `docs/archive/walks/2026-11-11-deps-41-42-walk.md`). No BH 10 re-walk
+  was found for the library's four earlier moves since the row was accepted: to 4.14.2 (`5204425c`, 2026-10-05),
+  4.14.4 (#32, `1fa34308`), 4.14.6 (#34, `267de797`) and 4.15.0 (#37, `4e9bc10a`). The row stands for the next
+  upgrade. (The plan writes 4.14.1 for the first move: that is the commit's floor, and the lock took 4.14.2.)
 - **A Flatpak or snap build would need its own way to start host programs.** The 0.10.14 scrub (`host_command`)
   handles an AppImage's environment only; inside a Flatpak or snap sandbox a host program is reached through
   `flatpak-spawn --host` or not at all. None is planned. Accepted 2026-09-29. **Reopen:** a Flatpak or snap build is
@@ -475,6 +472,12 @@ phases that accepted them; each origin keeps a pointer.
   `smoke-linux.md` §2 says to keep the saved window within the screen; the Linux harness now runs openbox for
   multi-window and restore rows. Accepted 2026-10-04 (close-out Phase 5 triage, T26); refined 2026-10-06. **Reopen:**
   seen on a real desktop or under a window manager.
+  - **2026-11-11:** on the Linux VM a bare Xvfb also stalled a single window that fits the screen. The page's calls
+    ran in Rust, but most replies never came back: 1–4 of about 12 `invoke`s answered in 30 s, on `origin/main`
+    (`1fb3c0ed`) and on the #41/#42 walk build alike, against 36 of 36 and 38 of 38 under openbox
+    (`docs/archive/walks/2026-11-11-deps-41-42-walk.md`, *Deviation*). Measured with both binaries; the cause is not
+    looked into. There was no window manager, so the trigger does not fire. `smoke-linux.md` now puts every WebDriver
+    row under openbox.
 - **N6's Windows update-path persist:** done 2026-10-07 (the v0.10.21 gate), moved to `open-items-done.md` §Q.
 - **N6's Linux full screen, set from the window manager's own menu, isn't seen.** tao's `fullscreen()` on Linux
   reflects only the app's own full screen (`linux/window.rs:699-710`), so a window manager's full screen is
@@ -726,6 +729,29 @@ phases that accepted them; each origin keeps a pointer.
   "Wait for … to finish" until the window reloads or 50 later ops push the record out. The dock shows the op running
   forever, so the user can see why. Reasoned, not seen. Accepted by the owner, 2026-10-31. **Reopen:** a repository that
   refuses every change with "Wait for … to finish" after an op ended. *From the walk-triage fixes, 2026-10-31.*
+- **A start in the instant after Quit opens nothing.** From `tauri-plugin-single-instance` 2.5.5 (#42) the app keeps its
+  single-instance lock until after its exit handler, on every OS; 2.5.4 let it go before (read from the plugin's
+  source). A start that lands between Quit and the lock's release is handed over to the copy that is leaving, which
+  opens no window for it (the `exiting` check in the second-start callback, `src-tauri/src/lib.rs`), and the new process
+  exits. The user starts the app and nothing appears, once; the next start works. Accepted by the owner, 2026-11-10 (D4
+  (a) of `docs/archive/plans/2026-11-10-deps-41-42-plan.md`). Not taken: releasing the lock early on every exit, which
+  is 2.5.4's order with its `layout.json` race. **Reopen:** a start that opens nothing, reported by a user or seen in a
+  walk outside a timing row; or a report of a hidden leftover process, or of an installer that failed to start.
+  - **Timed on the Linux VM** (a debug build; `docs/archive/walks/2026-11-11-deps-41-42-walk.md`, Linux row 3): a
+    start 0, 5, 20, 50 and 200 ms after Ctrl+Q, 5 rounds each. In 25 of 25 the new copy came up with a window, and
+    the old one was gone 26–51 ms after the new start, so the window was not hit once. Why the old copy wins is
+    reasoned. Not timed on Windows or macOS, nor on a release build.
+  - **The guard (D8 (a)):** without it, a start during the old copy's exit hangs both copies on Linux, the old one
+    with its window still on screen: 3 of 3 chains on a throwaway build with the fix removed (the walk's relaunch
+    row, build 3). The callback now hands its work to the main thread and opens nothing while the app is exiting
+    (`2f6740bb`, in #42's merge `e147d30a`). On Windows the new check is reasoned, not walked: under 2.5.4 that start
+    reached a window build waiting on a stopped loop, so no window either. On macOS it is read, not walked.
+  - **A failed installer launch on Windows (D7 (a)):** the update path hides the windows and now also drops the
+    lock just before it starts the installer. If the installer fails to start, the app runs on hidden and without
+    its lock, so a start after that becomes a second full app that restores the saved layout while the first lingers
+    hidden; before, it opened a start-screen window in the hidden copy. Reasoned, not run: it needs Windows to refuse
+    a setup exe that was just verified. Not taken: a guard on the update path that restores the windows or exits
+    when the install fails.
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review, deferred
 
@@ -1001,6 +1027,9 @@ its own plan on 2026-10-16 (`open-items-done.md` §AM).
     2.14.0. It first runs inside an installed app on the update from v0.10.25 to the release after, i.e. the second of
     the two walks. That walk gains #35's updater changes: on Windows, and on the Linux AppImage the cross-mount and
     payload checks.
+  - **2026-11-11:** the first walk is done, v0.10.24 → v0.10.25
+    (`docs/archive/walks/2026-10-31-v0.10.25-update-walk.md`). The second is the update from v0.10.25 to v0.10.26.
+    #42's updater 2.14.1 is not in it: that first runs on the update from v0.10.26, §AW's row.
 
 ## AN. Added 2026-10-17 — seen in the #32 walk, deferred
 
@@ -1052,7 +1081,9 @@ From `docs/archive/plans/2026-10-23-deps-35-34-plan.md`; the closed rows are in 
   virtualizer work, or a walk showing virtual-core's default does the same. **2026-10-31:** #37 moved virtual-core to
   3.19.7, which does not touch the rect code, and a dependency bump is not virtualizer work, so the trigger does not
   fire (D7 of `docs/archive/plans/2026-10-30-deps-36-37-38-plan.md`; the walk's rows b and c saw 0 blank rows).
-  No change to the row.
+  No change to the row. **2026-11-11:** the same for #41's move to 3.19.10: 3.19.8–3.19.10 do not touch the rect code
+  (decision I of `docs/archive/plans/2026-11-10-deps-41-42-plan.md`; the walk's rows b and c saw 0 blank frames). No
+  change to the row.
 
 Seen on the way in `docs/archive/walks/2026-10-30-deps-35-34-walk.md` and deferred in the triage (2026-10-30):
 
@@ -1080,7 +1111,7 @@ triage):
 ## AV. Added 2026-10-31 — Dependabot #36–#38
 
 From `docs/archive/plans/2026-10-30-deps-36-37-38-plan.md` and `docs/archive/walks/2026-10-31-deps-36-38-walk.md`; the
-closed rows are in `open-items-done.md` §AV.
+closed rows are in `open-items-done.md` §AV, and the two closed by #41 and #42 in its §AW.
 
 - **`notify` is held at 8.2.0** (D10, the owner, 2026-10-30). 8.2.1 changes the inotify removal path so that a scan runs
   for a descriptor that is already dropped, and on macOS it swaps the FSEvents backend; a Linux measurement of the
@@ -1092,19 +1123,35 @@ closed rows are in `open-items-done.md` §AV.
   past 8.2.0 (read its `inotify.rs` removal path before merging; if the scan is still there, add that version to the
   ignore entry); then measure before taking it. Lifting the hold edits the manifest pin, the `ignore` entry and the lock
   together.
-- **Dependabot alerts for `zip` 8 (critical), 9 (high) and 10 (medium) stay open.** `zip` 4.6.1 comes only from
-  `tauri-plugin-updater` 2.14.0, and the fix needs `zip` ≥ 9.0.5, so nothing here can move it; Dependabot opened no PR.
-  Read from the alerts page and `Cargo.lock`, 2026-10-31. **Reopen:** a `tauri-plugin-updater` release moving `zip` to
-  ≥ 9.0.5, or a Dependabot PR for it.
+- **Dependabot alerts 8, 9 and 10 for `zip`:** closed 2026-11-11 by #42 (`zip` 9.3.0), moved to `open-items-done.md`
+  §AW.
 - **Some error toasts still do not name their repository, and the Files tab header has no hover title.** The toast fix
   (`445a898f`) names the repository in runOp's error toasts and in four background ones; still unnamed are "Couldn't
   load branches" (`repoStore.ts`), the restore-conflict and merge-editor failures (`CommitPanel.tsx`), and the Files tab
   header (`FileContent.tsx`) has no hover title for a cut name. Read from the code in the change review; not seen going
   wrong. Deferred 2026-10-31 under the owner's 2026-10-21 rule. **Reopen:** a background error toast read against the
   wrong tab, or the Files tab name cut in a walk.
-- **Dependabot #40 is open and not merged:** the npm group, `@tanstack/react-virtual` 3.14.23 and `lucide-react`
-  1.62.0. Opened after #38's merge and read on 2026-10-31; it needs its own walk pass. **Reopen:** the next Dependabot
-  pass; a virtualizer bump re-runs the walk rows b and c of 2026-10-31.
+- **Dependabot #40:** superseded by #41 (Dependabot closed it 2026-11-05), which merged 2026-11-11; moved to
+  `open-items-done.md` §AW.
+
+## AW. Added 2026-11-11 — Dependabot #41 and #42
+
+From `docs/archive/plans/2026-11-10-deps-41-42-plan.md` and `docs/archive/walks/2026-11-11-deps-41-42-walk.md`; the
+closed rows are in `open-items-done.md` §AW, and the accepted limit (a start in the instant after Quit) is in §Q.
+
+- **#42's exit and update changes ship untested until an update walk.** The installed copy is the one that runs an
+  update, so three things first run on the update from v0.10.26 to the release after: the fix inside a real AppImage
+  (the relaunch releases the single-instance lock first, `2f6740bb`), `tauri-plugin-updater` 2.14.1's signature
+  check on `base64` 0.23.1, and the Windows update path's earlier lock release. The relaunch order was run on the
+  Linux VM with throwaway builds that force the race (the walk's relaunch row); the other two are read, not run. Walk
+  that update on the Windows VM and as a Linux AppImage (D1 of the plan; beside §AM's two update walks). **Close:**
+  that walk's record in `docs/archive/walks/`.
+- **The walk helpers live only in the VMs' scratchpads.** A frame recorder for a list's scroller (rewritten once after
+  a scratchpad wipe), the `cdp.mjs` copies with `--sclick`, `--dragtest` and `--fling` (raw `Input.dispatchTouchEvent`,
+  the one of the two ways tried that scrolled the grid), and the Windows picker driver (`WM_SETTEXT` + `BM_CLICK`;
+  `smoke-cdp.md:5-6` still lists pickers as hand-walked). Deferred 2026-11-11 under the owner's 2026-10-21 rule.
+  **Reopen:** the next walk that needs the recorder, a touch fling or a Windows picker: bring them into `docs/smoke/`
+  then.
 
 ## Order
 

@@ -1074,6 +1074,23 @@ stays.
   2026-10-17 (D3 (a) of `docs/archive/plans/2026-10-17-per-tab-view-plan.md`). **Closed 2026-10-22** (Plan B, D2 (b)
   of `docs/archive/plans/2026-10-21-tabs-grid-deferred-plan.md`): the hand-over now carries the view with the draft,
   filter, selection and top row (AO1, §AS below). Walked, BY 3–4.
+- **F7 / Linux residual risk (the 2026-09-20 review): a malformed `DBUS_SESSION_BUS_ADDRESS` panics at startup.**
+  `tauri-plugin-single-instance` 2.4.5 `platform_impl/linux.rs:56` unwraps
+  `zbus::blocking::connection::Builder::session()`. With no session bus at all the address still resolves (zbus
+  falls back to `$XDG_RUNTIME_DIR/bus`, then `/run/user/<euid>/bus`), the connect fails, and the app starts as
+  before — one process per launch, no guard. Only a `DBUS_SESSION_BUS_ADDRESS` that is set but unparseable (empty,
+  no `transport:`) panics at startup. All three launched under WSLg 2026-09-21 on a build of `7cc503b`: with the
+  session bus a second launch hands over (one process, two windows); with the variable unset and an empty
+  `XDG_RUNTIME_DIR` both launches start, two processes; with `DBUS_SESSION_BUS_ADDRESS=garbage` or set empty the app
+  panics at `linux.rs:57`. Accepted by the user 2026-09-21. **Reopen:** a user reports a startup crash on Linux,
+  or the plugin stops unwrapping. *From the done file §I.*
+  - **Closed 2026-11-11, fixed upstream** (decision J of `docs/archive/plans/2026-11-10-deps-41-42-plan.md`): the
+    second trigger fired. `tauri-plugin-single-instance` 2.5.4 and 2.5.5 step aside on an address they cannot parse
+    and let the app start without the single-instance guard (read, `platform_impl/linux.rs`; the warning they write
+    is lost, since the app's logging starts after the plugins' setup). It fired unnoticed when 2.5.4 landed (#35,
+    `24e537c4`). Walked on the Linux VM on 2.5.5 (`docs/archive/walks/2026-11-11-deps-41-42-walk.md`, Linux row 4):
+    with `DBUS_SESSION_BUS_ADDRESS=garbage` the app starts, a second start is a second process with its own window,
+    and stderr has no panic. The set-but-empty variable was not walked again.
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review: the rows since closed
 
@@ -2390,3 +2407,73 @@ branch: run 41032359500, green on three OS.
 - **v0.10.25's in-app update walk: done.** 0.10.24 → 0.10.25 on the Windows VM, all three of smoke group AC's rows
   pass; the restart took 4.3 s to the new process (`docs/archive/walks/2026-10-31-v0.10.25-update-walk.md`).
 - Plan commit: `8ade2bf4`.
+
+## AW. Added 2026-11-11 — Dependabot #41 and #42, closed
+
+- **#41 (the npm group, 7 updates) and #42 (the cargo group, 3 updates, with a fix) merged back to back,** 2026-11-11
+  (2026-11-10 UTC), squash, in that order: #41 as `4cbe6a0b`, #42 as `e147d30a`. #42 got a fix commit for
+  `tauri-plugin-single-instance` 2.5.5 (`2f6740bb`; D1 and D8 of the plan): the AppImage relaunch releases the
+  single-instance lock first, and a second start is opened through the main thread, and not at all while the app is
+  exiting. The limit that leaves is in `open-items.md` §Q (a start in the instant after Quit), the deferred update
+  walk in §AW there.
+  - **One walked tree:** `deps-41-42` at `cb9d989e`. Merged with `--admin` and `--match-head-commit`; `origin/main`
+    equalled the walk tree, and the remote branch was deleted after a PR lookup showed it backed none.
+  - Checks:
+    - local gates on `deps-41-42` (2026-11-10), including `tauri build --no-bundle` and no `VCRUNTIME140.dll`;
+    - #41's own PR run 42027004188 and #42's 42848769508 (on the fix commit), green on three OS;
+    - a Windows walk and a Linux walk (`docs/archive/walks/2026-11-11-deps-41-42-walk.md`): every row passed, with
+      0 WARN and 0 ERROR on both;
+    - `main`'s CI after the merges, run 42860265278, success (run 42860216617 was cancelled by the CI concurrency
+      rule);
+    - not run, by decision: CI on the walk tree (F) and a release dry run (B).
+  - Neither known flaky test (`ignored_dir_and_lock_files_are_silent`, `cancel_ends_an_op_with_a_full_queue`) failed
+    on any run; each completed run passed on its first attempt.
+  - **The relaunch order was run before the merge (D5):** three throwaway builds on the Linux VM that take the
+    relaunch branch by themselves and force the race with a sleep after the spawn. The tree as it is: one chain of
+    51 lines, 51 pids, 50 relaunches, each copy seen owning the name. Without the `destroy` call: 10 chains, each
+    stopped at one line (the app does not come back). Without `destroy` and the guard: both copies hung, 3 of 3
+    chains. The race's natural rate is not measured.
+  - **Touch (D2):** `virtual-core` 3.19.9's touch change was reachable on the Windows VM with raw
+    `Input.dispatchTouchEvent` and passed (row h), so no accepted limit came of it.
+  - **BH 10 re-walked** (row a), as its accepted-limit row asks on a `react-resizable-panels` upgrade
+    (`open-items.md` §Q).
+  - **The owner-accepted coverage gap closed with it:** D3 (a), no macOS walk (owner, 2026-11-10). It has three
+    parts, all read and not walked: `rfd` 0.17's rewritten dialog plumbing, the single-instance socket, and the
+    second-start callback's hand-over to the main thread.
+  - Plan: `docs/archive/plans/2026-11-10-deps-41-42-plan.md`.
+- **Dependabot alerts for `zip` 8 (critical), 9 (high) and 10 (medium) stay open.** `zip` 4.6.1 comes only from
+  `tauri-plugin-updater` 2.14.0, and the fix needs `zip` ≥ 9.0.5, so nothing here can move it; Dependabot opened no PR.
+  Read from the alerts page and `Cargo.lock`, 2026-10-31. **Reopen:** a `tauri-plugin-updater` release moving `zip` to
+  ≥ 9.0.5, or a Dependabot PR for it. *From `open-items.md` §AV.*
+  - **Closed 2026-11-11:** the trigger fired with #42, whose `tauri-plugin-updater` 2.14.1 moves `zip` to 9.3.0.
+    GitHub marked all three fixed at 2026-11-10T16:59:40Z, with #42's merge, and no Dependabot alert is open. Read
+    from the plugin's source, not run: `zip` is built on Windows only, and our updates never reach it (the update is
+    the bare signed NSIS setup exe, and the plugin unpacks only a download that starts with the zip magic bytes).
+    `zip` 9.5.0 waits for an updater release, a security update or a `cargo update` (decision C).
+- **Dependabot #40 is open and not merged:** the npm group, `@tanstack/react-virtual` 3.14.23 and `lucide-react`
+  1.62.0. Opened after #38's merge and read on 2026-10-31; it needs its own walk pass. **Reopen:** the next Dependabot
+  pass; a virtualizer bump re-runs the walk rows b and c of 2026-10-31. *From `open-items.md` §AV.*
+  - **Closed 2026-11-11:** Dependabot closed #40 on 2026-11-05 for #41, which carries both packages at newer
+    versions (3.14.25 and 1.66.0) and merged here. The walk re-ran rows b and c: no blank frame, and c's numbers the
+    same as on 2026-10-31.
+- **Accepted with no reopen trigger, from the fix commit's change review** (2026-11-10). Taken under the owner's
+  2026-10-21 rule and listed to the owner:
+  - The result of the hand-over to the main thread is ignored (`let _ = app.run_on_main_thread(…)`, `lib.rs`). It
+    fails only when the event loop's channel is closed, that is when the process is on its way out, where opening
+    nothing is the intent. No log line.
+  - Windows also opens nothing for a start between the exit request and the lock's release (the new `exiting`
+    check). Under 2.5.4 that start reached a window build waiting on a stopped loop, so no window either. Reasoned,
+    not walked on Windows; it is the §Q row's case.
+  - On Linux and macOS a second copy is now answered before its window starts building; before, once `spawn` had
+    returned, which was still before the window existed. So a walk row polls for the window and does not look once.
+    Not measured.
+  - `destroy` drops the lock while Tauri's resource-table lock is held, on Linux with a blocking `release_name` that
+    has no timeout. The plugin's own cleanup does the same under the same lock, so nothing new is exposed; it hangs
+    only if the bus daemon stops answering.
+  - Not checked: whether tao on Linux delivers user events queued before the loop starts ahead of its ready event.
+    It decides whether a very early second start cascades from `main` or is placed by the window system; either is
+    no worse than before.
+- **Seen in the walks, by design, recorded only:** the Changes view has no file-list separator on a clean tree
+  (`ChangesView.tsx:58-71` shows the empty state beside the message column); Ctrl+O is the start screen's shortcut,
+  and the repository view opens with Ctrl+T (`useShortcuts.ts:66-69`).
+- Plan commit: `aa90b7f9`.

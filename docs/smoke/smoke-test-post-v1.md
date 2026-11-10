@@ -2146,7 +2146,9 @@ trip the installed app's next launch.
       *Operation in progress* title; enabled after.
 - [x] 10. **Per-view sidebar** at 1280 wide: toggle in History, switch to Changes (full sidebar), toggle there,
       back to History (still toggled); a new window follows the width. A sidebar width dragged in one view comes
-      back at that width after a switch that hid it.
+      back at that width after a switch that hid it. *(Walked again 2026-11-11 on the Windows VM, a release build of
+      `cb9d989e` with `react-resizable-panels` 4.16.1: pass; the new window opened at the default 260, as on
+      2026-09-29. `docs/archive/walks/2026-11-11-deps-41-42-walk.md`, row a.)*
 - [x] 11. **T8 proxy check** (triage T8): launch with `smoke-launch.ps1 -Proxy http://127.0.0.1:8888` and
       `throttle-proxy.mjs` running; `CONNECT github.com` in the proxy's log.
 - [x] 12. **Update badge in a new window** (optional regression): with an update available, Ctrl+Shift+N shows the

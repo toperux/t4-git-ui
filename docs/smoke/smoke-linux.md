@@ -28,8 +28,8 @@ The 26.04 name is the one this doc was first written with, on that host; the 24.
 `xclip` reads the Xvfb clipboard: `xclip -display :99 -selection clipboard -o`. The `Copied …` toast carries the
 copied text too, as on Windows.
 
-openbox is not installed here: multi-window and restore rows unpack it into the scratchpad per walk (no root),
-recipe under "A window manager: openbox" below.
+openbox is not installed here: multi-window, restore and WebDriver rows unpack it into the scratchpad per walk (no
+root), recipe under "A window manager: openbox" below.
 
 ## Scripts
 
@@ -56,6 +56,8 @@ recipe under "A window manager: openbox" below.
   - The desktop portal's GTK4 folder picker (the *Open repository* dialog when a portal serves it) ignores the
     path `xdialog.sh` types: navigate it by double-clicking folders and pressing **Open** (found in the v0.10.16
     gate walk, 2026-10-03).
+  - The GTK3 picker's path-completion popup can take the Return `xdialog.sh` sends (2 of 4 picks, 2026-11-11): the
+    dialog stays open. One real click on **Open** dismisses the popup, and a second opens the folder.
   - `<pid> --title '^Discard hunk$' --ok|--cancel`: an `ask()` box. Return is the affirmative button
     (**Discard**) and Escape is Cancel. Both were checked against the file's checksum.
   - It waits up to 5 s for the box, so it can run right after the click that opens it: before, a first call made
@@ -116,6 +118,10 @@ sign with ssh (group AR), use absolute paths in the copied `.gitconfig`; `GNUPGH
 
 If your identity is in `~/.config/git/config` rather than `~/.gitconfig`, copy that instead.
 
+**Start openbox first:** from 2026-11-11 every WebDriver row runs under it. After this block's first line (the openbox
+recipe uses `$S`), run the recipe under *A window manager: openbox* below in place of the `Xvfb` line. It starts Xvfb
+itself and leaves the shell in its own folder, so `cd` back to the repo root before tauri-driver.
+
 ```bash
 S=<scratchpad>/app; mkdir -p $S/home; cp ~/.gitconfig $S/home/    # user.name / email for commits
 Xvfb :99 -screen 0 1600x1000x24                                        # background
@@ -168,7 +174,8 @@ The DOM is the one `smoke-cdp.md` § *Selectors that hold* describes, and its tr
 - **`xdotool search --name` takes a regex:** an unanchored title can match more than the window intended —
   `'other$'` also matched the main window (`"T4 Git UI - other"` vs. the main titles, group BO 11, round 2,
   2026-10-05). Use exact, anchored titles (`^…$`).
-- **OS level.** There is no window manager: `windowfocus` works but doesn't raise, and windows stack at 0,0.
+- **OS level, on a bare Xvfb** (under openbox: *Differences with a window manager*, below). There is no window
+  manager: `windowfocus` works but doesn't raise, and windows stack at 0,0.
   - `DISPLAY=:99 xdotool windowfocus --sync <win> key ctrl+Tab` sends a real key.
   - `xdotool windowsize` respects the window's minimum size.
   - `DISPLAY=:99 import -window root out.png` captures the whole screen, native dialogs included.
@@ -181,8 +188,8 @@ A restored second window sometimes never starts: ruled 2026-10-06 an artifact of
 window manager left a new window's page never calling Rust (`take_pending`) after Rust had built and shown the
 window in 22% of detaches (33 of 150), and 0 of 300 with a
 window manager (a real desktop or openbox). So multi-window and restore rows run under openbox (below); single-window
-rows stay on bare Xvfb. WebDriver with two windows works under openbox: T7 (the same walk) got 10 of 10, with the handle
-order `w1` first, then `main`.
+rows stay on bare Xvfb, except WebDriver rows from 2026-11-11 (below). WebDriver with two windows works under openbox:
+T7 (the same walk) got 10 of 10, with the handle order `w1` first, then `main`.
 
 - **The helpers are in `docs/smoke/fixtures/direct.sh`:** `S=<scratchpad>/app; . docs/smoke/fixtures/direct.sh`,
   then `seed` / `dlaunch` / `waitfor` / `xclosetitle` / `lay` / `killapp` (its header has an example). What they
@@ -206,7 +213,10 @@ harness's on 2026-10-06 (above).
 
 Multi-window and restore rows run with openbox started before the app; single-window rows stay on bare Xvfb (a
 bare Xvfb that just ran openbox often never got Ctrl+Shift+N to the app — start a fresh one for the next bare
-row). No root is needed:
+row). **From 2026-11-11, WebDriver rows run under openbox too, single-window ones included:** on a bare Xvfb the page's
+calls ran in Rust but most replies never came back (1–4 of about 12 `invoke`s answered in 30 s, against 36 of 36 and
+38 of 38 under openbox; `origin/main` and the walk build alike, so it is not from the change walked; the cause is not
+looked into; `docs/archive/walks/2026-11-11-deps-41-42-walk.md`, *Deviation*). No root is needed:
 
 ```bash
 O=<scratchpad>/openbox; mkdir -p $O/deb && cd $O/deb
