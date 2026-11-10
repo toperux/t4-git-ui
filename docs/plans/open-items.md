@@ -1113,16 +1113,37 @@ triage):
 From `docs/archive/plans/2026-10-30-deps-36-37-38-plan.md` and `docs/archive/walks/2026-10-31-deps-36-38-walk.md`; the
 closed rows are in `open-items-done.md` §AV, and the two closed by #41 and #42 in its §AW.
 
-- **`notify` is held at 8.2.0** (D10, the owner, 2026-10-30). 8.2.1 changes the inotify removal path so that a scan runs
-  for a descriptor that is already dropped, and on macOS it swaps the FSEvents backend; a Linux measurement of the
-  removal scan was built up in the plan's review and not settled, so the crate stays at 8.2.0. Held in three places: the
-  manifest pin `notify = "=8.2.0"` in `crates/git-core/Cargo.toml`, the `notify` entry under `ignore` in
-  `.github/dependabot.yml`, and `Cargo.lock`. Reasoned from the 8.2.1 source, not measured; no macOS run. On 2026-10-30
-  crates.io had 8.2.1 as the newest stable and 9.0.0-rc.7 as the newest pre-release. **Reopen:** a `notify` release that
-  skips the removal scan for an already-dropped descriptor, or `notify` 9.0 stable, or a Dependabot PR moving `notify`
-  past 8.2.0 (read its `inotify.rs` removal path before merging; if the scan is still there, add that version to the
-  ignore entry); then measure before taking it. Lifting the hold edits the manifest pin, the `ignore` entry and the lock
-  together.
+- **`notify` is held at 8.2.0** (D10, the owner, 2026-10-30; kept on 2026-11-11 with a measurement, N3 of
+  `docs/archive/plans/2026-11-11-notify-8.2.2-plan.md`). 8.2.1 and 8.2.2 change the inotify removal path so that every
+  deleted watched directory makes a pass over all watched paths, and on macOS they swap the FSEvents backend. Held in
+  three places: the manifest pin `notify = "=8.2.0"` in `crates/git-core/Cargo.toml`, the `notify` entry under `ignore`
+  in `.github/dependabot.yml`, and `Cargo.lock`.
+  - **8.2.2, read 2026-11-11** (published 2026-11-08): on Linux it is 8.2.1 but for one format string. On Windows it
+    fixes a race that 8.2.0 has: a watch stopped as a repository closes can start a read on a handle it has already
+    closed. Read from the code, never seen; the two instants that must coincide are microseconds wide, and the worst
+    case is one stuck background thread until the app exits. **The hold keeps that race.** No macOS file differs from
+    8.2.1.
+  - **The `ignore` entry names `= 8.2.1` and `= 8.2.2`** (N1, `d79d458e`), so a Dependabot PR still tells of each
+    later version, and each later 8.2.x that keeps the pass needs the same edit.
+  - **Measured 2026-11-11** on the Linux VM with a standalone program
+    (`docs/archive/walks/2026-11-11-notify-8.2.2-measurement.md`): after a mass delete under a recursive watch, 8.2.2
+    reported the next change after 3.7 s at 10 000 directories and 10.8 s at 30 000, against 1.3 s for 8.2.0 at both,
+    its thread's CPU time almost equal to the wait, with about 2 800 Info lines in the log per delete. Every run
+    overflowed the kernel's default event queue. Reasoned from the line count: the overflow capped 8.2.2's passes, so
+    the numbers are a lower bound. The set with a raised queue was not run (N4, it needs `sudo` on the VM), and the cost
+    of a delete that does not overflow is only extrapolated: about one minute for 30 000 directories, two at most. One
+    VM, tmpfs, no app around the watcher, a root that holds only the tree (a repository has more watched paths); no
+    macOS run.
+  - **Upstream:** no issue on `notify-rs/notify` covers the pass (searched 2026-11-11), and upstream's main branch
+    (2026-11-10, the 9.0 line) still makes it on every queued removal. On 2026-11-11 the newest pre-release was
+    9.0.0-rc.8 (2026-11-09); 9.0 needs `notify-debouncer-full` 0.8, also a release candidate. A report is drafted for
+    the owner; posting it is asked separately (N5).
+  - **Reopen:** a `notify` release whose removal of a watched directory no longer walks every watched path, or `notify`
+    9.0 stable, or a Dependabot PR moving `notify` past 8.2.0 (read its `inotify.rs` removal path before merging; if the
+    pass is still there, add that version to the ignore entry), or the Windows race seen (a watcher thread that never
+    ends after a repository closes; it shows only in a debugger or a thread count; the plan has the detail). Before
+    taking a version, measure it first: the report holds the program and the run's steps. Lifting the hold is its own
+    plan and edits the manifest pin, the `ignore` entry and the lock together.
 - **Dependabot alerts 8, 9 and 10 for `zip`:** closed 2026-11-11 by #42 (`zip` 9.3.0), moved to `open-items-done.md`
   §AW.
 - **The unnamed error toasts and the Files tab header's hover title:** fixed 2026-11-11 (`c08374bf`), moved to

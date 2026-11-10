@@ -2422,7 +2422,8 @@ branch: run 41032359500, green on three OS.
     branches"; the first load now skips the "not open" error as Refresh does. Read from the code, never seen.
   - The Files tab header's path has a hover title, as the diff header has.
   - Checks: unit tests only (tsc, vitest 84 files and 1291 tests, the build), each new test seen failing first; a
-    change review of two passes. No walk: a string prefix, one condition and an attribute.
+    change review of two passes. No walk: a string prefix, one condition and an attribute. CI run 42880064551 on the
+    push, green on three OS.
   - Left as they are, taken under the owner's 2026-10-21 rule and listed to the owner:
     - "Couldn't close the repository" stays unnamed: it shows only when a window's last tab closes, so there is no
       other tab to read it against.
