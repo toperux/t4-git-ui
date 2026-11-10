@@ -144,22 +144,36 @@ pub fn run() {
         // what it was started for — another window — is opened here instead, on
         // the start screen: an empty layout, so it does not reach for the
         // repository another window already holds. It cascades from the window
-        // last focused (`commands::window::cascade_from`); this callback runs
-        // off the main thread on macOS and Linux. Where single-instance can't
-        // run (no session bus), a second process started before the first write
-        // restores the same session again, where before it got nothing — or,
-        // while the first one is still restoring, takes its restore mark for a
-        // crash and sets the session aside (`commands::window::take`).
+        // last focused (`commands::window::cascade_from`). Where single-instance
+        // can't run (no session bus), a second process started before the first
+        // write restores the same session again, where before it got nothing —
+        // or, while the first one is still restoring, takes its restore mark for
+        // a crash and sets the session aside (`commands::window::take`).
+        //
+        // The window is opened through the main thread, not on the thread that
+        // calls back. On Linux that is the bus connection's only worker thread, and
+        // the window reads wait for the main thread: once that has left the event
+        // loop to exit, they never return, and the plugin's release of its D-Bus
+        // name — which needs the same worker — hangs this process and the second
+        // one with it. Handed over, the callback returns at once; on Windows it is
+        // already on the main thread, where the work runs inline as before. An app
+        // that is exiting opens nothing (the second process exits all the same).
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            let (reference, placement) = commands::window::cascade_from(app).unzip();
-            commands::window::spawn(
-                app,
-                None,
-                commands::window::Layout::default(),
-                placement,
-                reference,
-                None,
-            );
+            let handle = app.clone();
+            let _ = app.run_on_main_thread(move || {
+                if handle.state::<AppState>().exiting.load(Ordering::Relaxed) {
+                    return;
+                }
+                let (reference, placement) = commands::window::cascade_from(&handle).unzip();
+                commands::window::spawn(
+                    &handle,
+                    None,
+                    commands::window::Layout::default(),
+                    placement,
+                    reference,
+                    None,
+                );
+            });
         }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -324,12 +338,15 @@ pub fn run() {
             RunEvent::Exit => {
                 commands::window::save_on_exit(app);
                 // An update installed into an AppImage (`install_update`): the
-                // new one starts once the plugins let go (single-instance's
-                // D-Bus name), with the host's environment and in the
+                // new one starts with the host's environment and in the
                 // folder the image was first started from, not the old mount.
                 // `host_command` also keeps the old runtime's keepalive pipe
-                // from the new app, so the old image unmounts.
+                // from the new app, so the old image unmounts. Single-instance
+                // keeps its D-Bus name until after this handler, so it is let
+                // go here first: a new image that found the name held would
+                // hand over to this dying process and exit.
                 if app.state::<AppState>().relaunch.load(Ordering::SeqCst) {
+                    tauri_plugin_single_instance::destroy(app);
                     let env = app.env();
                     let started = tauri::process::current_binary(&env).and_then(|exe| {
                         git_core::host_command(exe)

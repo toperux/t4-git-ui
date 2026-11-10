@@ -46,7 +46,8 @@ pub struct AppState {
     /// for, by window label — what an update's restart would throw away.
     drafts: Mutex<HashMap<String, Vec<String>>>,
     /// The app is quitting, so a window going away is not the user closing it:
-    /// its layout entry stays, to be restored next launch.
+    /// its layout entry stays, to be restored next launch. And a second launch's
+    /// window not opened by then is not opened at all.
     pub exiting: AtomicBool,
     /// An `install_update` is running: Install in a second window must not
     /// start a second download and a second setup.
