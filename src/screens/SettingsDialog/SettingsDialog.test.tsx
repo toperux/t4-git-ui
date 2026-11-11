@@ -41,7 +41,8 @@ const goTo = (r: ReturnType<typeof render>, name: string) => fireEvent.click(r.g
 
 /**
  * A focused control that disables itself drops the focus to `<body>` in the webview, outside the
- * dialog's form; jsdom keeps it on the disabled element, so blur() gets there. Esc must still close.
+ * dialog's form; jsdom moves it only at its next focus check, so blur() gets there at once.
+ * Esc must still close.
  */
 async function escAfterSelfDisable(control: HTMLElement, onClose: ReturnType<typeof vi.fn>) {
   control.focus();

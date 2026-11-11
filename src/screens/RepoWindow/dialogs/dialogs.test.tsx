@@ -791,7 +791,7 @@ describe("RebaseInteractiveDialog", () => {
     up.focus();
     fireEvent.click(up);
     // The same row, now first: its button has nothing above it. The webview drops the focus to
-    // <body> there; jsdom keeps it, so blur().
+    // <body> there; jsdom does so only at its next focus check, so blur().
     expect(up.disabled).toBe(true);
     up.blur();
     fireEvent.keyDown(document.body, { key: "Escape" });

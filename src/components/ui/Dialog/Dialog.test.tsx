@@ -86,8 +86,8 @@ describe("Dialog", () => {
     opener.remove();
   });
 
-  // A control that disables itself (Check now) drops the focus to <body>, outside the form: jsdom
-  // keeps it on the disabled element, so these blur() to get there.
+  // In the webview a control that disables itself (Check now) drops the focus to <body>, outside
+  // the form. Nothing disables itself here, so these blur() the focused field to get there.
   it("Esc on body closes the dialog", () => {
     const onClose = vi.fn();
     render(<Harness onClose={onClose} />);

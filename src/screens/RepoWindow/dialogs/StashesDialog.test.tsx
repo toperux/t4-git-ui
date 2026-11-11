@@ -173,7 +173,8 @@ describe("StashesDialog", () => {
   });
 
   it("Esc still closes after Apply disables itself", async () => {
-    // The webview drops the focus to <body> when the focused button goes disabled; jsdom keeps it, so blur().
+    // The webview drops the focus to <body> when the focused button goes disabled; jsdom does so only
+    // at its next focus check, so blur().
     (ipc.stashApply as ReturnType<typeof vi.fn>).mockReturnValueOnce(new Promise(() => {}));
     const onClose = vi.fn();
     const view = render(
