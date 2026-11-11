@@ -2509,3 +2509,59 @@ branch: run 41032359500, green on three OS.
   (`ChangesView.tsx:58-71` shows the empty state beside the message column); Ctrl+O is the start screen's shortcut,
   and the repository view opens with Ctrl+T (`useShortcuts.ts:66-69`).
 - Plan commit: `aa90b7f9`.
+
+### Added 2026-11-12 — Dependabot #43 and #45, closed
+
+- **#45 (`jsdom` 30.1.3 → 31.0.0, the tests' environment) and #43 (`softprops/action-gh-release` 3.0.3 → 3.0.4, the
+  release workflow) merged back to back,** 2026-11-11, squash, in that order: #45 as `bf22c460`, #43 as `f9fdc04b`.
+  Neither ships in the app. #44, the npm group that opened with them, waits for its own plan (`open-items.md` §AW).
+  *From `open-items.md` §AW.*
+  - **One gated tree:** a local branch with both heads merged onto `origin/main` `eda3b76e`. Merged with `--admin`
+    and `--match-head-commit`; `origin/main` equalled the gated tree. #43's leftover remote branch was deleted after
+    a PR lookup showed it backed no open PR.
+  - Checks:
+    - local gates on the gated tree, on Windows: `npm ci` (0 vulnerabilities), `jsdom` 31.0.0, Tauri CLI 2.12.4, tsc,
+      the build, and `release.yml` parses;
+    - the full test suite ten times, 84 files and 1291 tests each, 0 failures; then the five test files named
+      below fifty times, 223 tests each, 0 failures;
+    - each PR's own CI, green on three OS;
+    - `main`'s CI after the merges, run 42964505689, success on three OS on its first attempt (run 42964479279 was
+      cancelled by the CI concurrency rule);
+    - no VM walk, by the plan's decision B: nothing the app ships changed.
+  - Neither known flaky Rust test (`ignored_dir_and_lock_files_are_silent`, `cancel_ends_an_op_with_a_full_queue`)
+    failed on any CI run.
+  - **What #43 changes (read):** the action's own source is the same; the libraries built into it moved. Three of
+    them, the ones that expand `files: dist/*`, moved by a major (`glob` 13 → 14, `minimatch` 10 → 11, `path-scurry`
+    2 → 3), and `undici` moved to 6.29.1. A partly wrong match would be silent on a tag, and a missing `latest.json`
+    would break every installed copy's update check until a corrected release.
+  - **The release dry run, right after the merges (the plan's D2, ruled by the owner):** run 42969587138, the
+    owner's dispatch on `main` at `f9fdc04b`, the `signing` environment approved by API on the owner's word. Every job
+    that runs passed on the first attempt. The new action uploaded 16 files to the draft, `latest.json` among them;
+    the workflow's check of the draft's assets against `dist/` passed; no draft release and no `dry-run-<id>` tag
+    were left. **Not covered:** the final publish call, which a draft skips, and release notes against a real tag.
+    Both first run on the next tag, on source that did not change, over the new `undici`.
+  - **What `jsdom` 31 changes for the tests,** read in both versions' sources and then measured with a throwaway
+    test, three runs under each version. A focused button that gets disabled:
+    - keeps the focus right after the change, in both versions;
+    - on `blur()`: under 30.1.3 nothing happens (the focus stays, no `blur` event); under 31.0.0 the focus goes to
+      `<body>` with one `blur` event, at once;
+    - with no `blur()`: under 30.1.3 the focus never moves (300 ms waited); under 31.0.0 `jsdom` moves it to `<body>`
+      on its own, 30 to 35 ms later (read with a 1 ms poll on a coarse timer), with one `blur` event.
+  - **So five comments were wrong, and are corrected** (`8014433f`, `test: the focus comments say what jsdom 31
+    does`; comments only, a change review of two passes). They said `jsdom` keeps the focus on the disabled control
+    and that the tests' `blur()` gets it to `<body>`. Under 30 that `blur()` did nothing, and 9 of the 12 tests under
+    those comments passed because they send the key press straight to `<body>`; under 31 they run with the focus
+    really there. The files: `SettingsDialog.test.tsx`, `Dialog.test.tsx`, `StashesDialog.test.tsx`,
+    `CommitPanel.test.tsx`, `dialogs.test.tsx`.
+  - **What it leaves:** an accepted limit in `open-items.md` §Q (a focus test may fail now and then; 8 of the 12
+    tests above and one more wait while a control is disabled), and a deferred row in its §AW (a timer left behind
+    under fake timers).
+  - **Left as they are,** taken under the owner's 2026-10-21 rule and listed to the owner:
+    - in the two test helpers and the `StashesDialog.test.tsx` test, `jsdom` may move the focus before the test's
+      `blur()` on a slow machine; the outcome is the same;
+    - `CommitPanel.test.tsx:229-233` fires a blur by hand for what WebView2 does and makes no claim about `jsdom`;
+    - `Dialog.test.tsx:168-169` says the submit button is disabled while busy, but in its test harness only Close
+      is; older than this change and not about `jsdom`;
+    - the dry-run step read the release list and the tag refs although the workflow checks both itself.
+  - Plan: `docs/archive/plans/2026-11-11-deps-43-45-plan.md`, which also holds what was read of #44. Plan commit:
+    `d1b62300`.

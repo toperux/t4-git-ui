@@ -752,6 +752,26 @@ phases that accepted them; each origin keeps a pointer.
     hidden; before, it opened a start-screen window in the hidden copy. Reasoned, not run: it needs Windows to refuse
     a setup exe that was just verified. Not taken: a guard on the update path that restores the windows or exits
     when the install fails.
+- **A focus test may fail now and then under `jsdom` 31** (accepted by the owner, 2026-11-12; #45,
+  `docs/archive/plans/2026-11-11-deps-43-45-plan.md`). Since 31.0.0 `jsdom` moves the focus off a control that
+  disabled itself, on its own, at its next focus check once the test yields; `jsdom` 30 never did. A test that
+  disables a focused control and then waits can therefore get a `blur` it did not ask for. 13 tests are watched.
+  **Nine of them disable a focused control and then wait** (read from the tests, not run):
+  - `SettingsDialog.test.tsx`, the four that use `escAfterSelfDisable`;
+  - `CommitPanel.test.tsx`, the three that use `pressAndDrop`, and `staging a row the focus was on hands the focus
+    back to the list, not to <body>`;
+  - `StashesDialog.test.tsx`, `Esc still closes after Apply disables itself`.
+
+  **Four share the corrected comments but never wait while a control is disabled:**
+  - `dialogs.test.tsx`, `Esc still closes after Move up takes a row to the top and disables itself`;
+  - `Dialog.test.tsx`, the three under the comment at `:89-90`: `Esc on body closes the dialog`, `Tab on body focuses
+    the first body field` and `while busy, Esc on body focuses the dialog and doesn't close it`.
+
+  **What was run:** the full suite ten times and those five files fifty times on Windows, 0 failures; `main`'s CI and
+  the PR runs of #45 and of the rebased #44, on three OS, all green. So each test ran about 70 times. That rules out a
+  test that fails often, not one that fails once in fifty runs or more rarely, or only on a slower runner: a test that
+  fails 1 time in 50 passes the 60 local runs about 3 times in 10. Not taken: rewriting the tests so that no real blur
+  can land in a wait. **Reopen:** one of the 13 fails in CI.
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review, deferred
 
@@ -1154,7 +1174,9 @@ closed rows are in `open-items-done.md` §AV, and the two closed by #41 and #42 
 ## AW. Added 2026-11-11 — Dependabot #41 and #42
 
 From `docs/archive/plans/2026-11-10-deps-41-42-plan.md` and `docs/archive/walks/2026-11-11-deps-41-42-walk.md`; the
-closed rows are in `open-items-done.md` §AW, and the accepted limit (a start in the instant after Quit) is in §Q.
+closed rows are in `open-items-done.md` §AW, and the accepted limit (a start in the instant after Quit) is in §Q. The
+rows on #44 and on fake timers are from #43 and #45 (`docs/archive/plans/2026-11-11-deps-43-45-plan.md`), whose
+accepted limit (a focus test under `jsdom` 31) is in §Q too.
 
 - **#42's exit and update changes ship untested until an update walk.** The installed copy is the one that runs an
   update, so three things first run on the update from v0.10.26 to the release after: the fix inside a real AppImage
@@ -1169,16 +1191,33 @@ closed rows are in `open-items-done.md` §AW, and the accepted limit (a start in
   `smoke-cdp.md:5-6` still lists pickers as hand-walked). Deferred 2026-11-11 under the owner's 2026-10-21 rule.
   **Reopen:** the next walk that needs the recorder, a touch fling or a Windows picker: bring them into `docs/smoke/`
   then.
-- **Dependabot #43, #44 and #45 are open and not merged.** They opened on 2026-11-11 (2026-11-10 UTC), minutes after
-  the push that added `notify` 8.2.2 to the `ignore` entry (`d79d458e`): a change to `dependabot.yml` starts its runs
-  at once. The cargo run proposed nothing. Read from their titles and descriptions only, not their diffs or sources:
-  - #43: `softprops/action-gh-release` 3.0.3 → 3.0.4, `release.yml` only.
-  - #44, the npm group, 6 updates: `@tanstack/react-virtual` 3.14.26, `lucide-react` 1.70.0, `react-resizable-panels`
-    4.19.1, `zustand` 5.1.0, `vite` 8.3.6, `vitest` 5.1.0. `react-resizable-panels` moves, so §Q's BH 10 row asks for
-    its re-walk again; a virtualizer bump re-runs rows b and c of `docs/archive/walks/2026-11-11-deps-41-42-walk.md`.
-  - #45: `jsdom` 30.1.3 → 31.0.0, a major, the tests' environment only.
-  **Reopen:** the next Dependabot pass, on the owner's word; each is read before it merges (`.claude/skills/release`,
-  step 1).
+- **Dependabot #44, the npm group, is open and not merged** (the owner, 2026-11-11: after Thursday's Dependabot run,
+  D1 of `docs/archive/plans/2026-11-11-deps-43-45-plan.md`). #43 and #45, which opened with it, merged on 2026-11-11
+  (`open-items-done.md` §AW). Six updates: `@tanstack/react-virtual` 3.14.26, `lucide-react` 1.70.0,
+  `react-resizable-panels` 4.19.1, `zustand` 5.1.0, `vite` 8.3.6, `vitest` 5.1.0.
+  - **Already read:** each package's published source, up to the newest versions then out except `vite` (read to
+    8.3.6); the plan's appendix has it, with the walk rows each change asks for. In short: only
+    `react-resizable-panels` 4.19.1 and 4.21.0 and `virtual-core` 3.19.11 change code on the app's path, all expected
+    to be invisible; the icons draw the same; `zustand`'s core is untouched; `vite` 8.3.6 rewrites the bundle's
+    preload helper (read), on a branch the app does not take (reasoned), and `rolldown` 1.2.16 can change how the
+    chunks are laid out (reasoned). Nothing was run.
+  - **Its state on 2026-11-12:** Dependabot rebased it after #45's merge, head `7ad1743b`, the same six versions; its
+    CI is green on three OS, the first run of `vitest` 5.1.0, `vite` 8.3.6 and `jsdom` 31 together.
+  - **Expected, not known:** Dependabot's run on Thursday 2026-11-12 replaces it with newer versions
+    (`react-resizable-panels` 4.21.0, `vite` 8.3.7 or later).
+  - It needs VM walks: `react-resizable-panels` moves, so §Q's BH 10 row asks for its re-walk; a virtualizer bump
+    re-runs row c of `docs/archive/walks/2026-11-11-deps-41-42-walk.md`; a `vite` or `rolldown` bump asks for a look
+    at a highlighted diff in the built app.
+
+  **Reopen:** after Thursday's run, on the owner's word: its own plan, on whatever PR is open then.
+- **A timer left behind under fake timers stops `jsdom`'s focus check and `requestAnimationFrame` for the rest of a test
+  file.** Since 31.0.0 both run from one interval that `jsdom` starts with the global `setInterval`. If it is created
+  while `vitest`'s fake timers are on and never advanced, `jsdom` still counts it as running after `vi.useRealTimers()`,
+  and starts no new one. `cancelAnimationFrame` clears it only when no focus check is pending, and a stuck focus check
+  stays pending (read from `jsdom`'s `Window.js`, not run; an example of the pattern is `Menu.test.tsx:370-375`). No
+  test file today has later tests that need either (read). Deferred 2026-11-12 under the owner's 2026-10-21 rule.
+  **Reopen:** a test that waits for `requestAnimationFrame`, or for `jsdom` to move the focus, after fake timers in the
+  same file, and hangs or fails.
 
 ## Order
 
