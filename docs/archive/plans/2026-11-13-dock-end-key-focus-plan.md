@@ -1,7 +1,8 @@
 # Plan: the output dock's resize bar keeps the keyboard focus when it closes the dock
 
-_Drafted 2026-11-13 against `main` `a9416b22`. Status: **final after review pass 4; not started.** Nothing runs before
-the owner's go._
+_Drafted 2026-11-13 against `main` `a9416b22`. Status: **done:** the fix is `aa510c6b` on `main` (2026-11-13). The
+walk is `docs/archive/walks/2026-11-13-dock-end-key-focus-walk.md`, the records are in
+`docs/plans/open-items-done.md` §AX._
 
 **Goal:** a keyboard user who closes the output dock from its resize bar keeps a place in the window, and can reopen
 the dock with the next key without losing that place again.
@@ -24,11 +25,13 @@ the dock with the next key without losing that place again.
   library turns a step past a collapsible panel's minimum into a jump to its collapsed size (read in its 4.21.0
   `dist`, not measured). Enter on the bar does nothing (measured, row a3 of that walk).
 - **Why the focus is lost (reasoned, not measured apart from the result).** The focus sits on the bar's element, and
-  the disabled bar is no longer focusable, so the browser drops the focus to `<body>`. Two more ways into the same
-  loss, neither walked:
+  the disabled bar is no longer focusable, so the browser drops the focus to `<body>`. Two more ways in, as read
+  before the walk:
   - a drag that ends on the header: the library focuses the bar on the press (read), and the drag's end goes through
-    the same close;
-  - Ctrl+` pressed while the bar holds the focus: the shortcut is let through there (`useShortcuts.ts:49-52`).
+    the same close (walked since: the library also takes the focus off the bar when the drag ends, so this is not
+    the same loss; decision A);
+  - Ctrl+` pressed while the bar holds the focus: the shortcut is let through there (`useShortcuts.ts:49-52`; walked
+    since on the fix, where the toggle takes the focus).
 - **What closes the dock (read):** the gesture's end (`RepoWindow.tsx:327`), the header's toggle (`OutputDock.tsx:43`)
   and Ctrl+` (`useShortcuts.ts:51`). Operations only ever open it.
 - **Where the focus could go.** The dock's header has a toggle button, labelled *Collapse output* while the dock is
@@ -62,10 +65,16 @@ the dock with the next key without losing that place again.
   keeps the header at one place in its tree in both states, so the toggle is the same element before and after. It
   also mends today's loss on Enter on *Collapse output*. The alternative, leaving it out and deferring that loss, was
   not taken.
-- **A. A drag that ends on the header gets the same focus move** under (a), because it goes through the same close
-  with the focus on the bar. Taken as part of the fix, not as a separate behaviour.
+- **A. A drag that shuts the dock is left alone: ruled by the owner on 2026-11-13, after the walk.** The plan first
+  took the drag into the fix, on the reading that the bar still holds the focus when a drag ends. It does not: the
+  library takes the focus off a bar when a drag that moved it ends
+  (`node_modules/react-resizable-panels/dist/react-resizable-panels.js:440-441` in 4.21.0), before the dock closes.
+  Measured on both VMs, the same on `main`, and the same for a drag that leaves the dock open. So a mouse user ends
+  where every drag of every resize bar in the app ends, with the focus on `<body>` (read in the library for every
+  bar; measured on the dock's bar only). The other way, giving the toggle the focus after a gesture closed the dock,
+  was not taken: it would override the library's choice for a user who is holding the mouse.
 - **B. The focus moves only when the bar holds it at the moment the dock closes, whichever way it closes.** That
-  covers the key gesture, the drag and Ctrl+` pressed on the bar. A dock closed while the focus is anywhere else
+  covers the key gesture and Ctrl+` pressed on the bar. A dock closed while the focus is anywhere else
   (Ctrl+` from the grid, a click on the toggle) is left alone.
 - **C. Home after the close stays as it is** (the bar is disabled). With the focus on the toggle it no longer
   reaches the bar.
@@ -77,6 +86,12 @@ the dock with the next key without losing that place again.
 - **E. No `aria-expanded` on the toggle.** A review suggested it so that a screen reader hears the state where the
   focus lands. The button's label already changes with the state (*Expand output* means the dock is closed), so it
   is left as it is.
+- **F. The header's controls draw their focus ring inside: "fix now", ruled by the owner on 2026-11-13, after the
+  walk.** The walk measured the toggle's ring in the collapsed header: 1.5 px cut at the top and 2.5 px at the
+  bottom, the bottom edge gone, identical on `main` and on both VMs. The ring is drawn 4 px outside a 24 px button
+  in a 28 px box that clips. It is older than this fix, but the fix sends the focus there. The style taken is the
+  app's own for a control in a box that clips, `inset 0 0 0 1px var(--accent)`, as rows, tabs and section headers
+  have; it applies to every control in the dock's header, open or collapsed (step 9).
 
 ## Steps
 
@@ -116,7 +131,8 @@ the dock with the next key without losing that place again.
        the store is closed and the focus is on the toggle. On `main` this case fails (the focus is on the bar, then
        on `<body>`, never on the toggle);
      - the drag: the bar focused (the library focuses it on a press; the mock does not), a primary-button press on
-       it, 28 px reported, a `pointerup` on the window, two frames: the same;
+       it, 28 px reported, a `pointerup` on the window, two frames: the same (rewritten in step 9: the bar is
+       blurred as the library does when a drag ends, and the focus is expected on `<body>`);
      - Ctrl+`'s path, the store closed directly while the bar holds the focus: the focus is on the toggle;
      - the store closed while a button outside the dock holds the focus: the focus does not move.
    - `OutputDock.test.tsx`, on the real component: with the toggle focused, opening and then closing the dock
@@ -131,7 +147,8 @@ the dock with the next key without losing that place again.
      dock is open at the height it had before End, and the focus is on the same button, now *Collapse output*;
      Enter again: closed, the focus still there;
    - ↓ on the bar with the dock at 160 px: the same as End (or, if ↓ does not close the dock, recorded as that);
-   - the bar dragged down onto the header with the mouse: the dock is closed and the focus is on the toggle;
+   - the bar dragged down onto the header with the mouse: the dock is closed and the focus is on the toggle (walked
+     as a failure of this expectation on both VMs, the focus being on `<body>`; decision A);
    - Ctrl+` with the focus on the bar: the dock closes and the focus is on the toggle;
    - Ctrl+` with the focus in the revision grid: the dock closes and the focus stays in the grid;
    - the focus ring on the toggle, recorded for each of the above (expected, reasoned: a ring after a key, none
@@ -144,12 +161,21 @@ the dock with the next key without losing that place again.
    open row for what "Not in this plan" leaves; the walk record; this plan archived.
 8. **Package** (CLAUDE.md step 7): the fix with its tests as one `fix:` commit, the records as one `docs:` commit;
    push on the owner's go. It ships with the next release.
+9. **After the walk's triage (2026-11-13),** before steps 7 and 8, folded into the fix commit:
+   - the drag's unit test now copies the library (the bar blurred when the drag ends) and expects the dock closed
+     and the focus on `<body>` (decision A);
+   - `OutputDock.module.css`: the inset ring for the header's controls (decision F);
+   - gates and a change review pass; the branch pushed again on the owner's go;
+   - a short re-walk on both VMs of the new commit: the toggle's ring whole in the collapsed and in the open
+     header, by key (a screenshot and the pixel column, as row 8 of the first walk); the Cancel button's ring while
+     an operation runs, if one can be held long enough; row 1 once more (End, Enter), since the commit changed.
 
 ## Not in this plan
 
 - **Ctrl+` with the focus in the dock's prompt.** The prompt unmounts with the open dock (`OutputDock.tsx:48-57`),
-  so the focus is lost there too (read, not measured). It is a different control and a different answer (where
-  should the focus go when the field it was in is gone?), so it gets an open row in step 7, not a fix here.
+  so the focus is lost there too (read before the walk; measured since). It is a different control and a different
+  answer (where should the focus go when the field it was in is gone?), so it gets an open row in step 7, not a fix
+  here.
 - **The details pane's resize bars,** which mount by layout tier (`DetailsPane.tsx`) and could unmount under the
   focus when the window changes tier (reasoned only). Into the same open row.
 - The diff cursor that loses the keyboard after a long scroll (`open-items.md` §AT): the same kind of loss, a
@@ -200,3 +226,53 @@ the dock with the next key without losing that place again.
   - **The note's life was not stated:** when it is written and when it is cleared. Step 2 says so now.
 - **Pass 4 (2026-11-13): no findings.** Every library fact above holds in the installed 4.21.0, `vitest` 5.1.0 and
   `zustand` 5.1.0; nothing that changed since 4.16.1 touches the plan.
+- **The owner's go, 2026-11-13.** Steps 1 to 4 the same day on the branch `dock-end-key-focus`: `tsc` clean, 84 test
+  files and 1296 tests passed, the build passed; the three cases that then expected the focus on the toggle (End, the
+  drag as first written, and a close from the store, which stands for Ctrl+`) fail without the `RepoWindow.tsx`
+  change, and the toggle's case without the `OutputDock.tsx` change. The Rust gates passed (429 tests).
+- **Step 5, the change review: two passes.** Pass 1: no defect, six points. Taken: the tests' stand-in bar drops the
+  focus in the render that disables it, so a check made later than the store's change fails them (shown by running
+  them against such a variant: the same three of the four cases failed); the End case reads the toggle's label at
+  the moment it takes the focus; one comment corrected. Left for the walk: the ring's clipping and the ring after
+  Ctrl+`. Left for the triage: the drag's test moved no pointer. Pass 2: clean.
+- **Step 6, the walks, 2026-11-13,** on both VMs, the fix at `fa39e797` against `main` at `20dbeef2`: eleven of
+  twelve rows as expected on each.
+  - The focus lands on the toggle after End, after ↓ at 160 px (which does collapse the dock) and after Ctrl+` on
+    the bar; Enter and Space keep it on the same element; a focus elsewhere is left alone.
+  - Every box and border of the dock is identical on the two builds, collapsed and open, on both platforms.
+  - On `main`, End on the bar and Enter on *Collapse output* each end with the focus on `<body>` (measured now).
+  - **The drag's row failed on both, and on `main` alike:** this plan's miss, see decision A. Passes 1 to 4 had
+    read that a press focuses the bar and not that the end of a drag blurs it.
+  - Measured for the first time: the toggle's ring is clipped in the collapsed header; Ctrl+` from the dock's
+    prompt ends with the focus on `<body>`.
+- **The triage (the owner, 2026-11-13):** the drag is left alone (decision A); the ring is fixed now (decision F);
+  step 9 holds both. Taken under the owner's 2026-10-21 rule and listed: the prompt's loss becomes the open row of
+  step 7; that any drag of a resize bar ends with the focus on `<body>` (the library's own doing), and that after a
+  click on the bar and Ctrl+` Windows draws a ring on the toggle where Linux does not, are recorded only. The point
+  change review pass 1 left for here, that the drag's test moved no pointer, fell away with decision A: the test
+  rewritten in step 9 still moves none, it takes the focus off the bar itself, as the library does when a drag ends.
+- **Step 9, 2026-11-13.** The ring's rule and the rewritten drag test went in as a second commit on the branch, and
+  a comment's rewrap as a third: the first was already pushed, and folding into it would have needed a forced push.
+  Gates as before (84 files, 1296 tests). Change review passes 3 and 4: no defect in the code; an overlong comment
+  line and the first commit's message, which still named the drag, both taken (the message at the squash); pass 4
+  clean.
+- **The re-walk, 2026-11-13,** on both VMs at `42359765`: all eight rows passed. The toggle's ring is a 1 px accent
+  line on all four sides inside the button, by pixel, collapsed and open, in both themes, and it shows under the
+  hover. Cancel, reached while a slow fetch ran, shows the line just inside its own grey border. End and Enter
+  behave as on the first commit.
+  - **Seen on the way, into the open row** (taken under the owner's 2026-10-21 rule and listed): Enter on Cancel
+    ends the operation, the button unmounts and the focus falls to `<body>`; older than this fix by the code, not
+    walked on `main`.
+  - **Left as they are** (taken under the same rule and listed): Cancel's ring is a second line inside the button's
+    own grey border; the bar keeps a stale `data-kbd` mark after it loses the focus (seen on Windows; harmless, the
+    ring's rule also needs `:focus`).
+- **Steps 7 and 8, 2026-11-13.** The records as step 7 lists them, with one change: the smoke rows are a group of
+  their own (CA), not rows in an older dock group, since they need their own fixture and readings; with it,
+  `open-items.md` §AX and its done file's §AX. The branch's three commits became one on `main` (`aa510c6b`, its tree
+  identical to the walked `42359765`); the gates run again on it (`tsc`, 84 files and 1296 tests, the build). The
+  records review, pass 1: five defects and twelve smaller points, none in a measured number, all taken in substance;
+  refused: this plan's status reads "done" although the push is still to come, since the records go out in the same
+  push as the fix. Pass 2: the fixes hold against the two reports and the code; one stale "not measured" in this
+  plan and this entry's wording, both taken; the app's identifier in CA's store path kept, as elsewhere in that
+  file; the lines that say "listed" stand: the left-as-is points and Cancel's loss were listed to the owner in chat
+  the same day, before the records were committed.

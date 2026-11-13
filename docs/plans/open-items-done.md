@@ -2620,8 +2620,8 @@ branch: run 41032359500, green on three OS.
       162.4 px panel unrounded).
   - **Triage (the owner, 2026-11-13):**
     - the sidebar's resize bar beside a scrollbar on Linux: accepted, `open-items.md` §Q;
-    - End on the dock's resize bar collapsing the dock and dropping the focus: fix it, in its own plan; the open row
-      is in `open-items.md` §AW;
+    - End on the dock's resize bar collapsing the dock and dropping the focus: fix it, in its own plan; fixed the
+      same day (§AX);
     - taken under the owner's 2026-10-21 rule and listed to the owner: the far case's dated note, the double-click
       as no finding, and the pinned reading, the build's two differences and row a6's second limit as records only.
   - **Two misses of the plan,** both caught in the run: its build check stopped on "a grammar chunk imports the entry
@@ -2637,3 +2637,51 @@ branch: run 41032359500, green on three OS.
     (each `<svg>` carries the old and the new class); versions newer than the PR's (`lucide-react` 1.71.0, `vite`
     8.3.8, `rolldown` 1.2.19) wait for Dependabot.
   - Plan: `docs/archive/plans/2026-11-12-deps-npm-group-plan.md`. Plan commit: `c923d5b8`.
+
+## AX. Added 2026-11-13 — the output dock's resize bar and the keyboard focus, closed
+
+- **Closing the output dock from its resize bar keeps the keyboard focus** (`aa510c6b`, 2026-11-13). *From
+  `open-items.md` §AW, where the #46 walk had left it.*
+  - **What was wrong:** with the dock open and the focus on *Resize output*, End collapsed the dock, the bar turned
+    disabled, and the focus fell to `<body>`. The collapse is the app's own rule (a gesture on the bar that ends at
+    the header shuts the dock); only the focus was unhandled. Measured on `main` on both VMs: End on the bar, and
+    Enter on *Collapse output*, each end on `<body>`.
+  - **What changed:**
+    - when the dock closes while the bar holds the focus (End, ↓ at the smallest height, Ctrl+` pressed on the
+      bar), the header's toggle takes the focus, once its label reads *Expand output*;
+    - the header is no longer rebuilt on every open and close, so the toggle is one element in both states and
+      keeps the focus across Enter and Space (the plan's D2, ruled by the owner);
+    - every control in the dock's header draws its focus ring inside, a 1 px accent line as rows, tabs and section
+      headers have (decision F, "fix now", ruled by the owner after the first walk measured the default ring cut by
+      1.5 px at the top and 2.5 px at the bottom in the collapsed header, on `main` too).
+  - Checks:
+    - five new unit tests. Shown by running them: the End and Ctrl+` cases fail without the `RepoWindow.tsx` change
+      and against a variant that checks the focus too late; the toggle's case fails without the `OutputDock.tsx`
+      change;
+    - `tsc`, the full suite (84 files, 1296 tests), the build, and the Rust gates (429 tests);
+    - a change review of four passes, the last clean, after a plan review of four;
+    - the walk on the Windows VM and the Linux VM, the fix against a build of `main`: eleven of twelve rows as
+      expected on each, with every box and border of the dock identical on the two builds; then a re-walk on both,
+      eight rows, all passed: the ring in both themes, and End and Enter once more
+      (`docs/archive/walks/2026-11-13-dock-end-key-focus-walk.md`; smoke group CA).
+  - **Left alone (decision A, ruled by the owner after the walk):** a mouse drag that shuts the dock ends with the
+    focus on `<body>`, as on `main`. The library takes the focus off a bar when a drag that moved it ends
+    (`node_modules/react-resizable-panels/dist/react-resizable-panels.js:440-441`, 4.21.0), whether or not the dock
+    closes: read there for every resize bar, measured on the dock's bar only.
+  - **Two misses of the plan,** both caught before the fix reached `main`: its first two review passes read the library
+    in 4.16.1, because the checkout's `node_modules` were still from before #46 (re-read in 4.21.0 in pass 4); and
+    it expected the drag to hand the focus to the toggle, which the walk disproved on both platforms.
+  - **Left as they are,** taken under the owner's 2026-10-21 rule and listed to the owner:
+    - no `aria-expanded` on the toggle (decision E): its label already says the state;
+    - Cancel's ring sits just inside the button's own grey border, as a second line;
+    - after a click on the bar and Ctrl+`, Windows draws the toggle's ring (`:focus-visible`) and Linux does not:
+      WebKitGTK does not make a focus set by script `:focus-visible` after a click (`kbdFocus.ts`), and the app's
+      own `data-kbd` mark ignores Ctrl chords, on both;
+    - the bar keeps a stale `data-kbd` after it loses the focus (seen on Windows); the ring's rule also needs
+      `:focus`;
+    - the drag's unit test moves no pointer: it takes the focus off the bar itself, as the library does when a drag
+      ends.
+  - **What it leaves:** one open row in `open-items.md` §AX (a control that goes away under the focus: the dock's
+    prompt, Cancel, the details pane's bars).
+  - Plan: `docs/archive/plans/2026-11-13-dock-end-key-focus-plan.md`. Plan commit: `20dbeef2`. The branch's three
+    commits (`fa39e797`, `6ea40654`, `42359765`; the walk record cites the first and the last) are one on `main`.

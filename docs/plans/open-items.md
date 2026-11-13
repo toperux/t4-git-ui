@@ -1192,9 +1192,9 @@ closed rows are in `open-items-done.md` §AV, and the two closed by #41 and #42 
 From `docs/archive/plans/2026-11-10-deps-41-42-plan.md` and `docs/archive/walks/2026-11-11-deps-41-42-walk.md`; the
 closed rows are in `open-items-done.md` §AW, and the accepted limit (a start in the instant after Quit) is in §Q. The
 row on fake timers is from #43 and #45 (`docs/archive/plans/2026-11-11-deps-43-45-plan.md`), whose accepted limit (a
-focus test under `jsdom` 31) is in §Q too. The row on the dock's End key is from #46
-(`docs/archive/plans/2026-11-12-deps-npm-group-plan.md`), whose accepted limit (the sidebar's resize bar beside a
-scrollbar on Linux) is in §Q as well.
+focus test under `jsdom` 31) is in §Q too. #46 (`docs/archive/plans/2026-11-12-deps-npm-group-plan.md`) left an
+accepted limit in §Q (the sidebar's resize bar beside a scrollbar on Linux) and a row on the dock's End key, since
+fixed (`open-items-done.md` §AX).
 
 - **#42's exit and update changes ship untested until an update walk.** The installed copy is the one that runs an
   update, so three things first run on the update from v0.10.26 to the release after: the fix inside a real AppImage
@@ -1208,15 +1208,6 @@ scrollbar on Linux) is in §Q as well.
   (D3 of `docs/archive/plans/2026-11-12-deps-npm-group-plan.md`), when the frame recorder and the `cdp.mjs` options
   that were deferred with it came into `docs/smoke/` (`open-items-done.md` §AW). **Reopen:** the next walk that needs
   a Windows picker: bring it into `docs/smoke/` then.
-- **End on the dock's resize bar collapses the dock and drops the keyboard focus.** With the output dock open and the
-  focus on *Resize output*, End takes the dock to its collapsed height (28 px); the bar then turns disabled
-  (`aria-disabled`, no `tabindex`), `document.activeElement` is `<body>`, and Home does nothing more. Measured on the
-  Windows VM on #46's build and on a build of `main` at `387291d3`: identical at every step, so it is older than #46;
-  no earlier walk record shows that key pressed (`docs/archive/walks/2026-11-13-deps-npm-walk.md`). The collapse is
-  the app's own rule, read in the code: a key on the bar counts as a gesture, and a gesture that ends at the header
-  shuts the dock (`RepoWindow.tsx:177-185`, `:315-328`). Only the focus loss is unhandled. Ruled 2026-11-13 by the
-  owner: fix it, in its own plan after #46, by moving the focus to the header's *Expand output* button
-  (`docs/plans/2026-11-13-dock-end-key-focus-plan.md`). **Close:** that plan's merge.
 - **A timer left behind under fake timers stops `jsdom`'s focus check and `requestAnimationFrame` for the rest of a test
   file.** Since 31.0.0 both run from one interval that `jsdom` starts with the global `setInterval`. If it is created
   while `vitest`'s fake timers are on and never advanced, `jsdom` still counts it as running after `vi.useRealTimers()`,
@@ -1227,6 +1218,25 @@ scrollbar on Linux) is in §Q as well.
   same file, and hangs or fails.
 - **Dependabot #44, the npm group:** replaced by #46 at Dependabot's run of 2026-11-12; #46 merged 2026-11-13
   (`a9416b22`); moved to `open-items-done.md` §AW.
+- **End on the dock's resize bar collapsing the dock and dropping the keyboard focus:** fixed 2026-11-13
+  (`aa510c6b`), moved to `open-items-done.md` §AX.
+
+## AX. Added 2026-11-13 — the output dock's resize bar and the keyboard focus
+
+From `docs/archive/plans/2026-11-13-dock-end-key-focus-plan.md` and
+`docs/archive/walks/2026-11-13-dock-end-key-focus-walk.md`; the closed rows are in `open-items-done.md` §AX.
+
+- **A control that goes away under the focus leaves the keyboard on `<body>`.** Three places, seen or read while the
+  dock bar's loss was fixed, each older than that fix:
+  - **Ctrl+` with the focus in the dock's prompt:** the prompt unmounts with the open dock. Measured on both VMs, on
+    the fix and on `main`.
+  - **Enter on Cancel in the dock's header:** the operation ends and the button, which exists only while one runs,
+    unmounts. Measured on both VMs on the fix; the same on `main` by the code, not walked there.
+  - **The details pane's resize bars,** which mount by layout tier (`DetailsPane.tsx`) and could unmount under the
+    focus when the window changes tier. Reasoned only.
+
+  Each needs its own answer to where the focus should go. Deferred 2026-11-13 under the owner's 2026-10-21 rule.
+  **Reopen:** the next keyboard-focus work on the dock or the details pane, or a report of a lost focus there.
 
 ## Order
 

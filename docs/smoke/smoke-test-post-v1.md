@@ -3741,6 +3741,61 @@ each tab change). Every reading carries `document.title`.
       dock stayed collapsed. Fetch nowhere: exit 128 at once, the dock opened; listed in `work`'s dock, not in
       `bz-clone`'s.)*
 
+## CA. The output dock's resize bar and the keyboard focus
+
+Plan: `docs/archive/plans/2026-11-13-dock-end-key-focus-plan.md`; walk record
+`docs/archive/walks/2026-11-13-dock-end-key-focus-walk.md`. Closing the dock from its resize bar (*Resize output*)
+used to drop the keyboard focus to `<body>`; the header's toggle now takes it, and keeps it when it opens or closes
+the dock. Windows VM over CDP on a local `tauri build --no-bundle`, and Linux VM over WebDriver on the `.smoke` build
+(`docs/smoke/smoke-cdp.md`, `docs/smoke/smoke-linux.md`). macOS: not walked.
+
+Fixture: `work` alone (`smoke-fixtures.ps1 -Root C:\tmp\t4dk`, or `T4_ROOT=/tmp/t4dk` with `smoke-fixtures.sh`), at
+1280×800; its `slow` remote holds an operation open for row 6. Use real keys and a real pointer, never `.focus()` or
+`.click()` from script. After each step read the dock's height and `document.activeElement`; "the same button" means
+the same element, kept in a page variable (`[data-dock-toggle]`) and compared with `===`.
+
+On Windows the store folder (`%APPDATA%\dev.topher.t4gitui`) is backed up before launch and restored, `cmp`'d, after:
+row 6's theme switch writes `recents.json`.
+
+- [x] 1. **End on the bar:** dock open (Ctrl+`), Tab to *Resize output*, End → the dock collapses to 28 px and the
+      focus is on *Expand output*, with its ring. Enter → the dock opens at the height it had, the focus on the same
+      button, now *Collapse output*. Enter → closed, the same button focused. Space → open, the same.
+
+      *(Walked 2026-11-13 on a Windows release build and a Linux debug build of `fa39e797`: pass on both. End,
+      Enter and Enter again on `42359765`, without the Space step: pass on both.)*
+- [x] 2. **↓ at the smallest height:** the bar focused by key, ↓ until the dock reads 160 px, then one more ↓ → the
+      dock collapses and the focus is on the toggle.
+
+      *(Walked 2026-11-13, Windows and Linux, `fa39e797`: pass. 200 → 163.45 → 160 → 28.)*
+- [x] 3. **Ctrl+` pressed on the bar,** the bar reached by Tab and again by a click on it → the dock closes and the
+      focus is on the toggle both times.
+
+      *(Walked 2026-11-13, Windows and Linux, `fa39e797`: pass. After the click, Windows draws the toggle's ring and
+      Linux does not.)*
+- [x] 4. **A focus elsewhere stays where it is:** the revision grid focused by a click, Ctrl+` → the dock closes and
+      the focus is still on the grid. A mouse click on the toggle opens or closes the dock, leaves the focus on the
+      toggle and draws no ring.
+
+      *(Walked 2026-11-13, Windows and Linux, `fa39e797`: pass. The click that draws no ring again on `42359765`:
+      pass on both.)*
+- [x] 5. **The dock's boxes are unchanged:** collapsed, the header is 28 px high and as wide as the window, with a
+      top border and no bottom border; open at 200 px, the header, the log and the prompt sit as on the build
+      before the fix.
+
+      *(Walked 2026-11-13, Windows and Linux, `fa39e797` against `main` at `20dbeef2`: identical on the two builds.
+      Collapsed: header 0,748,1280,28, toggle 1248,750.5,24,24. Open: header 0,576,1280,28, log 0,604,1280,135.)*
+- [x] 6. **The header's focus ring is whole:** the toggle focused by key, collapsed and open, in both themes → a
+      1 px accent line on all four sides inside the button, none of it cut, nothing outside; it stays under the
+      pointer's hover. With `fetch slow` typed in the prompt, Shift+Tab twice from the prompt to Cancel while it
+      runs → the same line just inside the button's own border.
+
+      *(Walked 2026-11-13, Windows and Linux, `42359765`: pass. The toggle's ring by pixel in both themes on both;
+      Cancel's in one theme on each, dark on Windows and light on Linux; the hover on Linux in the light theme
+      only.)*
+
+Not a row: a mouse drag of the bar down onto the header closes the dock and leaves the focus on `<body>`. The
+library takes the focus off a bar when a drag that moved it ends; it is left so (the plan's decision A).
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the
