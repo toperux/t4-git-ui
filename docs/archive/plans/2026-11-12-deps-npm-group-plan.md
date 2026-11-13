@@ -1,7 +1,8 @@
 # Plan: Dependabot #46, the npm group after #43 and #45
 
 _Drafted 2026-11-12 against `main` `387291d3`, before Dependabot's run of that day; #46 filled in after the run. Status:
-**in progress:** the owner's go was given on 2026-11-13, and steps 1 and 2 are done._
+**done:** #46 merged on 2026-11-13 as `a9416b22`. The walk is `docs/archive/walks/2026-11-13-deps-npm-walk.md`, the
+records are in `docs/plans/open-items-done.md` §AW._
 
 **Goal:** merge #46, with the app walked on both VMs where the update changes code it runs, before the next tag
 (v0.10.26).
@@ -364,4 +365,49 @@ branch delete is asked for at that moment. This plan is committed on local `main
     is gone with the push.
 - **Pass 5 (2026-11-13), on those changes: one finding, taken.** The comparison's two differences outside the
   expected were not listed for triage; the entry above lists them. **Pass 6: no findings.**
+- **Steps 3 and 4, 2026-11-13.** Both VMs fetched `pull/46/head`, checked out `0df2549c` and walked it
+  (`docs/archive/walks/2026-11-13-deps-npm-walk.md`). Every row passed on #46 but for two cases:
+  - **row d's fourth case, after a long scroll:** the cursor row unmounts, the focus falls to `<body>` and ↓ scrolls
+    the pane 40 px. That is what the open row of 2026-10-30 in `open-items.md` §AT describes, measured then on
+    0.10.24; it was not repeated on a build of `main`, so that it is older than #46 is reasoned. **The row's
+    expectation was this plan's miss:** it asked for the cursor back in view after any scroll, and passes 1 to 6
+    did not hold it against that row. The near case passed; that it is the one the update could touch is reasoned;
+  - **a2 on Linux, one press of four with the dock open:** 2 px left of *Resize sidebar* it lands on the sidebar's
+    scrollbar. Repeated on a build of `main`, as row a2 said a failed grab would be: the same miss.
+- **Asked of the VMs beyond the rows,** the same day, each a measurement the triage needed:
+  - a double-click on *Resize details* had read 69.125 % in passing: 60 % in five states on #46 and on `main`, and
+    the 69.125 was the dock's resize after it;
+  - End on *Resize output* collapsed the dock and dropped the focus: the same on `main`;
+  - row d's "else the cursor row's start" branch, which no hunk of `bx` could reach: passed on a fixture with one
+    hunk of 241 rows (20 scrolling presses, 0 mismatches).
+- **Row a6's second limit.** WebView2 reported the root only in whole CSS pixels, so the row's "at least one size
+  gives the root a fractional width or height" could not be read; the sizes were applied in physical pixels, since
+  `cdp.mjs --inner` does not size the native window at 150 %. The VM set the scale by script, without elevation.
+- **Step 5, the triage (the owner, 2026-11-13):**
+  - the Linux press beside the scrollbar: accepted, `open-items.md` §Q;
+  - End on the dock's resize bar: fix it. It is not #46's, so the fix is not a commit on #46's branch, as this step
+    wrote for a finding of the update; it gets its own plan after the merge, as the question to the owner said;
+  - taken under the owner's 2026-10-21 rule and listed to the owner: a dated note on the far case's row; the
+    double-click as no finding; the build comparison's two differences, a pinned separator's reading (50.824 on #46,
+    50.955 on `main`) and row a6's second limit as records only.
+- **Step 6, on the owner's go, 2026-11-13:** merged as `a9416b22` with the head pinned, the subject as planned and an
+  empty body. `origin/main` equalled the walked tree. GitHub removed Dependabot's branch on its own, so there was no
+  branch to ask about; no other PR was open. The local branch `deps-npm` and its worktree were removed. `main`'s CI,
+  run 43385685662: success on three OS on its first attempt.
+- **Step 7, 2026-11-13: the helpers' commit and its change review.** The recorder and the `cdp.mjs` copy arrived as
+  text; their SHA-256 values matched the VM's, and the copy differed from the repository's file by additions and one
+  changed line.
+  - Pass 1: 6 defects and 8 points on the doc. Taken: `--fling` takes an earlier run's listeners off and prints null
+    for what it could not measure; `--edgegrab`'s hover read no longer throws with nothing under the point; the
+    recorder stops an earlier run; the doc block says what the code does.
+  - Pass 2, with the records: one defect the fixes brought (a missing selector left touch emulation on), taken, and
+    wording. Pass 3: clean.
+  - The fixes were checked against fakes with a script, and not run in the app.
+  - **Not taken, listed to the owner:** a `try/finally` around touch emulation (a step that throws later leaves it
+    on until the session detaches; reasoned harmless); renaming `jumps`; the unused `off` values in `--edgegrab`'s
+    press list; the `CDP_TITLE` comment; false lists or false blanks the recorder's selector could give, reasoned
+    only.
+- **Step 8, 2026-11-13: the records, reviewed with the helper fixes.** Pass 1: 3 defects (the Linux VM's last
+  checkout; row d's far case written as a pass and as measured not to be #46's; a comparison with Windows that was
+  not read) and 11 wording points, all taken. Pass 2: 5 wording points, taken. Pass 3: clean.
 

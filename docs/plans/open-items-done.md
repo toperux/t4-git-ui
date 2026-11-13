@@ -2527,6 +2527,8 @@ branch: run 41032359500, green on three OS.
     - each PR's own CI, green on three OS;
     - `main`'s CI after the merges, run 42964505689, success on three OS on its first attempt (run 42964479279 was
       cancelled by the CI concurrency rule);
+    - `main`'s CI on the push of these records and the comment fix (`387291d3`), run 43086689472, success on three
+      OS;
     - no VM walk, by the plan's decision B: nothing the app ships changed.
   - Neither known flaky Rust test (`ignored_dir_and_lock_files_are_silent`, `cancel_ends_an_op_with_a_full_queue`)
     failed on any CI run.
@@ -2565,3 +2567,73 @@ branch: run 41032359500, green on three OS.
     - the dry-run step read the release list and the tag refs although the workflow checks both itself.
   - Plan: `docs/archive/plans/2026-11-11-deps-43-45-plan.md`, which also holds what was read of #44. Plan commit:
     `d1b62300`.
+
+### Added 2026-11-13 — Dependabot #46, closed
+
+- **#46 (the npm group, 7 updates) merged,** 2026-11-13, squash, as `a9416b22`: `react-resizable-panels` 4.16.1 →
+  4.21.0, `@tanstack/react-virtual` 3.14.25 → 3.14.26 (`virtual-core` 3.19.11), `lucide-react` 1.66.0 → 1.70.0,
+  `zustand` 5.0.16 → 5.1.0, `vite` 8.3.5 → 8.3.7 (`rolldown` 1.2.15 → 1.2.18), `@vitejs/plugin-react` 6.2.1 → 6.3.0
+  and `vitest` 5.0.5 → 5.1.0. It replaced #44, which Dependabot closed at its run of 2026-11-12. *From
+  `open-items.md` §AW.*
+  - **What #44's row held:** #44 opened with #43 and #45 on six updates (`react-resizable-panels` 4.19.1 and `vite`
+    8.3.6 among them) and was left for its own plan after that run (the owner, 2026-11-11; D1 of
+    `docs/archive/plans/2026-11-11-deps-43-45-plan.md`). Its sources were read ahead, in that plan's appendix. The
+    newer versions the row expected came, and `@vitejs/plugin-react` with them.
+  - **One walked tree:** #46's own head, `0df2549c`, one commit on `387291d3`. No walk branch was pushed: the local
+    gates ran in a worktree on that commit, and each VM fetched `pull/46/head` and checked out the hash. Merged with
+    `--admin` and `--match-head-commit`; `origin/main` equalled the walked tree; GitHub removed Dependabot's branch on
+    its own.
+  - Checks:
+    - the lock: 30 entries change version, none added or removed; all 30 verified against the registry, 0
+      mismatched;
+    - local gates on Windows: `npm ci` (0 vulnerabilities), Tauri CLI 2.12.4, tsc, the full test suite three times
+      (84 files and 1291 tests each, 0 failures), the build, `cargo fmt`, clippy, `cargo test`, `tauri build
+      --no-bundle`, one launch of the exe, and no `VCRUNTIME140.dll`;
+    - the build compared with `main`'s, file by file (below);
+    - the walks on the Windows VM and the Linux VM, with three comparisons against a build of `main`
+      (`docs/archive/walks/2026-11-13-deps-npm-walk.md`);
+    - the PR's own CI, run 43217795608, green on three OS;
+    - `main`'s CI after the merge, run 43385685662, success on three OS on its first attempt;
+    - no release dry run, by the plan's decision B.
+  - **The build comparison:** the same 13 files in `dist/assets` by name; the CSS and the shared chunk the same size
+    to the byte; the entry chunk 1292 bytes larger; `index.html` identical once the hashes are masked; all six
+    grammars still loaded on demand. Two differences, recorded only: each grammar chunk is 5 to 15 bytes larger, and
+    lists its two imports in the other order. Read in the `json` chunk: only the import statements' order and local
+    names differ. Reasoned: nothing changes at run time. The walks then saw all six grammars colour a diff on both
+    VMs.
+  - **The walks:** every row passed on #46, on both VMs, but for two cases that are not taken as #46's: the diff
+    cursor's far case, which an open row of 2026-10-30 describes (`open-items.md` §AT's sightings; it got a dated
+    note; reasoned from that row's measurement on 0.10.24, not repeated on a build of `main`), and one press beside
+    the sidebar's scrollbar on Linux, which misses the same way on a build of `main` (measured; below).
+    - **BH 10 re-walked** (row a4), as its accepted-limit row asks on a `react-resizable-panels` upgrade: pass.
+    - **150 % display scaling** (row a6; the plan's D1, ruled by the owner): every pixel-held panel stayed within
+      0.011 px of its first reading across five window sizes, against a limit of 0.67 px, and the separators
+      followed the pointer. **Its limits:** a regression check only, with no baseline of `main`; and WebView2
+      reported the root's size only in whole CSS pixels, so the fractional sizes were applied but not read back.
+    - **`rolldown` 1.2.18 taken as the lock has it** (D2, ruled by the owner): its Linux x64 binary crashes with an
+      illegal instruction on CPUs without BMI2. The Linux VM's CPU has it (`grep -c bmi2 /proc/cpuinfo` = 8), and no
+      step died. 1.2.19, which fixes it, is left for a later Dependabot PR (decision E).
+    - **Compared with a build of `main`** (`387291d3`, 4.16.1): the Linux press, the same; a double-click on
+      *Resize details*, 60 % in five states on both (a 69.125 seen in the walk was the dock's later resize); End on
+      *Resize output*, the same. One reading differs: a nested separator pinned at min = max reads 50.824 on #46 and
+      50.955 on `main`, with nothing different on screen (reasoned, not read in the library: 4.21.0 measures a
+      162.4 px panel unrounded).
+  - **Triage (the owner, 2026-11-13):**
+    - the sidebar's resize bar beside a scrollbar on Linux: accepted, `open-items.md` §Q;
+    - End on the dock's resize bar collapsing the dock and dropping the focus: fix it, in its own plan; the open row
+      is in `open-items.md` §AW;
+    - taken under the owner's 2026-10-21 rule and listed to the owner: the far case's dated note, the double-click
+      as no finding, and the pinned reading, the build's two differences and row a6's second limit as records only.
+  - **Two misses of the plan,** both caught in the run: its build check stopped on "a grammar chunk imports the entry
+    chunk", which holds on `main` too (the owner ruled to continue, and the check now reads "imports a chunk it did
+    not before"); and row d expected the cursor back in view after any scroll, which the open row above already
+    said a long scroll does not give.
+  - **The walk helpers came into the repository** (D3, ruled by the owner; `f346a5ca`): the Windows VM's frame
+    recorder as `docs/smoke/recorder.js`, and its `cdp.mjs` options (`--dragtest`, `--edgegrab`, `--wheel`,
+    `--sclick`, `--fling`, `CDP_EXACT`, the Backspace key) in `docs/smoke/cdp.mjs`, both handed over as text and
+    checked by SHA-256, with a section in `docs/smoke/smoke-cdp.md`. The Windows picker driver stays deferred
+    (`open-items.md` §AW). *From `open-items.md` §AW's walk-helpers row.*
+  - **Left as they are,** by the plan's decisions D and E: the two renamed icons stay imported under their old names
+    (each `<svg>` carries the old and the new class); versions newer than the PR's (`lucide-react` 1.71.0, `vite`
+    8.3.8, `rolldown` 1.2.19) wait for Dependabot.
+  - Plan: `docs/archive/plans/2026-11-12-deps-npm-group-plan.md`. Plan commit: `c923d5b8`.

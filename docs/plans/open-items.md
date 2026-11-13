@@ -222,6 +222,8 @@ phases that accepted them; each origin keeps a pointer.
   was found for the library's four earlier moves since the row was accepted: to 4.14.2 (`5204425c`, 2026-10-05),
   4.14.4 (#32, `1fa34308`), 4.14.6 (#34, `267de797`) and 4.15.0 (#37, `4e9bc10a`). The row stands for the next
   upgrade. (The plan writes 4.14.1 for the first move: that is the commit's floor, and the lock took 4.14.2.)
+  **2026-11-13:** the trigger fired again with #46 (4.16.1 → 4.21.0), and BH 10 was re-walked on the Windows VM: pass
+  (row a4 of `docs/archive/walks/2026-11-13-deps-npm-walk.md`). The row stands for the next upgrade.
 - **A Flatpak or snap build would need its own way to start host programs.** The 0.10.14 scrub (`host_command`)
   handles an AppImage's environment only; inside a Flatpak or snap sandbox a host program is reached through
   `flatpak-spawn --host` or not at all. None is planned. Accepted 2026-09-29. **Reopen:** a Flatpak or snap build is
@@ -772,6 +774,16 @@ phases that accepted them; each origin keeps a pointer.
   test that fails often, not one that fails once in fifty runs or more rarely, or only on a slower runner: a test that
   fails 1 time in 50 passes the 60 local runs about 3 times in 10. Not taken: rewriting the tests so that no real blur
   can land in a wait. **Reopen:** one of the 13 fails in CI.
+- **On Linux, the sidebar's resize bar cannot be grabbed from just left of it while the sidebar shows a scrollbar.**
+  With the sidebar's list long enough to overflow, WebKitGTK draws an 11 px scrollbar whose right edge meets the
+  bar's left edge, and a mouse press 2 px left of the bar lands on the scrollbar and starts no drag. Presses 1 px
+  inside each edge of the bar and 2 px right of it grab, and with no scrollbar all four grab. Measured on the Linux
+  VM on #46's build (`react-resizable-panels` 4.21.0) and on a build of `main` at `387291d3` (4.16.1): the same miss,
+  2 of 2, on both, so the library's move did not bring it. On Windows the same press grabbed; whether the sidebar
+  showed a scrollbar there was not read. Reasoned, not checked: WebKitGTK keeps a press on a native scrollbar from
+  reaching the page. Accepted 2026-11-13 by the owner. Not taken: space between the scrollbar and the bar.
+  **Reopen:** a report that the bar is hard to grab on Linux, or the next sidebar layout work. *From
+  `docs/archive/walks/2026-11-13-deps-npm-walk.md`.*
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review, deferred
 
@@ -1103,7 +1115,9 @@ From `docs/archive/plans/2026-10-23-deps-35-34-plan.md`; the closed rows are in 
   fire (D7 of `docs/archive/plans/2026-10-30-deps-36-37-38-plan.md`; the walk's rows b and c saw 0 blank rows).
   No change to the row. **2026-11-11:** the same for #41's move to 3.19.10: 3.19.8–3.19.10 do not touch the rect code
   (decision I of `docs/archive/plans/2026-11-10-deps-41-42-plan.md`; the walk's rows b and c saw 0 blank frames). No
-  change to the row.
+  change to the row. **2026-11-13:** the same for #46's move to 3.19.11, which changes no rect or observer code
+  (decision F of `docs/archive/plans/2026-11-12-deps-npm-group-plan.md`; rows c and d of
+  `docs/archive/walks/2026-11-13-deps-npm-walk.md` saw 0 blank frames). No change to the row.
 
 Seen on the way in `docs/archive/walks/2026-10-30-deps-35-34-walk.md` and deferred in the triage (2026-10-30):
 
@@ -1111,7 +1125,9 @@ Seen on the way in `docs/archive/walks/2026-10-30-deps-35-34-walk.md` and deferr
   enough that its row unmounts (past the overscan): the focus falls to `body`, and ↓ then scrolls the pane 40 px
   instead of bringing the cursor back into view. Measured on the installed 0.10.24 and on the #34 build alike (row j's
   far case), so it predates virtual-core 3.19.6. The near case, the cursor a few rows outside the view and still
-  mounted, works. **Reopen:** the next diff-viewer cursor or focus work.
+  mounted, works. **Reopen:** the next diff-viewer cursor or focus work. **2026-11-13:** seen again on the Windows VM
+  on #46's build: after a wheel scroll of 6000 px the focus was on `body` and ↓ scrolled the pane 40 px; the near case
+  passed (row d of `docs/archive/walks/2026-11-13-deps-npm-walk.md`). No change to the row.
 - **The start screen's cards wrap at 800×600.** The window a second launch opens (Linux, the single-instance hand-off)
   is 800×600, and there the START cards' text wraps over 2–3 lines ("Open repository…") and the Clone card's
   Ctrl+Shift+O chip pokes out on the right. Cosmetic; seen once, on Linux. **Reopen:** the next start-screen or window
@@ -1175,8 +1191,10 @@ closed rows are in `open-items-done.md` §AV, and the two closed by #41 and #42 
 
 From `docs/archive/plans/2026-11-10-deps-41-42-plan.md` and `docs/archive/walks/2026-11-11-deps-41-42-walk.md`; the
 closed rows are in `open-items-done.md` §AW, and the accepted limit (a start in the instant after Quit) is in §Q. The
-rows on #44 and on fake timers are from #43 and #45 (`docs/archive/plans/2026-11-11-deps-43-45-plan.md`), whose
-accepted limit (a focus test under `jsdom` 31) is in §Q too.
+row on fake timers is from #43 and #45 (`docs/archive/plans/2026-11-11-deps-43-45-plan.md`), whose accepted limit (a
+focus test under `jsdom` 31) is in §Q too. The row on the dock's End key is from #46
+(`docs/archive/plans/2026-11-12-deps-npm-group-plan.md`), whose accepted limit (the sidebar's resize bar beside a
+scrollbar on Linux) is in §Q as well.
 
 - **#42's exit and update changes ship untested until an update walk.** The installed copy is the one that runs an
   update, so three things first run on the update from v0.10.26 to the release after: the fix inside a real AppImage
@@ -1185,31 +1203,20 @@ accepted limit (a focus test under `jsdom` 31) is in §Q too.
   Linux VM with throwaway builds that force the race (the walk's relaunch row); the other two are read, not run. Walk
   that update on the Windows VM and as a Linux AppImage (D1 of the plan; beside §AM's two update walks). **Close:**
   that walk's record in `docs/archive/walks/`.
-- **The walk helpers live only in the VMs' scratchpads.** A frame recorder for a list's scroller (rewritten once after
-  a scratchpad wipe), the `cdp.mjs` copies with `--sclick`, `--dragtest` and `--fling` (raw `Input.dispatchTouchEvent`,
-  the one of the two ways tried that scrolled the grid), and the Windows picker driver (`WM_SETTEXT` + `BM_CLICK`;
-  `smoke-cdp.md:5-6` still lists pickers as hand-walked). Deferred 2026-11-11 under the owner's 2026-10-21 rule.
-  **Reopen:** the next walk that needs the recorder, a touch fling or a Windows picker: bring them into `docs/smoke/`
-  then.
-- **Dependabot #44, the npm group, is open and not merged** (the owner, 2026-11-11: after Thursday's Dependabot run,
-  D1 of `docs/archive/plans/2026-11-11-deps-43-45-plan.md`). #43 and #45, which opened with it, merged on 2026-11-11
-  (`open-items-done.md` §AW). Six updates: `@tanstack/react-virtual` 3.14.26, `lucide-react` 1.70.0,
-  `react-resizable-panels` 4.19.1, `zustand` 5.1.0, `vite` 8.3.6, `vitest` 5.1.0.
-  - **Already read:** each package's published source, up to the newest versions then out except `vite` (read to
-    8.3.6); the plan's appendix has it, with the walk rows each change asks for. In short: only
-    `react-resizable-panels` 4.19.1 and 4.21.0 and `virtual-core` 3.19.11 change code on the app's path, all expected
-    to be invisible; the icons draw the same; `zustand`'s core is untouched; `vite` 8.3.6 rewrites the bundle's
-    preload helper (read), on a branch the app does not take (reasoned), and `rolldown` 1.2.16 can change how the
-    chunks are laid out (reasoned). Nothing was run.
-  - **Its state on 2026-11-12:** Dependabot rebased it after #45's merge, head `7ad1743b`, the same six versions; its
-    CI is green on three OS, the first run of `vitest` 5.1.0, `vite` 8.3.6 and `jsdom` 31 together.
-  - **Expected, not known:** Dependabot's run on Thursday 2026-11-12 replaces it with newer versions
-    (`react-resizable-panels` 4.21.0, `vite` 8.3.7 or later).
-  - It needs VM walks: `react-resizable-panels` moves, so §Q's BH 10 row asks for its re-walk; a virtualizer bump
-    re-runs row c of `docs/archive/walks/2026-11-11-deps-41-42-walk.md`; a `vite` or `rolldown` bump asks for a look
-    at a highlighted diff in the built app.
-
-  **Reopen:** after Thursday's run, on the owner's word: its own plan, on whatever PR is open then.
+- **The Windows picker driver lives only in the VM's scratchpad** (`WM_SETTEXT` + `BM_CLICK`; `smoke-cdp.md:5-6`
+  still lists pickers as hand-walked). Deferred 2026-11-11 under the owner's 2026-10-21 rule, and again on 2026-11-13
+  (D3 of `docs/archive/plans/2026-11-12-deps-npm-group-plan.md`), when the frame recorder and the `cdp.mjs` options
+  that were deferred with it came into `docs/smoke/` (`open-items-done.md` §AW). **Reopen:** the next walk that needs
+  a Windows picker: bring it into `docs/smoke/` then.
+- **End on the dock's resize bar collapses the dock and drops the keyboard focus.** With the output dock open and the
+  focus on *Resize output*, End takes the dock to its collapsed height (28 px); the bar then turns disabled
+  (`aria-disabled`, no `tabindex`), `document.activeElement` is `<body>`, and Home does nothing more. Measured on the
+  Windows VM on #46's build and on a build of `main` at `387291d3`: identical at every step, so it is older than #46;
+  no earlier walk record shows that key pressed (`docs/archive/walks/2026-11-13-deps-npm-walk.md`). The collapse is
+  the app's own rule, read in the code: a key on the bar counts as a gesture, and a gesture that ends at the header
+  shuts the dock (`RepoWindow.tsx:177-185`, `:315-328`). Only the focus loss is unhandled. Ruled 2026-11-13 by the
+  owner: fix it, in its own plan after #46, by moving the focus to the header's *Expand output* button
+  (`docs/plans/2026-11-13-dock-end-key-focus-plan.md`). **Close:** that plan's merge.
 - **A timer left behind under fake timers stops `jsdom`'s focus check and `requestAnimationFrame` for the rest of a test
   file.** Since 31.0.0 both run from one interval that `jsdom` starts with the global `setInterval`. If it is created
   while `vitest`'s fake timers are on and never advanced, `jsdom` still counts it as running after `vi.useRealTimers()`,
@@ -1218,6 +1225,8 @@ accepted limit (a focus test under `jsdom` 31) is in §Q too.
   test file today has later tests that need either (read). Deferred 2026-11-12 under the owner's 2026-10-21 rule.
   **Reopen:** a test that waits for `requestAnimationFrame`, or for `jsdom` to move the focus, after fake timers in the
   same file, and hangs or fails.
+- **Dependabot #44, the npm group:** replaced by #46 at Dependabot's run of 2026-11-12; #46 merged 2026-11-13
+  (`a9416b22`); moved to `open-items-done.md` §AW.
 
 ## Order
 

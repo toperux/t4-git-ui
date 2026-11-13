@@ -2148,7 +2148,10 @@ trip the installed app's next launch.
       back to History (still toggled); a new window follows the width. A sidebar width dragged in one view comes
       back at that width after a switch that hid it. *(Walked again 2026-11-11 on the Windows VM, a release build of
       `cb9d989e` with `react-resizable-panels` 4.16.1: pass; the new window opened at the default 260, as on
-      2026-09-29. `docs/archive/walks/2026-11-11-deps-41-42-walk.md`, row a.)*
+      2026-09-29. `docs/archive/walks/2026-11-11-deps-41-42-walk.md`, row a.)* *(Walked again 2026-11-13 on the
+      Windows VM, a release build of `0df2549c` with `react-resizable-panels` 4.21.0: pass; a width dragged to 320
+      in Changes came back after Alt+1 and Alt+2, and the new window opened at the default 260.
+      `docs/archive/walks/2026-11-13-deps-npm-walk.md`, row a4.)*
 - [x] 11. **T8 proxy check** (triage T8): launch with `smoke-launch.ps1 -Proxy http://127.0.0.1:8888` and
       `throttle-proxy.mjs` running; `CONNECT github.com` in the proxy's log.
 - [x] 12. **Update badge in a new window** (optional regression): with an update available, Ctrl+Shift+N shows the
