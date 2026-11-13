@@ -66,6 +66,67 @@ Two more steps, added for the 2026-10-01 BK re-walk (`docs/archive/walks/2026-10
   native `ask()` box, nothing outside the webview (as with `wd.mjs shot`, `smoke-linux.md`). A relative path lands
   in the working directory and `.gitignore` doesn't cover `*.png`, so write shots to the session's scratch folder.
 
+Five more steps and one more way to pick a window, added for the 2026-11-11 and 2026-11-13 dependency walks
+(`docs/archive/walks/2026-11-11-deps-41-42-walk.md`, `docs/archive/walks/2026-11-13-deps-npm-walk.md`):
+- `--dragtest "Separator label" "d1,d2,d3"` drags a separator along its own axis by each distance in turn and
+  prints, per drag, how far its centre moved, the error against the pointer's distance, and `aria-valuenow` before
+  and after. It leaves the separator where the last drag put it.
+- `--edgegrab "Separator label" d` presses 1 px inside and 2 px outside each of the two edges across the separator's
+  axis (left and right of a vertical bar, top and bottom of a horizontal one), halfway along the bar, and drags by
+  `d` each time. After a press that moved the bar it drags it back from its centre, unchecked. It prints the bar's
+  size and orientation; per press, what `elementFromPoint` gave there, the centre's move and `aria-valuenow` before
+  and after; then, with the pointer resting on the bar and again 120 px away from it, the element under the pointer
+  and its computed `cursor` (both null where that point is outside the page), and `body`'s `cursor`. A press outside
+  the bar lands on whatever is there, and can select a row.
+- `--wheel "sel" dy times` sends real wheel events over an element's centre and prints what holds the focus after.
+- `--sclick "sel"` is a Shift+click with real input, for range selections.
+- `--fling "sel" yDistance speed key|- clickSel|- delayMs` makes a touch scroll with the fling allowed. A positive
+  `yDistance` moves the finger down, which scrolls a list up; scrolling it down takes a negative one. `delayMs` after
+  the gesture resolves it presses the key, if one is given (real input, with the key step's own 400 ms wait after
+  it), and then calls the DOM's `.click()` on the selector, if one is given: that click sends no pointer events and
+  moves no focus. It prints two lines: the answer to switching touch emulation on, then a summary with the times of
+  `touchstart` and `touchend`, the count of scroll events with the first, the last and the largest `scrollTop`, and
+  `afterEnd` and `msAfterEnd`: how many scroll events came after the `touchend`, and how long after it the last one
+  came. Both are null when no `touchend` was seen, as with a gesture source that sends no touch events. `FLING_RAW`
+  set to any non-empty value sends raw touch events instead of `Input.synthesizeScrollGesture`; `FLING_SRC` sets the
+  synthesized gesture's source type.
+- `CDP_EXACT="T4 Git UI - work"` picks the window whose title is exactly that, where `CDP_TITLE` would also match
+  `work-2`. With both set, both must match. When no window matches, the script stops on reading `id` of
+  `undefined`.
+- `--key` knows `Backspace` too.
+
+`--inner` does not size the native window at a display scale other than 100 %: at 150 % it resized only the
+WebView, which then overflowed the window (2026-11-13). Size the window by other means there (that walk used
+`SetWindowPos`), and read `innerWidth` and `innerHeight` back instead of trusting the request: WebView2 reports them
+as whole CSS pixels. `--inner` prints the size it reached and does not fail when that is not the size asked for.
+
+### The frame recorder
+
+`docs/smoke/recorder.js` watches virtualized lists frame by frame. Install it with `--eval @docs/smoke/recorder.js`,
+call `window.__rec.start()` before the gesture and `window.__rec.stop()` after. `stop()` returns a JSON string (so
+`--eval` prints it quoted), or `not started`. Per list it holds the frames seen and the counts of three faults:
+- **blank:** no row intersects the view although the list has rows;
+- **gap:** more than 1 px uncovered between rows in the view, or above the first row or below the last while more
+  content lies that way;
+- **overlap:** two rows overlapping by more than 1 px.
+
+What else it holds, and how to read it:
+- `err` must be absent. The probe swallows its own exceptions, so a recorder that threw on every frame returns zero
+  faults and only `err` says so.
+- `jumps` counts the frames in which `scrollTop` changed. That is ordinary scrolling, not a fault. `minRows` is the
+  fewest rows in view in any frame.
+- `ex` has up to eight examples per list, over the three kinds together, each with its time, `scrollTop` and
+  `scrollHeight`.
+- `frames` and `ms` for the whole run, the title, and `window.__ch` if a console hook of that name is installed.
+
+A row is any element with an inline `translateY`, or with an inline style that starts with `top:`; its list is the
+nearest ancestor with `overflow-y` `auto` or `scroll` and a height, `body` excepted. A row inside a dialog whose
+scroller lies outside it is left out. A list is named by its scroller's `aria-label`, else its first class, else its
+tag; the class is a hashed one, so take the name from a first `stop()`. Two scrollers with the same name are counted
+as one. `start({ "<list name>": px })` tolerates a band of that height above the first row, for a sticky header.
+Calling `start()` again, or evaluating the file again, stops the run in progress and drops its counts; after the
+file is evaluated again, `stop()` answers `not started` until the next `start()`.
+
 ### A local build, isolated from the installed app
 
 `docs/smoke/fixtures/smoke-launch.ps1` starts a build on the debugging port with its own `WEBVIEW2_USER_DATA_FOLDER`, so

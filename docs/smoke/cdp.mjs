@@ -70,6 +70,7 @@ const KEYS = {
   Escape: { code: "Escape", key: "Escape", keyCode: 27 },
   Tab: { code: "Tab", key: "Tab", keyCode: 9 },
   Space: { code: "Space", key: " ", keyCode: 32, text: " " },
+  Backspace: { code: "Backspace", key: "Backspace", keyCode: 8 },
   1: { code: "Digit1", key: "1", keyCode: 49 },
   2: { code: "Digit2", key: "2", keyCode: 50 },
   R: { code: "KeyR", key: "R", keyCode: 82 },
@@ -196,7 +197,7 @@ async function dblclick(sel) {
 const version = await (await fetch(`http://${HOST}/json/version`)).json();
 // CDP_TITLE picks one window of several by a piece of its title (`T4 Git UI - <repo>`).
 const [page] = (await (await fetch(`http://${HOST}/json/list`)).json()).filter(
-  (t) => t.type === "page" && (!process.env.CDP_TITLE || t.title.includes(process.env.CDP_TITLE)),
+  (t) => t.type === "page" && (!process.env.CDP_TITLE || t.title.includes(process.env.CDP_TITLE)) && (!process.env.CDP_EXACT || t.title === process.env.CDP_EXACT),
 );
 targetId = page.id;
 
@@ -242,6 +243,117 @@ for (let i = 0; i < args.length; i++) {
     console.log(JSON.stringify(await dragpath(args[++i], args[++i].split(",").map(Number))));
   } else if (a === "--dblclick") {
     console.log(JSON.stringify(await dblclick(args[++i])));
+  } else if (a === "--dragtest") {
+    // --dragtest "label" "d1,d2,d3": drag along the separator's axis, report centre moves and aria-valuenow.
+    const label = args[++i], ds = args[++i].split(",").map(Number);
+    const rd = () => evaluate(`(()=>{const e=document.querySelector('[role=separator][aria-label="${label}"]');const r=e.getBoundingClientRect();return [e.getAttribute('aria-orientation'),r.x+r.width/2,r.y+r.height/2,e.getAttribute('aria-valuenow')];})()`);
+    const out = [];
+    for (const d of ds) {
+      const [o, x0, y0, v0] = await rd();
+      const vert = o === "vertical";
+      await drag(label, vert ? d : 0, vert ? 0 : d);
+      const [, x1, y1, v1] = await rd();
+      const moved = vert ? x1 - x0 : y1 - y0;
+      out.push({ d, moved: +moved.toFixed(2), off: +(moved - d).toFixed(2), v: [v0, v1] });
+    }
+    console.log(JSON.stringify({ t: await evaluate("document.title"), label, out }));
+  } else if (a === "--wheel") {
+    // --wheel "sel" dy times: real wheel events over the element's centre.
+    const [x, y] = await boxOf(args[++i]);
+    const dy = Number(args[++i]), times = Number(args[++i]);
+    await send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y, button: "none", buttons: 0 });
+    for (let w = 0; w < times; w++) { await send("Input.dispatchMouseEvent", { type: "mouseWheel", x, y, deltaX: 0, deltaY: dy, button: "none", buttons: 0 }); await sleep(30); }
+    await sleep(400);
+    console.log(JSON.stringify({ wheel: [dy, times], active: await evaluate("(()=>{const e=document.activeElement;return e?(e.getAttribute('aria-label')||e.tagName+'.'+String(e.className).slice(0,20)):null})()") }));
+  } else if (a === "--edgegrab") {
+    // --edgegrab "label" d: presses 1 px inside each edge of the separator's box and 2 px outside each
+    // edge (across its axis), drags by d along it, reports the centre's move; then the hover cursor.
+    const label = args[++i], d = Number(args[++i]);
+    const box = () => evaluate(`(()=>{const e=document.querySelector('[role=separator][aria-label="${label}"]');const r=e.getBoundingClientRect();return [e.getAttribute('aria-orientation'),r.left,r.top,r.right,r.bottom,e.getAttribute('aria-valuenow')];})()`);
+    const mv = (type, x, y, buttons) => send("Input.dispatchMouseEvent", { type, x, y, button: type === "mouseMoved" && !buttons ? "none" : "left", buttons, clickCount: 1 });
+    const out = [];
+    const [o0, l0, t0, r0, b0] = await box();
+    const vert = o0 === "vertical";
+    out.push({ box: [+(r0 - l0).toFixed(2), +(b0 - t0).toFixed(2)], orient: o0 });
+    for (const [name, off] of [["in-near", 1], ["in-far", -1], ["out-near", -2], ["out-far", 2]]) {
+      const [, l, t, r, b, v0] = await box();
+      // near edge = left/top, far edge = right/bottom; off >0 inside from near, <0 inside from far (in), out: -2 before near, +2 after far
+      let p;
+      if (name === "in-near") p = (vert ? l : t) + 1;
+      else if (name === "in-far") p = (vert ? r : b) - 1;
+      else if (name === "out-near") p = (vert ? l : t) - 2;
+      else p = (vert ? r : b) + 2;
+      const c = vert ? (t + b) / 2 : (l + r) / 2;
+      const x = vert ? p : c, y = vert ? c : p;
+      const hit = await evaluate(`(()=>{const e=document.elementFromPoint(${x},${y});return e?(e.getAttribute('aria-label')||e.tagName+'.'+String(e.className).slice(0,30)):null})()`);
+      const before = vert ? (l + r) / 2 : (t + b) / 2;
+      await mv("mouseMoved", x, y, 0);
+      await mv("mousePressed", x, y, 1);
+      for (let s = 1; s <= 4; s++) { await mv("mouseMoved", vert ? x + (d * s) / 4 : x, vert ? y : y + (d * s) / 4, 1); await sleep(40); }
+      await mv("mouseReleased", vert ? x + d : x, vert ? y : y + d, 0);
+      await sleep(250);
+      const [, l2, t2, r2, b2, v1] = await box();
+      const after = vert ? (l2 + r2) / 2 : (t2 + b2) / 2;
+      out.push({ press: name, at: +p.toFixed(2), hit, moved: +(after - before).toFixed(2), v: [v0, v1] });
+      // put it back
+      if (Math.abs(after - before) > 0.5) await drag(label, vert ? before - after : 0, vert ? 0 : before - after);
+    }
+    const [, l, t, r, b] = await box();
+    const cx = (l + r) / 2, cy = (t + b) / 2;
+    await mv("mouseMoved", cx, cy, 0); await sleep(300);
+    const on = await evaluate(`(()=>{const e=document.elementFromPoint(${cx},${cy});return [e&&(e.getAttribute('aria-label')||e.tagName),e&&getComputedStyle(e).cursor,getComputedStyle(document.body).cursor]})()`);
+    const fx = vert ? cx + 120 : cx, fy = vert ? cy : cy - 120;
+    await mv("mouseMoved", fx, fy, 0); await sleep(300);
+    const off = await evaluate(`(()=>{const e=document.elementFromPoint(${fx},${fy});return [e&&(e.getAttribute('aria-label')||e.tagName),e&&getComputedStyle(e).cursor,getComputedStyle(document.body).cursor]})()`);
+    console.log(JSON.stringify({ t: await evaluate("document.title"), label, d, out, hoverOn: on, hoverOff: off }));
+  } else if (a === "--fling") {
+    // --fling "sel" yDistance speed "key|-" "clickSel|-" delayMs: a touch scroll gesture with the fling
+    // allowed, over one connection; optionally a key or a click `delayMs` after the gesture resolves.
+    const sel = args[++i], yd = Number(args[++i]), speed = Number(args[++i]), k = args[++i], cs = args[++i], dl = Number(args[++i]);
+    // An earlier --fling's listeners come off first: the page outlives this process, and each set left behind
+    // would record every event once more.
+    const installed = await evaluate(`(()=>{window.__fl?.off?.();const s=document.querySelector(${JSON.stringify(sel)});if(!s)return 0;const L=(n)=>(e)=>window.__fl.ev.push([n,Math.round(performance.now()-window.__fl.t0),n==='scroll'?Math.round(e.target.scrollTop):0]);const h=['touchstart','touchend','touchcancel'].map((n)=>[n,L(n)]);const sc=L('scroll');for(const [n,f] of h)addEventListener(n,f,{capture:true,passive:true});s.addEventListener('scroll',sc,{passive:true});window.__fl={t0:performance.now(),ev:[],off(){for(const [n,f] of h)removeEventListener(n,f,{capture:true});s.removeEventListener('scroll',sc);}};return 1})()`);
+    // Before touch emulation goes on: a step that stops here must not leave it on.
+    if (!installed) throw new Error("no element " + sel);
+    console.log(JSON.stringify({ touchEmu: await send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 }) }));
+    const [x, y] = await boxOf(sel);
+    const g = process.env.FLING_RAW
+      ? (async () => {
+          // Raw touch: start, quick moves, end — the browser's own fling decides what follows.
+          const pt = (py) => [{ x, y: py, id: 1, radiusX: 1, radiusY: 1, force: 1 }];
+          await send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pt(y) });
+          const n = 8;
+          // Lift right after the last move: a pause before touchEnd reads as a resting finger, no fling.
+          for (let s = 1; s <= n; s++) { await sleep(Math.round((Math.abs(yd) / speed) * 1000 / n)); await send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: pt(y + (yd * s) / n) }); }
+          await send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+          return { raw: true };
+        })()
+      : send("Input.synthesizeScrollGesture", { x, y, yDistance: yd, speed, preventFling: false, gestureSourceType: process.env.FLING_SRC || "touch" });
+    let gr;
+    try { gr = await g; } catch (e) { gr = { error: e.message }; }
+    const resolvedAt = await evaluate("Math.round(performance.now()-window.__fl.t0)");
+    if (k !== "-" || cs !== "-") {
+      await sleep(dl);
+      if (k !== "-") await key(k);
+      if (cs !== "-") await evaluate(`(()=>{window.__fl.ev.push(['click',Math.round(performance.now()-window.__fl.t0),0]);document.querySelector(${JSON.stringify(cs)}).click();return 1})()`);
+    }
+    await sleep(2500);
+    await send("Emulation.setTouchEmulationEnabled", { enabled: false });
+    const ev = await evaluate("window.__fl.ev");
+    const end = ev.filter((e) => e[0] === "touchend").map((e) => e[1]).pop();
+    const scrolls = ev.filter((e) => e[0] === "scroll");
+    // No touchend seen (a touchcancel, or a gesture source that sends no touch events): nothing was measured
+    // after the lift, and `afterEnd` and `msAfterEnd` say so with null, not with 0.
+    const after = end === undefined ? [] : scrolls.filter((e) => e[1] > end);
+    console.log(JSON.stringify({ t: await evaluate("document.title"), gesture: gr, resolvedAt, touchstart: ev.find((e) => e[0] === "touchstart")?.[1], touchend: end, scrolls: scrolls.length, firstScroll: scrolls[0], lastScroll: scrolls.at(-1), maxScroll: Math.max(0, ...scrolls.map((e) => e[2])), atTouchend: scrolls.filter((e) => e[1] <= end).at(-1), keyOrClickAt: resolvedAt + dl, afterEnd: end === undefined ? null : after.length, lastAfterEnd: after.at(-1), msAfterEnd: end === undefined ? null : after.length ? after.at(-1)[1] - end : 0, other: ev.filter((e) => !["scroll"].includes(e[0])) }));
+  } else if (a === "--sclick") {
+    // Shift+click, real input.
+    const [x, y] = await boxOf(args[++i]);
+    await send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y, button: "none", buttons: 0, modifiers: 8 });
+    await send("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "left", buttons: 1, clickCount: 1, modifiers: 8 });
+    await send("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "left", buttons: 0, clickCount: 1, modifiers: 8 });
+    await sleep(350);
+    console.log(JSON.stringify({ sclick: [x, y] }));
   } else if (a === "--rclick") {
     console.log(JSON.stringify(await click(args[++i], "right")));
   } else if (a === "--seltext") {
