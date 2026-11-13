@@ -24,23 +24,80 @@ vi.mock("../../api/ipc", async (importOriginal) => {
 });
 
 // The window's layout alone: jsdom has no layout for the panels, and the panes under test elsewhere.
-type PanelProps = { children?: React.ReactNode; maxSize?: number; defaultSize?: number; onResize?: (s: { inPixels: number }) => void };
+type PanelProps = {
+  children?: React.ReactNode;
+  maxSize?: number;
+  defaultSize?: number;
+  onResize?: (s: { inPixels: number }) => void;
+  elementRef?: React.Ref<HTMLDivElement>;
+};
+type SeparatorProps = {
+  "aria-label"?: string;
+  disabled?: boolean;
+  elementRef?: React.Ref<HTMLDivElement>;
+  onKeyDown?: React.KeyboardEventHandler;
+  onPointerDown?: React.PointerEventHandler;
+  onDoubleClick?: React.MouseEventHandler;
+};
 const sidebar = vi.hoisted(() => ({ props: null as PanelProps | null }));
-vi.mock("react-resizable-panels", () => ({
-  Group: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  Panel: (p: PanelProps) => {
-    if (p.maxSize === 560) sidebar.props = p;
-    return <div>{p.children}</div>;
-  },
-  Separator: () => <div />,
-  usePanelRef: () => ({ current: null }),
-}));
+const dock = vi.hoisted(() => ({ props: null as PanelProps | null }));
+vi.mock("react-resizable-panels", async () => {
+  const { useLayoutEffect, useRef } = await import("react");
+  return {
+    Group: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+    Panel: (p: PanelProps) => {
+      if (p.maxSize === 560) sidebar.props = p;
+      if (p.maxSize === 320) dock.props = p; // the dock's DOCK_MAX_H
+      return <div ref={p.elementRef}>{p.children}</div>;
+    },
+    // As the library does: `onFocus`, `onBlur` and `ref` are its own (so not taken here), and a
+    // disabled separator has no `tabindex`, so it cannot hold the focus. This one drops the focus in
+    // the very render that disables it, the earliest a webview could: a check for "the bar holds the
+    // focus" made any later than the store's change finds nothing.
+    Separator: ({ "aria-label": label, disabled, elementRef, onKeyDown, onPointerDown, onDoubleClick }: SeparatorProps) => {
+      const el = useRef<HTMLDivElement | null>(null);
+      useLayoutEffect(() => {
+        if (disabled && document.activeElement === el.current) el.current?.blur();
+      }, [disabled]);
+      return (
+        <div
+          ref={(node) => {
+            el.current = node;
+            if (typeof elementRef === "function") elementRef(node);
+            else if (elementRef) elementRef.current = node;
+          }}
+          role="separator"
+          aria-label={label}
+          aria-disabled={disabled || undefined}
+          tabIndex={disabled ? undefined : 0}
+          onKeyDown={onKeyDown}
+          onPointerDown={onPointerDown}
+          onDoubleClick={onDoubleClick}
+        />
+      );
+    },
+    usePanelRef: () => ({ current: null }),
+  };
+});
 vi.mock("./ChangesView", () => ({ ChangesView: () => null }));
 vi.mock("./CommandPalette/CommandPalette", () => ({ CommandPalette: () => null }));
 vi.mock("./CommitPanel/CommitPanel", () => ({ useCommitSync: () => {} }));
 vi.mock("./DetailsPane", () => ({ DetailsPane: () => null }));
 vi.mock("./dialogs/DialogHost", () => ({ DialogHost: () => null }));
-vi.mock("./OutputDock", () => ({ OutputDock: () => null }));
+// The header's toggle alone, mounted in both states as the real one is, with its marker.
+vi.mock("./OutputDock", async () => {
+  const { useOpsStore } = await import("../../store/opsStore");
+  return {
+    OutputDock: () => {
+      const open = useOpsStore((st) => st.open);
+      return (
+        <button type="button" data-dock-toggle>
+          {open ? "Collapse output" : "Expand output"}
+        </button>
+      );
+    },
+  };
+});
 vi.mock("./RevisionGrid/RevisionGrid", () => ({ RevisionGrid: () => null }));
 vi.mock("./Sidebar", () => ({ Sidebar: () => <div data-testid="sidebar" /> }));
 vi.mock("./SidebarRail", () => ({ SidebarRail: () => null }));
@@ -237,5 +294,62 @@ describe("RepoWindow sidebar", () => {
     act(() => useViewStore.getState().setView("history"));
     expect(queryByTestId("sidebar")).not.toBeNull();
     expect(sidebar.props?.defaultSize).toBe(400);
+  });
+});
+
+describe("RepoWindow output bar's focus when the dock closes", () => {
+  beforeEach(() => useOpsStore.setState({ open: true, busy: null }));
+
+  // The gesture's end waits two frames (`releaseDockGesture`); these two land after it.
+  const twoFrames = () => act(() => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
+  const bar = (getByRole: (role: string, o: { name: string }) => HTMLElement) => getByRole("separator", { name: "Resize output" });
+
+  it("End on the bar closes the dock and hands the focus to the header's toggle", async () => {
+    const { getByRole } = render(<RepoWindow />);
+    // What the toggle reads at the moment it takes the focus is what a screen reader announces.
+    const toggle = getByRole("button", { name: "Collapse output" });
+    const heard: (string | null)[] = [];
+    toggle.addEventListener("focus", () => heard.push(toggle.textContent));
+    bar(getByRole).focus();
+    fireEvent.keyDown(bar(getByRole), { key: "End" });
+    act(() => dock.props?.onResize?.({ inPixels: 28 }));
+    await twoFrames();
+    expect(useOpsStore.getState().open).toBe(false);
+    expect(document.activeElement).toBe(toggle);
+    expect(heard).toEqual(["Expand output"]);
+  });
+
+  it("a drag onto the header closes the dock and leaves the focus where the library put it", async () => {
+    const { getByRole } = render(<RepoWindow />);
+    // The library focuses the bar on a press, and takes the focus off it again when a drag that
+    // moved it ends, before the dock closes; the mock does neither.
+    bar(getByRole).focus();
+    fireEvent.pointerDown(bar(getByRole), { pointerType: "mouse", button: 0 });
+    act(() => dock.props?.onResize?.({ inPixels: 28 }));
+    bar(getByRole).blur();
+    fireEvent.pointerUp(window);
+    await twoFrames();
+    expect(useOpsStore.getState().open).toBe(false);
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("a close straight through the store (Ctrl+`) while the bar holds the focus does the same", () => {
+    const { getByRole } = render(<RepoWindow />);
+    bar(getByRole).focus();
+    act(() => useOpsStore.getState().setOpen(false));
+    expect(document.activeElement).toBe(getByRole("button", { name: "Expand output" }));
+  });
+
+  it("leaves a focus elsewhere where it is", () => {
+    const { getByRole } = render(
+      <>
+        <RepoWindow />
+        <button type="button">Elsewhere</button>
+      </>,
+    );
+    const elsewhere = getByRole("button", { name: "Elsewhere" });
+    elsewhere.focus();
+    act(() => useOpsStore.getState().setOpen(false));
+    expect(document.activeElement).toBe(elsewhere);
   });
 });

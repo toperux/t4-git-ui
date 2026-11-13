@@ -1,5 +1,5 @@
 import { CircleCheck, Cloud, GitBranch, TriangleAlert } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { Group, Panel, Separator, usePanelRef } from "react-resizable-panels";
 import type { RepoState } from "../../api/types";
 import { Banner } from "../../components/ui/Banner/Banner";
@@ -95,6 +95,8 @@ export function RepoWindow() {
   // The dock heals against the height this group actually has, not the window's: the tab strip sits
   // outside the group and appears with the second tab, so it gives height back with no window resize.
   const dockGroup = useRef<HTMLDivElement | null>(null);
+  // The output separator's element, which a closing dock checks for the focus (`DockPanel`).
+  const dockBar = useRef<HTMLDivElement | null>(null);
   // Registered once rather than per press. A release can land anywhere — outside the separator,
   // outside the window, or nowhere at all if focus is taken mid-drag — and a per-press listener that
   // never fires is also one that never clears the flag, which hands every later squeeze the
@@ -171,6 +173,7 @@ export function RepoWindow() {
           className={s.splitV}
           aria-label="Resize output"
           disabled={!dockOpen}
+          elementRef={dockBar}
           onPointerDown={(e) => {
             if (armsDockGesture(e, dockOpen)) armDockGesture();
           }}
@@ -191,7 +194,7 @@ export function RepoWindow() {
             releaseDockGesture();
           }}
         />
-        <DockPanel open={dockOpen} gesture={dockGesture} gestureEnd={dockGestureEnd} group={dockGroup} />
+        <DockPanel open={dockOpen} gesture={dockGesture} gestureEnd={dockGestureEnd} group={dockGroup} bar={dockBar} />
       </Group>
       <RepoStatusBar />
       <DialogHost />
@@ -254,14 +257,44 @@ export function DockPanel({
   gesture,
   gestureEnd,
   group,
+  bar,
 }: {
   open: boolean;
   gesture: RefObject<boolean>;
   gestureEnd: RefObject<() => void>;
   group: RefObject<HTMLDivElement | null>;
+  /** The output separator, whose focus passes to the header's toggle when the dock closes under it. */
+  bar?: RefObject<HTMLDivElement | null>;
 }) {
   const panel = usePanelRef();
   const lastOpenH = useRef(DOCK_DEFAULT_H);
+
+  // A closed dock disables its separator, which drops the separator's `tabindex` and so the focus,
+  // to `<body>`: End or ↓ on the bar and Ctrl+` on the bar all left a keyboard user nowhere. (Not a
+  // drag that shuts the dock: the library itself takes the focus off a bar when a drag that moved it
+  // ends, before the dock closes, and that is left as it is.) The toggle takes it instead, in two
+  // halves. The check runs in the store's own change, before the render that takes the `tabindex`
+  // away, so it never depends on when the browser blurs the bar. The move waits for that render,
+  // when the toggle reads "Expand output": focused any earlier, a screen reader would announce
+  // "Collapse output" on a dock already shut.
+  const dock = useRef<HTMLDivElement | null>(null);
+  const barHadFocus = useRef(false);
+  useEffect(
+    () =>
+      useOpsStore.subscribe((st, prev) => {
+        // Every write to the ops store lands here, an op's output lines too: only a change of `open`
+        // may write the note.
+        if (st.open === prev.open) return;
+        const el = bar?.current;
+        barHadFocus.current = prev.open && !!el && document.activeElement === el;
+      }),
+    [bar],
+  );
+  useLayoutEffect(() => {
+    const move = barHadFocus.current;
+    barHadFocus.current = false;
+    if (!open && move) dock.current?.querySelector<HTMLElement>("[data-dock-toggle]")?.focus({ preventScroll: true });
+  }, [open]);
 
   // `defaultSize` already puts the panel in the right state at mount — and the imperative API is not
   // usable yet there (the Group registers itself after its children's effects run). Only react to changes.
@@ -332,6 +365,7 @@ export function DockPanel({
   return (
     <Panel
       panelRef={panel}
+      elementRef={dock}
       collapsible
       groupResizeBehavior="preserve-pixel-size"
       collapsedSize={DOCK_COLLAPSED_H}

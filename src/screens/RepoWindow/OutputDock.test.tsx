@@ -68,6 +68,18 @@ describe("OutputDock", () => {
     expect(useOpsStore.getState().open).toBe(true);
   });
 
+  it("keeps the toggle, and the focus on it, through an open and a close", () => {
+    const { getByRole } = renderDock(false);
+    const toggle = getByRole("button", { name: "Expand output" });
+    toggle.focus();
+    fireEvent.click(toggle);
+    expect(getByRole("button", { name: "Collapse output" })).toBe(toggle);
+    expect(document.activeElement).toBe(toggle);
+    fireEvent.click(toggle);
+    expect(getByRole("button", { name: "Expand output" })).toBe(toggle);
+    expect(document.activeElement).toBe(toggle);
+  });
+
   it("a finished op shows its command and exit line; expanding reveals the log", () => {
     act(() => {
       const st = useOpsStore.getState();

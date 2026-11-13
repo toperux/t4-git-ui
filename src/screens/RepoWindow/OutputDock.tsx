@@ -40,19 +40,25 @@ export function OutputDock() {
         </Button>
       )}
       {/* Open with no output too: the `git` prompt lives in the open dock. */}
-      <IconButton label={open ? "Collapse output" : "Expand output"} onClick={() => setOpen(!open)}>
+      {/* The marker is how `DockPanel` finds it to hand it the resize bar's focus: the label changes. */}
+      <IconButton label={open ? "Collapse output" : "Expand output"} onClick={() => setOpen(!open)} data-dock-toggle>
         {open ? <ChevronDown size={16} aria-hidden /> : <ChevronUp size={16} aria-hidden />}
       </IconButton>
     </PanelHeader>
   );
-  if (!open) return header;
+  // One root in both states, the header first in it: a header that moved between trees was remounted
+  // on every open and close, and took a focused toggle out of the page with it.
   return (
     <div className={s.panel}>
       {header}
-      {/* Keyed by the repository: a tab switch remounts it, so it scrolls to the bottom even when
-          both tabs' lists have the same row count. */}
-      <OutputBody key={repoId ?? ""} ops={shown} />
-      <DockPrompt />
+      {open && (
+        <>
+          {/* Keyed by the repository: a tab switch remounts it, so it scrolls to the bottom even when
+              both tabs' lists have the same row count. */}
+          <OutputBody key={repoId ?? ""} ops={shown} />
+          <DockPrompt />
+        </>
+      )}
     </div>
   );
 }

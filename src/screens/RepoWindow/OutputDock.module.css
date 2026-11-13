@@ -1,15 +1,21 @@
-/* screens.mjs dock(): collapsed = 28px panel header with top border; open = 200px panel */
+/* screens.mjs dock(): collapsed = 28px panel header with top border; open = 200px panel, the header
+   over the log and the prompt */
 .dock {
-  /* Collapsed, the header *is* the panel's only child (a row flex item): without this it shrinks to
-     its text and the top border stops mid-window. */
-  width: 100%;
   border-top: 1px solid var(--border);
   border-bottom: 0;
 }
 .dockOpen {
   border-bottom: 1px solid var(--border);
 }
-/* The dock fills its resizable Panel (160–320px, RepoWindow `DockPanel`). */
+/* The header fills the dock's box edge to edge, and that box clips: the ring `base.css` draws 4px
+   outside a control lost its top here, and its bottom too while collapsed. The header's controls
+   wear it inside, as rows, tabs and section headers do. */
+.dock :focus-visible,
+.dock [data-kbd]:focus {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+/* The dock's root in both states: it fills its resizable Panel (28px collapsed, 160–320px open,
+   RepoWindow `DockPanel`), and the header, a column item, stretches across it. */
 .panel {
   flex: 1;
   min-height: 0;
