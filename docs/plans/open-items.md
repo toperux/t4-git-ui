@@ -963,11 +963,25 @@ record), each with a reopen trigger.
 - **M1: a saved tab didn't come up active on the Mac.** `layout.json` named the `t4-git-ui` tab active, but another
   of the 4 tabs came up active at launch, and stayed so across the update's restart. Seen once; not investigated;
   unknown whether it is new. **Reopen:** seen again, or reproduced.
-- **L1: the Linux AppImage update truncates the file before rewriting it.** The installed AppImage drops to 0 bytes,
-  then is rewritten in place (about 1 s, 20:04:07.565–08.516 at the gate); a crash or power loss inside that window
-  would leave a broken AppImage needing a fresh download. Measured once; that this is `tauri-plugin-updater`'s own
-  install path, not the harness, is inferred. **Reopen:** a broken AppImage reported, or the updater gains an
-  atomic replace.
+- **L1: the Linux AppImage update writes the new image at the installed path, not beside it.** While it is written
+  the path holds a short file: about 1 s at the v0.10.21 gate (20:04:07.565–08.516, the first sample at 0 bytes),
+  about 0.43 s at the v0.10.20 gate, about 0.1 s on 2026-11-14 on the update from 0.10.25
+  (`docs/archive/walks/2026-11-14-v0.10.26-update-walk.md`). A crash or power loss inside that window would leave a
+  broken AppImage (reasoned, not tried).
+  - **The mechanism, read in `tauri-plugin-updater`'s source, not run** (2.13.1, the updater at the gates, and
+    2.14.0, the one in 0.10.25, do the same): the installed image is renamed into a `tauri_current_app` directory on
+    its own device, the new bytes are written to the image's path as a new file, and the directory is removed when
+    the install returns; a failed write renames the old image back. So the row's first wording, "truncates the file
+    before rewriting it", read the gate's 0-byte sample wrongly: the gates' watchers did not read the inode, and the
+    2026-11-14 walk, which did, saw a new one. For a moment between the rename and the new file the path does not
+    exist.
+  - **After such a crash the old image is probably still in that directory** beside the image (or in the temp or
+    cache folder, where one of those is on the image's device), to be put back by hand. Reasoned from the source;
+    only the directory was seen, and no crash was tried.
+  - **Ruled by the owner, 2026-11-14:** stays deferred with both reopen triggers. An earlier ruling the same day had
+    dropped the second, on a reading of the walk that the source then contradicted.
+
+  **Reopen:** a broken AppImage reported, or the updater gains an atomic replace.
 
 ## AH. Added 2026-10-09 — the activity indicator
 
@@ -1049,19 +1063,9 @@ Ruled by the owner after each PR's diff and sources were checked (`.claude/skill
 action pins) and #31 (the Cargo group) merged; #31's macOS job passed on a re-run. #32 (the npm group) merged through
 its own plan on 2026-10-16 (`open-items-done.md` §AM).
 
-- **#31's updater changes ship untested until two update walks.** #31 moves `tauri-plugin-updater` 2.13.1 → 2.13.3 and
-  its signature verifier `minisign-verify` 0.2.5 → 0.3.0. The installed copy verifies the update it downloads, so the
-  new verifier first runs updating *from* the release that carries it. Walk the in-app update on the next release
-  (old verifier, new package) and the one after (new verifier). **Close:** both walk records in `docs/archive/walks/`.
-  - **Pre-check before v0.10.25's tag** (owner, 2026-10-17): verify v0.10.24's three `.sig` files against the pubkey
-    in `tauri.conf.json` with `minisign-verify` 0.3.0, in a throwaway test, not committed. A failure stops the tag.
-  - **2026-10-30 (D8 of `docs/archive/plans/2026-10-23-deps-35-34-plan.md`):** #35 moves `tauri-plugin-updater` to
-    2.14.0. It first runs inside an installed app on the update from v0.10.25 to the release after, i.e. the second of
-    the two walks. That walk gains #35's updater changes: on Windows, and on the Linux AppImage the cross-mount and
-    payload checks.
-  - **2026-11-11:** the first walk is done, v0.10.24 → v0.10.25
-    (`docs/archive/walks/2026-10-31-v0.10.25-update-walk.md`). The second is the update from v0.10.25 to v0.10.26.
-    #42's updater 2.14.1 is not in it: that first runs on the update from v0.10.26, §AW's row.
+- **#31's updater changes and their two update walks:** both walks done, the second on 2026-11-14 (v0.10.25 →
+  v0.10.26, Windows and the Linux AppImage); moved to `open-items-done.md` §AM. #42's updater 2.14.1 first runs on the
+  update from v0.10.26: §AW's row, still open.
 
 ## AN. Added 2026-10-17 — seen in the #32 walk, deferred
 

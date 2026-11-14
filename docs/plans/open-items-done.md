@@ -2048,7 +2048,7 @@ identical to `403a05a`'s; the docs commit adds this map):
 - The walks' builds: BT ran on `b16246d` and the O1 re-check on `c3ac1a8`, both before loop 2. Loop 2's code (R2's
   guard, the dropped flag) is covered by its unit and real-git tests, not by a walk.
 
-## AM. Added 2026-10-16 — Dependabot #32 after v0.10.24, closed
+## AM. Added 2026-10-16 — Dependabot #31 and #32 after v0.10.24, closed
 
 - **#32 (the npm group) merged with the CLI pin moved to match.** It bumped `@tauri-apps/cli` to 2.12.2, which the
   `checks.yml` guard failed while `release.yml` still installed `tauri-cli` 2.12.1. The pin commit (`33e710a`, on #32's
@@ -2072,6 +2072,35 @@ identical to `403a05a`'s; the docs commit adds this map):
     40 000.
   - **Verified** (run 38939939436): 60 runs on three OS, all passing, with the drain ≤ 0.21 s and at most 36 768 lines.
   - Plan: `docs/archive/plans/2026-10-16-flaky-cancel-test-plan.md`.
+- **#31's and #35's updater changes, walked on two updates: closed 2026-11-14.** *From `open-items.md` §AM.* #31 moved
+  `tauri-plugin-updater` 2.13.1 → 2.13.3 and its signature verifier `minisign-verify` 0.2.5 → 0.3.0; #35 moved the
+  updater to 2.14.0 (D8 of `docs/archive/plans/2026-10-23-deps-35-34-plan.md`). The installed copy verifies and
+  installs the update it downloads, so the row waited for two walks: the old verifier on a new package, then the new
+  verifier and updater themselves.
+  - **Before v0.10.25's tag** the owner asked (2026-10-17) for v0.10.24's three `.sig` files to be verified against
+    the pubkey in `tauri.conf.json` with `minisign-verify` 0.3.0, in a throwaway test. No record says whether it ran;
+    in the second walk an install has since gone through under the new verifier on Windows and on Linux.
+  - **The first walk,** v0.10.24 → v0.10.25, Windows VM, 2026-10-31: pass
+    (`docs/archive/walks/2026-10-31-v0.10.25-update-walk.md`).
+  - **The second walk,** v0.10.25 → v0.10.26, 2026-11-14 (`docs/archive/walks/2026-11-14-v0.10.26-update-walk.md`):
+    - Windows VM, the installed 0.10.25: offered, installed and restarted into 0.10.26, `work` back 4.7 s after the
+      click; the exe validly signed with the same certificate; 0 WARN, 0 ERROR.
+    - Linux VM, the published 0.10.25 AppImage: all five rows pass. The image was replaced under a new inode, its
+      content the published 0.10.26 asset by sha256; the app came back by itself with its tab, one mount left, no
+      crash line.
+  - **Not shown by the walks:** the signature check as such (the app log has no updater lines; it is reasoned from
+    the install going through and from the code, where `install` verifies first). And five of 2.14.0's changes that
+    a working update cannot reach: on Linux the refusal of a payload that is not an AppImage, the fallback to the
+    next temp location when a location's directory cannot be created, and the retry after a rename that fails across
+    mounts (it needs one device under two mounts; the walk's ext4 and tmpfs are two devices, which the updater
+    already skipped in 2.13.1); on Windows the message when the installer fails to start; and `check()` answering
+    "no update" for a release with no entry for the platform. All five stay read from the changelog and the source.
+    The row closes on its own condition, both walk records; taken under the owner's 2026-10-21 rule and listed to the
+    owner.
+  - **The AppImage's install path is the same in 2.13.1 and 2.14.0** (read in both sources): `open-items.md` §AF's
+    L1 was reworded from it and stays deferred, on the owner's ruling of 2026-11-14.
+  - **The release it ran on:** v0.10.26, the tag on `64144a25`, published 2026-11-13 on the owner's request; CI run
+    43496619621 and Release run 43498119204 green; 16 assets.
 
 ## AN. Added 2026-10-17 — the #32 walk's diff viewer rows: fixed, closed
 

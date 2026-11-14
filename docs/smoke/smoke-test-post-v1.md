@@ -754,6 +754,11 @@ they stay clear._
       Offered on launch, The install and Up to date re-walked 2026-10-08 on Windows, the installed 0.10.21 updating to
       the published 0.10.22 (rustls 0.23.45): all pass (`docs/archive/walks/2026-10-08-v0.10.22-update-walk.md`).
       Re-walked 2026-10-09, 0.10.22 to 0.10.23: all pass (`docs/archive/walks/2026-10-09-v0.10.23-update-walk.md`).
+      Re-walked 2026-10-15 (0.10.23 to 0.10.24), 2026-10-31 (0.10.24 to 0.10.25) and 2026-11-14 (0.10.25 to 0.10.26):
+      all pass (`docs/archive/walks/2026-10-15-v0.10.24-update-walk.md`,
+      `docs/archive/walks/2026-10-31-v0.10.25-update-walk.md`,
+      `docs/archive/walks/2026-11-14-v0.10.26-update-walk.md`). The last also updated the published 0.10.25 AppImage
+      on Linux.
 - [x] **The toggle governs the launch check only**: switch *Check for updates on launch* off, close
       and reopen the app → no badge, nothing asked → open Settings → **Check now** still answers;
       the setting survives a restart
