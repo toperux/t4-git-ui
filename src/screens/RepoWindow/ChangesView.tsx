@@ -1,4 +1,5 @@
 import { Archive, CircleCheck, GitCommitHorizontal, X } from "lucide-react";
+import { useRef } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import { Button } from "../../components/ui/Button/Button";
 import { EmptyState } from "../../components/ui/EmptyState/EmptyState";
@@ -12,6 +13,7 @@ import s from "./ChangesView.module.css";
 import { CommitPanel } from "./CommitPanel/CommitPanel";
 import { MessageColumn } from "./CommitPanel/MessageColumn";
 import w from "./RepoWindow.module.css";
+import { useKeepFocus } from "./useKeepFocus";
 
 /** `Changes on <branch> · N unstaged · M staged [· K conflicted]`, with `Stash…` beside the counts and a close button at its right. */
 export function ChangesBar() {
@@ -56,8 +58,12 @@ export function ChangesView() {
   const changes = useStatusStore(selectChangeCount);
   const merging = useMerging();
   const clean = changes === 0 && !merging;
+  // A file changing on disk, or a commit that cleans the tree, swaps the two and so rebuilds the
+  // message column under a focus in it, mid-word; the view's root is the same in both.
+  const root = useRef<HTMLDivElement>(null);
+  useKeepFocus(clean ? "clean" : "dirty", root);
   return (
-    <div className={s.view}>
+    <div className={s.view} ref={root}>
       <ChangesBar />
       {clean ? (
         <Group orientation="horizontal" className={s.pane}>
