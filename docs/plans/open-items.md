@@ -42,10 +42,8 @@ the GIO-modules row remain after the 2026-10-06 fix batch._
   only the UI (`AppError`, `commands/update.rs`), and only a failed relaunch is logged (`lib.rs:357`), so an update that
   fails on a user's machine before the relaunch leaves no trace of its stage. Nothing failed. **Reopen:** an update
   failure reported, or met in a walk, whose stage the log can't tell.
-- **GitHub moves `ubuntu-latest` to Ubuntu 26 from 2026-10-19.** `release.yml`'s `version`, `verify` and `publish`
-  jobs run on `ubuntu-latest` (seen as an annotation on the v0.10.20 release run); whether they, or anything else on
-  that label, still pass on 26 is unchecked. Added 2026-10-06 (the owner). **Reopen:** the first release after
-  2026-10-19: run Release from `workflow_dispatch` first (a dry run).
+- **GitHub moves `ubuntu-latest` to Ubuntu 26 from 2026-10-19:** the three jobs on that label ran on `ubuntu-26.04`
+  and passed in a dry run and in v0.10.26's release; closed 2026-11-14, moved to `open-items-done.md` §B.
 
 ## C. Roadmap — v1 out-of-scope, unchanged, unscheduled
 Custom titlebar (revisited in M6, native kept) · i18n · plugins.
@@ -1176,8 +1174,9 @@ closed rows are in `open-items-done.md` §AV, and the two closed by #41 and #42 
     macOS run.
   - **Upstream:** no issue on `notify-rs/notify` covers the pass (searched 2026-11-11), and upstream's main branch
     (2026-11-10, the 9.0 line) still makes it on every queued removal. On 2026-11-11 the newest pre-release was
-    9.0.0-rc.8 (2026-11-09); 9.0 needs `notify-debouncer-full` 0.8, also a release candidate. A report is drafted for
-    the owner; posting it is asked separately (N5).
+    9.0.0-rc.8 (2026-11-09); 9.0 needs `notify-debouncer-full` 0.8, also a release candidate. A report was drafted
+    for the owner (N5). **Parked by the owner, 2026-11-14:** not posted; it waits for the owner's word. The draft is
+    not in the repository; the measurement report holds what it was written from.
   - **Reopen:** a `notify` release whose removal of a watched directory no longer walks every watched path, or `notify`
     9.0 stable, or a Dependabot PR moving `notify` past 8.2.0 (read its `inotify.rs` removal path before merging; if the
     pass is still there, add that version to the ignore entry), or the Windows race seen (a watcher thread that never

@@ -219,6 +219,12 @@ files) and `perf-git` (a git/git clone).
   pass, fix what differs or update the canvas: done as close-out Phase 4. Stage A ran 2026-10-03 (the Results and
   Rulings in `docs/archive/plans/2026-10-03-phase-4-plan.md`); Stage B's app fixes and canvas updates landed 2026-10-04,
   and smoke group BM was walked the same day (`docs/archive/walks/2026-10-04-group-bm-walk.md`). Moved here 2026-10-04.
+- **`ubuntu-latest` on Ubuntu 26: closed 2026-11-14.** The row (added 2026-10-06, the owner) asked whether
+  `release.yml`'s three jobs on that label, `version`, `verify` and `publish`, still pass once GitHub moves it to
+  Ubuntu 26. Read from the job logs on 2026-11-14: all three ran on the image `ubuntu-26.04` and passed, in the dry
+  run 42969587138 (2026-11-11) and in v0.10.26's Release run 43498119204 (2026-11-13). No other job in
+  `.github/workflows` uses the label (`checks.yml` and the Linux build pin `ubuntu-22.04`, `open-items.md` §E). The
+  runs before 2026-11-11 were not read. Closed with the owner's word to check it, 2026-11-14.
 
 ## C. Roadmap
 ~~Submodules · worktrees~~ — shipped 2026-09-13, see the Context bullet.
@@ -2079,7 +2085,9 @@ identical to `403a05a`'s; the docs commit adds this map):
   verifier and updater themselves.
   - **Before v0.10.25's tag** the owner asked (2026-10-17) for v0.10.24's three `.sig` files to be verified against
     the pubkey in `tauri.conf.json` with `minisign-verify` 0.3.0, in a throwaway test. No record says whether it ran;
-    in the second walk an install has since gone through under the new verifier on Windows and on Linux.
+    in the second walk an install has since gone through under the new verifier on Windows and on Linux. The owner
+    ruled on 2026-11-14 to let it go; macOS, where no update from 0.10.25 was walked, stays reasoned (the same key
+    and signature format, and the release's `verify` job passed all three files).
   - **The first walk,** v0.10.24 → v0.10.25, Windows VM, 2026-10-31: pass
     (`docs/archive/walks/2026-10-31-v0.10.25-update-walk.md`).
   - **The second walk,** v0.10.25 → v0.10.26, 2026-11-14 (`docs/archive/walks/2026-11-14-v0.10.26-update-walk.md`):
