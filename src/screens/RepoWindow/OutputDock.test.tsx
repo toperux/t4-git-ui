@@ -273,6 +273,15 @@ describe("OutputDock's Cancel going away under the focus", () => {
     expect(document.activeElement).toBe(getByRole("button", { name: "Expand output" }));
   });
 
+  it("hands it to the toggle when a tab switch shows a repository with no ops at all", () => {
+    act(() => start("r", "1"));
+    const { getByRole, getByText } = renderDock(false);
+    getByRole("button", { name: "Cancel" }).focus();
+    act(() => showRepo("other"));
+    expect(getByText("No output yet")).toBeTruthy();
+    expect(document.activeElement).toBe(getByRole("button", { name: "Expand output" }));
+  });
+
   it("leaves a focus elsewhere where it is when the op ends", () => {
     act(() => {
       start("r", "1");

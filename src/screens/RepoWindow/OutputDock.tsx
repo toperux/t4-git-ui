@@ -32,10 +32,10 @@ export function OutputDock() {
 
   // Cancel goes when the op it cancels ends, or when a tab switch shows another repository's ops,
   // and a focus on it went to `<body>`. The ref's cleanup runs before React takes the button out of
-  // the page, so it still finds the button focused whatever removed it; made once, so an op that
-  // follows a running one, which keeps the button, never runs it. The toggle takes the focus after
-  // the render, as `DockPanel` does for the resize bar. In a ref, not a store: the note dies with
-  // the dock, and one kept longer would move the focus in the next tab.
+  // the page, so it still finds the button focused whatever removed it. Made once, so React never
+  // runs the cleanup while the button stays (an op that follows a running one keeps it). The toggle
+  // takes the focus after the render, as `DockPanel` does for the resize bar. In a ref, not a store:
+  // the note dies with the dock, and one kept longer would move the focus in the next tab.
   const toggle = useRef<HTMLButtonElement>(null);
   const cancelHadFocus = useRef(false);
   const cancelRef = useCallback(

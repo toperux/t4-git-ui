@@ -1,8 +1,7 @@
 import { useLayoutEffect, useRef, type RefObject } from "react";
 
-/** A focusable element as the rebuilt layout can find it again: no node survives the rebuild. */
+/** A focusable element as the rebuilt layout can find it again, by what it is rather than by node. */
 interface Entry {
-  el: Element;
   tag: string;
   role: string | null;
   name: string;
@@ -23,7 +22,7 @@ function nameOf(el: Element): string {
   return el.textContent ?? "";
 }
 
-const entry = (el: Element): Entry => ({ el, tag: el.tagName, role: el.getAttribute("role"), name: nameOf(el) });
+const entry = (el: Element): Entry => ({ tag: el.tagName, role: el.getAttribute("role"), name: nameOf(el) });
 
 function take(root: HTMLElement | null): Note | null {
   const el = document.activeElement;
@@ -39,7 +38,10 @@ function take(root: HTMLElement | null): Note | null {
 }
 
 function give({ entries, selection }: Note, root: HTMLElement) {
-  if (entries[0].el.isConnected) return;
+  // Only while the focus is still lost: an element that survived holds it, and so does a control of
+  // the new layout that focused itself in its own layout effect, which ran before this one.
+  const active = document.activeElement;
+  if (active !== null && active !== document.body) return;
   for (let i = 0; i < entries.length; i++) {
     const { tag, role, name } = entries[i];
     // Tag and role first: the name reads text, and a tag alone can match every row of a list.
@@ -47,9 +49,13 @@ function give({ entries, selection }: Note, root: HTMLElement) {
     // Two that fit are no fit: either could be the wrong one, a same-named button on another row.
     if (fits.length !== 1) continue;
     const [twin] = fits;
-    if (!(twin instanceof HTMLElement) || twin.matches(":disabled")) continue;
+    if (!(twin instanceof HTMLElement)) continue;
     twin.focus({ preventScroll: true });
-    if (i === 0 && selection) (twin as HTMLInputElement).setSelectionRange(selection.start, selection.end, selection.direction);
+    // Nor one that refuses the focus: disabled, hidden, inert, or a separator with no `tabindex`.
+    if (document.activeElement !== twin) continue;
+    // A field's twin by tag, role and name can be a checkbox, where `setSelectionRange` throws.
+    if (i === 0 && selection && (twin instanceof HTMLInputElement || twin instanceof HTMLTextAreaElement) && twin.selectionStart !== null)
+      twin.setSelectionRange(selection.start, selection.end, selection.direction);
     return;
   }
 }

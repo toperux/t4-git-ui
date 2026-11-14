@@ -1,5 +1,5 @@
 import { cleanup, render } from "@testing-library/react";
-import { useRef, type ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useKeepFocus } from "./useKeepFocus";
 
@@ -148,6 +148,56 @@ describe("useKeepFocus", () => {
     toB();
     expect(document.activeElement).not.toBe(oldList);
     expect(document.activeElement).toBe(getByRole("listbox"));
+  });
+
+  it("hands it to the list when the one twin cannot take the focus", () => {
+    const { getByRole, toB } = layouts({
+      a: list(
+        <div role="button" aria-label="Stage" tabIndex={-1}>
+          +
+        </div>,
+      ),
+      // No `tabindex`, as a separator the library has disabled.
+      b: list(
+        <div role="button" aria-label="Stage">
+          +
+        </div>,
+      ),
+    });
+    const oldList = getByRole("listbox");
+    getByRole("button", { name: "Stage" }).focus();
+    toB();
+    expect(document.activeElement).not.toBe(oldList);
+    expect(document.activeElement).toBe(getByRole("listbox"));
+  });
+
+  it("focuses a field's twin of another type without putting a selection on it", () => {
+    const { getByRole, toB } = layouts({ a: <input aria-label="Amend" defaultValue="abc" />, b: <input type="checkbox" aria-label="Amend" /> });
+    const old = getByRole("textbox", { name: "Amend" }) as HTMLInputElement;
+    old.focus();
+    old.setSelectionRange(1, 2);
+    toB();
+    expect(document.activeElement).toBe(getByRole("checkbox", { name: "Amend" }));
+  });
+
+  it("leaves the focus on a control of the new layout that took it in its own layout effect", () => {
+    function TakesFocus() {
+      const el = useRef<HTMLInputElement>(null);
+      useLayoutEffect(() => el.current?.focus(), []);
+      return <input ref={el} aria-label="Filter files" />;
+    }
+    const { getByRole, toB } = layouts({
+      a: <button aria-label="Unified view">U</button>,
+      b: (
+        <>
+          <button aria-label="Unified view">U</button>
+          <TakesFocus />
+        </>
+      ),
+    });
+    getByRole("button", { name: "Unified view" }).focus();
+    toB();
+    expect(document.activeElement).toBe(getByRole("textbox", { name: "Filter files" }));
   });
 
   it("leaves the focus lost when the control has no twin and sits in no list", () => {

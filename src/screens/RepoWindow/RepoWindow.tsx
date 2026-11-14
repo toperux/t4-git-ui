@@ -275,10 +275,11 @@ export function DockPanel({
   // The check runs in the store's own change, before the render that removes anything, so it never
   // depends on when the browser blurs the bar. The move waits for that render, when the toggle reads
   // "Expand output": focused any earlier, a screen reader would announce "Collapse output" on a dock
-  // already shut. A focus still inside the dock after that render is on a control that stayed
-  // (Cancel, while its op runs), and is left there. (Not a drag that shuts the dock: the library
-  // itself takes the focus off a bar when a drag that moved it ends, before the dock closes, and that
-  // is left as it is.)
+  // already shut. A focus still inside the dock after that render is on a control that stayed, and
+  // is left there: the toggle itself (Enter on it, or a click where the webview focuses a clicked
+  // button), or Cancel while its op runs. (Not a drag that shuts the dock: the library itself takes
+  // the focus off a bar when a drag that moved it ends, before the dock closes, and that is left as
+  // it is.)
   const dock = useRef<HTMLDivElement | null>(null);
   const hadFocus = useRef(false);
   useEffect(
