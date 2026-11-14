@@ -46,9 +46,10 @@ vi.mock("../../api/ipc", async (importOriginal) => {
 const ask = vi.hoisted(() => vi.fn((_message: string, _options?: unknown) => Promise.resolve(true)));
 // `open` is the folder picker `actions.ts` imports; the stash buttons pull that module in.
 vi.mock("@tauri-apps/plugin-dialog", () => ({ ask, open: vi.fn() }));
-// jsdom has no ResizeObserver: flatten the resizable layout.
+// jsdom has no ResizeObserver: flatten the resizable layout. The root `Group`'s element is where the
+// pane keeps the focus across a width change: `elementRef` lands on it, as the library's does.
 vi.mock("react-resizable-panels", () => ({
-  Group: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Group: ({ children, elementRef }: { children: React.ReactNode; elementRef?: React.Ref<HTMLDivElement> }) => <div ref={elementRef}>{children}</div>,
   Panel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Separator: ({ "aria-label": label }: { "aria-label"?: string }) => <div role="separator" aria-label={label} />,
 }));
@@ -376,5 +377,29 @@ describe("DetailsPane tiers", () => {
     fireEvent.click(getByRole("button", { name: "Show commit details: Ship it" }));
     await findByText(/Ada <ada@x>/);
     expect(getByRole("button", { name: "Hide commit details: Ship it" })).toBeTruthy();
+  });
+
+  it("keeps the focus on the file list when the width rebuilds it", async () => {
+    const width = window.innerWidth;
+    const resize = (w: number) =>
+      act(() => {
+        window.innerWidth = w;
+        window.dispatchEvent(new Event("resize"));
+      });
+    (ipc.getChangedFiles as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { path: "src/a.ts", oldPath: null, status: "modified", additions: 1, deletions: 0, binary: false },
+    ]);
+    try {
+      resize(1400);
+      const { findByRole, getByRole } = render(<DetailsPane />);
+      const old = await findByRole("listbox", { name: "Changed files" });
+      old.focus();
+      resize(1000);
+      const now = getByRole("listbox", { name: "Changed files" });
+      expect(now).not.toBe(old);
+      expect(document.activeElement).toBe(now);
+    } finally {
+      resize(width);
+    }
   });
 });

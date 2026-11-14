@@ -1,5 +1,5 @@
 import { Ban, Check, ChevronDown, ChevronUp, Terminal, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "../../components/ui/Button/Button";
 import { IconButton } from "../../components/ui/IconButton/IconButton";
 import { PanelHeader } from "../../components/ui/PanelHeader/PanelHeader";
@@ -26,6 +26,29 @@ export function OutputDock() {
   const open = useOpsStore((st) => st.open);
   const setOpen = useOpsStore((st) => st.setOpen);
   const cancel = useOpsStore((st) => st.cancel);
+  // Up here, not in the prompt: the prompt goes with the closed dock, and the line typed in it must
+  // be there when the dock reopens.
+  const [text, setText] = useState("");
+
+  // Cancel goes when the op it cancels ends, or when a tab switch shows another repository's ops,
+  // and a focus on it went to `<body>`. The ref's cleanup runs before React takes the button out of
+  // the page, so it still finds the button focused whatever removed it; made once, so an op that
+  // follows a running one, which keeps the button, never runs it. The toggle takes the focus after
+  // the render, as `DockPanel` does for the resize bar. In a ref, not a store: the note dies with
+  // the dock, and one kept longer would move the focus in the next tab.
+  const toggle = useRef<HTMLButtonElement>(null);
+  const cancelHadFocus = useRef(false);
+  const cancelRef = useCallback(
+    (el: HTMLButtonElement | null) => () => {
+      if (document.activeElement === el) cancelHadFocus.current = true;
+    },
+    [],
+  );
+  useLayoutEffect(() => {
+    if (!cancelHadFocus.current) return;
+    cancelHadFocus.current = false;
+    toggle.current?.focus({ preventScroll: true });
+  });
 
   const header = (
     <PanelHeader
@@ -35,13 +58,13 @@ export function OutputDock() {
     >
       {last && <OpStatus op={last} />}
       {last?.running && (
-        <Button size="sm" onClick={() => void cancel(last.opId)}>
+        <Button size="sm" ref={cancelRef} onClick={() => void cancel(last.opId)}>
           Cancel
         </Button>
       )}
       {/* Open with no output too: the `git` prompt lives in the open dock. */}
       {/* The marker is how `DockPanel` finds it to hand it the resize bar's focus: the label changes. */}
-      <IconButton label={open ? "Collapse output" : "Expand output"} onClick={() => setOpen(!open)} data-dock-toggle>
+      <IconButton ref={toggle} label={open ? "Collapse output" : "Expand output"} onClick={() => setOpen(!open)} data-dock-toggle>
         {open ? <ChevronDown size={16} aria-hidden /> : <ChevronUp size={16} aria-hidden />}
       </IconButton>
     </PanelHeader>
@@ -56,7 +79,7 @@ export function OutputDock() {
           {/* Keyed by the repository: a tab switch remounts it, so it scrolls to the bottom even when
               both tabs' lists have the same row count. */}
           <OutputBody key={repoId ?? ""} ops={shown} />
-          <DockPrompt />
+          <DockPrompt text={text} setText={setText} />
         </>
       )}
     </div>
@@ -68,8 +91,7 @@ export function OutputDock() {
  * op runs the field stays enabled (a disabled input drops focus, and nothing would give it back) and
  * Enter does nothing; the header's spinner + Cancel say why.
  */
-function DockPrompt() {
-  const [text, setText] = useState("");
+function DockPrompt({ text, setText }: { text: string; setText: (text: string) => void }) {
   const [error, setError] = useState<string | null>(null);
   const busy = useOpsStore(selectRunning);
   const history = useCmdHistoryStore((st) => st.history);

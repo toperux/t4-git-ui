@@ -51,9 +51,10 @@ const ask = vi.hoisted(() => vi.fn((_message: string, _options?: unknown) => Pro
 vi.mock("@tauri-apps/plugin-dialog", () => ({ ask, open: vi.fn() }));
 const writeText = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 vi.mock("@tauri-apps/plugin-clipboard-manager", () => ({ writeText }));
-// jsdom has no ResizeObserver: flatten the resizable layout.
+// jsdom has no ResizeObserver: flatten the resizable layout. The root `Group`'s element is where the
+// panel keeps the focus across a width change: `elementRef` lands on it, as the library's does.
 vi.mock("react-resizable-panels", () => ({
-  Group: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Group: ({ children, elementRef }: { children: React.ReactNode; elementRef?: React.Ref<HTMLDivElement> }) => <div ref={elementRef}>{children}</div>,
   Panel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Separator: ({ "aria-label": label }: { "aria-label"?: string }) => <div role="separator" aria-label={label} />,
 }));
@@ -1568,6 +1569,30 @@ describe("CommitPanel columns", () => {
       const wide = render(<CommitPanel />);
       expect(wide.getByRole("checkbox", { name: "Amend last commit" })).toBeTruthy();
       expect(wide.queryByRole("button", { name: "Commit options" })).toBeNull();
+    } finally {
+      resize(width);
+    }
+  });
+
+  it("keeps the focus and the selection in Summary when the width rebuilds the message column", () => {
+    const width = window.innerWidth;
+    const resize = (w: number) =>
+      act(() => {
+        window.innerWidth = w;
+        window.dispatchEvent(new Event("resize"));
+      });
+    try {
+      resize(1280);
+      const { getByRole } = render(<CommitPanel />);
+      const old = getByRole("textbox", { name: "Summary" }) as HTMLInputElement;
+      fireEvent.change(old, { target: { value: "Fix lanes" } });
+      old.focus();
+      old.setSelectionRange(1, 4);
+      resize(720);
+      const now = getByRole("textbox", { name: "Summary" }) as HTMLInputElement;
+      expect(now).not.toBe(old);
+      expect(document.activeElement).toBe(now);
+      expect([now.value, now.selectionStart, now.selectionEnd]).toEqual(["Fix lanes", 1, 4]);
     } finally {
       resize(width);
     }

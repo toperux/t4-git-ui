@@ -269,31 +269,34 @@ export function DockPanel({
   const panel = usePanelRef();
   const lastOpenH = useRef(DOCK_DEFAULT_H);
 
-  // A closed dock disables its separator, which drops the separator's `tabindex` and so the focus,
-  // to `<body>`: End or ↓ on the bar and Ctrl+` on the bar all left a keyboard user nowhere. (Not a
-  // drag that shuts the dock: the library itself takes the focus off a bar when a drag that moved it
-  // ends, before the dock closes, and that is left as it is.) The toggle takes it instead, in two
-  // halves. The check runs in the store's own change, before the render that takes the `tabindex`
-  // away, so it never depends on when the browser blurs the bar. The move waits for that render,
-  // when the toggle reads "Expand output": focused any earlier, a screen reader would announce
-  // "Collapse output" on a dock already shut.
+  // A closing dock takes the focus out of the page from under a keyboard user, to `<body>`: from the
+  // separator, which loses its `tabindex` (End or ↓ on the bar, Ctrl+` on it), and from the open
+  // dock's body, which unmounts (Ctrl+` in the prompt). The toggle takes it instead, in two halves.
+  // The check runs in the store's own change, before the render that removes anything, so it never
+  // depends on when the browser blurs the bar. The move waits for that render, when the toggle reads
+  // "Expand output": focused any earlier, a screen reader would announce "Collapse output" on a dock
+  // already shut. A focus still inside the dock after that render is on a control that stayed
+  // (Cancel, while its op runs), and is left there. (Not a drag that shuts the dock: the library
+  // itself takes the focus off a bar when a drag that moved it ends, before the dock closes, and that
+  // is left as it is.)
   const dock = useRef<HTMLDivElement | null>(null);
-  const barHadFocus = useRef(false);
+  const hadFocus = useRef(false);
   useEffect(
     () =>
       useOpsStore.subscribe((st, prev) => {
         // Every write to the ops store lands here, an op's output lines too: only a change of `open`
         // may write the note.
         if (st.open === prev.open) return;
-        const el = bar?.current;
-        barHadFocus.current = prev.open && !!el && document.activeElement === el;
+        const el = document.activeElement;
+        hadFocus.current = prev.open && !!el && (el === bar?.current || !!dock.current?.contains(el));
       }),
     [bar],
   );
   useLayoutEffect(() => {
-    const move = barHadFocus.current;
-    barHadFocus.current = false;
-    if (!open && move) dock.current?.querySelector<HTMLElement>("[data-dock-toggle]")?.focus({ preventScroll: true });
+    const move = hadFocus.current;
+    hadFocus.current = false;
+    if (!open && move && !dock.current?.contains(document.activeElement))
+      dock.current?.querySelector<HTMLElement>("[data-dock-toggle]")?.focus({ preventScroll: true });
   }, [open]);
 
   // `defaultSize` already puts the panel in the right state at mount — and the imperative API is not

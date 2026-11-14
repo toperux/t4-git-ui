@@ -1,5 +1,5 @@
 import { Archive, ChevronDown, ChevronRight, Copy, GitCommitHorizontal, GitCompare, Tag as TagIcon } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import { getCommit, toAppError } from "../../api/ipc";
 import type { CommitDetail, CommitInfo, Stash } from "../../api/types";
@@ -21,6 +21,7 @@ import { FileContent } from "./DiffViewer/FileContent";
 import { useLayout } from "./layout";
 import w from "./RepoWindow.module.css";
 import { RefChips } from "./RevisionGrid/RefChips";
+import { useKeepFocus } from "./useKeepFocus";
 
 export function DetailsPane() {
   const repoId = useRepoStore((st) => st.repo?.id ?? null);
@@ -53,13 +54,17 @@ export function DetailsPane() {
   }, [repoId, target, rowPath, load]);
 
   const tier = useLayout().details;
+  // Each tier is its own tree, so a width change rebuilds what holds the focus; the root `Group`,
+  // the same in all three, survives it.
+  const root = useRef<HTMLDivElement>(null);
+  useKeepFocus(tier, root);
   const [expanded, setExpanded] = useState(false);
   const details = preview ? <StashDetails stash={preview} /> : compare ? <CompareDetails compare={compare} /> : <CommitDetails />;
   const diff = <CommitDiff remember="history" onExpand={target ? (opener) => open({ kind: "diff" }, { returnFocusTo: opener }) : undefined} />;
 
   if (tier === "3col")
     return (
-      <Group orientation="horizontal" className={s.pane}>
+      <Group orientation="horizontal" className={s.pane} elementRef={root}>
         <Panel defaultSize={340} minSize={240} maxSize={560} groupResizeBehavior="preserve-pixel-size" className={w.panel}>
           {details}
         </Panel>
@@ -76,7 +81,7 @@ export function DetailsPane() {
     );
   if (tier === "2col")
     return (
-      <Group orientation="horizontal" className={s.pane}>
+      <Group orientation="horizontal" className={s.pane} elementRef={root}>
         <Panel defaultSize={300} minSize={240} maxSize={560} groupResizeBehavior="preserve-pixel-size" className={w.panel}>
           <Group orientation="vertical" className={s.pane}>
             <Panel defaultSize="50%" minSize={80} groupResizeBehavior="preserve-pixel-size" className={w.panel}>
@@ -96,7 +101,7 @@ export function DetailsPane() {
     );
   // narrow (spec §5): the file list beside the diff, the details folded to one line above it.
   return (
-    <Group orientation="horizontal" className={s.pane}>
+    <Group orientation="horizontal" className={s.pane} elementRef={root}>
       <Panel defaultSize={220} minSize={200} maxSize={480} groupResizeBehavior="preserve-pixel-size" className={w.panel}>
         <div className={s.narrowCol}>
           <DetailsHeaderCollapsed expanded={expanded} onToggle={() => setExpanded((e) => !e)} />

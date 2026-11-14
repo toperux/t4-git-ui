@@ -1,5 +1,5 @@
 import { ask } from "@tauri-apps/plugin-dialog";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import * as ipc from "../../../api/ipc";
 import { toAppError } from "../../../api/ipc";
@@ -16,6 +16,7 @@ import type { DiffPane } from "../DiffViewer/diffScroll";
 import { DiffViewer, type DiffActions } from "../DiffViewer/DiffViewer";
 import { useLayout } from "../layout";
 import w from "../RepoWindow.module.css";
+import { useKeepFocus } from "../useKeepFocus";
 import s from "./CommitPanel.module.css";
 import { FilesColumn } from "./FilesColumn";
 import { MessageColumn } from "./MessageColumn";
@@ -40,10 +41,14 @@ export function useCommitSync(on: boolean) {
 export function CommitPanel() {
   const open = useDialogStore((st) => st.open);
   const tier = useLayout().commit;
+  // Each tier is its own tree, so a width change rebuilds what holds the focus; the root `Group`,
+  // the same in both, survives it.
+  const root = useRef<HTMLDivElement>(null);
+  useKeepFocus(tier, root);
   const message = <MessageColumn compact={tier === "2col"} onExpand={(opener) => open({ kind: "commit" }, { returnFocusTo: opener })} />;
   if (tier === "2col")
     return (
-      <Group orientation="horizontal" className={s.pane}>
+      <Group orientation="horizontal" className={s.pane} elementRef={root}>
         <Panel defaultSize={280} minSize={220} maxSize={560} groupResizeBehavior="preserve-pixel-size" className={w.panel}>
           <Group orientation="vertical" className={s.pane}>
             <Panel minSize={120} className={w.panel}>
@@ -65,7 +70,7 @@ export function CommitPanel() {
       </Group>
     );
   return (
-    <Group orientation="horizontal" className={s.pane}>
+    <Group orientation="horizontal" className={s.pane} elementRef={root}>
       <Panel defaultSize={320} minSize={220} maxSize={560} groupResizeBehavior="preserve-pixel-size" className={w.panel}>
         <FilesColumn />
       </Panel>

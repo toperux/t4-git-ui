@@ -84,16 +84,21 @@ vi.mock("./CommandPalette/CommandPalette", () => ({ CommandPalette: () => null }
 vi.mock("./CommitPanel/CommitPanel", () => ({ useCommitSync: () => {} }));
 vi.mock("./DetailsPane", () => ({ DetailsPane: () => null }));
 vi.mock("./dialogs/DialogHost", () => ({ DialogHost: () => null }));
-// The header's toggle alone, mounted in both states as the real one is, with its marker.
+// The header's toggle, mounted in both states as the real one is, with its marker; a prompt that
+// exists only in the open dock; and a Cancel that stays through a close, as a running op's does.
 vi.mock("./OutputDock", async () => {
   const { useOpsStore } = await import("../../store/opsStore");
   return {
     OutputDock: () => {
       const open = useOpsStore((st) => st.open);
       return (
-        <button type="button" data-dock-toggle>
-          {open ? "Collapse output" : "Expand output"}
-        </button>
+        <>
+          <button type="button">Cancel</button>
+          <button type="button" data-dock-toggle>
+            {open ? "Collapse output" : "Expand output"}
+          </button>
+          {open && <input aria-label="Run git command" />}
+        </>
       );
     },
   };
@@ -351,5 +356,20 @@ describe("RepoWindow output bar's focus when the dock closes", () => {
     elsewhere.focus();
     act(() => useOpsStore.getState().setOpen(false));
     expect(document.activeElement).toBe(elsewhere);
+  });
+
+  it("a close (Ctrl+`) while the prompt holds the focus hands it to the toggle", () => {
+    const { getByRole } = render(<RepoWindow />);
+    getByRole("textbox", { name: "Run git command" }).focus();
+    act(() => useOpsStore.getState().setOpen(false));
+    expect(document.activeElement).toBe(getByRole("button", { name: "Expand output" }));
+  });
+
+  it("a close while a control that stays holds the focus leaves it there", () => {
+    const { getByRole } = render(<RepoWindow />);
+    const cancel = getByRole("button", { name: "Cancel" });
+    cancel.focus();
+    act(() => useOpsStore.getState().setOpen(false));
+    expect(document.activeElement).toBe(cancel);
   });
 });

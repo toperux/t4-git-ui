@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
 import { cx } from "../../../lib/cx";
 import { DisabledHint } from "../DisabledHint/DisabledHint";
 import s from "./Button.module.css";
@@ -8,6 +8,8 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   size?: "md" | "sm";
   /** 14px icon rendered left of the label. */
   icon?: ReactNode;
+  /** The `<button>` itself — a `DisabledHint` wrapper makes it unfindable from the DOM around it. */
+  ref?: Ref<HTMLButtonElement>;
 }
 
 export function Button({ variant = "secondary", size = "md", icon, className, children, type = "button", ...rest }: ButtonProps) {

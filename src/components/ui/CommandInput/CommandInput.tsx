@@ -58,8 +58,10 @@ function useListPosition(open: boolean, placement: "up" | "down", anchor: RefObj
  * for the word at the caret, like a shell: what follows the caret is kept.
  */
 export function CommandInput({ value, onChange, onSubmit, history, refs, placement, disabled, autoFocus, invalid, placeholder, "aria-label": label }: CommandInputProps) {
-  // Dismissed (Escape / accept / blur) since the last edit: an edit reopens it.
-  const [closed, setClosed] = useState(false);
+  // Dismissed (Escape / accept / blur) since the last edit: an edit reopens it. Closed until the
+  // first edit too, so a field that mounts with text (the dock's prompt, reopened) shows no list
+  // by itself.
+  const [closed, setClosed] = useState(true);
   const [active, setActive] = useState(-1);
   // Walking the history: which entry is shown, and what was typed before ↑ was pressed.
   const [hist, setHist] = useState<{ index: number; draft: string } | null>(null);

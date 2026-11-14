@@ -227,6 +227,18 @@ describe("OutputDock", () => {
     await waitFor(() => expect(ipc.runGit).toHaveBeenCalledWith("r", ["status"]));
   });
 
+  it("keeps the typed line through a close and a reopen, with no completion list open on it", () => {
+    useOpsStore.setState({ open: true });
+    const { getByRole, queryByRole } = renderDock(true);
+    fireEvent.change(getByRole("combobox", { name: "Run git command" }), { target: { value: "sta" } });
+    expect(queryByRole("listbox")).not.toBeNull();
+    act(() => useOpsStore.getState().setOpen(false));
+    expect(queryByRole("combobox", { name: "Run git command" })).toBeNull();
+    act(() => useOpsStore.getState().setOpen(true));
+    expect((getByRole("combobox", { name: "Run git command" }) as HTMLInputElement).value).toBe("sta");
+    expect(queryByRole("listbox")).toBeNull();
+  });
+
   it("refuses a flag that needs a terminal", () => {
     useOpsStore.setState({ open: true });
     const { getByRole, getByText } = renderDock(true);
@@ -235,6 +247,52 @@ describe("OutputDock", () => {
     fireEvent.keyDown(prompt, { key: "Enter" });
     expect(getByText("-p needs a terminal")).toBeTruthy();
     expect(ipc.runGit).not.toHaveBeenCalled();
+  });
+});
+
+describe("OutputDock's Cancel going away under the focus", () => {
+  const start = (repoId: string, opId: string) => useOpsStore.getState().onEvent({ repoId, opId, event: { kind: "started", opId, cmd: "git fetch" } });
+  const end = (repoId: string, opId: string) => useOpsStore.getState().onEvent({ repoId, opId, event: { kind: "exit", code: 0, elapsedMs: 10 } });
+
+  it("hands the focus to the toggle when the op ends", () => {
+    act(() => start("r", "1"));
+    const { getByRole } = renderDock(false);
+    getByRole("button", { name: "Cancel" }).focus();
+    act(() => end("r", "1"));
+    expect(document.activeElement).toBe(getByRole("button", { name: "Expand output" }));
+  });
+
+  it("hands it to the toggle when a tab switch shows a repository whose last op is not running", () => {
+    act(() => {
+      start("r", "1");
+      ran("other", "2", "git status", ["on main"]);
+    });
+    const { getByRole } = renderDock(false);
+    getByRole("button", { name: "Cancel" }).focus();
+    act(() => showRepo("other"));
+    expect(document.activeElement).toBe(getByRole("button", { name: "Expand output" }));
+  });
+
+  it("leaves a focus elsewhere where it is when the op ends", () => {
+    act(() => {
+      start("r", "1");
+      useOpsStore.getState().setOpen(true);
+    });
+    const { getByRole } = renderDock(true);
+    const prompt = getByRole("combobox", { name: "Run git command" });
+    prompt.focus();
+    act(() => end("r", "1"));
+    expect(document.activeElement).toBe(prompt);
+  });
+
+  it("keeps the focus on Cancel, the same node, when another op starts while one runs", () => {
+    act(() => start("r", "1"));
+    const { getByRole } = renderDock(false);
+    const cancel = getByRole("button", { name: "Cancel" });
+    cancel.focus();
+    act(() => start("r", "2"));
+    expect(getByRole("button", { name: "Cancel" })).toBe(cancel);
+    expect(document.activeElement).toBe(cancel);
   });
 });
 
