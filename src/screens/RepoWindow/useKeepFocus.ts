@@ -52,7 +52,8 @@ function give({ entries, selection }: Note, root: HTMLElement) {
     if (!(twin instanceof HTMLElement)) continue;
     twin.focus({ preventScroll: true });
     // Nor one that refuses the focus: disabled, hidden, inert, or a separator with no `tabindex`.
-    if (document.activeElement !== twin) continue;
+    // One that passed it on to a child (a diff region, to its cursor row) took it.
+    if (!twin.contains(document.activeElement)) continue;
     // A field's twin by tag, role and name can be a checkbox, where `setSelectionRange` throws.
     if (i === 0 && selection && (twin instanceof HTMLInputElement || twin instanceof HTMLTextAreaElement) && twin.selectionStart !== null)
       twin.setSelectionRange(selection.start, selection.end, selection.direction);
