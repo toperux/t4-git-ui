@@ -58,8 +58,9 @@ export function ChangesView() {
   const changes = useStatusStore(selectChangeCount);
   const merging = useMerging();
   const clean = changes === 0 && !merging;
-  // A file changing on disk, or a commit that cleans the tree, swaps the two and so rebuilds the
-  // message column under a focus in it, mid-word; the view's root is the same in both.
+  // Any change of `clean` (a file changing on disk, a commit or a discard that cleans the tree, a
+  // merge starting or ending) swaps the two and so rebuilds the message column under a focus in
+  // it, mid-word; the view's root is the same in both.
   const root = useRef<HTMLDivElement>(null);
   useKeepFocus(clean ? "clean" : "dirty", root);
   return (
