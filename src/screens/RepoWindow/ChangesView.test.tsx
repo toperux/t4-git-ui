@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RefsSnapshot, WorkdirStatus } from "../../api/types";
 import { useDialogStore } from "../../store/dialogStore";
@@ -21,8 +21,9 @@ vi.mock("../../api/ipc", async (importOriginal) => {
   };
 });
 vi.mock("@tauri-apps/plugin-dialog", () => ({ ask: vi.fn(), open: vi.fn() }));
+// The commit panel's root `Group` takes an `elementRef` (`useKeepFocus`), as the library's does.
 vi.mock("react-resizable-panels", () => ({
-  Group: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Group: ({ children, elementRef }: { children: React.ReactNode; elementRef?: React.Ref<HTMLDivElement> }) => <div ref={elementRef}>{children}</div>,
   Panel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Separator: ({ "aria-label": label }: { "aria-label"?: string }) => <div role="separator" aria-label={label} />,
 }));
@@ -69,5 +70,24 @@ describe("ChangesView", () => {
     const { getByText, getByLabelText } = render(<ChangesView />);
     expect(getByText("Working tree clean")).toBeTruthy();
     expect(getByLabelText("Summary")).toBeTruthy();
+  });
+
+  it("keeps the focus and the selection in Summary when the tree turns dirty, and clean again", () => {
+    const edited = { path: "a.rs", oldPath: null, index: null, workdir: "modified" as const, conflicted: false, submodule: false, submoduleDirtyOnly: false, workdirStamp: "1:1", indexStamp: null };
+    useStatusStore.setState({ status: status({}) });
+    const { getByRole, queryByText } = render(<ChangesView />);
+    let old = getByRole("textbox", { name: "Summary" }) as HTMLInputElement;
+    fireEvent.change(old, { target: { value: "Fix lanes" } });
+    for (const next of [status({ entries: [edited], unstaged: 1 }), status({})]) {
+      old.focus();
+      old.setSelectionRange(1, 4);
+      act(() => useStatusStore.setState({ status: next }));
+      expect(queryByText("Working tree clean") === null).toBe(next.unstaged === 1);
+      const now = getByRole("textbox", { name: "Summary" }) as HTMLInputElement;
+      expect(now).not.toBe(old);
+      expect(document.activeElement).toBe(now);
+      expect([now.value, now.selectionStart, now.selectionEnd]).toEqual(["Fix lanes", 1, 4]);
+      old = now;
+    }
   });
 });

@@ -111,16 +111,29 @@ describe("CommandInput", () => {
   });
 
   it("completes the word at the caret and keeps what follows it, caret after the inserted word", () => {
-    const { getByRole, getByTestId, getAllByRole } = render(<Harness initial="checkout main" />);
+    const { getByRole, getByTestId, getAllByRole } = render(<Harness />);
     const input = getByRole("combobox") as HTMLInputElement;
-    // A click after `che`: the caret lands, the mouse comes up, React reports the selection.
     input.focus();
+    fireEvent.change(input, { target: { value: "checkout main" } });
+    // A click after `che`: the caret lands, the mouse comes up, React reports the selection.
     input.setSelectionRange(3, 3);
     fireEvent.mouseUp(input);
     expect(getAllByRole("option").map((o) => o.firstChild?.textContent)).toEqual(["checkout", "cherry-pick"]);
     key(input, "Tab");
     expect(getByTestId("value").textContent).toBe("checkout ckout main");
     expect(input.selectionStart).toBe(9);
+  });
+
+  it("mounted with text, opens no list until something is typed, not on a caret move", () => {
+    const { getByRole, queryByRole } = render(<Harness initial="sta" />);
+    const input = getByRole("combobox") as HTMLInputElement;
+    expect(queryByRole("listbox")).toBeNull();
+    input.focus();
+    input.setSelectionRange(1, 1);
+    fireEvent.mouseUp(input);
+    expect(queryByRole("listbox")).toBeNull();
+    fireEvent.change(input, { target: { value: "stas" } });
+    expect(queryByRole("listbox")).not.toBeNull();
   });
 
   it("↑ on an empty field recalls history newest first; ↓ returns to what was typed", () => {
