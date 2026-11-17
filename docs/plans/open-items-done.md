@@ -2722,3 +2722,53 @@ branch: run 41032359500, green on three OS.
     prompt, Cancel, the details pane's bars).
   - Plan: `docs/archive/plans/2026-11-13-dock-end-key-focus-plan.md`. Plan commit: `20dbeef2`. The branch's three
     commits (`fa39e797`, `6ea40654`, `42359765`; the walk record cites the first and the last) are one on `main`.
+- **The keyboard focus survives a control that goes away, in the dock, across a width and in the Changes view**
+  (`0a1554f2`, 2026-11-17). *From `open-items.md` §AX, whose row named the dock's prompt, Cancel and the details
+  pane's bars.*
+  - **What was wrong:** when the focused control was removed, the focus fell to `<body>`, and arrows, letters, Space
+    and Enter did nothing until the next Tab or click. Measured on both VMs on v0.10.26's code
+    (`docs/archive/walks/2026-11-14-focus-loss-measurement.md`): Ctrl+` from the dock's prompt, which also threw away
+    the text typed there; Cancel going away, by Enter on it or when its operation ended; and a window width crossing
+    1340 or 800 px, which rebuilds the details pane and the commit panel under the file list, the diff and
+    *Summary*. Maximizing or restoring a window usually crosses 1340 px (reasoned, not measured).
+  - **What changed:**
+    - in the dock, the header's toggle takes the focus when the dock closes under a focus inside it, and when
+      Cancel goes away under the focus (D1, confirmed by the owner; it rewrites decision B of the 2026-11-13 plan);
+    - the prompt keeps its typed text across a close and a reopen, and a field that appears with text opens its
+      completion list only once its text is edited (D2);
+    - across a rebuilt layout, the same control (by tag, role and name) takes the focus back, a text field with its
+      selection, and a control on a file row hands it to its list (D3, the second half ruled by the owner);
+    - the Changes view does the same when the tree turns dirty or clean, so *Summary* and *Body* keep the focus
+      while a file changes on disk (ruled "fix now" by the owner at the triage, after the walk measured the loss).
+  - Checks:
+    - new unit tests for each rule, among them `useKeepFocus.test.tsx` (13 cases); the Changes view's case fails
+      with the hook's key held fixed (shown by running it);
+    - `tsc`, the full suite (85 files, 1321 tests) and the build; no Rust file changed;
+    - a plan review of four passes and a change review of four, each ending clean;
+    - the walk on both VMs at `3977b5b6`: every row with an expectation passed on both, but for two: Ctrl+` from
+      the log applies on Windows only, and passed there; the tab switch away from Cancel could not be reached. Then
+      the re-walk at `c28b77e7`, three rows with an expectation, all passed on both
+      (`docs/archive/walks/2026-11-14-focus-loss-walk.md`; smoke group CB).
+  - **Accepted by the owner, 2026-11-14 (`open-items.md` §Q):** a control with no counterpart in the new layout
+    stays lost (D4), across a width and across the Changes view's swap.
+  - **Two misses,** neither in the code:
+    - the plan read that Cancel also goes away when a tab switch shows another repository's operations. The app
+      refuses a tab switch while an operation runs, so the walk could not reach that on either VM. The code and
+      its unit test for it stay;
+    - the change review reasoned that on macOS a pointer close of the dock with the focus inside it now ends with
+      the focus on the toggle, and the owner accepted that as a limit on 2026-11-14. The records review found the
+      premise wrong by the app's own code comments, written from a macOS finding (`Menu.tsx:141-142` and `:392`:
+      macOS WebKit drops the focus to `<body>` at the press of a click on a button), so nothing changes there. The
+      owner ruled on 2026-11-17 to drop the limit. macOS is not walked.
+  - **Left as they are,** taken under the owner's 2026-10-21 rule and listed to the owner:
+    - the Changes view's test file sets `window.innerWidth` and never restores it, which is older than this change;
+    - the app's own ring mark (`data-kbd`) on a control that took the focus back follows the last input that was
+      not a Ctrl shortcut: a key sets it, a click does not. On Windows `:focus-visible` can still draw a ring after
+      a click, on a text field and after Ctrl+`, as recorded above;
+    - `data-kbd` stays on elements after they lose the focus (seen on Linux), as recorded for the dock's bar above.
+  - **What it leaves:** the open row in `open-items.md` §AX (a switch of view, a dialog's replaced opener, a control
+    that turns disabled under the focus, as *Stage all* and *Stash…* do, a toast's *Dismiss*, the toolbar and the
+    sidebar across a width, the log across a tab switch, a menu over a rebuilt pane).
+  - Plan: `docs/archive/plans/2026-11-14-focus-loss-plan.md`. Plan commit: `bbbe4881`. The branch's five commits
+    (`5a10c2c7`, `92924531`, `3977b5b6`, `87bbe92d`, `c28b77e7`; the walk record cites the third and the last) are
+    one on `main`.

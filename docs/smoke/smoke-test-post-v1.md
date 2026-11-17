@@ -3801,6 +3801,108 @@ row 6's theme switch writes `recents.json`.
 Not a row: a mouse drag of the bar down onto the header closes the dock and leaves the focus on `<body>`. The
 library takes the focus off a bar when a drag that moved it ends; it is left so (the plan's decision A).
 
+Rows 1 to 4 were walked again on 2026-11-14 with group CB's fix (branch `focus-loss` at `3977b5b6`): pass on both.
+
+## CB. The keyboard focus when its control goes away
+
+Plan: `docs/archive/plans/2026-11-14-focus-loss-plan.md`; walk record
+`docs/archive/walks/2026-11-14-focus-loss-walk.md`; the readings before the fix are in
+`docs/archive/walks/2026-11-14-focus-loss-measurement.md`. A focused control that was removed used to leave the
+keyboard on `<body>`: arrows and letters did nothing until the next Tab or click. In the output dock the header's
+toggle now takes the focus, and across a window width that rebuilds the details pane or the commit panel the same
+control takes it back, or a file row's control hands it to its list; the Changes view does the same when its tree
+turns dirty or clean. Windows VM over CDP on a local `tauri build --no-bundle`, and Linux VM over WebDriver on the
+`.smoke` build (`docs/smoke/smoke-cdp.md`, `docs/smoke/smoke-linux.md`). macOS: not walked.
+
+Fixture: `work` (`smoke-fixtures.ps1 -Root C:\tmp\t4fl`, or `T4_ROOT=/tmp/t4fx` with `smoke-fixtures.sh`), at
+1280×800 unless a row names a width; its `slow` remote holds an operation open for the Cancel rows. Use real keys
+and a real pointer, never `.focus()` or `.click()` from script. Set the window's width through the driver
+(`setWindowBounds`, or WebDriver's window rect) and check `innerWidth` each time. Before each step keep the focused
+element in a page variable; "a new node" means `document.activeElement` is not that element and that element reads
+`isConnected` false; "the same node" means `===`. The app's own ring mark (`data-kbd`) follows the last input that
+was not a Ctrl shortcut: a key sets it, a click does not. On Windows `:focus-visible` can still draw a ring after a
+click, on a text field and after Ctrl+` (group CA, row 3).
+
+On Windows the store folder (`%APPDATA%\dev.topher.t4gitui`) is backed up before launch and restored, `cmp`'d, after.
+
+- [x] 1. **Ctrl+` from the dock's prompt:** a click in *Run git command*, Ctrl+` → the dock collapses and the focus is
+      on the toggle, labelled *Expand output*.
+
+      *(Walked 2026-11-14 on a Windows release build and a Linux debug build of `3977b5b6`: pass on both. No ring,
+      since the last input before the shortcut was the click.)*
+- [x] 2. **The prompt keeps its text:** `status` typed, Ctrl+` twice → the text is back and no completion list is
+      open. A click in the text opens none; an edit that leaves a match opens it. After a command was run, ↑ walks
+      the history.
+
+      *(Walked 2026-11-14, Windows and Linux, `3977b5b6`: pass.)*
+- [x] 3. **Enter on Cancel, the dock open:** `fetch slow` run from the prompt, Shift+Tab to Cancel, Enter → the
+      operation is cancelled and the focus is on the toggle, *Collapse output*, with its ring.
+
+      *(Walked 2026-11-14, Windows and Linux, `3977b5b6`: pass. Windows needs three Shift+Tab, the log being in the
+      tab order there, and Linux two.)*
+- [x] 4. **Enter on Cancel, the dock collapsed:** during `fetch slow`, Ctrl+` from the prompt → the toggle; Shift+Tab →
+      Cancel in the collapsed header; Enter → the focus is on the toggle, *Expand output*, with its ring.
+
+      *(Walked 2026-11-14, Windows and Linux, `3977b5b6`: pass.)*
+- [x] 5. **Cancel leaves by itself:** Cancel focused by key during `fetch slow`, nothing pressed → when the operation
+      ends, after about 60 s, the focus is on the toggle, with its ring.
+
+      *(Walked 2026-11-14, Windows and Linux, `3977b5b6`: pass.)*
+- [x] 6. **Ctrl+` from the log (Windows):** Tab onto the log (*Command output*), Ctrl+` → the focus is on the toggle.
+      On Linux the log takes no focus, so the row does not apply there.
+
+      *(Walked 2026-11-14, Windows, `3977b5b6`: pass.)*
+- [x] 7. **Left alone:** from the prompt, a mouse click on the toggle → the focus on the toggle, no ring. The revision
+      grid focused by a click, Ctrl+` twice → the same grid node. Cancel focused by key while `fetch slow` runs,
+      Ctrl+` → the dock collapses and Cancel keeps the focus. An operation ending with the grid focused → the same
+      grid node.
+
+      *(Walked 2026-11-14, Windows and Linux, `3977b5b6`: pass.)*
+- [x] 8. **The file list across 1340 px:** History view, a commit with several files, *Changed files* reached by Tab at
+      1400 px wide; to 1300 and back → each time a new node holds the focus, with its ring, and one ↓ moves the
+      selection at once. The same for the diff (*Diff*) and for *Unified view*.
+
+      *(Walked 2026-11-14, Windows and Linux, `3977b5b6`: pass.)*
+- [x] 9. **The file list across 800 px, and across both at once:** the list focused by key, 1300 → 780 → 1300, then
+      780 → 1400 in one step → a new node with the focus and its ring each time; the selected file is kept.
+
+      *(Walked 2026-11-14, Windows and Linux, `3977b5b6`: pass.)*
+- [x] 10. **Summary across 800 px:** Changes view at 820 px, *Summary* reached by Tab, some words typed, ← a few
+      times; to 780 and back → a new node with the focus each time, the same text and the caret at the same place.
+
+      *(Walked 2026-11-14, Windows and Linux, `3977b5b6`: pass.)*
+- [x] 11. **A file row's control hands the focus to its list:** Changes view in tree mode at 820 px, a folder row
+      clicked twice (it ends as it was) → 780: the *Unstaged files* tree has the focus, with no ring, and ↓ moves the
+      selection. A file's *Stage* button pressed and released outside the list (nothing is staged: check
+      `git diff --cached`), then the width changed → the tree again. The same for a folder row of the History view's
+      file list in tree mode, 1400 → 1300 → the *Changed files* tree.
+
+      *(Walked 2026-11-14, Windows and Linux, `3977b5b6`: pass. On Linux the `nowhere` remote's error toast lay over
+      the *Stage* button at 820 px and had to be dismissed first.)*
+- [x] 12. **Kept as before the fix, the same node:** the bar *Resize commit details* focused by key, 1400 → 1300 → the
+      same node, now *Resize side column*; the revision grid, 1400 → 1300; the History view's diff, 1300 → 780; the
+      Changes view's diff (Tab lands on a diff line), 820 → 780.
+
+      *(Walked 2026-11-14, Windows and Linux, `3977b5b6`: pass.)*
+- [x] 13. **Typing in Summary while the tree turns dirty, and clean again:** Changes view on a clean tree (a clean
+      clone, or everything committed from a terminal), some words typed in *Summary*, the caret moved left; a line
+      appended to a tracked file from a terminal → the pane shows the file lists, and *Summary* has the focus as a
+      new node, with its text and its caret; a typed character lands at the caret. `git restore` on that file → back
+      at *Working tree clean*, *Summary* has the focus as a new node, with its text and its caret.
+
+      *(Walked 2026-11-17 on a Windows release build and a Linux debug build of `c28b77e7`: pass on both, with
+      Summary reached by Tab and by click. Row 10 again on that build: pass on both.)*
+
+Not rows:
+
+- **A control with no twin in the new layout stays lost** (an accepted limit, `open-items.md` §Q). *Copy SHA* reached
+  by Tab at 1300 px, then 780, where the commit details fold → `<body>`; Tab then lands on *Show commit details*, at
+  the details' place. Walked 2026-11-14 on both VMs: as designed. The same in the Changes view: the *Unstaged files*
+  list focused by key, then the tree made clean from a terminal → `<body>` (measured 2026-11-17 on both VMs, a
+  reading with no expectation).
+- **A tab switch while Cancel holds the focus** cannot be reached: the app refuses a tab switch while an operation
+  runs (the toast *Operation in progress*), on both VMs.
+
 ## Reporting
 
 As in the main doc: for anything that fails, note the group and bullet (`G2`), what you saw, and the

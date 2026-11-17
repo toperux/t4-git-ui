@@ -1,9 +1,9 @@
 # Plan: the keyboard focus survives a control that goes away
 
-_Drafted 2026-11-14 against `main` `fea9207e` (the code of v0.10.26). Status: **final after review pass 4
-(2026-11-14); not started, it waits for the owner's go.**
-Measurement: `docs/archive/walks/2026-11-14-focus-loss-measurement.md`. The row it answers:
-`docs/plans/open-items.md` §AX._
+_Drafted 2026-11-14 against `main` `fea9207e` (the code of v0.10.26). Status: **done:** the fix is `0a1554f2` on
+`main` (2026-11-17). Measurement: `docs/archive/walks/2026-11-14-focus-loss-measurement.md`; the walk and the
+re-walk are `docs/archive/walks/2026-11-14-focus-loss-walk.md`. The records are in `docs/plans/open-items-done.md`
+§AX, with what is left in `docs/plans/open-items.md` §AX and one accepted limit in its §Q._
 
 **Goal:** a keyboard user whose focused control disappears keeps a working place in the window: in the output dock,
 and when the window's width rebuilds the details pane or the commit panel.
@@ -29,7 +29,8 @@ the same code over WebDriver), unless a line says read or reasoned.
     (`OutputDock.tsx:72`).
   - Cancel in the header exists only while the last operation shown runs (`OutputDock.tsx:37-41`). It went away
     under the focus after Enter on it, with the dock open and collapsed, and when the operation ended by itself.
-    Read: it also goes when a tab switch shows another repository's operations.
+    Read: it also goes when a tab switch shows another repository's operations. (The walk of step 9 could not
+    reach that: the app refuses a tab switch while an operation runs. The code and its test for it stay.)
   - Reasoned from one Windows reading (Cancel took three Shift+Tab with output present): on WebView2 the log, a
     scroller with no `tabindex`, can hold the focus too, and is unmounted with the open dock in the same way.
 - **The window's width, two panes.** `DetailsPane.tsx:60-112` returns a different tree for each of three layouts,
@@ -68,6 +69,14 @@ the same code over WebDriver), unless a line says read or reasoned.
   still: a click on the toggle, Ctrl+` with the focus outside the dock, Ctrl+` with the focus on a Cancel that
   stays. Not taken: going back to whatever held the focus before the dock was entered (it needs a record of that,
   and the element may be gone too); the prompt after Cancel (it exists only in the open dock).
+  - **A difference on macOS that was noted and then withdrawn.** The change review reasoned that a click on the
+    toggle with the focus inside the dock would, on macOS, end with the focus on the toggle, where before it fell to
+    `<body>`: a click focuses no button there, so the dock would close under the focus. The owner accepted that at
+    the triage of 2026-11-14. The records review of 2026-11-17 found the premise wrong by the app's own code
+    comments: macOS WebKit drops the focus to `<body>` at the press of a click on a button (`Menu.tsx:141-142` and
+    `:392`, written from a macOS finding), so the focus is already outside the dock when it closes and this rule
+    moves nothing, as before the fix. The owner ruled the same day to drop the limit. On Windows and Linux the
+    click focuses the toggle itself (walked). macOS is not walked, so both readings are reasoned.
 - **D2. The prompt's text survives a close and a reopen** (taken under the owner's 2026-10-21 rule, listed
   2026-11-14). The state moves from `DockPrompt` to `OutputDock`, which stays mounted. It is shared across the
   window's tabs, as today (`DockPrompt` is not keyed by the repository). The completion list does not open by itself
@@ -83,9 +92,12 @@ the same code over WebDriver), unless a line says read or reasoned.
     `aria-label`; for a form field without one, the text of its `<label>`; otherwise the element's own text.
   - **Before the rebuild,** if the focused element is inside the pane, note it, its tag, role and name, the same for
     each of its ancestors inside the pane that has a `tabindex` attribute, and for a text field its selection.
-  - **After the rebuild,** if the noted element is gone: take the noted entries from the element outwards, and focus
-    the first whose tag, role and name fit exactly one element of the new tree, if that one is not disabled (two
-    that fit, or one that is disabled, is no fit). If none does, do nothing, as today.
+  - **After the rebuild,** if the focus is still lost (on `<body>`): take the noted entries from the element
+    outwards, and focus the first whose tag, role and name fit exactly one element of the new tree, if that one
+    takes the focus, itself or by passing it on to a child of its own (two that fit, or one that refuses the focus,
+    being disabled, hidden or without a `tabindex`, is no fit). If none does, do nothing, as today. A focus that is
+    not lost is never moved: the element survived, or a control of the new layout focused itself. (The first form
+    said "if the noted element is gone" and "if that one is not disabled"; the change review widened both.)
   - A row's control finds no twin, so the entry that fits is its list, which is there from the first commit and has
     a `tabindex` (read, for all four lists). That no row exists at that moment is reasoned from the list library,
     not measured; an entry that fits two elements is skipped in any case, so the focus does not land on one of
@@ -94,8 +106,9 @@ the same code over WebDriver), unless a line says read or reasoned.
   - One case to know: the two-column layout's own bar *Resize commit details* has no twin at its place in three
     columns, and the one bar of that name there is the first bar, so the focus lands on it. It is the bar that
     resizes the commit details in that layout, on the other axis (read: ← and → move it, not ↑ and ↓).
-- **D4. A control that the new layout does not have, and that sits in no list, stays lost (proposed; to be listed at
-  the triage as an accepted limit).** Tab still continues from the place. Known cases, read:
+- **D4. A control that the new layout does not have, and that sits in no list, stays lost. Accepted by the owner at
+  the triage, 2026-11-14 (`open-items.md` §Q),** and again the same day for the Changes view's swap between a clean
+  and a dirty tree, once that swap used the hook. Tab still continues from the place. Known cases, read:
   - every control of the commit details when the narrow layout folds them: *Copy SHA*, the parent links, the "+N"
     ref chip, a stash's buttons;
   - *Show commit details*, which only the narrow layout has (the Linux VM saw that loss, 780 → 1400);
@@ -213,6 +226,9 @@ Each of these goes into the open row, with what is known.
 - **The Changes view swapping its message column** when the tree goes from clean to dirty or back
   (`ChangesView.tsx:58-74`; reasoned, not measured): a commit that cleans the tree, or a file changing on disk while
   a message is typed on a clean tree, would drop the focus. Step 9 measures it; a fix would be its own plan.
+  **Fixed after all:** the walk measured the loss while typing on both VMs, and the owner ruled "fix now" at the
+  triage. `ChangesView` uses the hook of step 5 on its own root, keyed by clean or dirty (see the review record).
+  The commit that cleans the tree and closes the view by itself is a switch of view, and stays in the open row.
 - **The toolbar and the sidebar across a width** (reasoned only): `Toolbar.tsx` picks its contents by width too, and
   the sidebar folds to a rail below 1000 px.
 - **A dialog that returns the focus to its opener** (*Open diff window*, *Open commit window*): after a rebuild
@@ -281,3 +297,54 @@ Each of these goes into the open row, with what is known.
     at once; the walk's row for a row's control names the tree mode for the History list, where the *Stage* press
     is released, and "no ring until the first key".
 - **Pass 4 (2026-11-14): no defects.** The changed sentences agree with the code and with the rest of the plan.
+- **The owner's go, 2026-11-14.** Steps 1 to 6 the same day on the branch `focus-loss` (`5a10c2c7`): `tsc` clean, 85
+  test files and 1316 tests passed, the build passed. No Rust file changed.
+- **Step 8, the change review: three passes.**
+  - Pass 1: the hook's hand-back was hardened. It acts only while the focus is still lost, so it never moves a focus
+    that an element which survived, or a control of the new layout, holds; it goes on to the next entry when the one
+    twin refuses the focus; and it puts a selection back only on a field that has one, since a checkbox throws
+    there (`92924531`). The macOS difference under D1 was noted here; it was withdrawn on 2026-11-17.
+  - Pass 2: a twin that passes the focus on to a child of its own, as the diff does to its cursor row, counted as
+    having refused it, and the focus went on to the next entry: it counts as taken now (`3977b5b6`).
+  - Pass 3: clean. 85 files and 1320 tests, `tsc` and the build passed. D3's text above was brought in line with
+    the code.
+- **Step 9, the walks, 2026-11-14,** on both VMs at `3977b5b6`
+  (`docs/archive/walks/2026-11-14-focus-loss-walk.md`): every row with an expectation passed on both.
+  - The toggle takes the focus after Ctrl+` from the prompt, after Enter on Cancel with the dock open and collapsed,
+    and when Cancel leaves by itself; the prompt keeps its text and opens no list until the text is edited.
+  - Across 1340 and 800 px, and across both in one step, the file list, the diff, *Unified view* and *Summary* take
+    the focus back as new nodes, and the arrows work at once; a folder row's and a *Stage* button's focus goes to
+    the list. What was kept before the fix is still the same node.
+  - Ctrl+` from the log applies on Windows only: on Linux the log takes no focus.
+  - **One row could not be reached:** a tab switch away from a running Cancel. The app refuses a tab switch while
+    an operation runs, so this plan's reading that Cancel also goes that way does not happen in the app.
+  - Measured on the way, as planned: a commit that cleans the tree closes the Changes view and the focus falls to
+    `<body>`; a file changing on disk while typing in *Summary* on a clean tree drops the focus, the text kept;
+    Escape from a diff window that was open across a resize ends on `<body>`. Seen too: *Stage all* loses the focus
+    while it runs, and Alt+1 and Alt+2 lose it.
+- **The triage (the owner, 2026-11-14):** the loss while typing is fixed now; D4's limit is accepted; the macOS
+  difference under D1 is accepted (withdrawn on 2026-11-17, see D1). Taken under the owner's 2026-10-21 rule and
+  listed: the commit that closes the view, the dialog's opener, *Stage all*, the switch of view, the toast's
+  *Dismiss*, the toolbar and the sidebar, the *Stage all* click that staged nothing once, and the row that could
+  not be reached all go into the open row or the records.
+- **The fix for the Changes view, 2026-11-14** (`87bbe92d`, and its comment in `c28b77e7`): a ref on the view's root
+  and the hook keyed by clean or dirty, with one test of both directions that fails when the hook's key is held
+  fixed. 85 files and 1321 tests, `tsc` and the build passed. Change review pass 4: no defect. The two hooks cannot
+  both act in one render (the commit panel's mounts or unmounts in the swap, and holds no note then), and no
+  control gets another's focus. Taken from it: the comment names every cause of the swap. Put to the owner, who
+  accepted it: the controls with no twin across the swap fall under D4. Left as it is and listed: the test file
+  sets `window.innerWidth` and never restores it, which is older than this change.
+- **The re-walk, 2026-11-17,** on both VMs at `c28b77e7` (the walk record's last section): the three rows with an
+  expectation passed on both. *Summary* keeps the focus, its text and its caret as a new node when the tree turns
+  dirty and when it turns clean again, reached by Tab or by click, and a typed character lands at the caret; across
+  800 px it behaves as in the first walk. Read with no expectation: *Body* keeps the focus and its selection too;
+  under D4, a focus on the *Unstaged files* list falls to `<body>` when the tree turns clean; so does a focus on
+  *Stash…*, which stays and turns disabled, a loss of another kind that goes into the open row beside *Stage all*.
+- **Step 11, 2026-11-17:** the branch's five commits are one on `main`, `0a1554f2`, with the same tree as
+  `c28b77e7`.
+- **The records review, 2026-11-17, three passes.** Pass 1: ten points, all taken. Among them: *Stash…* was filed
+  under D4, though it has its twin and loses the focus by turning disabled; *Show commit details* was listed as
+  read when the measurement had it; "a click gives no ring" holds for the app's own mark only; and the macOS note
+  under D1 rests on a premise that the app's own code comments contradict. That last one went to the owner, who
+  ruled to drop the accepted limit and record the correction (see D1). Pass 2: five small points of wording, order
+  and layout, all taken. Pass 3: clean.

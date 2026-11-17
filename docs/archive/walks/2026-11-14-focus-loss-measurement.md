@@ -2,9 +2,9 @@
 
 Two VM sessions measured, read-only, where the keyboard focus goes in T4 Git UI when the control that holds it
 disappears. The Windows VM ran the installed 0.10.26 over CDP. The Linux VM ran a `.smoke` debug build of `49c49f37`
-(WebKitGTK) over WebDriver. This is the factual base of `docs/plans/2026-11-14-focus-loss-plan.md`; it follows the open
-row in `docs/plans/open-items.md` §AX. It ticks nothing, commits nothing and fixes nothing. Every reading is measured
-on the VM unless it says otherwise.
+(WebKitGTK) over WebDriver. This is the factual base of `docs/archive/plans/2026-11-14-focus-loss-plan.md`; it follows
+the open row in `docs/plans/open-items.md` §AX. It ticks nothing, commits nothing and fixes nothing. Every reading is
+measured on the VM unless it says otherwise.
 
 ## Result
 

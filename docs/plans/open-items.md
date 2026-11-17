@@ -782,6 +782,28 @@ phases that accepted them; each origin keeps a pointer.
   reaching the page. Accepted 2026-11-13 by the owner. Not taken: space between the scrollbar and the bar.
   **Reopen:** a report that the bar is hard to grab on Linux, or the next sidebar layout work. *From
   `docs/archive/walks/2026-11-13-deps-npm-walk.md`.*
+- **A focused control that the new layout does not have stays lost** (accepted by the owner, 2026-11-14; D4 of
+  `docs/archive/plans/2026-11-14-focus-loss-plan.md`). When the window's width rebuilds the details pane or the commit
+  panel, or the Changes view swaps between a clean and a dirty tree, the control that held the focus takes it back
+  only if the new layout has exactly one control of the same kind and name; a file row's control hands it to its
+  list. A control with neither leaves the focus on `<body>`, as before the fix; Tab continues from about its place.
+  - **Measured across a width:** *Copy SHA* into the narrow layout, where the commit details fold: `<body>`, and Tab
+    lands on *Show commit details* (both VMs, 2026-11-14). *Show commit details*, which only the narrow layout has:
+    `<body>` across 780 → 1400 (the Linux VM, 2026-11-14, in the measurement before the fix).
+  - **Read from the code, not walked,** across a width: the other controls of the folded commit details (the parent
+    links, the "+N" ref chip, a stash's buttons); the bars *Resize file list*, the two-column layout's own *Resize
+    commit details* into the narrow layout, *Resize commit message* and *Resize message row*; *Commit options* from
+    two columns to three, and the controls under it from three to two; an open *Message history* menu.
+  - **Measured across the clean and dirty swap** (both VMs, 2026-11-17): with the focus on the *Unstaged files*
+    list, a tree that turns clean leaves it on `<body>`; the next Tab landed on *Resize commit message* on Windows
+    and on the view's *Close* on Linux.
+  - **Read from the code, not walked,** across that swap: going clean, the rows of the file lists, the diff and its
+    header, and *Open commit window*; below 800 px, the folded commit options, and the bar that the other tree does
+    not have (*Resize commit message* going dirty, *Resize message row* going clean).
+
+  Not taken: a rule for where the focus goes when its control has no counterpart. **Reopen:** a report of a lost
+  focus after a resize or while the Changes view changes, or the next focus work on these panes. *From
+  `docs/archive/walks/2026-11-14-focus-loss-walk.md` and `docs/archive/walks/2026-11-14-focus-loss-measurement.md`.*
 
 ## R. Added 2026-09-29 — close-out Phase 2a's change review, deferred
 
@@ -1227,19 +1249,48 @@ fixed (`open-items-done.md` §AX).
 ## AX. Added 2026-11-13 — the output dock's resize bar and the keyboard focus
 
 From `docs/archive/plans/2026-11-13-dock-end-key-focus-plan.md` and
-`docs/archive/walks/2026-11-13-dock-end-key-focus-walk.md`; the closed rows are in `open-items-done.md` §AX.
+`docs/archive/walks/2026-11-13-dock-end-key-focus-walk.md`; the closed rows are in `open-items-done.md` §AX. The row
+below is what `docs/archive/plans/2026-11-14-focus-loss-plan.md` left: the dock, the width change and the Changes
+view's swap are fixed (`open-items-done.md` §AX), and one accepted limit is in §Q (a control with no twin in the new
+layout).
 
-- **A control that goes away under the focus leaves the keyboard on `<body>`.** Three places, seen or read while the
-  dock bar's loss was fixed, each older than that fix:
-  - **Ctrl+` with the focus in the dock's prompt:** the prompt unmounts with the open dock. Measured on both VMs, on
-    the fix and on `main`.
-  - **Enter on Cancel in the dock's header:** the operation ends and the button, which exists only while one runs,
-    unmounts. Measured on both VMs on the fix; the same on `main` by the code, not walked there.
-  - **The details pane's resize bars,** which mount by layout tier (`DetailsPane.tsx`) and could unmount under the
-    focus when the window changes tier. Reasoned only.
+- **A control that goes away under the focus still leaves the keyboard on `<body>` in these places.** Arrows and
+  letters then do nothing until the next Tab or click. Each needs its own answer to where the focus should go; none
+  is fixed. Measured on both VMs on 2026-11-14 unless a line says otherwise
+  (`docs/archive/walks/2026-11-14-focus-loss-walk.md`, `docs/archive/walks/2026-11-14-focus-loss-measurement.md`).
+  - **A switch of view:** Alt+1 or Alt+2 with the focus on a control only the old view has. The same when a commit
+    that cleans the tree closes the Changes view by itself (the setting *Close the Changes view after a commit that
+    leaves nothing to commit*): the focus was in *Summary*, and on Linux the next Tab landed on the revision grid.
+  - **A dialog's opener replaced while the dialog is open:** the diff window opened from *Open diff window*, the
+    window resized across 1340 px, Escape → `<body>`; with no resize the focus returns to the opener (tried on the
+    Windows VM only). On Linux the next Tab landed on the first tab of the tab strip. Reasoned, not measured: the
+    same for any dialog, menu or palette that returns the focus to the control that opened it, when a rebuild
+    replaces that control meanwhile.
+  - **A control that turns disabled under the focus.** *Stage all* while it runs: a click focuses the button, it
+    reads *Operation in progress* (disabled, read from the code) and the focus goes. *Stash…* when the tree turns
+    clean: the button stays, reads *Nothing to stash*, is disabled, and the focus goes; the next Tab landed on the
+    view's *Close* (both VMs, 2026-11-17).
+  - **A toast's *Dismiss* when the toast leaves by itself** (seen on the Windows VM during the measurement, not
+    driven as a row). The question there is whether a toast that holds the focus should wait.
+  - **The toolbar and the sidebar across a width** (reasoned only): `Toolbar.tsx` picks its contents by width, and
+    the sidebar folds to a rail below 1000 px.
+  - **The log across a tab switch** (WebView2 only, where the log can hold the focus; read): it is rebuilt per
+    repository.
+  - **A menu open over a pane that is rebuilt** (read): the menu is drawn outside the pane, and the rebuild takes
+    away the row that owns it.
 
-  Each needs its own answer to where the focus should go. Deferred 2026-11-13 under the owner's 2026-10-21 rule.
-  **Reopen:** the next keyboard-focus work on the dock or the details pane, or a report of a lost focus there.
+  Seen beside these, not a loss of focus:
+  - on the Linux VM the first click on *Stage all*, made just after a click into *Summary*, staged nothing, and the
+    second staged all six files (seen once, not looked into);
+  - on the Linux VM the fixture's error toast (a remote that cannot be reached) stayed up and lay over a file row's
+    *Stage* button at 820 px, so a press landed on the toast;
+  - a rebuilt pane also starts its diff and its *Body* field at the top, and a message column rebuilt into the
+    narrow layout starts with its commit options folded (reasoned from the rebuild, not measured);
+  - where Ctrl+` puts the focus when it reopens the dock is unchanged.
+
+  Deferred 2026-11-13, and again at the triage of 2026-11-14, under the owner's 2026-10-21 rule. **Reopen:** the
+  next keyboard-focus work on the views, the dialogs or the toolbar, or a report of a lost focus in one of these
+  places.
 
 ## Order
 
