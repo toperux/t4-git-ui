@@ -986,8 +986,10 @@ record), each with a reopen trigger.
 - **L1: the Linux AppImage update writes the new image at the installed path, not beside it.** While it is written
   the path holds a short file: about 1 s at the v0.10.21 gate (20:04:07.565–08.516, the first sample at 0 bytes),
   about 0.43 s at the v0.10.20 gate, about 0.1 s on 2026-11-14 on the update from 0.10.25
-  (`docs/archive/walks/2026-11-14-v0.10.26-update-walk.md`). A crash or power loss inside that window would leave a
-  broken AppImage (reasoned, not tried).
+  (`docs/archive/walks/2026-11-14-v0.10.26-update-walk.md`), about 0.49 s and 0.55 s in two runs on 2026-11-17 on
+  the update from 0.10.26 (`docs/archive/walks/2026-11-17-v0.10.27-update-walk.md`; the updater there is 2.14.1,
+  whose source was not read for this row, and both runs showed the new inode and the staging directory as before).
+  A crash or power loss inside that window would leave a broken AppImage (reasoned, not tried).
   - **The mechanism, read in `tauri-plugin-updater`'s source, not run** (2.13.1, the updater at the gates, and
     2.14.0, the one in 0.10.25, do the same): the installed image is renamed into a `tauri_current_app` directory on
     its own device, the new bytes are written to the image's path as a new file, and the directory is removed when
@@ -1221,13 +1223,22 @@ focus test under `jsdom` 31) is in §Q too. #46 (`docs/archive/plans/2026-11-12-
 accepted limit in §Q (the sidebar's resize bar beside a scrollbar on Linux) and a row on the dock's End key, since
 fixed (`open-items-done.md` §AX).
 
-- **#42's exit and update changes ship untested until an update walk.** The installed copy is the one that runs an
-  update, so three things first run on the update from v0.10.26 to the release after: the fix inside a real AppImage
-  (the relaunch releases the single-instance lock first, `2f6740bb`), `tauri-plugin-updater` 2.14.1's signature
-  check on `base64` 0.23.1, and the Windows update path's earlier lock release. The relaunch order was run on the
-  Linux VM with throwaway builds that force the race (the walk's relaunch row); the other two are read, not run. Walk
-  that update on the Windows VM and as a Linux AppImage (D1 of the plan; beside §AM's two update walks). **Close:**
-  that walk's record in `docs/archive/walks/`.
+- **#42's exit and update changes, untested until an update walk:** walked 2026-11-17 on the update from v0.10.26
+  to v0.10.27, on the Windows VM and as a Linux AppImage; moved to `open-items-done.md` §AW.
+- **On Windows each in-app update leaves its installer behind in `%TEMP%`.** After the update to 0.10.27 the folder
+  `T4 Git UI-0.10.27-updater-…` still held the installer (6.7 MB), and the one from the update to 0.10.26 three days
+  before was still there too. Measured on the Windows VM; whether the updater, the installer or Windows is meant to
+  remove them was not looked into, and the folders of older updates were not looked for. Deferred 2026-11-17 under
+  the owner's 2026-10-21 rule. **Reopen:** the next work on the update path, or a report about disk space. *From
+  `docs/archive/walks/2026-11-17-v0.10.27-update-walk.md`.*
+- **On Linux a start-screen window opened at 800×600 is squeezed.** A second start of the app opens a start-screen
+  window in the running copy; with the other window minimized it came up at 800×600, where the Start column's card
+  titles wrap (*Open repository…* over two lines) and a horizontal scrollbar shows at the bottom. The size is from
+  the Linux VM's report; the wrap and the scrollbar were seen once, in a half-size screenshot, and not measured.
+  Read in the code, not walked: the new window takes its size from the window it cascades from, minimized windows
+  are skipped (`src-tauri/src/commands/window.rs`, `cascade_from` and the size lookup in `spawn`), and with none
+  left the builder's default size applies, so the same may happen on Windows. Deferred 2026-11-17 under the owner's
+  2026-10-21 rule. **Reopen:** the next start-screen layout work, or a report. *From the same record.*
 - **The Windows picker driver lives only in the VM's scratchpad** (`WM_SETTEXT` + `BM_CLICK`; `smoke-cdp.md:5-6`
   still lists pickers as hand-walked). Deferred 2026-11-11 under the owner's 2026-10-21 rule, and again on 2026-11-13
   (D3 of `docs/archive/plans/2026-11-12-deps-npm-group-plan.md`), when the frame recorder and the `cdp.mjs` options

@@ -2674,6 +2674,37 @@ branch: run 41032359500, green on three OS.
     (each `<svg>` carries the old and the new class); versions newer than the PR's (`lucide-react` 1.71.0, `vite`
     8.3.8, `rolldown` 1.2.19) wait for Dependabot.
   - Plan: `docs/archive/plans/2026-11-12-deps-npm-group-plan.md`. Plan commit: `c923d5b8`.
+- **#42's exit and update changes ran from an installed copy** (walked 2026-11-17, the update from v0.10.26 to the
+  published v0.10.27, on the Windows VM and as a Linux AppImage;
+  `docs/archive/walks/2026-11-17-v0.10.27-update-walk.md`). *From `open-items.md` §AW, where they waited for the
+  release after v0.10.26.* Every update row passed on both, with 0 WARN and 0 ERROR. The second start by hand, which
+  is no row of smoke group AC, failed on Linux under the first harness (below).
+  - **The AppImage relaunch releases the single-instance lock first** (`2f6740bb`, in #42's merge `e147d30a`):
+    measured on the Linux VM on a session bus that outlives the old process. The old copy released the name, the new
+    copy's runtime appeared 15 ms later, the old copy was gone 14 ms after that, and the new copy took the name
+    0.3 s after the release. A second start then exited in about 0.2 s and the running copy opened a start-screen
+    window: one process, one mount.
+  - **`tauri-plugin-updater` 2.14.1 installed the update on both; the signature check is reasoned from the
+    outcome:** the Windows exe in place is 0.10.27 and validly signed, the installer the app ran hashed equal to the
+    published one, and the Linux file at the image's path is the published 0.10.27 asset. No log has an updater
+    line, as in the walks before.
+  - **The Windows update path ran clean; its early release of the lock was not watched:** the old app exited 130 ms
+    after the installer started, there were never two app processes, one came back with its window and repository,
+    and a second start afterwards was turned away by the running copy.
+  - **Under `dbus-run-session` the relaunched copy holds no lock.** The app's private bus dies with the old process,
+    the new copy cannot reach a bus, and a second start became a second copy with the same repository open.
+    `src-tauri/src/lib.rs:147-151` describes that case (no session bus, no single instance). A desktop session's bus
+    outlives the app (reasoned; none was walked). The Linux VM ran the update a second time on a standing bus, so
+    that the new copy's lock and the second start could be measured. Smoke group BI's row 8 already says to walk
+    this without `dbus-run-session`, for that reason; the brief repeated the harness of the 2026-11-14 walk instead.
+  - **One miss of the brief:** it expected a second start to bring the existing window to the front. The running
+    copy opens a new start-screen window instead, on both platforms, as `src-tauri/src/lib.rs:139-147` says it
+    should.
+  - **Not reached,** as before: a desktop session, a crash inside the write of the new AppImage, a failed installer
+    start on Windows (`open-items.md` §Q), macOS.
+  - **What it leaves:** two deferred rows in `open-items.md` §AW (the installer left in `%TEMP%` on Windows, the
+    squeezed 800×600 start-screen window on Linux), and new readings in §AF's row L1 (the new AppImage sat
+    incomplete under its real name for about 0.5 s, against 0.1 s on 2026-11-14).
 
 ## AX. Added 2026-11-13 — the output dock's resize bar and the keyboard focus, closed
 

@@ -759,6 +759,10 @@ they stay clear._
       `docs/archive/walks/2026-10-31-v0.10.25-update-walk.md`,
       `docs/archive/walks/2026-11-14-v0.10.26-update-walk.md`). The last also updated the published 0.10.25 AppImage
       on Linux.
+      Re-walked 2026-11-17, 0.10.26 to 0.10.27, on Windows and as the published AppImage on Linux: Offered on
+      launch, The install and Up to date pass. The record also holds a process watch around the restart and a second
+      start by hand, which handed over on Windows and, on Linux, only on a bus that outlives the app
+      (`docs/archive/walks/2026-11-17-v0.10.27-update-walk.md`).
 - [x] **The toggle governs the launch check only**: switch *Check for updates on launch* off, close
       and reopen the app → no badge, nothing asked → open Settings → **Check now** still answers;
       the setting survives a restart
