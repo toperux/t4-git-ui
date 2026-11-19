@@ -23,11 +23,11 @@
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-clipboard-manager": "^2",
     "@tauri-apps/plugin-dialog": "^2.8.4",
-    "@tauri-apps/plugin-store": "^2.5.0",
-    "lucide-react": "^1.70.0",
+    "@tauri-apps/plugin-store": "^2.5.1",
+    "lucide-react": "^1.73.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "react-resizable-panels": "^4.21.0",
+    "react-resizable-panels": "^4.24.0",
     "zustand": "^5.1.0"
   },
   "devDependencies": {
@@ -38,9 +38,9 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.3.0",
-    "jsdom": "^31.0.0",
+    "jsdom": "^31.0.1",
     "typescript": "~7.0.2",
-    "vite": "^8.3.7",
+    "vite": "^8.3.8",
     "vitest": "^5.1.0"
   }
 }
